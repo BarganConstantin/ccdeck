@@ -364,10 +364,15 @@ button.tool.clickable:last-child { border-bottom: none; }
 .shortcuts .sc span { color: var(--muted); font-size: 12px; }
 
 /* hint row inside empty hero */
+/* A tier under the paragraph above it, not an opacity over it (#1787): 0.75
+   took --muted to 3.33:1 on the dark canvas and 3.83:1 on the light one, and
+   these are the first words a new install reads. --text-dim is the step under
+   --muted on white, and --muted itself in dark, which has no readable tier
+   below it. */
 .empty-hero .hint-row {
   margin-top: 14px;
   font-size: 12px;
-  opacity: 0.75;
+  color: var(--text-dim);
 }
 /* The hint is one line per capture path now (#404), and the 14px that separates
    the block from the paragraph above it is too much between two lines that are

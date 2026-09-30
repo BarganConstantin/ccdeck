@@ -282,7 +282,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
             <>
               {view.rows.length === 0 ? (
                 <div className="ap-proj-state">
-                  {emptyWindowSentence(shownDays)}
+                  {/* No mark here to dim while the next window loads, so the
+                      sentence about the last one gives way (#1787). */}
+                  {refreshing ? "Updating…" : emptyWindowSentence(shownDays)}
                   {wider != null && (
                     <div className="ap-proj-widen-wrap">
                       <button type="button" className="ap-proj-copy" onClick={() => setDays(wider)}>
@@ -316,7 +318,11 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                         that was spent (#1330). */}
                     <span className="ap-proj-total-cost" title={unpricedTitle(view.unpricedTokens)}>{projectCostLabel(view.totalCost, view.unpricedTokens)}</span>
                     <span className="ap-proj-total-tok">{fmtTokens(view.totalTokens)} tokens</span>
-                    <span className="ap-proj-total-win">· {windowWord}</span>
+                    {/* While the next window loads, the figures beside this
+                        are the last window's and about to change: said here,
+                        in words, where the dim on the marks says it in shape
+                        (#1787). */}
+                    <span className="ap-proj-total-win">· {refreshing ? "updating…" : windowWord}</span>
                     {/* pricing.ts's dollars until ccusage answers, reconciled in
                         place when it does — said beside the figure that moves. */}
                     {costPending && <span className="ap-proj-total-pending">Reconciling cost…</span>}

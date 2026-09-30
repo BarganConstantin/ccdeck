@@ -309,13 +309,19 @@
 /* The guessed tool name, riding the warn-coloured readout it qualifies. Lighter
    than the duration on purpose: the duration is measured and this is inferred
    (see BlockedTool in types.ts), so it must not read with the same confidence
-   as the number beside it. Weight and opacity rather than a second colour —
-   a third hue in a row that already carries a state dot, a model chip and a
-   cost is how a sidebar stops being scannable. */
+   as the number beside it. Weight and a fade of the same hue rather than a
+   second colour — a third hue in a row that already carries a state dot, a
+   model chip and a cost is how a sidebar stops being scannable.
+   The fade is a mix toward the panel, not an opacity, so that a theme can
+   decline it (#1787). In dark it is the 0.75 it always was, 7.46:1. The light
+   --warn is 5.43:1 on white and the same fade left it at 3.41:1; nothing short
+   of a 90% mix clears 4.5, which is no step at all, so on white the weight
+   carries it alone. */
 .session-list .sl-waiting-tool {
   font-weight: 500;
-  opacity: 0.75;
+  color: color-mix(in srgb, var(--warn) 75%, var(--panel));
 }
+:root[data-theme="light"] .session-list .sl-waiting-tool { color: var(--warn); }
 
 /* The recap as the row's last line. Three lines where the card has two: this is
    the column a person reads down to choose which session to go back to, and it
