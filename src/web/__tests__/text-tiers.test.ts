@@ -156,6 +156,11 @@ describe("what was migrated to the secondary tier", () => {
       // it on. Prose, in a card whose other line is a verb in the accent.
       ".ap-issue-hint",
       ".ap-lan-intro-text",
+      // The shared text field's placeholder, in dark only: an example, not a
+      // sentence, and --text-dim on white. The field's --ctl-fill is mixed from
+      // the foreground, and --muted and --text-dim on it are 4.05:1 in dark
+      // (#1789).
+      ".ap-manage-input::placeholder",
       // The Projects report's Copy and Show buttons: a control's words, kept
       // here by their bed rather than their role, as the door's line below
       // is. The --sm-fill that raises them takes --muted to 4.25:1 in dark

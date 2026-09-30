@@ -1655,3 +1655,53 @@ describe("small secondary text on the beds it is drawn on (#1788)", () => {
     }
   });
 });
+
+// ── #1789: the placeholder the browser picks when the sheet does not ───────
+//
+// Six fields share .ap-manage-input — the account alias, a LAN peer's name,
+// this machine's name, another deck's address and token, and the radio
+// station's URL — and the sheet gave none of them a placeholder colour. So the
+// browser's applied: Chromium's is a fixed #757575, whatever the theme, and the
+// desktop app is Chromium. On the field's own --ctl-fill that is 3.38:1 in dark
+// and 3.98:1 in light. Firefox would fade whatever colour it got by another
+// 0.54 on top, which is its UA sheet's opacity on ::placeholder.
+
+describe("the placeholder in the deck's shared text field (#1789)", () => {
+  const FIELD = ".ap-manage-input";
+  /** What Chromium's UA sheet paints a placeholder when no rule says otherwise. */
+  const CHROMIUM = "#757575";
+  const placeholder = (theme: Theme) =>
+    themed(`${FIELD}::placeholder`, "color", theme)
+      ?? declFor("input::placeholder", "color")
+      ?? CHROMIUM;
+  /** The fields all sit in a popover, a menu or a dialog, each --panel. */
+  const bed = (theme: Theme) => bedOf(FIELD, theme, parseColor(TOK[theme]["--panel"]));
+
+  it("reproduces the ratios #1789 measured for the browser's grey on the field", () => {
+    expect(contrastRatio(parseColor(CHROMIUM), bed("dark"))).toBeCloseTo(3.38, 2);
+    expect(contrastRatio(parseColor(CHROMIUM), bed("light"))).toBeCloseTo(3.98, 2);
+  });
+
+  it("reads the placeholder at 4.5:1 on the field's own fill, in both themes", () => {
+    for (const theme of themes) {
+      const ink = resolve(placeholder(theme), theme);
+      const r = through(ink, Number(themed(`${FIELD}::placeholder`, "opacity", theme) ?? "1"), bed(theme));
+      expect(r, `${theme} ${FIELD} placeholder ${placeholder(theme)} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+
+  it("takes Firefox's fade off, so the colour measured is the colour drawn", () => {
+    expect(declFor(`${FIELD}::placeholder`, "opacity")).toBe("1");
+  });
+
+  it("keeps the placeholder quieter than a value typed over it, so it never reads as one", () => {
+    for (const theme of themes) {
+      const hint = contrastRatio(resolve(placeholder(theme), theme), bed(theme));
+      const value = contrastRatio(inkOf(theme, FIELD), bed(theme));
+      expect(hint, `${theme} placeholder vs value`).toBeLessThan(value);
+      // And by a real step: the value tier over the placeholder, by the 1.47
+      // that --text-secondary keeps over --muted, at least.
+      expect(value / hint, `${theme} placeholder vs value`).toBeGreaterThanOrEqual(1.47);
+    }
+  });
+});
