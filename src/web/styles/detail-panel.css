@@ -45,6 +45,37 @@
 .app:has(.session-list):not(:has(.detail)) { grid-template-columns: 240px 1fr; }
 .app:has(.accounts-panel):not(:has(.detail)) { grid-template-columns: auto 1fr; }
 
+/* A SHEET OVER THE CANVAS, NOT A COLUMN BESIDE IT, below the sheet's 640px
+   breakpoint (#1790) — the move #849 made for the rails. The 360px track was
+   added whatever the window's width, so on a phone or a zoomed window
+   selecting a session took the canvas to 0px and the grid ran past the right
+   edge, the topbar with it: at 400px with the session list open the page was
+   600px wide, the × at x=588. Here the row keeps the templates it has with no
+   panel, and the panel stands over the canvas from under the topbar to the
+   foot of the window, the whole width of a window narrower than itself. A left
+   panel stays where it is; the sheet covers what it must of it and the × gives
+   it back.
+   `minmax(0, 1fr)` rather than a bare `1fr`, which cannot be narrower than
+   the min-content of what spans it — and the topbar spans it. With the panel
+   out of the row, the bar's readouts, which #849 lets clip, held the one track
+   at 415px on a 320px window.
+   On the rails' layer (20) and after them in the document, so where they meet
+   the panel a selection just opened is the one on top. The desktop layout is
+   untouched. */
+@media (max-width: 640px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .app:has(.session-list) { grid-template-columns: 240px minmax(0, 1fr); }
+  .app:has(.accounts-panel) { grid-template-columns: auto minmax(0, 1fr); }
+  .detail {
+    position: fixed;
+    top: 52px;
+    right: 0;
+    bottom: 0;
+    width: min(360px, 100vw);
+    z-index: 20;
+  }
+}
+
 /* The panel's captions, at both of the levels they now sit at (#381): the
    empty state's own title became this panel's h2 when the document gained an
    h1, and the sections under a selected agent stay h3. The child combinator is

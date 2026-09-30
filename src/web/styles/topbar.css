@@ -131,6 +131,10 @@
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .topbar .brand button.v:active { transform: scale(0.97); }
+/* Inside its own edge, for the reason the waiting chip's is (#1706): the
+   readout clips it and is exactly this chip's 24px tall, so the ring drawn
+   outside lost its top and bottom in all three forms (#1792). */
+.topbar .brand button.v:focus-visible { outline-offset: -3px; }
 /* The same chip when nothing is stale: still a button (clicking it asks npm
    now), but it must not draw attention to itself for saying "up to date". It
    is metadata beside the wordmark, so it wears the toolbar's resting look at
