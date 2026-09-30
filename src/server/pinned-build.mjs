@@ -84,6 +84,11 @@ const PINNED_MODULES = [
   "lan-sync.mjs",
   // The providers' status pages (#1311), reached only from their route.
   "provider-status.mjs",
+  // The environment and usage the reporter adds to a report, all reached only
+  // through import() from reports.mjs so they stay off the fast paths.
+  "cli-versions.mjs",
+  "session-tracking.mjs",
+  "session-enrichment.mjs",
 ];
 
 let _pinned = null;
