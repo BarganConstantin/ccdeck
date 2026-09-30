@@ -437,12 +437,13 @@ describe("the finding is drawn where the switch is", () => {
 
   it("points each surface at the control that surface has", () => {
     // `below` is the dialog's word and only its: the paste field is directly
-    // under the block there. In the panel the same two ways in live behind the
-    // `+` in the header, so a sentence saying `below` would be the panel
-    // sending a reader to look at a field that is not on the screen.
+    // under the block there. In the panel the same two ways in live behind Add
+    // a deck, the link in the header, so a sentence saying `below` would be the
+    // panel sending a reader to look at a field that is not on the screen —
+    // and one saying `+` sent them to a glyph the header stopped drawing (#1800).
     expect(REACH_WAY_OUT.dialog).toMatch(/paste it below/);
     expect(REACH_WAY_OUT.panel).not.toMatch(/below/);
-    expect(REACH_WAY_OUT.panel).toMatch(/\+/);
+    expect(REACH_WAY_OUT.panel).toMatch(/Add a deck, the link above/);
     // And both keep the half that stops somebody concluding the feature is
     // broken: a round is one OUTBOUND connection, so a deck nothing can reach
     // still does every part of this by dialling.

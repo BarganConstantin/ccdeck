@@ -14,9 +14,10 @@
 // NEXT TAKES FOCUS, not the ×. A guide is read forwards; a reader who opened
 // it pressing Enter should be able to keep pressing Enter to the end. The ×
 // and Escape still close it from any step, and the arrow keys move either way.
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { focusDropped } from "../panel-press";
 
 export interface GuideStep {
   /** The drawing, which is the step. Decorative to a screen reader — the line
@@ -46,6 +47,18 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
   const last = at === steps.length - 1;
   const step = steps[at];
   const go = (i: number) => setAt(Math.max(0, Math.min(steps.length - 1, i)));
+
+  // A STEP CHANGE CAN TAKE THE FOCUSED BUTTON WITH IT. Back is drawn only after
+  // the first step and the aside only on the last, so Back pressed on step 2,
+  // or an arrow off the last step while the aside had focus, removed the
+  // control that held it. Focus fell to <body> behind the dialog, where these
+  // arrows are never heard and Enter has nothing to press (#1803). Next is on
+  // every step, so it goes there — and only when it was dropped, so a reader
+  // on a step dot stays on it. The first run finds Next already focused by
+  // useModalDismiss, whose mount effect runs before this one.
+  useEffect(() => {
+    if (focusDropped(document.activeElement?.tagName ?? null)) nextRef.current?.focus();
+  }, [at]);
 
   // The arrows, and nothing else: Escape belongs to the dismiss queue, and Tab
   // to its trap. Stopped here so no listener behind the dialog hears them.

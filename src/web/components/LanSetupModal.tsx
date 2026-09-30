@@ -66,6 +66,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { useFocusRescue } from "./use-focus-rescue";
 import { pressState } from "../panel-press";
 import { nextShared, settlePending } from "../lan-share";
 import { writeFailure } from "../use-lan-section";
@@ -173,19 +174,31 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
     }
   }, [onChanged]);
 
+  /** The typed name, sent, and let go of only once the deck has kept it. Enter
+   *  and `save` used to drop it the moment they sent it, so the field snapped
+   *  back to the old name at once — and a refused write left its failure line
+   *  beside a field that no longer held what was typed (#1801). A name typed on
+   *  while the answer was out is newer than the one sent, and stays. */
+  const saveName = useCallback(async (draft: string) => {
+    const ok = await write({ name: draft }, "save the name", "name");
+    if (ok && alive.current) setNameDraft(d => (d === draft ? null : d));
+    return ok;
+  }, [write]);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const nameDirty = nameDraft != null && nameDraft !== (status.name ?? "");
+  // `save` is drawn only while the name differs, so a save the deck kept takes
+  // it away under the press, and focus goes back to the field it saved.
+  const rescueSave = useFocusRescue(!nameDirty, nameRef);
+
   /** The one way out that is also a decision. A name somebody typed and did
    *  not save is saved on the way, because pressing Done over an unsaved field
    *  is the reader saying they meant it — and the dialog stays open if that
    *  write fails, so the failure line is read rather than closed on. Every box
    *  and switch here was already saved the moment it changed. */
   const done = useCallback(async () => {
-    if (nameDraft != null && nameDraft !== (status.name ?? "")) {
-      const ok = await write({ name: nameDraft }, "save the name", "name");
-      if (!ok) return;
-      if (alive.current) setNameDraft(null);
-    }
+    if (nameDirty && !(await saveName(nameDraft))) return;
     onClose();
-  }, [nameDraft, status.name, write, onClose]);
+  }, [nameDirty, nameDraft, saveName, onClose]);
 
   /** Copied rather than read out: it is compared on another machine, and a
    *  failed copy leaves the value on screen to select by hand. */
@@ -247,6 +260,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             <div className="ap-lan-row">
               <span className="ap-lan-label">appear as</span>
               <input
+                ref={nameRef}
                 className="ap-manage-input ap-lan-input"
                 aria-label="This deck's name on the network"
                 value={nameDraft ?? status.name ?? ""}
@@ -254,13 +268,12 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 onChange={e => setNameDraft(e.target.value)}
                 onKeyDown={e => {
                   if (e.key !== "Enter" || nameDraft == null) return;
-                  void write({ name: nameDraft }, "save the name", "name");
-                  setNameDraft(null);
+                  void saveName(nameDraft);
                 }}
               />
-              {nameDraft != null && nameDraft !== (status.name ?? "") && (
+              {nameDirty && (
                 <button type="button" className="ap-manage-btn" {...pressProps("name")}
-                  onClick={() => { void write({ name: nameDraft }, "save the name", "name"); setNameDraft(null); }}
+                  onClick={() => { rescueSave(); void saveName(nameDraft); }}
                   title="Save it. This is the name other decks show for this one.">save</button>
               )}
             </div>
@@ -365,7 +378,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   Pair new decks only by invite
                   {inviteOnly && (
                     <span id="lan-invite-only-detail" className="lan-switch-detail">
-                      A new deck needs an invite from + in the panel. Paired decks stay paired.
+                      A new deck needs an invite from Add a deck, the link at the top of Local network. Paired decks stay paired.
                     </span>
                   )}
                 </span>
