@@ -29,9 +29,20 @@
   --nm-draw: cubic-bezier(0.16, 1, 0.3, 1);
   --nm-wire: color-mix(in srgb, var(--text) 26%, transparent);
   --nm-wire-quiet: color-mix(in srgb, var(--text) 12%, transparent);
+  /* A CONNECTED LINK'S INKS: this deck's accent where it leaves the centre,
+     the green its deck wears where it arrives, and the light around it. */
+  --nm-live-from: color-mix(in srgb, var(--accent) 55%, transparent);
+  --nm-live-to: color-mix(in srgb, var(--ok) 90%, transparent);
+  --nm-live-glow: color-mix(in srgb, var(--ok) 34%, transparent);
+  /* AWAY: a paired deck that is not on. This deck's own accent, stilled
+     toward the muted grey — still yours, not live — so the middle ring reads
+     as a different kind of thing from the grey strangers outside it, without
+     borrowing the amber this app keeps for a session waiting on you. */
+  --nm-away: color-mix(in srgb, var(--accent) 50%, var(--muted));
+  --nm-away-ink: color-mix(in srgb, var(--nm-away) 60%, transparent);
   width: min(1160px, 92vw);
-  height: min(740px, 86vh);
-  max-height: 86vh;
+  height: min(800px, 88vh);
+  max-height: 88vh;
 }
 .nm-head { gap: 16px; }
 .nm-heading { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -97,7 +108,8 @@
   transform-box: fill-box;
   transform-origin: center;
 }
-.nm-orbit[data-ring="1"] { stroke-dasharray: 4 6; }
+.nm-orbit[data-ring="1"] { stroke-dasharray: 4 6; stroke: color-mix(in srgb, var(--nm-away) 38%, transparent); }
+.nm-orbit[data-ring="2"] { stroke-dasharray: 1.5 5; stroke-linecap: round; }
 
 /* A WIRE from this deck's edge to that deck's, laid out from the centre of the
    stage and turned to its deck's angle. Its length and its turn ease when a
@@ -120,9 +132,11 @@
     --nm-a var(--nm-move) var(--nm-ease),
     --nm-d var(--nm-move) var(--nm-ease),
     opacity 160ms var(--nm-ease),
-    background-color 160ms var(--nm-ease);
+    background-color 160ms var(--nm-ease),
+    box-shadow 160ms var(--nm-ease);
 }
-.nm-wire[data-tier="offline"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 4px, transparent 4px 8px); }
+.nm-wire[data-tier="offline"],
+.nm-key-wire[data-tier="offline"] { background: repeating-linear-gradient(90deg, var(--nm-away-ink) 0 4px, transparent 4px 8px); }
 .nm-wire[data-tier="loose"] { background: repeating-linear-gradient(90deg, var(--nm-wire-quiet) 0 1.5px, transparent 1.5px 6px); }
 /* Over the tailnet, dashed — the legend's own stroke. The line is the same
    ink as its neighbours; only its rhythm says which network it crosses. The
@@ -133,10 +147,37 @@
 .nm-key-wire {
   --nm-tailnet-ink: var(--nm-wire);
   --nm-wire-tailnet: repeating-linear-gradient(90deg, var(--nm-tailnet-ink) 0 6px, transparent 6px 10px);
+  --nm-live: linear-gradient(90deg, var(--nm-live-from), var(--nm-live-to));
 }
+/* CONNECTED, AND IT SHOWS. Every wire used to be the same neutral ink, so the
+   only thing that told a paired deck that is on from one that is not was a
+   10px dot at the far end — findable, not visible. A connected link is the
+   one thing on this picture that is actually live, so it is drawn as live:
+   a line twice as heavy, running from this deck's accent into the green its
+   deck wears, with a little of that green around it. A zero-offset halo in a
+   state colour, which DESIGN.md allows as a mark; nothing moves that did not
+   move before. Over the tailnet the same inks keep the tailnet's dashes. */
+.nm-wire[data-tier="online"],
+.nm-key-wire[data-tier="online"] {
+  --nm-tailnet-ink: var(--nm-live-to);
+  height: 2px;
+  background: var(--nm-live);
+  box-shadow: 0 0 8px var(--nm-live-glow);
+}
+.nm-wire[data-tier="online"] { margin-top: -1px; }
 .nm-wire:not([data-tier="online"]) { --nm-tailnet-ink: var(--nm-wire-quiet); }
+.nm-wire[data-tier="offline"] { --nm-tailnet-ink: var(--nm-away-ink); }
+.nm-wire[data-tier="offline"][data-on] { --nm-away-ink: var(--nm-away); }
 .nm-wire[data-via="tailscale"] { background: var(--nm-wire-tailnet); }
 .nm-wire[data-on] { --nm-wire: color-mix(in srgb, var(--text) 70%, transparent); --nm-wire-quiet: color-mix(in srgb, var(--text) 45%, transparent); height: 2px; margin-top: -1px; }
+/* Looked at, a connected link lights all the way from the centre. */
+.nm-wire[data-tier="online"][data-on] {
+  --nm-live-from: color-mix(in srgb, var(--accent) 90%, transparent);
+  --nm-live-to: var(--ok);
+  height: 2.5px;
+  margin-top: -1.25px;
+  box-shadow: 0 0 12px var(--nm-live-glow), 0 0 3px var(--nm-live-glow);
+}
 
 /* THE ROUND. A light leaves this deck, reaches that one, and comes back in
    that deck's green — a question and its answer, which is what a round between
@@ -151,6 +192,7 @@
   margin-top: -2.5px;
   border-radius: 50%;
   background: var(--text);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--text) 50%, transparent);
   opacity: 0;
   pointer-events: none;
 }
@@ -274,7 +316,13 @@
 .nm-node[data-tier="online"] { color: var(--text); }
 /* Not paired: the disc's edge is dashed and it sits a step back on the ground,
    the ring's own stroke carried onto the machine. */
-.nm-node[data-tier="loose"] { border-style: dashed; background: var(--bg-soft); }
+.nm-node[data-tier="loose"] {
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-style: dashed;
+  background: var(--bg-soft);
+}
 /* Looked at — by the pointer, which the map turns into `data-on` itself, or by
    the keyboard. The edge goes to the text's own ink and the disc lifts. */
 .nm-node[data-on] { color: var(--text); border-color: var(--text); box-shadow: var(--shadow-contact), var(--shadow-2); }
@@ -286,6 +334,25 @@
 .nm-node[data-shown] .nm-name { font-weight: 600; }
 .nm-node:active { transform: scale(0.97); }
 .nm-node:focus-visible { outline-offset: 3px; border-radius: 50%; }
+
+/* CONNECTED, ON THE DECK ITSELF: a green edge laid over the disc's own, a
+   faint ring outside it and a soft light, so a connected deck reads as lit
+   before its mark or its name is read. A layer of its own rather than the
+   disc's border or shadow — the disc's edge is the control's boundary and the
+   contrast sweep measures it, and this is a state, not a boundary. */
+.nm-halo {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.nm-halo[data-tier="offline"] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--nm-away) 55%, transparent); }
+.nm-halo[data-tier="online"] {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ok) 72%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--ok) 9%, transparent),
+    0 0 22px color-mix(in srgb, var(--ok) 22%, transparent);
+}
 
 /* EVERYTHING ELSE STEPS BACK while one deck is looked at, so its wire can be
    followed to the centre. Opacity only — nothing moves. */
@@ -309,6 +376,8 @@
   border: 1.5px solid var(--muted);
 }
 .nm-mark[data-tier="online"] { background: var(--ok); border-color: var(--ok); }
+.nm-mark[data-tier="offline"],
+.nm-key-mark[data-tier="offline"] { border-color: var(--nm-away); }
 .nm-mark[data-tier="loose"] { border-style: dashed; }
 .nm-mark[data-kind="asks"] { background: var(--accent); border-color: var(--accent); }
 .nm-mark[data-kind="asks"]::after {

@@ -36,6 +36,9 @@ import { useModalDismiss } from "./use-modal-dismiss";
 /** The disc a deck is drawn as, and this deck's own at the centre — the
  *  wires start and stop at their edges rather than under them. */
 const NODE_R = 20;
+/** A machine nothing is shared with is drawn a size down, out on the grey
+ *  ring — part of the picture, not part of the network yet. */
+const LOOSE_R = 17;
 const CORE_R = 34;
 /** How long a pointer may be between two decks before the map stops holding
  *  the one it left — long enough that sweeping across the ring never flashes
@@ -297,7 +300,7 @@ function Wire({ node, angle, lit }: { node: MapNode; angle: number; lit: boolean
         "--nm-a": `${angle.toFixed(2)}deg`,
         "--nm-d": `${node.dist.toFixed(1)}px`,
         "--from": `${CORE_R}px`,
-        "--gap": `${CORE_R + NODE_R}px`,
+        "--gap": `${CORE_R + (node.tier === "loose" ? LOOSE_R : NODE_R)}px`,
         "--i": node.order,
         "--phase": `${phase.toFixed(2)}s`,
       } as CSSProperties}>
@@ -357,6 +360,7 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
       onFocus={onHold}
       onBlur={onRelease}
       onClick={onOpen}>
+      <i className="nm-halo" data-tier={node.tier} aria-hidden />
       <Machine />
       <i className="nm-mark" data-tier={node.tier} data-kind={row.kind} aria-hidden />
       <span className="nm-label" aria-hidden>
@@ -385,8 +389,9 @@ function Legend() {
       <li><i className="nm-key-mark" data-tier="online" aria-hidden />online</li>
       <li><i className="nm-key-mark" data-tier="offline" aria-hidden />offline</li>
       <li><i className="nm-key-mark" data-tier="loose" aria-hidden />not paired</li>
-      <li><i className="nm-key-wire" aria-hidden />local network</li>
-      <li><i className="nm-key-wire" data-via="tailscale" aria-hidden />Tailscale</li>
+      <li><i className="nm-key-wire" data-tier="online" aria-hidden />connected</li>
+      <li><i className="nm-key-wire" data-tier="online" data-via="tailscale" aria-hidden />over Tailscale</li>
+      <li><i className="nm-key-wire" data-tier="offline" aria-hidden />paired, away</li>
       <li><i className="nm-key-glint" aria-hidden />a round, out and back</li>
     </ul>
   );

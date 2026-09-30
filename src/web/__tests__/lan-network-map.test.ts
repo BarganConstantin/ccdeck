@@ -39,15 +39,16 @@ describe("which ring a deck stands on", () => {
     expect(mapSummary([declined]).declined).toBe(1);
   });
 
-  it("stands the quiet paired decks and the unpaired machines on one outer ring", () => {
+  it("stands the decks that are on inside, the quiet paired ones next, and the unpaired outside", () => {
     const rows = [row({}), row({ here: false }), row({ kind: "nearby" })];
     const { nodes, rings } = mapLayout(rows, W, H);
-    expect(nodes.map(n => n.ring)).toEqual([0, 1, 1]);
-    expect(rings).toHaveLength(2);
+    expect(nodes.map(n => n.ring)).toEqual([0, 1, 2]);
+    expect(rings).toHaveLength(3);
     expect(rings[0].rx).toBeLessThan(rings[1].rx);
+    expect(rings[1].rx).toBeLessThan(rings[2].rx);
   });
 
-  it("lists quiet paired decks before unpaired ones on the outer ring, with tailnet decks together", () => {
+  it("draws the rings from the inside out, with tailnet decks together on theirs", () => {
     const nearby = row({ kind: "nearby" });
     const quietTs = row({ here: false, via: "tailscale" });
     const quiet = row({ here: false });
@@ -79,7 +80,11 @@ describe("where a deck stands", () => {
   });
 
   it("keeps every deck inside the stage, with room for the names outside the outer ring", () => {
-    const rows = [...Array.from({ length: 10 }, () => row({})), ...Array.from({ length: 7 }, () => row({ here: false }))];
+    const rows = [
+      ...Array.from({ length: 10 }, () => row({})),
+      ...Array.from({ length: 7 }, () => row({ here: false })),
+      ...Array.from({ length: 6 }, () => row({ kind: "nearby" })),
+    ];
     for (const n of mapLayout(rows, W, H).nodes) {
       expect(Math.abs(n.x)).toBeLessThanOrEqual(W / 2);
       expect(Math.abs(n.y)).toBeLessThanOrEqual(H / 2);
@@ -88,12 +93,40 @@ describe("where a deck stands", () => {
 
   it("sets a name over the decks along the top and under every other", () => {
     const { nodes } = mapLayout(Array.from({ length: 4 }, () => row({})), W, H);
-    const top = nodes.find(n => Math.round(n.angle) === 270)!;
-    const bottom = nodes.find(n => Math.round(n.angle) === 90)!;
-    const side = nodes.find(n => Math.round(n.angle) === 0)!;
-    expect(top.side).toBe("top");
-    expect(bottom.side).toBe("bottom");
-    expect(side.side).toBe("bottom");
+    const by = (pick: (a: typeof nodes[number], b: typeof nodes[number]) => boolean) =>
+      nodes.reduce((best, n) => (pick(n, best) ? n : best));
+    expect(by((a, b) => a.y < b.y).side).toBe("top");
+    expect(by((a, b) => a.y > b.y).side).toBe("bottom");
+    expect(by((a, b) => a.x > b.x).side).toBe("bottom");
+  });
+
+  it("stands decks a little off an even spacing, without two of them trading places", () => {
+    const { nodes } = mapLayout(Array.from({ length: 8 }, () => row({})), W, H);
+    // Clockwise from the first deck, wherever its offset put it.
+    const round = nodes.map(n => (n.angle - nodes[0].angle + 360) % 360);
+    for (let i = 1; i < round.length; i++) expect(round[i]).toBeGreaterThan(round[i - 1]);
+    const gaps = round.slice(1).map((a, i) => a - round[i]);
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeGreaterThan(1);
+  });
+
+  it("keeps a deck's own offset when the rest of the network changes around it", () => {
+    const deck = row({ fp: "steady", here: false });
+    const alone = mapLayout([row({}), deck, row({ here: false }), row({ here: false })], W, H);
+    const joined = mapLayout([row({}), row({}), deck, row({ here: false }), row({ here: false })], W, H);
+    const at = (l: typeof alone) => l.nodes.find(n => n.row.fp === "steady")!;
+    expect(at(joined).x).toBeCloseTo(at(alone).x, 6);
+    expect(at(joined).y).toBeCloseTo(at(alone).y, 6);
+  });
+
+  it("widens a busy inner ring toward the middle one rather than crowding it", () => {
+    const rows = [
+      ...Array.from({ length: 10 }, () => row({})),
+      ...Array.from({ length: 5 }, () => row({ here: false })),
+      ...Array.from({ length: 3 }, () => row({ kind: "nearby" })),
+    ];
+    const { dense, rings } = mapLayout(rows, W, H);
+    expect(dense).toBe(false);
+    expect(rings[1].rx - rings[0].rx).toBeGreaterThanOrEqual(0.2 * (W / 2 - 76) - 1e-9);
   });
 
   it("draws the same network in the same place every time it opens", () => {

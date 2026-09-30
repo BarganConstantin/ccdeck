@@ -59,7 +59,8 @@
   .nm-mark[data-kind="asks"],
   .nm-key-mark[data-tier="online"] { background: Highlight; border-color: Highlight; }
   .nm-mark[data-kind="asks"]::after { border-color: Highlight; }
-  .modal.nm-modal { --nm-wire: CanvasText; --nm-wire-quiet: GrayText; }
+  .modal.nm-modal { --nm-wire: CanvasText; --nm-wire-quiet: GrayText; --nm-live-from: Highlight; --nm-live-to: Highlight; --nm-live-glow: transparent; --nm-away: CanvasText; --nm-away-ink: GrayText; }
+  .nm-halo[data-tier="online"] { forced-color-adjust: none; box-shadow: 0 0 0 2px Highlight; }
   .nm-wire[data-on] { --nm-wire: Highlight; --nm-wire-quiet: Highlight; }
   .nm-wire,
   .nm-key-wire { forced-color-adjust: none; }
