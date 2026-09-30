@@ -2,7 +2,7 @@
 // the Clear flow must not reach past — and, separately, whether that dialog is
 // the shortcuts sheet, which still answers the `?` that opened it.
 //
-// Moved out of App.tsx unchanged; use-dialogs.ts calls it now, with the six
+// Moved out of App.tsx unchanged; use-dialogs.ts calls it now, with the seven
 // flags it holds and the two use-welcome-and-notes.ts owns. Both are refs
 // assigned during render, the way App's nodesRef is: the keydown listener
 // (use-deck-shortcuts.ts) is registered once and must stay that way, so it reads
@@ -16,6 +16,7 @@ import type { useWelcomeAndNotes } from "./use-welcome-and-notes";
 
 export function useModalGate({
   openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
+  feedbackOpen,
 }: {
   /** The call the tool modal is showing, while it is still on the board. */
   openedTool: ToolCall | null;
@@ -29,6 +30,8 @@ export function useModalGate({
   /** The shortcuts sheet. */
   keyHelpOpen: boolean;
   releaseNotes: ReturnType<typeof useWelcomeAndNotes>["releaseNotes"];
+  /** The feedback dialog, opened from the Appearance menu (#1853). */
+  feedbackOpen: boolean;
 }) {
   // The same treatment for the shortcuts sheet, because `?` is a toggle and the
   // gate below has to be able to tell "the sheet is the modal" from "a modal is
@@ -44,6 +47,7 @@ export function useModalGate({
     // The tour, for the same reason as the shortcuts sheet: a click on its
     // caption drops focus to <body>, and from there a stray "c" reaches Clear.
     || tourOpen
-    || summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;
+    || summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null
+    || feedbackOpen;
   return { keyHelpOpenRef, modalOpenRef };
 }

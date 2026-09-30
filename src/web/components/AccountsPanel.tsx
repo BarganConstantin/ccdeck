@@ -187,8 +187,15 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   useEffect(() => { saveOpenness(openness); }, [openness]);
   useEffect(() => { saveOrder(order); }, [order]);
 
+  // WHAT LOCAL NETWORK KNOWS about each account's copies elsewhere, from the
+  // status its own section already polls: a dead login no paired deck can
+  // repair says so on its row, rather than waiting in silence for a copy
+  // that will not come. See noCopyWorksNearby.
+  const [noCopy, setNoCopy] = useState<ReadonlySet<string>>(() => new Set());
+  const takeNoCopy = useCallback((keys: readonly string[]) => setNoCopy(new Set(keys)), []);
+  const lanFor = (a: Account) => ({ noCopyWorksNearby: noCopy.has(lanAccounts([a])[0].key) });
   const activeAcct = data?.accounts?.find(a => a.active);
-  const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec) : null;
+  const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
 
   // ── the fold ──
   // WHO THE COLUMN DRAWS AT ONCE, and who stands behind one row. The live
@@ -266,7 +273,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // What the fold's row says about them — how many can be reached, whether
   // the live account is past the threshold, whether anything will switch
   // without a press — is read in account-fold.ts.
-  const peers = peersOf(rest, nowSec);
+  const peers = peersOf(rest, nowSec, lanFor);
   const strained = pastThreshold(activeAcct, threshold);
   const autoArmed = isAutoArmed(auto);
   /** The box a row scrolls inside, which is what a popover hanging off it
@@ -391,7 +398,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const displaced = swapped ? roster.find(x => x.num === swapped.displaced) : undefined;
   const issueExpanded = issueOpen?.anchor === `ap-issue-${a.num}`;
     return (
-      <AccountRow key={a.num} a={a} nowSec={nowSec}
+      <AccountRow key={a.num} a={a} nowSec={nowSec} lan={lanFor(a)}
         opened={opened} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menuOpen} onOpenMenu={openMenu} onCloseMenu={closeMenu}
@@ -598,7 +605,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
               })()}
               {issueOpen && (() => {
                 const a = data.accounts?.find(x => x.num === issueOpen.num);
-                const issue = a ? accountIssue(a, nowSec) : null;
+                const issue = a ? accountIssue(a, nowSec, lanFor(a)) : null;
                 if (!a || !issue) return null;
                 return (
                   <AccountIssuePopover
@@ -640,6 +647,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           // account-lan.ts.
           accounts={lanAccounts(data?.accounts ?? [])}
           onChanged={() => load(true)}
+          onNoCopy={takeNoCopy}
           view={view === "lan"}
           onOpen={openLan}
           onBack={() => setView("accounts")}

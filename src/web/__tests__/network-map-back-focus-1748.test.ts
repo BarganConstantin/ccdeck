@@ -42,8 +42,10 @@ describe("focus after leaving a deck's details in the network map (#1748)", () =
 
   it("lands on a button that is the ring's tab stop once it has focus", () => {
     // Focusing a ring button moves the ring's cursor to it, so the deck focus
-    // lands on is also the one Tab comes back to.
-    expect(map).toMatch(/onHold=\{\(\) => \{ setCursorKey\(key\); hold\(key\); \}\}/);
-    expect(map).toMatch(/onFocus=\{onHold\}/);
+    // lands on is also the one Tab comes back to. The hold says which way it
+    // came — the keyboard's arrives without the panel's entrance — and moves
+    // the cursor either way.
+    expect(map).toMatch(/onHold=\{via => \{ setCursorKey\(key\); hold\(key, via\); \}\}/);
+    expect(map).toMatch(/onFocus=\{e => onHold\(e\.currentTarget\.matches\(":focus-visible"\) \? "keyboard" : "pointer"\)\}/);
   });
 });

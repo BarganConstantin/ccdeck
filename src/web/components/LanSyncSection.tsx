@@ -37,6 +37,7 @@
 // every machine at once.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { checkedLabel, deckRows, entryLine, rowSource, sectionState, viewRows } from "../lan-roster";
+import { noCopyWorksNearby } from "../account-lan";
 import type { LanAccount } from "../lan-types";
 import { useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
@@ -63,10 +64,14 @@ import { SettingsFailureLine } from "./SettingsFailureLine";
 export { PEEK_DELAY_MS, PEEK_GRACE_MS } from "../use-hover-peek";
 export { CONFIRM_GAP_MS } from "../panel-press";
 
-export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBack, closeButton }: {
+export default function LanSyncSection({ accounts, onChanged, onNoCopy, view, onOpen, onBack, closeButton }: {
   accounts: LanAccount[];
   /** The roster changed under us — a healed account is a different row. */
   onChanged: () => void;
+  /** The accounts no paired deck that is on holds a working copy of — see
+   *  noCopyWorksNearby — handed up so their rows can say so. Only when the
+   *  list changes, so the accounts panel does not redraw on every poll. */
+  onNoCopy?: (keys: readonly string[]) => void;
   /** Whether this section has the column — its own header, its switch and its
    *  list — or is one row at the foot of the accounts view. */
   view: boolean;
@@ -116,6 +121,12 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
    *  A deck's own dialog opens over the map rather than instead of it, so
    *  closing that dialog lands back on the picture it was opened from. */
   const [mapOpen, setMapOpen] = useState(false);
+
+  const noCopy = useMemo(
+    () => accounts.filter(a => noCopyWorksNearby(a.key, status ?? null, now)).map(a => a.key).sort().join("\n"),
+    [accounts, status, now],
+  );
+  useEffect(() => { onNoCopy?.(noCopy ? noCopy.split("\n") : []); }, [noCopy, onNoCopy]);
 
   const on = status?.enabled === true;
   // Invite-only has no actionable manual pairing requests, including during

@@ -26,6 +26,7 @@ import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
 import ClearConfirm from "./ClearConfirm";
 import ContextModal from "./ContextModal";
+import FeedbackDialog from "./FeedbackDialog";
 import GuideModal from "./GuideModal";
 import { WELCOME_STEPS } from "./guide-art";
 import KeyboardHelp from "./KeyboardHelp";
@@ -61,7 +62,7 @@ export default function DeckDialogs({
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
-          setKeyHelpOpen } = dialogs;
+          setKeyHelpOpen, feedbackOpen, setFeedbackOpen } = dialogs;
   const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion } = welcome;
   const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate, askDesktopUpdateRestart } = desktopUpdate;
   const { version } = versionCheck;
@@ -107,6 +108,7 @@ export default function DeckDialogs({
         </Suspense>
       )}
       {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
+      {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
       {summaryFor && (
         <SessionSummary
           state={stateRef.current}

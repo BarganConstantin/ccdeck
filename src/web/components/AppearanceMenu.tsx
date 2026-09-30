@@ -65,13 +65,19 @@ interface Props {
   onAddFmStation: (station: CustomFmStation) => void;
   onRenameFmStation: (id: string, name: string) => void;
   onRemoveFmStation: (id: string) => void;
+  /** Anonymous reports (#1853): on unless switched off here or vetoed at launch. */
+  reportsOn: boolean;
+  reportsVetoed: boolean;
+  onToggleReports: () => void;
+  /** Opens the feedback dialog; the menu closes first. */
+  onFeedback: () => void;
   onClose: () => void;
 }
 
 export default function AppearanceMenu({
   theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmMuted, onFmMuted,
   fmSource, onFmSource, customFmStations, unavailableFmStations,
-  onAddFmStation, onRenameFmStation, onRemoveFmStation, onClose,
+  onAddFmStation, onRenameFmStation, onRemoveFmStation, reportsOn, reportsVetoed, onToggleReports, onFeedback, onClose,
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
   const fmSources = [
@@ -551,6 +557,43 @@ export default function AppearanceMenu({
         <span id="appearance-fm-volume-note" className="vis-hidden">
           Controls live music volume.
         </span>
+      </section>
+
+      {/* The reports switch and the feedback dialog (#1853). Here rather than in
+          the topbar, whose seven words are a set, and rather than in the sound
+          menu, which is about noise. Reports are on by default and nobody is
+          asked, so the note is where the deck says so: what is sent, what never
+          is, and that switching it off deletes what was sent — all readable
+          without pressing anything. */}
+      <section className="appearance-section" aria-labelledby="appearance-improve-caption">
+        <div className="appearance-caption">
+          <h3 id="appearance-improve-caption">Help improve ccdeck</h3>
+        </div>
+        <div className="appearance-controls">
+          <label className="appearance-row">
+            <span className="appearance-row-label" id="appearance-reports-label">Send anonymous reports</span>
+            <button
+              type="button"
+              className="switch"
+              role="switch"
+              aria-checked={reportsOn}
+              aria-labelledby="appearance-reports-label"
+              aria-describedby="appearance-reports-note"
+              disabled={reportsVetoed}
+              onClick={onToggleReports}
+            >
+              <span className="switch-knob" />
+            </button>
+          </label>
+          <p id="appearance-reports-note" className="appearance-section-note">
+            {reportsVetoed
+              ? "Off: this deck was started with AGENTS_DECK_NO_REPORTS=1 or AGENTS_DECK_NO_INSTALL=1."
+              : "On by default. The deck reports installs, updates, daily use and errors under a random id, never your sessions, prompts or files. Turning it off deletes what was sent."}
+          </p>
+          <div className="appearance-improve-actions">
+            <button type="button" className="btn appearance-station-action" onClick={onFeedback}>Send feedback…</button>
+          </div>
+        </div>
       </section>
       </div>
     </div>
