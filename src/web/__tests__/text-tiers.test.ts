@@ -204,6 +204,9 @@ describe("what was migrated to the secondary tier", () => {
       // goes to the people who make ccdeck, who may open a public issue from
       // it, never with the contact (#1853). Read once, to decide.
       ".fb-note",
+      // The network map's next step: the one sentence that says what to do
+      // about the network, or about the deck pointed at. Read, not glanced.
+      ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
       ".sa-why",
