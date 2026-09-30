@@ -301,7 +301,9 @@ describe("what the column folds, and when it does not", () => {
     // One rule, named since #1579 so the list's order reads it too.
     expect(accountFold).toMatch(/return !a\.disabled && !accountIssue\(a, nowSec\)\?\.blocksSwitch;/);
     expect(accountFold).toMatch(/ready: reachable\(a, nowSec\),/);
-    expect(panel).toMatch(/const peers = peersOf\(rest, nowSec\);/);
+    // The panel hands the fold what Local network knows as well, so a folded
+    // row's reason reads as its unfolded row does; who is ready is unchanged.
+    expect(panel).toMatch(/const peers = peersOf\(rest, nowSec, lanFor\);/);
     expect(clientText()).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
     // Identity, not slot: a `cswap move` must not hand one account's key to
     // another. lane-open.ts holds that rule for the rows; this reuses it.
