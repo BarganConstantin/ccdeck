@@ -107,6 +107,8 @@ export interface MapZone {
 export interface MapLayout {
   nodes: MapNode[];
   rings: MapRing[];
+  /** The away and unpaired decks share the outer ring — see mapLayout. */
+  folded?: boolean;
   zone: MapZone | null;
   /** A ring that could not give each deck its minimum room, so every other
    *  deck on it stands a step out. The stylesheet reads it to set names a
@@ -146,6 +148,14 @@ const LABEL_GAP = 7;
 const LABEL_TALL = 30;
 const LABEL_MAX_W = 116;
 const NAME_CH_W = 6.6;
+/** The 10px mono caption's glyph width. */
+const CAP_CH_W = 6.0;
+
+/** The line under a deck's name, as the map draws it. The map knows what a
+ *  live deck runs and the layout does not, so the dialog hands it in; without
+ *  it, a live deck's line is `online`. */
+export type CaptionOf = (row: DeckRow) => string;
+const plainCaption: CaptionOf = row => nodeCaption(row, null);
 /** How far a deck may slide round its ring to clear a name, per step, and
  *  how close it may come to its neighbours on that ring while it does. */
 const EASE_STEP = 1.5;
@@ -253,12 +263,17 @@ function coreBox(coreName: string): Box {
 }
 
 /** The disc and the name box of a deck standing at (x, y). */
-function footprint(row: DeckRow, tier: MapTier, x: number, y: number, dense = false): [Box, Box] {
+function footprint(row: DeckRow, tier: MapTier, x: number, y: number, dense: boolean, caption: string): [Box, Box] {
   const r = tier === "loose" ? LOOSE_DISC_R : DISC_R;
   const tall = !dense || row.kind === "asks";
   const LABEL_H = tall ? LABEL_TALL : DENSE_LABEL.h;
   const ch = dense ? DENSE_LABEL.ch : NAME_CH_W;
-  const w = Math.min(dense ? DENSE_LABEL.maxW : LABEL_MAX_W, Math.max(2 * r, nodeName(row).length * ch));
+  // THE CAPTION IS PART OF THE BOX. A short name over `away · 12m ago` draws
+  // as wide as the caption, and a box measured by the name alone let two such
+  // labels meet on a map the layout called clear. Dense names drop the line.
+  const captionChars = tall ? caption.length : 0;
+  const w = Math.min(dense ? DENSE_LABEL.maxW : LABEL_MAX_W,
+    Math.max(2 * r, nodeName(row).length * ch, captionChars * CAP_CH_W));
   const disc = { x0: x - r, y0: y - r, x1: x + r, y1: y + r };
   const label = sideOf(x, y) === "top"
     ? { x0: x - w / 2, y0: y - r - LABEL_GAP - LABEL_H, x1: x + w / 2, y1: y - r - LABEL_GAP }
@@ -279,6 +294,8 @@ interface Placed {
   /** The arc it may not leave while it is eased: its slice, or the rest. */
   lo: number;
   hi: number;
+  /** The line under its name, for the width of its box. */
+  caption: string;
 }
 
 const pointOf = (p: Placed): [number, number] => {
@@ -305,7 +322,7 @@ function easeApart(placed: Placed[], dense: boolean, core: Box): boolean {
     if (!ringOf.has(p.ring)) ringOf.set(p.ring, []);
     ringOf.get(p.ring)!.push(p);
   }
-  const boxesNow = () => placed.map(p => { const [x, y] = pointOf(p); return footprint(p.row, p.tier, x, y, dense); });
+  const boxesNow = () => placed.map(p => { const [x, y] = pointOf(p); return footprint(p.row, p.tier, x, y, dense, p.caption); });
   /** Slide `mover` a step away from `from`, if its ring and its arc allow. */
   const slide = (mover: Placed, dir: number): boolean => {
     if (mover.count <= 2) return false;
@@ -339,7 +356,10 @@ function easeApart(placed: Placed[], dense: boolean, core: Box): boolean {
         const b = placed[j];
         const mover = b.ring.ring > a.ring.ring || (b.ring === a.ring && j > i) ? b : a;
         const other = mover === b ? a : b;
-        moved = slide(mover, turnBetween(mover.theta, other.theta) >= 0 ? 1 : -1) || moved;
+        // The deck further out moves; when its ring or its arc will not let
+        // it, the other one tries, the other way.
+        const away = turnBetween(mover.theta, other.theta) >= 0 ? 1 : -1;
+        moved = slide(mover, away) || slide(other, -away) || moved;
       }
     }
     if (!moved) break;
@@ -359,20 +379,23 @@ function easeApart(placed: Placed[], dense: boolean, core: Box): boolean {
  *  marks, wires and captions still tell them apart. */
 const RING_OF_FOLDED: Record<MapTier, number> = { online: 0, offline: 1, loose: 1 };
 
-export function mapLayout(rows: DeckRow[], width: number, height: number, coreName = ""): MapLayout {
+export function mapLayout(
+  rows: DeckRow[], width: number, height: number, coreName = "", captionOf: CaptionOf = plainCaption,
+): MapLayout {
   // THREE RINGS WHERE THEY FIT, TWO WHERE THEY DO NOT. In a short stage — a
   // narrow window stacks the panel under the picture — three rings sit fifty
   // pixels apart top to bottom, and a name is forty. When the three cannot be
   // cleared even with the dense names, the outer two fold into one, which
   // buys the height back; the tiers keep their own marks and strokes on it.
-  const three = placeRings(rows, width, height, coreName, RING_OF);
+  const three = placeRings(rows, width, height, coreName, RING_OF, captionOf);
   if (three.clear || three.layout.rings.length < 3) return three.layout;
-  const two = placeRings(rows, width, height, coreName, RING_OF_FOLDED);
-  return two.clear ? two.layout : three.layout;
+  const two = placeRings(rows, width, height, coreName, RING_OF_FOLDED, captionOf);
+  return two.clear ? { ...two.layout, folded: true } : three.layout;
 }
 
 function placeRings(
   rows: DeckRow[], width: number, height: number, coreName: string, ringOf: Record<MapTier, number>,
+  captionOf: CaptionOf,
 ): { layout: MapLayout; clear: boolean } {
   const byRing = new Map<number, Array<{ row: DeckRow; tier: MapTier }>>();
   for (const row of rows) {
@@ -450,6 +473,7 @@ function placeRings(
           reach: zigged * (1 + (outer ? -Math.abs(drift) : drift)),
           lo: group.from == null ? -Infinity : group.from + margin,
           hi: group.from == null ? Infinity : group.from + group.width - margin,
+          caption: captionOf(row),
         });
         j++;
       });
@@ -499,11 +523,13 @@ function placeRings(
 /** The boxes a laid-out map draws — every deck's disc and name, and this
  *  deck's own name at the centre — by the same rule the layout eased them
  *  with. Offset to the stage's centre at 0, 0. */
-export function nodeBoxes(layout: MapLayout, coreName = ""): { core: Box; decks: Array<{ key: string; disc: Box; label: Box }> } {
+export function nodeBoxes(
+  layout: MapLayout, coreName = "", captionOf: CaptionOf = plainCaption,
+): { core: Box; decks: Array<{ key: string; disc: Box; label: Box }> } {
   return {
     core: coreBox(coreName),
     decks: layout.nodes.map(n => {
-      const [disc, label] = footprint(n.row, n.tier, n.x, n.y, layout.dense);
+      const [disc, label] = footprint(n.row, n.tier, n.x, n.y, layout.dense, captionOf(n.row));
       return { key: machineKey(n.row), disc, label };
     }),
   };

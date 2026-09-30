@@ -90,19 +90,21 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   useLayoutEffect(() => {
     const el = stageRef.current;
     if (!el) return;
-    const measure = () => setSize(prev => {
+    let last: { w: number; h: number } | null = null;
+    const measure = () => {
       const w = Math.round(el.clientWidth);
       const h = Math.round(el.clientHeight);
-      if (prev && prev.w === w && prev.h === h) return prev;
+      if (last && last.w === w && last.h === h) return;
       // A resize moves every deck at once, and none of them because anything
       // about the network changed — so for a moment the map does not travel.
-      if (prev) {
+      if (last) {
         setStill(true);
         if (stillTimer.current != null) window.clearTimeout(stillTimer.current);
         stillTimer.current = window.setTimeout(() => setStill(false), STILL_MS);
       }
-      return { w, h };
-    });
+      last = { w, h };
+      setSize(last);
+    };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
@@ -114,8 +116,12 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   }, []);
 
   const layout = useMemo<MapLayout | null>(
-    () => (size ? mapLayout(rows, size.w, size.h, status?.name ?? "") : null),
-    [rows, size, status?.name],
+    // The captions as the decks will draw them — a live deck's is what it
+    // runs — so every name box is laid out at the width it takes.
+    () => (size
+      ? mapLayout(rows, size.w, size.h, status?.name ?? "", row => nodeCaption(row, rowSource(status, row).peer?.about?.os))
+      : null),
+    [rows, size, status],
   );
   const summary = useMemo(() => mapSummary(rows), [rows]);
   const nodes = layout?.nodes ?? [];
@@ -367,7 +373,8 @@ function Orbits({ layout, w, h }: { layout: MapLayout; w: number; h: number }) {
         </>
       )}
       {layout.rings.map((r, i) => (
-        <ellipse key={r.ring} className="nm-orbit" data-ring={r.ring} cx={w / 2} cy={h / 2} rx={r.rx} ry={r.ry}
+        <ellipse key={r.ring} className="nm-orbit" data-ring={r.ring} data-folded={(layout.folded && r.ring === 1) || undefined}
+          cx={w / 2} cy={h / 2} rx={r.rx} ry={r.ry}
           style={{ "--ring": i } as CSSProperties} />
       ))}
     </svg>
@@ -455,7 +462,9 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
   onOpen: () => void;
 }) {
   const { row } = node;
-  const key = machineKey(row);
+  // An id from the machine, hashed: a typed address can hold a space, and an
+  // id with one is two references in an aria-describedby list.
+  const describedBy = `nm-d-${idFor(machineKey(row))}`;
   const rad = (node.angle * Math.PI) / 180;
   const caption = nodeCaption(row, os);
 
@@ -465,7 +474,9 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
       data-tier={node.tier} data-kind={row.kind} data-side={node.side}
       data-via={row.via} data-on={lit || undefined} data-shown={shown || undefined}
       aria-label={`${row.name}: ${presenceLine(row)}`}
-      aria-describedby={`nm-d-${key}`}
+      // Only a live deck's caption says something its label does not — what
+      // it runs; an away deck's is its presence line again, said twice.
+      aria-describedby={node.tier === "online" ? describedBy : undefined}
       style={{
         "--nm-a": `${angle.toFixed(2)}deg`,
         "--nm-d": `${node.dist.toFixed(1)}px`,
@@ -493,7 +504,7 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
       </span>
       {/* The caption, for a screen reader: what the deck runs, or how long
           it has been away. The drawn one is aria-hidden with its name. */}
-      <span id={`nm-d-${key}`} className="vis-hidden">{caption}</span>
+      {node.tier === "online" && <span id={describedBy} className="vis-hidden">{caption}</span>}
     </button>
   );
 }
@@ -686,4 +697,14 @@ function laneWords(l: ReturnType<typeof peerView>["lanes"][number]): string | nu
   if (l.caption) return l.caption;
   if (l.tone === "ok") return null;
   return `${HERE_SAID[l.here]} · ${THERE_SAID[l.there]}`;
+}
+
+/** A short id that belongs to one machine: FNV-1a over its key, in base 36. */
+function idFor(key: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
 }

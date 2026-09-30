@@ -60,7 +60,7 @@
   .nm-key-mark[data-tier="online"],
   .nm-key-mark[data-kind="asks"] { background: Highlight; border-color: Highlight; }
   .nm-mark[data-kind="asks"]::after { border-color: Highlight; }
-  .modal.nm-modal { --nm-wire: CanvasText; --nm-wire-quiet: GrayText; --nm-live-from: Highlight; --nm-live-to: Highlight; --nm-live-glow: transparent; --nm-away: CanvasText; --nm-away-ink: GrayText; }
+  .modal.nm-modal { --nm-wire: CanvasText; --nm-wire-quiet: GrayText; --nm-live-from: CanvasText; --nm-live-to: CanvasText; --nm-live-glow: transparent; --nm-away: CanvasText; --nm-away-ink: GrayText; }
   .nm-halo[data-tier="online"] { forced-color-adjust: none; box-shadow: 0 0 0 2px Highlight; }
   .nm-zone { forced-color-adjust: none; stroke: GrayText; }
   .nm-zone-stop { forced-color-adjust: none; stop-opacity: 0; }

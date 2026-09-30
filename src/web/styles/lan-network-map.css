@@ -112,6 +112,9 @@
 }
 .nm-orbit[data-ring="1"] { stroke-dasharray: 4 6; stroke: color-mix(in srgb, var(--nm-away) 38%, transparent); }
 .nm-orbit[data-ring="2"] { stroke-dasharray: 1.5 5; stroke-linecap: round; }
+/* The folded ring holds away and unpaired decks together, so it wears
+   neither's stroke; each deck's own mark and wire says which it is. */
+.nm-orbit[data-folded] { stroke: var(--line); stroke-dasharray: 2 6; }
 /* THE TAILNET'S SLICE: a ground a step off the stage's, in this deck's own
    accent, a solid hairline edge — a region, where the dotted stroke means not
    paired — and what stands in it named along the outside in the micro-label
@@ -222,7 +225,10 @@
   margin-top: -2.5px;
   border-radius: 50%;
   background: var(--glint);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--glint) 50%, transparent);
+  /* A ring of the stage's ground around the light, so it separates from the
+     line it runs on — the accent at the centre, the green at the far end —
+     in both themes. */
+  box-shadow: 0 0 0 1px var(--bg), 0 0 6px color-mix(in srgb, var(--glint) 50%, transparent);
   opacity: 0;
   pointer-events: none;
 }
@@ -236,6 +242,7 @@
   inset: 0;
   border-radius: 50%;
   background: var(--ok);
+  box-shadow: 0 0 0 1px var(--bg);
   opacity: 0;
 }
 /* Out in 800ms, a 200ms hold at the far deck, back in 720ms, and then a long
@@ -689,7 +696,7 @@
 @keyframes nm-orbit-in { from { opacity: 0; transform: scale(0.9); } }
 /* Both ends written: `inset()` does not ease into `none`, so a wire drawn
    towards its resting value would snap on at the half instead of drawing. */
-@keyframes nm-wire-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes nm-wire-in { from { clip-path: inset(-8px 100% -8px -8px); } to { clip-path: inset(-8px); } }
 @keyframes nm-node-in { from { opacity: 0; transform: translate(var(--in-x), var(--in-y)) scale(0.78); } }
 @keyframes nm-core-in { from { opacity: 0; transform: scale(0.82); } }
 @keyframes nm-fade-in { from { opacity: 0; } }

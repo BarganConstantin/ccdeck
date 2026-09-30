@@ -376,8 +376,10 @@ describe("a real office on the map", () => {
     a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
   it("lands no name on another deck, and none on this deck's own name, in a 900px window's stage", () => {
-    const layout = mapLayout(office(), 828, 470, "Constantin iMac");
-    const { core, decks } = nodeBoxes(layout, "Constantin iMac");
+    // Captions as the map draws them: a live deck's is what it runs.
+    const drawn = (r: DeckRow) => nodeCaption(r, "Windows 11");
+    const layout = mapLayout(office(), 828, 470, "Constantin iMac", drawn);
+    const { core, decks } = nodeBoxes(layout, "Constantin iMac", drawn);
     const clashes: string[] = [];
     decks.forEach((a, i) => {
       if (meet(a.disc, core) || meet(a.label, core)) clashes.push(`${a.key} x core`);
@@ -399,5 +401,18 @@ describe("a real office on the map", () => {
 
   it("goes dense where the full names cannot be cleared", () => {
     expect(mapLayout(office(), 530, 640, "Constantin iMac").dense).toBe(true);
+  });
+});
+
+describe("the box a name takes", () => {
+  it("is as wide as the line under the name, not only the name", () => {
+    // A short name over `away · 12m ago` draws as wide as the caption; boxes
+    // measured by the name alone let two such labels meet on a clear map.
+    const decks = Array.from({ length: 12 }, (_, i) => row({ name: `b${i}`, here: false, state: "last online 12m ago" }));
+    const layout = mapLayout(decks, 800, 600);
+    for (const box of nodeBoxes(layout).decks) {
+      // To within the floating point of halving a width and subtracting it.
+      expect(box.label.x1 - box.label.x0).toBeGreaterThanOrEqual("away · 12m ago".length * 6 - 1e-9);
+    }
   });
 });
