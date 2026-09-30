@@ -259,7 +259,9 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
       )}
 
       <div className="meta">
-        <span><b>{data.toolCount}</b> tools</span>
+        {/* One tool, as the session list and the card's own label say it
+            (#1842). */}
+        <span><b>{data.toolCount}</b> {data.toolCount === 1 ? "tool" : "tools"}</span>
         {failed > 0 && (
           <span className="failed-meta" title={`${failed} tool ${failed === 1 ? "call" : "calls"} returned an error`}>
             <b>{failed}</b> err
