@@ -570,6 +570,13 @@ const CONTROLS: Control[] = [
   // And the starters over its message: pills with no fill at rest, so the
   // frame is their one boundary; the pointer lifts it to the foreground.
   { at: ".fb-starter", states: [".fb-starter:hover"], beds: ["--panel"] },
+  // Its way to add a screenshot, in the message's label row: no boundary at
+  // rest, since its words name it, and the control edge under the pointer and
+  // the keyboard, as Other accounts' expand-all draws one.
+  { at: ".fb-attach:hover", fillFrom: ".fb-attach:hover", states: [".fb-attach:focus-visible"], beds: ["--panel"] },
+  // And each image's remove: a disc on the panel's own fill at the corner of a
+  // thumbnail, framed at rest because a picture of anything may be under it.
+  { at: ".fb-shot > .fb-shot-remove", fillFrom: ".fb-shot > .fb-shot-remove", beds: ["--panel"] },
   { at: ".appearance-source-trigger", states: [".appearance-source-trigger:hover", ".appearance-source-picker.is-open .appearance-source-trigger"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
@@ -821,7 +828,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // one under the pointer and the keyboard, and its decks, which draw one at
     // rest and a louder one while looked at. And from 104 to 106 with the
     // feedback dialog's starters, a pill framed at rest and louder on hover.
-    expect(EDGED_CONTROLS.length).toBeLessThan(106);
+    // And from 106 to 109 with its images: the way to add one, which gains an
+    // edge under the pointer and the keyboard, and each image's remove, framed
+    // at rest.
+    expect(EDGED_CONTROLS.length).toBeLessThan(109);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
