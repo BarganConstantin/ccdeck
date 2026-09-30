@@ -392,6 +392,30 @@ describe("the social preview card (#441)", () => {
     expect(src).toContain("npx ccdeck");
     expect(src).not.toMatch(/subagents ·/);
   });
+
+  it("makes none of the claims the README has already had to take back", () => {
+    // The card is uploaded by hand and then read by every link unfurler for as
+    // long as nobody re-uploads it, so a claim that goes false on the page stays
+    // live on the card. Two did. "No telemetry" left the README when #1853 put
+    // anonymous reports on by default. And the card named both CLIs one line
+    // above "who is blocked on you", which a Codex user reads as theirs — the
+    // queue the README's noun line now scopes to Claude Code, because the Codex
+    // capture emits no Notification. What is checked is the card's visible
+    // text, noun by noun, so a "Claude Code" on a neighbouring noun does not
+    // count as qualifying this one.
+    const html = readFileSync(join(repo, "assets", "social-preview.html"), "utf8");
+    const text = html
+      .replace(/<style[\s\S]*?<\/style>/g, "")
+      .replace(/<svg[\s\S]*?<\/svg>/g, "")
+      .replace(/<[^>]+>/g, "\n")
+      .replace(/&nbsp;/g, " ");
+    const nouns = text.split(/\n|·/).map(n => n.trim()).filter(Boolean);
+    expect(nouns.length, "no visible text was read off the card — the checks below would pass on nothing").toBeGreaterThan(5);
+    expect(text, "the card still makes a telemetry claim, which #1853 made false").not.toMatch(/telemetry/i);
+    for (const noun of nouns.filter(n => /blocked|waiting/i.test(n))) {
+      expect(noun, `"${noun}" on the card reads as covering Codex, which the deck cannot see blocked`).toContain("Claude Code");
+    }
+  });
 });
 
 describe("the link to the site, which is how anything finds it at all", () => {
