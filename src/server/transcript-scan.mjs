@@ -104,6 +104,19 @@ const USAGE_FIELD_RE = {
 // `server_tool_use`, several fields earlier. Match the sub-object on the raw
 // line instead of on the extracted blob.
 const CACHE_CREATION_BLOCK_RE = /"cache_creation"\s*:\s*\{([^}]*)\}/g;
+// Claude Code writes an `iterations` array into the usage block, one entry per
+// model iteration of the request, and every entry carries a `cache_creation`
+// sub-object of its own. The request's split is the top-level one; the entries
+// restate it. Matching every `cache_creation` on the line counted the split once
+// per copy — 141,066 of 192,917 assistant lines on one machine carry the array,
+// and on each of them the 1-hour and 5-minute tokens summed to twice the flat
+// `cache_creation_input_tokens`, so every cache write was billed twice. The
+// array is cut out before the split is read. Its entries hold only numbers and
+// sub-objects, never a bracket inside a string, so one level of nesting is the
+// whole of what the pattern has to span; a key quoted inside a message reaches
+// the line as `\"iterations\"` and is not matched, for the reason
+// TOOL_USE_RESULT_KEY_RE gives below.
+const ITERATIONS_ARRAY_RE = /"iterations"\s*:\s*\[(?:[^[\]]|\[[^[\]]*\])*\]/g;
 // A finished `Task`/`Agent` call is written into the PARENT's transcript as a
 // top-level `toolUseResult`, and that object carries a `usage` block of its own
 // — the subagent's LAST API turn, restated on the parent's line. Those same
@@ -397,7 +410,7 @@ function foldUsageLine(state, line, record) {
   for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
     chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS);
   }
-  for (const m of billed.matchAll(CACHE_CREATION_BLOCK_RE)) {
+  for (const m of billed.replace(ITERATIONS_ARRAY_RE, "").matchAll(CACHE_CREATION_BLOCK_RE)) {
     chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS);
   }
 }
