@@ -90,7 +90,12 @@ export function placeBeside(anchor: Edges, size: Size, viewport: Size): BesidePl
   // Level with the row, then pulled back inside the window — a row near the
   // foot of a tall column opens a card that ends at the window's margin.
   const top = Math.max(POPOVER_MARGIN, Math.min(anchor.top, viewport.height - POPOVER_MARGIN - height));
-  return { top, left: Math.max(POPOVER_MARGIN, x), side, maxHeight: fits ? null : height };
+  // Beside the row, then pulled back inside the window the same way — when
+  // neither side holds it, over the anchor rather than past the right edge
+  // (#1791), where a fixed card is somewhere no scroll reaches. The left clamp
+  // last, for the reason placePopover gives.
+  const start = Math.max(POPOVER_MARGIN, Math.min(x, viewport.width - POPOVER_MARGIN - size.width));
+  return { top, left: start, side, maxHeight: fits ? null : height };
 }
 
 export function placePopover(anchor: Edges, size: Size, viewport: Size): Placement {
