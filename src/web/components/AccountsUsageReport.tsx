@@ -15,19 +15,22 @@
 // moves with the panel and a second polling loop never starts. Its rows keep
 // the order the panel had when it was opened — a poll does not move them under
 // the reader, the rule #1579 gave the panel's own list — and an account that
-// arrives after that goes at the end. A poll that fails keeps the last roster
-// on screen and says so, and so does one that comes back empty, rather than
-// the report emptying under the reader (the Projects report's #1412).
+// arrives after that goes at the end. A column header orders them once, when
+// it is pressed, and that order is held the same way until the next press. A
+// poll that fails keeps the last roster on screen and says so, and so does one
+// that comes back empty, rather than the report emptying under the reader (the
+// Projects report's #1412).
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { Account } from "../claude-accounts";
 import { resetCountdown } from "../relative-time";
 import { holdOrder } from "../other-accounts-order";
 import {
-  freshness, heldNote, REPORT_WINDOWS, shownUsed, usageReport, usedAndAvailable,
-  type Cell, type ReportRow, type Status, type WindowTotal,
+  freshness, heldNote, nextReportSort, REPORT_WINDOWS, shownUsed, sortReportRows, usageReport, usedAndAvailable,
+  type Cell, type ReportRow, type ReportSort, type Status, type WindowTotal,
 } from "../accounts-usage-report";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { SortHead } from "./SortHead";
 import { useCountUp } from "../use-count-up";
 
 /** How full a reading is, in the inks the panel's rows use: the warning past
@@ -165,11 +168,15 @@ function InfoMark() {
  * rows, and how they add up. Its own component so the suite can draw it — a
  * portal has no server render.
  */
-export function UsageReportBody({ accounts, nowSec, held }: {
+export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = () => {} }: {
+  /** The rows, in the order to draw them. */
   accounts: readonly Account[];
   nowSec: number;
   /** Why these are the last readings rather than this poll's, or null. */
   held: string | null;
+  /** The column the rows were last ordered by, or null for the panel's order. */
+  sort?: ReportSort | null;
+  onSort?: (next: ReportSort) => void;
 }) {
   const report = usageReport(accounts, nowSec);
   const total = report.rows.length;
@@ -201,10 +208,12 @@ export function UsageReportBody({ accounts, nowSec, held }: {
         </colgroup>
         <thead>
           <tr>
-            <th scope="col">Account</th>
-            {REPORT_WINDOWS.map(w => <th key={w.id} scope="col">{w.label} used</th>)}
-            <th scope="col">Status</th>
-            <th scope="col" className="ap-report-upd-h">Updated</th>
+            <SortHead col="account" label="Account" sort={sort} next={nextReportSort} onSort={onSort} />
+            {REPORT_WINDOWS.map(w => (
+              <SortHead key={w.id} col={w.id} label={`${w.label} used`} sort={sort} next={nextReportSort} onSort={onSort} />
+            ))}
+            <SortHead col="status" label="Status" sort={sort} next={nextReportSort} onSort={onSort} />
+            <SortHead col="updated" label="Updated" className="ap-report-upd-h" sort={sort} next={nextReportSort} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
@@ -261,7 +270,16 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   const [shown, setShown] = useState<readonly Account[]>(accounts ?? []);
   useEffect(() => { if (accounts && accounts.length > 0) setShown(accounts); }, [accounts]);
   const held = heldNote(failed, !accounts || accounts.length === 0, shown.length > 0);
-  const rows = holdOrder(shown, order);
+  // A pressed column's order, taken when it was pressed and held like the
+  // panel's: the rows do not move under the reader between presses. Worked out
+  // from the panel's order each time, so ties land the same way whichever
+  // column was pressed before.
+  const [sorted, setSorted] = useState<{ sort: ReportSort; order: string[] } | null>(null);
+  const rows = holdOrder(shown, sorted?.order ?? order);
+  const sortBy = (next: ReportSort) => {
+    const byPanel = usageReport(holdOrder(shown, order), nowSec).rows;
+    setSorted({ sort: next, order: sortReportRows(byPanel, next).map(r => r.key) });
+  };
 
   // Portalled to <body>: opened from inside AccountsPanel, and a dialog left in
   // the panel's subtree is laid out by it (panel-modal-portal).
@@ -281,7 +299,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
             held back is announced: a live region that arrives with its text is
             the one screen readers drop. */}
         <div className="vis-hidden" role="status" aria-atomic="true">{held ?? ""}</div>
-        <UsageReportBody accounts={rows} nowSec={nowSec} held={held} />
+        <UsageReportBody accounts={rows} nowSec={nowSec} held={held} sort={sorted?.sort ?? null} onSort={sortBy} />
       </div>
     </div>,
     document.body,

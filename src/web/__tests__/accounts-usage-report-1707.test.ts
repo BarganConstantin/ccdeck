@@ -294,7 +294,11 @@ describe("the report, drawn", () => {
 
   it("labels the rows' numbers as used, beside a state for each", () => {
     const out = html([acct(1, 10, 10)]);
-    expect(out).toContain('<th scope="col">5h used</th><th scope="col">7d used</th><th scope="col">Status</th><th scope="col" class="ap-report-upd-h">Updated</th>');
+    // Each column name is the button that orders the rows by it (SortHead).
+    for (const label of ["Account", "5h used", "7d used", "Status"]) {
+      expect(out).toContain(`<th scope="col" aria-sort="none"><button type="button" class="sd-sort" title="Sort by ${label}">${label}<span class="sd-sort-dir" aria-hidden="true"></span></button></th>`);
+    }
+    expect(out).toContain('<th scope="col" aria-sort="none" class="ap-report-upd-h"><button type="button" class="sd-sort" title="Sort by Updated">Updated<span');
     expect(out).toContain('<td class="ap-report-upd">now</td>');
   });
 
@@ -412,7 +416,10 @@ describe("where it opens from", () => {
     expect(panel).toMatch(/<AccountsUsageReport accounts=\{data\?\.accounts \?\? null\} order=\{reportOrder\}\s+failed=\{failure\?\.reload \? failure\.text : null\}\s+nowSec=\{nowSec\}/);
     const modal = sourceOf("components/AccountsUsageReport.tsx");
     expect(modal).not.toMatch(/\bfetch\(|setInterval|useAccountRoster|usePanelClock/);
-    expect(modal).toContain("const rows = holdOrder(shown, order);");
+    // The panel's order, until a column is pressed; then that column's, taken
+    // at the press from the panel's order and held the same way.
+    expect(modal).toContain("const rows = holdOrder(shown, sorted?.order ?? order);");
+    expect(modal).toContain("const byPanel = usageReport(holdOrder(shown, order), nowSec).rows;");
   });
 
   it("is a dialog in the Projects report's shell: portalled, dismissed and focused the shared way", () => {
