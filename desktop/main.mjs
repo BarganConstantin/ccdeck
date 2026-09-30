@@ -456,7 +456,14 @@ function showNotification({ title, body, chime }) {
  *  ordinary app while its window is open — so the window orders, hides and
  *  switches like every other app's. Switched here rather than declared with
  *  LSUIElement: an app that declared itself an agent and then turned regular
- *  kept its window in front of the app the person had just clicked. */
+ *  kept its window in front of the app the person had just clicked.
+ *
+ *  Turned regular BEFORE the window is built, never after: a full-screen Space
+ *  takes in an agent's windows and nobody else's, and has nothing behind its
+ *  full-screen window for one to step back to. A window built while the app
+ *  was still accessory came up over a full-screen browser and stayed there
+ *  when the browser was clicked (#1214). Built by a regular app, it opens on
+ *  a desktop Space, and macOS goes there to show it. */
 function setRegular(regular) {
   if (process.platform !== "darwin") return;
   app.setActivationPolicy(regular ? "regular" : "accessory");
@@ -490,6 +497,7 @@ function openWindow(steal = true) {
     return;
   }
   const origin = `http://127.0.0.1:${deck.port}`;
+  setRegular(true);
   win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -535,7 +543,6 @@ function openWindow(steal = true) {
     win = null;
     setRegular(false);
   });
-  setRegular(true);
   // The page reads this to word itself for a window and to drop the browser
   // notification section it has no use for here (src/web/in-app.ts).
   win.webContents.setUserAgent(`${win.webContents.getUserAgent()} ccdeck-desktop/${app.getVersion()}`);
