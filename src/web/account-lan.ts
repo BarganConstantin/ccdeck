@@ -7,6 +7,7 @@
 // the key and the export preflight — and a pure function is what lets a test
 // hold the two copies to each other.
 import { type Account } from "./claude-accounts";
+import { isOnline } from "./lan-roster";
 import { type LanAccount, type LanStatus } from "./lan-types";
 
 export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
@@ -37,16 +38,20 @@ export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
  * copy and says nothing, and the row said only "login expired" for hours.
  *
  * True only on evidence: the network is on, this deck shares the account, at
- * least one paired deck offers it, and every one that does offers it dead. A
- * deck that does not offer it, or has not said, proves nothing either way.
+ * least one paired deck that is on offers it, and every one that does offers
+ * it dead. A deck that does not offer it, or has not said, proves nothing
+ * either way — and nor does a deck that has gone quiet: what it offered then
+ * is its last word, not its current one, and it may have been signed in
+ * again since.
  */
 export function noCopyWorksNearby(
   key: string,
   status: Pick<LanStatus, "enabled" | "shared" | "peers"> | null,
+  now: number,
 ): boolean {
   if (!status?.enabled || !(status.shared ?? []).includes(key)) return false;
   const copies = (status.peers ?? [])
-    .filter(p => p.paired)
+    .filter(p => p.paired && isOnline(p, now))
     .map(p => p.offers?.accounts?.find(o => o.key === key))
     .filter((o): o is NonNullable<typeof o> => o != null);
   return copies.length > 0 && copies.every(o => !o.alive);

@@ -186,11 +186,13 @@ export interface AccountIssue {
  *  noCopyWorksNearby. The visible line names the one fact that changes what
  *  to do; the hint says why it happens and what a single sign-in repairs. */
 const EXPIRED_EVERYWHERE = {
-  text: "Login expired on every deck",
-  hint: "Every paired deck that shares this account holds a copy that has expired too, so none of them can "
-      + "repair this one. Claude retires a login's other copies each time one machine refreshes it, which is "
-      + "how shared copies expire together. Sign in again on any one machine; the others repair from it on "
-      + "their next round.",
+  // "Online", not "every": a deck that is off, or one not paired, may hold a
+  // working copy this deck cannot see — see noCopyWorksNearby.
+  text: "Login expired on all online decks",
+  hint: "Every paired deck online right now that shares this account holds a copy that has expired too, so "
+      + "none of them can repair this one. Claude retires a login's other copies each time one machine "
+      + "refreshes it, which is how shared copies expire together. Sign in again on any one machine; the "
+      + "others repair from it on their next round.",
 };
 
 export function accountIssue(
@@ -204,11 +206,19 @@ export function accountIssue(
   return { ...issue, text: EXPIRED_EVERYWHERE.text, hint: EXPIRED_EVERYWHERE.hint };
 }
 
-/** A stored login that only a sign-in can bring back — the two verdicts and
- *  the two errors that say so. */
+/** A stored login that only a sign-in can bring back, as the row's own issue
+ *  says it: the collector stopped on a quarantined slot, or the stored token
+ *  was refused outright.
+ *
+ *  NEVER A STALE COPY (#721). There the reader IS signed in — only the copy
+ *  claude-swap keeps is dead, and the deck re-captures it by itself — so
+ *  telling them to sign in again, on every deck, is the false alarm #721
+ *  removed. And never on the collector's verdict alone: a row whose issue is
+ *  a rate limit is about the rate limit, whatever the verdict beside it. */
 function deadLogin(a: IssueSource): boolean {
-  return a.collector === "relogin_required"
-    || (!a.stopped && (a.error === "invalid_grant" || a.error === "no_refresh_token"));
+  if (a.staleCopy) return false;
+  if (a.stopped) return a.collector === "relogin_required";
+  return a.error === "invalid_grant" || a.error === "no_refresh_token";
 }
 
 function ownIssue(

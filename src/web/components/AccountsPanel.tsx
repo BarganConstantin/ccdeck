@@ -8,7 +8,6 @@
 // consequence here — numbers can be minutes old, and saying so is part of the
 // display rather than a caveat to hide.
 import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
-import type { LanStatus } from "../lan-types";
 import AccountProjectsModal from "./AccountProjectsModal";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountRow from "./AccountRow";
@@ -21,7 +20,7 @@ import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
-import { lanAccounts, noCopyWorksNearby } from "../account-lan";
+import { lanAccounts } from "../account-lan";
 import { laneKey } from "../lane-open";
 import {
   allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
@@ -192,8 +191,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // status its own section already polls: a dead login no paired deck can
   // repair says so on its row, rather than waiting in silence for a copy
   // that will not come. See noCopyWorksNearby.
-  const [lanStatus, setLanStatus] = useState<LanStatus | null>(null);
-  const lanFor = (a: Account) => ({ noCopyWorksNearby: noCopyWorksNearby(lanAccounts([a])[0].key, lanStatus) });
+  const [noCopy, setNoCopy] = useState<ReadonlySet<string>>(() => new Set());
+  const takeNoCopy = useCallback((keys: readonly string[]) => setNoCopy(new Set(keys)), []);
+  const lanFor = (a: Account) => ({ noCopyWorksNearby: noCopy.has(lanAccounts([a])[0].key) });
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
 
@@ -273,7 +273,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // What the fold's row says about them — how many can be reached, whether
   // the live account is past the threshold, whether anything will switch
   // without a press — is read in account-fold.ts.
-  const peers = peersOf(rest, nowSec);
+  const peers = peersOf(rest, nowSec, lanFor);
   const strained = pastThreshold(activeAcct, threshold);
   const autoArmed = isAutoArmed(auto);
   /** The box a row scrolls inside, which is what a popover hanging off it
@@ -647,7 +647,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           // account-lan.ts.
           accounts={lanAccounts(data?.accounts ?? [])}
           onChanged={() => load(true)}
-          onStatus={setLanStatus}
+          onNoCopy={takeNoCopy}
           view={view === "lan"}
           onOpen={openLan}
           onBack={() => setView("accounts")}
