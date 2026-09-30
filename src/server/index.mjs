@@ -135,6 +135,10 @@ import { applyLanPrefs, resetLanLoaded } from "./lan-deck.mjs";
 import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
 // GET and POST /api/prefs — see prefs-routes.mjs.
 import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
+// Opt-in anonymous reports and the feedback dialog (#1853). The requests to
+// api.ccdeck.dev are made in reports.mjs, never in this file.
+import { handleClientError, handleFeedback, handleReportsWrite } from "./reports-routes.mjs";
+import { reporter } from "./reports.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
 import { historySnapshot, processesReply, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 // How every route reads a body and answers, and the answer for one that threw
@@ -213,7 +217,14 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // default for an unhandled rejection is to kill the process, which would
   // take the whole deck down — SSE stream, hook ingest and all — because one
   // background quota poll hit a network error. Answer the request instead.
-  const guard = (p, res) => Promise.resolve(p).catch(err => sendInternalError(res, err));
+  //
+  // The error also goes to reporter.reportError, which sends it (scrubbed) only
+  // for a person who said yes to reports, and never throws.
+  const failed = (res, err) => {
+    sendInternalError(res, err);
+    reporter.reportError("server", err).catch(() => {});
+  };
+  const guard = (p, res) => Promise.resolve(p).catch(err => failed(res, err));
 
   // Which of the eleven candidates below this deck ended up on, set the moment
   // one of them binds. Declared here rather than beside the loop that fills it
@@ -295,6 +306,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/reports")      return guard(handleReportsWrite(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/feedback")     return guard(handleFeedback(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/client-error") return guard(handleClientError(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.
@@ -430,7 +444,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     try {
       route(req, res);
     } catch (err) {
-      sendInternalError(res, err);
+      failed(res, err);
     }
   });
 
@@ -467,6 +481,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // deck that had it on comes back with it on, and a launcher that only
       // asked the registry never binds a port it is about to walk away from.
       prefsRead.then(() => applyLanPrefs()).catch(() => {});
+      // Anonymous reports, for a person who said yes (#1853): what is due now,
+      // then a check every few hours on an unref'd timer. With no yes, or with
+      // AGENTS_DECK_NO_REPORTS / AGENTS_DECK_NO_INSTALL, nothing is sent.
+      prefsRead.then(() => reporter.start()).catch(() => {});
       // Auto-switch resumes only if the user previously turned it on; the
       // module reads its own persisted flag and does nothing otherwise. Its
       // ticks wait for `cswapQuiet`, the launcher's word that claude-swap is not

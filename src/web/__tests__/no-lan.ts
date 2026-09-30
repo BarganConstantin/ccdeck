@@ -12,3 +12,9 @@
 // Registered from vite.config.ts as a setup file, for the reason budget.ts is:
 // it has to apply to the suite somebody forgets to add it to.
 process.env.AGENTS_DECK_NO_LAN = "1";
+
+// Anonymous reports (#1853) are off until a person says yes, and a temp home
+// has never said anything, so no suite should reach api.ccdeck.dev anyway.
+// This makes that a guarantee rather than a consequence: a suite that tests
+// the reporter hands it its own env and a fake fetch.
+process.env.AGENTS_DECK_NO_REPORTS = "1";

@@ -7,7 +7,7 @@
 // engine had (lan-deck.mjs): what is left of them is a body read, a write
 // through the one, a push to the other, and an answer. The notifier stays in
 // index.mjs, beside the desktop-app connections it notifies through.
-import { notificationsOn, notificationsVetoed, prefsRefusalDetail, prefsWriteRefusal, publicPrefs } from "./deck-prefs.mjs";
+import { notificationsOn, notificationsVetoed, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed } from "./deck-prefs.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
@@ -38,6 +38,7 @@ function prefsPayload() {
     prefs: publicPrefs(prefs),
     notificationsAllowed: notificationsOn(prefs),
     notificationsVetoed: notificationsVetoed(),
+    reportsVetoed: reportsVetoed(),
   };
 }
 
@@ -51,8 +52,12 @@ export async function handlePrefsWrite(req, res) {
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
+  // The reports answer has consequences a plain write would skip — an install
+  // id made, a deletion asked for — so it is changed only through
+  // /api/reports, and its state never by the page at all (#1853).
+  const { reports: _reports, report: _report, ...patch } = body;
   try {
-    await heldPrefs.write(body);
+    await heldPrefs.write(patch);
   } catch (err) {
     // A settings file or folder this user cannot reach is the machine's to fix,
     // not the deck's, and `guard`'s bare 500 left the panel with nothing to say
