@@ -4,10 +4,8 @@
 // Everything asserted here is something no single reader could get wrong on its
 // own: which tabs are the deck's, when a read is worth paying for, what an
 // unreadable hosts file is allowed to claim, and what the topbar badge counts.
-import { describe, it, expect, beforeEach, beforeAll, afterAll, afterEach, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   browserWatchSnapshot,
@@ -21,6 +19,7 @@ import { flooredReader } from "./floored-reader";
 import { clientText } from "./client-source";
 import { watchServerSurface } from "./browser-watch-server-surface";
 import { linuxMachine } from "./linux-browser-fixture";
+import { guardThisMachine } from "./browser-watch-guard";
 import { RELAY_HOST } from "../../server/relay-guard.mjs";
 
 // NOTHING IN THIS FILE MAY RUN A PROGRAM OR LOOK AT THIS MACHINE (#1825).
@@ -31,38 +30,14 @@ import { RELAY_HOST } from "../../server/relay-guard.mjs";
 // reads except that, so every case here ran the survey against the developer's
 // own browsers: results that depended on what happened to be installed and
 // running, one refactor away from acting on them. The harness now hands the
-// survey an in-memory machine, and these two guards are what fail the file if a
-// case ever reaches past it: every way of starting a process throws and is
-// written down, and the home and config directories point into a temp dir.
-const spawned = vi.hoisted(() => [] as string[]);
-vi.mock("node:child_process", async (importOriginal) => {
-  const real = await importOriginal<typeof import("node:child_process")>();
-  const trap = (name: string) => (...args: unknown[]) => {
-    spawned.push(`${name}(${JSON.stringify(args[0])}, ${JSON.stringify(args[1])})`);
-    throw new Error(`browser-watch.test.ts ran a real ${name}`);
-  };
-  const traps = Object.fromEntries(
-    ["exec", "execFile", "execFileSync", "execSync", "fork", "spawn", "spawnSync"].map(n => [n, trap(n)]));
-  return { ...real, ...traps, default: { ...real, ...traps } };
-});
-
-const NO_HOME = mkdtempSync(join(tmpdir(), "ccdeck-browser-watch-"));
-beforeAll(() => {
-  // Every name a default path on the three platforms is built from.
-  vi.stubEnv("HOME", NO_HOME);
-  vi.stubEnv("USERPROFILE", NO_HOME);
-  vi.stubEnv("XDG_CONFIG_HOME", join(NO_HOME, ".config"));
-  vi.stubEnv("LOCALAPPDATA", join(NO_HOME, "AppData", "Local"));
-  vi.stubEnv("CLAUDE_CONFIG_DIR", join(NO_HOME, ".claude"));
-});
-afterEach(() => {
-  const ran = spawned.splice(0);
-  expect(ran, "a case reached the real child_process").toEqual([]);
-});
-afterAll(() => {
-  vi.unstubAllEnvs();
-  rmSync(NO_HOME, { recursive: true, force: true });
-});
+// survey an in-memory machine, and the guard is what fails the file if a case
+// ever reaches past it: every way of starting a process throws and is written
+// down, and the home and config directories point into a temp dir. It began
+// here and is browser-watch-guard.ts's now, shared by every file that imports
+// browser-watch.mjs (#1847).
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const src = (rel: string) => readFileSync(at(rel), "utf8");

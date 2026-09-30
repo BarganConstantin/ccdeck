@@ -5,12 +5,21 @@
 // never appear in the panel. A mode that silently does nothing is worse than
 // one that was never offered, because the user arms it, believes they are
 // covered, and finds out on the day it mattered.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   appName, available, closeTabScript, closeTab, notify, performable, quitBrowser, react,
 } from "../../server/browser-react.mjs";
+import { guardThisMachine } from "./browser-watch-guard";
+import { linuxMachine } from "./linux-browser-fixture";
+
+// The snapshot ends in the browser survey, which reads the machine
+// linux-browser-fixture.ts holds in memory and never this one (#1847): see
+// browser-watch-guard.ts.
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 const src = readFileSync(
   fileURLToPath(new URL("../../server/browser-react.mjs", import.meta.url)), "utf8");
@@ -190,6 +199,7 @@ describe("how the watch arms it", () => {
     const snap = await browserWatchSnapshot({
       quietMs: 0,
       deps: {
+        ...linuxMachine().deps,
         readStore: async () => ({
           settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 0, gapMinutes: 15 },
           episodes: [], dismissed: [], migrated: false,

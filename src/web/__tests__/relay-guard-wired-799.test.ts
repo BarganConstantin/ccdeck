@@ -17,14 +17,22 @@
 // What is asserted here is the WIRING, in both directions: that the snapshot
 // carries the module's answer, and that the module still cannot do the two
 // things it refuses to do.
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { browserWatchSurface } from "./browser-watch-surface";
 import { watchServerSurface } from "./browser-watch-server-surface";
+import { guardThisMachine } from "./browser-watch-guard";
+import { linuxMachine } from "./linux-browser-fixture";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+// The snapshot below ends in the browser survey, which is not this file's
+// subject and must not read this machine (#1847): see browser-watch-guard.ts.
+vi.mock("node:child_process", async (real) =>
+  (await import("./browser-watch-guard")).trappedChildProcess(await real()));
+guardThisMachine();
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-relay-wired-"));
 afterAll(() => rmTempDir(DIR));
@@ -64,11 +72,13 @@ function profileDir(name: string): string {
 }
 
 /** A snapshot with every browser read stubbed out — this file is about the
- *  relay half and nothing else. */
+ *  relay half and nothing else. The survey reads linux-browser-fixture.ts's
+ *  machine, and the reads below are this file's own. */
 async function snapshot(profiles: unknown[], hosts: string | null) {
   return browserWatchSnapshot({
     readBrowsers: true,
     deps: {
+      ...linuxMachine().deps,
       readStore: async () => ({ settings: { enabled: false, reaction: "notify", quietMinutes: 15, gapMinutes: 15, windowDays: 7 }, episodes: [], dismissed: [], migrated: false }),
       writeStore: async () => {},
       updateStore: async () => {},
