@@ -679,9 +679,12 @@
   font-family: var(--font-mono);
   color: var(--text);
 }
+/* A login that works both ways is the steady state: listed, so the panel
+   answers what comes from that deck, and a step quieter than the ones that
+   need a look, so those still lead. */
+.nm-lane[data-tone="ok"] .nm-lane-email { color: var(--muted); }
 .nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); white-space: nowrap; }
 .nm-lane-said + .nm-lane-used { margin-left: 0; }
-.nm-lanes-more { margin: 0; font-size: 10px; color: var(--muted); }
 .btn.nm-open { flex: none; min-height: 24px; padding: 0 10px; font-size: 11px; }
 
 /* NARROW: the panel goes under the picture rather than beside it, and the

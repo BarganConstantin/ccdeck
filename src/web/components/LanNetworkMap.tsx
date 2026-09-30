@@ -648,9 +648,9 @@ function NetworkDetails({ status, summary, entrance }: {
  *  own dialog, one press away on the name's own row.
  *
  *  SAID ONCE. It carried how the deck is reached three times — in its
- *  presence line, in what to do next, and as a fact — every login including
- *  the nine that were fine, and facts it did not know. The glance is the
- *  presence, the next step and what is wrong; the rest is the dialog's. */
+ *  presence line, in what to do next, and as a fact — and facts it did not
+ *  know. The glance is the presence, the next step and every login the two
+ *  share, the ones that need a look first. */
 function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
   row: DeckRow;
   entrance: Entrance;
@@ -676,14 +676,12 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
 
   const emits = (row.kind === "paired" && row.here) || row.kind === "asks";
   const next = deckNextStep(row, status.pairingMode);
-  // THE ONES THAT NEED A LOOK. A login that works both ways is the steady
-  // state; the title counts it and the list does not repeat it.
-  const TROUBLE_SHOWN = 4;
-  const trouble = troubleFirst(view.lanes).filter(l => l.tone !== "ok");
-  const shown = trouble.slice(0, TROUBLE_SHOWN);
-  const more = trouble.length - shown.length;
-  const fine = view.lanes.length - trouble.length;
-  const total = view.lanes.length;
+  // EVERY LOGIN THE TWO SHARE, the ones that need a look first. A list of
+  // only the trouble answered "is anything wrong" and hid "what comes from
+  // it", which is what a deck's panel is opened to see; the side scrolls.
+  const lanes = troubleFirst(view.lanes);
+  const total = lanes.length;
+  const fine = lanes.filter(l => l.tone === "ok").length;
   const title = total === 0 ? "No shared logins"
     : fine === total ? `${total} shared login${total === 1 ? ", fine" : "s, all fine"}`
     : `${total} shared login${total === 1 ? "" : "s"} · ${fine} fine`;
@@ -715,9 +713,9 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
       {view.paired && (
         <section className="nm-logins" aria-label="Logins the two decks share">
           <p className="nm-logins-title">{title}</p>
-          {shown.length > 0 && (
+          {total > 0 && (
             <ul className="nm-lanes">
-              {shown.map((l, k) => (
+              {lanes.map((l, k) => (
                 <li key={l.key} className="nm-lane" data-tone={l.tone} style={{ "--k": k } as CSSProperties}>
                   <i className="nm-lane-dot" aria-hidden />
                   <span className="nm-lane-email" aria-hidden>{l.email}</span>
@@ -730,7 +728,6 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
               ))}
             </ul>
           )}
-          {more > 0 && <p className="nm-lanes-more">and {more} more in its own dialog</p>}
           {unknown && <p className="nm-panel-hint">{unknown}</p>}
         </section>
       )}
