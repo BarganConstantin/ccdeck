@@ -392,6 +392,10 @@ const PRESSES: Press[] = [
   // labelled control by its name under it, so the same 0.97.
   [".ap-lan-map:active", "0.97", "transform"],
   [".nm-node:active", "0.97", "transform"],
+  // The feedback dialog's three kinds (#1853): a <label> the size of a card
+  // round its radio, the import card's shape, and pressed as that card is —
+  // a labelled control, so 0.97.
+  [".fb-kind:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
@@ -528,6 +532,21 @@ describe("press feedback is one convention, applied everywhere", () => {
     const loud = PRESSES.filter(([sel, , prop]) =>
       !(answers.get(sel) ?? []).some(r => decl(r.body, prop) === "none"));
     expect(loud.map(([sel]) => sel)).toEqual([]);
+  });
+
+  it("keeps every :has() selector out of a shared reduced-motion list", () => {
+    // One selector a browser cannot parse invalidates the whole list it sits
+    // in, so a :has() in a list of plain presses would take reduced motion
+    // away from every one of them in an engine without :has(). The sheet said
+    // so above the selected ribbon's answer, and the list before it still ran
+    // into it: `.bw-settings select:active:not(:disabled),` ended on a comma,
+    // so the comment between them joined the ribbon to the thirty-three
+    // presses it was written to stay out of. A :has() answer stands alone.
+    const shared = all
+      .filter(r => r.reduced)
+      .map(r => selectors(r))
+      .filter(list => list.length > 1 && list.some(s => s.includes(":has(")));
+    expect(shared.map(list => list.filter(s => s.includes(":has(")).join(" | "))).toEqual([]);
   });
 
   it("holds the list to every control the sheet itself calls pressable", () => {
