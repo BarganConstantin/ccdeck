@@ -200,6 +200,10 @@ describe("what was migrated to the secondary tier", () => {
       // undone, on the zone's red tint, where --muted is 3.42:1 in dark
       // (#1788).
       ".drag-trash-zone.over .drag-trash-hint",
+      // The crash pane's one sentence: that reloading usually clears it and a
+      // report tells the makers what broke (#1853). Prose the reader reads to
+      // decide which of the two buttons under it to press, on the panel surface.
+      ".error-fallback-note",
       // What happens to a piece of feedback, said before Send is pressed: it
       // goes to the people who make ccdeck, who may open a public issue from
       // it, never with the contact (#1853). Read once, to decide.

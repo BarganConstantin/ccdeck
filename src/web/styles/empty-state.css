@@ -95,3 +95,59 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+
+/* ---------------- the crash pane (#1853) ---------------- */
+/* Shown by components/ErrorBoundary.tsx when a render throws and there is no
+   deck left to draw. It stands in for the whole app, so it fills the pane the
+   `.app` grid would have, on the deck's own background, with one panel-surface
+   card centred in it. No animation: a crash is not a flourish, and the card
+   carries the deck's card look — panel, hairline, the shared radius and shadow —
+   so it reads as ours rather than as the browser's error page. The two actions
+   are the sheet's own `.btn` and `.btn.primary`, so they need nothing of their
+   own here. */
+/* Fills the pane with the deck's background — `min-height`, not `position:
+   fixed; inset: 0`, on purpose: it stands in for the whole `.app`, so it needs
+   no fixed layer, and staying out of that shape keeps it clear of the modal
+   sweep that reads a fixed, inset, centred box as a dialog backdrop
+   (canvas-motion.test.ts). The one dialog it can open — Send report — is the
+   feedback dialog's own `.modal-backdrop`, which is fixed to the viewport
+   itself, so nothing here lays it out. */
+.error-fallback {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+}
+.error-fallback-card {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-2);
+}
+.error-fallback-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.error-fallback-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.error-fallback-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}

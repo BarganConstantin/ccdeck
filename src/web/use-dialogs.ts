@@ -19,6 +19,7 @@
 // this render resolved, so a keystroke in the same commit sees the dialogs
 // that were just drawn.
 import { useCallback, useState, type MutableRefObject } from "react";
+import type { FeedbackPrefill } from "./components/FeedbackDialog";
 import { findToolOnBoard, type GraphState } from "./reducer";
 import type { ToolCall } from "./types";
 import { useModalGate } from "./use-modal-gate";
@@ -49,8 +50,17 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
   const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
-  /** The feedback dialog, opened from the Appearance menu (#1853). */
+  /** The feedback dialog, opened from the Appearance menu, the topbar's Report a
+   *  problem button, the account issue popover and the error boundary (#1853). */
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  /** What the dialog opens filled in with, or null for a blank one. Cleared on
+   *  close so the next blank open cannot inherit the last seed. */
+  const [feedbackPrefill, setFeedbackPrefill] = useState<FeedbackPrefill | null>(null);
+  /** The one door the openers use: a blank report, or one seeded for a caller. */
+  const openFeedback = useCallback((prefill?: FeedbackPrefill) => {
+    setFeedbackPrefill(prefill ?? null);
+    setFeedbackOpen(true);
+  }, []);
 
   // The tool the modal is showing, found without building a list of the ones it
   // is not (#997). In the render body and not skippable — the modal gate below
@@ -76,7 +86,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
     keyHelpOpen, setKeyHelpOpen,
     usageHistoryOpen, setUsageHistoryOpen,
     browserWatchOpen, setBrowserWatchOpen,
-    feedbackOpen, setFeedbackOpen,
+    feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill, openFeedback,
     keyHelpOpenRef, modalOpenRef,
   };
 }

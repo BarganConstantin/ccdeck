@@ -40,6 +40,7 @@ import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
 import DeckDialogs from "./components/DeckDialogs";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
 import { useProviderStatus } from "./use-provider-status";
@@ -79,7 +80,14 @@ import { createChimePlayer } from "./chime-player";
 export default function App() {
   return (
     <ReactFlowProvider>
-      <Inner />
+      {/* The whole deck under one error boundary (#1853): a render error used to
+          blank the page to nothing, and now it shows a calm pane with a reload
+          and a Send report — see components/ErrorBoundary.tsx. It wraps Inner
+          rather than a region of it because the crash we cannot predict is the
+          one anywhere below. */}
+      <ErrorBoundary>
+        <Inner />
+      </ErrorBoundary>
     </ReactFlowProvider>
   );
 }
@@ -605,7 +613,7 @@ function Inner() {
           <SettingsRun
             providers={providers} sound={sound} tones={tones} customTones={customTones} notify={notify}
             chimeState={chimeState} menus={menus} appearance={appearance} fm={fm}
-            reports={reports} onFeedback={() => dialogs.setFeedbackOpen(true)}
+            reports={reports} onFeedback={() => dialogs.openFeedback()}
           />
         </div>
       </header>
@@ -629,7 +637,7 @@ function Inner() {
           be run: not on PATH". The panel is also open by default, so that was
           the first thing such a user saw. */}
       {isMounted(accountsPhase) && providers.claude && (
-        <AccountsPanel leaving={accountsPhase === "leaving"} onClose={closeAccountsPanel} />
+        <AccountsPanel leaving={accountsPhase === "leaving"} onClose={closeAccountsPanel} onReport={dialogs.openFeedback} />
       )}
 
       {sessionListOpen && (

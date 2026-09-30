@@ -24,8 +24,12 @@ const components = readdirSync(dir)
   .map(f => [f.replace(/\.tsx$/, ""), readFileSync(`${dir}/${f}`, "utf8")] as const);
 
 /** App.tsx's dialog stack, moved into a file: it mounts from the top of the
- *  tree, which the last case below holds it to. */
-const TOP_OF_TREE = new Set(["DeckDialogs"]);
+ *  tree, which the last case below holds it to. ErrorBoundary is the other
+ *  top-of-tree mount (#1853): it wraps the whole app, and its Send-report
+ *  feedback dialog renders in a fallback that stands in for `.app` — no panel
+ *  sits above it, and its `.error-fallback` wrapper lays out none of the
+ *  viewport-fixed backdrop, so it faces none of the hazard this file guards. */
+const TOP_OF_TREE = new Set(["DeckDialogs", "ErrorBoundary"]);
 
 /** The components that mount `name`, App.tsx aside — it is not in this folder —
  *  and the stack it mounts at the top of the tree. */
