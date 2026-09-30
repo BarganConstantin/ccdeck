@@ -111,3 +111,26 @@ describe.skipIf(process.platform === "win32")("the GitHub release a tag makes", 
     expect(argv).toContain("--latest");
   });
 });
+
+// The footer under every release's notes (#1859). Read from the script rather
+// than run, so it holds on all three legs without a gate of its own.
+describe("the footer a release's notes end on", () => {
+  it("is appended once, after the text is written and before the release is made", () => {
+    const lines = createReleaseScript().split("\n");
+    const writes = lines.flatMap((l, i) => (/[^>]> notes\.md$/.test(l) ? [i] : []));
+    const appends = lines.flatMap((l, i) => (l.includes(">> notes.md") ? [i] : []));
+    const create = lines.findIndex(l => l.includes("gh release create"));
+    // Both branches write the file fresh, so a re-run cannot stack a second copy.
+    expect(writes).toHaveLength(2);
+    expect(appends).toHaveLength(1);
+    expect(appends[0]).toBeGreaterThan(Math.max(...writes));
+    expect(appends[0]).toBeLessThan(create);
+    // A quoted heredoc: nothing in the footer is expanded or run.
+    expect(lines[appends[0]]).toMatch(/<<'FOOTER'$/);
+    const footer = lines.slice(appends[0] + 1, lines.indexOf("FOOTER", appends[0]));
+    // The blank line keeps markdown from turning the line above `---` into a
+    // heading.
+    expect(footer.slice(0, 2)).toEqual(["", "---"]);
+    expect(footer.join("\n")).toContain("https://ccdeck.dev/guides/");
+  });
+});
