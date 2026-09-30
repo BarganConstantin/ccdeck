@@ -25,6 +25,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
+import SuccessMark from "./SuccessMark";
 import { exitRequest, loginEndNotice, loginTabView, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
 import { createLoginAnnouncer } from "../login-announce";
 import { arrivalCheck, explainFailure } from "../admin-failure";
@@ -77,17 +78,6 @@ async function admin(body: Record<string, unknown>) {
   });
   return res.json().catch(() => null);
 }
-
-/** The check mark, drawn rather than shown. 340ms, ease-out, once. */
-const SuccessMark = React.forwardRef<SVGSVGElement>((_props, ref) => {
-  return (
-    <svg className="aa-mark" viewBox="0 0 44 44" aria-hidden ref={ref}>
-      <circle className="aa-mark-ring" cx="22" cy="22" r="20" />
-      <path className="aa-mark-tick" d="M13.5 22.5 L19.5 28.5 L31 17" />
-    </svg>
-  );
-});
-SuccessMark.displayName = "SuccessMark";
 
 export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const [tab, setTab] = useState<TabId>("login");
