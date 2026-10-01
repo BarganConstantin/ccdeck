@@ -184,6 +184,13 @@ describe("the server that serves it", () => {
     expect(read("../../server/static-serve.mjs")).toMatch(/"\.webmanifest":\s*"application\/manifest\+json/);
   });
 
+  it("knows the favicon fallback's type, which the octet-stream default would not draw", () => {
+    // index.html links the kit's /favicon.ico; unlisted, it is served as
+    // application/octet-stream, which a browser that falls back to it may
+    // refuse to treat as an image.
+    expect(read("../../server/static-serve.mjs")).toMatch(/"\.ico":\s*"image\/x-icon"/);
+  });
+
   it("compresses it like the other text it serves", () => {
     expect(cache).toMatch(/COMPRESSIBLE = new Set\(\[[^\]]*"\.webmanifest"/);
   });

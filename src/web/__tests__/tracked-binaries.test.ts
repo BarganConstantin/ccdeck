@@ -121,7 +121,9 @@ describe("what a clone has to download", () => {
 describe("the one sentence in .gitattributes a reader can check", () => {
   it("still finds exactly the PNGs it names, and nothing else", () => {
     // The paragraph says `git ls-files --eol` reports `i/lf` for every tracked
-    // file except the PNGs — the screenshots and the application icons. It is
+    // file except the PNGs and an ICO — the screenshots and the application
+    // icons, which since the brand kit include the favicon's ICO fallback and
+    // the iOS touch icon, both copied unchanged from the kit's web set. It is
     // the only checkable claim in that file, and its job is to tell a
     // contributor that a stray binary in the tree is a mistake rather than a
     // policy. An entry that is not one of these makes the paragraph a lie in
@@ -139,6 +141,8 @@ describe("the one sentence in .gitattributes a reader can check", () => {
       .toEqual([
         "assets/canvas.png",
         "assets/social-preview.png",
+        "src/web/public/apple-touch-icon.png",
+        "src/web/public/favicon.ico",
         "src/web/public/icon-192.png",
         "src/web/public/icon-512.png",
         "src/web/public/icon-maskable-512.png",

@@ -27,7 +27,7 @@ export function useTabAmbient({ stateRef, waitingSessions, live }: {
   // Comparing before writing is not defensive tidiness. This runs on the SSE
   // path and `running` churns under a title that is standing still: every
   // subagent that spawns or finishes moves it while the tab still says plain
-  // ccdeck and still wears the blue mark. Assigning `document.title` rewrites
+  // ccdeck and still wears the syncing mark. Assigning `document.title` rewrites
   // the <title> node and hands the browser a fresh tab label whether or not the
   // string changed, and a fresh icon href is a data URI to parse and rasterise
   // again. Both cost nothing on the frames where nothing moved, which is nearly
@@ -45,7 +45,11 @@ export function useTabAmbient({ stateRef, waitingSessions, live }: {
       // it costs a fresh parse of the data URI every time. If some browser in
       // the matrix is ever found ignoring this, THAT is the moment to adopt the
       // heavier version — not before.
-      const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      //
+      // The SVG link by its type, not the first `rel="icon"`: index.html also
+      // carries the kit's ICO fallback, and querySelector returns the first
+      // match, which would be an href nothing is drawing from.
+      const link = document.querySelector<HTMLLinkElement>('link[rel="icon"][type="image/svg+xml"]');
       if (link) link.href = FAVICON_HREF[next.icon];
     }
   }, [waitingSessions.length, runningSessions, live]);
