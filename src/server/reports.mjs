@@ -17,6 +17,8 @@
 //     and which of the deck's features were used that day, as fixed names
 //     ("usage-history", "account-switch") and nothing about what was done
 //     with them (feature-use.mjs),
+//   - an "uninstall" event when somebody runs `ccdeck --uninstall`, with the
+//     reason they picked from a short list if they picked one (bin/cli/leaving.js),
 //   - an "activated" event, once, when a new install's first session arrives:
 //     how long after the install it came, as a bucket ("5m", "1h", "1d", "7d",
 //     "later"), and whether it was a Claude or a Codex session (activation.mjs),
@@ -91,6 +93,10 @@ const ERRORS_PER_HOUR = 20;
 const SAME_ERROR_QUIET_MS = 60 * 60 * 1000;
 const MESSAGE_MAX = 500;
 const STACK_MAX = 4000;
+
+/** Why somebody uninstalled, when they said: the answers `ccdeck --uninstall`
+ *  offers (bin/cli/leaving.js), and nothing else ever leaves as a reason. */
+export const UNINSTALL_REASONS = Object.freeze(["not-useful", "too-noisy", "broken", "other-tool", "privacy", "other"]);
 
 const EMPTY_REPORT = Object.freeze({
   installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
@@ -543,6 +549,33 @@ export function createReporter({
     if (await call("POST", "/v1/app/events", body)) await remember(r.installId, { activationSent: true });
   }
 
+  /** Whether a report would go out right now: reports on, the machine not
+   *  vetoing them, and an install id to send under. `ccdeck --uninstall` asks
+   *  before it asks the person anything. Never throws. */
+  async function willReport() {
+    try {
+      await Promise.resolve(ready).catch(() => {});
+      const p = prefs.current();
+      return reportsOn(p, env) && Boolean(p.report.installId);
+    } catch {
+      return false;
+    }
+  }
+
+  /** The install leaving: `ccdeck --uninstall`, with the reason picked off
+   *  UNINSTALL_REASONS if one was. The id stays: a deck run again later is the
+   *  same install coming back. Resolves to whether it got through; never throws. */
+  async function reportUninstall(reason) {
+    try {
+      if (!(await willReport())) return false;
+      const body = { installId: prefs.current().report.installId, kind: "uninstall", ...factsNow() };
+      addIf(body, "reason", UNINSTALL_REASONS.includes(reason) ? reason : undefined);
+      return await call("POST", "/v1/app/events", body);
+    } catch {
+      return false;
+    }
+  }
+
   /** The first session this run heard, sent the moment it lands rather than at
    *  the next check-in, hours later or on a next launch that may never come. */
   async function onFirstSession() {
@@ -643,7 +676,7 @@ export function createReporter({
     pingTimer = null;
   }
 
-  return { checkIn, ping, setReports, reportError, restoreUsage, saveUsage, sendActivation, start, stop };
+  return { checkIn, ping, setReports, reportError, restoreUsage, saveUsage, sendActivation, willReport, reportUninstall, start, stop };
 }
 
 // ── the deck's own providers ─────────────────────────────────────────────────
