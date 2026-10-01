@@ -57,14 +57,17 @@
      and this moves nothing. */
   justify-content: flex-end;
 }
+/* The brand kit's pattern for product chrome: the small mark sized by height,
+   the name in the UI font at weight 600 and a font size equal to the mark's
+   height, 0.5 x that height between them, no tracking. */
 .topbar .brand {
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 14px;
+  gap: 8px;
+  font-size: 16px;
   /* The version chip grows when it carries a drift warning; the product name
      must not break onto two lines to make room for it. */
   white-space: nowrap;
@@ -72,22 +75,27 @@
 }
 /* The wordmark is the page's <h1> now (#381). `font: inherit` is the whole
    rule's point: an <h1> arrives from the UA sheet at 2em bold with a 0.67em
-   block margin, and none of that is what a 14px wordmark in a 52px bar looks
+   block margin, and none of that is what a 16px wordmark in a 52px bar looks
    like. Nothing about the heading's appearance changed — only what it is. */
 .topbar .brand h1 {
   font: inherit;
   margin: 0;
 }
-/* The brand kit's small mark, drawn by its own file (MARK_SMALL_SRC in
-   brand.ts). The sheet only sizes it: 16px is the bottom of the kit's 16–24px
-   band for this master, and the colours, gradient included, live in the
-   artwork, never here. It replaced a CSS ring (#867), itself the successor of
-   a conic gradient with a halo. */
+/* The brand kit's small mark, drawn by its own file (brand.ts). The sheet only
+   sizes it, by height in the kit's multiples of 4 so its strokes land on whole
+   pixels, and picks the file for the theme: the gradient on the dark bar, the
+   kit's mono-dark twin on the light one. Colours, gradient included, live in
+   the artwork, never here. It replaced a CSS ring (#867), itself the successor
+   of a conic gradient with a halo. */
 .topbar .brand .logo {
   flex: none;
   display: block;
-  width: 16px; height: 16px;
+  height: 16px;
+  width: auto;
 }
+.topbar .brand .logo-on-light { display: none; }
+:root[data-theme="light"] .topbar .brand .logo-on-dark { display: none; }
+:root[data-theme="light"] .topbar .brand .logo-on-light { display: block; }
 .topbar .brand .v {
   color: var(--muted);
   font-weight: 400;

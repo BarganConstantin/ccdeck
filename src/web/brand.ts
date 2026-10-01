@@ -19,7 +19,10 @@
 /** What the deck calls itself on every surface a user reads. */
 export const PRODUCT = "ccdeck";
 
-/** The brand kit's small mark, its master for 16–24px, which the topbar draws
- *  at 16. Served from src/web/public/brand/, copied there unchanged; see
- *  assets/brand/README.md for which kit file serves which slot. */
+/** The brand kit's small mark, its master up to 32px, which the topbar draws
+ *  16px high on the dark theme; and its mono-dark twin, which the kit gives a
+ *  light bar, where the gradient's aqua falls under 3:1. Served from
+ *  src/web/public/brand/, copied there unchanged; see assets/brand/README.md
+ *  for which kit file serves which slot. */
 export const MARK_SMALL_SRC = "/brand/ccdeck-mark-gradient-small-optical.svg";
+export const MARK_SMALL_ON_LIGHT_SRC = "/brand/ccdeck-mark-mono-dark-small-optical.svg";
