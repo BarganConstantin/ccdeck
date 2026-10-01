@@ -74,6 +74,7 @@ import { refusalLine, type SettingsLine } from "../settings-give-back";
 import { SettingsFailureLine } from "./SettingsFailureLine";
 import { copyText } from "../copy-text";
 import type { LanAccount, LanStatus, LanTailscale } from "../lan-types";
+import { useFeatureUse } from "../feature-use";
 
 /**
  * The line under "Look for my devices": whose devices those are, and how many
@@ -107,6 +108,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   /** Something was written — reload the section behind this and the roster. */
   onChanged: () => void;
 }) {
+  // Opened: one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("lan-setup");
   const dialogRef = useModalDismiss(onClose);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [failure, setFailure] = useState<SettingsLine | null>(null);

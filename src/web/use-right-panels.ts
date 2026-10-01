@@ -10,6 +10,7 @@
 // they are.
 import { useEffect, useState } from "react";
 import { readStored, writeStored } from "./storage";
+import { useFeatureUse } from "./feature-use";
 
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
@@ -74,5 +75,9 @@ export function useRightPanels() {
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
   useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
+  // A panel shown is one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("detail-panel", detailOpen);
+  useFeatureUse("usage-panel", usagePanelOpen);
+  useFeatureUse("machine-panel", machinePanelOpen);
   return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen };
 }

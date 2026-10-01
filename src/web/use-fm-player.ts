@@ -15,6 +15,7 @@ import {
   customFmId, customFmSelection, parseFmStationUrl,
   type CustomFmStation, type FmSelection,
 } from "./fm-stations";
+import { useFeatureUse } from "./feature-use";
 
 export interface Probe { live: boolean; channel: string; video?: string; audio?: string; hls?: boolean }
 
@@ -66,6 +67,8 @@ export function useFmPlayer({
   /** Buffering keeps the iframe mounted; an explicit stop releases it. */
   const [armed, setArmed] = useState(false);
   const [playing, setPlaying] = useState(false);
+  // Playing is one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("claude-fm", playing);
   const playRequestRef = useRef(playRequest);
   const audio = useRef<HTMLAudioElement | null>(null);
   const hls = useRef<Hls | null>(null);

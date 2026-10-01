@@ -12,7 +12,9 @@
 // WHAT IS KEPT. In memory, the session ids, the subagent ids and the folders the
 // transcripts sit in, so a session heard from a hundred times counts once. They
 // never leave this module: what is saved between runs (prefs.json, beside the
-// install id) and what is sent are three counts and the day they belong to.
+// install id) and what is sent are three counts, the day they belong to, and
+// the names of the features used that day — fixed tokens off FEATURES, a yes
+// for each, never what was done with them.
 //
 // A RESTART MID-DAY. The saved counts come back as a floor and the new run
 // counts on top of them, so a session that was running across the restart is
@@ -23,6 +25,34 @@
 // CLI, and the Codex watcher emits only what a rollout gains while the deck
 // watches (its first scan skips every file's history). Replayed lines and the
 // deck's own synthetic events are not use.
+
+/**
+ * The features a day can say were used — fixed tokens, never anything a caller
+ * makes up. The page names the ones it sees opened (POST /api/feature, through
+ * feature-use.ts), the server the ones a route or a session shows. A name not on
+ * this list is dropped wherever it comes from.
+ */
+export const FEATURES = Object.freeze([
+  // Panels the page showed that day (each can be closed, and the choice is kept).
+  "usage-panel", "machine-panel", "detail-panel", "accounts-panel",
+  // Dialogs somebody opened.
+  "tool-detail", "session-summary", "context-window", "usage-history", "browser-watch",
+  "feedback", "keyboard-help", "share-accounts", "account-projects", "add-account",
+  "process-list", "lan-setup", "claude-fm",
+  // What the server saw done.
+  "account-switch", "accounts-manage", "auto-switch", "lan-pairing", "feedback-sent",
+  "self-update", "clear-board",
+  // Which CLI the day's sessions came from.
+  "claude-sessions", "codex-sessions",
+]);
+const FEATURE_SET = new Set(FEATURES);
+
+/** Only known feature names, once each, in the list's order. */
+function knownFeatures(list) {
+  if (!Array.isArray(list)) return [];
+  const have = new Set(list.filter(f => FEATURE_SET.has(f)));
+  return FEATURES.filter(f => have.has(f));
+}
 
 /** The day as the reporter says it: the UTC date, "2026-10-01". */
 export function utcDay(date) {
@@ -36,10 +66,13 @@ function whole(n) {
   return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
-/** Saved totals, coerced: a day and three counts, or null for anything else. */
+/** Saved totals, coerced: a day, three counts and the features used, or null for anything else. */
 function savedTotals(raw) {
   if (!raw || typeof raw !== "object" || typeof raw.day !== "string" || !DAY.test(raw.day)) return null;
-  return { day: raw.day, sessions: whole(raw.sessions), subagents: whole(raw.subagents), projects: whole(raw.projects) };
+  return {
+    day: raw.day, sessions: whole(raw.sessions), subagents: whole(raw.subagents), projects: whole(raw.projects),
+    features: knownFeatures(raw.features),
+  };
 }
 
 /** What prefs.json keeps for this, coerced — deck-prefs.mjs normalises with it. */
@@ -79,10 +112,11 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   function fresh(day, floor = null) {
     return {
       day,
-      floor: floor ?? { sessions: 0, subagents: 0, projects: 0 },
+      floor: floor ?? { sessions: 0, subagents: 0, projects: 0, features: [] },
       sessions: new Set(),
       subagents: new Set(),
       projects: new Set(),
+      features: new Set(),
     };
   }
 
@@ -92,6 +126,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
       sessions: c.floor.sessions + c.sessions.size,
       subagents: c.floor.subagents + c.subagents.size,
       projects: c.floor.projects + c.projects.size,
+      features: knownFeatures([...c.floor.features, ...c.features]),
     };
   }
 
@@ -118,6 +153,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     const c = today();
     add(c.sessions, sid);
     if (typeof raw.agent_id === "string" && raw.agent_id) add(c.subagents, `${sid}\u0000${raw.agent_id}`);
+    add(c.features, raw.provider === "codex" ? "codex-sessions" : "claude-sessions");
     if (!first) {
       first = { at: now().toISOString(), provider: raw.provider === "codex" ? "codex" : "claude" };
       for (const fn of firstListeners) {
@@ -131,6 +167,13 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   function noteProject(path) {
     if (!path || typeof path !== "string") return;
     add(today().projects, folderOf(path));
+  }
+
+  /** A feature somebody used today — a name off FEATURES, or nothing. */
+  function noteFeature(name) {
+    if (!FEATURE_SET.has(name)) return false;
+    add(today().features, name);
+    return true;
   }
 
   /** A Codex session's working directory, which is its project. */
@@ -187,7 +230,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
       if (!t) continue;
       const c = today();
       if (t.day === c.day) {
-        c.floor = { sessions: t.sessions, subagents: t.subagents, projects: t.projects };
+        c.floor = { sessions: t.sessions, subagents: t.subagents, projects: t.projects, features: t.features };
       } else if (t.day < c.day && (!done || t.day > done.day)) {
         done = t;
       }
@@ -200,7 +243,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     return changes;
   }
 
-  return { noteUse, noteProject, noteFolder, firstUse, onFirstUse, finished, markSent, saved, restore, version };
+  return { noteUse, noteProject, noteFolder, noteFeature, firstUse, onFirstUse, finished, markSent, saved, restore, version };
 }
 
 /** The deck's own tally, which the event pipeline feeds and the reporter reads. */
