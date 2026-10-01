@@ -30,7 +30,7 @@ export function useModalGate({
   /** The shortcuts sheet. */
   keyHelpOpen: boolean;
   releaseNotes: ReturnType<typeof useWelcomeAndNotes>["releaseNotes"];
-  /** The feedback dialog, opened from the Appearance menu (#1853). */
+  /** The feedback dialog (#1853). */
   feedbackOpen: boolean;
 }) {
   // The same treatment for the shortcuts sheet, because `?` is a toggle and the

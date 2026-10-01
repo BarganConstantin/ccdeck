@@ -17,7 +17,6 @@ import type { useChimePlayer } from "../use-chime-player";
 import type { useClaudeFm } from "../use-claude-fm";
 import type { useCustomTones } from "../use-custom-tones";
 import type { useOsNotifications } from "../use-os-notifications";
-import type { useReports } from "../use-reports";
 import type { useSettingsMenus } from "../use-settings-menus";
 import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
@@ -254,7 +253,7 @@ export function SourceRun({
 }
 
 /** Sound and Appearance: the two settings, each a button that opens its menu. */
-export function SettingsRun({ providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm, reports, onFeedback }: {
+export function SettingsRun({ providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm, onFeedback }: {
   providers: Providers;
   sound: ReturnType<typeof useSoundSwitch>;
   tones: ReturnType<typeof useTonePrefs>;
@@ -266,8 +265,6 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
   menus: ReturnType<typeof useSettingsMenus>;
   appearance: ReturnType<typeof useAppearance>;
   fm: ReturnType<typeof useClaudeFm>;
-  /** Usage reports, on by default and switched off from the Appearance menu (#1853). */
-  reports: ReturnType<typeof useReports>;
   onFeedback: () => void;
 }) {
   const { soundOn, toggleSound } = sound;
@@ -418,10 +415,6 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
             onAddFmStation={addFmStation}
             onRenameFmStation={renameFmStation}
             onRemoveFmStation={removeFmStation}
-            reportsOn={reports.reportsOn !== false && !reports.reportsVetoed}
-            reportsVetoed={reports.reportsVetoed}
-            onToggleReports={() => { void reports.answerReports(reports.reportsOn === false); }}
-            onFeedback={() => { setAppearanceMenuOpen(false); onFeedback(); }}
             onClose={() => setAppearanceMenuOpen(false)}
           />
         )}
@@ -438,12 +431,12 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
           a problem", because the dialog takes an idea or anything else as
           readily as a fault — from the width where the busiest bar still
           holds the word (`.tb-word-wide`, topbar.css), and is the glyph alone,
-          at the same resting tone, under it. It opens the
-          same dialog the Appearance button does — the one door, `onFeedback`
-          — and the switch and the note stay in Appearance where the deck
-          explains what a report is. `aria-haspopup="dialog"` and no
-          aria-expanded, the shape History and Browser watch already use for a
-          button that opens a modal rather than discloses a region. */}
+          at the same resting tone, under it. It opens the dialog through the
+          one door, `onFeedback`, and since the Appearance section went
+          (2026-10-01) it is the only way to it from the topbar.
+          `aria-haspopup="dialog"` and no aria-expanded, the shape History and
+          Browser watch already use for a button that opens a modal rather
+          than discloses a region. */}
       <button
         className="btn icon-btn"
         onClick={onFeedback}
