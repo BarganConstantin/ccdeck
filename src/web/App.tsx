@@ -224,9 +224,8 @@ function Inner() {
   const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
   const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
           setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
-  // Usage reports (#1853): whether they are on — they are unless somebody
-  // switched them off — the switch in Appearance that changes it, and the
-  // page's own errors, forwarded while they are on: use-reports.ts.
+  // Usage reports (#1853): whether they are on, and the page's own errors,
+  // forwarded while they are: use-reports.ts.
   const reports = useReports();
   // The Browser Watch badge — what it counts, the slow poll behind it, and when
   // the reader last looked — lives in use-browser-watch-badge.ts.
@@ -620,7 +619,7 @@ function Inner() {
           <SettingsRun
             providers={providers} sound={sound} tones={tones} customTones={customTones} notify={notify}
             chimeState={chimeState} menus={menus} appearance={appearance} fm={fm}
-            reports={reports} onFeedback={() => dialogs.openFeedback()}
+            onFeedback={() => dialogs.openFeedback()}
           />
         </div>
       </header>

@@ -449,9 +449,6 @@
   margin: -6px 0 0 60px;
 }
 .appearance-station-edit { display: inline-flex; gap: 6px; margin-left: auto; }
-/* The feedback button under the reports note (#1853): the station row's button,
-   without the station row's inset — there is no "Station" label to clear here. */
-.appearance-improve-actions { display: flex; }
 button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
 .appearance-station-form {
   display: grid;

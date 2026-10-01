@@ -50,8 +50,8 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
   const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
-  /** The feedback dialog, opened from the Appearance menu, the topbar's Report a
-   *  problem button, the account issue popover and the error boundary (#1853). */
+  /** The feedback dialog, opened from the topbar's Feedback button, the account
+   *  issue popover and the error boundary (#1853). */
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   /** What the dialog opens filled in with, or null for a blank one. Cleared on
    *  close so the next blank open cannot inherit the last seed. */
