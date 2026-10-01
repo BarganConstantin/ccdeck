@@ -1,0 +1,145 @@
+// How much the deck was used on one UTC day (usage-day.mjs): the tally behind
+// the counts the "active" report carries. They used to be read off the live
+// state at launch, before anybody had done anything, and so mostly said zero.
+import { readFileSync } from "node:fs";
+import { describe, it, expect } from "vitest";
+// @ts-expect-error — plain JS module, no types
+import { createUsageDay, normaliseUsage } from "../../server/usage-day.mjs";
+
+const HOUR = 60 * 60 * 1000;
+
+function tallyAt(start = "2026-09-30T10:00:00Z") {
+  let clock = new Date(start);
+  const t = createUsageDay({ now: () => clock });
+  return { t, later: (ms: number) => { clock = new Date(clock.getTime() + ms); } };
+}
+
+describe("a day's tally", () => {
+  it("counts each session, subagent and project once, however often it is heard from", () => {
+    const { t, later } = tallyAt();
+    for (let i = 0; i < 5; i++) t.noteUse({ session_id: "s1" });
+    t.noteUse({ session_id: "s1", agent_id: "a1" });
+    t.noteUse({ session_id: "s1", agent_id: "a1" });
+    t.noteUse({ session_id: "s2", agent_id: "a1" });   // another session's subagent, not the same one
+    t.noteProject("/home/u/.claude/projects/proj-a/s1.jsonl");
+    t.noteProject("/home/u/.claude/projects/proj-a/s2.jsonl");
+    t.noteProject("C:\\Users\\u\\.claude\\projects\\proj-b\\s3.jsonl");
+
+    later(24 * HOUR);
+    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 2, subagents: 2, projects: 2 });
+  });
+
+  it("has nothing finished on its first day", () => {
+    const { t } = tallyAt();
+    t.noteUse({ session_id: "s1" });
+    expect(t.finished("2026-09-30")).toBeNull();
+  });
+
+  it("rolls over at UTC midnight, keeping the finished day apart from the new one", () => {
+    const { t, later } = tallyAt("2026-09-30T23:30:00Z");
+    t.noteUse({ session_id: "s1" });
+    later(HOUR);   // 00:30 on the first
+    t.noteUse({ session_id: "s2" });
+    t.noteUse({ session_id: "s3" });
+    // The 6-hourly check-in finds yesterday finished, and today counted apart.
+    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 0 });
+    later(24 * HOUR);
+    expect(t.finished("2026-10-02")).toEqual({ day: "2026-10-01", sessions: 2, subagents: 0, projects: 0 });
+  });
+
+  it("finishes a day the deck ran past with nothing said since", () => {
+    const { t, later } = tallyAt();
+    t.noteUse({ session_id: "s1" });
+    later(30 * HOUR);
+    expect(t.finished("2026-10-01")).toMatchObject({ day: "2026-09-30", sessions: 1 });
+  });
+
+  it("never hands the same day out twice once it is marked sent", () => {
+    const { t, later } = tallyAt();
+    t.noteUse({ session_id: "s1" });
+    later(24 * HOUR);
+    expect(t.finished("2026-10-01")?.day).toBe("2026-09-30");
+    t.markSent("2026-09-30");
+    expect(t.finished("2026-10-01")).toBeNull();
+    later(24 * HOUR);
+    // The deck ran on the first and nobody used it: the second says so, as
+    // zero, and does not say the thirtieth again.
+    expect(t.finished("2026-10-02")).toEqual({ day: "2026-10-01", sessions: 0, subagents: 0, projects: 0 });
+  });
+
+  it("ignores what is not a session id or a path", () => {
+    const { t, later } = tallyAt();
+    for (const raw of [null, undefined, {}, { session_id: 7 }, { session_id: "" }]) t.noteUse(raw);
+    t.noteProject("");
+    t.noteProject(null);
+    later(24 * HOUR);
+    // Nothing was counted, so not even a day was opened.
+    expect(t.finished("2026-10-01")).toBeNull();
+  });
+});
+
+describe("what survives a restart", () => {
+  it("is counts and days only — never an id or a path", () => {
+    const { t } = tallyAt();
+    t.noteUse({ session_id: "sess-secret", agent_id: "agent-secret" });
+    t.noteProject("/home/alice/.claude/projects/-home-alice-shop/sess-secret.jsonl");
+    const saved = JSON.stringify(t.saved());
+    for (const secret of ["sess-secret", "agent-secret", "alice", "shop", ".jsonl"]) expect(saved).not.toContain(secret);
+    expect(t.saved()).toEqual({ current: { day: "2026-09-30", sessions: 1, subagents: 1, projects: 1 }, done: null, sent: "" });
+  });
+
+  it("comes back as the floor of the same day, under what this run already counted", () => {
+    const before = tallyAt().t;
+    before.noteUse({ session_id: "s1" });
+    before.noteUse({ session_id: "s2" });
+    const { t, later } = tallyAt("2026-09-30T15:00:00Z");
+    t.noteUse({ session_id: "s3" });   // heard before the prefs were read
+    t.restore(before.saved());
+    t.noteUse({ session_id: "s4" });
+    later(24 * HOUR);
+    expect(t.finished("2026-10-01")).toMatchObject({ day: "2026-09-30", sessions: 4 });
+  });
+
+  it("comes back as the finished day when the restart is a day later", () => {
+    const before = tallyAt().t;
+    before.noteUse({ session_id: "s1" });
+    const { t } = tallyAt("2026-10-01T08:00:00Z");
+    t.restore(before.saved());
+    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 0 });
+  });
+
+  it("remembers what was sent, so a restart does not send it again", () => {
+    const { t: before, later } = tallyAt();
+    before.noteUse({ session_id: "s1" });
+    later(24 * HOUR);
+    before.markSent(before.finished("2026-10-01").day);
+    const { t } = tallyAt("2026-10-01T09:00:00Z");
+    t.restore(before.saved());
+    expect(t.finished("2026-10-01")).toBeNull();
+  });
+
+  it("reads anything else as nothing saved", () => {
+    expect(normaliseUsage(null)).toEqual({ current: null, done: null, sent: "" });
+    expect(normaliseUsage({ current: { day: "yesterday", sessions: 3 }, sent: 5 })).toEqual({ current: null, done: null, sent: "" });
+    expect(normaliseUsage({ current: { day: "2026-09-30", sessions: -2, subagents: 1.5, projects: "3" } }).current)
+      .toEqual({ day: "2026-09-30", sessions: 0, subagents: 0, projects: 0 });
+  });
+});
+
+describe("what counts as use", () => {
+  it("is a live hook, never a replayed line or the deck's own synthetic events", () => {
+    // The pipeline is a module graph too heavy to stand up for one branch, so
+    // this pins where the two calls sit: inside the live-hook gate, and the
+    // project beside the transcript path the gate already accepted as Claude's.
+    const src = readFileSync(new URL("../../server/event-pipeline.mjs", import.meta.url), "utf8");
+    const gate = src.indexOf('if (source === "hook" && !opts.replay) {');
+    expect(gate).toBeGreaterThan(0);
+    const use = src.indexOf("usageDay.noteUse(raw);");
+    const accepted = src.indexOf("isClaudeTranscriptPath(raw.transcript_path)");
+    const project = src.indexOf("usageDay.noteProject(raw.transcript_path);");
+    expect(use).toBeGreaterThan(gate);
+    expect(project).toBeGreaterThan(accepted);
+    expect(src.indexOf("noteRefusedTranscript(raw.transcript_path)")).toBeGreaterThan(project);
+    expect(src.match(/usageDay\.note/g)?.length).toBe(2);
+  });
+});

@@ -26,6 +26,8 @@ import {
 } from "../../server/reports.mjs";
 // @ts-expect-error — plain JS module, no types
 import { feedbackFacts, handleFeedback, handleFeedbackFacts } from "../../server/reports-routes.mjs";
+// @ts-expect-error — plain JS module, no types
+import { createUsageDay } from "../../server/usage-day.mjs";
 
 type Call = { method: string; url: string; body: Record<string, unknown> | undefined };
 
@@ -53,19 +55,23 @@ function harness({
     return { ok: status >= 200 && status < 300, status };
   };
   const facts = { version, os: "linux", arch: "x64", channel: "npm", runtime: "node-22.18.0" };
+  // The day's tally on the harness's own clock, so the suite never touches the
+  // deck's.
+  const tally = createUsageDay({ now: () => clock });
   const reporterWith = (over: {
     env?: Record<string, string>; version?: string;
-    usage?: () => unknown; versions?: () => unknown;
+    usage?: unknown; versions?: () => unknown;
     facts?: Record<string, unknown>; ready?: Promise<unknown>;
   } = {}) => createReporter({
     fetchImpl, now: () => clock, prefs: store, env: over.env ?? env,
     facts: { ...facts, version: over.version ?? version, ...(over.facts ?? {}) }, home: "/home/alice",
     ...(over.ready ? { ready: over.ready } : {}),
-    ...(over.usage ? { usage: over.usage } : {}),
+    usage: over.usage ?? tally,
     ...(over.versions ? { versions: over.versions } : {}),
   });
   return {
-    reporter: reporterWith(), reporterWith, calls, store,
+    reporter: reporterWith(), reporterWith, calls, store, tally,
+    newTally: () => createUsageDay({ now: () => clock }),
     prefs: () => prefs,
     goOffline: () => { status = 0; },
     goOnline: () => { status = answer; },
@@ -195,49 +201,148 @@ describe("while reports are on", () => {
 
 describe("the coarse usage counts", () => {
   const bodyOf = (h: ReturnType<typeof harness>, kind: string) =>
-    h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).find(b => b?.kind === kind);
+    h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).filter(b => b?.kind === kind).at(-1);
+  const COUNTS = ["usageDay", "sessions", "subagents", "projects"];
+  /** One day's use: two sessions (one heard from twice), a subagent, two projects. */
+  const useADay = (t: ReturnType<typeof createUsageDay>) => {
+    t.noteUse({ session_id: "s1" });
+    t.noteUse({ session_id: "s1", agent_id: "a1" });
+    t.noteUse({ session_id: "s2" });
+    t.noteProject("/home/alice/.claude/projects/-home-alice-shop/s1.jsonl");
+    t.noteProject("/home/alice/.claude/projects/-home-alice-blog/s2.jsonl");
+  };
+
+  it("are the last finished day's totals, with its date, on the next day's 'active'", async () => {
+    // Not what is live at the moment the report goes out: that moment is the
+    // first check-in, at launch, before anybody has done anything — 24 of 33
+    // reports said zero sessions in production on 2026-10-01.
+    const h = harness();
+    await h.reporter.checkIn();
+    // A first day has no yesterday, so its "active" carries no counts at all.
+    for (const k of COUNTS) expect(bodyOf(h, "active")).not.toHaveProperty(k);
+
+    useADay(h.tally);
+    h.nextDay();
+    await h.reporter.checkIn();
+
+    expect(bodyOf(h, "active")).toMatchObject({ usageDay: "2026-09-30", sessions: 2, subagents: 1, projects: 2 });
+  });
 
   it("ride on the 'active' report alone, never on install or update", async () => {
     const h = harness();
-    await h.reporterWith({ usage: () => ({ sessions: 3, subagents: 2, projects: 5 }) }).checkIn();
-
-    expect(bodyOf(h, "active")).toMatchObject({ sessions: 3, subagents: 2, projects: 5 });
-    // The install went out beside it and carried none of the counts.
+    useADay(h.tally);
+    h.nextDay();
+    await h.reporter.checkIn();
+    expect(bodyOf(h, "active")).toMatchObject({ sessions: 2 });
     const install = bodyOf(h, "install")!;
-    for (const k of ["sessions", "subagents", "projects"]) expect(install).not.toHaveProperty(k);
+    for (const k of COUNTS) expect(install).not.toHaveProperty(k);
 
-    // An update, the next version over the same install, carries no counts either.
-    const updated = h.reporterWith({ version: "3.33.0", usage: () => ({ sessions: 9, subagents: 9, projects: 9 }) });
-    await updated.checkIn();
+    useADay(h.tally);
+    h.nextDay();
+    await h.reporterWith({ version: "3.33.0" }).checkIn();
     const update = bodyOf(h, "update")!;
-    for (const k of ["sessions", "subagents", "projects"]) expect(update).not.toHaveProperty(k);
+    for (const k of COUNTS) expect(update).not.toHaveProperty(k);
+  });
+
+  it("go out once: the next day says its own totals, zero when nobody used the deck", async () => {
+    const h = harness();
+    useADay(h.tally);
+    h.nextDay();
+    await h.reporter.checkIn();
+    expect(bodyOf(h, "active")).toMatchObject({ usageDay: "2026-09-30" });
+
+    // The deck ran on the first of October and nothing was used.
+    h.nextDay();
+    await h.reporter.checkIn();
+    expect(bodyOf(h, "active")).toMatchObject({ usageDay: "2026-10-01", sessions: 0, subagents: 0, projects: 0 });
+
+    // A day the deck did not run at all is not a day: nothing is said for it.
+    h.nextDay();
+    h.nextDay();
+    await h.reporter.checkIn();
+    expect(bodyOf(h, "active")).toMatchObject({ usageDay: "2026-10-02", sessions: 0 });
+  });
+
+  it("are not lost when the 'active' cannot get through", async () => {
+    const h = harness();
+    useADay(h.tally);
+    h.nextDay();
+    h.goOffline();
+    await h.reporter.checkIn();
+    h.goOnline();
+    await h.reporter.checkIn();
+    expect(bodyOf(h, "active")).toMatchObject({ usageDay: "2026-09-30", sessions: 2 });
+  });
+
+  it("survive a restart, the saved day coming back as a floor", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    useADay(h.tally);
+    await h.reporter.saveUsage();
+
+    // What prefs.json keeps is counts and days — no session id, no subagent id, no path.
+    const saved = JSON.stringify(h.prefs().report.usage);
+    for (const secret of ["s1", "s2", "a1", "alice", "shop", "jsonl"]) expect(saved).not.toContain(secret);
+
+    // The deck restarts the same day; a new session after it counts on top.
+    const after = h.newTally();
+    const restarted = h.reporterWith({ usage: after });
+    restarted.restoreUsage();
+    after.noteUse({ session_id: "s3" });
+    h.nextDay();
+    await restarted.checkIn();
+
+    expect(bodyOf(h, "active")).toMatchObject({ usageDay: "2026-09-30", sessions: 3, subagents: 1, projects: 2 });
+  });
+
+  it("are not saved while reports are off, and switching off drops what was saved", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    useADay(h.tally);
+    await h.reporter.saveUsage();
+    expect(h.prefs().report.usage).not.toBeNull();
+
+    await h.reporter.setReports(false);
+    expect(h.prefs().report.usage).toBeNull();
+    h.tally.noteUse({ session_id: "s9" });
+    await h.reporter.saveUsage();
+    expect(h.prefs().report.usage).toBeNull();
   });
 
   it("keep only whole counts of zero or more", async () => {
     const h = harness();
-    await h.reporterWith({ usage: () => ({ sessions: 2.5, subagents: -1, projects: 4 }) }).checkIn();
+    const usage = { ...h.tally, finished: () => ({ day: "2026-09-29", sessions: 2.5, subagents: -1, projects: 4 }) };
+    await h.reporterWith({ usage }).checkIn();
     const active = bodyOf(h, "active")!;
-    expect(active).toMatchObject({ projects: 4 });
+    expect(active).toMatchObject({ usageDay: "2026-09-29", projects: 4 });
     expect(active).not.toHaveProperty("sessions");   // not a whole number
     expect(active).not.toHaveProperty("subagents");  // below zero
   });
 
-  it("never let the count provider break the report", async () => {
+  it("never carry a day that is not finished yet", async () => {
     const h = harness();
-    await h.reporterWith({ usage: () => { throw new Error("provider blew up"); } }).checkIn();
+    const usage = { ...h.tally, finished: () => ({ day: "2026-09-30", sessions: 4 }) };
+    await h.reporterWith({ usage }).checkIn();
+    for (const k of COUNTS) expect(bodyOf(h, "active")).not.toHaveProperty(k);
+  });
+
+  it("never let the tally break the report", async () => {
+    const h = harness();
+    const usage = { ...h.tally, finished: () => { throw new Error("tally blew up"); } };
+    await h.reporterWith({ usage }).checkIn();
     // The active still went out — just without any counts.
     expect(h.kinds()).toEqual(["install", "active"]);
-    const active = bodyOf(h, "active")!;
-    for (const k of ["sessions", "subagents", "projects"]) expect(active).not.toHaveProperty(k);
+    for (const k of COUNTS) expect(bodyOf(h, "active")).not.toHaveProperty(k);
   });
 
   it("are read only when an 'active' is actually due", async () => {
     const h = harness();
     let asked = 0;
-    const rep = h.reporterWith({ usage: () => { asked++; return {}; } });
+    const usage = { ...h.tally, finished: (day: string) => { asked++; return h.tally.finished(day); } };
+    const rep = h.reporterWith({ usage });
     await rep.checkIn();
     expect(asked).toBe(1);
-    // Same day, nothing new to say: the provider is not asked again.
+    // Same day, nothing new to say: the tally is not asked again.
     await rep.checkIn();
     expect(asked).toBe(1);
     h.nextDay();
@@ -389,7 +494,7 @@ describe("switching it off", () => {
     await h.reporter.setReports(false);
 
     expect(h.prefs().reports).toBe(false);
-    expect(h.prefs().report).toEqual({ installId: "", lastVersion: "", lastActiveDay: "", forget: "" });
+    expect(h.prefs().report).toEqual({ installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null });
     expect(h.calls.at(-1)).toMatchObject({ method: "DELETE", url: `https://api.ccdeck.dev/v1/app/installs/${installId}` });
   });
 
@@ -494,7 +599,7 @@ describe("the machine's veto", () => {
 
     await h.reporter.setReports(false);
     expect(h.calls).toEqual([]);
-    expect(h.prefs().report).toEqual({ installId: "", lastVersion: "", lastActiveDay: "", forget: installId });
+    expect(h.prefs().report).toEqual({ installId: "", lastVersion: "", lastActiveDay: "", forget: installId, usage: null });
 
     await h.reporterWith({ env: {} }).checkIn();
     expect(h.calls).toEqual([

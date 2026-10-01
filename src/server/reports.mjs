@@ -12,7 +12,8 @@
 //   - an "active" event at most once a UTC day, which is how many people use
 //     ccdeck gets counted without counting anything else about them, and which
 //     alone also carries coarse counts of how much: how many sessions,
-//     subagents and projects — numbers, never their names,
+//     subagents and projects the deck heard from on the last day it was used,
+//     and that day's date — numbers, never their names (see usage-day.mjs),
 //   - errors: a request handler that threw on this server, or an error the page
 //     caught, with home folders, email addresses and key-shaped strings
 //     scrubbed out before they leave,
@@ -62,6 +63,7 @@ import { reportsVetoed } from "./deck-prefs.mjs";
 import { isGitCheckout } from "./install-layout.mjs";
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
+import { usageDay, utcDay } from "./usage-day.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -80,7 +82,7 @@ const SAME_ERROR_QUIET_MS = 60 * 60 * 1000;
 const MESSAGE_MAX = 500;
 const STACK_MAX = 4000;
 
-const EMPTY_REPORT = Object.freeze({ installId: "", lastVersion: "", lastActiveDay: "", forget: "" });
+const EMPTY_REPORT = Object.freeze({ installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null });
 
 /** Is this deck sending reports right now? The switch, which is on unless
  *  somebody turned it off, and the machine's consent. */
@@ -307,9 +309,10 @@ export function scrub(text, home = homedir()) {
  * @param {() => { claudeVersion?: string, codexVersion?: string }} [deps.versions] the CLI
  *   versions to fold into the facts, read fresh on every send so a background
  *   probe's answer rides along the moment it arrives. Default: none.
- * @param {() => ({ sessions?: number, subagents?: number, projects?: number } | Promise<...>)} [deps.usage]
- *   the coarse counts the "active" report carries, read only when an "active" is
- *   about to be sent. Default: none.
+ * @param {ReturnType<typeof import("./usage-day.mjs").createUsageDay>} [deps.usage]
+ *   the day's tally: the "active" report carries the last finished day's totals,
+ *   read only when an "active" is about to be sent, and the tally is saved into
+ *   the prefs so a restart does not lose the day. Default: the deck's own.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -320,7 +323,7 @@ export function createReporter({
   home = homedir(),
   ready = prefsRead,
   versions = () => ({}),
-  usage = () => ({}),
+  usage = usageDay,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
@@ -348,19 +351,51 @@ export function createReporter({
     return { ...facts, ...versionFacts() };
   }
 
-  /** The coarse usage the "active" report carries: only whole counts of zero or
-   *  more survive, and a provider that throws or is slow costs the report
+  /** The coarse usage the "active" report carries: the last finished day before
+   *  `today`, its date as `usageDay` and its counts beside it. Nothing at all
+   *  when there is no such day yet — a first launch has no yesterday — and only
+   *  whole counts of zero or more survive. A tally that throws costs the report
    *  nothing. */
-  async function coarseUsage() {
+  function coarseUsage(today) {
     try {
-      const raw = (await usage()) ?? {};
-      const out = {};
+      const raw = usage.finished(today);
+      if (!raw || typeof raw.day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw.day) || raw.day >= today) return {};
+      const out = { usageDay: raw.day };
       addIf(out, "sessions", count(raw.sessions));
       addIf(out, "subagents", count(raw.subagents));
       addIf(out, "projects", count(raw.projects));
       return out;
     } catch {
       return {};
+    }
+  }
+
+  /** The tally the last save wrote, so a save with nothing new writes nothing. */
+  let usageSaved = -1;
+
+  /** Keep the day's tally in the prefs, beside the install id, so a restart
+   *  carries it on. Only while reports are on and under the id it belongs to:
+   *  switching off drops it with the id. Never throws. */
+  async function saveUsage() {
+    try {
+      const at = usage.version();
+      if (at === usageSaved) return;
+      const p = prefs.current();
+      if (!reportsOn(p, env) || !p.report.installId) return;
+      await remember(p.report.installId, { usage: usage.saved() });
+      usageSaved = at;
+    } catch {
+      // A settings file that cannot be written this minute; the next save tries again.
+    }
+  }
+
+  /** The tally an earlier run saved, merged in once the prefs are read. */
+  function restoreUsage() {
+    try {
+      const saved = prefs.current().report?.usage;
+      if (saved) usage.restore(saved);
+    } catch {
+      // A saved tally that will not read: this run's counting goes on without it.
     }
   }
 
@@ -426,16 +461,18 @@ export function createReporter({
       }
     }
 
-    const today = now().toISOString().slice(0, 10);
+    const today = utcDay(now());
     if (lastActiveDay !== today) {
       // Usage rides on the "active" event alone, and is read only here — the one
       // report it belongs to — so a checkIn that sends nothing new never asks the
       // deck for its counts.
-      const used = await coarseUsage();
+      const used = coarseUsage(today);
       if (await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...used })) {
+        if (used.usageDay) usage.markSent(used.usageDay);
         await remember(installId, { lastActiveDay: today });
       }
     }
+    await saveUsage();
   }
 
   /** The heartbeat. While reports are on and an id exists, tell the API this deck
@@ -494,10 +531,12 @@ export function createReporter({
 
   /** The heartbeat timer, rescheduled from itself so each beat carries fresh
    *  jitter — a fixed interval would let a fleet that started as one beat as one.
-   *  Unref'd, so it never holds the process open. */
+   *  Unref'd, so it never holds the process open. Each beat also saves the day's
+   *  tally if it moved, so a deck that stops loses ten minutes of it at most. */
   function scheduleNextPing() {
     pingTimer = setTimeout(() => {
       void ping();
+      void saveUsage();
       scheduleNextPing();
     }, PING_EVERY_MS + Math.floor(Math.random() * PING_JITTER_MS));
     pingTimer.unref?.();
@@ -508,7 +547,7 @@ export function createReporter({
    *  open. The first check-in already puts a freshly launched deck online, so the
    *  first ping is a full interval out — nothing pings at boot. */
   function start() {
-    Promise.resolve(ready).catch(() => {}).then(checkIn);
+    Promise.resolve(ready).catch(() => {}).then(restoreUsage).then(checkIn);
     if (!timer) {
       timer = setInterval(() => void checkIn(), CHECK_IN_EVERY_MS);
       timer.unref?.();
@@ -523,36 +562,16 @@ export function createReporter({
     pingTimer = null;
   }
 
-  return { checkIn, ping, setReports, reportError, start, stop };
+  return { checkIn, ping, setReports, reportError, restoreUsage, saveUsage, start, stop };
 }
 
 // ── the deck's own providers ─────────────────────────────────────────────────
 //
 // Kept here rather than in the modules they read, so reports.mjs stays the one
 // place that decides what leaves — and reached by lazy import, so the reporter's
-// own module graph does not pull the session tracker, the enrichment cache or
-// the CLI probe into a fast path like `--version` that imports it for nothing.
-
-/** The coarse counts the "active" report carries, read from the state the deck
- *  already keeps — the LRU of tracked sessions, the per-session subagent
- *  signatures, and the folders those sessions' transcripts sit in. Never new
- *  tracking, and never anything but a number: no session id, project name or
- *  path, only how many. `projects` is the distinct transcript folders among the
- *  live sessions, so it counts Claude projects; a Codex-only deck sends no
- *  transcript path and so reports no projects. */
-async function deckUsage() {
-  const out = {};
-  try {
-    const { trackedSessionCount, trackedProjectCount } = await import("./session-tracking.mjs");
-    out.sessions = trackedSessionCount();
-    out.projects = trackedProjectCount();
-  } catch { /* counts unavailable: omitted */ }
-  try {
-    const { trackedSubagentCount } = await import("./session-enrichment.mjs");
-    out.subagents = trackedSubagentCount();
-  } catch { /* count unavailable: omitted */ }
-  return out;
-}
+// own module graph does not pull the CLI probe into a fast path like
+// `--version` that imports it for nothing. The day's usage tally is imported
+// directly: usage-day.mjs imports nothing.
 
 // The CLI versions, detected once in the background, off the boot path. The
 // first send starts the probe (past boot, and not while the machine has vetoed
@@ -572,4 +591,4 @@ function deckCliVersions() {
 }
 
 /** The deck's own reporter. */
-export const reporter = createReporter({ versions: deckCliVersions, usage: deckUsage });
+export const reporter = createReporter({ versions: deckCliVersions });
