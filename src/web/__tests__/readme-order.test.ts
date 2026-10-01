@@ -32,7 +32,9 @@
 // PLAIN NODE. The READMEs are read as text; nothing here imports a module that
 // touches the filesystem on its own.
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
@@ -346,6 +348,22 @@ describe("the hero image", () => {
     // And the warning that matters, because the panel is open by default.
     expect(src).toMatch(/accounts panel CLOSED/i);
     expect(readme).toContain("assets/canvas-demo.mjs");
+  });
+
+  it("can actually write the session log it is the recipe for", () => {
+    // It could not: the generator called writeFileSync and never imported it,
+    // so the first step of the recipe died with a ReferenceError after
+    // building every event, and the hero could not be retaken at all.
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-canvas-demo-"));
+    try {
+      const events = join(dir, "events.jsonl");
+      execFileSync(process.execPath, [join(repo, "assets", "canvas-demo.mjs"), join(dir, "ws"), events], { stdio: "pipe" });
+      const lines = readFileSync(events, "utf8").trim().split("\n");
+      expect(lines.length, "the generator wrote no events").toBeGreaterThan(20);
+      expect(() => lines.forEach(l => JSON.parse(l)), "the session log is not one JSON event per line").not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

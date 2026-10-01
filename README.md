@@ -1,5 +1,10 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/ccdeck-horizontal-on-dark.svg">
+  <img src="assets/brand/ccdeck-horizontal-on-light.svg" alt="ccdeck" width="274" height="64">
+</picture>
+
 # ccdeck — a live dashboard for Claude Code and Codex
 
 ccdeck is a free, open-source (AGPL-3.0) dashboard that runs on your machine and shows every Claude Code and OpenAI Codex CLI session, including ones started in a plain terminal: which Claude Code session needs input, each Claude Code subagent and every tool call as it runs, cost and quota left. Start it with `npx ccdeck` or the desktop app.

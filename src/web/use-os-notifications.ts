@@ -19,6 +19,9 @@ import { type NotifyPermission, blockKey, canAsk, mayRaise, nextRaised, noticesF
 import type { BlockedSession } from "./ambient-counts";
 import { useMirroredRef } from "./use-mirrored-ref";
 
+/** The kit's 192px web icon, the one the manifest names for installs. */
+const NOTIFICATION_ICON = "/icon-192.png";
+
 export interface OsNotificationsDeps {
   /** The sessions currently blocked on a human — the same set the sidebar draws. */
   waitingSessions: BlockedSession[];
@@ -243,7 +246,9 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
         // `tag` is the block key, so a second deck on the same machine REPLACES
         // this notification in the tray rather than stacking a duplicate beside
         // it — the same fan-out that makes `since` load-bearing in the key.
-        const note = new Notification(n.title, { body: n.body, tag: n.key });
+        // The icon is the kit's web icon the manifest already ships; a platform
+        // that ignores the option shows the browser's own, as before.
+        const note = new Notification(n.title, { body: n.body, tag: n.key, icon: NOTIFICATION_ICON });
         note.onclick = () => {
           // Bring the deck back and land on the session that asked, rather than
           // on whatever the canvas happened to be showing. A notification that
