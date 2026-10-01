@@ -63,6 +63,16 @@
     "3.35.1",
     "3.36.0"
   ],
+  "3.36.1": [
+    {
+      "title": "📎 Feedback can carry a screenshot",
+      "body": "Paste a screenshot into Send feedback, drop one on it, or pick one with Add a screenshot: up to three PNG or JPEG images. One too big to send is made smaller before it goes. The images reach only the people who make ccdeck and are never put on a public issue, the same as how to reach you. A screenshot of the deck can show emails, costs and paths, so crop out what should not be seen."
+    },
+    {
+      "title": "💬 Feedback asks only for the message",
+      "body": "The title is optional now. Left empty, the first line of what you wrote becomes it, and the field shows the title that will be sent while you type. A few starters under each kind, like \"It happened when…\", help with the first sentence. On a wide window the topbar button says Feedback beside its icon."
+    }
+  ],
   "3.34.1": [
     {
       "title": "🗂️ The tray menu stays open while you read it",
