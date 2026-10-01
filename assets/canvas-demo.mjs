@@ -18,6 +18,8 @@
 // Then shoot it at 1600x900, deviceScaleFactor 2, after the fit-view control
 // and with the accounts panel CLOSED — it lists real e-mail addresses.
 //
+import { writeFileSync } from "node:fs";
+
 const WS = process.argv[2];
 const OUT = process.argv[3];
 const T0 = Date.now() - 14 * 60_000;
