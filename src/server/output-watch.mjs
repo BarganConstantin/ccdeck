@@ -147,6 +147,19 @@ export function createOutputWatch(io = {}) {
   function clear() { seen.clear(); }
   function size() { return seen.size; }
 
+  /** How many distinct projects the live sessions sit in, read off the paths
+   *  already held — no new state. Claude keeps one transcript folder per project
+   *  under ~/.claude/projects, so distinct folders are distinct projects. Only
+   *  the count is ever read; no path or project name leaves. */
+  function projectCount() {
+    const projects = new Set();
+    for (const { path } of seen.values()) {
+      const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+      projects.add(cut > 0 ? path.slice(0, cut) : path);
+    }
+    return projects.size;
+  }
+
   /**
    * One tick. Stats each named session's file, reads only what is new, and
    * answers with EVERY block that landed in it, oldest first — see blocksIn
@@ -270,5 +283,5 @@ export function createOutputWatch(io = {}) {
     }
   }
 
-  return { note, forget, clear, size, poll };
+  return { note, forget, clear, size, projectCount, poll };
 }
