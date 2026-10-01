@@ -40,8 +40,9 @@
 // so it stops entirely the moment reports are switched off or vetoed.
 //
 // NOBODY IS ASKED, AND NOTHING IS HIDDEN. The owner chose on-by-default
-// (2026-09-30): the README says what is sent, Appearance holds the switch, and
-// AGENTS_DECK_NO_REPORTS=1 keeps it off from the first start.
+// (2026-09-30): the README says what is sent, and AGENTS_DECK_NO_REPORTS=1 keeps it
+// off from the first start. The deck has no switch for it since the owner removed
+// Appearance's on 2026-10-01.
 //
 // SWITCHING IT OFF DELETES WHAT WAS SENT. The id is forgotten here and the API
 // is asked to drop every event and error it holds for it; if that request

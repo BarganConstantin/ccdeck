@@ -80,8 +80,8 @@ export const DEFAULTS = Object.freeze({
   // the server can read it with no page open.
   autoUpdate: true,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
-  // decision, 2026-09-30: nobody is asked, the README says what is sent, and
-  // Appearance holds the switch. See reports.mjs for what is sent, and
+  // decision, 2026-09-30: nobody is asked and the README says what is sent; the
+  // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
   // reportsVetoed for the launch-time veto that wins over this.
   reports: true,
   // What reports.mjs keeps between runs, and the page never sees
