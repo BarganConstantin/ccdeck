@@ -42,10 +42,12 @@ Small releases do not need every heading. Two or three clear lines are better th
 
 ## Brand
 
-Every logo, icon and brand colour in this repo is a file copied unchanged from the ccdeck brand kit. `assets/brand/README.md` says which file serves which slot, how a new kit is copied in (`node assets/brand/kit.mjs <kit-dir>`), what has to be regenerated afterwards, and the kit defects worked around; `assets/brand/kit.json` records the kit version and every copy. The desktop app's files are documented in `desktop/brand/README.md`.
+Every logo and icon in this repo is a file copied unchanged from the ccdeck brand kit. `assets/brand/README.md` says which file serves which slot, how a new kit is copied in (`node assets/brand/kit.mjs <kit-dir>`) and what has to be regenerated afterwards; `assets/brand/kit.json` records the kit version and every copy. The name and the brand files are not under the AGPL: see LICENSING.md, "Name and logo".
 
 - Never recreate the logo: no CSS, canvas, hand-written SVG, emoji or text redraw of it.
-- No other gradients: the purple to cyan lives only inside the kit's artwork.
-- One kit file per context; never shrink the app icon for the tray, and use the `*-small-optical` master from 16 to 24px.
-- Status is an overlay on an unchanged mark, never a recolouring.
-- The name is `ccdeck`, lowercase, in text and alt text; never copy the kit's own text files, which spell it otherwise.
+- No other gradients: the mark's own gradients live only inside the kit's artwork.
+- One kit file per context; never shrink the app icon for the tray, and use the `*-small-optical` masters up to 32px.
+- Status is an overlay on an unchanged mark, never a recolouring: the tab wears the kit's own state files.
+- The name is `ccdeck`, lowercase, in text and alt text; never copy the kit's own text files.
+
+**Brand (desktop):** the app icon and tray images come only from `desktop/brand/` — read `desktop/brand/README.md` (rules, which file serves which slot, how to take a new kit); never draw the mark in code, never use the app icon for the tray.
