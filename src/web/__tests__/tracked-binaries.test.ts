@@ -92,7 +92,7 @@ const binaries = () =>
 
 /** The desktop app's images, as desktop/brand/README.md's file table lists them. */
 const desktopBrandImages = () =>
-  [...read("desktop", "brand", "README.md").matchAll(/^\| `([^`]+\.(?:png|ico))` \|/gm)]
+  [...read("desktop", "brand", "README.md").matchAll(/^\| `([^`]+\.(?:png|ico|icns))` \|/gm)]
     .map((m) => `desktop/brand/${m[1]}`)
     .sort();
 

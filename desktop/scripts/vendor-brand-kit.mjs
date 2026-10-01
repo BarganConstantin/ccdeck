@@ -7,16 +7,15 @@
 //                                                       VERSION and SHA256SUMS.txt
 //   node desktop/scripts/vendor-brand-kit.mjs --table   only rewrite the table
 //
-// Which files: every kit file the plan in scripts/icons.mjs reads, and the
-// masters the macOS template render reads while that workaround is on. Each is
-// checked against the kit's own SHA256SUMS.txt before anything is copied, the
-// kit's VERSION has to be KIT_VERSION in icons.mjs, and whatever the plan no
-// longer reads is removed from desktop/brand.
+// Which files: every kit file the plan in scripts/icons.mjs reads, and no
+// other. Each is checked against the kit's own SHA256SUMS.txt before anything
+// is copied, the kit's VERSION has to be KIT_VERSION in icons.mjs, and whatever
+// the plan no longer reads is removed from desktop/brand/kit.
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BRAND, KIT_VERSION, MACOS_TEMPLATES_FROM, iconPlan, macosTemplateMasters } from "./icons.mjs";
+import { BRAND, KIT_VERSION, iconPlan } from "./icons.mjs";
 
 const TABLE_START = "<!-- files:start -->";
 const TABLE_END = "<!-- files:end -->";
@@ -30,17 +29,9 @@ function filesUnder(dir, prefix = "") {
   }).sort();
 }
 
-/** Every kit file the desktop app needs, as paths inside the kit, with a
- *  directory the plan names (the macOS iconset) read for its files. */
-export function neededKitFiles(kitDir) {
-  const paths = new Set();
-  for (const { from } of iconPlan()) {
-    for (const path of from) if (path.startsWith("kit/")) paths.add(path.slice("kit/".length));
-  }
-  for (const path of macosTemplateMasters()) paths.add(path.slice("kit/".length));
-  return [...paths].flatMap(path => statSync(join(kitDir, path)).isDirectory()
-    ? filesUnder(kitDir, path)
-    : [path]).sort();
+/** Every kit file the desktop app needs, as paths inside the kit. */
+export function neededKitFiles() {
+  return [...new Set(iconPlan().map(({ from }) => from.slice("kit/".length)))].sort();
 }
 
 /** The README's table: every file under desktop/brand and its SHA-256. */
@@ -68,14 +59,13 @@ export function vendorKit(kitDir, brand = BRAND) {
     const [hash, path] = line.trim().split(/\s+\*?/);
     return [path, hash];
   }));
-  const needed = neededKitFiles(kitDir);
+  const needed = neededKitFiles();
   for (const path of needed) {
     if (sums.get(path) !== sha256(readFileSync(join(kitDir, path)))) {
       throw new Error(`${path} is not the file the kit's SHA256SUMS.txt lists, so the kit is not as delivered`);
     }
   }
   rmSync(join(brand, "kit"), { recursive: true, force: true });
-  if (MACOS_TEMPLATES_FROM === "kit") rmSync(join(brand, "rendered"), { recursive: true, force: true });
   for (const path of needed) {
     mkdirSync(dirname(join(brand, "kit", path)), { recursive: true });
     copyFileSync(join(kitDir, path), join(brand, "kit", path));

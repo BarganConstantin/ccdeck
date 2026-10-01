@@ -13,7 +13,7 @@
 //            gets only the 1x bitmap, and scales it.
 //   Linux    tray-<state>.png, and the @2x beside it. Electron hands the
 //            StatusNotifierItem host one image, the highest-resolution one it
-//            holds, so the panel receives the @2x.
+//            holds, so the panel receives the @2x and scales it to its slot.
 export function trayIconFile(platform, state) {
   if (platform === "darwin") return `tray-${state}Template.png`;
   if (platform === "win32") return `tray-${state}.ico`;

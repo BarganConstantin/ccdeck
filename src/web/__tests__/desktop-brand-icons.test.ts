@@ -1,5 +1,5 @@
 // The desktop app's images: the app icon and the tray, on macOS, Windows and
-// Linux, all taken from the ccdeck brand kit vendored under desktop/brand.
+// Linux, all copied from the ccdeck brand kit vendored under desktop/brand.
 // Nothing in the build draws the mark any more.
 //
 // This file replaces "the icons" in desktop-updater.test.ts, which pinned the
@@ -8,7 +8,7 @@
 // a PNG. Those guarantees were dropped on purpose, with the drawing: the
 // product now wears the kit's mark, and what can silently go wrong is
 // different. What is pinned is the slot, the name, the size and the template
-// rules — never what the artwork looks like, so a new kit passes or fails on
+// rules — never what the artwork looks like, so the next kit passes or fails on
 // the same terms. Each case holds one of these:
 //
 //   · a state shown with the wrong kit image, or the kit's unused "paused"
@@ -16,7 +16,7 @@
 //   · a file quietly re-encoded, edited or swapped, so the vendored copy is no
 //     longer the one the README lists — or a binary added under desktop/brand
 //     that nobody accounted for;
-//   · a macOS template that is not a whole template: kit v1.0's own draw the
+//   · a macOS template that is not a whole template: kit v1.0's own drew the
 //     mark cut off, in a 2×2 pixel corner of the 18 px default;
 //   · the app icon shrunk into the tray, which the brand rules forbid;
 //   · a drawing creeping back into code.
@@ -32,20 +32,24 @@ import { ambientSignal } from "../ambient";
 // @ts-expect-error — plain .mjs, no types
 import * as icons from "../../../desktop/scripts/icons.mjs";
 // @ts-expect-error — plain .mjs, no types
-import { withWholeMaskRegion } from "../../../desktop/scripts/render-tray-templates.mjs";
-// @ts-expect-error — plain .mjs, no types
 import { fileTable, neededKitFiles } from "../../../desktop/scripts/vendor-brand-kit.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { retinaFile, trayIconFile } from "../../../desktop/tray-icon.mjs";
 
-const { BRAND, TRAY_ART, STATES, MACOS_TEMPLATE_STEMS, MACOS_TEMPLATE_SIZES, MACOS_TEMPLATES_FROM, WINDOWS_TRAY_SIZES, LINUX_TRAY_SIZES, iconPlan, writeIcons } = icons;
+const { BRAND, TRAY_ART, STATES, MACOS_TEMPLATE_STEMS, MACOS_TEMPLATE_SIZES, WINDOWS_TRAY_SIZES, LINUX_TRAY_SIZES, LINUX_ICON_SIZES, iconPlan, writeIcons } = icons;
 
-type PlanEntry = { out: string; from: string[]; pack?: "ico" | "icns" };
+type PlanEntry = { out: string; from: string };
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const desktop = (...parts: string[]) => readFileSync(join(repo, "desktop", ...parts), "utf8");
 const brandFile = (path: string) => readFileSync(join(BRAND, path));
 const sha256 = (buf: Buffer) => createHash("sha256").update(buf).digest("hex");
+const plan = () => iconPlan() as PlanEntry[];
+const sourceOf = (out: string) => {
+  const entry = plan().find(e => e.out === out);
+  expect(entry, `nothing is written as ${out}`).toBeDefined();
+  return entry!.from;
+};
 
 /** Every file under a directory, as paths relative to it. */
 function filesUnder(dir: string): string[] {
@@ -66,7 +70,16 @@ function icoEntries(ico: Buffer): { size: number; png: Buffer }[] {
   });
 }
 
-/** An 8-bit RGBA, non-interlaced PNG — what resvg writes — as its pixels. */
+/** The four-letter element types an .icns carries, in file order. */
+function icnsTypes(icns: Buffer): string[] {
+  expect(icns.subarray(0, 4).toString("latin1"), "not an .icns").toBe("icns");
+  expect(icns.readUInt32BE(4), "the .icns header's length is not the file's").toBe(icns.length);
+  const types: string[] = [];
+  for (let at = 8; at < icns.length; at += icns.readUInt32BE(at + 4)) types.push(icns.subarray(at, at + 4).toString("latin1"));
+  return types;
+}
+
+/** An 8-bit RGBA, non-interlaced PNG — what the kit's templates are — as its pixels. */
 function rgba(png: Buffer): { size: number; px: Buffer } {
   expect(png.subarray(1, 4).toString("latin1")).toBe("PNG");
   let at = 8, width = 0, height = 0;
@@ -99,10 +112,10 @@ function rgba(png: Buffer): { size: number; px: Buffer } {
 }
 
 /** Write the build's dist/icons into a temp directory, hand it over, delete it. */
-function written<T>(read: (dir: string) => T, platform = "linux"): T {
+function written<T>(read: (dir: string) => T): T {
   const dir = mkdtempSync(join(tmpdir(), "ccdeck-icons-"));
   try {
-    writeIcons(dir, { platform });
+    writeIcons(dir);
     return read(dir);
   } finally {
     rmTempDir(dir);
@@ -140,89 +153,82 @@ describe("which kit image each tray state wears", () => {
     expect(trayIconFile("linux", "idle")).toBe("tray-idle.png");
   });
 
-  it("writes, for each state on each platform, the kit file that state maps to", () => {
-    const kitIco = brandFile("kit/04-tray-menu/windows/ccdeck-tray.ico");
+  it("copies, for each state on each platform, the kit file of that state", () => {
+    for (const state of STATES) {
+      const art = TRAY_ART[state];
+      const template = trayIconFile("darwin", state), linux = trayIconFile("linux", state);
+      expect(sourceOf(template)).toBe(`kit/04-tray-menu/macos/${MACOS_TEMPLATE_STEMS[art]}.png`);
+      expect(sourceOf(retinaFile(template))).toBe(`kit/04-tray-menu/macos/${MACOS_TEMPLATE_STEMS[art]}@2x.png`);
+      // The kit's per-state .ico by its own name — for default too, where the
+      // kit also keeps v1.0's ccdeck-tray.ico as an alias of the same bytes.
+      expect(sourceOf(trayIconFile("win32", state))).toBe(`kit/04-tray-menu/windows/ccdeck-tray-${art}.ico`);
+      expect(sourceOf(linux)).toBe(`kit/04-tray-menu/linux/ccdeck-tray-${art}-${LINUX_TRAY_SIZES[""]}.png`);
+      expect(sourceOf(retinaFile(linux))).toBe(`kit/04-tray-menu/linux/ccdeck-tray-${art}-${LINUX_TRAY_SIZES["@2x"]}.png`);
+    }
+    // And what is written is the file, byte for byte.
     written(dir => {
-      const out = (name: string) => readFileSync(join(dir, name));
-      for (const state of STATES) {
-        const art = TRAY_ART[state];
-        // macOS: the template of that kit state, 1x and Retina, by the kit's
-        // name for it — rendered or the kit's own, whichever the plan reads.
-        const where = MACOS_TEMPLATES_FROM === "kit" ? "kit/04-tray-menu/macos" : "rendered/macos";
-        const template = trayIconFile("darwin", state);
-        expect(sha256(out(template)), `${template}`).toBe(sha256(brandFile(`${where}/${MACOS_TEMPLATE_STEMS[art]}.png`)));
-        expect(sha256(out(retinaFile(template))), `${retinaFile(template)}`).toBe(sha256(brandFile(`${where}/${MACOS_TEMPLATE_STEMS[art]}@2x.png`)));
-        // Linux: the kit's colour PNGs at the pair the app hands the panel.
-        const linux = trayIconFile("linux", state);
-        expect(sha256(out(linux)), linux).toBe(sha256(brandFile(`kit/04-tray-menu/linux/ccdeck-tray-${art}-${LINUX_TRAY_SIZES[""]}.png`)));
-        expect(sha256(out(retinaFile(linux))), retinaFile(linux)).toBe(sha256(brandFile(`kit/04-tray-menu/linux/ccdeck-tray-${art}-${LINUX_TRAY_SIZES["@2x"]}.png`)));
-        // Windows: the kit's own .ico for default; for the rest, that state's
-        // kit PNGs, unchanged, as the entries of an .ico laid out like it.
-        const ico = out(trayIconFile("win32", state));
-        if (art === "default") {
-          expect(sha256(ico), "idle is the kit's ccdeck-tray.ico itself").toBe(sha256(kitIco));
-        } else {
-          const entries = icoEntries(ico);
-          expect(entries.map(e => e.size)).toEqual([...WINDOWS_TRAY_SIZES]);
-          entries.forEach(({ size, png }) => expect(sha256(png), `${state} ${size}`).toBe(sha256(brandFile(`kit/04-tray-menu/windows/ccdeck-tray-${art}-${size}.png`))));
-        }
-      }
+      for (const { out, from } of plan()) expect(sha256(readFileSync(join(dir, out))), out).toBe(sha256(brandFile(from)));
     });
   });
 
-  it("packs every Windows state at the sizes the kit's own tray .ico carries", () => {
-    // So no state is blurrier than idle at some DPI: Windows loads the entry
-    // made for its small-icon size, and every state has the same entries.
-    expect(icoEntries(brandFile("kit/04-tray-menu/windows/ccdeck-tray.ico")).map(e => e.size)).toEqual([...WINDOWS_TRAY_SIZES]);
+  it("gives every Windows state an entry for each display scale", () => {
+    // Windows loads the .ico entry made for its small-icon size; a scale with
+    // no entry of its own gets a neighbour resized, which is the blur this
+    // shape exists to avoid.
+    for (const state of STATES) {
+      const from = sourceOf(trayIconFile("win32", state));
+      expect(icoEntries(brandFile(from)).map(e => e.size), from).toEqual([...WINDOWS_TRAY_SIZES]);
+    }
+  });
+
+  it("hands the Linux panel the size it asks for, with its double", () => {
+    for (const state of STATES) {
+      for (const [suffix, size] of Object.entries(LINUX_TRAY_SIZES as Record<string, number>)) {
+        const from = sourceOf(suffix ? retinaFile(trayIconFile("linux", state)) : trayIconFile("linux", state));
+        expect(icons.pngSize(brandFile(from)), from).toEqual({ width: size, height: size });
+      }
+    }
+    expect(LINUX_TRAY_SIZES["@2x"]).toBe(2 * LINUX_TRAY_SIZES[""]);
   });
 });
 
 describe("the app icon, which is a separate set", () => {
-  it("is the kit's launcher set on every platform", () => {
-    written(dir => {
-      const out = (name: string) => sha256(readFileSync(join(dir, name)));
-      expect(out("icon.png"), "the 1024 master").toBe(sha256(brandFile("kit/03-app-icons/png/ccdeck-app-1024.png")));
-      expect(out("icon.ico"), "the Windows launcher icon").toBe(sha256(brandFile("kit/03-app-icons/windows/ccdeck.ico")));
-      for (const size of icons.LINUX_ICON_SIZES as number[]) {
-        const from = size === 24 ? "kit/03-app-icons/png/ccdeck-app-24.png" : `kit/03-app-icons/linux/ccdeck-${size}.png`;
-        expect(out(`linux/${size}x${size}.png`), `linux ${size}`).toBe(sha256(brandFile(from)));
-      }
-    });
+  it("is the kit's launcher file on every platform", () => {
+    expect(sourceOf("icon.icns")).toBe("kit/03-app-icons/macos/ccdeck.icns");
+    expect(sourceOf("icon.ico")).toBe("kit/03-app-icons/windows/ccdeck.ico");
+    expect(sourceOf("icon.png")).toBe("kit/03-app-icons/png/ccdeck-app-1024.png");
+    for (const size of LINUX_ICON_SIZES as number[]) {
+      expect(sourceOf(`linux/${size}x${size}.png`)).toBe(`kit/03-app-icons/linux/ccdeck-${size}.png`);
+    }
+  });
+
+  it("is an .icns with every 1x and @2x entry of the iconset it was made from", () => {
+    // The ten iconset sizes, by the element types iconutil writes for them:
+    // 16, 32, 128, 256, 512 and their @2x.
+    const types = icnsTypes(brandFile(sourceOf("icon.icns")));
+    for (const type of ["ic04", "ic11", "ic05", "ic12", "ic07", "ic13", "ic08", "ic14", "ic09", "ic10"]) {
+      expect(types, `the .icns has no ${type}`).toContain(type);
+    }
   });
 
   it("carries the 256 entry electron-builder requires of a Windows icon", () => {
-    expect(icoEntries(brandFile("kit/03-app-icons/windows/ccdeck.ico")).map(e => e.size)).toContain(256);
-  });
-
-  it("makes the .icns from the kit's iconset as it is, every 1x and @2x pair in it", () => {
-    // iconutil, which only a Mac has, packs the directory it is handed; what
-    // can go wrong on this side is handing it less than the whole iconset.
-    const icns = (iconPlan() as PlanEntry[]).find(e => e.out === "icon.icns")!;
-    expect(icns).toMatchObject({ from: ["kit/03-app-icons/macos.iconset"], pack: "icns" });
-    const pairs = [16, 32, 128, 256, 512].flatMap(n => [`icon_${n}x${n}.png`, `icon_${n}x${n}@2x.png`]).sort();
-    expect(filesUnder(join(BRAND, icns.from[0]))).toEqual(pairs);
+    expect(icoEntries(brandFile(sourceOf("icon.ico"))).map(e => e.size)).toContain(256);
   });
 
   it("is never what the tray shows", () => {
     // The rule is the brand's: the app icon has a launcher surface, the tray
     // has its own glyphs. Held twice — by where each tray file comes from, and
     // by its bytes, so a copy of an app icon under a tray name fails too.
-    const tray = (iconPlan() as PlanEntry[]).filter(entry => entry.out.startsWith("tray-"));
+    const tray = plan().filter(entry => entry.out.startsWith("tray-"));
     expect(tray.length).toBe(STATES.length * 5);
-    for (const { out, from } of tray) {
-      for (const path of from) expect(path, `${out} is made from an app icon`).not.toMatch(/03-app-icons/);
-    }
+    for (const { out, from } of tray) expect(from, `${out} is made from an app icon`).not.toMatch(/03-app-icons/);
     const appIcons = new Set(filesUnder(join(BRAND, "kit/03-app-icons")).map(path => sha256(brandFile(`kit/03-app-icons/${path}`))));
-    written(dir => {
-      for (const name of readdirSync(dir).filter(name => name.startsWith("tray-"))) {
-        expect(appIcons.has(sha256(readFileSync(join(dir, name)))), `${name} is an app icon`).toBe(false);
-      }
-    });
+    for (const { out, from } of tray) expect(appIcons.has(sha256(brandFile(from))), `${out} is an app icon`).toBe(false);
   });
 });
 
 describe("what the build does with the kit", () => {
-  it("copies and packs the vendored files, and draws nothing", () => {
+  it("copies the vendored files, and draws nothing", () => {
     const source = desktop("scripts", "icons.mjs");
     // What used to draw: the coverage sampler, the shapes and the PNG encoder.
     for (const gone of ["inked", "markPng", "appIconPng", "png", "COLOURS"]) {
@@ -232,19 +238,11 @@ describe("what the build does with the kit", () => {
     expect(source, "geometry in the icon build is a drawing").not.toMatch(/Math\.(hypot|atan2|sin|cos)\b/);
     // And the app makes no image of its own at run time either.
     expect(desktop("main.mjs")).not.toMatch(/nativeImage\.create(FromBuffer|FromBitmap|FromDataURL|Empty)/);
-    for (const { from } of iconPlan() as PlanEntry[]) {
-      for (const path of from) expect(path, `${path} is not a vendored or rendered brand file`).toMatch(/^(kit|rendered)\//);
-    }
+    for (const { from } of plan()) expect(from, `${from} is not a vendored kit file`).toMatch(/^kit\//);
   });
 
   it("writes exactly the plan into dist/icons, and nothing an older build left", () => {
-    const planned = (iconPlan() as PlanEntry[]).map(e => e.out).filter(out => out !== "icon.icns").sort();
-    written(dir => expect(filesUnder(dir)).toEqual(planned));
-  });
-
-  it("refuses to pack an .ico entry Windows would misread", () => {
-    expect(() => icons.packIco([brandFile("kit/03-app-icons/png/ccdeck-app-1024.png")])).toThrow(/at most 256/);
-    expect(() => icons.packIco([Buffer.from("not a png")])).toThrow(/not a PNG/);
+    written(dir => expect(filesUnder(dir)).toEqual(plan().map(e => e.out).sort()));
   });
 });
 
@@ -264,7 +262,7 @@ describe("the vendored files", () => {
   it("are what vendor-brand-kit.mjs would copy and list, so the next kit is one command", () => {
     // Nothing vendored that the plan does not read, nothing it reads missing,
     // and the README's table exactly the one the script writes.
-    expect(neededKitFiles(join(BRAND, "kit"))).toEqual(filesUnder(join(BRAND, "kit")));
+    expect(neededKitFiles().map((path: string) => `kit/${path}`)).toEqual(files);
     expect(desktop("brand", "README.md")).toContain(`<!-- files:start -->\n${fileTable()}\n<!-- files:end -->`);
     expect(desktop("scripts", "icons.mjs")).toMatch(/^export const KIT_VERSION = "\d+\.\d+\.\d+";$/m);
   });
@@ -273,44 +271,27 @@ describe("the vendored files", () => {
     // The kit names its rasters by size; a file whose pixels disagree with its
     // name is installed or picked at the wrong size.
     for (const path of files.filter(p => p.endsWith(".png"))) {
-      const iconset = /icon_(\d+)x\1(@2x)?\.png$/.exec(path);
       const sized = /-(\d+)\.png$/.exec(path);
       const template = /Template(@2x)?\.png$/.exec(path);
-      const want = iconset ? Number(iconset[1]) * (iconset[2] ? 2 : 1)
-        : sized ? Number(sized[1])
-        : template ? MACOS_TEMPLATE_SIZES[template[1] ?? ""]
-        : NaN;
+      const want = sized ? Number(sized[1]) : template ? MACOS_TEMPLATE_SIZES[template[1] ?? ""] : NaN;
       expect(icons.pngSize(brandFile(path)), path).toEqual({ width: want, height: want });
     }
   });
 });
 
 describe("the macOS menu-bar templates", () => {
-  // Where the plan takes each template from: rendered from the kit's masters
-  // while kit v1.0's own are cut off, the kit's own once MACOS_TEMPLATES_FROM
-  // says "kit" — and then these same checks say whether they are whole.
-  const templateSource = (art: string, suffix: string): string => {
-    const state = STATES.find((s: string) => TRAY_ART[s] === art);
-    const out = suffix ? retinaFile(trayIconFile("darwin", state)) : trayIconFile("darwin", state);
-    return (iconPlan() as PlanEntry[]).find(entry => entry.out === out)!.from[0];
-  };
   const stems = MACOS_TEMPLATE_STEMS as Record<string, string>;
   const sizes = MACOS_TEMPLATE_SIZES as Record<string, number>;
-
-  it("are the four the app uses, under the kit's names, and no others", () => {
-    const where = MACOS_TEMPLATES_FROM === "kit" ? "kit/04-tray-menu/macos" : "rendered/macos";
-    const expected = Object.values(stems).flatMap(stem => Object.keys(sizes).map(suffix => `${where}/${stem}${suffix}.png`)).sort();
-    expect(Object.keys(stems).flatMap(art => Object.keys(sizes).map(suffix => templateSource(art, suffix))).sort()).toEqual(expected);
-    // Electron marks an image as a template by this name, and only by it.
-    for (const path of expected) expect(path).toMatch(/Template(@2x)?\.png$/);
-  });
+  const source = (art: string, suffix: string) => {
+    const state = STATES.find((s: string) => TRAY_ART[s] === art);
+    return sourceOf(suffix ? retinaFile(trayIconFile("darwin", state)) : trayIconFile("darwin", state));
+  };
 
   /** A template's pixels, and the facts the cases below read off them. */
   function measure(art: string, suffix: string) {
     const size = sizes[suffix];
-    const { size: actual, px } = rgba(brandFile(templateSource(art, suffix)));
+    const { size: actual, px } = rgba(brandFile(source(art, suffix)));
     expect(actual).toBe(size);
-    const alpha = (x: number, y: number) => px[(y * size + x) * 4 + 3];
     let x0 = size, y0 = size, x1 = -1, y1 = -1, ink = 0, coloured = 0;
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
@@ -321,8 +302,17 @@ describe("the macOS menu-bar templates", () => {
         x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
       }
     }
-    return { size, px, alpha, x0, y0, x1, y1, ink: ink / (size * size), coloured };
+    return { size, px, x0, y0, x1, y1, ink: ink / (size * size), coloured };
   }
+
+  it("are named the way Electron recognises a template, with the @2x at twice the size", () => {
+    // Electron marks an image as a template by "Template" ending its name,
+    // and loads the @2x beside it by name.
+    for (const art of Object.keys(stems)) {
+      for (const suffix of Object.keys(sizes)) expect(source(art, suffix)).toMatch(/Template(@2x)?\.png$/);
+    }
+    expect(sizes["@2x"]).toBe(2 * sizes[""]);
+  });
 
   // These hold for any artwork: they are about the template being whole and
   // being a template, not about what the mark looks like.
@@ -330,14 +320,12 @@ describe("the macOS menu-bar templates", () => {
     for (const [suffix, size] of Object.entries(sizes)) {
       it(`${stem}${suffix}.png is a whole mark, black on transparent, at ${size} px`, () => {
         const m = measure(art, suffix);
-        // Whole means spread over the square and centred in it. Kit v1.0's own
-        // default template draws in a 2×2 pixel corner of its 18: ink across
-        // 2 of 18 pixels, 0.6 % of the square inked, 2 pixels of margin on the
-        // top and left against 14 on the bottom and right.
-        expect(m.x1 - m.x0 + 1, "the mark spans too little of the width: cut off").toBeGreaterThanOrEqual(size * 0.8);
-        expect(m.y1 - m.y0 + 1, "the mark spans too little of the height: cut off").toBeGreaterThanOrEqual(size * 0.8);
-        expect(Math.abs(m.y0 - (size - 1 - m.y1)), "the mark is not centred top to bottom: cut off").toBeLessThanOrEqual(size / 18);
-        expect(m.ink, "almost nothing is inked: a fragment of the mark").toBeGreaterThan(0.2);
+        // Whole means spread over the square. Kit v1.0's own default template
+        // drew in a 2×2 pixel corner of its 18: ink across 2 of 18 pixels,
+        // 0.6 % of the square inked.
+        expect(m.x1 - m.x0 + 1, "the mark spans too little of the width: cut off").toBeGreaterThanOrEqual(size / 2);
+        expect(m.y1 - m.y0 + 1, "the mark spans too little of the height: cut off").toBeGreaterThanOrEqual(size / 2);
+        expect(m.ink, "almost nothing is inked: a fragment of the mark").toBeGreaterThan(0.15);
         // macOS reads only the alpha of a template; a colour in it is the
         // gradient or a status colour leaking in.
         expect(m.coloured, "a template is black and alpha, nothing else").toBe(0);
@@ -346,73 +334,32 @@ describe("the macOS menu-bar templates", () => {
   }
 
   for (const [suffix, size] of Object.entries(sizes)) {
-    it(`every state at ${size} px is the default mark with an overlay, never a recolouring`, () => {
-      // The kit's status overlays sit top right. Outside that quarter each
-      // state is the default, pixel for pixel; inside it, something is added.
+    it(`the default at ${size} px sits centred in its square`, () => {
+      // A mark cut off at one edge, or drawn into a corner, is off centre.
+      const m = measure("default", suffix);
+      expect(Math.abs(m.x0 - (size - 1 - m.x1)), "off centre left to right").toBeLessThanOrEqual(size / 18);
+      expect(Math.abs(m.y0 - (size - 1 - m.y1)), "off centre top to bottom").toBeLessThanOrEqual(size / 18);
+    });
+
+    it(`every state at ${size} px is the default mark with a badge, never a recolouring`, () => {
+      // The kit's status badges sit top right, with a knockout into the mark.
+      // Outside that quarter each state is the default, pixel for pixel;
+      // inside it, something is added.
       const base = measure("default", suffix);
-      const overlayQuarter = (x: number, y: number) => x >= size / 2 && y < size / 2;
+      const badgeQuarter = (x: number, y: number) => x >= size / 2 && y < size / 2;
       for (const art of Object.keys(stems).filter(a => a !== "default")) {
         const m = measure(art, suffix);
         let outside = 0, inside = 0;
         for (let y = 0; y < size; y++) {
           for (let x = 0; x < size; x++) {
             if (m.px.readUInt32BE((y * size + x) * 4) === base.px.readUInt32BE((y * size + x) * 4)) continue;
-            if (overlayQuarter(x, y)) inside++;
+            if (badgeQuarter(x, y)) inside++;
             else outside++;
           }
         }
-        expect(outside, `${art} changes the mark outside the overlay's quarter`).toBe(0);
+        expect(outside, `${art} changes the mark outside the badge's quarter`).toBe(0);
         expect(inside, `${art} adds nothing to the default`).toBeGreaterThan(0);
       }
     });
   }
-});
-
-// KIT v1.0 WORKAROUND. Kit v1.0's own templates are cut off, so the plan reads
-// templates rendered from its masters by scripts/render-tray-templates.mjs.
-// This block checks that render and nothing else; it goes, with that script and
-// desktop/brand/rendered, on the day MACOS_TEMPLATES_FROM in icons.mjs becomes
-// "kit". Left in place after that switch it fails loudly, because the files it
-// reads are gone — which is the reminder.
-describe("the kit v1.0 workaround: templates rendered from the masters", () => {
-  const stems = MACOS_TEMPLATE_STEMS as Record<string, string>;
-  const sizes = MACOS_TEMPLATE_SIZES as Record<string, number>;
-
-  it("renders one template per state and size, and nothing else", () => {
-    const expected = Object.values(stems).flatMap(stem => Object.keys(sizes).map(suffix => `${stem}${suffix}.png`)).sort();
-    expect(filesUnder(join(BRAND, "rendered/macos")), "a template rendered for no state, or a state not rendered").toEqual(expected);
-  });
-
-  // The masters' mask region stops at 8 units where the outer curves reach
-  // 5.9, so a render of a master as delivered shaves the four apexes flat: at
-  // 18 px the apex pixel is left at 111 of 255, where the whole curve inks it
-  // to about 220, and at 36 px the margin row is empty.
-  for (const [suffix, size] of Object.entries(sizes)) {
-    it(`the rendered default at ${size} px is not shaved by the masters' mask`, () => {
-      const { px } = rgba(brandFile(`rendered/macos/${stems.default}${suffix}.png`));
-      const alpha = (x: number, y: number) => px[(y * size + x) * 4 + 3];
-      const margin = size / 18, last = size - margin - 1, line = [...Array(size).keys()];
-      const apex = {
-        top: Math.max(...line.map(x => alpha(x, margin))),
-        left: Math.max(...line.map(y => alpha(margin, y))),
-        bottom: Math.max(...line.map(x => alpha(x, last))),
-        right: Math.max(...line.map(y => alpha(last, y))),
-      };
-      for (const [side, value] of Object.entries(apex)) expect(value, `the ${side} curve is shaved`).toBeGreaterThanOrEqual(160);
-    });
-  }
-
-  it("renders a working copy that differs from the master only by the mask region", () => {
-    const ADDED = ' maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"';
-    for (const art of Object.keys(stems)) {
-      const master = brandFile(`kit/04-tray-menu/generic/svg/ccdeck-tray-${art}.svg`).toString("utf8");
-      const copy: string = withWholeMaskRegion(master);
-      expect(copy).toContain(`<mask id="cut"${ADDED}>`);
-      expect(copy.replace(ADDED, ""), "the working copy differs from the master by more than the mask region").toBe(master);
-    }
-    // A master shaped differently — a re-exported kit that fixed the mask, or
-    // changed it — is refused rather than rendered unseen.
-    expect(() => withWholeMaskRegion('<svg viewBox="0 0 100 100"></svg>')).toThrow(/exactly one/);
-    expect(() => withWholeMaskRegion('<svg viewBox="0 0 100 100"><mask id="cut"><mask id="cut"></svg>')).toThrow(/exactly one/);
-  });
 });

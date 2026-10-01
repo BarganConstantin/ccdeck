@@ -37,6 +37,7 @@
 
 *.png binary
 *.ico binary
+*.icns binary
 
 # The exceptions, ahead of anyone adding one. cmd.exe genuinely wants CRLF: a
 # batch file with LF endings can exit silently, and `goto`/`call` label

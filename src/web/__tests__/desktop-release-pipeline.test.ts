@@ -392,11 +392,11 @@ describe("the icon Linux is given", () => {
     // The set used to be drawn at each size, and its drawing was what this
     // read; it is the brand kit's files now, so it reads the file each name
     // is copied from — every size, not a sample of three.
-    const plan: { out: string; from: string[] }[] = iconPlan();
+    const plan: { out: string; from: string }[] = iconPlan();
     for (const size of LINUX_ICON_SIZES) {
       const entry = plan.find(e => e.out === `linux/${size}x${size}.png`);
       expect(entry, `nothing is written as linux/${size}x${size}.png`).toBeDefined();
-      expect(pngSize(readFileSync(join(BRAND, entry!.from[0]))), `${size}x${size}.png comes from ${entry!.from[0]}`)
+      expect(pngSize(readFileSync(join(BRAND, entry!.from))), `${size}x${size}.png comes from ${entry!.from}`)
         .toEqual({ width: size, height: size });
     }
   });

@@ -48,8 +48,8 @@ module.exports = {
   artifactName: "${productName}-${os}-${arch}.${ext}",
   mac: {
     target: ["dmg", "zip"],
-    // The brand kit's iconset, made into an .icns by scripts/icons.mjs with
-    // Apple's iconutil, so no icon toolset is downloaded on the Mac runner.
+    // The brand kit's .icns, copied by scripts/icons.mjs, so no icon toolset
+    // is downloaded on the Mac runner.
     icon: "dist/icons/icon.icns",
     identity: null,
     category: "public.app-category.developer-tools",
