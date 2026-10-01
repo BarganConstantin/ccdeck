@@ -1,5 +1,14 @@
 <div align="center">
 
+<!-- The lockup's artwork ends two thirds of the way across its viewBox (a v1.0
+     kit workaround): #svgView crops the empty right third without touching the
+     file, and a renderer that ignores it shows the whole lockup. Re-measure or
+     drop it with the next kit. See assets/brand/README.md. -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/ccdeck-horizontal-on-dark.svg#svgView(viewBox(0%2C0%2C304%2C100))">
+  <img src="assets/brand/ccdeck-horizontal-on-light.svg#svgView(viewBox(0%2C0%2C304%2C100))" width="304" alt="ccdeck">
+</picture>
+
 # ccdeck — a live dashboard for Claude Code and Codex
 
 ccdeck is a free, open-source (AGPL-3.0) dashboard that runs on your machine and shows every Claude Code and OpenAI Codex CLI session, including ones started in a plain terminal: which Claude Code session needs input, each Claude Code subagent and every tool call as it runs, cost and quota left. Start it with `npx ccdeck` or the desktop app.
