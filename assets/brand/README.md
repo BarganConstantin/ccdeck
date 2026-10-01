@@ -93,9 +93,18 @@ Then regenerate what is drawn from the kit's files rather than copied:
   card differently. Chrome can stay running once the screenshot is written; stop
   it then. Upload the PNG by hand in the repository's Settings, Social preview.
 - `assets/canvas.png`, the README screenshot, which shows the topbar mark:
-  re-shoot it with the recipe in `assets/canvas-demo.mjs`. The canvas is
-  generated, but the Usage panel beside it reads the quotas of the accounts on
-  the machine the deck runs on, so the shot is the owner's to take.
+
+  ```bash
+  npm run build && node assets/capture-hero.mjs
+  ```
+
+  from the repo root. It starts this checkout's deck in an empty home on the
+  generated log of `assets/canvas-demo.mjs`, fakes in the page every read that
+  would otherwise come from the machine it runs on (quota, usage, accounts,
+  Local network), refuses a picture that shows a real path, name, address or
+  e-mail, and writes the 3840x2160 PNG. Anyone can take it; nothing of yours is
+  in it. `--serve` hands the same deck and page script to a browser you drive
+  yourself; the header of `assets/capture-hero.mjs` says how.
 
 `npm run build` picks the rest up: the tab states, the topbar marks and the icons
 are served from the copies.

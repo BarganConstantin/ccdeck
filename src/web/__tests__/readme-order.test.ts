@@ -20,14 +20,15 @@
 // passages are therefore asserted word for word AND asserted to appear exactly
 // once, since a copy left behind reads as an accident on a page this careful.
 //
-// The hero is asserted by location only. The shot itself still shows the
-// pre-rename wordmark, which no test can see and no edit to this repo can fix —
-// it needs re-taking on a current build. What CAN be pinned is that the file
-// exists, that it is not embedded from the repo root under a screenshot tool's
-// timestamped filename, and that it is reachable at full size, because GitHub
-// renders it at roughly half scale. The caption that currently explains the old
-// wordmark is deliberately NOT pinned: it has to go the day the shot is
-// replaced, and a test holding it in place would be pinning a lie.
+// The hero is asserted by location and by provenance. What the picture shows
+// no test can see, so what is pinned is that the file exists, that it is not
+// embedded from the repo root under a screenshot tool's timestamped filename,
+// that it is reachable at full size, because GitHub renders it at roughly half
+// scale — and that the one command which retakes it is committed and can see
+// nothing real, so a stale shot is a command away from current rather than
+// waiting on whoever's machine happens to hold a photogenic session. The
+// caption is deliberately NOT pinned word for word: it describes the shot, and
+// has to change the day the shot does.
 //
 // PLAIN NODE. The READMEs are read as text; nothing here imports a module that
 // touches the filesystem on its own.
@@ -317,9 +318,12 @@ describe("the hero image", () => {
 
   it("is reachable at full size, because GitHub renders it at about half scale", () => {
     // The old shot was 1917 logical px in a ~890px column and its labels were a
-    // smear. The replacement is framed at 1600 and shot at 2x, so the same
-    // column shows the same content about 20% larger; the link stays for the
-    // reader who wants the pixels.
+    // smear. Its replacement was framed at 1600 and shot at 2x for that reason;
+    // the shot that replaced THAT is framed at 1920 again, because it is the
+    // narrowest 16:9 window in which the deck's own fit, with both side panels
+    // open, still draws every card in full with its tool calls beside it
+    // (assets/capture-hero.mjs says why). It is shot at 2x, and the link stays
+    // for the reader who wants the pixels.
     expect(readme).toContain(`[![`);
     expect(readme).toContain(`](${embedded[0]})](${embedded[0]})`);
   });
@@ -365,6 +369,117 @@ describe("the hero image", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  /** The demo log for a workspace, parsed. */
+  const demoEvents = (ws: string) => {
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-canvas-demo-"));
+    try {
+      const events = join(dir, "events.jsonl");
+      execFileSync(process.execPath, [join(repo, "assets", "canvas-demo.mjs"), ws, events], { stdio: "pipe" });
+      return readFileSync(events, "utf8").trim().split("\n").map(l => JSON.parse(l) as { source: string; payload: Record<string, unknown> });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it("invents everything the canvas shows, and keeps it inside the workspace it is given", () => {
+    // The deck prints cwd and file paths on the cards, so a path that escaped
+    // the workspace the generator was handed would be a real directory in the
+    // one picture a reader opens full size. Every path is checked, not the
+    // first: one stray absolute path is the whole leak.
+    const log = demoEvents("/demo");
+    const paths = log.flatMap(({ payload }) => {
+      const input = (payload.tool_input ?? {}) as Record<string, unknown>;
+      return [payload.cwd, input.file_path].filter((v): v is string => typeof v === "string");
+    });
+    expect(paths.length).toBeGreaterThan(10);
+    for (const p of paths) expect(p.startsWith("/demo/"), `${p} is outside the demo workspace`).toBe(true);
+    expect(JSON.stringify(log)).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/);
+  });
+
+  it("tells the story the README opens on: one Claude Code session waiting on you, beside Codex", () => {
+    // The two lines above the picture promise the queue; the picture is their
+    // evidence. So the log holds exactly one session stopped on a permission
+    // prompt — "1 waiting" in the topbar, one row at the top of the list —
+    // subagents under Claude Code, and a Codex session on the same canvas.
+    const log = demoEvents("/demo");
+    const prompts = log.filter(({ payload }) => payload.hook_event_name === "Notification" && payload.notification_type === "permission_prompt");
+    expect(prompts).toHaveLength(1);
+    expect(log.filter(({ payload }) => payload.hook_event_name === "SubagentStart").length).toBeGreaterThanOrEqual(4);
+    expect(new Set(log.map(({ payload }) => payload.provider).filter(Boolean))).toEqual(new Set(["claude", "codex"]));
+  });
+
+  it("writes its Codex session the way the deck records Codex, not as Claude Code hook events", () => {
+    // The first version built all three sessions from Claude Code hook
+    // records, provider "codex" stamped on top. The deck reads Codex from its
+    // rollout log (src/server/codex-translate.mjs): every event arrives with
+    // source "codex", a rollout has no title so there is no SessionNamed, and
+    // there are no subagents. The hook-shaped session gave the Codex card a
+    // title row no real Codex card has, in the picture that is meant to show
+    // what a Codex card looks like.
+    const codex = demoEvents("/demo").filter(({ payload }) => payload.provider === "codex");
+    expect(codex.length).toBeGreaterThan(5);
+    for (const { source, payload } of codex) {
+      expect(source, `${String(payload.hook_event_name)} came from "${source}", not the rollout watcher`).toBe("codex");
+    }
+    const sid = codex[0].payload.session_id;
+    const named = demoEvents("/demo").filter(({ payload }) => payload.hook_event_name === "SessionNamed" && payload.session_id === sid);
+    expect(named, "the Codex session has a title, which a rollout never gives it").toHaveLength(0);
+    expect(codex.some(({ payload }) => payload.hook_event_name === "SubagentStart")).toBe(false);
+  });
+
+  it("is retaken by one committed command that can see nothing real", () => {
+    // The Usage panel beside the canvas reads quota and spend, and the topbar
+    // reads the accounts and Local network, all from the machine the deck runs
+    // on — which is why the recipe in canvas-demo.mjs used to leave the shot to
+    // the owner. capture-hero.mjs runs the deck in an empty home on the demo
+    // workspace and answers those reads in the page with invented data. What
+    // is pinned is each half of that: the isolation, and the fakes.
+    const tool = join(repo, "assets", "capture-hero.mjs");
+    expect(existsSync(tool), "assets/capture-hero.mjs is gone — the hero is back to being somebody's screenshot").toBe(true);
+    const src = readFileSync(tool, "utf8");
+    expect(readme).toContain("node assets/capture-hero.mjs");
+    expect(read("assets", "brand", "README.md")).toContain("node assets/capture-hero.mjs");
+    // An empty home, the demo workspace, and a refusal to photograph any deck
+    // that is not the one it started.
+    for (const name of ["HOME:", "CLAUDE_CONFIG_DIR:", "CODEX_HOME:", "CLAUDE_SWAP_BACKUP:"]) expect(src).toContain(name);
+    expect(src).toContain('const WORKSPACE = "/demo"');
+    expect(src).toContain("health.workspace !== WORKSPACE");
+    expect(src).toContain("n >= 4317 && n <= 4400");
+    // Every read that would carry the machine's own state is answered in the
+    // page, and the machine panel's is refused there.
+    for (const path of ["/api/quota", "/api/codex-quota", "/api/codex-usage", "/api/ccusage", "/api/claude-accounts", "/api/lan"]) {
+      expect(src, `${path} is not faked`).toContain(`"${path}": `);
+    }
+    expect(src).toContain('path === "/api/system"');
+    // And a picture with an address outside the example domains is refused.
+    expect(src).toContain("an e-mail address outside the example domains");
+  });
+
+  it("lets the deck frame the canvas itself, so the picture never says auto-fit is off", () => {
+    // The first draft of the shot zoomed in with the wheel to make every card
+    // a full card. A pan or a zoom is a gesture, a gesture turns auto-fit off,
+    // and the deck says so in a chip on the canvas — "Auto-fit off · Resume",
+    // bottom centre of the front-page picture, reading as a deck in an odd
+    // state. The board is sized for the deck's own fit instead, and the tool
+    // refuses a picture with the chip in it.
+    const src = read("assets", "capture-hero.mjs");
+    expect(src).not.toMatch(/new WheelEvent|Input\.dispatchMouseEvent|Input\.dispatchKeyEvent/);
+    expect(src).toContain('document.querySelector(".autofit-chip")');
+    expect(src).toContain('press("Re-arrange the canvas")');
+  });
+
+  it("refuses a picture whose canvas has dropped to compact cards", () => {
+    // The README's first promise is every tool call as it runs. Below a zoom
+    // of 0.655 the deck draws compact cards and no tool-call bubbles, which is
+    // what its own fit does with both side panels open in a 1600x900 window:
+    // the shot taken that way was honest and showed none of them. So anything
+    // but full cards is refused, and a board that outgrows the window fails
+    // here, by name, instead of shipping quietly smaller.
+    const src = read("assets", "capture-hero.mjs");
+    expect(src).toContain('if (lod !== "detail") problems.push(');
+    expect(src).toContain('process.env.VIEWPORT ?? "1920x1080"');
+  });
 });
 
 describe("the social preview card (#441)", () => {
@@ -398,8 +513,8 @@ describe("the social preview card (#441)", () => {
 
   it("keeps the source it was rendered from, so it can be re-rendered", () => {
     // An asset whose source is lost is an asset that can never be corrected —
-    // the wordmark shot in assets/canvas.png is exactly that, and is why the
-    // README still carries a caption apologising for a stale screenshot.
+    // assets/canvas.png was exactly that while it was a screenshot of somebody's
+    // screen, and for months the README carried a caption apologising for it.
     const html = join(repo, "assets", "social-preview.html");
     expect(existsSync(html), "assets/social-preview.html is gone — the card can no longer be re-rendered").toBe(true);
     const src = readFileSync(html, "utf8");

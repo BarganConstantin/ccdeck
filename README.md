@@ -27,9 +27,9 @@ npx ccdeck
 
 Or the desktop app, with the waiting count in your menu bar: **[macOS](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-mac-arm64.dmg)** · **[Windows](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-win-x64.exe)** · **[Linux](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-linux-x86_64.AppImage)** — [every download](#desktop-app)
 
-[![ccdeck showing Claude Code and Codex sessions, Claude Code subagents and tool calls on one canvas](assets/canvas.png)](assets/canvas.png)
+[![ccdeck: one Claude Code session waiting on you, at the top of the session list and in the topbar, its subagents and their tool calls on the canvas above a Codex session and a second Claude Code session at work, and Claude and Codex quota and today's cost in the Usage panel](assets/canvas.png)](assets/canvas.png)
 
-*A generated session, drawn by the deck itself — see `assets/canvas-demo.mjs`. Click through for full size.*
+*Generated sessions and invented quota and spend, drawn by the deck itself: `assets/canvas-demo.mjs` writes the log, `node assets/capture-hero.mjs` takes the shot. Click through for full size.*
 
 which Claude Code session is blocked on you · tool calls · one canvas · cost · quota · local · sessions never leave
 
