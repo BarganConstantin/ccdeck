@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { offerManifest, MANIFEST_PATH } from "../../server/app-manifest.mjs";
 import { sourceOf } from "./client-source";
 import { sheetText } from "./sheet-source";
+import { pngPixels } from "./png-pixels";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const PUBLIC = (name: string) => fileURLToPath(new URL(`../public/${name}`, import.meta.url));
@@ -74,6 +75,16 @@ describe("the manifest Chrome will accept", () => {
     expect(others).not.toContain(maskable[0].src);
   });
 
+  it("names the kit's PNGs and no vector beside them", () => {
+    // The kit's own manifest lists three PNGs and nothing else. An SVG entry
+    // here is one Chromium may prefer over the PNGs, so the repo's old ring
+    // (icon.svg, retired with it) would have outlived the swap in every
+    // installed tile while the PNGs looked right in review.
+    expect(icons.map(i => i.type)).toEqual(["image/png", "image/png", "image/png"]);
+    expect(existsSync(PUBLIC("icon.svg")), "the retired icon.svg is back").toBe(false);
+    expect(existsSync(PUBLIC("icon-maskable.svg")), "the retired icon-maskable.svg is back").toBe(false);
+  });
+
   it("ships every file it names, at the size it claims", () => {
     for (const icon of icons) {
       const path = PUBLIC(icon.src);
@@ -86,14 +97,34 @@ describe("the manifest Chrome will accept", () => {
   });
 
   it("keeps the maskable art inside the safe zone", () => {
-    // 409 of 512 is the circle a mask may cut to. The ring's outer edge is its
-    // radius plus half its stroke, and a ring clipped on one side stops being a
-    // ring — which is the whole mark.
-    const svg = read("../public/icon-maskable.svg");
-    const r = Number(/<circle[^>]*\br="(\d+)"/.exec(svg)?.[1]);
-    const stroke = Number(/<circle[^>]*stroke-width="(\d+)"/.exec(svg)?.[1]);
-    expect(r).toBeGreaterThan(0);
-    expect(r + stroke / 2).toBeLessThanOrEqual(409 / 2);
+    // 409 of 512 is the circle a mask may cut to, and a mark clipped on one
+    // side by an Android mask stops being the mark. This read a circle's radius
+    // and stroke out of icon-maskable.svg until the brand kit's icons replaced
+    // the repo's own ring: the kit ships the maskable icon as a PNG with no
+    // editable source, so the guarantee is now measured where it is delivered,
+    // on the pixels. Ink is anything that is not the ground the corners show;
+    // the kit's measures 171.5px from the centre at its farthest.
+    const { width, height, channels, data } = pngPixels(PUBLIC("icon-maskable-512.png"));
+    const at = (x: number, y: number) => data.subarray((y * width + x) * channels, (y * width + x + 1) * channels);
+    const ground = [...at(0, 0)];
+    for (const [x, y] of [[width - 1, 0], [0, height - 1], [width - 1, height - 1]]) {
+      // Full bleed: the ground reaches every corner, because the mask is what
+      // shapes this tile and a transparent corner would show through it.
+      expect([...at(x, y)], "the maskable icon is not full bleed").toEqual(ground);
+    }
+    if (channels === 4) expect(ground[3], "the maskable ground is not opaque").toBe(255);
+    let ink = 0, farthest = 0;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const px = at(x, y);
+        if (px.every((v, i) => Math.abs(v - ground[i]) <= 2)) continue;
+        ink++;
+        farthest = Math.max(farthest, Math.hypot(x + 0.5 - width / 2, y + 0.5 - height / 2));
+      }
+    }
+    expect(ink, "no mark was found on the maskable icon — the bound below would pass on nothing")
+      .toBeGreaterThan(width * height * 0.05);
+    expect(farthest, "the maskable mark reaches past the circle a mask may cut to").toBeLessThanOrEqual(409 / 2);
   });
 
   it("takes its colours from the dark theme rather than a second palette", () => {
@@ -131,6 +162,19 @@ describe("the document that points at it", () => {
     // render-path-cost-612-613.test.ts, which counts cssVar's mentions.
     expect(body).toContain('palette["--panel"]');
     expect(app.slice(at)).toMatch(/^[\s\S]{0,400}?\}, \[palette\]\);/);
+  });
+});
+
+describe("the notification the page raises", () => {
+  it("carries the manifest's 192 icon, a file that ships", () => {
+    // Without an icon the OS shows the browser's own beside the origin. The
+    // path is the manifest's `any` 192, so a rename there that missed this
+    // file would be a notification pointing at the SPA fallback's HTML.
+    const src = sourceOf("use-os-notifications.ts");
+    const path = /const NOTIFICATION_ICON = "\/([^"]+)";/.exec(src)?.[1];
+    expect(path, "the page's notification names no icon").toBeTruthy();
+    expect(icons.find(i => i.purpose === "any" && i.sizes === "192x192")?.src).toBe(path);
+    expect(src).toMatch(/new Notification\([^)]*icon: NOTIFICATION_ICON/);
   });
 });
 
