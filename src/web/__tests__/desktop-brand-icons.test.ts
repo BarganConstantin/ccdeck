@@ -21,7 +21,6 @@
 //   · the app icon shrunk into the tray, which the brand rules forbid;
 //   · a drawing creeping back into code.
 import { describe, it, expect } from "vitest";
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -195,14 +194,13 @@ describe("the app icon, which is a separate set", () => {
     expect(icoEntries(brandFile("kit/03-app-icons/windows/ccdeck.ico")).map(e => e.size)).toContain(256);
   });
 
-  it.runIf(process.platform === "darwin")("makes the .icns from the kit's iconset, every 1x and @2x entry in it", () => {
-    const back = mkdtempSync(join(tmpdir(), "ccdeck-icns-"));
-    try {
-      written(dir => execFileSync("iconutil", ["-c", "iconset", join(dir, "icon.icns"), "-o", join(back, "icon.iconset")]), "darwin");
-      expect(filesUnder(join(back, "icon.iconset"))).toEqual(filesUnder(join(BRAND, "kit/03-app-icons/macos.iconset")));
-    } finally {
-      rmTempDir(back);
-    }
+  it("makes the .icns from the kit's iconset as it is, every 1x and @2x pair in it", () => {
+    // iconutil, which only a Mac has, packs the directory it is handed; what
+    // can go wrong on this side is handing it less than the whole iconset.
+    const icns = (iconPlan() as PlanEntry[]).find(e => e.out === "icon.icns")!;
+    expect(icns).toMatchObject({ from: ["kit/03-app-icons/macos.iconset"], pack: "icns" });
+    const pairs = [16, 32, 128, 256, 512].flatMap(n => [`icon_${n}x${n}.png`, `icon_${n}x${n}@2x.png`]).sort();
+    expect(filesUnder(join(BRAND, icns.from[0]))).toEqual(pairs);
   });
 
   it("is never what the tray shows", () => {
@@ -305,9 +303,6 @@ describe("the macOS menu-bar templates", () => {
     expect(Object.keys(stems).flatMap(art => Object.keys(sizes).map(suffix => templateSource(art, suffix))).sort()).toEqual(expected);
     // Electron marks an image as a template by this name, and only by it.
     for (const path of expected) expect(path).toMatch(/Template(@2x)?\.png$/);
-    if (MACOS_TEMPLATES_FROM === "rendered") {
-      expect(filesUnder(join(BRAND, "rendered/macos")), "a template rendered for no state").toEqual(expected.map(p => p.slice("rendered/macos/".length)));
-    }
   });
 
   /** A template's pixels, and the facts the cases below read off them. */
@@ -335,9 +330,6 @@ describe("the macOS menu-bar templates", () => {
     for (const [suffix, size] of Object.entries(sizes)) {
       it(`${stem}${suffix}.png is a whole mark, black on transparent, at ${size} px`, () => {
         const m = measure(art, suffix);
-        // macOS reads only the alpha of a template; a colour in it is the
-        // gradient or a status colour leaking in.
-        expect(m.coloured, "a template is black and alpha, nothing else").toBe(0);
         // Whole means spread over the square and centred in it. Kit v1.0's own
         // default template draws in a 2×2 pixel corner of its 18: ink across
         // 2 of 18 pixels, 0.6 % of the square inked, 2 pixels of margin on the
@@ -346,6 +338,9 @@ describe("the macOS menu-bar templates", () => {
         expect(m.y1 - m.y0 + 1, "the mark spans too little of the height: cut off").toBeGreaterThanOrEqual(size * 0.8);
         expect(Math.abs(m.y0 - (size - 1 - m.y1)), "the mark is not centred top to bottom: cut off").toBeLessThanOrEqual(size / 18);
         expect(m.ink, "almost nothing is inked: a fragment of the mark").toBeGreaterThan(0.2);
+        // macOS reads only the alpha of a template; a colour in it is the
+        // gradient or a status colour leaking in.
+        expect(m.coloured, "a template is black and alpha, nothing else").toBe(0);
       });
     }
   }
@@ -370,26 +365,44 @@ describe("the macOS menu-bar templates", () => {
         expect(inside, `${art} adds nothing to the default`).toBeGreaterThan(0);
       }
     });
+  }
+});
 
-    // The v1.0 workaround's own guard, gone with it. The kit v1.0 masters'
-    // mask region stops at 8 units where the outer curves reach 5.9, so a
-    // render of a master as delivered shaves the four apexes flat: at 18 px
-    // the apex pixel is left at 111 of 255, where the whole curve inks it to
-    // about 220, and at 36 px the margin row is empty.
-    it.runIf(MACOS_TEMPLATES_FROM === "rendered")(`the rendered default at ${size} px is not shaved by the masters' mask`, () => {
-      const m = measure("default", suffix);
+// KIT v1.0 WORKAROUND. Kit v1.0's own templates are cut off, so the plan reads
+// templates rendered from its masters by scripts/render-tray-templates.mjs.
+// This block checks that render and nothing else; it goes, with that script and
+// desktop/brand/rendered, on the day MACOS_TEMPLATES_FROM in icons.mjs becomes
+// "kit". Left in place after that switch it fails loudly, because the files it
+// reads are gone — which is the reminder.
+describe("the kit v1.0 workaround: templates rendered from the masters", () => {
+  const stems = MACOS_TEMPLATE_STEMS as Record<string, string>;
+  const sizes = MACOS_TEMPLATE_SIZES as Record<string, number>;
+
+  it("renders one template per state and size, and nothing else", () => {
+    const expected = Object.values(stems).flatMap(stem => Object.keys(sizes).map(suffix => `${stem}${suffix}.png`)).sort();
+    expect(filesUnder(join(BRAND, "rendered/macos")), "a template rendered for no state, or a state not rendered").toEqual(expected);
+  });
+
+  // The masters' mask region stops at 8 units where the outer curves reach
+  // 5.9, so a render of a master as delivered shaves the four apexes flat: at
+  // 18 px the apex pixel is left at 111 of 255, where the whole curve inks it
+  // to about 220, and at 36 px the margin row is empty.
+  for (const [suffix, size] of Object.entries(sizes)) {
+    it(`the rendered default at ${size} px is not shaved by the masters' mask`, () => {
+      const { px } = rgba(brandFile(`rendered/macos/${stems.default}${suffix}.png`));
+      const alpha = (x: number, y: number) => px[(y * size + x) * 4 + 3];
       const margin = size / 18, last = size - margin - 1, line = [...Array(size).keys()];
       const apex = {
-        top: Math.max(...line.map(x => m.alpha(x, margin))),
-        left: Math.max(...line.map(y => m.alpha(margin, y))),
-        bottom: Math.max(...line.map(x => m.alpha(x, last))),
-        right: Math.max(...line.map(y => m.alpha(last, y))),
+        top: Math.max(...line.map(x => alpha(x, margin))),
+        left: Math.max(...line.map(y => alpha(margin, y))),
+        bottom: Math.max(...line.map(x => alpha(x, last))),
+        right: Math.max(...line.map(y => alpha(last, y))),
       };
       for (const [side, value] of Object.entries(apex)) expect(value, `the ${side} curve is shaved`).toBeGreaterThanOrEqual(160);
     });
   }
 
-  it.runIf(MACOS_TEMPLATES_FROM === "rendered")("are rendered from the masters with the mask region set to the whole viewBox, and nothing else changed", () => {
+  it("renders a working copy that differs from the master only by the mask region", () => {
     const ADDED = ' maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"';
     for (const art of Object.keys(stems)) {
       const master = brandFile(`kit/04-tray-menu/generic/svg/ccdeck-tray-${art}.svg`).toString("utf8");

@@ -83,7 +83,9 @@ The kit files under `kit/` stay exactly as delivered; the defects are worked aro
 
 When a kit ships whole templates, set `MACOS_TEMPLATES_FROM` in `scripts/icons.mjs` to `"kit"` and vendor it
 (below): the kit's own templates are then copied like everything else, `rendered/` is removed, and the template
-checks in `src/web/__tests__/desktop-brand-icons.test.ts` say whether they really are whole.
+checks in `src/web/__tests__/desktop-brand-icons.test.ts` say whether they really are whole. Then delete
+`scripts/render-tray-templates.mjs` and that test file's "kit v1.0 workaround" block, which reads the rendered
+files and fails until it goes.
 
 ## Regenerating
 

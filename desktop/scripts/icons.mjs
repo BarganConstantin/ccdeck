@@ -54,13 +54,15 @@ export const KIT_VERSION = "1.0.0";
  * templates draw the mark cut off, so they are rendered from its monochrome
  * masters by scripts/render-tray-templates.mjs — a workaround for that kit
  * version, nothing more. "kit": a kit whose 04-tray-menu/macos templates are
- * whole is copied like every other file. Switching is this one line, then
- * vendor-brand-kit.mjs, then the template checks in desktop-brand-icons.test.ts
- * say whether the kit's templates really are whole.
+ * whole is copied like every other file. The build switches on this one line;
+ * then vendor-brand-kit.mjs takes the kit's templates and drops rendered/, the
+ * template checks in desktop-brand-icons.test.ts say whether they really are
+ * whole, and the render script goes with that test file's "kit v1.0
+ * workaround" block, which fails until it is deleted.
  */
 export const MACOS_TEMPLATES_FROM = "rendered";
 
-/** Each product state's kit state: owner decision 2 of the brand adoption. */
+/** Each product state's kit state, the map the tab's favicon follows too. */
 export const TRAY_ART = Object.freeze({
   idle: "default",
   waiting: "waiting",
