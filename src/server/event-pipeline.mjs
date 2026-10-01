@@ -30,6 +30,8 @@ import { appendLogLine } from "./log-writer.mjs";
 import { activity } from "./lifecycle.mjs";
 // The session LRU and the transcript watch — see session-tracking.mjs.
 import { outputWatch, touchSession } from "./session-tracking.mjs";
+// How much the deck was used today, for the "active" report — see usage-day.mjs.
+import { usageDay } from "./usage-day.mjs";
 // What the deck learns about a session that its hooks never say, read off the
 // transcript and sent back through pushEvent — see session-enrichment.mjs.
 import { knownModelId, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
@@ -212,6 +214,8 @@ export function pushEvent(raw, source, opts = {}) {
   // rollout JSONL under ~/.codex/sessions/. The Claude scanners short-circuit
   // when transcript_path is absent (always the case for Codex hooks).
   if (source === "hook" && !opts.replay) {
+    // A hook is somebody running the CLI, which is what the day's usage counts.
+    usageDay.noteUse(raw);
     if (raw && raw.provider === "codex") {
       maybeResolveCodex(raw);
     } else if (!raw?.transcript_path || isClaudeTranscriptPath(raw.transcript_path)) {
@@ -228,7 +232,10 @@ export function pushEvent(raw, source, opts = {}) {
       // Where the transcript IS, learned from the one place it is free. The
       // four scanners above read it on this event; the watch reads it between
       // events, which is the whole of what it adds.
-      if (raw?.transcript_path) outputWatch.note(raw.session_id, raw.transcript_path);
+      if (raw?.transcript_path) {
+        outputWatch.note(raw.session_id, raw.transcript_path);
+        usageDay.noteProject(raw.transcript_path);
+      }
     } else {
       noteRefusedTranscript(raw.transcript_path);
     }

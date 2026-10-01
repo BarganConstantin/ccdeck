@@ -391,26 +391,3 @@ describe("what the watch remembers about a file (#1089)", () => {
   });
 });
 
-describe("counting the projects the live sessions sit in", () => {
-  it("counts distinct transcript folders, not sessions", () => {
-    const w = createOutputWatch();
-    expect(w.projectCount()).toBe(0);
-    // Two sessions in one project's folder and one in another: two projects.
-    w.note("s1", "/home/u/.claude/projects/proj-a/aaa.jsonl");
-    w.note("s2", "/home/u/.claude/projects/proj-a/bbb.jsonl");
-    w.note("s3", "/home/u/.claude/projects/proj-b/ccc.jsonl");
-    expect(w.projectCount()).toBe(2);
-    // Forgetting the only session in proj-b drops it to one project.
-    w.forget("s3");
-    expect(w.projectCount()).toBe(1);
-    w.clear();
-    expect(w.projectCount()).toBe(0);
-  });
-
-  it("separates projects by a Windows path's own folder too", () => {
-    const w = createOutputWatch();
-    w.note("s1", "C:\\Users\\u\\.claude\\projects\\proj-a\\aaa.jsonl");
-    w.note("s2", "C:\\Users\\u\\.claude\\projects\\proj-b\\bbb.jsonl");
-    expect(w.projectCount()).toBe(2);
-  });
-});

@@ -46,6 +46,7 @@ import { DENIED, foreignPath, quarantinePath, setAsideForeign } from "./prefs-se
 import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { normaliseOrigins } from "./account-origins.mjs";
+import { normaliseUsage } from "./usage-day.mjs";
 
 /** Set to "1" to keep the deck off the desktop whatever the stored preference
  *  says. Same sheet of switches as AGENTS_DECK_NO_DOWNLOAD and
@@ -90,8 +91,10 @@ export const DEFAULTS = Object.freeze({
   // are what the install last said, so an update is told once and "active" at
   // most once a day; `forget` is an id whose deletion has been asked for and
   // not yet acknowledged, retried on the next start so switching off while
-  // offline still ends in a deletion.
-  report: Object.freeze({ installId: "", lastVersion: "", lastActiveDay: "", forget: "" }),
+  // offline still ends in a deletion; `usage` is the day's tally of sessions,
+  // subagents and projects, counts and days only, so a restart carries it on
+  // (usage-day.mjs).
+  report: Object.freeze({ installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null }),
   // The accounts this deck signed in itself, and the re-sign-in prompts
   // somebody put off (#1893) — keyed by account identity, written by the deck
   // and never by a page. See account-origins.mjs.
@@ -291,7 +294,8 @@ export function normalise(raw) {
   };
 }
 
-/** The reporter's own state, coerced: four strings, empty when absent. */
+/** The reporter's own state, coerced: four strings, empty when absent, and the
+ *  day's tally, null until there is one. */
 function normaliseReport(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const text = v => (typeof v === "string" ? v : "");
@@ -300,6 +304,7 @@ function normaliseReport(raw) {
     lastVersion: text(src.lastVersion),
     lastActiveDay: text(src.lastActiveDay),
     forget: text(src.forget),
+    usage: src.usage && typeof src.usage === "object" ? normaliseUsage(src.usage) : null,
   };
 }
 
