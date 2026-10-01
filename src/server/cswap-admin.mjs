@@ -36,6 +36,29 @@ import { PRODUCT } from "./brand.mjs";
 // open longer than a user would plausibly take to fetch one.
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
 const CSWAP_TIMEOUT_MS = 60_000;
+
+// ── telling the deck what it signed in (#1893) ──────────────────────────────
+//
+// A completed `+ → Sign in` is the one moment the deck knows where an account
+// came from. It is told to whoever registered here — account-routes.mjs, which
+// keeps the answer in prefs.json — rather than written from this module: tests
+// drive the sign-in against fixture stores, and none of them may reach the
+// user's own settings. (Forgetting is the roster's: an account gone from the
+// store, however it went, is dropped on the next read.)
+let _origins = null;
+
+/** `{ signedIn({email, org, added}) }`, or null. */
+export function accountOriginsWith(hooks) {
+  _origins = hooks && typeof hooks === "object" ? hooks : null;
+}
+
+/** Tell the registered hook, and never let its failure become the flow's: an
+ *  account that was signed in is signed in whether or not this was kept. */
+async function tellOrigins(event, detail) {
+  try { await _origins?.[event]?.(detail); }
+  catch (err) { console.error(`${PRODUCT}: could not note where an account came from:`, err?.message ?? err); }
+}
+
 // ── whether this process can read what claude-swap holds ────────────────────
 //
 // ASKED OF CLAUDE-SWAP, NEVER READ OFF ITS WORDS. A Keychain it cannot open is
@@ -257,6 +280,28 @@ export function newSlot(before, after) {
   const had = new Set(before.slots);
   const fresh = after.slots.filter(s => !had.has(s));
   return fresh.length === 1 ? fresh[0] : null;
+}
+
+const sameAddress = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
+
+/**
+ * The slot a store holds for the identity the CLI reports, or null.
+ *
+ * Case-folded, because the CLI and the store need not spell an address alike,
+ * and by organization too when the CLI names one: one address under two
+ * organizations is two accounts, and the first slot with the address is not
+ * necessarily the one that was signed into (#1893). Without an organization to
+ * go on, the first slot with the address is still the best answer there is.
+ */
+export function slotOf(store, identity) {
+  const mine = store.slots.filter(s => sameAddress(store.emails[s], identity?.email));
+  const org = identity?.orgId ?? "";
+  return (org ? mine.find(s => (store.orgs?.[s] ?? "") === org) : null) ?? mine[0] ?? null;
+}
+
+/** Whether a store held this exact account — address and organization. */
+export function holds(store, email, org) {
+  return store.slots.some(s => sameAddress(store.emails[s], email) && (store.orgs?.[s] ?? "") === (org ?? ""));
 }
 
 
@@ -665,7 +710,23 @@ async function registerSignedIn(flow, identity) {
     const slot = newSlot(flow.before, after);
     // No new slot means the account was already managed and cswap refreshed its
     // credentials in place. That is a success with a different sentence.
-    const num = slot ?? Object.keys(after.emails).find(k => after.emails[k] === identity.email) ?? null;
+    const num = slot ?? slotOf(after, identity) ?? null;
+
+    // Recorded now that claude-swap holds the account, and before the roster
+    // is invalidated below, so no read can land between the two and cache a
+    // row that does not know the deck signed it in (#1893). The store, not the
+    // CLI, supplies the organization: claude-swap keys the account by both.
+    //
+    // ADDED MEANS "NOT THERE WHEN THE SIGN-IN STARTED", asked of the identity
+    // rather than of newSlot. `flow.before` is minutes old by now, and a share
+    // or a Local network round can land a different account in between: two
+    // new slots, newSlot answers null, and the account this sign-in did add
+    // would never be marked.
+    if (num != null) {
+      const email = after.emails[num] || identity.email;
+      const org = after.orgs?.[num] ?? "";
+      await tellOrigins("signedIn", { email, org, added: !holds(flow.before, email, org) });
+    }
 
     // Assigned, not discarded. `done` is still the right state — the account
     // WAS added — but it is `done` with a qualification whenever this says the

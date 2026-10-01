@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 
 import { withAliases } from "./lan-roster";
-import type { LanStranger } from "./lan-types";
+import type { LanStatus, LanStranger } from "./lan-types";
 import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS } from "./use-lan-section";
 
 export interface LanPairRequests {
@@ -23,6 +23,10 @@ export interface LanPairRequests {
   /** "Later": leave the request pending on the server, and stop asking about it
    *  until this page is reloaded. */
   deferLanPair: (fp: string) => void;
+  /** The whole status this poll last read, for the re-sign-in prompt to ask
+   *  whether a paired deck is about to repair a login (#1893). `undefined`
+   *  until the first answer; `null` when no answer has ever been readable. */
+  lanStatus: LanStatus | null | undefined;
 }
 
 export function useLanPairRequests(): LanPairRequests {
@@ -43,6 +47,10 @@ export function useLanPairRequests(): LanPairRequests {
    *  panel's section still lists it, which is where "later" points. */
   const lanDeferred = useRef<Set<string>>(new Set());
   const [lanBusy, setLanBusy] = useState<"accept" | "dismiss" | null>(null);
+  /** The answer itself, which this poll used to drop once `pending` was out of
+   *  it. Kept rather than fetched a second time: the re-sign-in prompt needs to
+   *  know what Local network can repair, and this is already asking (#1893). */
+  const [lanStatus, setLanStatus] = useState<LanStatus | null | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
@@ -69,7 +77,11 @@ export function useLanPairRequests(): LanPairRequests {
         })
         .catch(() => null) // the deck is down; the connection banner already says so
         .then(j => {
-          if (alive) t = window.setTimeout(pull, j?.enabled === true ? LAN_POLL_ON_MS : LAN_POLL_OFF_MS);
+          if (!alive) return;
+          // A failed read keeps the last good status: one dropped poll is not
+          // evidence that a repair stopped coming.
+          setLanStatus(prev => (j?.ok ? (j as LanStatus) : prev === undefined ? null : prev));
+          t = window.setTimeout(pull, j?.enabled === true ? LAN_POLL_ON_MS : LAN_POLL_OFF_MS);
         });
     };
     pull();
@@ -114,5 +126,5 @@ export function useLanPairRequests(): LanPairRequests {
     setLanPending(prev => [...prev]);
   }, [lanBusy]);
 
-  return { lanPending, lanDeferred, lanBusy, answerLanPair, deferLanPair };
+  return { lanPending, lanDeferred, lanBusy, answerLanPair, deferLanPair, lanStatus };
 }

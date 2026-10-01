@@ -148,7 +148,7 @@ import { send, sendInternalError } from "./http-io.mjs";
 export { sendInternalError };
 // The accounts surface's routes — see account-routes.mjs. The boot wires the
 // stale-copy repair and starts auto-switch through the same module.
-import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction, wireStaleCopyRepair } from "./account-routes.mjs";
+import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
@@ -191,7 +191,12 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // The repair a paused Claude account used to wait on a `resume` press for:
   // handed to the roster read here, by the server that is actually running,
   // rather than wired at import — see wireStaleCopyRepair.
-  if (deckProviders().claude) wireStaleCopyRepair();
+  if (deckProviders().claude) {
+    wireStaleCopyRepair();
+    // Which accounts the deck signed in, and the prompt for one whose login
+    // has stopped working (#1893).
+    wireAccountOrigins();
+  }
   const removed = await sweepStaleDiscovery();
   if (removed > 0) console.log(`  swept ${removed} stale discovery file(s)`);
   // Where the log is and whether it can be written, asked before the first

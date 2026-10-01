@@ -276,7 +276,8 @@ describe("the deck's ten overlays", () => {
     // (#1707), which adds every account's 5h and 7d up. The twentieth is the
     // network map, opened from Local network's row and its view's header.
     // The twenty-first is the feedback dialog, opened from Appearance (#1853).
-    expect(MODALS.length).toBe(21);
+    // The twenty-second is the re-sign-in prompt over the canvas (#1893).
+    expect(MODALS.length).toBe(22);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -311,6 +312,9 @@ describe("the deck's ten overlays", () => {
     // first control. What none of them may do any more is nothing.
     const named = MODALS.filter(f => /useModalDismiss\([^)]*focusRef/s.test(read(f)));
     expect(named.sort()).toEqual([
+      // The re-sign-in prompt (#1893) names its first "Sign in again": the
+      // press it is there for, and one that only opens the sign-in dialog.
+      "AccountAttentionModal.tsx",
       // The projects report names its ×, for the reason the usage modal does:
       // its header opens with a range strip, and a greeting of "7d" reads as a
       // setting to change rather than a thing to read or leave.
