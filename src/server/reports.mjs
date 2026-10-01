@@ -534,17 +534,19 @@ export function createReporter({
 // the CLI probe into a fast path like `--version` that imports it for nothing.
 
 /** The coarse counts the "active" report carries, read from the state the deck
- *  already keeps — the LRU of tracked sessions and the per-session subagent
- *  signatures. Never new tracking, and never anything but a number: no session
- *  id, name or path. `projects` is left out for now — its only source is the
- *  disk-backed, per-account rollup (account-projects.mjs), which has no cheap
- *  synchronous count — so the field is simply not sent. */
+ *  already keeps — the LRU of tracked sessions, the per-session subagent
+ *  signatures, and the folders those sessions' transcripts sit in. Never new
+ *  tracking, and never anything but a number: no session id, project name or
+ *  path, only how many. `projects` is the distinct transcript folders among the
+ *  live sessions, so it counts Claude projects; a Codex-only deck sends no
+ *  transcript path and so reports no projects. */
 async function deckUsage() {
   const out = {};
   try {
-    const { trackedSessionCount } = await import("./session-tracking.mjs");
+    const { trackedSessionCount, trackedProjectCount } = await import("./session-tracking.mjs");
     out.sessions = trackedSessionCount();
-  } catch { /* count unavailable: omitted */ }
+    out.projects = trackedProjectCount();
+  } catch { /* counts unavailable: omitted */ }
   try {
     const { trackedSubagentCount } = await import("./session-enrichment.mjs");
     out.subagents = trackedSubagentCount();
