@@ -160,3 +160,27 @@ describe("what counts as use", () => {
   });
 });
 
+describe("the first use", () => {
+  it("is remembered once, with when it came and from which CLI", () => {
+    const { t, later } = tallyAt();
+    expect(t.firstUse()).toBeNull();
+    const heard: unknown[] = [];
+    t.onFirstUse((f: unknown) => heard.push(f));
+    t.noteUse({ session_id: "c1", provider: "codex" });
+    later(HOUR);
+    t.noteUse({ session_id: "s2" });
+    expect(t.firstUse()).toEqual({ at: "2026-09-30T10:00:00.000Z", provider: "codex" });
+    expect(heard).toEqual([{ at: "2026-09-30T10:00:00.000Z", provider: "codex" }]);
+    // A listener that arrives late hears it at once.
+    const late: unknown[] = [];
+    t.onFirstUse((f: unknown) => late.push(f));
+    expect(late.length).toBe(1);
+  });
+
+  it("is not something that was not a session", () => {
+    const { t } = tallyAt();
+    t.noteUse({});
+    t.noteFolder("/home/u/shop");
+    expect(t.firstUse()).toBeNull();
+  });
+});

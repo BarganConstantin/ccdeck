@@ -72,6 +72,9 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   let sent = "";
   /** Moves on every change, so the reporter saves only when there is something new. */
   let changes = 0;
+  /** The first use this run heard, `{ at, provider }`, for activation.mjs. */
+  let first = null;
+  const firstListeners = [];
 
   function fresh(day, floor = null) {
     return {
@@ -115,6 +118,12 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     const c = today();
     add(c.sessions, sid);
     if (typeof raw.agent_id === "string" && raw.agent_id) add(c.subagents, `${sid}\u0000${raw.agent_id}`);
+    if (!first) {
+      first = { at: now().toISOString(), provider: raw.provider === "codex" ? "codex" : "claude" };
+      for (const fn of firstListeners) {
+        try { fn(first); } catch { /* a listener's failure is its own */ }
+      }
+    }
   }
 
   /** A transcript path a Claude hook carried, already accepted as Claude's:
@@ -128,6 +137,20 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   function noteFolder(dir) {
     if (!dir || typeof dir !== "string") return;
     add(today().projects, dir);
+  }
+
+  /** The first use this run heard, or null. */
+  function firstUse() {
+    return first ? { ...first } : null;
+  }
+
+  /** Call `fn` with the first use, once, when it happens — or now, if it has. */
+  function onFirstUse(fn) {
+    if (first) {
+      try { fn(first); } catch { /* as above */ }
+      return;
+    }
+    firstListeners.push(fn);
   }
 
   /** The totals of the last finished day before `day`, if they have not gone
@@ -177,7 +200,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     return changes;
   }
 
-  return { noteUse, noteProject, noteFolder, finished, markSent, saved, restore, version };
+  return { noteUse, noteProject, noteFolder, firstUse, onFirstUse, finished, markSent, saved, restore, version };
 }
 
 /** The deck's own tally, which the event pipeline feeds and the reporter reads. */

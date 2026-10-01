@@ -14,6 +14,9 @@
 //     alone also carries coarse counts of how much: how many sessions,
 //     subagents and projects the deck heard from on the last day it was used,
 //     and that day's date — numbers, never their names (see usage-day.mjs),
+//   - an "activated" event, once, when a new install's first session arrives:
+//     how long after the install it came, as a bucket ("5m", "1h", "1d", "7d",
+//     "later"), and whether it was a Claude or a Codex session (activation.mjs),
 //   - errors: a request handler that threw on this server, or an error the page
 //     caught, with home folders, email addresses and key-shaped strings
 //     scrubbed out before they leave,
@@ -26,11 +29,14 @@
 // the channel (the desktop app, npm, or a source checkout) and the runtime, plus
 // a coarse sketch of the environment: the logical CPU count, the RAM in MB, the
 // locale, the shell and terminal names, and the Claude Code and Codex CLI
-// versions. Every one of those is a small fixed token or a number, safe by
-// construction — no path, no hostname, no user name, no project name, no prompt,
-// no free text ever reaches any field, so there is nothing in them to scrub. A
-// field that cannot be told is left out rather than guessed. The install id is
-// random, made at the first check-in, and tied to nothing on the machine.
+// versions — and, on install, update, active and activated, what the boot set
+// up: whether the Claude hooks went in ("ok", "failed", "off") and whether
+// Codex is watched ("on", "off"). Every one of those is a small fixed token or
+// a number, safe by construction — no path, no hostname, no user name, no
+// project name, no prompt, no free text ever reaches any field, so there is
+// nothing in them to scrub. A field that cannot be told is left out rather than
+// guessed. The install id is random, made at the first check-in, and tied to
+// nothing on the machine.
 //
 // The one field that IS derived from the machine is `deviceId`: a stable, hashed
 // device id sent with EVERY report — install, update and active — while reports
@@ -64,6 +70,7 @@ import { isGitCheckout } from "./install-layout.mjs";
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 import { usageDay, utcDay } from "./usage-day.mjs";
+import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -82,7 +89,10 @@ const SAME_ERROR_QUIET_MS = 60 * 60 * 1000;
 const MESSAGE_MAX = 500;
 const STACK_MAX = 4000;
 
-const EMPTY_REPORT = Object.freeze({ installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null });
+const EMPTY_REPORT = Object.freeze({
+  installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
+  installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false,
+});
 
 /** Is this deck sending reports right now? The switch, which is on unless
  *  somebody turned it off, and the machine's consent. */
@@ -313,6 +323,10 @@ export function scrub(text, home = homedir()) {
  *   the day's tally: the "active" report carries the last finished day's totals,
  *   read only when an "active" is about to be sent, and the tally is saved into
  *   the prefs so a restart does not lose the day. Default: the deck's own.
+ * @param {() => { claudeHooks?: string, codexWatch?: string }} [deps.setup] what the
+ *   boot set up, folded into install, update and active (activation.mjs).
+ * @param {() => Promise<unknown>} [deps.setupKnown] what start() waits for besides the
+ *   prefs, so the first install event carries the setup. Bounded.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -324,6 +338,8 @@ export function createReporter({
   ready = prefsRead,
   versions = () => ({}),
   usage = usageDay,
+  setup = setupFacts,
+  setupKnown = () => whenSetupKnown(),
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
@@ -349,6 +365,20 @@ export function createReporter({
    *  versions are known this moment. */
   function factsNow() {
     return { ...facts, ...versionFacts() };
+  }
+
+  /** What the boot set up — the Claude hooks and the Codex watcher — as the two
+   *  fixed tokens activation.mjs names, or nothing while it has not said. */
+  function setupNow() {
+    try {
+      const s = setup() ?? {};
+      const out = {};
+      addIf(out, "claudeHooks", ["ok", "failed", "off"].includes(s.claudeHooks) ? s.claudeHooks : undefined);
+      addIf(out, "codexWatch", ["on", "off"].includes(s.codexWatch) ? s.codexWatch : undefined);
+      return out;
+    } catch {
+      return {};
+    }
   }
 
   /** The coarse usage the "active" report carries: the last finished day before
@@ -446,17 +476,21 @@ export function createReporter({
     // The id is made here, the first time there is something to send under it.
     if (!prefs.current().report.installId) {
       await prefs.update(prev =>
-        prev.reports === false || prev.report.installId ? undefined : { report: { ...prev.report, installId: randomUUID() } },
+        prev.reports === false || prev.report.installId
+          ? undefined
+          // When the id is made is when this install began: the clock the first
+          // session is measured against. Kept here, never sent as a time.
+          : { report: { ...prev.report, installId: randomUUID(), installedAt: now().toISOString() } },
       );
     }
     const { installId, lastVersion, lastActiveDay } = prefs.current().report;
     if (!installId) return;
     if (!lastVersion) {
-      if (await call("POST", "/v1/app/events", { installId, kind: "install", ...factsNow() })) {
+      if (await call("POST", "/v1/app/events", { installId, kind: "install", ...factsNow(), ...setupNow() })) {
         await remember(installId, { lastVersion: facts.version });
       }
     } else if (lastVersion !== facts.version) {
-      if (await call("POST", "/v1/app/events", { installId, kind: "update", fromVersion: lastVersion, ...factsNow() })) {
+      if (await call("POST", "/v1/app/events", { installId, kind: "update", fromVersion: lastVersion, ...factsNow(), ...setupNow() })) {
         await remember(installId, { lastVersion: facts.version });
       }
     }
@@ -467,12 +501,50 @@ export function createReporter({
       // report it belongs to — so a checkIn that sends nothing new never asks the
       // deck for its counts.
       const used = coarseUsage(today);
-      if (await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...used })) {
+      if (await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used })) {
         if (used.usageDay) usage.markSent(used.usageDay);
         await remember(installId, { lastActiveDay: today });
       }
     }
+    await sendActivation();
     await saveUsage();
+  }
+
+  /**
+   * The install's first session, said once: an "activated" event with how long
+   * after the install it came, in a bucket, and which CLI it came from.
+   *
+   * Only for an install whose start this deck saw — `installedAt` is made with
+   * the id, so an install from before this version has none and is never
+   * measured: its first session was long ago, and "now" would be a lie. The time
+   * is taken from the first use this run heard, so a session that arrived before
+   * the first check-in had an id is still dated when it happened. A send that
+   * cannot get through is tried again at the next check-in.
+   */
+  async function sendActivation() {
+    const first = usage.firstUse?.();
+    let r = prefs.current().report;
+    if (!reportsOn(prefs.current(), env) || !r.installId || !r.installedAt || r.activationSent) return;
+    if (!r.firstSessionAt) {
+      if (!first) return;
+      await remember(r.installId, { firstSessionAt: first.at, firstProvider: first.provider });
+      r = prefs.current().report;
+      if (!r.firstSessionAt) return;
+    }
+    const body = { installId: r.installId, kind: "activated", ...factsNow(), ...setupNow() };
+    addIf(body, "firstSession", sinceInstallBucket(r.installedAt, r.firstSessionAt));
+    addIf(body, "firstProvider", r.firstProvider === "codex" || r.firstProvider === "claude" ? r.firstProvider : undefined);
+    if (await call("POST", "/v1/app/events", body)) await remember(r.installId, { activationSent: true });
+  }
+
+  /** The first session this run heard, sent the moment it lands rather than at
+   *  the next check-in, hours later or on a next launch that may never come. */
+  async function onFirstSession() {
+    try {
+      await sendActivation();
+    } catch {
+      // A settings file that cannot be written this minute; the next check-in tries again.
+    }
   }
 
   /** The heartbeat. While reports are on and an id exists, tell the API this deck
@@ -547,7 +619,10 @@ export function createReporter({
    *  open. The first check-in already puts a freshly launched deck online, so the
    *  first ping is a full interval out — nothing pings at boot. */
   function start() {
-    Promise.resolve(ready).catch(() => {}).then(restoreUsage).then(checkIn);
+    Promise.all([Promise.resolve(ready).catch(() => {}), Promise.resolve(setupKnown()).catch(() => {})])
+      .then(restoreUsage)
+      .then(checkIn)
+      .then(() => usage.onFirstUse?.(() => void onFirstSession()));
     if (!timer) {
       timer = setInterval(() => void checkIn(), CHECK_IN_EVERY_MS);
       timer.unref?.();
@@ -562,7 +637,7 @@ export function createReporter({
     pingTimer = null;
   }
 
-  return { checkIn, ping, setReports, reportError, restoreUsage, saveUsage, start, stop };
+  return { checkIn, ping, setReports, reportError, restoreUsage, saveUsage, sendActivation, start, stop };
 }
 
 // ── the deck's own providers ─────────────────────────────────────────────────
