@@ -255,3 +255,45 @@
   background: rgba(255, 255, 255, 0.35);
 }
 
+
+/* ── an account that needs signing in again, in front (#1893) ───────────────
+   Drawn like the LAN pairing request, its neighbour in DeckDialogs: a dialog
+   that arrived on its own, sized to what it asks rather than to an inspector.
+   Calm on purpose. Nothing here is the warn colour: the account lost nothing,
+   and every word in the dialog is the panel's ground ink or its muted ink. */
+.modal.reauth-ask { width: min(480px, 92vw); }
+.modal.reauth-ask .modal-body { display: flex; flex-direction: column; gap: 10px; }
+.reauth-lead { margin: 0; font-size: 12px; color: var(--text); line-height: 1.5; overflow-wrap: anywhere; }
+.reauth-name { font-weight: 600; }
+.reauth-alias { color: var(--muted); font-weight: 400; }
+.reauth-note { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+/* Several accounts are rows of one list, each with its own way back in:
+   address, what happened, the press that fixes it. Capped and scrolled, so a
+   deck with a dozen dead logins still has a Not now on screen. */
+.reauth-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  max-height: min(42vh, 280px);
+  overflow-y: auto;
+}
+.reauth-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+}
+.reauth-row + .reauth-row { border-top: 1px solid var(--line-soft); }
+.reauth-who { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reauth-what { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.reauth-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+.reauth-acts .btn { min-width: 92px; justify-content: center; }
+/* A phone-width window keeps the address and the press, and lets the middle
+   column go: every row in this list says the same thing there. */
+@media (max-width: 420px) {
+  .reauth-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .reauth-what { display: none; }
+}

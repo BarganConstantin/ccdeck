@@ -1,8 +1,9 @@
 // The dialogs at the end of the deck's markup, in the order they paint over one
 // another: the tool inspector, Usage history, Browser Watch, the context
 // breakdown and the session recap; then the two that arrive without being asked
-// for, the release notes and a LAN pairing request; then the shortcuts sheet and
-// the tour; and last the clear prompt, which is waiting for an answer.
+// for, the release notes, a LAN pairing request and an account that needs
+// signing in again; then the shortcuts sheet and the tour; and last the clear
+// prompt, which is waiting for an answer.
 //
 // Moved out of App.tsx's markup unchanged, with the notes on the order. Which
 // of the first six is open is use-dialogs.ts's; the notes and the tour, the
@@ -21,6 +22,7 @@ import type { useClearFlow } from "../use-clear-flow";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useDialogs } from "../use-dialogs";
 import type { useLanPairRequests } from "../use-lan-pair-requests";
+import type { AccountAttention as Attention } from "../use-account-attention";
 import type { useLiveAnnouncements } from "../use-live-announcements";
 import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
@@ -31,6 +33,7 @@ import GuideModal from "./GuideModal";
 import { WELCOME_STEPS } from "./guide-art";
 import KeyboardHelp from "./KeyboardHelp";
 import { LanPairRequests } from "./LanPairRequestModal";
+import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
 import ToolModal from "./ToolModal";
@@ -42,7 +45,7 @@ const UsageHistoryModal = lazy(() => import("./UsageHistoryModal"));
 const BrowserWatchModal = lazy(() => import("./BrowserWatchModal"));
 
 export default function DeckDialogs({
-  dialogs, welcome, desktopUpdate, versionCheck, restart, lanPairs, clearFlow, watchBadge, announcements,
+  dialogs, welcome, desktopUpdate, versionCheck, restart, lanPairs, attention, clearFlow, watchBadge, announcements,
   appearance, providers, stateRef, agentCount,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
@@ -51,6 +54,7 @@ export default function DeckDialogs({
   versionCheck: ReturnType<typeof useVersionCheck>;
   restart: ReturnType<typeof useAutoRestart>;
   lanPairs: ReturnType<typeof useLanPairRequests>;
+  attention: Attention;
   clearFlow: ReturnType<typeof useClearFlow>;
   watchBadge: ReturnType<typeof useBrowserWatchBadge>;
   announcements: ReturnType<typeof useLiveAnnouncements>;
@@ -163,6 +167,11 @@ export default function DeckDialogs({
           outranks the prompt somebody is standing in front of deciding
           whether to truncate a log. */}
       <LanPairRequests {...lanPairs} />
+      {/* After the pairing request, which holds another machine up, and for the
+          same reason ahead of the sheet, the tour and the clear prompt: it
+          arrived on its own and must not paint over a dialog somebody opened
+          to answer (#1893). */}
+      <AccountAttention {...attention} />
       {/* Before the clear prompt and after everything else, which is where a
           reference belongs: it may paint over a tool inspector somebody opened
           the sheet on top of, and it must not paint over the one dialog that is

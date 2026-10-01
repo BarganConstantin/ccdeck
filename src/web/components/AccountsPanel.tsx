@@ -49,9 +49,13 @@ interface Props {
   /** Open the feedback dialog seeded for a caller (#1853). The issue popover
    *  uses it for its "Report this"; absent, the popover draws no such button. */
   onReport?: (prefill: FeedbackPrefill) => void;
+  /** Every roster this panel's poll reads, handed up as it arrives — the
+   *  re-sign-in prompt over the canvas watches the same reads rather than
+   *  polling the store for itself (#1893). */
+  onRoster?: (fresh: AccountsData) => void;
 }
 
-export default function AccountsPanel({ onClose, leaving, onReport }: Props) {
+export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: Props) {
   // The one request the panel has out, and the attributes it puts on every
   // control that request makes inert — see use-request-slot.ts (#518).
   const { busy, claim, release, pressProps } = useRequestSlot();
@@ -132,7 +136,15 @@ export default function AccountsPanel({ onClose, leaving, onReport }: Props) {
   // that knows an account has gone, so the roster is where the set is trimmed.
   // Unchanged in and unchanged out when nobody left, which is every poll but
   // one.
-  const trimLanes = useCallback((fresh: AccountsData) => setOpenness(open => trimOpenness(open, fresh.accounts)), []);
+  //
+  // And handed up, through a ref: useAccountRoster builds its poll once around
+  // this callback, so it has to stay the same function whatever App passes.
+  const onRosterRef = useRef(onRoster);
+  onRosterRef.current = onRoster;
+  const trimLanes = useCallback((fresh: AccountsData) => {
+    setOpenness(open => trimOpenness(open, fresh.accounts));
+    onRosterRef.current?.(fresh);
+  }, []);
   const { data, auto, reloading, failure, load, sayFailure, clearFailure } = useAccountRoster(trimLanes);
   // Focus through a roster the panel did not ask for: a switch made outside it
   // redraws the focused row in the other list — see use-roster-focus.ts.

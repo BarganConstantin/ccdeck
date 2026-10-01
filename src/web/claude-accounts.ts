@@ -41,6 +41,24 @@ export interface Account {
    *  what a share carries and what a peer's copy heals, so both kinds of
    *  trouble read as not alive. */
   alive?: boolean;
+  /** "ccdeck_signin" when the deck's own `+ → Sign in` added this account;
+   *  null for a share, Local network, or an account the deck found (#1893). */
+  origin?: "ccdeck_signin" | null;
+  /** The incident a deck-signed-in account is in once claude-swap has refused
+   *  its login since that sign-in, or null. `key` and `since` name it; see
+   *  account-origins.mjs. */
+  reauth?: Reauth | null;
+}
+
+/** One re-sign-in incident, as the roster names it (#1893). */
+export interface Reauth {
+  /** The account's identity, `email@@orgUuid` — the key LAN sync uses. */
+  key: string;
+  /** When the login was last known to work: the later of its last good read
+   *  and its last sign-in here. Together with `key`, the incident's name. */
+  since: number;
+  /** Somebody answered this very incident with "Not now". */
+  dismissed: boolean;
 }
 
 export interface AccountsData {
