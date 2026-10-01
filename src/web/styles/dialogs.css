@@ -191,66 +191,69 @@
 
 /* ---------------- feedback (#1853) ---------------- */
 
-/* Three groups, top to bottom, with the modal body's 16px between them: what
-   kind of feedback it is, the three fields — the message, which is the one
-   thing it asks for, then an optional title and an optional way back — and
-   what happens to it once sent.
-   Under them a footer that holds Send, outside the body's scroll, so a long
-   message grows the body and never pushes the button off the dialog.
+/* ONE THING TO DO. The dialog is a question and a field to answer it in: the
+   kind as a small segmented control over it, the message as the one large
+   thing on the panel, and under it two quiet buttons, one line saying what
+   rides along, and Send. Everything optional is edgeless until pointed at or
+   folded away, so nothing competes with the field for the first look. No
+   wells, no cards, no frame round the foot: the shared header is the only
+   rule drawn across the dialog.
    The fields are the accounts panel's own text field (.ap-manage-input),
    already swept for edge contrast, placeholder colour and the focus ring. */
-.modal.feedback-dialog { position: relative; width: min(520px, 92vw); }
-/* The form is the column between the header and the foot's edge, so it has to
-   pass the modal's height down: min-height 0 is what lets .modal-body scroll
-   inside it instead of the form overflowing the 82vh the modal allows. */
+.modal.feedback-dialog { position: relative; width: min(540px, 92vw); }
+/* The stage holds the form and, once sent, the thanks laid over it, so the
+   dialog keeps its height through the change. It and the form pass the
+   modal's height down: min-height 0 is what lets .modal-body scroll inside
+   them instead of overflowing the 82vh the modal allows. */
+.fb-stage { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .fb-form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.modal-body.fb-body { gap: 14px; }
 
-/* THE KINDS, AS THREE CARDS. Each is a <label> round a native radio drawn at
-   1px, the import card's shape (.sm-file): the card is the target, the arrows
-   walk the group, Tab stops once. A name to pick by and one line that says
-   what it covers, so the three are told apart before any is read closely.
-   CHOSEN is the appearance menu's answer for a chosen theme: the frame goes to
-   --accent and doubles with a ring rather than a wider border, so nothing
-   shifts; a check stands at the top right, and the glyph takes the accent too.
-   The state holds without the colour, by the check.
-   HOVER lifts the fill, never the frame, so a pointer resting on another kind
-   cannot pass for choosing it. The press is the labelled controls' 0.97. */
+/* THE KINDS. Three words in a track: the control fill as the track, the chosen
+   one raised onto the panel with the control edge round it, which is the mark
+   that carries the state at 3:1 without the colour (#583's lesson — a wash and
+   a step of grey alone do not). The rest sit on the track in --text-secondary,
+   since --muted on a fill mixed from the foreground is 4.05:1 in dark. Native
+   radios under the paint, pressed as the labelled controls are. */
 .fb-kinds {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
   min-width: 0;
   margin: 0;
-  padding: 0;
+  padding: 2px;
   border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
 }
 .fb-kind {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "glyph check" "name name" "hint hint";
+  display: inline-flex;
   align-items: center;
-  row-gap: 4px;
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
-  background: transparent;
-  color: var(--muted);
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-tag);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
   cursor: pointer;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out,
-    color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  user-select: none;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.fb-kind:hover { background: var(--ctl-fill); }
+.fb-kind:hover { color: var(--text); }
 .fb-kind:active { transform: scale(0.97); }
 .fb-kind:has(input:checked) {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-  color: var(--accent);
+  border-color: var(--ctl-edge);
+  background: var(--panel);
+  color: var(--text);
 }
 /* focus-visible rather than focus-within, as on the import card: a click on
-   the card focuses its radio too, and that must not draw a keyboard ring. */
-.fb-kind:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+   a segment focuses its radio too, and that must not draw a keyboard ring. */
+.fb-kind:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
 .fb-kind input[type="radio"] {
   position: absolute;
   inline-size: 1px;
@@ -258,63 +261,23 @@
   opacity: 0;
   pointer-events: none;
 }
-.fb-kind > .fb-glyph { grid-area: glyph; }
-.fb-kind-check {
-  grid-area: check;
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-.fb-kind:has(input:checked) .fb-kind-check { opacity: 1; }
-.fb-kind-name {
-  grid-area: name;
-  margin-top: 2px;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 16px;
-}
-/* --text-secondary, not --muted: the card's hover fill is mixed from the
-   foreground, and --muted on it is 4.05:1 in dark. Read once, to choose. */
-.fb-kind-hint {
-  grid-area: hint;
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1.4;
-}
 .fb-glyph { display: block; flex: none; }
 
-.fb-fields { display: flex; flex-direction: column; gap: 14px; }
-.fb-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.fb-label {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-}
-.fb-optional { color: var(--text-dim); font-size: 11px; font-weight: 400; }
-.fb-field .ap-manage-input { width: 100%; }
-/* The one field the dialog is opened for, so it is the one that is big: a
-   body-prose size rather than a control's, room for five lines before it grows,
-   and it grows with what is typed (field-sizing) up to a ceiling that keeps the
-   rest of the form in view, then scrolls. The drag handle stays for a browser
-   without field-sizing. The vertical padding is new: the shared field is a
+/* THE MESSAGE. The question is the label, in the foreground and a step up
+   from the controls, so it reads as the question rather than as a caption.
+   The field is the one big thing: a body-prose size, room for five lines, and
+   it grows with what is typed (field-sizing) up to a ceiling that keeps Send in
+   view, then scrolls. The drag handle stays for a browser without
+   field-sizing. The vertical padding is the field's own: the shared one is a
    one-line control with none, which set the first line on the frame. */
-.fb-field textarea.ap-manage-input {
+.fb-compose { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fb-label { color: var(--text); font-size: 13px; font-weight: 500; line-height: 18px; }
+.ap-manage-input.fb-message {
   display: block;
-  min-height: 128px;
+  width: 100%;
+  min-height: 116px;
   max-height: min(40vh, 320px);
-  padding: 8px;
+  padding: 8px 10px;
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
@@ -322,57 +285,28 @@
   field-sizing: content;
 }
 .fb-error { margin: 0; color: var(--err); font-size: 12px; line-height: 16px; }
-/* The line under the title: what an empty title becomes. The error takes its
-   place when there is one, on the same 16px line, so nothing under it moves. */
 .fb-hint { margin: 0; color: var(--text-dim); font-size: 11px; line-height: 16px; }
 
-/* STARTERS. The first words of a sentence the chosen kind usually needs, over
-   the message, for a person who does not know how to begin. Pressed, they go
-   down on a line of their own after what is typed and the caret follows, so
-   typing carries on. Pills, so they read as words on offer rather than as the
-   form's own controls; a --ctl-edge frame because a pill has no other
-   boundary; the toolbar's neutral hover and the labelled controls' 0.97. No
-   motion of their own beyond that: the words appear where the caret is. */
-.fb-starters { display: flex; flex-wrap: wrap; gap: 6px; }
-.fb-starter {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  line-height: 16px;
-  cursor: pointer;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
-    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-.fb-starter:hover { border-color: var(--text); background: var(--ctl-fill); color: var(--text); }
-.fb-starter:active { transform: scale(0.97); }
-
-/* IMAGES. The way to add one sits at the end of the message's label row, where
-   the other fields say "optional", so the form is no taller for a person who
-   never adds one: a glyph and its words, edgeless at rest like the other quiet
+/* THE TWO QUIET BUTTONS under the message — Add screenshot, Add details — a
+   glyph or a chevron and their words, edgeless at rest like the other quiet
    controls named by their own word, taking the control edge and fill under the
-   pointer. Its 24px target is pulled back into the label's 16px line by the
-   negative block margins .glyph-btn uses for the same reason. */
-.fb-label-row {
+   pointer and the keyboard. The row bleeds 6px past the field on both sides
+   so the glyph and the last letter line up with the field's edges rather than
+   with the buttons' invisible boxes. */
+.fb-tools {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
+  margin: 2px -6px 0;
 }
-.fb-attach {
+.fb-tool {
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: 6px;
   min-height: 24px;
-  margin: -4px -6px -4px 0;
   padding: 0 6px;
   border: 1px solid transparent;
   border-radius: var(--r-ctl);
@@ -385,15 +319,85 @@
   transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
     transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.fb-attach:hover,
-.fb-attach:focus-visible { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
-.fb-attach:active { transform: scale(0.97); }
+.fb-tool:hover,
+.fb-tool:focus-visible { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
+.fb-tool:active { transform: scale(0.97); }
+/* Turns rather than swaps, so open and shut are one control in two states. */
+.fb-chev { display: block; flex: none; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fb-more[aria-expanded="true"] .fb-chev { transform: rotate(180deg); }
 
-/* The strip under the message, once there is an image: the thumbnails and
-   their count on one line, what a screenshot can show under them. Each image
-   is a fixed 4:3 box, so a thumbnail still loading moves nothing and a tall
-   screenshot is cropped to the box rather than stretching the row. The 6px
-   above is where the remove buttons stand out past the corners. */
+/* THE DETAILS, unfolding in place. Its row grows from nothing to its content
+   (a 0fr → 1fr grid row, the one way to ease to an intrinsic height without
+   measuring it) and the content eases in a beat behind it, so the field above
+   never jumps and the words never slide over the buttons. Folding is faster
+   than unfolding: the person has already decided. Folded, the content is
+   `visibility: hidden` — no tab stop, nothing read — and keeps its place so
+   what was typed in it stays. The -6px takes back the gap the empty row would
+   otherwise add under the buttons; the clip's 4px on each side is room for
+   the field's focus ring. */
+.fb-details {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: -6px;
+  transition: grid-template-rows 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fb-details[data-open] {
+  grid-template-rows: 1fr;
+  transition-duration: 220ms;
+}
+.fb-details-clip { min-height: 0; margin: 0 -4px; padding: 0 4px; overflow: hidden; }
+.fb-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 0 4px;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 120ms ease-out, transform 120ms ease-out, visibility 0s linear 160ms;
+}
+.fb-details[data-open] .fb-details-body {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition: opacity 180ms ease-out 60ms, transform 220ms cubic-bezier(0.23, 1, 0.32, 1) 40ms, visibility 0s;
+}
+.fb-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fb-field-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+.fb-optional { color: var(--text-dim); font-size: 11px; font-weight: 400; }
+.fb-field .ap-manage-input { width: 100%; }
+/* Where it goes and what may become of it: prose read once, to decide what to
+   write, so the reading tier rather than the metadata one. */
+.fb-where {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.fb-where p { margin: 0; text-wrap: pretty; }
+
+/* What rides along, on one line under everything a person writes: the values
+   in the data face, the words in the body face, both at the annotation tier. */
+.fb-facts { margin: 0; color: var(--text-dim); font-size: 11px; line-height: 16px; }
+.fb-facts-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* IMAGES. The strip between the message and its buttons, once there is one:
+   the thumbnails and their count on one line, what a screenshot can show under
+   them. Each image is a fixed 4:3 box, so a thumbnail still loading moves
+   nothing and a tall screenshot is cropped to the box rather than stretching
+   the row; the box is the image's own button, which replaces it, and says so
+   under the pointer and the keyboard. The 6px above is where the remove
+   buttons stand out past the corners. */
 .fb-shots { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
 .fb-shots-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .fb-shots-list { display: flex; gap: 10px; min-width: 0; margin: 0; padding: 0; list-style: none; }
@@ -406,17 +410,31 @@
 @starting-style {
   .fb-shot { opacity: 0; transform: scale(0.96); }
 }
+.fb-shot-pick {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fb-shot-pick:active { transform: scale(0.97); }
 .fb-shot-img {
   display: block;
-  width: 72px;
-  height: 54px;
+  width: 64px;
+  height: 48px;
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   background: var(--bg);
   object-fit: cover;
 }
-/* Fitting. The words say it, on the image's own box, so nothing about the wait
-   is carried by a dimmed picture alone. */
+/* The words on the image's own box — what a press does, and that a fit is
+   under way — so neither is carried by a dimmed picture alone. */
+.fb-shot-cue,
 .fb-shot-busy {
   position: absolute;
   inset: auto 4px 4px;
@@ -428,6 +446,9 @@
   line-height: 16px;
   text-align: center;
 }
+.fb-shot-cue { opacity: 0; transition: opacity 120ms ease-out; }
+.fb-shot-pick:hover .fb-shot-cue,
+.fb-shot-pick:focus-visible .fb-shot-cue { opacity: 1; }
 /* The remove, a disc at the image's corner that stands on the panel rather
    than on the picture, so it reads the same on any screenshot. It keeps
    .glyph-btn's 24px target, press and hover; the disc is the panel's with the
@@ -497,36 +518,16 @@
 .fb-drop-title { margin: 0; color: var(--text); font-size: 14px; font-weight: 600; }
 .fb-drop-note { margin: 0; color: var(--muted); font-size: 12px; }
 
-/* What happens to it, in a well of its own under the fields and over Send: the
-   last thing read before pressing. An eye rather than a lock, because the
-   sentence says it may become public — a lock would promise more than it does. */
-.fb-note {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  background: var(--bg);
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.fb-note > .fb-glyph { margin-top: 2px; color: var(--muted); }
-.fb-note p { margin: 0; }
-
-/* The foot is the header's twin — same ground, same rule, same inset — so the
-   dialog reads as a frame round the form. The shortcut sits on the left, as
+/* The foot is part of the panel rather than a band of its own — no ground, no
+   rule — and sits outside the body's scroll, so a long message grows the body
+   and never pushes Send off the dialog. The shortcut sits on the left, as
    quiet as a line can be and still be read. */
 .fb-foot {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--line);
-  background: var(--bg-soft);
+  padding: 0 16px 16px;
 }
 .fb-shortcut {
   display: inline-flex;
@@ -536,8 +537,8 @@
   color: var(--text-dim);
   font-size: 11px;
 }
-/* The sound menu's cap (.sm-foot kbd), on the panel so it stands off the
-   foot's ground. */
+/* The sound menu's cap (.sm-foot kbd), on the canvas tier so it stands off
+   the panel the foot now sits on. */
 .fb-shortcut kbd {
   /* A box with its own height, so a cap whose glyph is drawn larger stands
      exactly as tall as its neighbour: an inline box is as tall as its font,
@@ -550,7 +551,7 @@
   line-height: 14px;
   text-align: center;
   color: var(--text);
-  background: var(--panel);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-bottom-width: 2px;
   border-radius: 4px;
@@ -566,58 +567,67 @@
 }
 /* A touch screen has no key to press, so the foot names none there — see the
    coarse-pointer block in touch-and-forced-colours.css. */
-/* Wide enough for `Sending…`, so the label swap does not shove Cancel
-   sideways in the instant after the press. */
-.fb-send { min-width: 84px; }
+/* Both of Send's words are laid out in one cell and one is hidden, so the
+   button is exactly as wide sending as it was, and Cancel never moves in the
+   instant after the press. `visibility` also keeps the hidden word out of the
+   button's name. */
+.fb-send-label { display: grid; justify-items: center; }
+.fb-send-idle,
+.fb-send-busy { grid-area: 1 / 1; }
+.fb-send-busy { visibility: hidden; }
+.fb-send[aria-busy="true"] .fb-send-idle { visibility: hidden; }
+.fb-send[aria-busy="true"] .fb-send-busy { visibility: visible; }
 
-/* Sent. The add-account dialog's success, at a quieter pitch: the same drawn
-   mark and the same entrance — sending feedback happens a handful of times in a
-   deck's life, the only reason anything here may celebrate — and no confetti.
-   Under the words, a receipt of what went: the kind's glyph and the title. */
+/* SENT. The thanks is laid over the form at the form's own size, with the
+   add-account dialog's drawn mark a size down and four words, and then the
+   dialog goes by itself: the backdrop and the dialog fade together, the dialog
+   settling a hair smaller, faster than anything here arrived. Sending feedback
+   happens a handful of times in a deck's life, which is the only reason the
+   mark may draw itself; there is no confetti. */
 .fb-done {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0 4px;
-  text-align: center;
-  animation: aa-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  justify-content: center;
+  gap: 12px;
+  background: var(--panel);
+  animation: fadeIn 140ms ease-out both;
 }
-.fb-done-title { margin: 4px 0 0; color: var(--text); font-size: 14px; font-weight: 600; }
-.fb-done-note { margin: 0; color: var(--text); font-size: 13px; line-height: 1.5; }
-.fb-receipt {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-  margin: 4px 0 8px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-ctl);
-  background: var(--bg);
+.fb-done .aa-mark { width: 36px; height: 36px; }
+.fb-done-line {
+  margin: 0;
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  animation: aa-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1) 80ms both;
 }
-.fb-receipt > .fb-glyph { color: var(--muted); }
-.fb-receipt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-backdrop[data-leaving] { opacity: 0; transition: opacity 160ms ease-out; }
+.modal-backdrop[data-leaving] > .feedback-dialog { transform: scale(0.98); transition: transform 160ms ease-out; }
 
-/* A phone-width window: the three kinds stack, each a row with its glyph and
-   check at the ends and its line under the name, as a list is read. */
+/* A phone-width window: the kinds take the width, three equal segments, which
+   is a bigger target for a thumb and still one row. */
 @media (max-width: 520px) {
-  .fb-kinds { grid-template-columns: minmax(0, 1fr); }
-  .fb-kind {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: "glyph name check" ". hint .";
-    column-gap: 10px;
-    row-gap: 2px;
-  }
-  .fb-kind-name { margin-top: 0; }
+  .fb-kinds { align-self: stretch; }
+  .fb-kind { flex: 1 1 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Comprehension stays, movement goes: the panel fades in without travelling;
-     the mark's own answer is add-account.css's. */
-  .fb-done { animation: fadeIn 160ms ease both; }
+  /* Comprehension stays, movement goes. The thanks fades in without its line
+     travelling; the mark's own answer is add-account.css's. The dialog fades
+     out without settling. */
+  .fb-done-line { animation: fadeIn 160ms ease both; }
+  .modal-backdrop[data-leaving] > .feedback-dialog { transform: none; }
+  /* The details still unfold and fade, which is what says they arrived, and
+     neither the row nor the words travel; the chevron still turns, as a state,
+     without the turn. */
+  .fb-details,
+  .fb-details[data-open] { transition: none; }
+  .fb-details-body,
+  .fb-details[data-open] .fb-details-body { transform: none; }
+  .fb-chev { transition: none; }
   /* The drop overlay and a new thumbnail keep their fade, which is what says
      something changed, and lose their scale. */
   .fb-drop-frame { transform: none; transition: none; }

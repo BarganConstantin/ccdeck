@@ -11,7 +11,7 @@
 // before sending, and a damaged file comes back as the API's own 400.
 //
 // WHAT GOES ON is the page's text as it came, this deck's version and system
-// from installFacts (the page's own are ignored, as they are for JSON), and
+// from feedbackFacts (the page's own are ignored, as they are for JSON), and
 // each image's bytes under a name of this server's making. A file's own name
 // can say whose machine it was on — "alice-desk.png" — and the API keeps no
 // name, so none is sent. The API strips EXIF, GPS and text chunks itself.
@@ -107,7 +107,7 @@ export async function readFeedbackForm(bytes, contentType) {
   return { fields, images, problems };
 }
 
-/** The form this server posts on: the page's text, this deck's facts, and the images under names of its own. */
+/** The form this server posts on: the page's text, this deck's facts (feedbackFacts in reports-routes.mjs), and the images under names of its own. */
 export function upstreamForm({ fields, images }, facts) {
   const form = new FormData();
   for (const name of ["kind", "title", "body"]) {
@@ -115,8 +115,8 @@ export function upstreamForm({ fields, images }, facts) {
   }
   const contact = typeof fields.contact === "string" ? fields.contact.trim() : "";
   if (contact) form.append("contact", contact);
-  form.append("appVersion", facts.version);
-  form.append("platform", `${facts.os}-${facts.arch}`);
+  form.append("appVersion", facts.appVersion);
+  form.append("platform", facts.platform);
   for (const [index, { data, format }] of images.entries()) {
     const { type, extension } = FORMAT[format];
     form.append(IMAGES_FIELD, new Blob([data], { type }), `image-${index + 1}.${extension}`);

@@ -178,14 +178,12 @@ describe("one copy of the ladder", () => {
     const found = sources(WEB)
       .filter(path => /\bexecCommand\(/.test(readFileSync(path, "utf8")))
       .map(path => path.slice(WEB.length).replace(/\\/g, "/"));
-    // The one other caller is not a copy. The feedback dialog's starters put
-    // their words into the message with "insertText", the one way a script's
-    // edit joins the field's own undo stack, so ⌘Z takes a starter back out.
-    // Named here rather than let through by a looser pattern, and held below
-    // to that one command.
-    expect(found).toEqual(["components/FeedbackDialog.tsx", "copy-text.ts"]);
-    const feedback = readFileSync(join(WEB, "components", "FeedbackDialog.tsx"), "utf8");
-    expect([...feedback.matchAll(/\bexecCommand\(\s*"([^"]+)"/g)].map(m => m[1])).toEqual(["insertText"]);
+    // The feedback dialog's starters were the one other caller, putting their
+    // words into the message with "insertText" so ⌘Z took one back out. The
+    // starters left with the dialog's redesign, and the exception with them:
+    // this file is the only caller again, and a new one has to be argued for
+    // here rather than let through.
+    expect(found).toEqual(["copy-text.ts"]);
   });
 
   it("is what the accounts panel copies a share with", () => {

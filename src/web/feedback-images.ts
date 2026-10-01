@@ -18,6 +18,7 @@
 //
 // Each image's budget is 5 MB or what the others leave of the request's 12,
 // less room for the text, so three large screenshots still go together.
+import type { FeedbackFields } from "./feedback";
 
 export const MAX_IMAGES = 3;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -225,8 +226,6 @@ export function focusAfterRemove<T>(ids: readonly T[], removed: T): T | null {
   return ids[at + 1] ?? ids[at - 1] ?? null;
 }
 
-export interface FeedbackFields { kind: string; title: string; body: string; contact?: string }
-
 /** What Send posts: the JSON it always did when there are no images, a
  *  multipart form with each image as an `images` part when there are. */
 export function feedbackRequest(fields: FeedbackFields, images: readonly Blob[]): RequestInit {
@@ -245,10 +244,18 @@ export function feedbackRequest(fields: FeedbackFields, images: readonly Blob[])
   return { method: "POST", body: form };
 }
 
-export const ADD_LABEL = "Add a screenshot";
+export const ADD_LABEL = "Add screenshot";
 export const ADD_HINT = "PNG or JPEG, up to three. You can also paste one, or drop it on this dialog.";
 export const SHOTS_NOTE = "A screenshot can show emails, costs and paths. Crop out what should not be seen.";
 export const FULL_MESSAGE = "Three images at most. Remove one to add another.";
+
+/** What a thumbnail says it does, and which image it is: pressed, it opens the
+ *  picker and the file chosen takes this image's place. A redrawn image says
+ *  so here, since a person should know it did not go as it was. */
+export function replaceLabel(index: number, name: string, resized: Size | null): string {
+  const fit = resized ? `, resized to ${resized.width} × ${resized.height} to fit` : "";
+  return `Replace image ${index + 1}: ${name}${fit}`;
+}
 
 /** "2 of 3", and how many of them were drawn again to fit, since a person
  *  should know their image did not go as it was. */

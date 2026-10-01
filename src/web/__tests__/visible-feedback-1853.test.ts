@@ -31,6 +31,7 @@ const runs = read("../components/TopbarRuns.tsx");
 const dialogs = read("../use-dialogs.ts");
 const deckDialogs = read("../components/DeckDialogs.tsx");
 const feedback = read("../components/FeedbackDialog.tsx");
+const rules = read("../feedback.ts");
 const boundary = read("../components/ErrorBoundary.tsx");
 const popover = read("../components/AccountIssuePopover.tsx");
 const accounts = read("../components/AccountsPanel.tsx");
@@ -130,11 +131,15 @@ describe("forwardCaughtError hands the error to the deck's own server", () => {
 
 describe("the feedback dialog can be opened filled in", () => {
   it("takes an initial kind and body, defaulting to the empty blank report", () => {
-    expect(feedback).toMatch(/export interface FeedbackPrefill/);
+    expect(rules).toMatch(/export interface FeedbackPrefill/);
+    expect(feedback).toMatch(/interface Props extends FeedbackPrefill/);
     expect(feedback).toMatch(/useState<Kind>\(initialKind \?\? "bug"\)/);
     expect(feedback).toMatch(/useState\(initialBody \?\? ""\)/);
-    // The title is never seeded — a person names their own report.
-    expect(feedback).toMatch(/const \[title, setTitle\] = useState\(""\)/);
+    // It used to pin that a typed title was never seeded. There is no title
+    // to type now — the title is worked out from the message as it is sent
+    // (feedback-dialog-form.test.ts) — so a seeded body names a seeded report
+    // the way a typed one does, and the dialog holds no title of its own.
+    expect(feedback).not.toMatch(/setTitle|id="fb-title"/);
   });
 });
 

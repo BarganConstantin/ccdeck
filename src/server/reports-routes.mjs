@@ -59,16 +59,32 @@ export async function handleFeedback(req, res, { fetchImpl = globalThis.fetch, e
   if (isMultipart(contentType)) return forwardFeedbackForm(req, res, contentType, { fetchImpl, env });
   const body = await readJson(req, res, 32_000);
   if (!body) return send(res, 400, { ok: false, reason: "bad_request" });
-  const facts = installFacts({ env });
+  const facts = feedbackFacts({ env });
   const contact = typeof body.contact === "string" && body.contact.trim() ? body.contact.trim() : undefined;
   return forwardFeedback(res, fetchImpl, {
-    headers: { "content-type": "application/json", "user-agent": `ccdeck/${facts.version}` },
-    body: JSON.stringify({
-      kind: body.kind, title: body.title, body: body.body, contact,
-      appVersion: facts.version, platform: `${facts.os}-${facts.arch}`,
-    }),
+    headers: { "content-type": "application/json", "user-agent": `ccdeck/${facts.appVersion}` },
+    body: JSON.stringify({ kind: body.kind, title: body.title, body: body.body, contact, ...facts }),
     timeoutMs: JSON_TIMEOUT_MS,
   });
+}
+
+/**
+ * What this deck adds to a piece of feedback, and all it adds: the ccdeck
+ * version, and the system as `os-arch` — `darwin-arm64`. installFacts knows
+ * more than that (the channel, the runtime, a locale, a device fingerprint)
+ * and none of it goes with feedback. One function for both posts and for the
+ * line the dialog draws before Send, so what the page says is sent and what
+ * the API is sent are one answer and cannot drift apart.
+ */
+export function feedbackFacts({ env = process.env } = {}) {
+  const facts = installFacts({ env });
+  return { appVersion: facts.version, platform: `${facts.os}-${facts.arch}` };
+}
+
+/** `GET /api/feedback`: what a report sent from here would carry besides its
+ *  words, for the dialog to say before Send. Nothing leaves the machine. */
+export function handleFeedbackFacts(_req, res, { env = process.env } = {}) {
+  return send(res, 200, { ok: true, ...feedbackFacts({ env }) });
 }
 
 /** Twenty seconds is plenty for a few kilobytes of JSON. */
@@ -85,10 +101,10 @@ async function forwardFeedbackForm(req, res, contentType, { fetchImpl, env }) {
   const form = await readFeedbackForm(bytes, contentType);
   if (!form) return send(res, 400, { ok: false, reason: "bad_request" });
   if (form.problems.length > 0) return send(res, 400, { ok: false, reason: "invalid", errors: { images: form.problems } });
-  const facts = installFacts({ env });
+  const facts = feedbackFacts({ env });
   return forwardFeedback(res, fetchImpl, {
     // No content type: fetch writes the form's own, boundary and all.
-    headers: { "user-agent": `ccdeck/${facts.version}` },
+    headers: { "user-agent": `ccdeck/${facts.appVersion}` },
     body: upstreamForm(form, facts),
     timeoutMs: FORM_TIMEOUT_MS,
   });

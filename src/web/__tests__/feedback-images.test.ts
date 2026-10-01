@@ -26,10 +26,11 @@ import {
   MAX_IMAGES, MAX_IMAGE_BYTES, MAX_REQUEST_BYTES, MAX_SIDE, JPEG_QUALITY, MIN_BUDGET,
   imageFormat, imageSize, needsFitting, imageBudget, firstFit, fitImage, prepareImage,
   carriesFiles, shouldAttachPaste, focusAfterRemove, feedbackRequest, shotsSummary,
-  problemMessage, leftOutMessage, FULL_MESSAGE, SHOTS_NOTE, ADD_LABEL, ADD_HINT,
+  problemMessage, leftOutMessage, replaceLabel, FULL_MESSAGE, SHOTS_NOTE, ADD_LABEL, ADD_HINT,
   type Encoder, type Decoder, type ImageFormat, type Size,
 } from "../feedback-images";
-import { feedbackFailure } from "../components/FeedbackDialog";
+import { feedbackFailure, WHERE_IT_GOES } from "../feedback";
+import { placeShot, withdrawShot, type Shot } from "../use-feedback-images";
 import { withoutComments } from "./tsx-scan";
 
 const MB = 1024 * 1024;
@@ -38,6 +39,8 @@ const dialog = read("../components/FeedbackDialog.tsx");
 const flatDialog = dialog.replace(/\s+/g, " ");
 const shotsView = read("../components/FeedbackShots.tsx").replace(/\s+/g, " ");
 const hook = read("../use-feedback-images.ts").replace(/\s+/g, " ");
+const sendHook = read("../use-feedback-send.ts").replace(/\s+/g, " ");
+const detailsView = read("../components/FeedbackDetails.tsx").replace(/\s+/g, " ");
 
 // ── the bytes ────────────────────────────────────────────────────────────────
 
@@ -335,8 +338,10 @@ describe("what Send posts", () => {
     const refused = feedbackFailure(400, "invalid", { images: ["Image 2 is a damaged PNG."] });
     expect(refused).toContain("Image 2 is a damaged PNG.");
     expect(refused).toContain("your text is still here");
-    // A 400 about the words still says so.
-    expect(feedbackFailure(400, "invalid", { title: ["Between 3 and 120 characters."] })).toContain("title");
+    // A 400 about the words still says so. It named "the title or the text"
+    // while a title could be typed; the title is worked out from the message
+    // now, so it names the message, which is the one thing to check.
+    expect(feedbackFailure(400, "invalid", { title: ["Between 3 and 120 characters."] })).toContain("did not accept the message");
   });
 });
 
@@ -376,7 +381,10 @@ describe("what the dialog says about images", () => {
   });
 
   it("names the add button and says where else an image can come from", () => {
-    expect(ADD_LABEL).toBe("Add a screenshot");
+    // "Add a screenshot" sat in the message's label row; it is one of the two
+    // quiet buttons under the message now, beside "Add details", in the
+    // brief's two words.
+    expect(ADD_LABEL).toBe("Add screenshot");
     expect(ADD_HINT).toMatch(/PNG or JPEG/);
     expect(ADD_HINT).toMatch(/paste/i);
     expect(ADD_HINT).toMatch(/drop/i);
@@ -392,12 +400,17 @@ describe("what the dialog says about images", () => {
 });
 
 describe("the images stay with the people who make ccdeck", () => {
-  it("keeps every promise the note made, and adds the images to what is never put on an issue", () => {
-    expect(flatDialog).toContain(
-      "This goes to the people who make ccdeck, with your ccdeck version and system. They may open a " +
-      "public GitHub issue from it; your images and how to reach you stay with them and are never put there.",
-    );
-    expect(flatDialog.indexOf("are never put there")).toBeLessThan(flatDialog.indexOf('type="submit"'));
+  it("keeps every promise the note made, and the images among what is never put on an issue", () => {
+    // The note left the default state for the section under Add details, which
+    // is where the contact it speaks of is typed. Every promise it made is
+    // still said there: who reads it, that an issue may be opened, that the
+    // contact and the images are never put on one (feedback-dialog-form pins
+    // the whole text).
+    const said = WHERE_IT_GOES.join(" ");
+    expect(said).toContain("the people who make ccdeck");
+    expect(said).toContain("public GitHub issue");
+    expect(said).toContain("your contact and screenshots are never put on one");
+    expect(detailsView).toMatch(/\{WHERE_IT_GOES\.map\(/);
   });
 });
 
@@ -424,21 +437,28 @@ describe("the dialog takes an image three ways", () => {
   it("keeps a file dropped beside the dialog from opening in place of the deck", () => {
     // The browser's own answer to a file dropped on a page is to open it,
     // which would throw away everything typed.
-    expect(flatDialog).toMatch(/<div className="modal-backdrop" onClick=\{onClose\} role="presentation" onDragOver=\{refuseBesideDialog\} onDrop=\{dropBesideDialog\}>/);
+    expect(flatDialog).toMatch(/<div className="modal-backdrop" onClick=\{onClose\} role="presentation" onDragOver=\{refuseBesideDialog\} onDrop=\{dropBesideDialog\} data-leaving=\{leaving \|\| undefined\}>/);
     expect(flatDialog).toMatch(/function refuseBesideDialog\(e: DragEvent\) \{ if \(e\.target !== e\.currentTarget \|\| !fileDrag\(e\)\) return; e\.preventDefault\(\); e\.dataTransfer\.dropEffect = "none"; \}/);
     expect(flatDialog).toMatch(/function dropBesideDialog\(e: DragEvent\) \{ if \(fileDrag\(e\)\) e\.preventDefault\(\); \}/);
   });
 
   it("opens the picker for PNG and JPEG from a button that says what it adds", () => {
-    expect(shotsView).toMatch(/<input ref=\{pickRef\} type="file" accept="image\/png,image\/jpeg" multiple hidden/);
-    expect(shotsView).toMatch(/className="fb-attach"/);
+    // One list for the add's picker and the replace's, so the two cannot take
+    // different files.
+    expect(shotsView).toMatch(/const ACCEPT = "image\/png,image\/jpeg";/);
+    expect(shotsView).toMatch(/<input ref=\{pickRef\} type="file" accept=\{ACCEPT\} multiple hidden/);
+    expect(shotsView).toMatch(/<input ref=\{replacePickRef\} type="file" accept=\{ACCEPT\} hidden/);
+    expect(shotsView).toMatch(/<button ref=\{buttonRef\} type="button" className="fb-tool" title=\{ADD_HINT\}/);
     expect(shotsView).toMatch(/\{ADD_LABEL\}/);
     expect(shotsView).toMatch(/title=\{ADD_HINT\}/);
   });
 
   it("draws each image in a fixed box, named, with a remove of its own", () => {
     expect(shotsView).toMatch(/<ul className="fb-shots-list">/);
-    expect(shotsView).toMatch(/<img className="fb-shot-img" src=\{shot\.url\} alt=\{/);
+    // The box is the image's own button now, which replaces it, so the button
+    // carries the image's name and the picture inside it is decoration.
+    expect(shotsView).toMatch(/<button type="button" className="fb-shot-pick" aria-label=\{replaceLabel\(index, shot\.name, shot\.resized\)\}/);
+    expect(shotsView).toMatch(/<img className="fb-shot-img" src=\{shot\.url\} alt="" \/>/);
     expect(shotsView).toMatch(/aria-label=\{`Remove image \$\{index \+ 1\}`\}/);
     expect(shotsView).toMatch(/const summary = shotsSummary\(shots\.length, shots\.filter\(shot => shot\.resized\)\.length\);/);
     expect(shotsView).toMatch(/<span className="fb-shots-count">\{summary\}<\/span>/);
@@ -456,8 +476,10 @@ describe("the dialog takes an image three ways", () => {
   });
 
   it("finishes every fit before it sends, and sends the fitted images", () => {
-    expect(flatDialog).toMatch(/const attached = await images\.ready\(\);/);
-    expect(flatDialog).toMatch(/feedbackRequest\(\{ kind, title: sentTitle, body: body\.trim\(\), contact: contact\.trim\(\) \|\| undefined \}, attached\)/);
+    // The send moved out of the dialog into its own hook; the order is the same.
+    expect(sendHook).toMatch(/const attached = await images\.ready\(\);/);
+    expect(sendHook).toMatch(/feedbackRequest\(fieldsToSend\(draft\), attached\)/);
+    expect(sendHook.indexOf("await images.ready()")).toBeLessThan(sendHook.indexOf("feedbackRequest("));
     expect(hook).toMatch(/prepareImage\(/);
   });
 
@@ -478,5 +500,47 @@ describe("the dialog takes an image three ways", () => {
 
   it("gives every object URL back", () => {
     expect(hook).toMatch(/URL\.revokeObjectURL/);
+  });
+});
+
+// ── replacing one ────────────────────────────────────────────────────────────
+
+describe("a screenshot can be replaced where it stands", () => {
+  const shot = (id: number, name: string): Shot => ({ id, name, url: `blob:${name}`, blob: new Blob(["x"]), resized: null });
+  const three = [shot(1, "a.png"), shot(2, "b.png"), shot(3, "c.png")];
+
+  it("draws the new file in the old one's place, under the old one's id, so its button keeps focus", () => {
+    const fresh: Shot = { id: 2, name: "new.png", url: "blob:new", blob: null, resized: null };
+    expect(placeShot(three, fresh, true).map(s => [s.id, s.name])).toEqual([[1, "a.png"], [2, "new.png"], [3, "c.png"]]);
+    // An add goes at the end, as it always did.
+    const added: Shot = { ...fresh, id: 4 };
+    expect(placeShot(three, added, false).map(s => s.id)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("puts the old image back when the new file cannot go, and drops a failed add", () => {
+    const fresh: Shot = { id: 2, name: "huge.png", url: "blob:huge", blob: null, resized: null };
+    const drawn = placeShot(three, fresh, true);
+    expect(withdrawShot(drawn, 2, three[1])).toEqual(three);
+    const added = placeShot(three.slice(0, 2), { ...fresh, id: 9 }, false);
+    expect(withdrawShot(added, 9, undefined).map(s => s.id)).toEqual([1, 2]);
+  });
+
+  it("names each thumbnail as what it does to which image, and says when one was redrawn", () => {
+    expect(replaceLabel(0, "shot.png", null)).toBe("Replace image 1: shot.png");
+    expect(replaceLabel(2, "5k.png", { width: 2631, height: 1480 })).toBe("Replace image 3: 5k.png, resized to 2631 × 1480 to fit");
+  });
+
+  it("opens the picker for the image pressed, and hands its file to replace", () => {
+    expect(shotsView).toMatch(/onClick=\{\(\) => pickReplacement\(shot\.id\)\}/);
+    expect(shotsView).toMatch(/function pickReplacement\(id: number\) \{ replacing\.current = id; replacePickRef\.current\?\.click\(\); \}/);
+    expect(shotsView).toMatch(/if \(id !== null\) images\.replace\(id, Array\.from\(e\.target\.files \?\? \[\]\)\);/);
+    // In the same queue as every add, so its budget is what the others leave
+    // once each fit before it has finished.
+    expect(hook).toMatch(/const replace = useCallback\(\(id: number, files: readonly File\[\]\) => \{ const file = files\[0\]; if \(file\) enqueue\(\(\) => replaceOne\(id, file\)\); \}/);
+    // The budget leaves out the image being replaced, which is about to go.
+    expect(hook).toMatch(/sum \+ \(shot\.id === replacing\?\.id \? 0 : shot\.blob\?\.size \?\? 0\)/);
+    // And the old image's URL is given back only once the new one is good.
+    expect(hook).toContain("show(); if (replacing) URL.revokeObjectURL(replacing.url);");
+    expect(hook.indexOf("if (!prepared.ok)")).toBeLessThan(hook.indexOf("show(); if (replacing) URL.revokeObjectURL(replacing.url);"));
   });
 });
