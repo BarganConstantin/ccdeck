@@ -156,6 +156,14 @@ function trackedSessionCount() {
   return sessionTouchedAt.size;
 }
 
+/** How many distinct projects those live sessions sit in — the same live set,
+ *  counted by the folder each session's transcript is in. Reused, not new state:
+ *  the watch already holds every live session's transcript path. Never a project
+ *  name or path — only the count. */
+function trackedProjectCount() {
+  return outputWatch.projectCount();
+}
+
 function touchSession(sid) {
   if (!sid || typeof sid !== "string") return;
   // Re-insert so the Map's own insertion order *is* the LRU order and eviction
@@ -248,4 +256,4 @@ async function handleForget(req, res) {
 // What index.mjs calls besides HARD_TRACKED_SESSIONS. Listed rather than
 // marked at each declaration, so the declarations read as they did where they
 // came from.
-export { handleForget, outputWatch, startOutputWatch, touchSession, trackedSessionCount };
+export { handleForget, outputWatch, startOutputWatch, touchSession, trackedProjectCount, trackedSessionCount };
