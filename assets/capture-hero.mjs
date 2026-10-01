@@ -37,16 +37,19 @@
 //   5. Lets the deck frame the canvas itself (__ccdeckHero.frame): its own R
 //      lays the sessions out, its own auto-fit frames them, and nothing pans or
 //      zooms — a gesture turns auto-fit off, and the deck then says so on the
-//      canvas. That is why the demo is three sessions: it is what the deck's fit
-//      shows at 1600x900 with both side panels open and every card still drawn
-//      as a card (semantic-zoom.ts) rather than as a dot. Then it checks the
+//      canvas. The deck's fit draws full cards and their tool-call bubbles only
+//      when the board, with room for the bubbles, fits at 0.655 or closer
+//      (fitZoomForDrawnLanes, semantic-zoom.ts); below that it draws compact
+//      cards and no bubbles. With the session list and the Usage panel both
+//      open that takes a 1920x1080 window and a board of three sessions, which
+//      is why the shot is that size and the demo that long. Then it checks the
 //      page (__ccdeckHero.check): it refuses a picture that shows a home or
 //      temp directory, this machine's name, your user name or one of this
 //      machine's network addresses, an e-mail address outside the example
-//      domains, a panel whose data was not faked, auto-fit switched off, the
-//      canvas at its overview zoom, a toast or a dialog, or a topbar without
-//      this version and the brand kit's mark.
-//   6. Writes assets/canvas.png — 1600x900 at device scale 2, so 3200x1800 —
+//      domains, a panel whose data was not faked, auto-fit switched off, cards
+//      drawn as anything but full cards, a toast or a dialog, or a topbar
+//      without this version and the brand kit's mark.
+//   6. Writes assets/canvas.png — 1920x1080 at device scale 2, so 3840x2160 —
 //      then stops the deck with its own --stop and closes the browser over the
 //      DevTools protocol. Nothing is killed.
 //
@@ -60,13 +63,15 @@
 //             init script that loads the page script from DECK_PORT + 1, which
 //             answers that one file to the deck's origin and nothing else.
 //             Open http://127.0.0.1:<DECK_PORT>/ in a new isolated browser
-//             context at 1600x900x2 with that init script, evaluate
+//             context at 1920x1080x2 with that init script, evaluate
 //             `() => __ccdeckHero.frame()`, then `() => __ccdeckHero.check()`:
 //             an empty list is a picture that may be saved. Ctrl-C stops the
 //             deck.
 //   OUT=<file>  write somewhere else (a dry run, a comparison)
 //   KEEP=1      leave the temporary directory behind (the deck log is in it)
 //   DEBUG=1     print where the deck's fit put each session
+//   VIEWPORT=<w>x<h>, SESSION_LIST=0, USAGE_PANEL=0  try another framing;
+//             the checks above still decide whether it may be saved
 //
 // POSIX only (macOS, Linux).
 
@@ -81,7 +86,10 @@ import { demoLog, SESSION_IDS } from "./canvas-demo.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const WORKSPACE = "/demo";
-const VIEWPORT = { width: 1600, height: 900, dpr: 2 };
+const [VW, VH] = (process.env.VIEWPORT ?? "1920x1080").split("x").map(Number);
+const VIEWPORT = { width: VW, height: VH, dpr: 2 };
+const SESSION_LIST = process.env.SESSION_LIST !== "0";
+const USAGE_PANEL = process.env.USAGE_PANEL !== "0";
 const OUT = process.env.OUT ?? join(ROOT, "assets", "canvas.png");
 const VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
 const SERVE = process.argv.includes("--serve");
@@ -94,6 +102,7 @@ const fail = (msg) => {
 };
 
 if (process.platform === "win32") fail("POSIX only. On Windows, run it under WSL.");
+if (!(VW >= 800 && VW <= 2560 && VH >= 600 && VH <= 1600)) fail(`VIEWPORT=${process.env.VIEWPORT} is not <width>x<height> in CSS px, 800x600 to 2560x1600`);
 if (!existsSync(join(ROOT, "dist", "web", "index.html"))) fail("no dist/web — run `npm run build` first, so the deck serves this checkout's page.");
 
 // ── Ports ───────────────────────────────────────────────────────────────────
@@ -473,7 +482,8 @@ function pageScript(C) {
     if (![...(bar?.querySelectorAll("img") ?? [])].some((i) => (i.getAttribute("src") ?? "").endsWith(C.mark))) problems.push(`the topbar does not carry the kit's mark (${C.mark})`);
     if (!document.querySelector(".topbar .waiting-stat")) problems.push("no session is waiting on you in the topbar");
     if (document.querySelector(".autofit-chip")) problems.push("auto-fit is off, and the canvas says so");
-    if (document.querySelector("[data-lod]")?.getAttribute("data-lod") === "overview") problems.push("the canvas is zoomed out to its overview, where a card is a dot");
+    const lod = document.querySelector("[data-lod]")?.getAttribute("data-lod");
+    if (lod !== "detail") problems.push(`the deck's fit draws ${lod} cards, without their tool calls: the board is too big for this window`);
     if (document.querySelector(".toast, [role=alert], .modal, [role=dialog]")) problems.push("a toast or a dialog is open");
     if (innerWidth !== C.viewport.width || innerHeight !== C.viewport.height || devicePixelRatio !== C.viewport.dpr) problems.push(`the page is ${innerWidth}x${innerHeight}x${devicePixelRatio}, not ${C.viewport.width}x${C.viewport.height}x${C.viewport.dpr}`);
     return problems;
@@ -492,9 +502,9 @@ const PAGE = {
     "agent-dag.tourSeen": "1",
     "agent-dag.releaseNotesSeen": VERSION,
     "agent-dag.theme": "dark",
-    "agent-dag.sessionListOpen": "1",
+    "agent-dag.sessionListOpen": SESSION_LIST ? "1" : "0",
     "agent-dag.accountsPanelOpen": "0",
-    "agent-dag.usagePanelOpen": "1",
+    "agent-dag.usagePanelOpen": USAGE_PANEL ? "1" : "0",
     "agent-dag.usagePeriod": "today",
     "agent-dag.usageSessionsOpen": "1",
     "agent-dag.detailOpen": "0",

@@ -102,7 +102,7 @@ Then regenerate what is drawn from the kit's files rather than copied:
   generated log of `assets/canvas-demo.mjs`, fakes in the page every read that
   would otherwise come from the machine it runs on (quota, usage, accounts,
   Local network), refuses a picture that shows a real path, name, address or
-  e-mail, and writes the 3200x1800 PNG. Anyone can take it; nothing of yours is
+  e-mail, and writes the 3840x2160 PNG. Anyone can take it; nothing of yours is
   in it. `--serve` hands the same deck and page script to a browser you drive
   yourself; the header of `assets/capture-hero.mjs` says how.
 

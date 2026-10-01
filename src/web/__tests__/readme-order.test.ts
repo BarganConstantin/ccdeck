@@ -318,9 +318,12 @@ describe("the hero image", () => {
 
   it("is reachable at full size, because GitHub renders it at about half scale", () => {
     // The old shot was 1917 logical px in a ~890px column and its labels were a
-    // smear. The replacement is framed at 1600 and shot at 2x, so the same
-    // column shows the same content about 20% larger; the link stays for the
-    // reader who wants the pixels.
+    // smear. Its replacement was framed at 1600 and shot at 2x for that reason;
+    // the shot that replaced THAT is framed at 1920 again, because it is the
+    // narrowest 16:9 window in which the deck's own fit, with both side panels
+    // open, still draws every card in full with its tool calls beside it
+    // (assets/capture-hero.mjs says why). It is shot at 2x, and the link stays
+    // for the reader who wants the pixels.
     expect(readme).toContain(`[![`);
     expect(readme).toContain(`](${embedded[0]})](${embedded[0]})`);
   });
@@ -464,6 +467,18 @@ describe("the hero image", () => {
     expect(src).not.toMatch(/new WheelEvent|Input\.dispatchMouseEvent|Input\.dispatchKeyEvent/);
     expect(src).toContain('document.querySelector(".autofit-chip")');
     expect(src).toContain('press("Re-arrange the canvas")');
+  });
+
+  it("refuses a picture whose canvas has dropped to compact cards", () => {
+    // The README's first promise is every tool call as it runs. Below a zoom
+    // of 0.655 the deck draws compact cards and no tool-call bubbles, which is
+    // what its own fit does with both side panels open in a 1600x900 window:
+    // the shot taken that way was honest and showed none of them. So anything
+    // but full cards is refused, and a board that outgrows the window fails
+    // here, by name, instead of shipping quietly smaller.
+    const src = read("assets", "capture-hero.mjs");
+    expect(src).toContain('if (lod !== "detail") problems.push(');
+    expect(src).toContain('process.env.VIEWPORT ?? "1920x1080"');
   });
 });
 

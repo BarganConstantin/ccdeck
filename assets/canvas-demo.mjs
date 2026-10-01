@@ -24,7 +24,7 @@
 //   node bin/deck.js --port <port> --no-open --workspace <workspace-dir> --history <events-file>
 //
 // and a deck started that way on your own machine shows your own accounts:
-// shoot it at 1600x900, deviceScaleFactor 2, after the fit-view control and
+// shoot it at 1920x1080, deviceScaleFactor 2, after the fit-view control and
 // with the accounts panel CLOSED unless its roster is faked — it lists real
 // e-mail addresses. capture-hero.mjs refuses to save a picture that shows one.
 //
