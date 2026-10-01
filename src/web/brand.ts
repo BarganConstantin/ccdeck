@@ -18,3 +18,8 @@
 
 /** What the deck calls itself on every surface a user reads. */
 export const PRODUCT = "ccdeck";
+
+/** The brand kit's small mark, its master for 16–24px, which the topbar draws
+ *  at 16. Served from src/web/public/brand/, copied there unchanged; see
+ *  assets/brand/README.md for which kit file serves which slot. */
+export const MARK_SMALL_SRC = "/brand/ccdeck-mark-gradient-small-optical.svg";

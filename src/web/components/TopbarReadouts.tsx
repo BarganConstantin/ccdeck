@@ -10,7 +10,7 @@
 // the markup already used.
 import type { MutableRefObject } from "react";
 import type { BlockedSession } from "../ambient-counts";
-import { PRODUCT } from "../brand";
+import { MARK_SMALL_SRC, PRODUCT } from "../brand";
 import { fmtMonthlyCost } from "../monthly-usage";
 import { shortAgo } from "../relative-time";
 import { statusPill } from "../status-pill";
@@ -243,7 +243,8 @@ export function ReadoutGroup({
        width, so on the left it is an anchor instead. */
     <div className="readout">
       <div className="brand">
-        <span className="logo" />
+        {/* The kit's small mark, decorative: the <h1> beside it is the name. */}
+        <img className="logo" src={MARK_SMALL_SRC} width={16} height={16} alt="" />
         {/* The page's <h1>, and the wordmark that was already here rather
             than a second copy of it hidden off screen (#381). The document
             had no h1 at all, so its heading outline began at h3 and every

@@ -33,7 +33,7 @@
    a centred group's x-position is a function of both its neighbours' widths, so
    the `live` pill would slide sideways every time the token count or the cost
    gained a digit — and the one light on this bar that has to be noticed cannot
-   be the one that moves. On the left, everything ahead of it (a 14px logo, a
+   be the one that moves. On the left, everything ahead of it (a 16px logo, a
    wordmark of a fixed string, a version chip that grows by at most a warning
    dot) has bounded width, which makes the pill an anchor. */
 .topbar .readout {
@@ -78,17 +78,15 @@
   font: inherit;
   margin: 0;
 }
-/* The favicon's ring, in the deck's one accent (#867). This was a cyan-pink-
-   green conic gradient in a rounded square with a 12px cyan halo, the only
-   permanent decorative glow in a sheet that keeps glow for state. The tab and
-   the page now carry one mark; the tab's copy is the one that fills in when
-   the deck wants you, so this one stays still. */
+/* The brand kit's small mark, drawn by its own file (MARK_SMALL_SRC in
+   brand.ts). The sheet only sizes it: 16px is the bottom of the kit's 16–24px
+   band for this master, and the colours, gradient included, live in the
+   artwork, never here. It replaced a CSS ring (#867), itself the successor of
+   a conic gradient with a halo. */
 .topbar .brand .logo {
   flex: none;
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  background: none;
+  display: block;
+  width: 16px; height: 16px;
 }
 .topbar .brand .v {
   color: var(--muted);
