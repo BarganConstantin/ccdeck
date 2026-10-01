@@ -1,0 +1,18 @@
+{
+  "kit": "1.0.0",
+  "files": [
+    {"from":"05-web/favicon.svg","to":["src/web/public/favicon.svg","assets/brand/favicon.svg"],"sha256":"33bea694f985bb0a60e3532b5847d3d193d59aa41ad413c99c0ba1c186eec39f"},
+    {"from":"05-web/favicon.ico","to":["src/web/public/favicon.ico"],"sha256":"8506f3efca28e929f769d87e2e4f62e3fb124f8616b203f914734de7fa2213bf"},
+    {"from":"05-web/apple-touch-icon.png","to":["src/web/public/apple-touch-icon.png"],"sha256":"b1fc33d12d9db111e24d661c585894570f28837ffc1e45b8ac23722ac85c01ee"},
+    {"from":"05-web/icon-192.png","to":["src/web/public/icon-192.png"],"sha256":"c9e4377af2abac200b19b7a5e6e75cdb2798c03324956ebb122a28e9ea7d702b"},
+    {"from":"05-web/icon-512.png","to":["src/web/public/icon-512.png"],"sha256":"d267c2f01297b8293dc8184e892a6741f1a21655e7382e63dd5d1ad7ea51c335"},
+    {"from":"05-web/icon-maskable-512.png","to":["src/web/public/icon-maskable-512.png"],"sha256":"5d2dd39dd00457314cb1c279d88fc67521f9a0b93c14eb56e54af1fb4c4fb565"},
+    {"from":"01-brand-mark/svg/ccdeck-mark-gradient-small-optical.svg","to":["src/web/public/brand/ccdeck-mark-gradient-small-optical.svg"],"sha256":"443cecf71f4a8e9d4e843127b111a89aac6463eeab38ec66a3a0aabc002d161d"},
+    {"from":"02-wordmark/svg/ccdeck-horizontal-on-dark.svg","to":["assets/brand/ccdeck-horizontal-on-dark.svg"],"sha256":"d342f2e86b0ac0843483f601978d0bcee77068bab6ea3aa25a055e6ed05b0cf3"},
+    {"from":"02-wordmark/svg/ccdeck-horizontal-on-light.svg","to":["assets/brand/ccdeck-horizontal-on-light.svg"],"sha256":"68ff3bf9759519e4f34dafbb5d5a31725c376b948d772c89de3e78ea20cfa773"},
+    {"from":"04-tray-menu/generic/svg/ccdeck-tray-waiting.svg","to":["assets/brand/ccdeck-tray-waiting.svg"],"sha256":"3ed72a6152ea02a8b54019cd90cc59aaa88fe1f6e139d852b0757a06026de561"},
+    {"from":"04-tray-menu/generic/svg/ccdeck-tray-syncing.svg","to":["assets/brand/ccdeck-tray-syncing.svg"],"sha256":"e785e25bccb4d80bb5a4296e84646a3ab7cdeac70664cec026e576fb60a88a10"},
+    {"from":"04-tray-menu/generic/svg/ccdeck-tray-error.svg","to":["assets/brand/ccdeck-tray-error.svg"],"sha256":"ab10eef9a5d27ffa8b9bbf2b330dca3bf9532905619cb67610304f2f33ae872f"},
+    {"from":"06-tokens/brand-tokens.json","to":["assets/brand/brand-tokens.json"],"sha256":"57233bacd9c752e5a73abe039a485ed87a5bec852222aa14c17bb46717e22ff2"}
+  ]
+}

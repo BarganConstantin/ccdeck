@@ -1,8 +1,8 @@
-# CCDeck agent instructions
+# ccdeck agent instructions
 
 ## Product release notes
 
-When preparing release notes for CCDeck, write them as concise product communication for the person using the app.
+When preparing release notes for ccdeck, write them as concise product communication for the person using the app.
 
 - Start from the actual release diff, merged issues, and user-visible behavior. Ask: **what would a user notice?**
 - Select only the meaningful changes. Do not turn the notes into a commit log, issue list, PR dump, or implementation summary.
@@ -15,7 +15,7 @@ When preparing release notes for CCDeck, write them as concise product communica
 For larger releases, prefer this shape when the content supports it:
 
 ```md
-### CCDeck X.Y.Z
+### ccdeck X.Y.Z
 
 **What’s new**
 
@@ -39,3 +39,13 @@ Improved reliability and security across the local server and desktop app.
 Small releases do not need every heading. Two or three clear lines are better than empty sections.
 
 `release-notes.json` is the source of truth for release-note data, version handling, formatting constraints, and the `//nothing-to-say` convention. Follow its embedded authoring rules exactly when editing that file.
+
+## Brand
+
+Every logo, icon and brand colour in this repo is a file copied unchanged from the ccdeck brand kit. `assets/brand/README.md` says which file serves which slot, how a new kit is copied in (`node assets/brand/kit.mjs <kit-dir>`), what has to be regenerated afterwards, and the kit defects worked around; `assets/brand/kit.json` records the kit version and every copy. The desktop app's files are documented in `desktop/brand/README.md`.
+
+- Never recreate the logo: no CSS, canvas, hand-written SVG, emoji or text redraw of it.
+- No other gradients: the purple to cyan lives only inside the kit's artwork.
+- One kit file per context; never shrink the app icon for the tray, and use the `*-small-optical` master from 16 to 24px.
+- Status is an overlay on an unchanged mark, never a recolouring.
+- The name is `ccdeck`, lowercase, in text and alt text; never copy the kit's own text files, which spell it otherwise.
