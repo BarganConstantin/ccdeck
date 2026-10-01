@@ -569,8 +569,9 @@ export function createReporter({
 //
 // Kept here rather than in the modules they read, so reports.mjs stays the one
 // place that decides what leaves — and reached by lazy import, so the reporter's
-// own module graph does not pull the session tracker, the enrichment cache or
-// the CLI probe into a fast path like `--version` that imports it for nothing.
+// own module graph does not pull the CLI probe into a fast path like
+// `--version` that imports it for nothing. The day's usage tally is imported
+// directly: usage-day.mjs imports nothing.
 
 // The CLI versions, detected once in the background, off the boot path. The
 // first send starts the probe (past boot, and not while the machine has vetoed
