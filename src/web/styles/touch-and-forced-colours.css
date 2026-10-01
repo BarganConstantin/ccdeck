@@ -101,6 +101,11 @@
   .react-flow__controls-button[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"]:hover,
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The feedback dialog's chosen kind is the same chip, raised by a fill and
+     an edge the theme would repaint like its neighbours'. On a line of its
+     own because its selector carries `:has()`, and one selector a browser
+     cannot parse voids the whole list it sits in. */
+  .fb-kind:has(input:checked) { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   /* The usage panel's period strip is the same chip with no fill of its own:
      it hands the adjustment back, so its word is the theme's text like its
      neighbours', and the mark under the word takes the highlight. */

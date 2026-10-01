@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
 import AccountProjectsModal from "./AccountProjectsModal";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
-import type { FeedbackPrefill } from "./FeedbackDialog";
+import type { FeedbackPrefill } from "../feedback";
 import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
