@@ -13,6 +13,7 @@
 // with no DOM — nothing in this file touches `document`, and the caller owns
 // every write.
 import { PRODUCT } from "./brand";
+import { KIT_FAVICON_SVG, KIT_STATUS_COLOUR, KIT_TRAY_SVG, type KitStatus } from "./brand-kit";
 
 /** Which of the four states the tab's mark should be wearing. */
 export type AmbientIcon = "offline" | "waiting" | "running" | "idle";
@@ -80,15 +81,15 @@ export function ambientSignal(
 // the mark itself: a grey ring at rest, a blue ring around a dot while
 // running, a solid amber disc while waiting, a red ring with a bite out of it
 // offline (#338, #719). The kit's rule is that status is an overlay on an
-// unchanged mark, never a recolouring or a reshaping of it, so the drawing
-// here is now nothing of this repo's own:
+// unchanged mark, never a recolouring or a reshaping of it, so nothing here is
+// drawn any more (brand-kit.ts holds the files):
 //
-//   - the mark is 05-web/favicon.svg, byte for byte — the file index.html
-//     links, at rest unchanged;
-//   - each state adds the overlay glyph the kit draws for it on the tray
-//     (04-tray-menu/generic/svg/ccdeck-tray-<state>.svg), copied element for
-//     element, in the mark's own frame, so it lands where the kit puts it;
-//   - in the kit's status colour for that state (06-tokens).
+//   - the mark is the kit's favicon, byte for byte — the file index.html
+//     links, worn unchanged at rest;
+//   - each other state adds the overlay the kit's tray master draws for it,
+//     element for element, in the favicon's own frame for the mark, so it
+//     lands where the tray puts it beside the mark;
+//   - in the kit's status colour for that state, through `currentColor`.
 //
 // Owner decision, same day: idle → the kit's default (no overlay), waiting →
 // waiting, running → syncing, offline → error. The kit's paused is unused.
@@ -102,47 +103,28 @@ export function ambientSignal(
 // The overlays sit inside the favicon's own dark tile, never on the tab strip,
 // so their contrast is against the tile; ambient-signal.test.ts measures it.
 
-/** 05-web/favicon.svg as the kit ships it; ambient-signal.test.ts holds the two equal. */
-const KIT_FAVICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-      <rect x="2" y="2" width="96" height="96" rx="20" fill="#0B0F14"/>
-      <g transform="translate(8 8) scale(.84)"><defs>
-          <linearGradient id="gp" x1="16" y1="14" x2="67" y2="67" gradientUnits="userSpaceOnUse"><stop stop-color="#A78BFA"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient>
-          <linearGradient id="gc" x1="38" y1="35" x2="86" y2="86" gradientUnits="userSpaceOnUse"><stop stop-color="#67E8F9"/><stop offset="1" stop-color="#22D3EE"/></linearGradient>
-          <linearGradient id="gn" x1="44" y1="44" x2="57" y2="57" gradientUnits="userSpaceOnUse"><stop stop-color="#6366F1"/><stop offset="1" stop-color="#3B82F6"/></linearGradient>
-        </defs><path d="M57.68 22.32 A25 25 0 1 0 57.68 57.68" fill="none" stroke="url(#gp)" stroke-width="18.2" stroke-linecap="round"/>
-      <path d="M42.32 77.68 A25 25 0 1 0 42.32 42.32" fill="none" stroke="url(#gc)" stroke-width="18.2" stroke-linecap="round"/><circle cx="50" cy="50" r="7.5" fill="url(#gn)"/></g>
-    </svg>`;
-
-/** The kit's tray state each tab state wears. */
-type KitState = "waiting" | "syncing" | "error";
-const KIT_STATE: Readonly<Record<Exclude<AmbientIcon, "idle">, KitState>> = {
+/** The tray state each tab state wears; idle wears none. */
+const KIT_STATE: Readonly<Record<Exclude<AmbientIcon, "idle">, KitStatus>> = {
   waiting: "waiting",
   running: "syncing",
   offline: "error",
 };
 
-/** The elements ccdeck-tray-<state>.svg draws after its masked mark, unchanged. */
-const KIT_OVERLAY: Readonly<Record<KitState, string>> = {
-  waiting: `<circle cx="81" cy="19" r="8.7" fill="currentColor"/>`,
-  syncing: `<path d="M72 17a13 13 0 0 1 20 9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="m90 18 4 9-10-2" fill="currentColor"/>`,
-  error: `<circle cx="81" cy="19" r="9" fill="none" stroke="currentColor" stroke-width="5"/><path d="M81 14.5v7M81 25.2v.4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>`,
-};
+/** What a tray master draws after its masked mark: the state's overlay, unchanged. */
+function trayOverlay(tray: string): string {
+  const markEnd = tray.indexOf("</g>", tray.indexOf("<g mask="));
+  return markEnd < 0 ? "" : tray.slice(markEnd + "</g>".length, tray.lastIndexOf("</svg>"));
+}
 
-/** 06-tokens/brand-tokens.css: --ccdeck-waiting, --ccdeck-syncing, --ccdeck-error. */
-const KIT_STATUS_COLOUR: Readonly<Record<KitState, string>> = {
-  waiting: "#F97316",
-  syncing: "#3B82F6",
-  error: "#EF4444",
-};
+/** The transform the favicon draws its mark in, which the tray's overlay coordinates assume. */
+const MARK_FRAME = /<g transform="([^"]+)">/.exec(KIT_FAVICON_SVG)?.[1];
 
-/** The frame the kit's favicon draws its mark in, which the tray's overlay coordinates assume. */
-const MARK_FRAME = /<g transform="([^"]+)">/.exec(KIT_FAVICON)![1];
-
-/** The favicon with one state's overlay added after the mark, through `currentColor`. */
-function withOverlay(state: KitState): string {
-  const overlay = `<g transform="${MARK_FRAME}" color="${KIT_STATUS_COLOUR[state]}">${KIT_OVERLAY[state]}</g>`;
-  const end = KIT_FAVICON.lastIndexOf("</svg>");
-  return KIT_FAVICON.slice(0, end) + overlay + KIT_FAVICON.slice(end);
+/** The favicon with one state's overlay added after the mark. */
+function withOverlay(state: KitStatus): string {
+  const frame = MARK_FRAME ? ` transform="${MARK_FRAME}"` : "";
+  const overlay = `<g${frame} color="${KIT_STATUS_COLOUR[state]}">${trayOverlay(KIT_TRAY_SVG[state])}</g>`;
+  const end = KIT_FAVICON_SVG.lastIndexOf("</svg>");
+  return KIT_FAVICON_SVG.slice(0, end) + overlay + KIT_FAVICON_SVG.slice(end);
 }
 
 /**
@@ -154,7 +136,7 @@ function withOverlay(state: KitState): string {
  * business re-encoding a string it could have had for free.
  *
  * `encodeURIComponent` rather than escaping by hand: `#` inside a URI is the
- * FRAGMENT delimiter, so an unencoded `#F97316` ends the data URI mid-attribute
+ * FRAGMENT delimiter, so an unencoded hex colour ends the data URI mid-attribute
  * and the browser silently keeps whichever icon it already had.
  *
  * And no animation, ever — not here and not in the caller. A pulsing favicon

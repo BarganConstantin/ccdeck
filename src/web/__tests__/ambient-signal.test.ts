@@ -203,8 +203,8 @@ const KIT_STATE: Record<AmbientIcon, KitState | null> = {
   offline: "error",
 };
 
-/** 06-tokens/brand-tokens.css: --ccdeck-waiting, --ccdeck-syncing, --ccdeck-error. */
-const KIT_COLOUR: Record<KitState, string> = { waiting: "#F97316", syncing: "#3B82F6", error: "#EF4444" };
+/** The kit's status colours, from its tokens as vendored (06-tokens/brand-tokens.json). */
+const KIT_COLOUR: Record<KitState, string> = JSON.parse(read("../../../assets/brand/brand-tokens.json")).status;
 
 /** What a kit tray master draws after its masked mark: the state's overlay
  *  alone, read off the copy vendored under assets/brand/. */
@@ -286,7 +286,9 @@ describe("the favicon", () => {
     // Copied, not drawn: an edited glyph fails here, and so does a mapping
     // that put the error overlay on running.
     for (const [icon, state] of OVERLAID) {
-      expect(overlayOf(icon)!.glyphs, `${icon} is not the kit's ${state} overlay`).toBe(trayOverlay(state));
+      const glyphs = overlayOf(icon)!.glyphs;
+      expect(glyphs, `${icon} wears no overlay at all`).toMatch(/currentColor/);
+      expect(glyphs, `${icon} is not the kit's ${state} overlay`).toBe(trayOverlay(state));
     }
   });
 
@@ -304,7 +306,7 @@ describe("the favicon", () => {
     // glyphs name no colour of their own, the group names the token's.
     for (const [icon, state] of OVERLAID) {
       const overlay = overlayOf(icon)!;
-      expect(overlay.colour.toUpperCase(), `${icon} is not in --ccdeck-${state}`).toBe(KIT_COLOUR[state]);
+      expect(overlay.colour.toLowerCase(), `${icon} is not the kit's ${state} colour`).toBe(KIT_COLOUR[state].toLowerCase());
       expect(overlay.glyphs, `${icon}'s glyphs carry a colour of their own`).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     }
   });
@@ -353,8 +355,8 @@ describe("the favicon", () => {
 
   it("reads against that tile, which is what it is drawn on", () => {
     // 1.4.11's 3:1 for a graphic that identifies a state, measured on its real
-    // ground. The kit's orange would be 2.80:1 on a raw white strip; it is
-    // never drawn on one.
+    // ground. With the kit's 1.0 colours the waiting orange would be 2.80:1 on
+    // a raw white strip; it is never drawn on one.
     const ground = /<rect [^>]*fill="(#[0-9a-f]{6})"/i.exec(KIT_FAVICON)![1];
     for (const [icon, state] of OVERLAID) {
       const colour = overlayOf(icon)!.colour;
