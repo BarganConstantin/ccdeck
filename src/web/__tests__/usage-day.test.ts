@@ -127,10 +127,11 @@ describe("what survives a restart", () => {
 });
 
 describe("what counts as use", () => {
-  it("is a live hook, never a replayed line or the deck's own synthetic events", () => {
+  it("is a live Claude hook or a live Codex rollout line, never a replay or the deck's own events", () => {
     // The pipeline is a module graph too heavy to stand up for one branch, so
-    // this pins where the two calls sit: inside the live-hook gate, and the
-    // project beside the transcript path the gate already accepted as Claude's.
+    // this pins where the calls sit: inside the live-hook gate, the project
+    // beside the transcript path the gate already accepted as Claude's, and
+    // the Codex watcher's own live branch — Codex has no hooks (3.36.6 missed it).
     const src = readFileSync(new URL("../../server/event-pipeline.mjs", import.meta.url), "utf8");
     const gate = src.indexOf('if (source === "hook" && !opts.replay) {');
     expect(gate).toBeGreaterThan(0);
@@ -140,6 +141,46 @@ describe("what counts as use", () => {
     expect(use).toBeGreaterThan(gate);
     expect(project).toBeGreaterThan(accepted);
     expect(src.indexOf("noteRefusedTranscript(raw.transcript_path)")).toBeGreaterThan(project);
-    expect(src.match(/usageDay\.note/g)?.length).toBe(2);
+    const codex = src.indexOf('} else if (source === "codex" && !opts.replay) {');
+    expect(codex).toBeGreaterThan(project);
+    expect(src.indexOf("usageDay.noteUse(raw);", codex)).toBeGreaterThan(codex);
+    expect(src.indexOf("usageDay.noteFolder(raw?.cwd);", codex)).toBeGreaterThan(codex);
+    expect(src.match(/usageDay\.note/g)?.length).toBe(4);
+  });
+
+  it("counts a Codex session's working directory as its project", () => {
+    const { t, later } = tallyAt();
+    t.noteUse({ session_id: "c1", provider: "codex" });
+    t.noteFolder("/home/u/shop");
+    t.noteFolder("/home/u/shop");
+    t.noteFolder("/home/u/blog");
+    t.noteFolder(undefined);
+    later(24 * HOUR);
+    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 2 });
+  });
+});
+
+describe("the first use", () => {
+  it("is remembered once, with when it came and from which CLI", () => {
+    const { t, later } = tallyAt();
+    expect(t.firstUse()).toBeNull();
+    const heard: unknown[] = [];
+    t.onFirstUse((f: unknown) => heard.push(f));
+    t.noteUse({ session_id: "c1", provider: "codex" });
+    later(HOUR);
+    t.noteUse({ session_id: "s2" });
+    expect(t.firstUse()).toEqual({ at: "2026-09-30T10:00:00.000Z", provider: "codex" });
+    expect(heard).toEqual([{ at: "2026-09-30T10:00:00.000Z", provider: "codex" }]);
+    // A listener that arrives late hears it at once.
+    const late: unknown[] = [];
+    t.onFirstUse((f: unknown) => late.push(f));
+    expect(late.length).toBe(1);
+  });
+
+  it("is not something that was not a session", () => {
+    const { t } = tallyAt();
+    t.noteUse({});
+    t.noteFolder("/home/u/shop");
+    expect(t.firstUse()).toBeNull();
   });
 });
