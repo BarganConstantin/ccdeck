@@ -29,6 +29,7 @@ import { SortHead as ColumnSortHead, type SortOf } from "./SortHead";
 import MachineStrip from "./MachineStrip";
 import { fmtBytes } from "../byte-format";
 import type { LiveSource } from "../machine-live";
+import { useFeatureUse } from "../feature-use";
 
 /** `cpu` is null on a Windows first reading: a percentage needs two samples and
  *  there has only been one. Never a zero, which would rank it as idle. */
@@ -215,6 +216,8 @@ export default function ProcessListModal({ sys, onClose }: {
   sys: LiveSource;
   onClose: () => void;
 }) {
+  // Opened: one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("process-list");
   const dialogRef = useModalDismiss(onClose);
   const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
   const read = useProcesses();

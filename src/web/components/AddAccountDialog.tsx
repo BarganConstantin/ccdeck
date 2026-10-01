@@ -33,6 +33,7 @@ import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { type ImportResult, importRowKey, importSummary, outcomeWord, replaceImportRow } from "../share-bundle";
+import { useFeatureUse } from "../feature-use";
 
 /** Server-side login progress, polled while the dialog is open. */
 type LoginState = {
@@ -87,6 +88,8 @@ async function admin(body: Record<string, unknown>) {
 }
 
 export default function AddAccountDialog({ onClose, onChanged, email = null, onSignedIn }: Props) {
+  // Opened: one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("add-account");
   const [tab, setTab] = useState<TabId>("login");
   const [login, setLogin] = useState<LoginState | null>(null);
   const [code, setCode] = useState("");

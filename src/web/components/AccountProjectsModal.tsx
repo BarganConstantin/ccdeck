@@ -17,6 +17,7 @@ import { copyText } from "../copy-text";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { emptyWindowSentence, showsDayChart, widerWindow, windowPhrase } from "../account-projects-window";
+import { useFeatureUse } from "../feature-use";
 
 interface ProjectRow { path: string; name: string; models: Record<string, Counters> }
 interface DailyEntry {
@@ -100,6 +101,8 @@ function niceDate(ms: number | null): string {
 }
 
 export default function AccountProjectsModal({ num, name, onClose }: { num: number; name: string; onClose: () => void }) {
+  // Opened: one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("account-projects");
   const [days, setDays] = useState(1);
   // The two reads land on their own — see account-projects-load.ts (#1317).
   const [load, dispatch] = useReducer(projectsLoad<Report>, INITIAL_LOAD);

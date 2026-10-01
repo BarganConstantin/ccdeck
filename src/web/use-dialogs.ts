@@ -24,6 +24,7 @@ import { findToolOnBoard, type GraphState } from "./reducer";
 import type { ToolCall } from "./types";
 import { useModalGate } from "./use-modal-gate";
 import type { useWelcomeAndNotes } from "./use-welcome-and-notes";
+import { useFeatureUse } from "./feature-use";
 
 export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   stateRef: MutableRefObject<GraphState>;
@@ -67,6 +68,15 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // reads `openedTool != null` — so while the modal is open this runs on every
   // render, four times a second on an idle deck. What it must not do on that
   // tick is why the walk lives in the reducer; see findToolOnBoard.
+  // A dialog opened is one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("tool-detail", openedToolKey !== null);
+  useFeatureUse("session-summary", summaryFor !== null);
+  useFeatureUse("context-window", contextFor !== null);
+  useFeatureUse("keyboard-help", keyHelpOpen);
+  useFeatureUse("usage-history", usageHistoryOpen);
+  useFeatureUse("browser-watch", browserWatchOpen);
+  useFeatureUse("feedback", feedbackOpen);
+
   const openedTool: ToolCall | null =
     openedToolKey ? findToolOnBoard(stateRef.current.agents, openedToolKey.agentId, openedToolKey.toolId) : null;
   // The agent the context modal is about, while it is still on the board: once

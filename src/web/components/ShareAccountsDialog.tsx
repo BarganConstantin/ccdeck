@@ -21,6 +21,7 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { useFocusRescue } from "./use-focus-rescue";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { type NamedAccount, pickedAccounts, pickerRows, shareCountLine, shareExpiry, shareRequest, toggleUnpicked } from "../share-bundle";
+import { useFeatureUse } from "../feature-use";
 
 /** One account the bundle could not carry, and why. */
 interface Refused { num: string; email: string; detail?: string }
@@ -52,6 +53,8 @@ async function admin(body: Record<string, unknown>) {
 const COPIED_MS = 1800;
 
 export default function ShareAccountsDialog({ accounts, onClose, copyText }: Props) {
+  // Opened: one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("share-accounts");
   // What the user has taken OUT, not what they have left in.
   //
   // The picker opens with everything ticked, so "ticked" is the resting state

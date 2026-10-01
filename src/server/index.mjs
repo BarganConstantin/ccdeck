@@ -63,6 +63,8 @@ import { serveStatic } from "./static-serve.mjs";
 // transcript watch between hook events, and POST /api/forget. See
 // session-tracking.mjs.
 import { handleForget, startOutputWatch } from "./session-tracking.mjs";
+// Which features were used today, for the usage reports — see feature-use.mjs.
+import { handleFeature, noteRouteFeature } from "./feature-use.mjs";
 // Exported from this file before it moved, and still.
 export { HARD_TRACKED_SESSIONS } from "./session-tracking.mjs";
 // The desktop app's update as its window sees it — the state the app reports
@@ -285,6 +287,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       return send(res, 401, { error: "unauthenticated" });
     }
 
+    // A request that is somebody using a feature on purpose — switching an
+    // account, pairing a deck — counts as that feature used today. Past the
+    // gates above, so only the deck's own callers count. See feature-use.mjs.
+    noteRouteFeature(req.method, url.pathname);
+
     // `?persist=0` — another deck was elected to write this event to the log
     // the two of them share. Absent, this deck writes it.
     if (req.method === "POST" && url.pathname === "/api/event") return guard(handleEventIngest(req, res, url.searchParams.get("persist") !== "0"), res);
@@ -386,6 +393,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // sentence as `__clear`, about part of the board rather than all of it.
     // Above the 404 below, which is what every real route has to be.
     if (req.method === "POST" && url.pathname === "/api/forget") return guard(handleForget(req, res), res);
+
+    // POST /api/feature — the page saying it showed a panel or opened a dialog,
+    // once per name per day. A name, never what was in it. See feature-use.mjs.
+    if (req.method === "POST" && url.pathname === "/api/feature") return guard(handleFeature(req, res), res);
 
     // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
     //

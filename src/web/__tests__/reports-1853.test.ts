@@ -229,6 +229,20 @@ describe("the coarse usage counts", () => {
     expect(bodyOf(h, "active")).toMatchObject({ usageDay: "2026-09-30", sessions: 2, subagents: 1, projects: 2 });
   });
 
+  it("say which features were used that day, by name only", async () => {
+    const h = harness();
+    useADay(h.tally);
+    h.tally.noteFeature("usage-history");
+    h.nextDay();
+    await h.reporter.checkIn();
+    expect(bodyOf(h, "active")?.features).toEqual(["usage-history", "claude-sessions"]);
+
+    // A day the deck ran and nothing was opened says so with an empty list.
+    h.nextDay();
+    await h.reporter.checkIn();
+    expect(bodyOf(h, "active")?.features).toEqual([]);
+  });
+
   it("ride on the 'active' report alone, never on install or update", async () => {
     const h = harness();
     useADay(h.tally);
