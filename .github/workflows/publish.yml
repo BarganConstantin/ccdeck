@@ -626,7 +626,7 @@ jobs:
         working-directory: desktop
         run: npm ci
 
-      - name: Draw icons, bundle the tray model, render the tones
+      - name: Copy the brand icons, bundle the tray model, render the tones
         working-directory: desktop
         run: npm run prepare-app
 

@@ -9,9 +9,13 @@
 // the deck would go on believing somebody was looking, and nothing would ever
 // be said (the choice made in #1160, decision 2).
 //
-// The tray icon is the favicon of a closed tab: the same four marks, the same
-// count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
-// dist/lib by vite.tray.config.mjs) over the same event stream.
+// The tray icon is the favicon of a closed tab: the same four states and the
+// same count, computed by the page's own reducer (src/web/tray-model.ts,
+// bundled to dist/lib by vite.tray.config.mjs) over the same event stream. Both
+// wear the brand kit's mark with the kit's overlay for the state, on one map
+// (idle → default, waiting → waiting, running → syncing, offline → error) —
+// the tray in each platform's own kit images, which scripts/icons.mjs copies
+// into dist/icons and tray-icon.mjs names.
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } from "electron";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -32,6 +36,7 @@ import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartH
 import { restartApp } from "./relaunch-linux.mjs";
 import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
 import { createOwnDeck, discoverPlan, stopChild } from "./own-deck.mjs";
+import { trayIconFile } from "./tray-icon.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -84,8 +89,7 @@ let asking = 0;                // questions from ask() on screen now
 
 // ── the tray ────────────────────────────────────────────────────────────────
 function trayImage(icon) {
-  const name = process.platform === "darwin" ? `tray-${icon}Template.png` : `tray-${icon}.png`;
-  return nativeImage.createFromPath(join(icons, name));
+  return nativeImage.createFromPath(join(icons, trayIconFile(process.platform, icon)));
 }
 
 /** The menu's template for the state the app is in now — see tray-menu.mjs,
