@@ -56,3 +56,40 @@ export function noCopyWorksNearby(
     .filter((o): o is NonNullable<typeof o> => o != null);
   return copies.length > 0 && copies.every(o => !o.alive);
 }
+
+/**
+ * Whether Local network is about to repair this dead login on its own (#1893).
+ *
+ * A round heals a quarantined account from a paired deck's live copy, and the
+ * person should not be asked to sign in while that is on its way. So this is
+ * true only when a repair can actually come: the network is on and running,
+ * this deck shares the account (a round takes only what is ticked here), and a
+ * paired deck that is online offers a live copy it can hand over — unless that
+ * deck's last round already tried to heal this account.
+ *
+ * TRIED AT ALL, NOT TRIED AND FAILED. A heal that took clears claude-swap's
+ * failure on the slot as it lands (its import lifts the dead-token quarantine),
+ * so a row still in an incident after one is a copy that died again — and
+ * waiting on that deck would wait as long as it stays online. A round's record
+ * names the account by address only, so one address under two organizations
+ * reads as tried for both: the prompt asks rather than waits, which is the side
+ * to be wrong on.
+ *
+ * Everything else is false, including a status not read yet, which the caller
+ * waits out rather than reading as "nothing coming".
+ */
+export function lanRepairExpected(
+  key: string,
+  email: string | null | undefined,
+  status: Pick<LanStatus, "enabled" | "running" | "shared" | "peers"> | null,
+  now: number,
+): boolean {
+  if (!status?.enabled || status.running === false || !(status.shared ?? []).includes(key)) return false;
+  const who = String(email ?? "").trim().toLowerCase();
+  return (status.peers ?? []).some(p => {
+    if (!p.paired || !isOnline(p, now)) return false;
+    const offer = p.offers?.accounts?.find(o => o.key === key);
+    if (!offer?.alive || offer.shareable === false) return false;
+    return !p.last?.done?.some(d => d.action === "heal" && String(d.email ?? "").trim().toLowerCase() === who);
+  });
+}

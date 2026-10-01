@@ -55,7 +55,10 @@ export async function handlePrefsWrite(req, res) {
   // The reports switch has consequences a plain write would skip — a deletion
   // asked for — so it is changed only through /api/reports, and its state never
   // by the page at all (#1853).
-  const { reports: _reports, report: _report, ...patch } = body;
+  // Which accounts the deck signed in is the deck's to record, on a sign-in it
+  // ran itself (#1893); a page that could write it could give any account a
+  // provenance it never had.
+  const { reports: _reports, report: _report, accounts: _accounts, ...patch } = body;
   try {
     await heldPrefs.write(patch);
   } catch (err) {

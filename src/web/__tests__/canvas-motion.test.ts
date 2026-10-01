@@ -392,16 +392,16 @@ const PRESSES: Press[] = [
   // labelled control by its name under it, so the same 0.97.
   [".ap-lan-map:active", "0.97", "transform"],
   [".nm-node:active", "0.97", "transform"],
-  // The feedback dialog's three kinds (#1853): a <label> the size of a card
-  // round its radio, the import card's shape, and pressed as that card is —
-  // a labelled control, so 0.97.
+  // The feedback dialog's three kinds (#1853): a word in a segmented track,
+  // a <label> round its radio — a labelled control, so 0.97.
   [".fb-kind:active", "0.97", "transform"],
-  // And the starters over its message: a few words in a pill, a labelled
-  // control, so 0.97.
-  [".fb-starter:active", "0.97", "transform"],
-  // And the way to add a screenshot to it, a glyph and its words: a labelled
-  // control, so 0.97. Each image's remove is a .glyph-btn and presses as one.
-  [".fb-attach:active", "0.97", "transform"],
+  // And the two quiet buttons under its message, Add screenshot and Add
+  // details: a glyph or a chevron and their words, labelled controls, so 0.97.
+  [".fb-tool:active", "0.97", "transform"],
+  // And each screenshot's thumbnail, which is the button that replaces it: a
+  // picture named by its label, pressed as the labelled controls are. Each
+  // image's remove is a .glyph-btn and presses as one.
+  [".fb-shot-pick:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

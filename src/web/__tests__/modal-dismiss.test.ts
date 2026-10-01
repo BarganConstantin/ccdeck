@@ -170,6 +170,9 @@ describe("the modals themselves", () => {
   it("wires every backdrop in the app to the shared hook", () => {
     const withBackdrop = sources.filter(([, src]) => /className="[a-z-]*backdrop"/.test(src));
     expect(withBackdrop.map(([name]) => name).sort()).toEqual([
+      // The re-sign-in prompt for an account the deck signed in (#1893),
+      // arriving on its own like the pairing request below.
+      "AccountAttentionModal.tsx",
       // The account-projects report, opened from an account's ⋯ row.
       "AccountProjectsModal.tsx",
       // The Usage report, opened from the accounts panel's header (#1707).

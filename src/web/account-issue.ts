@@ -214,8 +214,11 @@ export function accountIssue(
  *  claude-swap keeps is dead, and the deck re-captures it by itself — so
  *  telling them to sign in again, on every deck, is the false alarm #721
  *  removed. And never on the collector's verdict alone: a row whose issue is
- *  a rate limit is about the rate limit, whatever the verdict beside it. */
-function deadLogin(a: IssueSource): boolean {
+ *  a rate limit is about the rate limit, whatever the verdict beside it.
+ *
+ *  Exported for reauth-prompt-1893.test.ts, which holds the server's copy of
+ *  this rule — needsSignIn in account-origins.mjs — to it. */
+export function deadLogin(a: IssueSource): boolean {
   if (a.staleCopy) return false;
   if (a.stopped) return a.collector === "relogin_required";
   return a.error === "invalid_grant" || a.error === "no_refresh_token";

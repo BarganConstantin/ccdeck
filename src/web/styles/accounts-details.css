@@ -92,9 +92,9 @@
      rotation is the motion this block exists for — `transform: none` reaches
      both, because both are transforms on elements this list names. */
   .up-disclose:active,
-  /* The feedback dialog's three kinds (#1853), cards the size of a label, the
-     starters over its message, and the way to add a screenshot to it. */
-  .fb-kind:active, .fb-starter:active, .fb-attach:active,
+  /* The feedback dialog's three kinds (#1853), the two quiet buttons under its
+     message, and each screenshot's thumbnail, which replaces it. */
+  .fb-kind:active, .fb-tool:active, .fb-shot-pick:active,
   .bw-help:active,
   .bw-settings select:active:not(:disabled) { transform: none; }
   /* Two that cannot join the list above, for two different reasons.
