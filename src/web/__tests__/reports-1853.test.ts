@@ -60,13 +60,14 @@ function harness({
   const tally = createUsageDay({ now: () => clock });
   const reporterWith = (over: {
     env?: Record<string, string>; version?: string;
-    usage?: unknown; versions?: () => unknown;
+    usage?: unknown; versions?: () => unknown; setup?: () => unknown;
     facts?: Record<string, unknown>; ready?: Promise<unknown>;
   } = {}) => createReporter({
     fetchImpl, now: () => clock, prefs: store, env: over.env ?? env,
     facts: { ...facts, version: over.version ?? version, ...(over.facts ?? {}) }, home: "/home/alice",
     ...(over.ready ? { ready: over.ready } : {}),
     usage: over.usage ?? tally,
+    ...(over.setup ? { setup: over.setup } : {}),
     ...(over.versions ? { versions: over.versions } : {}),
   });
   return {
@@ -351,6 +352,108 @@ describe("the coarse usage counts", () => {
   });
 });
 
+describe("activation: did a new install work", () => {
+  const events = (h: ReturnType<typeof harness>, kind: string) =>
+    h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).filter(b => b?.kind === kind);
+  const SETUP = () => ({ claudeHooks: "ok", codexWatch: "off" });
+
+  it("says what the boot set up on install, update and active — never on a ping or an error", async () => {
+    const h = harness();
+    const rep = h.reporterWith({ setup: SETUP });
+    await rep.checkIn();
+    for (const kind of ["install", "active"]) {
+      expect(events(h, kind)[0]).toMatchObject({ claudeHooks: "ok", codexWatch: "off" });
+    }
+    await h.reporterWith({ setup: SETUP, version: "3.33.0" }).checkIn();
+    expect(events(h, "update")[0]).toMatchObject({ claudeHooks: "ok" });
+
+    await rep.ping();
+    await rep.reportError("server", new Error("boom"));
+    for (const c of h.calls.filter(c => !c.url.endsWith("/v1/app/events"))) {
+      expect(c.body).not.toHaveProperty("claudeHooks");
+      expect(c.body).not.toHaveProperty("codexWatch");
+    }
+  });
+
+  it("sends only the tokens it knows, and nothing while the boot has not said", async () => {
+    const h = harness();
+    await h.reporterWith({ setup: () => ({ claudeHooks: "maybe", codexWatch: "on" }) }).checkIn();
+    expect(events(h, "install")[0]).not.toHaveProperty("claudeHooks");
+    expect(events(h, "install")[0]).toMatchObject({ codexWatch: "on" });
+    const quiet = harness();
+    await quiet.reporterWith({ setup: () => { throw new Error("no"); } }).checkIn();
+    expect(events(quiet, "install")[0]).not.toHaveProperty("codexWatch");
+  });
+
+  it("says a new install's first session once, with how long after the install it came", async () => {
+    const h = harness();
+    const rep = h.reporterWith({ setup: SETUP });
+    await rep.checkIn();
+    expect(events(h, "activated")).toEqual([]);   // installed, nothing used yet
+
+    h.later(3 * 60 * 1000);
+    h.tally.noteUse({ session_id: "s1" });
+    await rep.sendActivation();
+    await rep.sendActivation();
+    await rep.checkIn();
+
+    const sent = events(h, "activated");
+    expect(sent.length).toBe(1);
+    expect(sent[0]).toMatchObject({ firstSession: "5m", firstProvider: "claude", claudeHooks: "ok", version: "3.32.2" });
+    // A bucket leaves, never the times: those stay in prefs.json.
+    expect(JSON.stringify(sent[0])).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(h.prefs().report.installedAt).toMatch(/^2026-09-30T10:00/);
+    expect(h.prefs().report.firstSessionAt).toMatch(/^2026-09-30T10:03/);
+  });
+
+  it("buckets a slow start, and names a Codex one", async () => {
+    const h = harness();
+    const rep = h.reporterWith();
+    await rep.checkIn();
+    h.later(3 * HOUR);
+    h.tally.noteUse({ session_id: "c1", provider: "codex" });
+    await rep.sendActivation();
+    expect(events(h, "activated")[0]).toMatchObject({ firstSession: "1d", firstProvider: "codex" });
+  });
+
+  it("dates a session that came before the first check-in had an id when it happened", async () => {
+    const h = harness();
+    h.tally.noteUse({ session_id: "s1" });
+    h.later(20 * 60 * 1000);   // the first check-in is late: offline at launch
+    await h.reporter.checkIn();
+    expect(events(h, "activated")[0]).toMatchObject({ firstSession: "5m" });
+  });
+
+  it("tries again at the next check-in when the API cannot be reached", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    h.tally.noteUse({ session_id: "s1" });
+    h.goOffline();
+    await h.reporter.sendActivation();
+    expect(h.prefs().report.activationSent).toBe(false);
+    h.goOnline();
+    await h.reporter.checkIn();
+    expect(h.prefs().report.activationSent).toBe(true);
+    expect(events(h, "activated").length).toBe(2);   // the failed try, then the one that landed
+  });
+
+  it("never measures an install from before it was tracked: its first session was long ago", async () => {
+    const h = harness({ saved: { reports: true, report: { installId: "id-old", lastVersion: "3.32.2", lastActiveDay: "2026-09-29" } } });
+    h.tally.noteUse({ session_id: "s1" });
+    await h.reporter.checkIn();
+    await h.reporter.sendActivation();
+    expect(events(h, "activated")).toEqual([]);
+  });
+
+  it("sends nothing with reports off", async () => {
+    const h = harness({ saved: { reports: false } });
+    h.tally.noteUse({ session_id: "s1" });
+    await h.reporter.checkIn();
+    await h.reporter.sendActivation();
+    expect(events(h, "activated")).toEqual([]);
+  });
+});
+
 describe("the CLI versions", () => {
   const bodyOf = (h: ReturnType<typeof harness>, kind: string) =>
     h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).find(b => b?.kind === kind);
@@ -494,7 +597,10 @@ describe("switching it off", () => {
     await h.reporter.setReports(false);
 
     expect(h.prefs().reports).toBe(false);
-    expect(h.prefs().report).toEqual({ installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null });
+    expect(h.prefs().report).toEqual({
+      installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
+      installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false,
+    });
     expect(h.calls.at(-1)).toMatchObject({ method: "DELETE", url: `https://api.ccdeck.dev/v1/app/installs/${installId}` });
   });
 
@@ -599,7 +705,10 @@ describe("the machine's veto", () => {
 
     await h.reporter.setReports(false);
     expect(h.calls).toEqual([]);
-    expect(h.prefs().report).toEqual({ installId: "", lastVersion: "", lastActiveDay: "", forget: installId, usage: null });
+    expect(h.prefs().report).toEqual({
+      installId: "", lastVersion: "", lastActiveDay: "", forget: installId, usage: null,
+      installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false,
+    });
 
     await h.reporterWith({ env: {} }).checkIn();
     expect(h.calls).toEqual([

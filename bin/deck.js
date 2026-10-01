@@ -199,6 +199,8 @@ const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftove
 // bin/cli/startup.js.
 const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
+// What this boot set up, for the usage reports — see activation.mjs.
+const { noteSetup } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
 
 // Resolved here rather than left as typed, for the reason the events log above
 // is: the discovery file publishes this path, and the hook that reads it runs in
@@ -396,11 +398,14 @@ const starting = startServer({
 // the one the session started on — see respawnHooks.
 if (!RESPAWN) {
   const jobs = startupWork({ wantClaude, installHooks, leftoverCodexHooks });
+  noteSetup({ claude: jobs.hooks, codex: wantCodex });
   jobs.cswapQuiet.then(settleCswap);
   await printBanner();
   await reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR });
 } else {
   settleCswap();
+  // The session's first boot installed the hooks; a respawn says the same.
+  noteSetup({ claude: wantClaude ? { ok: true } : null, codex: wantCodex });
   await respawnHooks({ wantClaude, installHooks, bootVersion: process.env.AGENTS_DECK_BOOT_VERSION });
 }
 
