@@ -90,6 +90,12 @@ const binaries = () =>
     .map((f) => f.path)
     .sort();
 
+/** The desktop app's images, as desktop/brand/README.md's file table lists them. */
+const desktopBrandImages = () =>
+  [...read("desktop", "brand", "README.md").matchAll(/^\| `([^`]+\.(?:png|ico))` \|/gm)]
+    .map((m) => `desktop/brand/${m[1]}`)
+    .sort();
+
 describe("what a clone has to download", () => {
   it("tracks no package tarball", () => {
     // The deletion, held. A `.tgz` in the tree is always a build artifact of
@@ -135,10 +141,16 @@ describe("the one sentence in .gitattributes a reader can check", () => {
     // have let the next accident in as long as it were a .png in the right
     // folder, and the whole subject of this file is the 890 KB one that got in
     // while nothing was looking.
+    //
+    // The desktop app's brand images are pinned whole as well, by the file
+    // table in desktop/brand/README.md: each one listed by path and SHA-256,
+    // checked file by file in desktop-brand-icons.test.ts. A binary under
+    // desktop/brand that the table does not name fails here.
     expect(binaries(), "the set of tracked binaries has changed, and .gitattributes still names the old one")
       .toEqual([
         "assets/canvas.png",
         "assets/social-preview.png",
+        ...desktopBrandImages(),
         "src/web/public/icon-192.png",
         "src/web/public/icon-512.png",
         "src/web/public/icon-maskable-512.png",
@@ -148,5 +160,7 @@ describe("the one sentence in .gitattributes a reader can check", () => {
     // that — item 5 of #779, and again when the deck became installable.
     expect(read(".gitattributes"), ".gitattributes no longer makes the claim this case checks")
       .toContain("the screenshots under assets/ and the\n# application icons under src/web/public/");
+    expect(read(".gitattributes"), ".gitattributes no longer names the desktop app's brand images")
+      .toContain("the desktop app's brand images\n# under desktop/brand/");
   });
 });
