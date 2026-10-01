@@ -101,23 +101,31 @@ describe("the manifest Chrome will accept", () => {
     // side by an Android mask stops being the mark. This read a circle's radius
     // and stroke out of icon-maskable.svg until the brand kit's icons replaced
     // the repo's own ring: the kit ships the maskable icon as a PNG with no
-    // editable source, so the guarantee is now measured where it is delivered,
-    // on the pixels. Ink is anything that is not the ground the corners show;
-    // the kit's measures 171.5px from the centre at its farthest.
+    // editable source, so the guarantee is measured where it is delivered, on
+    // the pixels.
+    //
+    // The ground is not one colour any more. Kit 1.0 laid the mark on a flat
+    // square; 1.1 lays it on a linear gradient corner to corner, so ink is what
+    // departs from that gradient, which the four corners fix exactly (a linear
+    // gradient is bilinear). The kit's own QA puts the farthest ink 167px from
+    // the centre.
     const { width, height, channels, data } = pngPixels(PUBLIC("icon-maskable-512.png"));
-    const at = (x: number, y: number) => data.subarray((y * width + x) * channels, (y * width + x + 1) * channels);
-    const ground = [...at(0, 0)];
-    for (const [x, y] of [[width - 1, 0], [0, height - 1], [width - 1, height - 1]]) {
-      // Full bleed: the ground reaches every corner, because the mask is what
-      // shapes this tile and a transparent corner would show through it.
-      expect([...at(x, y)], "the maskable icon is not full bleed").toEqual(ground);
+    const at = (x: number, y: number) => [...data.subarray((y * width + x) * channels, (y * width + x + 1) * channels)];
+    const [tl, tr, bl, br] = [[0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1]].map(([x, y]) => at(x, y));
+    for (const corner of [tl, tr, bl, br]) {
+      // Full bleed: the ground reaches every corner, opaque, because the mask
+      // is what shapes this tile and a transparent corner would show through.
+      if (channels === 4) expect(corner[3], "the maskable icon is not full bleed").toBe(255);
     }
-    if (channels === 4) expect(ground[3], "the maskable ground is not opaque").toBe(255);
+    const ground = (x: number, y: number, i: number) => {
+      const u = x / (width - 1), v = y / (height - 1);
+      return (1 - u) * (1 - v) * tl[i] + u * (1 - v) * tr[i] + (1 - u) * v * bl[i] + u * v * br[i];
+    };
     let ink = 0, farthest = 0;
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const px = at(x, y);
-        if (px.every((v, i) => Math.abs(v - ground[i]) <= 2)) continue;
+        if ([0, 1, 2].every(i => Math.abs(px[i] - ground(x, y, i)) <= 4)) continue;
         ink++;
         farthest = Math.max(farthest, Math.hypot(x + 0.5 - width / 2, y + 0.5 - height / 2));
       }

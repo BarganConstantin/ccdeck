@@ -13,7 +13,6 @@
 // with no DOM — nothing in this file touches `document`, and the caller owns
 // every write.
 import { PRODUCT } from "./brand";
-import { KIT_FAVICON_SVG, KIT_STATUS_COLOUR, KIT_TRAY_SVG, type KitStatus } from "./brand-kit";
 
 /** Which of the four states the tab's mark should be wearing. */
 export type AmbientIcon = "offline" | "waiting" | "running" | "idle";
@@ -75,77 +74,52 @@ export function ambientSignal(
   };
 }
 
-// THE MARK IS THE KIT'S AND THE STATE SITS ON IT (2026-10-01).
+// THE KIT DRAWS EVERY STATE (2026-10-01).
 //
 // Until the brand kit, this file drew its own mark and carried the state in
 // the mark itself: a grey ring at rest, a blue ring around a dot while
 // running, a solid amber disc while waiting, a red ring with a bite out of it
 // offline (#338, #719). The kit's rule is that status is an overlay on an
-// unchanged mark, never a recolouring or a reshaping of it, so nothing here is
-// drawn any more (brand-kit.ts holds the files):
+// unchanged mark, never a recolouring or a reshaping of it, and the kit ships
+// the tab's states as files: its favicon, and the same favicon with a corner
+// badge cut out of the mark for each state. Nothing is drawn here; each state
+// names its file.
 //
-//   - the mark is the kit's favicon, byte for byte — the file index.html
-//     links, worn unchanged at rest;
-//   - each other state adds the overlay the kit's tray master draws for it,
-//     element for element, in the favicon's own frame for the mark, so it
-//     lands where the tray puts it beside the mark;
-//   - in the kit's status colour for that state, through `currentColor`.
-//
-// Owner decision, same day: idle → the kit's default (no overlay), waiting →
-// waiting, running → syncing, offline → error. The kit's paused is unused.
+// Owner decision, same day: idle → the kit's default (the favicon itself),
+// waiting → waiting, running → syncing, offline → error. The kit's paused has
+// no state behind it here and is unused.
 //
 // What this gave up, said once here so nobody has to dig for it: the old marks
 // differed in their whole silhouette, which is what let a dichromat viewer
-// tell them apart at 16px. The kit's overlays differ in shape too — a dot, a
-// ring with a bang, an arc with an arrowhead — but they are a corner glyph a
-// few pixels across. The title's `(n)` still carries the alarm on its own.
-//
-// The overlays sit inside the favicon's own dark tile, never on the tab strip,
-// so their contrast is against the tile; ambient-signal.test.ts measures it.
-
-/** The tray state each tab state wears; idle wears none. */
-const KIT_STATE: Readonly<Record<Exclude<AmbientIcon, "idle">, KitStatus>> = {
-  waiting: "waiting",
-  running: "syncing",
-  offline: "error",
-};
-
-/** What a tray master draws after its masked mark: the state's overlay, unchanged. */
-function trayOverlay(tray: string): string {
-  const markEnd = tray.indexOf("</g>", tray.indexOf("<g mask="));
-  return markEnd < 0 ? "" : tray.slice(markEnd + "</g>".length, tray.lastIndexOf("</svg>"));
-}
-
-/** The transform the favicon draws its mark in, which the tray's overlay coordinates assume. */
-const MARK_FRAME = /<g transform="([^"]+)">/.exec(KIT_FAVICON_SVG)?.[1];
-
-/** The favicon with one state's overlay added after the mark. */
-function withOverlay(state: KitStatus): string {
-  const frame = MARK_FRAME ? ` transform="${MARK_FRAME}"` : "";
-  const overlay = `<g${frame} color="${KIT_STATUS_COLOUR[state]}">${trayOverlay(KIT_TRAY_SVG[state])}</g>`;
-  const end = KIT_FAVICON_SVG.lastIndexOf("</svg>");
-  return KIT_FAVICON_SVG.slice(0, end) + overlay + KIT_FAVICON_SVG.slice(end);
-}
+// tell them apart at 16px. The kit's states differ in shape too — a dot, an
+// open ring, a bang — but as a corner badge a few pixels across. The title's
+// `(n)` still carries the alarm on its own.
 
 /**
- * The four hrefs, encoded once at module load.
- *
- * At rest the tab wears the file itself, the same href index.html boots with,
- * so the first frame and the second cannot disagree. The other three are data
- * URIs, built once: the effect that assigns one is on the SSE path and has no
- * business re-encoding a string it could have had for free.
- *
- * `encodeURIComponent` rather than escaping by hand: `#` inside a URI is the
- * FRAGMENT delimiter, so an unencoded hex colour ends the data URI mid-attribute
- * and the browser silently keeps whichever icon it already had.
+ * The four SVG hrefs, one kit file each, for the link index.html declares as
+ * `type="image/svg+xml"`. At rest it is the file index.html boots with, so the
+ * first frame and the second cannot disagree.
  *
  * And no animation, ever — not here and not in the caller. A pulsing favicon
- * asks the browser to re-parse and re-rasterise a data URI every frame for the
+ * asks the browser to re-fetch and re-rasterise an icon every frame for the
  * lifetime of the tab, and it is the single most hated pattern in this genre.
  */
 export const FAVICON_HREF: Readonly<Record<AmbientIcon, string>> = Object.freeze({
-  offline: `data:image/svg+xml,${encodeURIComponent(withOverlay(KIT_STATE.offline))}`,
-  waiting: `data:image/svg+xml,${encodeURIComponent(withOverlay(KIT_STATE.waiting))}`,
-  running: `data:image/svg+xml,${encodeURIComponent(withOverlay(KIT_STATE.running))}`,
+  offline: "/state/favicon-error.svg",
+  waiting: "/state/favicon-waiting.svg",
+  running: "/state/favicon-syncing.svg",
   idle: "/favicon.svg",
+});
+
+/**
+ * The same four states for the 32x32 fallback link, the one a browser without
+ * SVG favicons shows: the kit's ICO at rest, its 32px PNG of each state
+ * otherwise. Swapped with the SVG, as the kit's own snippet does, so such a
+ * browser shows the state too instead of a resting mark forever.
+ */
+export const FAVICON_FALLBACK_HREF: Readonly<Record<AmbientIcon, string>> = Object.freeze({
+  offline: "/state/favicon-error-32.png",
+  waiting: "/state/favicon-waiting-32.png",
+  running: "/state/favicon-syncing-32.png",
+  idle: "/favicon.ico",
 });

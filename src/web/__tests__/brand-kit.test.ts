@@ -1,7 +1,7 @@
 // The brand kit's files in this repo, and the record that says where each one
 // came from.
 //
-// Every logo, icon and brand colour the deck ships is a file copied unchanged
+// Every logo and icon the deck ships is a file copied unchanged
 // from the ccdeck brand kit; assets/brand/kit.json lists each one, every place
 // it serves, and its SHA-256, and assets/brand/kit.mjs rewrites that record
 // whenever a kit is copied in. Nothing here pins one kit release's bytes: a new
@@ -89,6 +89,19 @@ describe("the instructions agents read", () => {
   });
 });
 
+describe("the licence", () => {
+  it("carves the name and the brand files out of the AGPL", () => {
+    // The brand files sit in an AGPL repository; without this section they
+    // would read as offered under it like everything else in the tree.
+    const licensing = readFileSync(join(repo, "LICENSING.md"), "utf8");
+    expect(licensing).toMatch(/^## Name and logo$/m);
+    expect(licensing).toContain("`assets/brand/`");
+    expect(licensing).toContain("no rights under trademark law are granted");
+    expect(licensing, "the AGPL sentence no longer names its exception")
+      .toMatch(/complete current ccdeck-owned codebase\*\* — its code — is offered under\s+`AGPL-3\.0-only`, except the name and brand files/);
+  });
+});
+
 describe("the files each slot needs", () => {
   const png = (rel: string) => {
     const b = readFileSync(join(repo, rel));
@@ -113,8 +126,12 @@ describe("the files each slot needs", () => {
     expect(readFileSync(join(repo, "src", "web", "index.html"), "utf8")).toMatch(/href="\/favicon\.ico" sizes="32x32"/);
   });
 
-  it("draws the small mark and the favicon on a square viewBox, so 16px squares do not stretch them", () => {
-    for (const rel of ["src/web/public/brand/ccdeck-mark-gradient-small-optical.svg", "src/web/public/favicon.svg"]) {
+  it("gives the tab square icons, so a 16px square does not stretch them", () => {
+    // The small marks are not square (the kit sizes them by height; see
+    // topbar-mark.test.ts); every favicon the tab can wear has to be.
+    const favicons = copies.filter(p => /^src\/web\/public\/(state\/)?favicon[^/]*\.svg$/.test(p));
+    expect(favicons.length, "no favicon SVG was found to measure").toBeGreaterThan(3);
+    for (const rel of favicons) {
       const box = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(readFileSync(join(repo, rel), "utf8"));
       expect(box, `${rel} has no viewBox`).toBeTruthy();
       expect(box![1], `${rel} is not square`).toBe(box![2]);

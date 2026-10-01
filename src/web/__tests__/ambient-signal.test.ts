@@ -15,11 +15,9 @@
 // than merely present, and that fix fails here.
 //
 // The second is WHAT THE ICON IS. It was a `<text>◉</text>` font glyph, then
-// this repo's own drawn marks; since the brand kit it is the kit's favicon,
-// unchanged, with the kit's own status overlay added for each state. So the
-// mark is asserted byte for byte against the shipped file, each overlay
-// element for element against the kit's tray master, and the overlay's colour
-// against the kit token and against the dark tile it is drawn on.
+// this repo's own drawn marks; since the brand kit it is the kit's own file
+// for each state. So each state is asserted to name the kit file for the state
+// it maps to, and each badge against the dark tile it is drawn on.
 //
 // The third is that neither write happens on a frame that changed nothing. The
 // effect sits on the SSE path, where `running` churns constantly under a title
@@ -40,7 +38,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { ambientSignal, FAVICON_HREF, type AmbientIcon } from "../ambient";
+import { ambientSignal, FAVICON_FALLBACK_HREF, FAVICON_HREF, type AmbientIcon } from "../ambient";
 import { blockedSessions, runningSessionCount } from "../ambient-counts";
 import { PRODUCT } from "../brand";
 import { applyEvent, initialState, pruneOldAgents } from "../reducer";
@@ -187,58 +185,33 @@ it("covers every icon the signal can ask for", () => {
   expect([...STATES].sort()).toEqual([...reachable].sort());
 });
 
-type KitState = "waiting" | "syncing" | "error";
+type KitState = "default" | "waiting" | "syncing" | "error";
 
-/** The brand kit's favicon, 05-web/favicon.svg, as the deck ships it. */
-const KIT_FAVICON = read("../public/favicon.svg");
-
-/** The owner's mapping (2026-10-01), pinned whole: which of the kit's tray
- *  states each tab state wears. Idle wears none — it is the kit's default, the
- *  mark alone — and the kit's paused has no tab state behind it, so it is
+/** The owner's mapping (2026-10-01), pinned whole: which of the kit's states
+ *  each tab state wears. The kit's paused has no tab state behind it, so it is
  *  unused rather than given a meaning. */
-const KIT_STATE: Record<AmbientIcon, KitState | null> = {
-  idle: null,
+const KIT_STATE: Record<AmbientIcon, KitState> = {
+  idle: "default",
   waiting: "waiting",
   running: "syncing",
   offline: "error",
 };
 
-/** The kit's status colours, from its tokens as vendored (06-tokens/brand-tokens.json). */
-const KIT_COLOUR: Record<KitState, string> = JSON.parse(read("../../../assets/brand/brand-tokens.json")).status;
+/** The kit's own file for each of its states, as kit.json names it, for the
+ *  SVG link and for the 32px fallback beside it. */
+const KIT_SVG = (state: KitState) => (state === "default" ? "05-web/favicon.svg" : `05-web/state/favicon-${state}.svg`);
+const KIT_FALLBACK = (state: KitState) => (state === "default" ? "05-web/favicon.ico" : `05-web/state/favicon-${state}-32.png`);
 
-/** What a kit tray master draws after its masked mark: the state's overlay
- *  alone, read off the copy vendored under assets/brand/. */
-function trayOverlay(state: KitState): string {
-  const tray = read(`../../../assets/brand/ccdeck-tray-${state}.svg`);
-  const markEnd = tray.indexOf("</g>", tray.indexOf('<g mask="url(#cut)">'));
-  expect(markEnd, `ccdeck-tray-${state}.svg no longer has the masked mark this reads past`).toBeGreaterThan(-1);
-  return tray.slice(markEnd + "</g>".length, tray.lastIndexOf("</svg>"));
-}
+/** assets/brand/kit.json: every kit file the repo carries and where it is. */
+const kitRecord: { files: { from: string; to: string[] }[] } = JSON.parse(read("../../../assets/brand/kit.json"));
+const copiesOf = (from: string) => kitRecord.files.find(f => f.from === from)?.to ?? [];
+/** The public path a `src/web/public/...` copy is served at. */
+const servedAt = (rel: string) => rel.replace(/^src\/web\/public/, "");
 
-const PREFIX = "data:image/svg+xml,";
-
-/** The SVG a browser will actually parse for this state: the linked file at
- *  rest, the decoded data URI otherwise. */
+/** The SVG a browser will actually parse for this state. */
 function svgFor(icon: AmbientIcon): string {
-  const href = FAVICON_HREF[icon];
-  if (href.startsWith("/")) return read(`../public${href}`);
-  expect(href.startsWith(PREFIX), `${icon} is neither a public file nor an SVG data URI`).toBe(true);
-  return decodeURIComponent(href.slice(PREFIX.length));
+  return read(`../public${FAVICON_HREF[icon]}`);
 }
-
-interface Overlay { rest: string; frame: string; colour: string; glyphs: string }
-
-/** A state's SVG taken apart: the overlay group added after the mark, and
- *  everything else, which has to be the kit's favicon untouched. */
-function overlayOf(icon: AmbientIcon): Overlay | null {
-  const svg = svgFor(icon);
-  const m = /<g transform="([^"]+)" color="(#[0-9a-f]{6})">((?:(?!<g\b)[\s\S])*?)<\/g>(?=<\/svg>$)/i.exec(svg);
-  if (!m) return null;
-  return { rest: svg.slice(0, m.index) + svg.slice(m.index + m[0].length), frame: m[1], colour: m[2], glyphs: m[3] };
-}
-
-/** The states that wear an overlay, with the kit state each one wears. */
-const OVERLAID = STATES.flatMap(icon => (KIT_STATE[icon] ? [[icon, KIT_STATE[icon]!] as const] : []));
 
 function relativeLuminance(hex: string): number {
   const [r, g, b] = [1, 3, 5].map(i => {
@@ -259,64 +232,42 @@ function contrastRatio(a: string, b: string): number {
 // tuned for 3:1 on a white and a #1f1f1f strip, which told the states apart by
 // silhouette for a dichromat viewer at 16px. The kit's rule is that status is
 // an overlay on an unchanged mark, never a recolouring or a reshaping of it,
-// so the cases below pin the new contract instead: the kit's favicon byte for
-// byte, plus the kit's own tray overlay for the state, in the kit's status
-// colour, in the mark's frame. The whole-mark silhouette guarantee is dropped
-// on purpose; what is left of it is that the overlays still differ in shape,
-// and the title's `(n)` still carries the alarm on its own.
+// and the kit ships each state as a file — its favicon with a corner badge cut
+// into it — so the cases below pin the new contract: each state is the kit's
+// file for the state it maps to, nothing drawn here. The whole-mark silhouette
+// guarantee is dropped on purpose; what is left of it is that the four files
+// still differ in shape with every colour stripped, and the title's `(n)`
+// still carries the alarm on its own.
 describe("the favicon", () => {
-  it("rests on the kit's favicon itself, the file index.html links", () => {
+  it("wears the kit's file for each state, SVG and fallback alike", () => {
+    for (const icon of STATES) {
+      const state = KIT_STATE[icon];
+      expect(copiesOf(KIT_SVG(state)).map(servedAt), `${icon} is not the kit's ${state} SVG`).toContain(FAVICON_HREF[icon]);
+      expect(copiesOf(KIT_FALLBACK(state)).map(servedAt), `${icon}'s fallback is not the kit's ${state} raster`)
+        .toContain(FAVICON_FALLBACK_HREF[icon]);
+    }
+  });
+
+  it("rests on the kit's favicon itself, the files index.html links", () => {
     expect(FAVICON_HREF.idle).toBe("/favicon.svg");
-    expect(overlayOf("idle"), "the resting state carries an overlay").toBeNull();
+    expect(FAVICON_FALLBACK_HREF.idle).toBe("/favicon.ico");
   });
 
-  it("draws every other state as the kit's favicon, unchanged, with one overlay added", () => {
-    // A recoloured or reshaped mark is the one thing the kit forbids for a
-    // state, so the mark is compared whole: take the overlay group out and
-    // what is left has to be the shipped file, to the byte.
-    expect(OVERLAID.map(([icon]) => icon).sort()).toEqual(["offline", "running", "waiting"]);
-    for (const [icon] of OVERLAID) {
-      const overlay = overlayOf(icon);
-      expect(overlay, `${icon} adds no overlay group after the mark`).not.toBeNull();
-      expect(overlay!.rest, `${icon} changed the mark rather than adding to it`).toBe(KIT_FAVICON);
+  it("ships every file it names", () => {
+    // An href to a file that is not there is resolved by the SPA fallback to
+    // index.html, which a browser cannot draw: the tab silently keeps the icon
+    // it had.
+    for (const href of [...Object.values(FAVICON_HREF), ...Object.values(FAVICON_FALLBACK_HREF)]) {
+      expect(href.startsWith("/"), `${href} is not a path the deck serves`).toBe(true);
+      expect(() => read(`../public${href}`), `${href} does not ship`).not.toThrow();
     }
   });
 
-  it("wears the overlay the kit's tray draws for its state, element for element", () => {
-    // Copied, not drawn: an edited glyph fails here, and so does a mapping
-    // that put the error overlay on running.
-    for (const [icon, state] of OVERLAID) {
-      const glyphs = overlayOf(icon)!.glyphs;
-      expect(glyphs, `${icon} wears no overlay at all`).toMatch(/currentColor/);
-      expect(glyphs, `${icon} is not the kit's ${state} overlay`).toBe(trayOverlay(state));
-    }
-  });
-
-  it("puts the overlay in the mark's own frame, where the tray puts it beside the mark", () => {
-    // The tray's overlay coordinates are in the mark's 100-unit box; the
-    // favicon draws that box shrunk onto its tile, so the overlay goes through
-    // the same transform or it lands somewhere the kit never placed it.
-    const markFrame = /<g transform="([^"]+)">/.exec(KIT_FAVICON)?.[1];
-    expect(markFrame, "the kit's favicon no longer draws its mark in a transformed group").toBeTruthy();
-    for (const [icon] of OVERLAID) expect(overlayOf(icon)!.frame, icon).toBe(markFrame);
-  });
-
-  it("colours the overlay in the kit's status colour, and nothing else", () => {
-    // Through `currentColor`, which is how the tray masters are written: the
-    // glyphs name no colour of their own, the group names the token's.
-    for (const [icon, state] of OVERLAID) {
-      const overlay = overlayOf(icon)!;
-      expect(overlay.colour.toLowerCase(), `${icon} is not the kit's ${state} colour`).toBe(KIT_COLOUR[state].toLowerCase());
-      expect(overlay.glyphs, `${icon}'s glyphs carry a colour of their own`).not.toMatch(/#[0-9a-f]{3,8}\b/i);
-    }
-  });
-
-  it("tells the states apart by the overlay's shape, not only by its colour", () => {
+  it("tells the states apart by shape, not only by colour", () => {
     // What is left of #338's silhouette rule. Hue is the channel a dichromat
-    // viewer does not get, so with every colour stripped the four states must
-    // still be four different drawings: the mark alone, a dot, an arc with an
-    // arrowhead, a ring with a bang.
-    const geometry = STATES.map(icon => svgFor(icon).replace(/ color="#[0-9a-f]{6}"/gi, ""));
+    // viewer does not get, so with every colour stripped the four must still be
+    // four different drawings: the mark alone, a dot, an open ring, a bang.
+    const geometry = STATES.map(icon => svgFor(icon).replace(/#[0-9a-f]{3,8}\b/gi, "").replace(/\bid="[^"]*"|url\(#[^)]*\)/g, ""));
     expect(new Set(geometry).size, "two states are the same drawing once colour is gone").toBe(STATES.length);
   });
 
@@ -329,53 +280,23 @@ describe("the favicon", () => {
     }
   });
 
-  it("keeps every overlay on the kit's own tile, never on the tab strip", () => {
+  it("puts each state's badge on the kit's dark tile, where it reads at 3:1", () => {
     // The page cannot ask what colour the tab strip is. The old marks had a
     // transparent ground, so their fills had to clear 3:1 on a white strip and
     // on a #1f1f1f one at once. The kit's favicon brings its own dark tile, and
-    // this is what makes that the overlay's ground: the mark's whole 100-unit
-    // frame, the box every tray overlay is drawn inside, lands within the
-    // tile's rounded rectangle.
-    const tile = /<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="([\d.]+)"/.exec(KIT_FAVICON);
-    const frame = /translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)/.exec(/<g transform="([^"]+)">/.exec(KIT_FAVICON)![1]);
-    expect(tile, "the kit's favicon no longer draws a tile").toBeTruthy();
-    expect(frame, "the mark's frame is no longer a translate and a scale").toBeTruthy();
-    const [x, y, w, h, rx] = tile!.slice(1).map(Number);
-    const [tx, ty, scale] = frame!.slice(1).map(Number);
-    const onTile = (px: number, py: number) => {
-      if (px < x || px > x + w || py < y || py > y + h) return false;
-      const cx = Math.min(Math.max(px, x + rx), x + w - rx);
-      const cy = Math.min(Math.max(py, y + rx), y + h - rx);
-      return Math.hypot(px - cx, py - cy) <= rx;
-    };
-    for (const [ux, uy] of [[0, 0], [100, 0], [0, 100], [100, 100]]) {
-      expect(onTile(tx + ux * scale, ty + uy * scale), `the frame's corner (${ux},${uy}) leaves the tile`).toBe(true);
-    }
-  });
-
-  it("reads against that tile, which is what it is drawn on", () => {
-    // 1.4.11's 3:1 for a graphic that identifies a state, measured on its real
-    // ground. With the kit's 1.0 colours the waiting orange would be 2.80:1 on
-    // a raw white strip; it is never drawn on one.
-    const ground = /<rect [^>]*fill="(#[0-9a-f]{6})"/i.exec(KIT_FAVICON)![1];
-    for (const [icon, state] of OVERLAID) {
-      const colour = overlayOf(icon)!.colour;
-      expect(contrastRatio(colour, ground), `${icon} (${state}, ${colour}) vanishes on the tile`).toBeGreaterThanOrEqual(3);
-    }
-  });
-
-  it("percent-encodes the hex colours, which are fragment delimiters raw", () => {
-    // `#` unescaped ends the data URI mid-attribute. The browser gets a
-    // truncated document, fails to parse it, and silently keeps the icon it
-    // already had — a state change lost with nothing logged.
-    for (const [icon] of OVERLAID) {
-      expect(FAVICON_HREF[icon], `${icon} would be cut at its first colour`).not.toContain("#");
-      expect(FAVICON_HREF[icon]).toContain("%23");
+    // the badge is drawn on it: 1.4.11's 3:1 is measured there.
+    for (const icon of STATES.filter(i => KIT_STATE[i] !== "default")) {
+      const svg = svgFor(icon);
+      const tile = /<rect [^>]*fill="(#[0-9a-f]{6})"/i.exec(svg)?.[1];
+      const badge = /<path fill="(#[0-9a-f]{6})"[^>]*\/><\/svg>\s*$/i.exec(svg)?.[1];
+      expect(tile, `${icon} has no tile`).toBeTruthy();
+      expect(badge, `${icon} has no badge after its mark`).toBeTruthy();
+      expect(contrastRatio(badge!, tile!), `${icon}'s badge ${badge} vanishes on the tile ${tile}`).toBeGreaterThanOrEqual(3);
     }
   });
 
   it("never animates", () => {
-    // A pulsing favicon re-parses and re-rasterises a data URI for the life of
+    // A pulsing favicon re-fetches and re-rasterises an icon for the life of
     // the tab, and is the most hated pattern in this genre.
     for (const icon of STATES) {
       expect(svgFor(icon)).not.toMatch(/<animate|animation|keyframes|dur=/i);
@@ -385,42 +306,50 @@ describe("the favicon", () => {
   const links = [...read("../index.html").matchAll(/<link\b[^>]*>/g)].map(m => m[0]);
   const iconLinks = links.filter(tag => /\brel\s*=\s*"[^"]*\bicon\b[^"]*"/.test(tag));
 
-  it("keeps the boot icon in index.html identical to the resting state", () => {
-    // index.html is parsed before any module runs, so this href cannot be
+  it("keeps the boot icons in index.html identical to the resting state", () => {
+    // index.html is parsed before any module runs, so these hrefs cannot be
     // derived. Drift means the tab changes icon between the first frame and the
     // second.
     const svgLink = iconLinks.find(tag => /\btype="image\/svg\+xml"/.test(tag));
-    expect(svgLink, "index.html links no SVG icon").toBeTruthy();
-    expect(svgLink).toContain(`href="${FAVICON_HREF.idle}"`);
+    const fallback = iconLinks.find(tag => /\bsizes="32x32"/.test(tag));
+    expect(svgLink, "index.html links no SVG icon").toContain(`href="${FAVICON_HREF.idle}"`);
+    expect(fallback, "index.html links no 32x32 fallback").toContain(`href="${FAVICON_FALLBACK_HREF.idle}"`);
   });
 
-  it("hangs the state on exactly one SVG icon link, the one the writer asks for by type", () => {
+  it("hangs the state on exactly the two links the writer asks for", () => {
     // #378: the href was pinned and the SELECTOR was not, and the selector is
     // what the feature is. Renaming the link `rel="shortcut icon"` once left
     // every test green while the icon stopped changing state for the life of
     // the tab. A second `rel="icon"` link is not null but the WRONG node:
     // querySelector returns the first in document order.
     //
-    // The kit's head has that second link — the ICO fallback is a `rel="icon"`
-    // too, and it comes first — so the writer asks for the SVG by its type, and
-    // this holds both ends: the icon links are exactly the kit's three, exactly
-    // one of them matches what the writer asks for, and it is the resting mark.
+    // The kit's head has two `rel="icon"` links, so the writer asks for each by
+    // what tells it apart — the SVG by its type, the fallback by its size — and
+    // this holds both ends: the icon links are exactly the kit's three, each
+    // selector matches exactly one of them, and the writer runs those two.
     const rels = iconLinks.map(tag => /\brel="([^"]+)"/.exec(tag)?.[1]).sort();
     expect(rels, "the icon links are no longer the kit's ICO, SVG and touch icon").toEqual(["apple-touch-icon", "icon", "icon"]);
-    const target = iconLinks.filter(tag => /\brel="icon"/.test(tag) && /\btype="image\/svg\+xml"/.test(tag));
-    expect(target, "the writer's selector does not find exactly one link").toHaveLength(1);
-    expect(target[0]).toContain(`href="${FAVICON_HREF.idle}"`);
-    expect(read("../use-tab-ambient.ts"), "the tab's write stopped asking for the link index.html declares")
+    const svg = iconLinks.filter(tag => /\brel="icon"/.test(tag) && /\btype="image\/svg\+xml"/.test(tag));
+    const fallback = iconLinks.filter(tag => /\brel="icon"/.test(tag) && /\bsizes="32x32"/.test(tag));
+    expect(svg, "the SVG selector does not find exactly one link").toHaveLength(1);
+    expect(fallback, "the fallback selector does not find exactly one link").toHaveLength(1);
+    expect(svg[0]).not.toBe(fallback[0]);
+    const writer = read("../use-tab-ambient.ts");
+    expect(writer, "the tab's write stopped asking for the SVG link index.html declares")
       .toMatch(/querySelector<HTMLLinkElement>\(\s*'link\[rel="icon"\]\[type="image\/svg\+xml"\]'\s*\)/);
+    expect(writer, "the tab's write stopped asking for the fallback link index.html declares")
+      .toMatch(/querySelector<HTMLLinkElement>\(\s*'link\[rel="icon"\]\[sizes="32x32"\]'\s*\)/);
+    expect(writer).toMatch(/\.href = FAVICON_HREF\[next\.icon\]/);
+    expect(writer).toMatch(/\.href = FAVICON_FALLBACK_HREF\[next\.icon\]/);
   });
 
   it("never lets the ICO fallback outrank the SVG the state is written to", () => {
-    // The kit links its ICO with `sizes="any"`. Measured in Chrome 154 on
-    // 2026-10-01, from the icon Chrome stored for the page: with that head the
-    // tab shows the ICO, and still shows it after the SVG link's href is
-    // rewritten, so every state change is lost without a word. Declared at its
-    // real 32x32, the ICO stays a fallback: the tab shows the SVG and follows
-    // each write to it, data URIs included.
+    // Measured in Chrome 154 on 2026-10-01, from the icon Chrome stored for
+    // the page: with the ICO declared `sizes="any"` the tab shows the ICO, and
+    // still shows it after the SVG link's href is rewritten, so every state
+    // change is lost without a word. Declared at its real 32x32, the ICO stays
+    // a fallback: the tab shows the SVG and follows each write to it. The kit's
+    // snippet says 32x32 too since its 1.1.
     const ico = iconLinks.find(tag => /\bhref="\/favicon\.ico"/.test(tag));
     expect(ico, "index.html no longer links the ICO fallback").toBeTruthy();
     expect(ico, "the ICO claims `any` size, and Chromium then shows it over the stateful SVG").not.toMatch(/\bsizes="[^"]*\bany\b/);

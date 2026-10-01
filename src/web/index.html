@@ -9,15 +9,13 @@
          known to be running — and App.tsx's ambient effect corrects both within
          the first frame it has state for. The title is the one copy of the name
          that no constant can reach (display-name.test.ts pins it to PRODUCT).
-         The icons are the brand kit's 05-web files, linked the way the kit
-         links them: the ICO for a browser without SVG favicons, the SVG every
-         other browser shows and the one use-tab-ambient.ts writes the state to
-         (it asks for it by type, because the ICO is a rel="icon" too), and the
-         home-screen icon for iOS. One departure from the kit's snippet (v1.0
-         workaround): the ICO says 32x32, not `any`. With `any`, Chrome shows
-         the ICO and keeps it after the SVG's href changes, so the tab would
-         never show a state (measured 2026-10-01; ambient-signal.test.ts holds
-         it). -->
+         The icons are the brand kit's 05-web files, linked as the kit links
+         them: the ICO for a browser without SVG favicons, the SVG every other
+         browser shows, and the home-screen icon for iOS. use-tab-ambient.ts
+         swaps both icon links to the kit's state files. The ICO says 32x32,
+         never `any`: with `any`, Chrome shows the ICO and keeps it after the
+         SVG's href changes, so the tab would never show a state
+         (ambient-signal.test.ts holds it). -->
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
