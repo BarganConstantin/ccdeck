@@ -5,11 +5,25 @@ ccdeck is licensed under the **GNU Affero General Public License v3.0 only**
 
 Copyright © 2026 Bargan Constantin.
 
+## Name and logo
+
+The AGPL covers ccdeck's code. It does not cover ccdeck's name or its brand files, and they are not part of the work this project offers under `AGPL-3.0-only`:
+
+- the name **ccdeck**;
+- the mark, the wordmark and the icons made from them — the files under `assets/brand/` and `desktop/brand/`, and the favicon and app icons in `src/web/public/` copied from them.
+
+As section 7(e) of the AGPL allows, no rights under trademark law are granted for the name or the logo.
+
+You may use the name to refer to ccdeck truthfully, as in "works with ccdeck" or "a fork of ccdeck". A version you modify and distribute must not be called ccdeck or carry its logo, so that nobody takes it for this project: give it a name and icons of its own. The brand files may be redistributed unchanged as part of an unchanged copy of this repository; a modified version removes or replaces them before it is distributed.
+
+Brand files © 2026 Bargan Constantin. All rights reserved, except as stated above.
+
 ## The current licence covers the whole codebase
 
-The **complete current ccdeck-owned codebase** is offered under
-`AGPL-3.0-only`. Not merely the commits made after the change — the whole
-work, as the project distributes it today.
+The **complete current ccdeck-owned codebase** — its code — is offered under
+`AGPL-3.0-only`, except the name and brand files described in
+[Name and logo](#name-and-logo). Not merely the commits made after the change
+— the whole work, as the project distributes it today.
 
 This is worth stating plainly because relicensing is often misread as applying
 only to what came after it. It does not. The code implementing the canvas, the
