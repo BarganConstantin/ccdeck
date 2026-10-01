@@ -562,18 +562,17 @@ const CONTROLS: Control[] = [
   // choice is a borderless button; the frame is its boundary, and choosing it
   // redraws the frame in --text.
   { at: ".appearance-preview", states: ['.appearance-theme[aria-checked="true"] .appearance-preview'], beds: ["--panel"] },
-  // The feedback dialog's three kinds (#1853): <label> cards round a 1px radio,
-  // so no scan of button and input tags finds them, and they are named here.
-  // The frame is the card's boundary at rest; choosing one redraws it in the
-  // accent. They sit on the dialog's panel.
-  { at: ".fb-kind", states: [".fb-kind:has(input:checked)"], beds: ["--panel"] },
-  // And the starters over its message: pills with no fill at rest, so the
-  // frame is their one boundary; the pointer lifts it to the foreground.
-  { at: ".fb-starter", states: [".fb-starter:hover"], beds: ["--panel"] },
-  // Its way to add a screenshot, in the message's label row: no boundary at
-  // rest, since its words name it, and the control edge under the pointer and
-  // the keyboard, as Other accounts' expand-all draws one.
-  { at: ".fb-attach:hover", fillFrom: ".fb-attach:hover", states: [".fb-attach:focus-visible"], beds: ["--panel"] },
+  // The feedback dialog's three kinds (#1853): words in a segmented track,
+  // each a <label> round a 1px radio, so no scan of button and input tags
+  // finds them, and they are named here. A word at rest draws no boundary — it
+  // is named by itself, inside a track — and the chosen one is raised onto the
+  // panel with the control edge round it, which is the mark that says which
+  // one is chosen, so that edge is measured. The track sits on the panel.
+  { at: ".fb-kind:has(input:checked)", fillFrom: ".fb-kind:has(input:checked)", beds: ["--panel"] },
+  // Its two quiet buttons under the message, Add screenshot and Add details:
+  // no boundary at rest, since their words name them, and the control edge
+  // under the pointer and the keyboard, as Other accounts' expand-all draws one.
+  { at: ".fb-tool:hover", fillFrom: ".fb-tool:hover", states: [".fb-tool:focus-visible"], beds: ["--panel"] },
   // And each image's remove: a disc on the panel's own fill at the corner of a
   // thumbnail, framed at rest because a picture of anything may be under it.
   { at: ".fb-shot > .fb-shot-remove", fillFrom: ".fb-shot > .fb-shot-remove", beds: ["--panel"] },
@@ -830,8 +829,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's starters, a pill framed at rest and louder on hover.
     // And from 106 to 109 with its images: the way to add one, which gains an
     // edge under the pointer and the keyboard, and each image's remove, framed
-    // at rest.
-    expect(EDGED_CONTROLS.length).toBeLessThan(109);
+    // at rest. And back down to 106 when the dialog was made effortless: the
+    // starters went, pill and hover, and a kind no longer frames itself at
+    // rest — only the chosen one does — so three rules stopped drawing one.
+    expect(EDGED_CONTROLS.length).toBeLessThan(106);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

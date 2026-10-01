@@ -19,7 +19,7 @@
 // this render resolved, so a keystroke in the same commit sees the dialogs
 // that were just drawn.
 import { useCallback, useState, type MutableRefObject } from "react";
-import type { FeedbackPrefill } from "./components/FeedbackDialog";
+import type { FeedbackPrefill } from "./feedback";
 import { findToolOnBoard, type GraphState } from "./reducer";
 import type { ToolCall } from "./types";
 import { useModalGate } from "./use-modal-gate";

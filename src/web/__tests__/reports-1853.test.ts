@@ -23,7 +23,7 @@ import {
   // @ts-expect-error — plain JS module, no types
 } from "../../server/reports.mjs";
 // @ts-expect-error — plain JS module, no types
-import { handleFeedback } from "../../server/reports-routes.mjs";
+import { feedbackFacts, handleFeedback, handleFeedbackFacts } from "../../server/reports-routes.mjs";
 
 type Call = { method: string; url: string; body: Record<string, unknown> | undefined };
 
@@ -712,6 +712,36 @@ describe("the feedback dialog's route", () => {
       kind: "idea", title: "A quieter chime", body: "The done chime is loud at night.", contact: "bob@example.org",
       appVersion: installFacts({ env: {} }).version, platform: `${process.platform}-${process.arch}`,
     });
+  });
+
+  it("says before Send exactly what it adds to a report, and nothing more", async () => {
+    // The dialog's line under the message — `ccdeck 3.36.0 · macOS · arm64` —
+    // is drawn from this answer, which is the same function the post uses, so
+    // the page never guesses at what is sent and cannot say something else.
+    const answer = { status: 0, text: "" };
+    const res = {
+      headersSent: false,
+      writeHead(status: number) { answer.status = status; res.headersSent = true; },
+      end(text: string) { answer.text = text; },
+    };
+    await handleFeedbackFacts({}, res, { env: {} });
+    expect(answer.status).toBe(200);
+    expect(JSON.parse(answer.text)).toEqual({
+      ok: true, appVersion: installFacts({ env: {} }).version, platform: `${process.platform}-${process.arch}`,
+    });
+    // Two facts and no more: installFacts knows the channel, the runtime, a
+    // locale and a device fingerprint, and none of them goes with feedback.
+    expect(Object.keys(feedbackFacts({ env: {} })).sort()).toEqual(["appVersion", "platform"]);
+
+    const upstream: Record<string, unknown>[] = [];
+    const { req, res: postRes } = post(MESSAGE);
+    await handleFeedback(req, postRes, {
+      fetchImpl: async (_url: string, init: { body: string }) => { upstream.push(JSON.parse(init.body)); return { status: 202, json: async () => ({}) }; },
+      env: {},
+    });
+    const { ok, ...said } = JSON.parse(answer.text);
+    expect(ok).toBe(true);
+    expect(upstream[0]).toMatchObject(said);
   });
 
   it("sends nothing from a deck started with AGENTS_DECK_NO_INSTALL=1", async () => {

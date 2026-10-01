@@ -204,14 +204,15 @@ describe("what was migrated to the secondary tier", () => {
       // report tells the makers what broke (#1853). Prose the reader reads to
       // decide which of the two buttons under it to press, on the panel surface.
       ".error-fallback-note",
-      // What happens to a piece of feedback, said before Send is pressed: it
-      // goes to the people who make ccdeck, who may open a public issue from
-      // it, never with the contact (#1853). Read once, to decide.
-      // And the one line under each kind's name, which says what the kind
-      // covers: read to choose between the three, on a card whose hover fill
-      // is mixed from the foreground, where --muted is 4.05:1 in dark.
-      ".fb-kind-hint",
-      ".fb-note",
+      // The feedback dialog's kinds (#1853): a word to choose by, sitting on
+      // the segmented track, which is a fill mixed from the foreground, where
+      // --muted is 4.05:1 in dark. Read to choose between the three.
+      ".fb-kind",
+      // And what happens to a piece of feedback, in the section under Add
+      // details: it goes to the people who make ccdeck, who may open a public
+      // issue from it, never with the contact or the images. Read once, to
+      // decide what to write.
+      ".fb-where",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",

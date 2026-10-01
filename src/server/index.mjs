@@ -137,7 +137,7 @@ import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "
 import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 // Usage reports and the feedback dialog (#1853). The requests to
 // api.ccdeck.dev are made in reports.mjs, never in this file.
-import { handleClientError, handleFeedback, handleReportsWrite } from "./reports-routes.mjs";
+import { handleClientError, handleFeedback, handleFeedbackFacts, handleReportsWrite } from "./reports-routes.mjs";
 import { reporter } from "./reports.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
 import { historySnapshot, processesReply, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
@@ -312,6 +312,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/reports")      return guard(handleReportsWrite(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/feedback")     return handleFeedbackFacts(req, res);
     if (req.method === "POST" && url.pathname === "/api/feedback")     return guard(handleFeedback(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/client-error") return guard(handleClientError(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());

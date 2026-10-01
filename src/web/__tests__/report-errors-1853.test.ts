@@ -3,7 +3,7 @@
 // (#1853). The server decides again whether anything leaves the machine.
 import { describe, it, expect } from "vitest";
 import { forwardPageErrors } from "../report-errors";
-import { feedbackFailure } from "../components/FeedbackDialog";
+import { feedbackFailure } from "../feedback";
 
 function page() {
   const listeners = new Map<string, (event: any) => void>();
@@ -72,7 +72,9 @@ describe("what a failed feedback send says", () => {
   it("names the launch-time veto, the hourly limit, a refusal and an unreachable server", () => {
     expect(feedbackFailure(403, "vetoed")).toContain("AGENTS_DECK_NO_INSTALL=1");
     expect(feedbackFailure(429, "too_many")).toContain("your text is still here");
-    expect(feedbackFailure(400, "invalid")).toContain("title");
+    // It said "the title or the text" while a title could be typed. The title
+    // is worked out from the message now, so a refusal names the message.
+    expect(feedbackFailure(400, "invalid")).toContain("did not accept the message");
     expect(feedbackFailure(0, null)).toContain("could not be reached");
   });
 });
