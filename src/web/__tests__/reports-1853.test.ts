@@ -366,6 +366,40 @@ describe("the coarse usage counts", () => {
   });
 });
 
+describe("uninstall: an install leaving", () => {
+  const sent = (h: ReturnType<typeof harness>) =>
+    h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).filter(b => b?.kind === "uninstall");
+
+  it("says so once asked, with the reason picked and the usual facts", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    expect(await h.reporter.willReport()).toBe(true);
+    expect(await h.reporter.reportUninstall("too-noisy")).toBe(true);
+    expect(sent(h)[0]).toMatchObject({ kind: "uninstall", reason: "too-noisy", version: "3.32.2", installId: h.prefs().report.installId });
+    // The id stays: running the deck again later is the same install coming back.
+    expect(h.prefs().report.installId).not.toBe("");
+  });
+
+  it("sends a reason only off the list, and none at all when none was picked", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    await h.reporter.reportUninstall("I hate it /home/alice");
+    await h.reporter.reportUninstall(null);
+    for (const body of sent(h)) expect(body).not.toHaveProperty("reason");
+  });
+
+  it("sends nothing with reports off, under the veto, or before there is an id", async () => {
+    const off = harness({ saved: { reports: false } });
+    const vetoed = harness({ env: { AGENTS_DECK_NO_REPORTS: "1" }, saved: { report: { installId: "id-1" } } });
+    const fresh = harness();
+    for (const h of [off, vetoed, fresh]) {
+      expect(await h.reporter.willReport()).toBe(false);
+      expect(await h.reporter.reportUninstall("broken")).toBe(false);
+      expect(sent(h)).toEqual([]);
+    }
+  });
+});
+
 describe("activation: did a new install work", () => {
   const events = (h: ReturnType<typeof harness>, kind: string) =>
     h.calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body).filter(b => b?.kind === kind);

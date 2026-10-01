@@ -12,6 +12,7 @@ import { PRODUCT } from "../../src/server/brand.mjs";
 import { COMMAND, PKG_ROOT } from "./package.js";
 import { G } from "./screen.js";
 import { removedRecord } from "./login-item.js";
+import { sayGoodbye } from "./leaving.js";
 
 /**
  * Remove this deck's hooks and its login item, stop every deck still running
@@ -176,6 +177,14 @@ export async function uninstall(flags) {
   // per refusal in the middle of the list.
   if (named.size > 0) {
     console.error(`${PRODUCT}: repair the JSON (or move the file aside), then run \`${COMMAND} --uninstall\` again.`);
+  }
+
+  // Last, once everything above is done, and only while reports are on: the
+  // usage reports hear that this install left, with a reason if the person at
+  // the terminal picks one. See bin/cli/leaving.js.
+  {
+    const { reporter } = await import(pathToFileURL(join(PKG_ROOT, "src/server/reports.mjs")).href);
+    await sayGoodbye({ reporter });
   }
   // Non-zero when any half of it refused, so `ccdeck --uninstall && …` and every
   // CI step that runs this stops on the failure instead of continuing past it.
