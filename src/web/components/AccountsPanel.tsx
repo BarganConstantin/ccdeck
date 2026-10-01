@@ -40,6 +40,7 @@ import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { useRosterFocus } from "../use-roster-focus";
 import { usePanelClock } from "../use-panel-clock";
 import { type Account, type AccountsData } from "../claude-accounts";
+import { useFeatureUse } from "../feature-use";
 
 interface Props {
   onClose: () => void;
@@ -56,6 +57,8 @@ interface Props {
 }
 
 export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: Props) {
+  // Opened: one of the features the usage reports name (feature-use.ts).
+  useFeatureUse("accounts-panel");
   // The one request the panel has out, and the attributes it puts on every
   // control that request makes inert — see use-request-slot.ts (#518).
   const { busy, claim, release, pressProps } = useRequestSlot();

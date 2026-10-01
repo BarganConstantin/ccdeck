@@ -13,7 +13,10 @@
 //     ccdeck gets counted without counting anything else about them, and which
 //     alone also carries coarse counts of how much: how many sessions,
 //     subagents and projects the deck heard from on the last day it was used,
-//     and that day's date — numbers, never their names (see usage-day.mjs),
+//     and that day's date — numbers, never their names (see usage-day.mjs) —
+//     and which of the deck's features were used that day, as fixed names
+//     ("usage-history", "account-switch") and nothing about what was done
+//     with them (feature-use.mjs),
 //   - an "activated" event, once, when a new install's first session arrives:
 //     how long after the install it came, as a bucket ("5m", "1h", "1d", "7d",
 //     "later"), and whether it was a Claude or a Codex session (activation.mjs),
@@ -69,7 +72,7 @@ import { reportsVetoed } from "./deck-prefs.mjs";
 import { isGitCheckout } from "./install-layout.mjs";
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
-import { usageDay, utcDay } from "./usage-day.mjs";
+import { FEATURES, usageDay, utcDay } from "./usage-day.mjs";
 import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
@@ -394,6 +397,9 @@ export function createReporter({
       addIf(out, "sessions", count(raw.sessions));
       addIf(out, "subagents", count(raw.subagents));
       addIf(out, "projects", count(raw.projects));
+      // The features used that day, as names off the fixed list — an empty list
+      // is a real answer (the deck ran, nothing was opened), not a missing one.
+      out.features = Array.isArray(raw.features) ? raw.features.filter(f => FEATURES.includes(f)) : [];
       return out;
     } catch {
       return {};
