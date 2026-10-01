@@ -25,8 +25,6 @@ import { rmTempDir } from "./rm-temp-dir";
 import { isNewer, pickFile, verifyZip, bundleOf, UPDATE_PUBLIC_KEY, checkForUpdate, SWAP_SCRIPT, stageUpdate, installOnExit, discard } from "../../../desktop/updater-mac.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { signEntry } from "../../../desktop/scripts/sign-update.mjs";
-// @ts-expect-error — plain .mjs, no types
-import { inked, markPng, STATES } from "../../../desktop/scripts/icons.mjs";
 
 const require = createRequire(import.meta.url);
 const { requirementForLeaf } = require("../../../desktop/scripts/sign-mac.cjs");
@@ -171,26 +169,6 @@ describe("the macOS signing requirement", () => {
     // this one is satisfied by every build signed with the same certificate.
     expect(requirementForLeaf("101d26314e1de3458ab863561d63937395792a34", "dev.ccdeck.app"))
       .toBe('identifier "dev.ccdeck.app" and certificate leaf = H"101d26314e1de3458ab863561d63937395792a34"');
-  });
-});
-
-describe("the icons", () => {
-  it("draws the favicon's four shapes", () => {
-    expect(STATES).toEqual(["idle", "running", "waiting", "offline"]);
-    // Centre: only running (dot) and waiting (disc) are inked.
-    expect(inked("idle", 16, 16)).toBe(false);
-    expect(inked("running", 16, 16)).toBe(true);
-    expect(inked("waiting", 16, 16)).toBe(true);
-    // On the ring at 3 o'clock every state but waiting's disc edge agrees.
-    expect(inked("idle", 28, 16)).toBe(true);
-    // Offline's gap is at the top.
-    expect(inked("offline", 16, 4)).toBe(false);
-    expect(inked("idle", 16, 4)).toBe(true);
-  });
-
-  it("writes a real PNG", () => {
-    const png = markPng("idle", 16, [0, 0, 0]);
-    expect(png.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   });
 });
 

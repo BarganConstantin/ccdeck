@@ -1,201 +1,93 @@
-// Every image the desktop app needs, drawn from the favicon's own geometry
-// (src/web/ambient.ts `mark`) and written as PNG — so the app's icon, its tray
-// states and the tab's favicon are one drawing, and no binary is tracked in git
-// (tracked-binaries.test.ts allows exactly two).
+// Every image the desktop app ships, taken from the ccdeck brand kit (v1.0.0)
+// vendored under desktop/brand: copied unchanged, or packed unchanged into the
+// container a platform asks for. Nothing here draws the mark. Which kit file
+// serves which slot, and why, is desktop/brand/README.md.
 //
-//   idle     ring                          grey
-//   running  ring and a centre dot         blue
-//   waiting  a full disc                   amber
-//   offline  the ring with a quarter gone  red
+// The tray says what the tab's favicon says, and both take the kit's mark with
+// the kit's overlay for the state, on the same map:
 //
-// On a 32-unit canvas: ring radius 12, stroke 5; dot radius 5; disc radius
-// 14.5; the offline gap spans 212°–302° measured clockwise from 3 o'clock (the
-// favicon's dash pattern rotated by -58°), which is the upper right.
+//   idle     default   the mark alone
+//   waiting  waiting   the mark and a dot, top right
+//   running  syncing   the mark and a turning arrow, top right
+//   offline  error     the mark and a ringed "!", top right
 //
-// macOS gets TEMPLATE images: black on transparent, which the menu bar tints
-// for a light or dark bar. The shape alone carries the state there, which is
-// why the four shapes differ and not only their colours. Windows and Linux get
-// the coloured ones.
+// The kit's fifth state, paused, has no product state behind it and is unused.
+// The state is an overlay on an unchanged mark, never a recolouring.
 //
-// Pure node — zlib and a hand-rolled PNG writer — so the build needs nothing
-// installed to draw them.
+// Each platform gets the kit's own version of the tray:
+//
+//   macOS    monochrome templates, which the menu bar tints for a light or a
+//            dark bar. Kit v1.0's own templates are cut off, so for now these
+//            are rendered from its masters (MACOS_TEMPLATES_FROM, below).
+//   Windows  the kit's tray .ico for idle; for the other three, the kit's PNGs
+//            of that state packed into an .ico at the sizes the kit's own .ico
+//            carries, so Windows picks the entry made for its DPI.
+//   Linux    the kit's colour PNGs, 32 and 64, the pair the app has always
+//            handed the panel.
+//
+// The app icon is a separate set and never stands in for the tray.
+//
+// Pure node, and nothing is downloaded: the .icns is made by Apple's iconutil
+// on a Mac, and the .ico is a directory of PNG files Windows has read since
+// Vista. electron-builder's icon toolset is a GitHub download that answered
+// 504 on two CI runs in a row.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { deflateSync } from "node:zlib";
+import { retinaFile, trayIconFile } from "../tray-icon.mjs";
 
-export const COLOURS = {
-  idle: [0x7e, 0x82, 0x8c],
-  running: [0x2a, 0x90, 0xd4],
-  waiting: [0xc9, 0x7d, 0x12],
-  offline: [0xe0, 0x52, 0x52],
-};
-export const STATES = Object.keys(COLOURS);
+const here = dirname(fileURLToPath(import.meta.url));
 
-/** Is this point of the 32-unit canvas inked, for this state? */
-export function inked(state, x, y) {
-  const dx = x - 16, dy = y - 16;
-  const r = Math.hypot(dx, dy);
-  if (state === "waiting") return r <= 14.5;
-  const onRing = r >= 9.5 && r <= 14.5;
-  if (state === "offline") {
-    const deg = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
-    return onRing && !(deg >= 212 && deg <= 302);
-  }
-  if (state === "running") return onRing || r <= 5;
-  return onRing;
-}
+/** Where the vendored kit files (kit/) and the rendered templates (rendered/) live. */
+export const BRAND = join(here, "..", "brand");
 
-/** Coverage of one output pixel, 0..1, from an n×n grid of samples. */
-function coverage(state, px, py, size, n = 5) {
-  let hit = 0;
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
-      const x = ((px + (i + 0.5) / n) / size) * 32;
-      const y = ((py + (j + 0.5) / n) / size) * 32;
-      if (inked(state, x, y)) hit++;
-    }
-  }
-  return hit / (n * n);
-}
+/**
+ * The one kit version everything under desktop/brand/kit is a copy of, file
+ * for file at the same relative path. scripts/vendor-brand-kit.mjs refuses a
+ * kit whose VERSION is not this, so taking a new kit starts by changing it.
+ */
+export const KIT_VERSION = "1.0.0";
 
-const CRC = new Uint32Array(256).map((_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
+/**
+ * Where the macOS menu-bar templates come from. "rendered": kit v1.0's own
+ * templates draw the mark cut off, so they are rendered from its monochrome
+ * masters by scripts/render-tray-templates.mjs — a workaround for that kit
+ * version, nothing more. "kit": a kit whose 04-tray-menu/macos templates are
+ * whole is copied like every other file. Switching is this one line, then
+ * vendor-brand-kit.mjs, then the template checks in desktop-brand-icons.test.ts
+ * say whether the kit's templates really are whole.
+ */
+export const MACOS_TEMPLATES_FROM = "rendered";
+
+/** Each product state's kit state: owner decision 2 of the brand adoption. */
+export const TRAY_ART = Object.freeze({
+  idle: "default",
+  waiting: "waiting",
+  running: "syncing",
+  offline: "error",
 });
-function crc32(buf) {
-  let c = 0xffffffff;
-  for (const b of buf) c = CRC[(c ^ b) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
-function chunk(type, data) {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body));
-  return Buffer.concat([len, body, crc]);
-}
+export const STATES = Object.keys(TRAY_ART);
 
-/** RGBA pixels (size×size×4) as a PNG file. */
-export function png(size, rgba) {
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(size, 0);
-  header.writeUInt32BE(size, 4);
-  header[8] = 8; // bit depth
-  header[9] = 6; // RGBA
-  const rows = Buffer.alloc(size * (size * 4 + 1));
-  for (let y = 0; y < size; y++) {
-    rows[y * (size * 4 + 1)] = 0; // filter: none
-    rgba.copy(rows, y * (size * 4 + 1) + 1, y * size * 4, (y + 1) * size * 4);
-  }
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk("IHDR", header),
-    chunk("IDAT", deflateSync(rows, { level: 9 })),
-    chunk("IEND", Buffer.alloc(0)),
-  ]);
-}
+/** The kit's names for its macOS templates, which the rendered ones keep. */
+export const MACOS_TEMPLATE_STEMS = Object.freeze({
+  default: "ccdeckTemplate",
+  waiting: "ccdeckWaitingTemplate",
+  syncing: "ccdeckSyncingTemplate",
+  error: "ccdeckErrorTemplate",
+});
 
-/** One state's mark, in `rgb`, on transparent. */
-export function markPng(state, size, rgb) {
-  const px = Buffer.alloc(size * size * 4);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const a = coverage(state, x, y, size);
-      const o = (y * size + x) * 4;
-      px[o] = rgb[0]; px[o + 1] = rgb[1]; px[o + 2] = rgb[2];
-      px[o + 3] = Math.round(a * 255);
-    }
-  }
-  return png(size, px);
-}
+/** The menu-bar template's pixel size, 1x and Retina: the kit's 18 pt. */
+export const MACOS_TEMPLATE_SIZES = Object.freeze({ "": 18, "@2x": 36 });
 
-/** The app icon: the running-blue ring on a dark rounded tile, inset the way
- *  Apple's icon grid insets a tile from its canvas. */
-export function appIconPng(size = 1024) {
-  const px = Buffer.alloc(size * size * 4);
-  const inset = size * 0.1, tile = size - 2 * inset, radius = tile * 0.225;
-  const bg = [0x1f, 0x1f, 0x1f];
-  const n = 3;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      let tileHit = 0, ringHit = 0;
-      for (let i = 0; i < n; i++) {
-        for (let j = 0; j < n; j++) {
-          const sx = x + (i + 0.5) / n, sy = y + (j + 0.5) / n;
-          // Inside the rounded tile?
-          const cx = Math.min(Math.max(sx, inset + radius), size - inset - radius);
-          const cy = Math.min(Math.max(sy, inset + radius), size - inset - radius);
-          if (Math.hypot(sx - cx, sy - cy) <= radius) {
-            tileHit++;
-            // The ring occupies the tile's middle 60%.
-            const u = ((sx - inset - tile * 0.2) / (tile * 0.6)) * 32;
-            const v = ((sy - inset - tile * 0.2) / (tile * 0.6)) * 32;
-            if (inked("idle", u, v)) ringHit++;
-          }
-        }
-      }
-      const a = tileHit / (n * n), t = tileHit ? ringHit / tileHit : 0;
-      const o = (y * size + x) * 4;
-      for (let k = 0; k < 3; k++) px[o + k] = Math.round(bg[k] * (1 - t) + COLOURS.running[k] * t);
-      px[o + 3] = Math.round(a * 255);
-    }
-  }
-  return png(size, px);
-}
+/** The entries of the kit's ccdeck-tray.ico, which every state's .ico repeats. */
+export const WINDOWS_TRAY_SIZES = Object.freeze([16, 20, 24, 32, 48, 64]);
+
+/** The Linux tray pair: the 1x and the @2x Electron hands the panel. */
+export const LINUX_TRAY_SIZES = Object.freeze({ "": 32, "@2x": 64 });
 
 /**
- * The macOS .icns, made with Apple's own sips and iconutil — so the build does
- * not fetch electron-builder's icon toolset, a download GitHub answered with a
- * 504 on two CI runs in a row. macOS only; elsewhere electron-builder makes the
- * .ico and the Linux set from icon.png itself.
- */
-export function writeIcns(outDir) {
-  const set = join(outDir, "icon.iconset");
-  rmSync(set, { recursive: true, force: true });
-  mkdirSync(set, { recursive: true });
-  const src = join(outDir, "icon.png");
-  for (const size of [16, 32, 128, 256, 512]) {
-    execFileSync("sips", ["-z", String(size), String(size), src, "--out", join(set, `icon_${size}x${size}.png`)], { stdio: "ignore" });
-    execFileSync("sips", ["-z", String(size * 2), String(size * 2), src, "--out", join(set, `icon_${size}x${size}@2x.png`)], { stdio: "ignore" });
-  }
-  execFileSync("iconutil", ["-c", "icns", set, "-o", join(outDir, "icon.icns")]);
-  rmSync(set, { recursive: true, force: true });
-}
-
-/**
- * The Windows .ico: a directory of PNG images, which Windows has read since
- * Vista. Written here for the reason the .icns is made with iconutil — so the
- * build fetches no icon toolset from GitHub, whose release downloads answered
- * 504 on the CI runners more than once.
- */
-export function icoFile(sizes = [16, 24, 32, 48, 64, 128, 256]) {
-  const images = sizes.map(size => ({ size, png: appIconPng(size) }));
-  const header = Buffer.alloc(6);
-  header.writeUInt16LE(0, 0); // reserved
-  header.writeUInt16LE(1, 2); // type: icon
-  header.writeUInt16LE(images.length, 4);
-  const entries = [];
-  let offset = 6 + 16 * images.length;
-  for (const { size, png } of images) {
-    const e = Buffer.alloc(16);
-    e[0] = size >= 256 ? 0 : size; // 0 means 256
-    e[1] = size >= 256 ? 0 : size;
-    e.writeUInt16LE(1, 4);  // colour planes
-    e.writeUInt16LE(32, 6); // bits per pixel
-    e.writeUInt32LE(png.length, 8);
-    e.writeUInt32LE(offset, 12);
-    offset += png.length;
-    entries.push(e);
-  }
-  return Buffer.concat([header, ...entries, ...images.map(i => i.png)]);
-}
-
-/**
- * The sizes the Linux set is drawn at.
+ * The sizes the Linux app icon is installed at.
  *
  * Every one of them is declared by the hicolor theme, and that is the whole
  * point. Left to make the set itself from icon.png, electron-builder wrote a
@@ -205,34 +97,116 @@ export function icoFile(sizes = [16, 24, 32, 48, 64, 128, 256]) {
  * because each takes ONE file that carries every size inside it (.icns, .ico).
  * A png in an undeclared directory is not a small icon, it is no icon.
  */
-export const LINUX_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512];
+export const LINUX_ICON_SIZES = Object.freeze([16, 24, 32, 48, 64, 128, 256, 512]);
 
-/** Write every image into `outDir`. */
-export function writeIcons(outDir) {
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(join(outDir, "icon.png"), appIconPng(1024));
-  writeFileSync(join(outDir, "icon.ico"), icoFile());
-  if (process.platform === "darwin") writeIcns(outDir);
+/** The kit's Linux launcher set has no 24; its own 24 px app export fills it,
+ *  drawn for that size like the 16, 32 and 48 beside it. */
+function linuxIconSource(size) {
+  return size === 24 ? "kit/03-app-icons/png/ccdeck-app-24.png" : `kit/03-app-icons/linux/ccdeck-${size}.png`;
+}
+
+function macosTemplateSource(art, suffix) {
+  const name = `${MACOS_TEMPLATE_STEMS[art]}${suffix}.png`;
+  return MACOS_TEMPLATES_FROM === "kit" ? `kit/04-tray-menu/macos/${name}` : `rendered/macos/${name}`;
+}
+
+/** The kit masters a render of the templates reads; none when they are copied. */
+export function macosTemplateMasters() {
+  if (MACOS_TEMPLATES_FROM === "kit") return [];
+  return Object.keys(MACOS_TEMPLATE_STEMS).map(art => `kit/04-tray-menu/generic/svg/ccdeck-tray-${art}.svg`);
+}
+
+function windowsTraySources(art) {
+  if (art === "default") return ["kit/04-tray-menu/windows/ccdeck-tray.ico"];
+  return WINDOWS_TRAY_SIZES.map(size => `kit/04-tray-menu/windows/ccdeck-tray-${art}-${size}.png`);
+}
+
+/**
+ * What is written into dist/icons, and from which files under desktop/brand.
+ * `pack` names a container made from the sources: "ico" packs PNGs into an
+ * .ico, "icns" runs iconutil on an iconset (macOS only). Without it the one
+ * source is copied as it is.
+ */
+export function iconPlan() {
+  const plan = [
+    { out: "icon.png", from: ["kit/03-app-icons/png/ccdeck-app-1024.png"] },
+    { out: "icon.ico", from: ["kit/03-app-icons/windows/ccdeck.ico"] },
+    { out: "icon.icns", from: ["kit/03-app-icons/macos.iconset"], pack: "icns" },
+  ];
   // Named the way electron-builder reads an icon directory: the size is in the
   // filename, and it installs each one under the hicolor size that matches.
-  const linux = join(outDir, "linux");
-  mkdirSync(linux, { recursive: true });
   for (const size of LINUX_ICON_SIZES) {
-    writeFileSync(join(linux, `${size}x${size}.png`), appIconPng(size));
+    plan.push({ out: `linux/${size}x${size}.png`, from: [linuxIconSource(size)] });
   }
   for (const state of STATES) {
-    // macOS menu bar: 16pt, with the @2x the Retina bar asks for. The
-    // "Template" suffix is what makes Electron mark the image as a template.
-    writeFileSync(join(outDir, `tray-${state}Template.png`), markPng(state, 16, [0, 0, 0]));
-    writeFileSync(join(outDir, `tray-${state}Template@2x.png`), markPng(state, 32, [0, 0, 0]));
-    // Windows and Linux: coloured, at the sizes their trays pick from.
-    writeFileSync(join(outDir, `tray-${state}.png`), markPng(state, 32, COLOURS[state]));
-    writeFileSync(join(outDir, `tray-${state}@2x.png`), markPng(state, 64, COLOURS[state]));
+    const art = TRAY_ART[state];
+    const template = trayIconFile("darwin", state);
+    plan.push({ out: template, from: [macosTemplateSource(art, "")] });
+    plan.push({ out: retinaFile(template), from: [macosTemplateSource(art, "@2x")] });
+    const sources = windowsTraySources(art);
+    plan.push({ out: trayIconFile("win32", state), from: sources, ...(sources.length > 1 ? { pack: "ico" } : {}) });
+    const linux = trayIconFile("linux", state);
+    plan.push({ out: linux, from: [`kit/04-tray-menu/linux/ccdeck-tray-${art}-${LINUX_TRAY_SIZES[""]}.png`] });
+    plan.push({ out: retinaFile(linux), from: [`kit/04-tray-menu/linux/ccdeck-tray-${art}-${LINUX_TRAY_SIZES["@2x"]}.png`] });
+  }
+  return plan;
+}
+
+/** A PNG file's pixel size, read off its IHDR chunk. */
+export function pngSize(png) {
+  if (png.subarray(1, 4).toString("latin1") !== "PNG" || png.subarray(12, 16).toString("latin1") !== "IHDR") {
+    throw new Error("not a PNG file");
+  }
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+}
+
+/** PNG files, unchanged, as the entries of one .ico. */
+export function packIco(pngs) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // type: icon
+  header.writeUInt16LE(pngs.length, 4);
+  const entries = [];
+  let offset = 6 + 16 * pngs.length;
+  for (const png of pngs) {
+    const { width, height } = pngSize(png);
+    if (width !== height || width > 256) throw new Error(`an .ico entry is square and at most 256, not ${width}x${height}`);
+    const e = Buffer.alloc(16);
+    e[0] = width >= 256 ? 0 : width; // 0 means 256
+    e[1] = height >= 256 ? 0 : height;
+    e.writeUInt16LE(1, 4);  // colour planes
+    e.writeUInt16LE(32, 6); // bits per pixel
+    e.writeUInt32LE(png.length, 8);
+    e.writeUInt32LE(offset, 12);
+    offset += png.length;
+    entries.push(e);
+  }
+  return Buffer.concat([header, ...entries, ...pngs]);
+}
+
+/** The macOS .icns, from the kit's iconset as it is: every 1x and @2x entry. */
+function writeIcns(iconset, out) {
+  execFileSync("iconutil", ["-c", "icns", iconset, "-o", out]);
+}
+
+/** Write every image into `outDir`, which is emptied first so it holds the plan
+ *  and nothing an older build left there. */
+export function writeIcons(outDir, { brand = BRAND, platform = process.platform } = {}) {
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(join(outDir, "linux"), { recursive: true });
+  for (const { out, from, pack } of iconPlan()) {
+    const sources = from.map(path => join(brand, path));
+    if (pack === "icns") {
+      if (platform === "darwin") writeIcns(sources[0], join(outDir, out));
+    } else if (pack === "ico") {
+      writeFileSync(join(outDir, out), packIco(sources.map(path => readFileSync(path))));
+    } else {
+      writeFileSync(join(outDir, out), readFileSync(sources[0]));
+    }
   }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const here = dirname(fileURLToPath(import.meta.url));
   const out = join(here, "..", "dist", "icons");
   writeIcons(out);
   console.log(`icons written to ${out}`);

@@ -37,7 +37,7 @@ import { createUpdater, FEED } from "../../../desktop/updater.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { pickFile } from "../../../desktop/updater-mac.mjs";
 // @ts-expect-error — plain .mjs, no types
-import { LINUX_ICON_SIZES, appIconPng } from "../../../desktop/scripts/icons.mjs";
+import { BRAND, LINUX_ICON_SIZES, iconPlan, pngSize } from "../../../desktop/scripts/icons.mjs";
 
 const require = createRequire(import.meta.url);
 const config = require("../../../desktop/electron-builder.config.cjs");
@@ -373,7 +373,7 @@ describe("the icon Linux is given", () => {
   // that decides whether a directory is ever looked in.
   const DECLARED = [16, 22, 24, 32, 36, 48, 64, 72, 96, 128, 192, 256, 512];
 
-  it("is drawn at sizes the hicolor theme declares, and at no other", () => {
+  it("is installed at sizes the hicolor theme declares, and at no other", () => {
     for (const size of LINUX_ICON_SIZES) {
       expect(DECLARED, `hicolor declares no ${size}x${size}, so GTK would never look there`).toContain(size);
     }
@@ -381,7 +381,7 @@ describe("the icon Linux is given", () => {
     expect(LINUX_ICON_SIZES.length).toBeGreaterThanOrEqual(6);
   });
 
-  it("is taken from the drawn set, not from the single 1024 icon.png", () => {
+  it("is taken from the size set, not from the single 1024 icon.png", () => {
     expect(config.linux?.icon, "unset, electron-builder falls back to icon.png and installs one 1024 icon").toBeDefined();
     expect(config.linux.icon).toMatch(/linux$/);
   });
@@ -389,11 +389,15 @@ describe("the icon Linux is given", () => {
   it("writes each file at the size its name claims, which is how the set is read", () => {
     // electron-builder reads an icon directory by the size in the filename, so
     // a file whose pixels disagree with its name installs at the wrong size.
-    for (const size of [16, 48, 256]) {
-      const png = appIconPng(size);
-      expect(png.subarray(1, 4).toString()).toBe("PNG");
-      expect(png.readUInt32BE(16), `${size}x${size}.png is not ${size} wide`).toBe(size);
-      expect(png.readUInt32BE(20), `${size}x${size}.png is not ${size} tall`).toBe(size);
+    // The set used to be drawn at each size, and its drawing was what this
+    // read; it is the brand kit's files now, so it reads the file each name
+    // is copied from — every size, not a sample of three.
+    const plan: { out: string; from: string[] }[] = iconPlan();
+    for (const size of LINUX_ICON_SIZES) {
+      const entry = plan.find(e => e.out === `linux/${size}x${size}.png`);
+      expect(entry, `nothing is written as linux/${size}x${size}.png`).toBeDefined();
+      expect(pngSize(readFileSync(join(BRAND, entry!.from[0]))), `${size}x${size}.png comes from ${entry!.from[0]}`)
+        .toEqual({ width: size, height: size });
     }
   });
 });
