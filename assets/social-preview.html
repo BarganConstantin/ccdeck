@@ -17,11 +17,9 @@ body{
   display:grid; grid-template-columns:534px 626px; align-items:center;
   padding:0 56px; gap:8px; overflow:hidden;
 }
-/* The kit's on-dark lockup, unchanged. The box crops the lockup's empty right
-   third (v1.0 kit workaround: its artwork ends near x 293 of a 430 viewBox,
-   so 304 of 430 keeps the artwork and the clear space on its left). */
-.mark{width:170px;height:56px;overflow:hidden;margin-bottom:24px}
-.mark img{display:block;height:56px}
+/* The brand kit's on-dark lockup, unchanged; the card only sizes it. */
+.mark{margin-bottom:24px}
+.mark img{display:block;height:56px;width:auto}
 h1{font-size:34px;line-height:1.26;font-weight:640;letter-spacing:-.6px}
 h1 .dim{color:#8f939c;font-weight:520}
 .answer{margin-top:17px;font-size:21px;line-height:1.45;color:#b7bbc4;font-weight:450;max-width:500px}
