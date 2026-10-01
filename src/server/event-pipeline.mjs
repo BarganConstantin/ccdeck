@@ -239,6 +239,11 @@ export function pushEvent(raw, source, opts = {}) {
     } else {
       noteRefusedTranscript(raw.transcript_path);
     }
+  } else if (source === "codex" && !opts.replay) {
+    // Codex has no hooks: its sessions arrive from the rollout watcher, which
+    // emits only what a rollout gains while the deck watches. That is use too.
+    usageDay.noteUse(raw);
+    usageDay.noteFolder(raw?.cwd);
   }
 
   return evt;

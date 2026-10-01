@@ -19,9 +19,10 @@
 // counted twice. That is the price of keeping no ids on disk, and a restart is
 // rare next to the day's sessions.
 //
-// Only what a hook said counts: a hook fires because somebody is running the
-// CLI. Replayed lines, a rollout read off disk and the deck's own synthetic
-// events are not use.
+// Only live use counts: a Claude hook fires because somebody is running the
+// CLI, and the Codex watcher emits only what a rollout gains while the deck
+// watches (its first scan skips every file's history). Replayed lines and the
+// deck's own synthetic events are not use.
 
 /** The day as the reporter says it: the UTC date, "2026-10-01". */
 export function utcDay(date) {
@@ -107,7 +108,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     changes++;
   }
 
-  /** A live hook payload: its session, and the subagent it came from if any. */
+  /** A live payload: its session, and the subagent it came from if any. */
   function noteUse(raw) {
     const sid = raw?.session_id;
     if (!sid || typeof sid !== "string") return;
@@ -116,10 +117,17 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     if (typeof raw.agent_id === "string" && raw.agent_id) add(c.subagents, `${sid}\u0000${raw.agent_id}`);
   }
 
-  /** A transcript path a hook carried, already accepted as Claude's. */
+  /** A transcript path a Claude hook carried, already accepted as Claude's:
+   *  the project is the folder it sits in. */
   function noteProject(path) {
     if (!path || typeof path !== "string") return;
     add(today().projects, folderOf(path));
+  }
+
+  /** A Codex session's working directory, which is its project. */
+  function noteFolder(dir) {
+    if (!dir || typeof dir !== "string") return;
+    add(today().projects, dir);
   }
 
   /** The totals of the last finished day before `day`, if they have not gone
@@ -169,7 +177,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     return changes;
   }
 
-  return { noteUse, noteProject, finished, markSent, saved, restore, version };
+  return { noteUse, noteProject, noteFolder, finished, markSent, saved, restore, version };
 }
 
 /** The deck's own tally, which the event pipeline feeds and the reporter reads. */
