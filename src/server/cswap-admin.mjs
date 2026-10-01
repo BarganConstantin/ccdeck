@@ -36,6 +36,29 @@ import { PRODUCT } from "./brand.mjs";
 // open longer than a user would plausibly take to fetch one.
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
 const CSWAP_TIMEOUT_MS = 60_000;
+
+// ── telling the deck what it signed in (#1893) ──────────────────────────────
+//
+// A completed `+ → Sign in` is the one moment the deck knows where an account
+// came from, and a removal through the panel the one moment it knows the
+// account is gone. Both are told to whoever registered here — account-routes.mjs,
+// which keeps the answer in prefs.json — rather than written from this module:
+// tests drive these flows against fixture stores, and none of them may reach
+// the user's own settings.
+let _origins = null;
+
+/** `{ signedIn({email, org, added}), removed({email, org}) }`, or null. */
+export function accountOriginsWith(hooks) {
+  _origins = hooks && typeof hooks === "object" ? hooks : null;
+}
+
+/** Tell the registered hook, and never let its failure become the flow's: an
+ *  account that was signed in is signed in whether or not this was kept. */
+async function tellOrigins(event, detail) {
+  try { await _origins?.[event]?.(detail); }
+  catch (err) { console.error(`${PRODUCT}: could not note where an account came from:`, err?.message ?? err); }
+}
+
 // ── whether this process can read what claude-swap holds ────────────────────
 //
 // ASKED OF CLAUDE-SWAP, NEVER READ OFF ITS WORDS. A Keychain it cannot open is
@@ -666,6 +689,14 @@ async function registerSignedIn(flow, identity) {
     // No new slot means the account was already managed and cswap refreshed its
     // credentials in place. That is a success with a different sentence.
     const num = slot ?? Object.keys(after.emails).find(k => after.emails[k] === identity.email) ?? null;
+
+    // Recorded now that claude-swap holds the account, and before the roster
+    // is invalidated below, so no read can land between the two and cache a
+    // row that does not know the deck signed it in (#1893). The store, not the
+    // CLI, supplies the organization: claude-swap keys the account by both.
+    if (num != null) {
+      await tellOrigins("signedIn", { email: after.emails[num] || identity.email, org: after.orgs?.[num] ?? "", added: slot != null });
+    }
 
     // Assigned, not discarded. `done` is still the right state — the account
     // WAS added — but it is `done` with a qualification whenever this says the
@@ -1495,6 +1526,9 @@ export async function removeAccount(num) {
   if (!Number.isInteger(n) || n < 1 || n > 999) return { ok: false, reason: "bad_account" };
 
   return withStoreLock(async () => {
+    // Who the slot holds, read before it is gone: what the deck remembers about
+    // an account is keyed by identity, and the number names nobody afterwards.
+    const before = await readStore();
     const child = runInteractive(await cswapBin(), ["remove", String(n)], { timeout: CSWAP_TIMEOUT_MS });
     let answered = false;
     child.onLine((line) => {
@@ -1507,6 +1541,8 @@ export async function removeAccount(num) {
     // Exit 0 without the prompt means cswap declined for its own reason — a
     // live session on that account, most often — and printed why.
     if (!answered) return { ok: false, reason: "not_confirmed", detail: firstUseful(r.stdout || r.stderr) };
+    const email = before.emails[String(n)];
+    if (email) await tellOrigins("removed", { email, org: before.orgs?.[String(n)] ?? "" });
     return { ok: true, output: firstUseful(r.stdout) };
   });
 }

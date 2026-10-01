@@ -45,6 +45,7 @@ import { NOT_JSON, prefsRefusalDetail, prefsWriteRefusal, unreadablePrefs } from
 import { DENIED, foreignPath, quarantinePath, setAsideForeign } from "./prefs-set-aside.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
+import { normaliseOrigins } from "./account-origins.mjs";
 
 /** Set to "1" to keep the deck off the desktop whatever the stored preference
  *  says. Same sheet of switches as AGENTS_DECK_NO_DOWNLOAD and
@@ -91,6 +92,10 @@ export const DEFAULTS = Object.freeze({
   // not yet acknowledged, retried on the next start so switching off while
   // offline still ends in a deletion.
   report: Object.freeze({ installId: "", lastVersion: "", lastActiveDay: "", forget: "" }),
+  // The accounts this deck signed in itself, and the re-sign-in prompts
+  // somebody put off (#1893) — keyed by account identity, written by the deck
+  // and never by a page. See account-origins.mjs.
+  accounts: Object.freeze({}),
   // LAN sync, ON unless somebody turns it off (since 3.22.7; off before).
   // `passphrase` is the only secret this file has ever held, which is why the
   // write below names a mode. AGENTS_DECK_NO_LAN=1 keeps a deck off the network
@@ -281,6 +286,7 @@ export function normalise(raw) {
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
+    accounts: normaliseOrigins(src.accounts),
     lan: normaliseLan(src.lan),
   };
 }
@@ -607,7 +613,9 @@ async function save(mutate, home, deps) {
 export function publicPrefs(prefs) {
   // The reporter's state is the server's alone: a page has no use for the
   // install id, and one that could read it could send reports as this install.
-  const { report: _report, ...p } = normalise(prefs);
+  // Nor does it need which accounts the deck signed in (#1893): the roster
+  // carries what a row needs, and the map is the deck's own bookkeeping.
+  const { report: _report, accounts: _accounts, ...p } = normalise(prefs);
   // unpaired is engine-authored state too. No page draws or edits it; keeping
   // it out also means a future whole-prefs form cannot replay a stale unpair
   // list over a decision the engine made after the form loaded.

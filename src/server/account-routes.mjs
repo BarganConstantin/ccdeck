@@ -9,15 +9,24 @@
 // loads, so moving the routes here puts no import on the path to a listening
 // socket and takes none out of the pin.
 //
-// Four things are exported beyond the handlers. Three because index.mjs reaches
+// Five things are exported beyond the handlers. Four because index.mjs reaches
 // for them: wireStaleCopyRepair, which startServer runs to hand the roster its
-// stale-copy repair, cswapAutoModule, which it uses to start auto-switch, and
-// getProjectRollup, which it starts at boot. The fourth is CHECKS_IMPORTS,
-// which lan-deck.mjs reads because a LAN round checks the imports it lands the
-// same way the paste box does.
+// stale-copy repair, wireAccountOrigins, which hands it and the sign-in flow
+// where accounts came from (#1893), cswapAutoModule, which it uses to start
+// auto-switch, and getProjectRollup, which it starts at boot. The fifth is
+// CHECKS_IMPORTS, which lan-deck.mjs reads because a LAN round checks the
+// imports it lands the same way the paste box does.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readBody, send } from "./http-io.mjs";
+// Where the deck keeps which accounts it signed in (#1893): prefs.json, through
+// the one in-memory copy and its queued writer. Both are already on the boot
+// path, which the lazily imported modules below are kept off.
+import { heldPrefs } from "./prefs-state.mjs";
+import { PRODUCT } from "./brand.mjs";
+import {
+  incidentsFrom, normaliseOrigins, withDismissed, withRecovered, withSignIn, withoutOrigin,
+} from "./account-origins.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -158,6 +167,71 @@ export function wireStaleCopyRepair() {
   })();
 }
 
+/**
+ * Hand the roster and the sign-in flow what the deck remembers about where its
+ * accounts came from (#1893), so a completed `+ → Sign in` is recorded, a
+ * removal forgets it, and each roster row can say whether it is an incident to
+ * ask its owner about.
+ *
+ * Run beside wireStaleCopyRepair and for its reasons: best-effort, imported one
+ * module at a time, and never at import, so no test reading a fixture store can
+ * reach the user's own prefs.json.
+ */
+export function wireAccountOrigins() {
+  void (async () => {
+    let accounts, admin;
+    try {
+      accounts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
+      admin = await cswapAdminModule();
+    } catch { return; }
+    accounts.accountOriginsWith({
+      entries: () => normaliseOrigins(heldPrefs.current()?.accounts),
+      // Told on a read, and a read happens every few seconds: only a put-off
+      // that is really still there is written away, so a recovered account
+      // costs one write rather than one per poll.
+      recovered: keys => {
+        const held = normaliseOrigins(heldPrefs.current()?.accounts);
+        if (!keys.some(k => held[k]?.dismissed != null)) return;
+        heldPrefs.update(withRecovered(keys)).catch(err => noteOriginFailure(err));
+      },
+    });
+    admin.accountOriginsWith({
+      signedIn: ({ email, org, added }) => heldPrefs.update(withSignIn({ email, org, added, now: Date.now() })),
+      removed: ({ email, org }) => heldPrefs.update(withoutOrigin({ email, org })),
+    });
+  })();
+}
+
+/** A settings file the deck cannot write costs a remembered "Not now", which
+ *  the next read asks about again — said in the log and nowhere else. */
+function noteOriginFailure(err) {
+  console.error(`${PRODUCT}: could not update where an account came from:`, err?.message ?? err);
+}
+
+/**
+ * "Not now" on the accounts the re-sign-in prompt named (#1893).
+ *
+ * Each incident is `{ key, since }` as the roster row sent it. Written to the
+ * account's entry, so the prompt stays down for that incident across a reload,
+ * another tab and a restart, and comes back only for a new one. The roster is
+ * forgotten after, so the next read already carries `dismissed`.
+ */
+async function dismissReauth(raw) {
+  const incidents = incidentsFrom(raw);
+  if (!incidents.length) return { ok: false, reason: "bad_request" };
+  try {
+    await heldPrefs.update(withDismissed(incidents));
+  } catch (err) {
+    noteOriginFailure(err);
+    return { ok: false, reason: "prefs_unwritable" };
+  }
+  const { invalidateClaudeAccountsCache } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href
+  );
+  invalidateClaudeAccountsCache();
+  return { ok: true };
+}
+
 // Reading the login's progress. The browser polls this while its dialog is
 // open, the same way the upgrade notice polls /api/version.
 export async function handleAccountLoginState(_req, res) {
@@ -210,6 +284,9 @@ export async function handleClaudeAccountAdmin(req, res) {
     case "recapture":    result = await admin.recaptureActive(); break;
     case "alias":        result = await admin.setAlias(parsed.account, parsed.alias); break;
     case "move":         result = await admin.moveAccount(parsed.account, parsed.slot); break;
+    // #1893. Touches prefs.json, never the store: "Not now" on a re-sign-in
+    // prompt, remembered for that incident.
+    case "reauth-later": result = await dismissReauth(parsed.incidents); break;
     default: return send(res, 400, { ok: false, reason: "unknown_action" });
   }
   send(res, result.ok ? 200 : 400, result);

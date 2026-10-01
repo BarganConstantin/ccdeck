@@ -47,6 +47,10 @@ export { verdictNow, verdictsNow } from "./claude-verdicts.mjs";
 // Asking claude-swap to collect, which every roster read does when something is
 // due, and when each account will next be read.
 import { nextReadAt, nudgeCollector } from "./claude-collector.mjs";
+// Which accounts the deck signed in itself, and the incident one of them is in
+// (#1893). Pure, and keyed the way LAN sync keys accounts.
+import { hasRecovered, reauthFor } from "./account-origins.mjs";
+import { accountKey } from "./lan-copies.mjs";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -349,6 +353,30 @@ function repairFor(num, email, now) {
   try { return _repairStaleCopy({ num, email, now }) ?? null; } catch { return null; }
 }
 
+// ── which accounts the deck signed in (#1893) ────────────────────────────────
+//
+// HANDED IN, NOT IMPORTED, for the stale-copy repair's reason: what the deck
+// remembers lives in prefs.json, and this module is read by dozens of tests
+// against fixture stores that must never reach the user's own settings. The
+// server hands it in when it starts listening (wireAccountOrigins, in
+// account-routes.mjs); with nothing handed in, no row has an origin.
+let _origins = null;
+
+/**
+ * `{ entries, recovered }`: `entries()` answers prefs.json's `accounts` map as
+ * held in memory, and `recovered(keys)` is told which accounts were read well
+ * after an incident somebody put off. Null unregisters.
+ */
+export function accountOriginsWith(source) {
+  _origins = source && typeof source.entries === "function" ? source : null;
+}
+
+/** The map as it stands. One that throws costs the roster its origins, never
+ *  the read. */
+function originsNow() {
+  try { return _origins?.entries() ?? {}; } catch { return {}; }
+}
+
 /**
  * The read itself, split out from the admission control above it so the guard is
  * readable as the four lines it is.
@@ -421,13 +449,24 @@ async function readRoster(now, gen) {
     ? seq.sequence.map(String)
     : Object.keys(seq.accounts).sort((a, b) => Number(a) - Number(b));
 
+  const origins = originsNow();
   const accounts = [];
+  const recovered = [];
   for (const num of order) {
     const acct = seq.accounts[num];
     if (!acct) continue;                       // sequence lists a slot that no longer exists
 
     const row = rows[num];
-    accounts.push(rosterRow({ seq, num, acct, row, identity, now }));
+    const shown = rosterRow({ seq, num, acct, row, identity, now, origins });
+    accounts.push(shown);
+    // A put-off incident is over once a read succeeds after it, and the
+    // put-off goes with it (#1893) — said here, where the read is, rather than
+    // left for the page to notice.
+    const key = accountKey(acct.email, acct.organizationUuid);
+    if (Object.hasOwn(origins, key) && hasRecovered(origins[key], shown.fetchedAt)) recovered.push(key);
+  }
+  if (recovered.length) {
+    try { _origins?.recovered?.(recovered); } catch { /* the next read says it again */ }
   }
 
   return finish({ ok: true, accounts, activeNum: seq.activeAccountNumber ?? null, fetchedAt: now });
@@ -443,11 +482,14 @@ async function readRoster(now, gen) {
  * verdict cache, and asks the registered repair about a `stale-copy` row —
  * which is what starts that repair (see repairStaleCopyWith).
  */
-function rosterRow({ seq, num, acct, row, identity, now }) {
+function rosterRow({ seq, num, acct, row, identity, now, origins = {} }) {
   const matches = rowIsFor(row, acct);
   const good = matches ? row.lastGood : null;
 
   const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
+  // When claude-swap last TRIED, well or not. A refusal counts against a login
+  // only when it came after the deck last signed that login in (#1893).
+  const attemptedAtMs = matches && typeof row.lastAttemptAt === "number" ? row.lastAttemptAt * 1000 : null;
   const isActive = String(seq.activeAccountNumber) === num;
   const trouble = authTrouble(row, {
     matches, isActive, identity, email: acct.email, fetchedAt: fetchedAtMs, now,
@@ -462,6 +504,9 @@ function rosterRow({ seq, num, acct, row, identity, now }) {
   ].filter(Boolean);
 
   const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
+  const key = accountKey(acct.email, acct.organizationUuid);
+  const origin = Object.hasOwn(origins, key) ? origins[key] : null;
+  const reauth = reauthFor({ entry: origin, trouble, collector, fetchedAt: fetchedAtMs, attemptedAt: attemptedAtMs });
   return {
     num:      Number(num),
     email:    acct.email ?? null,
@@ -520,6 +565,13 @@ function rosterRow({ seq, num, acct, row, identity, now }) {
     // what turns "not collecting" into a sentence with a next step in it, and
     // it is null on every machine where the collector has not been asked yet.
     collector,
+    // "ccdeck_signin" when the deck's own `+ → Sign in` added this account,
+    // and null for every other way an account arrives (#1893).
+    origin: origin?.origin ?? null,
+    // The incident this account is in, when it is one the deck signed in and
+    // claude-swap has refused its login since: `{ key, since, dismissed }`.
+    // `key` and `since` together name it, for "Not now" to send back.
+    reauth: reauth ? { key, ...reauth } : null,
   };
 }
 
