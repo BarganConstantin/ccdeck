@@ -7,7 +7,7 @@
 // what had happened.
 //
 // So there are three new doors, all onto the one feedback dialog:
-//   - a "Report a problem" glyph in the topbar's utility run, beside the two
+//   - a "Feedback" button in the topbar's utility run, beside the two
 //     settings, where a product keeps its help;
 //   - an error boundary around the whole app that shows a calm pane with Reload
 //     and Send report, the report opened already filled in as a bug;
@@ -31,6 +31,7 @@ const runs = read("../components/TopbarRuns.tsx");
 const dialogs = read("../use-dialogs.ts");
 const deckDialogs = read("../components/DeckDialogs.tsx");
 const feedback = read("../components/FeedbackDialog.tsx");
+const rules = read("../feedback.ts");
 const boundary = read("../components/ErrorBoundary.tsx");
 const popover = read("../components/AccountIssuePopover.tsx");
 const accounts = read("../components/AccountsPanel.tsx");
@@ -130,11 +131,15 @@ describe("forwardCaughtError hands the error to the deck's own server", () => {
 
 describe("the feedback dialog can be opened filled in", () => {
   it("takes an initial kind and body, defaulting to the empty blank report", () => {
-    expect(feedback).toMatch(/export interface FeedbackPrefill/);
+    expect(rules).toMatch(/export interface FeedbackPrefill/);
+    expect(feedback).toMatch(/interface Props extends FeedbackPrefill/);
     expect(feedback).toMatch(/useState<Kind>\(initialKind \?\? "bug"\)/);
     expect(feedback).toMatch(/useState\(initialBody \?\? ""\)/);
-    // The title is never seeded — a person names their own report.
-    expect(feedback).toMatch(/const \[title, setTitle\] = useState\(""\)/);
+    // It used to pin that a typed title was never seeded. There is no title
+    // to type now — the title is worked out from the message as it is sent
+    // (feedback-dialog-form.test.ts) — so a seeded body names a seeded report
+    // the way a typed one does, and the dialog holds no title of its own.
+    expect(feedback).not.toMatch(/setTitle|id="fb-title"/);
   });
 });
 
@@ -162,11 +167,11 @@ describe("the dialogs hook gives every opener one door", () => {
 
 // ── door one: the topbar ─────────────────────────────────────────────────────
 
-describe("the topbar's Report a problem button", () => {
+describe("the topbar's Feedback button", () => {
   /** The opening tag and body of the button, up to its close. */
   const button = (() => {
-    const at = runs.indexOf('aria-label="Report a problem"');
-    expect(at, "no Report a problem button in TopbarRuns.tsx").toBeGreaterThan(-1);
+    const at = runs.indexOf('aria-label="Send feedback"');
+    expect(at, "no Send feedback button in TopbarRuns.tsx").toBeGreaterThan(-1);
     return runs.slice(runs.lastIndexOf("<button", at), runs.indexOf("</button>", at));
   })();
 
@@ -174,14 +179,17 @@ describe("the topbar's Report a problem button", () => {
     expect(button).toMatch(/className="btn icon-btn"/);
     expect(button).toMatch(/onClick=\{onFeedback\}/);
     expect(button).toMatch(/aria-haspopup="dialog"/);
-    expect(button).toMatch(/title="Report a problem/);
+    expect(button).toMatch(/title="Send feedback/);
   });
 
-  it("draws its glyph on the topbar's one icon spec (#837), and says no word", () => {
+  it("draws its glyph on the topbar's one icon spec (#837), and says its word beside it", () => {
     expect(button).toMatch(/<svg width="13" height="13" viewBox="0 0 14 14"[\s\S]*?strokeWidth="1\.4"/);
-    // No tb-word: it joins the theme button as a bare glyph rather than an
-    // eighth word — the topbar's words are a set (topbar-words-836.test.ts).
-    expect(button).not.toMatch(/tb-word/);
+    // It was a bare glyph beside the theme button, on the reasoning that the
+    // bar's words were a set of seven. At the toolbar's --muted, next to
+    // "Sound" and "Browser watch", the bubble read as nothing at all and the
+    // owner could not find it. It says its word now, from the width where the
+    // busiest bar still holds it (topbar-words-836.test.ts).
+    expect(button).toMatch(/<span className="tb-word-wide">Feedback<\/span>/);
   });
 
   it("sits in the settings run, and opens the same dialog Appearance's Send feedback does", () => {

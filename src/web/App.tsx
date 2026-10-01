@@ -54,6 +54,7 @@ import { useClaudeFm } from "./use-claude-fm";
 import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
+import { useAccountAttention } from "./use-account-attention";
 import { useLeftColumn } from "./use-left-column";
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
@@ -266,6 +267,12 @@ function Inner() {
   // screen even while the deck itself has stopped answering.
   const providerStatus = useProviderStatus(providers.claude || providers.codex);
   const incidents = incidentsOf(providerStatus, now);
+
+  // An account the deck signed in whose login has stopped working, asked about
+  // over the canvas (#1893) — from the rosters the accounts panel reads, one
+  // read when the deck opens, and what the pairing poll above knows about Local
+  // network: use-account-attention.ts. Claude-only, like the panel itself.
+  const attention = useAccountAttention({ enabled: providers.claude, lanStatus: lanPairs.lanStatus, now });
 
   // Restarting the deck: the auto-update switch, the press behind the banner's
   // Restart, the idle stretch an automatic one waits for, and what the banner
@@ -637,7 +644,8 @@ function Inner() {
           be run: not on PATH". The panel is also open by default, so that was
           the first thing such a user saw. */}
       {isMounted(accountsPhase) && providers.claude && (
-        <AccountsPanel leaving={accountsPhase === "leaving"} onClose={closeAccountsPanel} onReport={dialogs.openFeedback} />
+        <AccountsPanel leaving={accountsPhase === "leaving"} onClose={closeAccountsPanel} onReport={dialogs.openFeedback}
+          onRoster={attention.observe} />
       )}
 
       {sessionListOpen && (
@@ -732,7 +740,7 @@ function Inner() {
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs
         dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
-        lanPairs={lanPairs} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
+        lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
       />
     </div>

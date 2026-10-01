@@ -15,10 +15,11 @@ module.exports = {
   toolsets: { appimage: "1.0.3" },
   directories: {
     output: "dist/app",
-    // icon.png (1024) lives here; electron-builder makes .icns and .ico from it.
+    // Where scripts/icons.mjs writes the brand kit's icons; each platform's
+    // icon below is named outright, and icon.png is the kit's 1024 master.
     buildResources: "dist/icons",
   },
-  files: ["main.mjs", "preload.cjs", "auto-update.mjs", "update-notice.mjs", "window-update.mjs", "notification-audio-store.mjs", "deck-link.mjs", "deck-host.mjs", "nav.mjs", "fullscreen-space.mjs", "tray-menu.mjs", "tray-menu-swap.mjs", "desktop-state.mjs", "updater.mjs", "updater-mac.mjs", "relaunch-linux.mjs", "tray-presence.mjs", "login-item.mjs", "own-deck.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
+  files: ["main.mjs", "preload.cjs", "auto-update.mjs", "update-notice.mjs", "window-update.mjs", "notification-audio-store.mjs", "deck-link.mjs", "deck-host.mjs", "nav.mjs", "fullscreen-space.mjs", "tray-menu.mjs", "tray-menu-swap.mjs", "desktop-state.mjs", "updater.mjs", "updater-mac.mjs", "relaunch-linux.mjs", "tray-presence.mjs", "login-item.mjs", "own-deck.mjs", "tray-icon.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
   // The deck itself, outside the asar archive, exactly as the npm package
   // ships it: the app runs bin/agent-dag.js with its own binary as Node, and
   // the deck reads its files from disk relative to itself. Build the web
@@ -47,8 +48,8 @@ module.exports = {
   artifactName: "${productName}-${os}-${arch}.${ext}",
   mac: {
     target: ["dmg", "zip"],
-    // Made by scripts/icons.mjs with Apple's iconutil, so no icon toolset is
-    // downloaded on the Mac runner.
+    // The brand kit's .icns, copied by scripts/icons.mjs, so no icon toolset
+    // is downloaded on the Mac runner.
     icon: "dist/icons/icon.icns",
     identity: null,
     category: "public.app-category.developer-tools",
@@ -63,7 +64,8 @@ module.exports = {
   },
   win: {
     target: ["nsis"],
-    // Made by scripts/icons.mjs, so no icon toolset is downloaded here either.
+    // The brand kit's launcher .ico, copied by scripts/icons.mjs, so no icon
+    // toolset is downloaded here either.
     icon: "dist/icons/icon.ico",
   },
   nsis: {
@@ -75,10 +77,10 @@ module.exports = {
     target: ["AppImage", "deb"],
     category: "Development",
     maintainer: "ccdeck <https://ccdeck.dev>",
-    // The size set scripts/icons.mjs draws, not icon.png. From that one file
-    // electron-builder installed one icon, at 1024 — a size hicolor does not
-    // declare — so Linux showed no icon at all. Named <size>x<size>.png, which
-    // is how electron-builder reads an icon directory.
+    // The size set scripts/icons.mjs copies from the brand kit, not icon.png.
+    // From that one file electron-builder installed one icon, at 1024 — a size
+    // hicolor does not declare — so Linux showed no icon at all. Named
+    // <size>x<size>.png, which is how electron-builder reads an icon directory.
     icon: "dist/icons/linux",
     // Electron's Wayland app_id is the packaged package.json name,
     // ccdeck-desktop. The entry file is already named for it, but its

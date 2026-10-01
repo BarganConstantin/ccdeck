@@ -29,6 +29,7 @@ const MIME = {
   // with nothing in the console that names the reason.
   ".webmanifest": "application/manifest+json; charset=utf-8",
   ".png":  "image/png",
+  ".ico":  "image/x-icon",
   ".jpg":  "image/jpeg",
   ".woff2": "font/woff2",
   ".map":  "application/json",

@@ -137,7 +137,7 @@ import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "
 import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 // Usage reports and the feedback dialog (#1853). The requests to
 // api.ccdeck.dev are made in reports.mjs, never in this file.
-import { handleClientError, handleFeedback, handleReportsWrite } from "./reports-routes.mjs";
+import { handleClientError, handleFeedback, handleFeedbackFacts, handleReportsWrite } from "./reports-routes.mjs";
 import { reporter } from "./reports.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
 import { historySnapshot, processesReply, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
@@ -148,7 +148,7 @@ import { send, sendInternalError } from "./http-io.mjs";
 export { sendInternalError };
 // The accounts surface's routes — see account-routes.mjs. The boot wires the
 // stale-copy repair and starts auto-switch through the same module.
-import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction, wireStaleCopyRepair } from "./account-routes.mjs";
+import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
@@ -191,7 +191,12 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // The repair a paused Claude account used to wait on a `resume` press for:
   // handed to the roster read here, by the server that is actually running,
   // rather than wired at import — see wireStaleCopyRepair.
-  if (deckProviders().claude) wireStaleCopyRepair();
+  if (deckProviders().claude) {
+    wireStaleCopyRepair();
+    // Which accounts the deck signed in, and the prompt for one whose login
+    // has stopped working (#1893).
+    wireAccountOrigins();
+  }
   const removed = await sweepStaleDiscovery();
   if (removed > 0) console.log(`  swept ${removed} stale discovery file(s)`);
   // Where the log is and whether it can be written, asked before the first
@@ -307,6 +312,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/reports")      return guard(handleReportsWrite(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/feedback")     return handleFeedbackFacts(req, res);
     if (req.method === "POST" && url.pathname === "/api/feedback")     return guard(handleFeedback(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/client-error") return guard(handleClientError(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());

@@ -448,10 +448,14 @@ describe("promoting the headings changed no pixels (#381)", () => {
     expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/(^|[,\s])\.detail h2\b/);
   });
 
-  it("holds the wordmark at 14px against the UA sheet's 2em", () => {
+  it("holds the wordmark at the brand kit's 16px against the UA sheet's 2em", () => {
+    // 14px until the brand kit, whose pattern for product chrome sets the name
+    // as tall as the 16px mark beside it (topbar-mark.test.ts holds the
+    // relation); what this case is for is unchanged — the heading inherits the
+    // bar's size and never the UA sheet's 2em.
     expect(decl(".topbar .brand h1", "font")).toBe("inherit");
     expect(decl(".topbar .brand h1", "margin")).toBe("0");
-    expect(decl(".topbar .brand", "font-size")).toBe("14px");
+    expect(decl(".topbar .brand", "font-size")).toBe("16px");
   });
 });
 

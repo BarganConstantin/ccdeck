@@ -52,6 +52,13 @@ type Props = {
   onClose: () => void;
   /** Reload the roster — a new account only appears once the panel re-reads. */
   onChanged: () => void;
+  /** Sign in again as this account (#1893): the address goes to `claude auth
+   *  login --email`, which fills it in on the sign-in page. Absent, the dialog
+   *  is the panel's ordinary + → Add. */
+  email?: string | null;
+  /** The sign-in finished and claude-swap recorded this account. Once per
+   *  sign-in, on the success screen's arrival — not on Done. */
+  onSignedIn?: (account: { num: string | null; email: string; added: boolean }) => void;
 };
 
 const POLL_MS = 1500;
@@ -79,7 +86,7 @@ async function admin(body: Record<string, unknown>) {
   return res.json().catch(() => null);
 }
 
-export default function AddAccountDialog({ onClose, onChanged }: Props) {
+export default function AddAccountDialog({ onClose, onChanged, email = null, onSignedIn }: Props) {
   const [tab, setTab] = useState<TabId>("login");
   const [login, setLogin] = useState<LoginState | null>(null);
   const [code, setCode] = useState("");
@@ -155,12 +162,18 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
     setLoginBusy(true);
     setLoginError(null);
     startedRef.current = true;
-    const out = await admin({ action: "login" }).catch(() => null);
+    // The address only when there is one: a bare `{action:"login"}` is still
+    // the ordinary sign-in, with no flag appended (loginEmailArg).
+    let out = await admin(email ? { action: "login", email } : { action: "login" }).catch(() => null);
+    // An address the server will not put on a command line (loginEmailArg)
+    // only loses the pre-filled field — the sign-in itself is still the one
+    // asked for, so it starts without it rather than ending here.
+    if (email && out?.reason === "bad_email") out = await admin({ action: "login" }).catch(() => null);
     busyRef.current = false;
     setLoginBusy(false);
     if (!out?.ok) { setLoginError(explainFailure(out, "could not start the sign-in")); return; }
     setLogin(out as LoginState);
-  }, []);
+  }, [email]);
 
   // Poll only while something is actually moving on the server — see
   // login-flow.ts for why "idle" ends the loop rather than continuing it.
@@ -192,6 +205,23 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
     if (login?.state === "awaiting_code") codeRef.current?.focus();
     if (announcer.shouldAnnounce(login?.state)) onChangedRef.current();
   }, [login?.state, announcer]);
+
+  // Who was signed in, told once per sign-in (#1893) — the prompt that opened
+  // this dialog takes the account off its list the moment it arrives, rather
+  // than a roster read later. A ref for the caller's function, for the reason
+  // onChangedRef is one, and the account already told about by what it says
+  // rather than by object, so a poll that lands on `done` again — a new object
+  // for the same sign-in — does not tell twice.
+  const onSignedInRef = useRef(onSignedIn);
+  onSignedInRef.current = onSignedIn;
+  const toldRef = useRef<string | null>(null);
+  useEffect(() => {
+    const account = login?.state === "done" ? login.account : null;
+    const said = account ? `${account.num ?? ""}|${account.email}` : null;
+    if (!account || toldRef.current === said) return;
+    toldRef.current = said;
+    onSignedInRef.current?.(account);
+  }, [login]);
 
   // The share tab's field is the only thing on it; focusing it saves a click
   // and makes ⌘V the obvious next move.
@@ -473,11 +503,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
               // this one opens a browser tab, which is not something to spring
               // on someone who wanted the other tab.
               <div className="aa-step aa-primer">
-                <h4>Sign in to Anthropic</h4>
+                <h4>{email ? <>Sign in again as <strong>{email}</strong></> : "Sign in to Anthropic"}</h4>
                 <p className="aa-note">
-                  Opens a browser tab where you approve the sign-in. It normally completes by itself; only if the
-                  page hands you a code does it need pasting back here.
-                  claude-swap records the account when it completes, and the account you are using now stays active.
+                  Opens a browser tab where you approve the sign-in{email ? ", with this address already filled in" : ""}.
+                  It normally completes by itself; only if the page hands you a code does it need pasting back here.
+                  {email
+                    ? " claude-swap replaces the expired login in place — the account keeps its slot, its alias and its history — and the account you are using now stays active."
+                    : " claude-swap records the account when it completes, and the account you are using now stays active."}
                 </p>
                 <div className="aa-actions">
                   {/* No `disabled={busy}`: the press takes this control away

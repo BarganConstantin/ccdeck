@@ -46,8 +46,9 @@ describe("the deck's modals", () => {
     // The twenty-first is the feedback dialog, opened from Appearance (#1853).
     // The same issue had a twenty-second for a week, a one-time question about
     // anonymous reports; it went when reports became on by default, with a
-    // switch in place of the question.
-    expect(MODALS.length).toBe(21);
+    // switch in place of the question. The twenty-second is the re-sign-in
+    // prompt for an account the deck signed in whose login expired (#1893).
+    expect(MODALS.length).toBe(22);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

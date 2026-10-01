@@ -178,6 +178,11 @@ describe("one copy of the ladder", () => {
     const found = sources(WEB)
       .filter(path => /\bexecCommand\(/.test(readFileSync(path, "utf8")))
       .map(path => path.slice(WEB.length).replace(/\\/g, "/"));
+    // The feedback dialog's starters were the one other caller, putting their
+    // words into the message with "insertText" so ⌘Z took one back out. The
+    // starters left with the dialog's redesign, and the exception with them:
+    // this file is the only caller again, and a new one has to be argued for
+    // here rather than let through.
     expect(found).toEqual(["copy-text.ts"]);
   });
 
