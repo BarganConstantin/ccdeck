@@ -2,13 +2,15 @@
 // anonymous: every report carries a stable hashed device id (an identifier) and
 // the server records the IP it arrives from.
 //
-// Nobody is asked, so what these pin is what the README and the switch's own
-// note say instead: a deck reports from its first check-in under an install id
-// that is random and made there; switching it off forgets that id and deletes
-// what was sent (and keeps asking until the deletion lands); switching it back
-// on is a new install, not the old one recognised; the machine's veto beats the
-// switch; and what does leave carries no path, no prompt, no file, no project
-// name — but a device fingerprint rides along, so the reports name a machine.
+// Nobody is asked, so what these pin is what the README says instead, and what
+// the server still does with a `false` (saved by a deck that had Appearance's
+// switch, gone since 2026-10-01): a deck reports from its first check-in under
+// an install id that is random and made there; switching it off forgets that
+// id and deletes what was sent (and keeps asking until the deletion lands);
+// switching it back on is a new install, not the old one recognised; the
+// machine's veto beats the switch; and what does leave carries no path, no
+// prompt, no file, no project name — but a device fingerprint rides along, so
+// the reports name a machine.
 //
 // The fingerprint was opt-in behind AGENTS_DECK_FINGERPRINT for a few commits of
 // the same issue; the owner made it always-on on 2026-09-30, the same day the

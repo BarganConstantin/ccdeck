@@ -13,7 +13,12 @@
 //     and Send report, the report opened already filled in as a bug;
 //   - a quiet "Report this" on an account warning's popover.
 // The dialog gained a prefill (initialKind, initialBody), threaded through the
-// dialogs hook, and the Appearance switch and its note stay where they were.
+// dialogs hook.
+//
+// The Appearance section it was buried in — "Help improve ccdeck", with the
+// usage-reports switch, its note and "Send feedback…" — is gone (the owner's
+// call, 2026-10-01). Reports stay on, with AGENTS_DECK_NO_REPORTS=1 the way to
+// keep them off, and the topbar's Feedback button is the one door from the bar.
 //
 // Plain node, no renderer — the suite cannot draw React (see
 // topbar-interaction.test.ts) — so the pure seams (the scrub, the crash body,
@@ -28,6 +33,8 @@ import { forwardCaughtError, scrubReport } from "../report-errors";
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
 const runs = read("../components/TopbarRuns.tsx");
+const appearanceMenu = read("../components/AppearanceMenu.tsx");
+const reportsHook = read("../use-reports.ts");
 const dialogs = read("../use-dialogs.ts");
 const deckDialogs = read("../components/DeckDialogs.tsx");
 const feedback = read("../components/FeedbackDialog.tsx");
@@ -192,11 +199,47 @@ describe("the topbar's Feedback button", () => {
     expect(button).toMatch(/<span className="tb-word-wide">Feedback<\/span>/);
   });
 
-  it("sits in the settings run, and opens the same dialog Appearance's Send feedback does", () => {
-    // Both call onFeedback; App routes that through the dialogs hook's one door.
+  it("is the settings run's one way to the dialog, routed through the dialogs hook's one door", () => {
     expect(button.indexOf("onFeedback")).toBeGreaterThan(-1);
-    expect(runs).toMatch(/onFeedback=\{\(\) => \{ setAppearanceMenuOpen\(false\); onFeedback\(\); \}\}/);
+    expect((runs.match(/onFeedback\(\)|onClick=\{onFeedback\}/g) ?? []).length).toBe(1);
     expect(app).toMatch(/onFeedback=\{\(\) => dialogs\.openFeedback\(\)\}/);
+  });
+});
+
+// ── Appearance no longer holds a reports switch or a second feedback door ─────
+
+describe("the Appearance menu has no Help improve ccdeck section (2026-10-01)", () => {
+  /** The <AppearanceMenu … /> element as the settings run mounts it. */
+  const mounted = (() => {
+    const at = runs.indexOf("<AppearanceMenu");
+    expect(at, "no AppearanceMenu in TopbarRuns.tsx").toBeGreaterThan(-1);
+    return runs.slice(at, runs.indexOf("/>", runs.indexOf("onClose=", at)));
+  })();
+
+  it("draws no reports switch, no note about reports and no Send feedback button", () => {
+    for (const gone of ["Help improve ccdeck", "appearance-improve", "Send usage reports", "appearance-reports", "Send feedback"]) {
+      expect(appearanceMenu, gone).not.toContain(gone);
+    }
+  });
+
+  it("takes no reports or feedback props, and is handed none", () => {
+    for (const prop of ["reportsOn", "reportsVetoed", "onToggleReports", "onFeedback"]) {
+      expect(appearanceMenu, prop).not.toMatch(new RegExp(`\\b${prop}\\b`));
+      expect(mounted, prop).not.toMatch(new RegExp(`\\b${prop}\\b`));
+    }
+    expect(app).not.toMatch(/reports=\{reports\}/);
+  });
+
+  it("still reads whether reports are on, because the page's errors are forwarded only while they are", () => {
+    // The switch went; the gate did not. Off until /api/prefs has been read, then
+    // on unless the prefs hold false or the machine vetoed it at launch.
+    expect(reportsHook).toMatch(/sending\.current = reportsOn === true && !reportsVetoed;/);
+    expect(reportsHook).toMatch(/useEffect\(\(\) => forwardPageErrors\(\(\) => sending\.current\), \[\]\)/);
+    expect(reportsHook).toMatch(/setReportsOn\(d\.prefs\?\.reports !== false\)/);
+    expect(reportsHook).toMatch(/setReportsVetoed\(d\.reportsVetoed === true\)/);
+    expect(app).toMatch(/loadReportsPrefs: reports\.loadReportsPrefs/);
+    // Nothing on the page can change them any more.
+    expect(reportsHook).not.toContain("/api/reports");
   });
 });
 

@@ -118,9 +118,10 @@ UI copy claiming the deck looks only at agents would be false.
   every report, your IP address and a device fingerprint (a stable hashed machine
   id, a one-way hash, never the traits in the clear). The install id is random,
   but the fingerprint follows the machine and the server keeps the IP, so these
-  reports are no longer anonymous. Nobody is asked; one switch under Appearance
-  turns it off and deletes what was sent, and `AGENTS_DECK_NO_REPORTS=1` keeps it
-  off from the first start. The owner chose on-by-default on 2026-09-30, over a
+  reports are no longer anonymous. Nobody is asked, and the deck has no switch
+  for it: the owner removed Appearance's on 2026-10-01, and
+  `AGENTS_DECK_NO_REPORTS=1` keeps it off from the first start. The owner chose
+  on-by-default on 2026-09-30, over a
   one-time question built for the same issue, and moved the fingerprint from an
   opt-in flag to always-on on the same footing. "No telemetry" and "anonymous"
   are therefore claims this product can no longer make, and copy must make

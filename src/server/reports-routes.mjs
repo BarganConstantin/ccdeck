@@ -1,5 +1,5 @@
-// The page's three ways into reports.mjs (#1853): the switch in Appearance, an
-// error the page caught, and the feedback dialog. The page never
+// The page's ways into reports.mjs (#1853): an error the page caught and the
+// feedback dialog. (The switch in Appearance went on 2026-10-01; its route stays.) The page never
 // talks to api.ccdeck.dev itself — this server does, which is also why the
 // install id never has to reach the page.
 
@@ -19,7 +19,8 @@ async function readJson(req, res, limit) {
   }
 }
 
-/** `POST /api/reports` `{ on }`: Appearance's "Send usage reports" switch. */
+/** `POST /api/reports` `{ on }`: sets `prefs.reports`. No page control calls it since the owner
+ *  removed Appearance's switch (2026-10-01); kept so a deck can still be switched off over the API. */
 export async function handleReportsWrite(req, res, { report = reporter } = {}) {
   const body = await readJson(req, res, 1_000);
   if (typeof body?.on !== "boolean") return send(res, 400, { ok: false, reason: "bad_request" });
