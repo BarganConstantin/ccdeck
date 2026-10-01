@@ -34,6 +34,15 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* The address a re-sign-in is for (#1893), as the accounts panel prints it: a
+   caption in capitals is a label, and an address set in them is not the one
+   the reader knows. */
+.aa-step h4 strong {
+  color: var(--text);
+  letter-spacing: normal;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
 .aa-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .aa-err { margin: 0; color: var(--err); font-size: 12px; line-height: 1.5; }
 /* The link is long and unbreakable; letting it decide the dialog's width would

@@ -359,7 +359,7 @@ describe("what the dialog says", () => {
     const html = renderToStaticMarkup(createElement(AccountAttentionModal, { rows: [row(WORK, 1, "Work")], onSignIn: noop, onLater: noop }));
     expect(attentionTitle(1)).toBe("Account needs your attention");
     expect(html).toContain("Account needs your attention");
-    expect(text(html)).toContain(`The Claude login for ${WORK} (Work) has expired and needs a new sign-in.`);
+    expect(text(html)).toContain(`The Claude login for ${WORK} (Work) has expired and needs a new sign‑in.`);
     expect(text(html)).toContain("it keeps its slot, its alias and its history");
     expect(html).toMatch(/<button[^>]*class="btn primary"[^>]*>Sign in again<\/button>/);
     expect(html).toMatch(/<button[^>]*>Not now<\/button>/);

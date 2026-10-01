@@ -41,7 +41,9 @@ export function AttentionBody({ rows, onSignIn, onLater, firstRef }: BodyProps) 
           <p id="reauth-lead" className="reauth-lead">
             The Claude login for <strong className="reauth-name">{single.name}</strong>
             {single.alias ? <span className="reauth-alias"> ({single.alias})</span> : null}
-            {" "}has expired and needs a new sign-in.
+            {/* A non-breaking hyphen: a line that ends on "sign-" reads as a
+                word cut in half, in a sentence this short. */}
+            {" "}has expired and needs a new sign{"‑"}in.
           </p>
           <p className="reauth-note">{SINGLE_NOTE}</p>
         </>
