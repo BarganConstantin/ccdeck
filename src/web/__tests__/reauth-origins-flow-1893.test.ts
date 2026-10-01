@@ -3,8 +3,8 @@
 //
 // reauth-prompt-1893.test.ts pins the rules as functions. This runs the real
 // flows they hang off — a sign-in through `claude auth login` and `cswap add`,
-// a removal through `cswap remove`, a roster read of a sequence.json and a
-// usage.json — with every process faked and the store in a temp directory, in
+// a roster read of a sequence.json and a usage.json — with every process faked
+// and the store in a temp directory, in
 // the sandbox restore-active-verdict-951.test.ts builds for the same module:
 // this is the code that signs accounts in and out, and nothing in it may reach
 // the store of whoever runs the suite.
@@ -74,7 +74,7 @@ const fake = vi.hoisted(() => {
 });
 
 const cli = vi.hoisted(() => ({
-  identity: null as null | { email: string },
+  identity: null as null | { email: string; orgId?: string },
   onAdd: (() => true) as () => boolean,
 }));
 
@@ -91,7 +91,7 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
     run: async (cmd: string, args: string[]) => {
       const verb = spawnedArgv({ file: cmd, args }).slice(1);
       if (verb[0] === "auth" && verb[1] === "status") {
-        return ok(JSON.stringify(cli.identity ? { loggedIn: true, email: cli.identity.email } : { loggedIn: false }));
+        return ok(JSON.stringify(cli.identity ? { loggedIn: true, ...cli.identity } : { loggedIn: false }));
       }
       if (verb[0] === "add") {
         return cli.onAdd() ? ok("added") : { ok: false, code: 1, killed: false, timedOut: false, stdout: "", stderr: "no\n" };
@@ -133,7 +133,6 @@ const WORK = "work@example.invalid";
 const told: Array<[string, unknown]> = [];
 const hooks = {
   signedIn: async (d: unknown) => { told.push(["signedIn", d]); },
-  removed: async (d: unknown) => { told.push(["removed", d]); },
 };
 
 async function settled(timeoutMs = 4000) {
@@ -147,15 +146,15 @@ async function settled(timeoutMs = 4000) {
   return admin.loginState();
 }
 
-/** A sign-in the CLI finishes on its own, as `who`. `added` writes the slot
- *  `cswap add` creates; without it the add refreshes an account in place. */
-async function signIn(who: string, after: Record<string, Slot>) {
+/** A sign-in the CLI finishes on its own, as `who`; `cswap add` then leaves
+ *  the store as `after` says — a new slot, or the same ones refreshed. */
+async function signIn(who: string, after: Record<string, Slot>, orgId?: string) {
   const nth = fake.children.length;
   const start = admin.startLogin();
   const child = await fake.next(nth);
   child.say(GREETING);
   await start;
-  cli.identity = { email: who };
+  cli.identity = orgId ? { email: who, orgId } : { email: who };
   cli.onAdd = () => { store(after, 2); return true; };
   child.end({ ok: true, code: 0, killed: false, timedOut: false, stdout: GREETING, stderr: "" });
   return settled();
@@ -210,6 +209,33 @@ describe("what a sign-in tells the deck", () => {
     expect(told).toEqual([["signedIn", { email: WORK, org: "org-work", added: false }]]);
   });
 
+  it("still calls it added when another account landed while the browser was open", async () => {
+    // A share or a Local network round adds OTHER while the user approves the
+    // sign-in: two new slots, so "the one new slot" names neither — and the
+    // account this sign-in added must still be marked.
+    const state = await signIn(WORK, {
+      1: { email: OLD, organizationUuid: "org-old" },
+      2: { email: "other@example.invalid", organizationUuid: "org-other" },
+      3: { email: WORK, organizationUuid: "org-work" },
+    });
+    expect(state).toMatchObject({ state: "done", account: { num: "3", email: WORK } });
+    expect(told).toEqual([["signedIn", { email: WORK, org: "org-work", added: true }]]);
+  });
+
+  it("finds the slot a re-sign-in refreshed by its organization, whatever the address's case", async () => {
+    // One address under two organizations is two accounts. The CLI names the
+    // organization it signed into; the store spells the address its own way.
+    const slots = {
+      1: { email: OLD, organizationUuid: "org-old" },
+      2: { email: "Work@Example.invalid", organizationUuid: "org-a" },
+      3: { email: "Work@Example.invalid", organizationUuid: "org-b" },
+    };
+    store(slots, 1);
+    const state = await signIn(WORK, slots, "org-b");
+    expect(state).toMatchObject({ state: "done", account: { num: "3", added: false } });
+    expect(told).toEqual([["signedIn", { email: "Work@Example.invalid", org: "org-b", added: false }]]);
+  });
+
   it("reports nothing for a sign-in claude-swap did not record", async () => {
     const nth = fake.children.length;
     const start = admin.startLogin();
@@ -232,24 +258,15 @@ describe("what a sign-in tells the deck", () => {
     expect(state).toMatchObject({ state: "done", account: { email: WORK, added: true } });
   });
 
-  it("is told only by the sign-in and the removal — never by a share or Local network", () => {
+  it("is told only by the sign-in — never by a share or Local network", () => {
     // Every way an account arrives other than + → Sign in goes through
     // importAccount (the paste box) or lan-deck.mjs (a round); neither tells
     // the deck where the account came from, so neither can give it the mark.
     const source = readFileSync(fileURLToPath(new URL("../../server/cswap-admin.mjs", import.meta.url)), "utf8");
     const calls = [...source.matchAll(/tellOrigins\("(\w+)"/g)].map(m => m[1]);
-    expect(calls).toEqual(["signedIn", "removed"]);
+    expect(calls).toEqual(["signedIn"]);
     const lan = readFileSync(fileURLToPath(new URL("../../server/lan-deck.mjs", import.meta.url)), "utf8");
     expect(lan).not.toMatch(/withSignIn|accountOriginsWith|tellOrigins/);
-  });
-});
-
-describe("what a removal tells the deck", () => {
-  it("names the account the slot held, read before it went", async () => {
-    store({ 1: { email: OLD, organizationUuid: "org-old" }, 2: { email: WORK, organizationUuid: "org-work" } }, 1);
-    const out = await admin.removeAccount(2);
-    expect(out).toMatchObject({ ok: true });
-    expect(told).toEqual([["removed", { email: WORK, org: "org-work" }]]);
   });
 });
 
@@ -283,7 +300,7 @@ describe("what the roster says about each account", () => {
 
   it("marks the deck's own sign-in and names its incident, and leaves a shared account alone", async () => {
     const signedInAt = (sec - 7200) * 1000;
-    accounts.accountOriginsWith({ entries: () => ({ [KEY]: { origin: "ccdeck_signin", signedInAt } }), recovered: () => {} });
+    accounts.accountOriginsWith({ entries: () => ({ [KEY]: { origin: "ccdeck_signin", signedInAt } }), tidy: () => {} });
     const rows = await read();
     expect(rows[WORK]).toMatchObject({ origin: "ccdeck_signin", error: "invalid_grant" });
     expect(rows[WORK].reauth).toEqual({ key: KEY, since: (sec - 3600) * 1000, dismissed: false });
@@ -293,17 +310,17 @@ describe("what the roster says about each account", () => {
   });
 
   it("says nothing about an incident when the refusal came before the last sign-in", async () => {
-    accounts.accountOriginsWith({ entries: () => ({ [KEY]: { origin: "ccdeck_signin", signedInAt: sec * 1000 } }), recovered: () => {} });
+    accounts.accountOriginsWith({ entries: () => ({ [KEY]: { origin: "ccdeck_signin", signedInAt: sec * 1000 } }), tidy: () => {} });
     const rows = await read();
     expect(rows[WORK]).toMatchObject({ origin: "ccdeck_signin", reauth: null });
   });
 
   it("carries a put-off, and tells the deck once the account reads well after it", async () => {
     const since = (sec - 3600) * 1000;
-    const seen: string[][] = [];
+    const seen: unknown[] = [];
     accounts.accountOriginsWith({
       entries: () => ({ [KEY]: { origin: "ccdeck_signin", signedInAt: since - 1000, dismissed: since } }),
-      recovered: (keys: string[]) => { seen.push(keys); },
+      tidy: (found: unknown) => { seen.push(found); },
     });
     expect((await read())[WORK].reauth).toEqual({ key: KEY, since, dismissed: true });
     expect(seen).toEqual([]);
@@ -314,7 +331,37 @@ describe("what the roster says about each account", () => {
     usage(healthy.accounts);
     const rows = await read();
     expect(rows[WORK].reauth).toBeNull();
-    expect(seen).toEqual([[KEY]]);
+    expect(seen).toEqual([{ recovered: [KEY], gone: [] }]);
+  });
+
+  it("forgets a mark whose account left the store, however it left — and keeps one the order leaves out", async () => {
+    // Slot 4 is in the store but not in claude-swap's `sequence`: still there.
+    store({
+      1: { email: OLD, organizationUuid: "org-old" },
+      2: { email: WORK, organizationUuid: "org-work" },
+      4: { email: "unlisted@example.invalid", organizationUuid: "" },
+    }, 1);
+    const seq = JSON.parse(readFileSync(SEQ, "utf8"));
+    writeFileSync(SEQ, JSON.stringify({ ...seq, sequence: [1, 2] }));
+    const removed = accountKey(SHARED, "");       // `cswap remove` in a terminal
+    const unlisted = accountKey("unlisted@example.invalid", "");
+    const seen: unknown[] = [];
+    accounts.accountOriginsWith({
+      entries: () => ({
+        [KEY]: { origin: "ccdeck_signin", signedInAt: 1 },
+        [removed]: { origin: "ccdeck_signin", signedInAt: 1 },
+        [unlisted]: { origin: "ccdeck_signin", signedInAt: 1 },
+      }),
+      tidy: (found: unknown) => { seen.push(found); },
+    });
+    await read();
+    expect(seen).toEqual([{ recovered: [], gone: [removed] }]);
+
+    // An emptied store forgets nothing: it is the one state where waiting costs nothing.
+    store({}, null);
+    seen.length = 0;
+    await read();
+    expect(seen).toEqual([]);
   });
 
   it("has no origins at all until the server hands them in", async () => {
@@ -323,7 +370,7 @@ describe("what the roster says about each account", () => {
   });
 
   it("survives an origins source that throws", async () => {
-    accounts.accountOriginsWith({ entries: () => { throw new Error("boom"); }, recovered: () => {} });
+    accounts.accountOriginsWith({ entries: () => { throw new Error("boom"); }, tidy: () => {} });
     const rows = await read();
     expect(rows[WORK]).toMatchObject({ origin: null, reauth: null, error: "invalid_grant" });
   });

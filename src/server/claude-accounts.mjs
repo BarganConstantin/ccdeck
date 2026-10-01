@@ -363,9 +363,10 @@ function repairFor(num, email, now) {
 let _origins = null;
 
 /**
- * `{ entries, recovered }`: `entries()` answers prefs.json's `accounts` map as
- * held in memory, and `recovered(keys)` is told which accounts were read well
- * after an incident somebody put off. Null unregisters.
+ * `{ entries, tidy }`: `entries()` answers prefs.json's `accounts` map as held
+ * in memory, and `tidy({ recovered, gone })` is told what a read found out of
+ * date in it — accounts read well after an incident somebody put off, and
+ * accounts no longer in the store at all. Null unregisters.
  */
 export function accountOriginsWith(source) {
   _origins = source && typeof source.entries === "function" ? source : null;
@@ -375,6 +376,26 @@ export function accountOriginsWith(source) {
  *  the read. */
 function originsNow() {
   try { return _origins?.entries() ?? {}; } catch { return {}; }
+}
+
+/**
+ * Tell the registered source what this read found out of date.
+ *
+ * GONE IS EVERY MARKED IDENTITY THE STORE NO LONGER HOLDS, however it left: the
+ * panel's remove, `cswap remove` in a terminal, a hand edit. Kept, a mark would
+ * outlive its account and land on the same address arriving later by a share or
+ * Local network — exactly what the mark must never be. Safe to decide off one
+ * read: claude-swap replaces sequence.json whole (temp file and rename), and an
+ * import refreshes a slot in place rather than removing it first. Asked of every
+ * account in the store, not of the ordered list drawn above, and never of a
+ * store with none: an emptied store is the one state where waiting costs
+ * nothing.
+ */
+function tidyOrigins(origins, recovered, held) {
+  const present = new Set(Object.values(held ?? {}).map(a => accountKey(a?.email, a?.organizationUuid)));
+  const gone = present.size ? Object.keys(origins).filter(k => !present.has(k)) : [];
+  if (!recovered.length && !gone.length) return;
+  try { _origins?.tidy?.({ recovered, gone }); } catch { /* the next read says it again */ }
 }
 
 /**
@@ -457,17 +478,16 @@ async function readRoster(now, gen) {
     if (!acct) continue;                       // sequence lists a slot that no longer exists
 
     const row = rows[num];
-    const shown = rosterRow({ seq, num, acct, row, identity, now, origins });
+    const key = accountKey(acct.email, acct.organizationUuid);
+    const origin = Object.hasOwn(origins, key) ? origins[key] : null;
+    const shown = rosterRow({ seq, num, acct, row, identity, now, key, origin });
     accounts.push(shown);
     // A put-off incident is over once a read succeeds after it, and the
     // put-off goes with it (#1893) — said here, where the read is, rather than
     // left for the page to notice.
-    const key = accountKey(acct.email, acct.organizationUuid);
-    if (Object.hasOwn(origins, key) && hasRecovered(origins[key], shown.fetchedAt)) recovered.push(key);
+    if (origin && hasRecovered(origin, shown.fetchedAt)) recovered.push(key);
   }
-  if (recovered.length) {
-    try { _origins?.recovered?.(recovered); } catch { /* the next read says it again */ }
-  }
+  tidyOrigins(origins, recovered, seq.accounts);
 
   return finish({ ok: true, accounts, activeNum: seq.activeAccountNumber ?? null, fetchedAt: now });
 }
@@ -482,7 +502,7 @@ async function readRoster(now, gen) {
  * verdict cache, and asks the registered repair about a `stale-copy` row —
  * which is what starts that repair (see repairStaleCopyWith).
  */
-function rosterRow({ seq, num, acct, row, identity, now, origins = {} }) {
+function rosterRow({ seq, num, acct, row, identity, now, key, origin = null }) {
   const matches = rowIsFor(row, acct);
   const good = matches ? row.lastGood : null;
 
@@ -504,8 +524,6 @@ function rosterRow({ seq, num, acct, row, identity, now, origins = {} }) {
   ].filter(Boolean);
 
   const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
-  const key = accountKey(acct.email, acct.organizationUuid);
-  const origin = Object.hasOwn(origins, key) ? origins[key] : null;
   const reauth = reauthFor({ entry: origin, trouble, collector, fetchedAt: fetchedAtMs, attemptedAt: attemptedAtMs });
   return {
     num:      Number(num),

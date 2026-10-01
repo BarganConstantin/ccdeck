@@ -6,7 +6,8 @@
 // is something somebody has to be TOLD. So the prompt cannot wait for the panel
 // to be opened — and it does not get a poll of its own either. It reads the
 // roster once when the deck opens, which is what carries an incident across a
-// restart, and from then on it sees every roster the panel's own poll reads.
+// restart, again when somebody comes back to the deck, and otherwise sees every
+// roster the panel's own poll reads.
 // What Local network can repair comes from the /api/lan poll the pairing
 // request already runs.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +15,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Account, type AccountsData } from "./claude-accounts";
 import type { LanStatus } from "./lan-types";
 import { attentionRows, settledBy, type AttentionRow } from "./reauth-attention";
+
+/** The least time between two reads a returning reader sets off. */
+const LOOK_AGAIN_MS = 60_000;
 
 export interface AccountAttention {
   /** The accounts to ask about now. Empty is no prompt. */
@@ -59,6 +63,27 @@ export function useAccountAttention(
   // ONCE, when the deck opens on a Claude machine — never on a timer. An
   // unforced read, so it is the cached roster when the panel has just read one.
   useEffect(() => { if (enabled) void read(false); }, [enabled, read]);
+
+  // AND WHEN SOMEBODY LOOKS AGAIN. With the accounts panel closed nothing else
+  // reads the roster, so a login that died while the deck sat in another
+  // window would wait for a reload. A deck coming back into view, or taking
+  // focus, is the moment the prompt can be seen at all — so that is when it
+  // reads, at most once a minute, and never on its own.
+  useEffect(() => {
+    if (!enabled) return;
+    let last = Date.now();
+    const look = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < LOOK_AGAIN_MS) return;
+      last = Date.now();
+      void read(false);
+    };
+    document.addEventListener("visibilitychange", look);
+    window.addEventListener("focus", look);
+    return () => {
+      document.removeEventListener("visibilitychange", look);
+      window.removeEventListener("focus", look);
+    };
+  }, [enabled, read]);
 
   const rows = useMemo(
     () => (enabled ? attentionRows(accounts, { lan: lanStatus, now, closed }) : []),

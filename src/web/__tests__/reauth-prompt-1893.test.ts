@@ -20,8 +20,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  SIGNED_IN_HERE, hasRecovered, incidentsFrom, needsSignIn, normaliseOrigins, originOf, reauthFor,
-  withDismissed, withRecovered, withSignIn, withoutOrigin,
+  SIGNED_IN_HERE, hasRecovered, incidentsFrom, needsSignIn, normaliseOrigins, reauthFor,
+  withDismissed, withSignIn, withTidied,
 } from "../../server/account-origins.mjs";
 import { accountKey } from "../../server/lan-copies.mjs";
 import { authTrouble } from "../../server/claude-accounts.mjs";
@@ -31,7 +31,7 @@ import { lanRepairExpected } from "../account-lan";
 import type { Account } from "../claude-accounts";
 import type { LanStatus, Peer } from "../lan-types";
 import {
-  attentionLead, attentionRows, attentionTitle, incidentId, settledBy, type AttentionRow,
+  attentionLead, attentionRows, attentionTitle, incidentId, promptShows, settledBy, type AttentionRow,
 } from "../reauth-attention";
 import AccountAttentionModal, { AttentionBody } from "../components/AccountAttentionModal";
 
@@ -43,6 +43,8 @@ const WORK = "work@example.com";
 const KEY = accountKey(WORK, "org-1");
 
 type Prefs = Record<string, unknown>;
+/** What prefs.json holds about one account, or null. */
+const originOf = (prefs: Prefs, key: string) => normaliseOrigins(prefs?.accounts)[key] ?? null;
 /** Run one updatePrefs mutator the way the queued writer does: merge its
  *  patch one top-level field deep onto what it read. */
 const apply = (prefs: Prefs, mutate: (p: Prefs) => Prefs | null): Prefs => ({ ...prefs, ...(mutate(prefs) ?? {}) });
@@ -78,10 +80,10 @@ describe("which accounts carry the deck's own sign-in", () => {
     expect(originOf(p, accountKey(WORK, "org-2"))).toBeNull();
   });
 
-  it("forgets an account removed through the deck, so a later share of it is not mistaken for one", () => {
-    const p = apply(signedInAt(NOW), withoutOrigin({ email: WORK, org: "org-1" }));
+  it("forgets an account gone from the store, so a later share of it is not mistaken for one", () => {
+    const p = apply(signedInAt(NOW), withTidied({ gone: [KEY] }));
     expect(originOf(p, KEY)).toBeNull();
-    expect(withoutOrigin({ email: WORK, org: "org-1" })(p)).toBeNull();
+    expect(withTidied({ gone: [KEY] })(p)).toBeNull();
   });
 
   it("keeps nothing from a hand-edited file that is not a provenance the deck writes", () => {
@@ -116,7 +118,7 @@ describe("where it is kept", () => {
   it("does not drop the other accounts when one changes", async () => {
     const other = accountKey("home@example.com", "");
     await updatePrefs(withSignIn({ email: "home@example.com", org: "", added: true, now: NOW }), HOME);
-    await updatePrefs(withoutOrigin({ email: WORK, org: "org-1" }), HOME);
+    await updatePrefs(withTidied({ gone: [KEY] }), HOME);
     const kept = (await loadPrefs(HOME)).prefs.accounts;
     expect(Object.keys(kept)).toEqual([other]);
   });
@@ -252,9 +254,9 @@ describe("how an incident is named", () => {
     expect(hasRecovered(putOff, null)).toBe(false);
     expect(hasRecovered(putOff, NOW - 9 * MIN)).toBe(true);
     expect(hasRecovered(entry, NOW)).toBe(false);
-    const cleared = apply({ accounts: { [KEY]: putOff } }, withRecovered([KEY]));
+    const cleared = apply({ accounts: { [KEY]: putOff } }, withTidied({ recovered: [KEY] }));
     expect(originOf(cleared, KEY)).toEqual(entry);
-    expect(withRecovered([KEY])(cleared)).toBeNull();
+    expect(withTidied({ recovered: [KEY] })(cleared)).toBeNull();
   });
 
   it("takes only well-formed incidents from a request, and only for accounts the deck marked", () => {
@@ -326,13 +328,18 @@ describe("which accounts the prompt names", () => {
       ["the deck is offline", lanWith([peer({ lastSeen: NOW - 60 * MIN, last: null })])],
       ["not paired", lanWith([peer({ paired: false })])],
       ["its heal already failed", lanWith([peer({ last: { at: NOW - 1000, done: [{ email: WORK, action: "heal", ok: false }] } })])],
+      // A heal that took clears claude-swap's failure as it lands, so an
+      // incident after one is a copy that died again: waiting on that deck
+      // would wait for as long as it stays online.
+      ["its heal took and the login died again", lanWith([peer({ last: { at: NOW - 1000, done: [{ email: WORK, action: "heal", ok: true }] } })])],
     ];
     for (const [why, status] of cases) {
       expect(`${why}: ${lanRepairExpected(key, WORK, status, NOW)}`).toBe(`${why}: false`);
     }
-    // A heal that took is no reason to stop waiting for the read that shows it.
-    expect(lanRepairExpected(key, WORK, lanWith([peer({ last: { at: NOW - 1000, done: [{ email: WORK, action: "heal", ok: true }] } })]), NOW))
-      .toBe(true);
+    // A round that did something else with the account, or healed another
+    // one, is still a repair to come.
+    const other = lanWith([peer({ last: { at: NOW - 1000, done: [{ email: "other@x.io", action: "heal", ok: true }, { email: WORK, action: "add", ok: true }] } })]);
+    expect(lanRepairExpected(key, WORK, other, NOW)).toBe(true);
   });
 
   it("takes an account off once a sign-in from the prompt recorded it", () => {
@@ -343,6 +350,18 @@ describe("which accounts the prompt names", () => {
     expect(settledBy(rows, { num: "7", email: "someone@else.io" })).toEqual([]);
     expect(settledBy(rows, { num: "2", email: WORK })).toEqual([]);
     expect(settledBy(rows, null)).toEqual([]);
+  });
+});
+
+describe("when the prompt takes its turn", () => {
+  it("waits for a dialog somebody already has open, then stays up whatever opens over it", () => {
+    expect(promptShows({ rows: 2, ours: false, dialogs: 0 })).toBe(true);
+    // The panel's own sign-in, a share, the tour: it does not paint over them.
+    expect(promptShows({ rows: 2, ours: false, dialogs: 1 })).toBe(false);
+    expect(promptShows({ rows: 2, ours: true, dialogs: 3 })).toBe(true);
+    expect(promptShows({ rows: 0, ours: true, dialogs: 0 })).toBe(false);
+    const host = src("../components/AccountAttentionModal.tsx");
+    expect(host).toMatch(/promptShows\(\{ rows: rows\.length, ours: oursRef\.current, dialogs: modalStack\.dialogDepth\(\) \}\)/);
   });
 });
 
@@ -410,10 +429,15 @@ describe("how it is wired", () => {
     expect(dialog).toMatch(/admin\(email \? \{ action: "login", email \} : \{ action: "login" \}\)/);
   });
 
-  it("adds no poll: one read when the deck opens, then the panel's own reads", () => {
+  it("adds no poll: one read when the deck opens, one when somebody looks again, then the panel's own reads", () => {
     const hook = src("../use-account-attention.ts");
     expect(hook).not.toMatch(/setInterval|setTimeout/);
     expect(hook).toMatch(/useEffect\(\(\) => \{ if \(enabled\) void read\(false\); \}, \[enabled, read\]\);/);
+    // Looking again is an event, rate-limited, and never forced.
+    expect(hook).toMatch(/document\.addEventListener\("visibilitychange", look\)/);
+    expect(hook).toMatch(/window\.addEventListener\("focus", look\)/);
+    expect(hook).toMatch(/const LOOK_AGAIN_MS = 60_000;/);
+    expect(hook.match(/void read\(true\)/g)).toHaveLength(1);   // only after a sign-in changed something
     const app = src("../App.tsx");
     expect(app).toMatch(/onRoster=\{attention\.observe\}/);
     expect(app).toMatch(/lanStatus: lanPairs\.lanStatus/);
@@ -424,7 +448,10 @@ describe("how it is wired", () => {
   it("puts off an incident through the admin route, and only prefs.json changes", () => {
     const routes = src("../../server/account-routes.mjs");
     expect(routes).toMatch(/case "reauth-later": result = await dismissReauth\(parsed\.incidents\); break;/);
-    expect(routes).toMatch(/heldPrefs\.update\(withDismissed\(incidents\)\)/);
+    expect(routes).toMatch(/await writeOrigins\(withDismissed\(incidents\)\)/);
+    // A write that would change nothing is never made — a second "Not now"
+    // from another tab, a sign-in of an account the deck never marked.
+    expect(routes).toMatch(/async function writeOrigins\(mutate\) \{\s*if \(!mutate\(heldPrefs\.current\(\)\)\) return;\s*await heldPrefs\.update\(mutate\);\s*\}/);
     const hook = src("../use-account-attention.ts");
     expect(hook).toMatch(/action: "reauth-later", incidents: shown\.map\(r => \(\{ key: r\.key, since: r\.since \}\)\)/);
   });

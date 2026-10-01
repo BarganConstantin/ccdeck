@@ -65,7 +65,15 @@ export function noCopyWorksNearby(
  * true only when a repair can actually come: the network is on and running,
  * this deck shares the account (a round takes only what is ticked here), and a
  * paired deck that is online offers a live copy it can hand over — unless that
- * deck's last round already tried to heal this account and it did not take.
+ * deck's last round already tried to heal this account.
+ *
+ * TRIED AT ALL, NOT TRIED AND FAILED. A heal that took clears claude-swap's
+ * failure on the slot as it lands (its import lifts the dead-token quarantine),
+ * so a row still in an incident after one is a copy that died again — and
+ * waiting on that deck would wait as long as it stays online. A round's record
+ * names the account by address only, so one address under two organizations
+ * reads as tried for both: the prompt asks rather than waits, which is the side
+ * to be wrong on.
  *
  * Everything else is false, including a status not read yet, which the caller
  * waits out rather than reading as "nothing coming".
@@ -82,7 +90,6 @@ export function lanRepairExpected(
     if (!p.paired || !isOnline(p, now)) return false;
     const offer = p.offers?.accounts?.find(o => o.key === key);
     if (!offer?.alive || offer.shareable === false) return false;
-    const tried = p.last?.done?.find(d => d.action === "heal" && String(d.email ?? "").trim().toLowerCase() === who);
-    return !(tried && !tried.ok);
+    return !p.last?.done?.some(d => d.action === "heal" && String(d.email ?? "").trim().toLowerCase() === who);
   });
 }

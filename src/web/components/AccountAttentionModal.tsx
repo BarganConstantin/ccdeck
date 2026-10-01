@@ -14,8 +14,9 @@
 // Escape, the backdrop and the × all mean the same "Not now".
 import { useRef, type Ref } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { modalStack } from "../modal-dismiss";
 import {
-  attentionLead, attentionTitle, LATER_EXPLAINED, LOGIN_EXPIRED, SINGLE_NOTE, type AttentionRow,
+  attentionLead, attentionTitle, LATER_EXPLAINED, LOGIN_EXPIRED, promptShows, SINGLE_NOTE, type AttentionRow,
 } from "../reauth-attention";
 import type { AccountAttention as Attention } from "../use-account-attention";
 import AddAccountDialog from "./AddAccountDialog";
@@ -122,9 +123,16 @@ export default function AccountAttentionModal({ rows, onSignIn, onLater }: Props
  * ONE AT A TIME. The prompt steps aside while its sign-in is open rather than
  * standing behind it, and comes back with whoever is still left when that
  * closes; a successful sign-in has already taken its own account off the list
- * by then, and an empty list is no dialog.
+ * by then, and an empty list is no dialog. And it waits for any other dialog to
+ * close before it first appears — see promptShows. The stack is read on each
+ * render, which the board's clock brings every quarter second.
  */
 export function AccountAttention({ rows, signingIn, signIn, signedIn, refresh, closeSignIn, later }: Attention) {
+  // Whether the prompt — or the sign-in it opened — was up last render.
+  const oursRef = useRef(false);
+  const shows = signingIn != null
+    || promptShows({ rows: rows.length, ours: oursRef.current, dialogs: modalStack.dialogDepth() });
+  oursRef.current = shows;
   if (signingIn) {
     return (
       <AddAccountDialog
@@ -135,7 +143,7 @@ export function AccountAttention({ rows, signingIn, signIn, signedIn, refresh, c
       />
     );
   }
-  if (!rows.length) return null;
+  if (!shows) return null;
   // Keyed by its shape: a list that falls to one account becomes the sentence
   // that names it, and a fresh mount puts focus on that one's button rather
   // than leaving it on a row that is gone.

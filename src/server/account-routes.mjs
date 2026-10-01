@@ -24,9 +24,7 @@ import { readBody, send } from "./http-io.mjs";
 // path, which the lazily imported modules below are kept off.
 import { heldPrefs } from "./prefs-state.mjs";
 import { PRODUCT } from "./brand.mjs";
-import {
-  incidentsFrom, normaliseOrigins, withDismissed, withRecovered, withSignIn, withoutOrigin,
-} from "./account-origins.mjs";
+import { incidentsFrom, withDismissed, withSignIn, withTidied } from "./account-origins.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -185,21 +183,47 @@ export function wireAccountOrigins() {
       admin = await cswapAdminModule();
     } catch { return; }
     accounts.accountOriginsWith({
-      entries: () => normaliseOrigins(heldPrefs.current()?.accounts),
-      // Told on a read, and a read happens every few seconds: only a put-off
-      // that is really still there is written away, so a recovered account
-      // costs one write rather than one per poll.
-      recovered: keys => {
-        const held = normaliseOrigins(heldPrefs.current()?.accounts);
-        if (!keys.some(k => held[k]?.dismissed != null)) return;
-        heldPrefs.update(withRecovered(keys)).catch(err => noteOriginFailure(err));
-      },
+      // Already coerced: every read and write of prefs.json goes through
+      // normalise, and this is the copy it left.
+      entries: () => heldPrefs.current()?.accounts ?? {},
+      tidy: found => { void tidyOrigins(found); },
     });
     admin.accountOriginsWith({
-      signedIn: ({ email, org, added }) => heldPrefs.update(withSignIn({ email, org, added, now: Date.now() })),
-      removed: ({ email, org }) => heldPrefs.update(withoutOrigin({ email, org })),
+      signedIn: ({ email, org, added }) => writeOrigins(withSignIn({ email, org, added, now: Date.now() })),
     });
   })();
+}
+
+/**
+ * One prefs.json write, and only when it would change something.
+ *
+ * updatePrefs rewrites the file even for a mutator that answers "no change" —
+ * a temp file, an fsync and a rename — and most of what reaches here is a no
+ * change: a sign-in that refreshed an account the deck never marked, a second
+ * "Not now" from another tab. So the mutator is asked of the copy in memory
+ * first, and again of the file inside the queued write, which is the answer
+ * that is kept.
+ */
+async function writeOrigins(mutate) {
+  if (!mutate(heldPrefs.current())) return;
+  await heldPrefs.update(mutate);
+}
+
+/**
+ * What a roster read found out of date — see tidyOrigins in claude-accounts.mjs.
+ *
+ * ONE AT A TIME. Reads come every few seconds and the copy in memory moves only
+ * when a write lands, so without this each read during a slow write would queue
+ * the same write again. A read that arrives while one is out is dropped; the
+ * read after it lands sees what is left.
+ */
+let _tidying = false;
+async function tidyOrigins(found) {
+  if (_tidying) return;
+  _tidying = true;
+  try { await writeOrigins(withTidied(found)); }
+  catch (err) { noteOriginFailure(err); }
+  finally { _tidying = false; }
 }
 
 /** A settings file the deck cannot write costs a remembered "Not now", which
@@ -220,7 +244,7 @@ async function dismissReauth(raw) {
   const incidents = incidentsFrom(raw);
   if (!incidents.length) return { ok: false, reason: "bad_request" };
   try {
-    await heldPrefs.update(withDismissed(incidents));
+    await writeOrigins(withDismissed(incidents));
   } catch (err) {
     noteOriginFailure(err);
     return { ok: false, reason: "prefs_unwritable" };

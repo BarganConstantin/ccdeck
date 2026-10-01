@@ -167,10 +167,10 @@ export default function DeckDialogs({
           outranks the prompt somebody is standing in front of deciding
           whether to truncate a log. */}
       <LanPairRequests {...lanPairs} />
-      {/* After the pairing request, which holds another machine up, and for the
-          same reason ahead of the sheet, the tour and the clear prompt: it
-          arrived on its own and must not paint over a dialog somebody opened
-          to answer (#1893). */}
+      {/* After the pairing request, which holds another machine up, and ahead
+          of the sheet, the tour and the clear prompt (#1893). It also waits
+          for any dialog already open to close before it first appears, so it
+          never takes the keyboard from somebody mid-task — see promptShows. */}
       <AccountAttention {...attention} />
       {/* Before the clear prompt and after everything else, which is where a
           reference belongs: it may paint over a tool inspector somebody opened

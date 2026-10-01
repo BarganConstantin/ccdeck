@@ -24,8 +24,9 @@
 // incident and may ask again.
 //
 // Pure: no file, no clock, no subprocess. The roster read (claude-accounts.mjs)
-// asks reauthFor about each row, cswap-admin.mjs reports sign-ins and removals,
-// and account-routes.mjs hands these mutators to prefs.json's queued writer.
+// asks reauthFor about each row and says what it found out of date,
+// cswap-admin.mjs reports sign-ins, and account-routes.mjs hands these mutators
+// to prefs.json's queued writer.
 import { accountKey } from "./lan-copies.mjs";
 
 /** The provenance a completed `+ → Sign in` leaves. The only one there is:
@@ -64,12 +65,6 @@ export function normaliseOrigins(raw) {
   return Object.fromEntries(kept);
 }
 
-/** What prefs.json holds about one account, or null. */
-export function originOf(prefs, key) {
-  const all = normaliseOrigins(prefs?.accounts);
-  return Object.hasOwn(all, key) ? all[key] : null;
-}
-
 // ── what changes it ─────────────────────────────────────────────────────────
 //
 // Each of these is an `updatePrefs` mutator: it reads the file's own `accounts`
@@ -99,17 +94,6 @@ export function withSignIn({ email, org, added, now }) {
   };
 }
 
-/** The account left the store through the deck. Forgotten, so the same address
- *  arriving later by a share is not mistaken for one this deck signed in. */
-export function withoutOrigin({ email, org }) {
-  return prev => {
-    const all = normaliseOrigins(prev?.accounts);
-    const key = accountKey(email, org);
-    if (!Object.hasOwn(all, key)) return null;
-    return { accounts: Object.fromEntries(Object.entries(all).filter(([k]) => k !== key)) };
-  };
-}
-
 /** "Not now" on these incidents. Only for an account the deck marked: a key it
  *  does not hold is not one it would ever ask about. */
 export function withDismissed(incidents) {
@@ -126,17 +110,25 @@ export function withDismissed(incidents) {
   };
 }
 
-/** These accounts were read successfully after the incident somebody put off,
- *  so the put-off is forgotten rather than kept for an incident that is over. */
-export function withRecovered(keys) {
+/**
+ * What a roster read found out of date, put right in one write.
+ *
+ * `recovered`: accounts read successfully after the incident somebody put off,
+ * so the put-off is forgotten rather than kept for an incident that is over.
+ * `gone`: accounts no longer in claude-swap's store, however they left — the
+ * mark goes with them, so the same address arriving later by a share or Local
+ * network is not mistaken for one this deck signed in.
+ */
+export function withTidied({ recovered = [], gone = [] }) {
   return prev => {
     const all = normaliseOrigins(prev?.accounts);
     let changed = false;
-    const next = Object.fromEntries(Object.entries(all).map(([key, entry]) => {
-      if (!keys.includes(key) || entry.dismissed == null) return [key, entry];
+    const next = Object.fromEntries(Object.entries(all).flatMap(([key, entry]) => {
+      if (gone.includes(key)) { changed = true; return []; }
+      if (!recovered.includes(key) || entry.dismissed == null) return [[key, entry]];
       changed = true;
       const { dismissed: _dropped, ...rest } = entry;
-      return [key, rest];
+      return [[key, rest]];
     }));
     return changed ? { accounts: next } : null;
   };

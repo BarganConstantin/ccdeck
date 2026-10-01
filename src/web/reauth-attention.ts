@@ -90,6 +90,22 @@ export function settledBy(
     .map(r => r.id);
 }
 
+/**
+ * Whether the prompt is drawn now.
+ *
+ * IT WAITS ITS TURN. It arrives on its own, on a poll, and a dialog somebody
+ * opened is one they are in the middle of: the panel's own sign-in, a share,
+ * the tour. Drawn over one of those it would take the keyboard from a person
+ * mid-task — or start a second sign-in beside one already running on the
+ * server. So it waits until no other dialog is up (`dialogs`, the shared
+ * stack's count). Once it is up (`ours`) it stays, whatever opens over it, and
+ * a dialog it opened itself — its own sign-in — does not count against it.
+ */
+export function promptShows({ rows, ours, dialogs }: { rows: number; ours: boolean; dialogs: number }): boolean {
+  if (rows === 0) return false;
+  return ours || dialogs === 0;
+}
+
 /** The dialog's title: one account, or more than one. */
 export function attentionTitle(count: number): string {
   return count === 1 ? "Account needs your attention" : "Accounts need your attention";
