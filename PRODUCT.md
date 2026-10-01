@@ -189,8 +189,9 @@ whoever ships that state does not call it "unsupported".
 
 - `README.md` — the canonical product description, with the eight-picture first-run
   tour in `assets/guide/`.
-- `assets/canvas.png` and `assets/canvas-demo.mjs` — a real canvas the deck drew
-  itself.
+- `assets/canvas.png`, `assets/canvas-demo.mjs` and `assets/capture-hero.mjs` — a
+  real canvas the deck drew itself, from a generated log and invented quota and
+  spend.
 - `ccdeck.dev` and the npm package.
 - Real usage: the npm monthly-downloads badge in `README.md` carries the live
   figure. A number copied into this file is stale within weeks.
