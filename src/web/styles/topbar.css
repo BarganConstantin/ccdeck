@@ -33,7 +33,7 @@
    a centred group's x-position is a function of both its neighbours' widths, so
    the `live` pill would slide sideways every time the token count or the cost
    gained a digit — and the one light on this bar that has to be noticed cannot
-   be the one that moves. On the left, everything ahead of it (a 14px logo, a
+   be the one that moves. On the left, everything ahead of it (a 16px logo, a
    wordmark of a fixed string, a version chip that grows by at most a warning
    dot) has bounded width, which makes the pill an anchor. */
 .topbar .readout {
@@ -57,14 +57,17 @@
      and this moves nothing. */
   justify-content: flex-end;
 }
+/* The brand kit's pattern for product chrome: the small mark sized by height,
+   the name in the UI font at weight 600 and a font size equal to the mark's
+   height, 0.5 x that height between them, no tracking. */
 .topbar .brand {
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 14px;
+  gap: 8px;
+  font-size: 16px;
   /* The version chip grows when it carries a drift warning; the product name
      must not break onto two lines to make room for it. */
   white-space: nowrap;
@@ -72,24 +75,27 @@
 }
 /* The wordmark is the page's <h1> now (#381). `font: inherit` is the whole
    rule's point: an <h1> arrives from the UA sheet at 2em bold with a 0.67em
-   block margin, and none of that is what a 14px wordmark in a 52px bar looks
+   block margin, and none of that is what a 16px wordmark in a 52px bar looks
    like. Nothing about the heading's appearance changed — only what it is. */
 .topbar .brand h1 {
   font: inherit;
   margin: 0;
 }
-/* The favicon's ring, in the deck's one accent (#867). This was a cyan-pink-
-   green conic gradient in a rounded square with a 12px cyan halo, the only
-   permanent decorative glow in a sheet that keeps glow for state. The tab and
-   the page now carry one mark; the tab's copy is the one that fills in when
-   the deck wants you, so this one stays still. */
+/* The brand kit's small mark, drawn by its own file (brand.ts). The sheet only
+   sizes it, by height in the kit's multiples of 4 so its strokes land on whole
+   pixels, and picks the file for the theme: the gradient on the dark bar, the
+   kit's mono-dark twin on the light one. Colours, gradient included, live in
+   the artwork, never here. It replaced a CSS ring (#867), itself the successor
+   of a conic gradient with a halo. */
 .topbar .brand .logo {
   flex: none;
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  background: none;
+  display: block;
+  height: 16px;
+  width: auto;
 }
+.topbar .brand .logo-on-light { display: none; }
+:root[data-theme="light"] .topbar .brand .logo-on-dark { display: none; }
+:root[data-theme="light"] .topbar .brand .logo-on-light { display: block; }
 .topbar .brand .v {
   color: var(--muted);
   font-weight: 400;
