@@ -118,12 +118,18 @@ export function withDismissed(incidents) {
  * `gone`: accounts no longer in claude-swap's store, however they left — the
  * mark goes with them, so the same address arriving later by a share or Local
  * network is not mistaken for one this deck signed in.
+ *
+ * `seen` is the map the read judged, when there is one, and an entry that has
+ * changed since — signed in again, or put off for a newer incident — is left as
+ * it is: the read's verdict was about the entry it saw.
  */
-export function withTidied({ recovered = [], gone = [] }) {
+export function withTidied({ recovered = [], gone = [], seen = null }) {
+  const judged = (key, entry) => !seen || sameEntry(entry, seen[key]);
   return prev => {
     const all = normaliseOrigins(prev?.accounts);
     let changed = false;
     const next = Object.fromEntries(Object.entries(all).flatMap(([key, entry]) => {
+      if (!judged(key, entry)) return [[key, entry]];
       if (gone.includes(key)) { changed = true; return []; }
       if (!recovered.includes(key) || entry.dismissed == null) return [[key, entry]];
       changed = true;
@@ -133,6 +139,9 @@ export function withTidied({ recovered = [], gone = [] }) {
     return changed ? { accounts: next } : null;
   };
 }
+
+const sameEntry = (a, b) => Boolean(a && b)
+  && a.origin === b.origin && a.signedInAt === b.signedInAt && a.dismissed === b.dismissed;
 
 /** Pick out the incidents a request named, dropping anything that is not one.
  *  The route's boundary: a page sends these, and nothing else reaches a write. */

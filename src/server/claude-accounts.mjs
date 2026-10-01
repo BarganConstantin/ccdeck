@@ -395,7 +395,9 @@ function tidyOrigins(origins, recovered, held) {
   const present = new Set(Object.values(held ?? {}).map(a => accountKey(a?.email, a?.organizationUuid)));
   const gone = present.size ? Object.keys(origins).filter(k => !present.has(k)) : [];
   if (!recovered.length && !gone.length) return;
-  try { _origins?.tidy?.({ recovered, gone }); } catch { /* the next read says it again */ }
+  // `seen` rides along so the write changes only what this read judged: a mark
+  // re-made, or an incident put off, since then is not this read's to undo.
+  try { _origins?.tidy?.({ recovered, gone, seen: origins }); } catch { /* the next read says it again */ }
 }
 
 /**
@@ -434,6 +436,11 @@ async function readRoster(now, gen) {
     return finish({ ok: false, reason: "cswap_refused", version: refused.version, want: refused.want ?? null, fetchedAt: now });
   }
 
+  // What the deck remembers about its accounts, taken BEFORE the store is read
+  // (#1893). A sign-in marks its account only after `cswap add` has written
+  // it, so every mark in this copy names an account the store read below
+  // already holds — and none recorded mid-read can be mistaken for one gone.
+  const origins = originsNow();
   const root = backupRoot();
   const seq  = await readSequence(root);
   if (!seq?.accounts) {
@@ -470,7 +477,6 @@ async function readRoster(now, gen) {
     ? seq.sequence.map(String)
     : Object.keys(seq.accounts).sort((a, b) => Number(a) - Number(b));
 
-  const origins = originsNow();
   const accounts = [];
   const recovered = [];
   for (const num of order) {

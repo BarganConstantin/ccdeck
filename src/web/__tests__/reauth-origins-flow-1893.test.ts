@@ -331,7 +331,7 @@ describe("what the roster says about each account", () => {
     usage(healthy.accounts);
     const rows = await read();
     expect(rows[WORK].reauth).toBeNull();
-    expect(seen).toEqual([{ recovered: [KEY], gone: [] }]);
+    expect(seen).toEqual([expect.objectContaining({ recovered: [KEY], gone: [] })]);
   });
 
   it("forgets a mark whose account left the store, however it left — and keeps one the order leaves out", async () => {
@@ -355,7 +355,7 @@ describe("what the roster says about each account", () => {
       tidy: (found: unknown) => { seen.push(found); },
     });
     await read();
-    expect(seen).toEqual([{ recovered: [], gone: [removed] }]);
+    expect(seen).toEqual([expect.objectContaining({ recovered: [], gone: [removed] })]);
 
     // An emptied store forgets nothing: it is the one state where waiting costs nothing.
     store({}, null);
@@ -367,6 +367,15 @@ describe("what the roster says about each account", () => {
   it("has no origins at all until the server hands them in", async () => {
     const rows = await read();
     expect(rows[WORK]).toMatchObject({ origin: null, reauth: null });
+  });
+
+  it("takes what it remembers before it reads the store, so a sign-in mid-read is never taken for gone", () => {
+    // A sign-in marks its account only after `cswap add` wrote it. Taken
+    // first, every mark names an account the store read already holds.
+    const source = readFileSync(fileURLToPath(new URL("../../server/claude-accounts.mjs", import.meta.url)), "utf8");
+    const body = source.slice(source.indexOf("async function readRoster"));
+    expect(body.indexOf("const origins = originsNow();")).toBeGreaterThan(-1);
+    expect(body.indexOf("const origins = originsNow();")).toBeLessThan(body.indexOf("await readSequence(root)"));
   });
 
   it("survives an origins source that throws", async () => {

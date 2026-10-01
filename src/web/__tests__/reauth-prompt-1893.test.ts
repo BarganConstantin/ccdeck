@@ -259,6 +259,21 @@ describe("how an incident is named", () => {
     expect(withTidied({ recovered: [KEY] })(cleared)).toBeNull();
   });
 
+  it("tidies only what the read judged: an entry changed since is not its to undo", () => {
+    const putOff = { ...entry, dismissed: NOW - 10 * MIN };
+    const seen = { [KEY]: putOff };
+    // Signed in again while the read was out: the read's "gone" is about the
+    // mark it saw, not this one.
+    const resigned = { accounts: { [KEY]: { ...entry, signedInAt: NOW } } };
+    expect(withTidied({ gone: [KEY], seen })(resigned)).toBeNull();
+    // Put off again, for a newer incident: that put-off stays.
+    const newer = { accounts: { [KEY]: { ...entry, dismissed: NOW } } };
+    expect(withTidied({ recovered: [KEY], seen })(newer)).toBeNull();
+    // Unchanged since: tidied.
+    expect(originOf(apply({ accounts: seen }, withTidied({ recovered: [KEY], seen })), KEY)).toEqual(entry);
+    expect(originOf(apply({ accounts: seen }, withTidied({ gone: [KEY], seen })), KEY)).toBeNull();
+  });
+
   it("takes only well-formed incidents from a request, and only for accounts the deck marked", () => {
     expect(incidentsFrom([{ key: KEY, since: 5 }, { key: "nope", since: 5 }, { key: KEY, since: "5" }, null, "x"]))
       .toEqual([{ key: KEY, since: 5 }]);
