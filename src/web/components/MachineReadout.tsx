@@ -5,7 +5,7 @@
 // of these three, and each says in its own comment why it is drawn the way it
 // is; which readings a section draws, and in what order, stays with the
 // section.
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import type { Tone } from "../machine-readings";
 import SectionHistoryModal from "./SectionHistoryModal";
@@ -37,6 +37,12 @@ export function Fig({ value, unit, cap }: { value: string; unit?: string; cap: s
   );
 }
 
+/** How long a press on a section's readings waits before it opens the chart:
+ *  long enough for the second press of a double-click, which selects the word
+ *  under it, to call it off, and short enough that a single press still reads
+ *  as the chart answering it. */
+const DOUBLE_PRESS_MS = 300;
+
 /**
  * A section of this panel that keeps a history, under the one control that
  * opens it.
@@ -61,8 +67,8 @@ export function Fig({ value, unit, cap }: { value: string; unit?: string; cap: s
  * had opened the chart since the panel shipped. So `.sd-reading` answers a
  * pointer the way the button did, and forwards it rather than becoming a second
  * control: no role, no Tab stop, nothing for a screen reader to meet twice. The
- * heading stays the one control, and a keyboard's press on it reaches the same
- * handler by bubbling. The per-core and figure tooltips keep working, which an
+ * heading stays the one control, and answers its own press — a keyboard's or a
+ * pointer's — at once. The per-core and figure tooltips keep working, which an
  * overlay stretched from the button over the block would have covered.
  *
  * The name starts with the heading it shows — "Memory: show history" — so a
@@ -96,15 +102,29 @@ export function OpensHistory({ group, title, action, label, value, hint, childre
 }) {
   const [open, setOpen] = useState(false);
   const heading = useRef<HTMLButtonElement>(null);
+  const pending = useRef<number | null>(null);
+  const callOff = () => {
+    if (pending.current != null) window.clearTimeout(pending.current);
+    pending.current = null;
+  };
+  useEffect(() => callOff, []);
   // Two things the block does that a press on the heading does for itself.
   // It hands the heading the focus a click on the button used to give it, so
   // the dialog gives it back there on close instead of to the page. And the
-  // readings are text a reader can select now, so the click that ends a drag
-  // across a figure is left as a selection rather than taken as a press.
-  const pressBlock = () => {
-    if (window.getSelection()?.isCollapsed === false) return;
-    heading.current?.focus({ preventScroll: true });
-    setOpen(true);
+  // readings are text a reader can select now, so a press that is part of
+  // selecting is left as a selection rather than taken as a request: the click
+  // that ends a drag across a figure, and a double- or triple-click, whose
+  // FIRST click arrives before anything is selected — so the chart waits a
+  // moment for a second one before it opens.
+  const pressBlock = (e: React.MouseEvent) => {
+    callOff();
+    if (e.detail > 1 || window.getSelection()?.isCollapsed === false) return;
+    pending.current = window.setTimeout(() => {
+      pending.current = null;
+      if (window.getSelection()?.isCollapsed === false) return;
+      heading.current?.focus({ preventScroll: true });
+      setOpen(true);
+    }, DOUBLE_PRESS_MS);
   };
   return (
     <>
@@ -113,7 +133,8 @@ export function OpensHistory({ group, title, action, label, value, hint, childre
           ref={heading}
           type="button"
           className="sd-open"
-          onClick={() => setOpen(true)}
+          // Not passed on to the block, which would open it a second time.
+          onClick={e => { e.stopPropagation(); callOff(); setOpen(true); }}
           title={action}
           aria-label={value == null ? `${label}: show history` : `${label}: show history, now ${value}`}
           aria-describedby={hint ? `sd-hint-${group}` : undefined}
