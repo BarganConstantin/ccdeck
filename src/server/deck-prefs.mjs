@@ -47,6 +47,7 @@ import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { normaliseOrigins } from "./account-origins.mjs";
 import { normaliseUsage } from "./usage-day.mjs";
+import { refSlug } from "./install-ref.mjs";
 
 /** Set to "1" to keep the deck off the desktop whatever the stored preference
  *  says. Same sheet of switches as AGENTS_DECK_NO_DOWNLOAD and
@@ -301,7 +302,7 @@ export function normalise(raw) {
 }
 
 /** The reporter's own state, coerced: strings empty when absent, the day's
- *  tally null until there is one, and one flag. */
+ *  tally null until there is one, one flag, and a ref only if it is one. */
 function normaliseReport(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const text = v => (typeof v === "string" ? v : "");
@@ -315,6 +316,7 @@ function normaliseReport(raw) {
     firstSessionAt: text(src.firstSessionAt),
     firstProvider: text(src.firstProvider),
     activationSent: src.activationSent === true,
+    ref: refSlug(src.ref) ?? "",
   };
 }
 

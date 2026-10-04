@@ -201,6 +201,10 @@ const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DI
   await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 // What this boot set up, for the usage reports — see activation.mjs.
 const { noteSetup } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
+// And the site page the command came from, which only a new install's first
+// report carries — see install-ref.mjs.
+const { noteRef } = await import(pathToFileURL(join(PKG_ROOT, "src/server/install-ref.mjs")).href);
+noteRef(flags.ref);
 
 // Resolved here rather than left as typed, for the reason the events log above
 // is: the discovery file publishes this path, and the hook that reads it runs in
