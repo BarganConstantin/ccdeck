@@ -32,6 +32,7 @@
 // tested. Two policies over one process is how `ccdeck --stop` becomes a
 // suggestion the machine overrules a second later.
 import { inApp } from "./app-host.mjs";
+import { stableNodePath } from "./stable-node.mjs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -394,7 +395,11 @@ export function installService({
   platform = process.platform,
   home = homedir(),
   env = process.env,
-  execPath = process.execPath,
+  // The node an upgrade of the same install does not delete, which is not
+  // `process.execPath` on Homebrew or a linked tarball — see stable-node.mjs.
+  // Looked up on THIS machine whatever `platform` asks about: it is this
+  // machine's node that the job will run.
+  execPath = stableNodePath({ env }),
   script,
   logPath,
   // `--at-login` because registering the job also STARTS it, on Linux and
