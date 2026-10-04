@@ -39,10 +39,29 @@ export function noteFeature(name: PageFeature): void {
   }
 }
 
+const DAY_MS = 86_400_000;
+/** How long after midnight UTC the new day's note waits: a page whose clock runs
+ *  a little ahead of the deck's would otherwise say it while the deck is still
+ *  on the day before, which already has it. */
+const PAST_MIDNIGHT_MS = 60_000;
+
 /** `noteFeature(name)` whenever `on` turns true — on mount, for a component that
- *  is only mounted while it is open. */
+ *  is only mounted while it is open — and again after every midnight UTC it is
+ *  still true at. The reports keep a feature per UTC day, and a panel left open
+ *  in a window nobody reloads is shown on each of those days, not only the one
+ *  it opened on. */
 export function useFeatureUse(name: PageFeature, on = true): void {
   useEffect(() => {
-    if (on) noteFeature(name);
+    if (!on) return;
+    noteFeature(name);
+    let timer: ReturnType<typeof setTimeout>;
+    const atNextDay = () => {
+      timer = setTimeout(() => {
+        noteFeature(name);
+        atNextDay();
+      }, DAY_MS - (Date.now() % DAY_MS) + PAST_MIDNIGHT_MS);
+    };
+    atNextDay();
+    return () => clearTimeout(timer);
   }, [name, on]);
 }

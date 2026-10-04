@@ -6,6 +6,7 @@
 // is selected and the panel is open.
 import type { MutableRefObject } from "react";
 
+import { useFeatureUse } from "../feature-use";
 import type { GraphState } from "../reducer";
 import { exportFileName, sessionExport } from "../session-export";
 import type { AgentNodeData } from "../types";
@@ -43,6 +44,10 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, se
   stateRef: MutableRefObject<GraphState>;
   removeSelectedNode: () => void;
 }) {
+  // Drawn: one of the features the usage reports name (feature-use.ts). Said
+  // here rather than off `detailOpen`, which stays on across a reload that
+  // left nothing selected and so nothing on screen.
+  useFeatureUse("detail-panel");
   return (
     // Already the right element and still an unnamed one: the rotor listed
     // it as a bare "complementary" beside the session list's "Sessions",
