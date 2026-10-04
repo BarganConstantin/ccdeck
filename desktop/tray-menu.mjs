@@ -119,6 +119,12 @@ export function updateItem(u, on, asksPassword = false) {
   // what to do about it where the updater knows (updater.mjs), else that it
   // failed. Clicked, it checks again, as "Check for updates" did.
   if (u.status === "error") {
+    // A release the macOS swap could not put in place is not tried again
+    // (#1927), so "try again" would only be refused again: the row says it is
+    // skipped, and the click looks for a newer one.
+    if (u.kind === "skipped-release" && u.version) {
+      return { label: `Skipped v${u.version} — check for the next release`, click: () => on.checkForUpdates() };
+    }
     const label = Object.hasOwn(UPDATE_FAILED, u.kind ?? "") ? UPDATE_FAILED[u.kind] : "Update failed — try again";
     return { label, click: () => on.checkForUpdates() };
   }
