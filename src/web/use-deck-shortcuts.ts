@@ -15,7 +15,7 @@ import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import type { GraphState } from "./reducer";
-import { canvasModalOpen, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import type { Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -136,6 +136,14 @@ export function useDeckShortcuts({
       // Arrows belong to the card, whatever React Flow does or does not do with
       // them. Delete does not: it is the deck's Remove from board (#1668).
       if (intent.kind === "node") return;
+      // `?` closes the sheet it opened, whatever in the sheet has focus — see
+      // closesKeySheet. Asked before the gate below, which kept the key for the
+      // sheet's ×, and not on a held key's repeat, which would shut the sheet
+      // the same press had just opened.
+      if (closesKeySheet({ key: e.key, sheetOpen: keyHelpOpenRef.current, target })) {
+        if (!e.repeat) setKeyHelpOpen(false);
+        return;
+      }
       // A focused control owns its own keys: Space presses a button, letters
       // run a <select>'s type-ahead. Answering them stole the button's
       // activation key and let a bare "c" from a dropdown wipe the event log.

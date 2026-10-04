@@ -173,6 +173,24 @@ export function shortcutBlocked(
 }
 
 /**
+ * Whether this keystroke is `?` closing the shortcuts sheet, which it does
+ * whatever in the sheet has focus.
+ *
+ * The exception above was never reached from the keyboard. Opening the sheet
+ * hands focus to its first stop, the header ×, by program — so that button is
+ * not one the mouse pressed (#851), `ownsKeystroke` keeps every key for it, and
+ * the handler returned on that gate before it got here. `?` closed the sheet
+ * only when the mouse had opened it, inside the moment that marks a focus as
+ * the pointer's. Nothing in the sheet answers `?` itself; a text field would,
+ * so one keeps it.
+ */
+export function closesKeySheet(
+  { key, sheetOpen, target }: { key: string; sheetOpen: boolean; target: FocusTarget | null | undefined },
+): boolean {
+  return sheetOpen && key === "?" && !isTypingTarget(target);
+}
+
+/**
  * Whether a dialog covers the canvas, which is the `modalOpen` the gate above
  * is handed.
  *
