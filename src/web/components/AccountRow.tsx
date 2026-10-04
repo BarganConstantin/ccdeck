@@ -36,24 +36,34 @@ function fullness(pct: number): "mid" | "hi" | undefined {
 
 function LaneBar({ lane, nowSec, frozen, sortedBy }: { lane: Lane; nowSec: number; frozen?: boolean; sortedBy?: boolean }) {
   const capped = Math.min(100, Math.max(0, lane.pct));
+  // A window whose reset has passed since it was read is over, and the number
+  // is the old window's: a record too, however recent the collection.
+  const rolled = !!lane.resetAt && lane.resetAt <= nowSec;
   // A reading that cannot move is drawn as a record rather than a reading: one
   // ink, no warning colours, the fill at half strength. The row says how old.
-  const color  = frozen ? "var(--muted)" : capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+  const record = frozen || rolled;
+  const color  = record ? "var(--muted)" : capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
   // And a reset from a reading that old has most likely happened already.
-  const reset  = lane.resetAt && !frozen ? resetCountdown(lane.resetAt, nowSec) : null;
+  const reset  = lane.resetAt && !record ? resetCountdown(lane.resetAt, nowSec) : null;
   return (
     <div className="ap-lane" data-sort-key={sortedBy ? "" : undefined}>
       <span className="ap-lane-label" title={lane.label}>{lane.label}</span>
       <div className="ap-lane-track">
-        <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || frozen ? 0.4 : 1 }} />
+        <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || record ? 0.4 : 1 }} />
       </div>
-      <span className="ap-lane-pct" style={{ color }}>{capped}%</span>
+      {/* Whole, as the shut row and the Usage panel print it: claude-swap keeps
+          the utilisation as it came, and 85.555555% beside a shut-row 86% is
+          one window read two ways. */}
+      <span className="ap-lane-pct" style={{ color }}>{Math.round(capped)}%</span>
       {/* When the window rolls over, at the end of its own bar rather than on a
           line under it: two resets under two bars made the live row five lines
           tall for two facts. The word is said to a screen reader and in the
-          title; on screen a countdown beside a quota reads as one. */}
-      <span className="ap-lane-reset" title={reset ? `${lane.label} resets in ${reset}` : undefined}>
+          title; on screen a countdown beside a quota reads as one. Once it has
+          rolled over, the same place says so. */}
+      <span className="ap-lane-reset"
+        title={reset ? `${lane.label} resets in ${reset}` : rolled && !frozen ? `${lane.label} has reset since this reading` : undefined}>
         {reset && <><span className="vis-hidden">resets in </span>{reset}</>}
+        {rolled && !frozen && "reset"}
       </span>
     </div>
   );

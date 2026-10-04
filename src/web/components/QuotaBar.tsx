@@ -75,9 +75,17 @@ interface QuotaBarProps {
   nowSec: number;      // current time in seconds (for countdown + pace)
 }
 export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec }: QuotaBarProps) {
+  // A window whose reset has passed is over, and so is the reading of it: the
+  // panel holds the last answer until the next one lands, across a poll, a
+  // server floor or a closed lid. Until a reading of the new window arrives
+  // the bar says it reset rather than drawing the old one in its place — no
+  // countdown is left to print, the absolute time would be one already gone,
+  // and a pace measured against a window that has fully elapsed called a full
+  // bar "used up" and a 60% one "40% under pace".
+  const rolled   = !!resetAt && resetAt <= nowSec;
   // No reading draws no fill, no level colour and no pace: every one of those
   // is a statement about a number, and there is none (#1627).
-  const known    = pct != null;
+  const known    = pct != null && !rolled;
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const isErr    = limitReached || capped >= 90;
   const color    = isErr ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
@@ -86,11 +94,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
   // 0.25% of the track is a fill nobody can see.
   const underOne = capped < 1;
-  const pctLabel = !known ? "no reading" : underOne ? "< 1%" : `${Math.round(capped)}%`;
+  const pctLabel = rolled ? "reset" : !known ? "no reading" : underOne ? "< 1%" : `${Math.round(capped)}%`;
   // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
   const fillW    = underOne ? 2 : capped;
 
-  const countdown = resetAt ? resetCountdown(resetAt, nowSec) : null;
+  const countdown = resetAt && !rolled ? resetCountdown(resetAt, nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
   // The note opens the number it is measured against (#856).
   const [why, setWhy] = useState(false);
@@ -101,7 +109,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
       <div className="qb-meta">
         <span className="qb-label">
           {label}
-          {limitReached && <span className="qb-limit-badge" title="Rate limit reached">⛔</span>}
+          {limitReached && !rolled && <span className="qb-limit-badge" title="Rate limit reached">⛔</span>}
         </span>
         <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}>{pctLabel}</span>
       </div>
@@ -125,11 +133,13 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
         )}
       </div>
       <div className="qb-reset-row">
-        {countdown
-          ? <span className="qb-reset">resets in {countdown}</span>
-          : reset
-            ? <span className="qb-reset">resets {reset}</span>
-            : null}
+        {rolled
+          ? <span className="qb-reset">waiting for a new reading</span>
+          : countdown
+            ? <span className="qb-reset">resets in {countdown}</span>
+            : reset
+              ? <span className="qb-reset">resets {reset}</span>
+              : null}
         {pace && (
           <button
             type="button"

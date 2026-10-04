@@ -13,6 +13,7 @@
 // new access token is never treated as success, and nothing here throws —
 // a rejected promise from a background poll would take the server down.
 import { readFile, chmod, unlink } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { CODEX_HOME } from "./codex-dir.mjs";
 import { createTemp, renameWithRetry, resolveWriteTarget } from "./atomic-write.mjs";
@@ -230,6 +231,16 @@ function refreshErrorCode(body) {
   return typeof raw === "string" ? raw.toLowerCase() : null;
 }
 
+// The last refresh token the endpoint refused for good, by hash — the token
+// itself is not kept. A refused token is dead until `codex login` replaces it,
+// and the expiry-driven path asks for a refresh on every poll once the access
+// token's `exp` has passed, so without this the same dead token was POSTed to
+// auth.openai.com once a minute for as long as the panel stayed open. Matched
+// against what auth.json holds at each attempt, so it lapses by itself the
+// moment the file carries a different one.
+let _refusedRefresh = null;
+const tokenHash = (token) => createHash("sha256").update(String(token)).digest("hex");
+
 /**
  * Spend the refresh token. Never throws — every failure is a return value,
  * because callers include a 60s background poll whose rejection would reach
@@ -262,6 +273,7 @@ async function doRefresh(auth) {
   if (!res.ok) {
     const code = refreshErrorCode(body);
     const permanent = (code && PERMANENT_CODES.has(code)) || res.status === 401;
+    if (permanent) _refusedRefresh = tokenHash(auth.tokens.refresh_token);
     return { ok: false, reason: permanent ? "refresh_rejected" : "refresh_failed", code };
   }
 
@@ -322,6 +334,9 @@ function refreshCredentials({ ifStale = false, staleAccessToken = null } = {}) {
     if (staleAccessToken && auth.tokens.access_token !== staleAccessToken) {
       return { ok: true, auth };  // someone else already rotated past it
     }
+    if (tokenHash(auth.tokens.refresh_token) === _refusedRefresh) {
+      return { ok: false, reason: "refresh_rejected", code: "refused_before" };
+    }
     return doRefresh(auth);
   });
 }
@@ -372,6 +387,20 @@ export async function getCodexAuth({ allowRefresh = true } = {}) {
   }
 
   return identityFrom(auth, refreshed);
+}
+
+/**
+ * Which credential auth.json holds right now, as a hash of its two tokens, or
+ * null when it holds neither. Never the tokens themselves.
+ *
+ * For codex-quota.mjs, whose cooldown after a refused login is about the
+ * credential that was refused: `codex login` writes a new pair, and a wait
+ * that outlived it answered the user's ↻ with the old refusal.
+ */
+export async function codexCredentialFingerprint() {
+  const tokens = (await readAuthFile())?.tokens;
+  if (!tokens?.access_token && !tokens?.refresh_token) return null;
+  return tokenHash(`${tokens.access_token ?? ""}\n${tokens.refresh_token ?? ""}`);
 }
 
 /**

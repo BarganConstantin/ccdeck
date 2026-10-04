@@ -72,6 +72,10 @@ function codexHint(reason?: string): string {
     // The deck will not put a live ChatGPT token on the wire to somewhere it
     // read out of a config file it does not own, so it says which file.
     case "untrusted_base_url": return "chatgpt_base_url in ~/.codex/config.toml is not an https OpenAI host, so the token was not sent.";
+    // The two states a refused read is answered with, said as the Claude
+    // section says them: the API did answer, and ↻ is what the wait refuses.
+    case "rate_limited":     return "OpenAI asked the deck to wait — it will retry on its own.";
+    case "waiting":          return "Waiting for the next allowed read — or click ↻.";
     default:                 return "ChatGPT API unreachable — click ↻ to retry.";
   }
 }
