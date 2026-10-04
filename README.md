@@ -383,7 +383,8 @@ so unconditionally. Two starts at the same moment, such as the login item and a
 terminal opened at login, wait for each other instead of both starting. The rule
 holds per Claude config directory: pointing `CLAUDE_CONFIG_DIR` somewhere else
 is a second deck with its own identity, as it always was, and the login item is
-given the same directory as the shell that installed it.
+given the same directory as the shell that installed it, along with every other
+variable in the table below that the shell had set.
 
 ccdeck looks for each CLI before it does anything on that CLI's behalf. Claude
 Code counts as present when its binary is on `PATH` (or in one of the places its

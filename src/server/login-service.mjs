@@ -355,8 +355,40 @@ export function lingerState({ platform = process.platform, run = spawnSync, user
 export const SCOPE_VARS = Object.freeze(["CLAUDE_CONFIG_DIR", "CCDECK_HOME", "CODEX_HOME"]);
 
 export function scopeEnv(env = process.env) {
+  return setOnes(SCOPE_VARS, env);
+}
+
+/**
+ * …and the variables that decide what that deck DOES: every other row of
+ * README's environment table, by name.
+ *
+ * Lost the same way the scope directories were, and with a cost the user had
+ * already said no to. `AGENTS_DECK_NO_REPORTS=1 ccdeck`, or the variable in
+ * ~/.zshrc, installed an item on the first start whose deck ran at the next
+ * login with no veto: an install event with the device fingerprint, a daily
+ * "active", and — AGENTS_DECK_NO_LAN gone too — the beacon on the local
+ * network. A terminal exporting the variable afterwards attached to that deck
+ * rather than starting one of its own, so not even it was spared.
+ *
+ * BY NAME, NOT BY PREFIX. A shell holds tokens and keys a login item has no
+ * business copying into a file in ~/Library/LaunchAgents; the list is what the
+ * deck documents and reads, and a test holds it to README's table. Only the
+ * ones that are set, for the reason scopeEnv gives.
+ */
+export const SETTING_VARS = Object.freeze([
+  "AGENT_DAG_PORT",
+  "AGENTS_DECK_NO_INSTALL", "AGENTS_DECK_NO_DOWNLOAD", "AGENTS_DECK_NO_UPDATE_CHECK", "AGENTS_DECK_NO_STATUS",
+  "AGENTS_DECK_NO_FRESHEN", "AGENTS_DECK_NO_NOTIFY", "AGENTS_DECK_NO_LAN", "AGENTS_DECK_NO_REPORTS",
+  "AGENTS_DECK_CSWAP", "AGENTS_DECK_CLAUDE", "AGENTS_DECK_CCUSAGE", "CLAUDE_SWAP_BACKUP", "AGENTS_DECK_LHM_PORT",
+]);
+
+export function settingsEnv(env = process.env) {
+  return setOnes(SETTING_VARS, env);
+}
+
+function setOnes(names, env) {
   return Object.fromEntries(
-    SCOPE_VARS.filter(k => typeof env?.[k] === "string" && env[k].trim() !== "").map(k => [k, env[k]]),
+    names.filter(k => typeof env?.[k] === "string" && env[k].trim() !== "").map(k => [k, env[k]]),
   );
 }
 
@@ -427,7 +459,11 @@ export function installService({
   // genuinely wants a different job environment — the sandboxed end-to-end
   // test, which passes HOME and the deck's own directories — still says so,
   // and replaces this outright rather than adding to it.
-  serviceEnv = scopeEnv(env),
+  //
+  // The opt-outs ride along for the same reason (settingsEnv): an item that
+  // starts a deck without the shell's AGENTS_DECK_NO_REPORTS is a deck that
+  // reports from the next login on.
+  serviceEnv = { ...scopeEnv(env), ...settingsEnv(env) },
   product = "ccdeck",
   fs = { mkdirSync, writeFileSync },
   run = spawnSync,
