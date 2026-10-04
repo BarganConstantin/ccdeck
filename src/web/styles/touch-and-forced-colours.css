@@ -118,6 +118,14 @@
      grows by above and below comes out of the row's 10px, so the row keeps
      its height. */
   .session-list .sl-row.selected { --sl-card-edge: 2px; padding-block: calc(10px - (var(--sl-card-edge) - 1px)); border-color: Highlight; }
+  /* The selected card's ring, in the same highlight as its row. The theme
+     drops the lift that sets selection apart from the keyboard's ring, and
+     repaints the session's own colour in the text colour that ring is drawn
+     in, so without this a selected card and a focused one would be the same
+     mark. At a distance the card's outline stays transparent (agent-node.css,
+     at higher specificity) and the face carries the ring. */
+  .react-flow__node.rf-selected .agent-node,
+  .react-flow__node.rf-selected .agent-node > .lod-face { outline-color: Highlight; }
   /* The order's caret takes the select's own system colour rather than the
      --muted it rests in, which a contrast theme does not repaint (#1579). */
   .ap-rest-sort svg { color: ButtonText; }

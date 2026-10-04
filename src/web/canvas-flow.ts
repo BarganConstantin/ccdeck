@@ -156,9 +156,16 @@ export function snapshotToFlow(
     const exiting = a.exitAt != null;
     // Spotlight: out-of-lineage agents fade hard when a selection is active.
     const spotlitOut = lineage != null && !lineage.has(a.id);
+    // The selection's ring is drawn from this class, not from React Flow's own
+    // `selected`: the canvas hands React Flow a controlled `nodes` with no
+    // onNodesChange, so its click and keyboard selection land in a store this
+    // board skips and the prop is never true. Not `selected: true` on the node
+    // either — React Flow would then drag every selected card together, against
+    // use-node-drag's patch.
     const cls = [
       exiting ? "rf-exiting" : "",
       spotlitOut ? "rf-spotlit-out" : "",
+      selectedIds.has(a.id) ? "rf-selected" : "",
     ].filter(Boolean).join(" ") || undefined;
     // ReactFlow's createNodeInternals wipes width/height from internals on
     // every setNodes call — and we re-pass `nodes` on every `now` tick.

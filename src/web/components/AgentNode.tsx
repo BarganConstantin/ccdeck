@@ -44,12 +44,14 @@ import { RecapMark } from "./RecapMark";
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
-function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+  // No `selected` here. React Flow's prop is never true on this canvas, so the
+  // class it set matched nothing; the frame marks a selected card's wrapper
+  // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
   const cls = [
     "agent-node",
     `state-${data.state}`,
     data.synthetic ? "synthetic" : "",
-    selected ? "selected" : "",
   ].filter(Boolean).join(" ");
 
   const inflight = data.tools.filter(t => !t.endedAt).length;
