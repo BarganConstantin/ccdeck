@@ -223,7 +223,9 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     // macOS installs on the way out either way; what makes this a restart
     // rather than a Quit is the swap opening the new version after (#1758).
     if (process.platform === "darwin") { relaunch = true; app.quit(); return; }
-    if (process.platform === "linux" && process.env.APPIMAGE) { restartAppImage(); return; }
+    // The same test the unattended rule makes: a package install that
+    // inherited APPIMAGE restarts the package way, not as that AppImage.
+    if (process.platform === "linux" && isAppImage()) { restartAppImage(); return; }
     if (!auto) return;
     installing = true;
     auto.quitAndInstall(false, true);
