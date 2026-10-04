@@ -123,6 +123,11 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         if (!isNewer(info.version, app.getVersion())) throw new Error(`${info.version} is not newer than the running ${app.getVersion()}`);
         const ok = verifyDownload(await readFile(file), info, file);
         if (!ok) throw new Error(`the download is not signed by ccdeck's update key as ${info.version}`);
+        // The AppImage replaces its own file. One kept where this account
+        // cannot write is not ready: nothing could install it.
+        if (process.platform === "linux" && isAppImage() && !(await canReplace(process.env.APPIMAGE))) {
+          throw new Error(`ccdeck cannot update itself in ${dirname(process.env.APPIMAGE)}, which cannot be written to`);
+        }
         set({ status: "ready", version: info.version });
       } catch (err) {
         log(`update refused: ${err.message}`);
@@ -198,6 +203,12 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
    */
   function canInstallUnattended() {
     if (process.platform === "darwin" || process.platform === "win32") return true;
+    return isAppImage();
+  }
+
+  /** Linux: is this the AppImage, rather than a package manager's install
+   *  started with APPIMAGE inherited from wherever it was started? */
+  function isAppImage() {
     if (packageType === undefined) packageType = packageTypeIn(resourcesPath);
     return !!process.env.APPIMAGE && !PACKAGE_MANAGED.has(packageType);
   }
@@ -240,7 +251,17 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     } finally {
       auto.off("appimage-filename-updated", renamed);
     }
-    if (!installed) return;
+    if (!installed) {
+      // install() latches on its first call, and only electron-updater's own
+      // quitAndInstall lets go after one that failed. Let go here too, or every
+      // later install is ignored while the next check says ready again — and
+      // the quiet install tries it every minute. The failure is the state
+      // until then, so nothing tries again by itself before that check.
+      auto.quitAndInstallCalled = false;
+      installing = false;
+      if (state.status === "ready") set({ status: "error", error: `ccdeck ${state.version} could not be installed` });
+      return;
+    }
     relaunchOnExit({ pid: process.pid, appImage: target });
     app.quit();
   }

@@ -34,6 +34,9 @@ vi.mock("../../../desktop/node_modules/electron-updater", () => ({ default: { ge
 vi.mock("../../../desktop/updater-mac.mjs", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   UPDATE_PUBLIC_KEY: h.pub,
+  // The AppImage here is at a path that is not on this disk; one that cannot
+  // be replaced is desktop-update-appimage-failed-install.test.ts's.
+  canReplace: async () => true,
 }));
 vi.mock("../../../desktop/relaunch-linux.mjs", () => ({ relaunchOnExit: vi.fn() }));
 
