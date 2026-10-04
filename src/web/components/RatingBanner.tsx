@@ -13,6 +13,7 @@
 // After an answer, one line of thanks. A low score also offers the feedback
 // dialog — empty: the number never travels with the words, and the words are
 // only ever sent by pressing Send there.
+import { useLayoutEffect, useRef } from "react";
 import type { RatingPhase } from "../use-rating-ask";
 
 const SCORES = Array.from({ length: 11 }, (_, i) => i);
@@ -27,6 +28,26 @@ function scoreLabel(n: number): string {
 /** At or under this, the thanks also offers the feedback dialog. */
 const LOW_SCORE = 6;
 
+/** The row's height, written on the page as --rating-h for as long as the row
+ *  is up. The row takes the whole width under the topbar, and the rail's two
+ *  panels are fixed rather than in the grid, so this is how they know where
+ *  it ends (rating.css). Measured again whenever the row wraps differently —
+ *  a resized window, the thanks after the question. */
+function useRowHeight(phase: RatingPhase) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const row = ref.current;
+    const page = row?.closest<HTMLElement>(".app");
+    if (!row || !page) return;
+    const measure = () => page.style.setProperty("--rating-h", `${Math.ceil(row.getBoundingClientRect().height)}px`);
+    measure();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(row);
+    return () => { ro?.disconnect(); page.style.removeProperty("--rating-h"); };
+  }, [phase]);
+  return ref;
+}
+
 export default function RatingBanner({ phase, score, onAnswer, onLater, onClose, onFeedback }: {
   phase: RatingPhase;
   /** The number picked, once there is one. */
@@ -37,11 +58,12 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
   /** Opens the feedback dialog, blank. */
   onFeedback: () => void;
 }) {
+  const rowRef = useRowHeight(phase);
   if (phase === "thanks") {
     return (
       // The same calm row the question was asked in, so the thanks reads as its
       // answer; `done`'s green and its amber button belong to a restart.
-      <div className="ver-banner note rating-banner" role="status">
+      <div ref={rowRef} className="ver-banner note rating-banner" role="status">
         <span className="ver-dot" />
         <strong>Thanks — that helps.</strong>
         {score !== null && score <= LOW_SCORE ? (
@@ -52,7 +74,7 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
     );
   }
   return (
-    <div className="ver-banner note rating-banner" role="group" aria-labelledby="rating-question">
+    <div ref={rowRef} className="ver-banner note rating-banner" role="group" aria-labelledby="rating-question">
       <span className="ver-dot" />
       <strong id="rating-question">How useful is ccdeck to you?</strong>
       <span className="rating-scale">
