@@ -38,8 +38,8 @@
 //     unanswered (rating.mjs),
 //   - errors: a request handler that threw on this server, or an error the page
 //     caught, with every path outside the deck's own package, project folder
-//     names, email addresses and key-shaped strings scrubbed out before they
-//     leave (see scrub),
+//     names, the host of every address, email addresses and key-shaped strings
+//     scrubbed out before they leave (see scrub),
 //   - a "ping" heartbeat, every ten minutes or so while the deck runs, which
 //     moves the install's "last seen" so the admin can show who is online now,
 //     and is counted per day, which is how long the deck stays open.
@@ -358,9 +358,10 @@ const LAST = String.raw`[^\s\\/:'"\`<>|?*;,()]+`;
 const TAIL = String.raw`(?:${MIDDLE})*(?:${LAST})?`;
 /** A path in any shape an error carries one: a file:// URL, a ~ path, a drive
  *  path, a UNC path, an absolute POSIX path. Not an address — `https://host/x`
- *  starts after a colon and its path after the host — and not `node:internal/…`.
+ *  starts after a colon and its path after the host, or after the `<deck>` or
+ *  `<host>` that host is sent as (hideOrigin) — and not `node:internal/…`.
  *  A `:42:7` after it is left where it is. */
-export const PATH_PATTERN = String.raw`(?<![\w.~/\\\]-])(?:file://(?:/[A-Za-z]:)?[^\s:'"\`<>()]*|~[\\/]${TAIL}|[A-Za-z]:[\\/]${TAIL}|\\\\(?:[?.]\\)?(?:[A-Za-z]:\\)?${TAIL}|/(?=${NAME})${TAIL}|(?<!:)//(?=${NAME})${TAIL})`;
+export const PATH_PATTERN = String.raw`(?<![\w.~/\\\]-]|<(?:deck|host)>)(?:file://(?:/[A-Za-z]:)?[^\s:'"\`<>()]*|~[\\/]${TAIL}|[A-Za-z]:[\\/]${TAIL}|\\\\(?:[?.]\\)?(?:[A-Za-z]:\\)?${TAIL}|/(?=${NAME})${TAIL}|(?<!:)//(?=${NAME})${TAIL})`;
 /** A folder name in Claude Code's encoding of a project's path, every character
  *  but letters and digits made a dash: `-home-alice-acme`, `C--Users-Bob-acme`. */
 export const PROJECT_PATTERN = String.raw`(?<![\w-])(?:[A-Za-z]--|-[A-Za-z0-9][\w.]*-)[\w.-]*`;
@@ -377,6 +378,18 @@ function hidePath(path) {
   if (!top) return path;
   if (!KEPT_HOME_FOLDERS.has(top)) return `~${sep}<path>`;
   return rest.join("") ? `~${sep}${top}${sep}<path>` : path;
+}
+
+/** The scheme and host of an address (with its port, and a user in front of the
+ *  host): a deck opened from another machine is opened by that machine's name,
+ *  and every frame of the page carries it. The second group is the bundle's
+ *  `/assets/` after it, which only the deck's own page loads scripts from. */
+export const ORIGIN_PATTERN = String.raw`\b(https?|wss?)://[^\s/?#\\'"\x60<>(),;]+(?=(/assets/)?)`;
+
+/** What an address is sent as: `<deck>/assets/…` for the page's own scripts, so
+ *  a frame still says where in the bundle; `https://<host>/…` for any other. */
+function hideOrigin(_origin, scheme, assets) {
+  return assets ? "<deck>" : `${scheme}://<host>`;
 }
 
 const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -401,12 +414,17 @@ function spellings(dir) {
  * hidePath), and a project folder in Claude Code's encoding `<project>`: either
  * would name what somebody works on.
  *
+ * No host leaves either. The page's frames name the machine the deck was opened
+ * by (`http://alices-macbook.local:4317/assets/…`); they become `<deck>/assets/…`,
+ * which still says where in the bundle and reads the same on every machine, and
+ * any other address keeps its scheme and path and loses its host (hideOrigin).
+ *
  * The catch-all for long opaque strings deliberately stops at a slash: with one
  * in it, the pattern swallowed every long file path, and a stack whose frames
  * read `at save (~/.<secret>.mjs:40:3)` tells nobody where the bug is.
  * The API scrubs again;
- * this is the pass that means it never has to: paths, project folders, email
- * addresses, and strings shaped like keys and tokens.
+ * this is the pass that means it never has to: paths, project folders, hosts,
+ * email addresses, and strings shaped like keys and tokens.
  */
 export function scrub(text, home = homedir(), root = PKG_ROOT) {
   let out = String(text ?? "");
@@ -421,6 +439,7 @@ export function scrub(text, home = homedir(), root = PKG_ROOT) {
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
     .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
     .replace(new RegExp(PROJECT_PATTERN, "g"), "<project>")
+    .replace(new RegExp(ORIGIN_PATTERN, "g"), hideOrigin)
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
     .replace(
       /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+_=-]{48,})/g,

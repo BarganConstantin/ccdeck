@@ -17,7 +17,7 @@ const NAME = String.raw`[^\s\\/:'"\`<>|?*;,]`;
 const MIDDLE = String.raw`${NAME}(?:[^\\/\r\n:'"\`<>|?*;,]*${NAME})?[\\/]`;
 const LAST = String.raw`[^\s\\/:'"\`<>|?*;,()]+`;
 const TAIL = String.raw`(?:${MIDDLE})*(?:${LAST})?`;
-export const PATH_PATTERN = String.raw`(?<![\w.~/\\\]-])(?:file://(?:/[A-Za-z]:)?[^\s:'"\`<>()]*|~[\\/]${TAIL}|[A-Za-z]:[\\/]${TAIL}|\\\\(?:[?.]\\)?(?:[A-Za-z]:\\)?${TAIL}|/(?=${NAME})${TAIL}|(?<!:)//(?=${NAME})${TAIL})`;
+export const PATH_PATTERN = String.raw`(?<![\w.~/\\\]-]|<(?:deck|host)>)(?:file://(?:/[A-Za-z]:)?[^\s:'"\`<>()]*|~[\\/]${TAIL}|[A-Za-z]:[\\/]${TAIL}|\\\\(?:[?.]\\)?(?:[A-Za-z]:\\)?${TAIL}|/(?=${NAME})${TAIL}|(?<!:)//(?=${NAME})${TAIL})`;
 export const PROJECT_PATTERN = String.raw`(?<![\w-])(?:[A-Za-z]--|-[A-Za-z0-9][\w.]*-)[\w.-]*`;
 const KEPT_HOME_FOLDERS = new Set([".claude", ".codex"]);
 
@@ -31,20 +31,32 @@ function hidePath(path: string): string {
   return rest.join("") ? `~${sep}${top}${sep}<path>` : path;
 }
 
+/** The address pattern of `scrub`, the same text (error-report-origins.test.ts
+ *  holds the two together): an address's scheme and host, and whether the
+ *  bundle's `/assets/` follows it. Its backtick is `\x60`, so this file's
+ *  backticks stay paired for the tests that read quoted spans out of the page. */
+export const ORIGIN_PATTERN = String.raw`\b(https?|wss?)://[^\s/?#\\'"\x60<>(),;]+(?=(/assets/)?)`;
+
+/** `<deck>/assets/…` for the page's own scripts, `https://<host>/…` for any other address. */
+function hideOrigin(_origin: string, scheme: string, assets?: string): string {
+  return assets ? "<deck>" : `${scheme}://<host>`;
+}
+
 /**
  * Take out of an error text what could say who someone is, for text that is
  * shown or seeded on the page rather than sent — the crash report the error
  * boundary opens the feedback dialog with (#1853). It mirrors the passes
  * `scrub` in server/reports.mjs makes: home folders, every other path (made
- * `<path>`), project folders in Claude Code's encoding (`<project>`), email
- * addresses and strings shaped like keys or tokens. That server scrub is still
- * the one that runs on every error the page forwards, and the one the README's
- * promise rests on; this is the same shape done in the browser for the words a
- * person reads before Send — feedback is not scrubbed on its way through the
- * server, so a path must never reach the box in the first place. The browser
- * cannot know the home folder or where the deck is installed, so the home
- * patterns carry the first, and every path goes — the page's own frames are
- * addresses, which stay.
+ * `<path>`), project folders in Claude Code's encoding (`<project>`), the host
+ * of every address (`<deck>`, `<host>`), email addresses and strings shaped
+ * like keys or tokens. That server scrub is still the one that runs on every
+ * error the page forwards, and the one the README's promise rests on; this is
+ * the same shape done in the browser for the words a person reads before Send —
+ * feedback is not scrubbed on its way through the server, so a path must never
+ * reach the box in the first place. The browser cannot know the home folder or
+ * where the deck is installed, so the home patterns carry the first, and every
+ * path goes — the page's own frames are addresses, which keep their place in
+ * the bundle (`<deck>/assets/…`).
  */
 export function scrubReport(text: string): string {
   return String(text ?? "")
@@ -52,6 +64,7 @@ export function scrubReport(text: string): string {
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
     .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
     .replace(new RegExp(PROJECT_PATTERN, "g"), "<project>")
+    .replace(new RegExp(ORIGIN_PATTERN, "g"), hideOrigin)
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
     .replace(
       /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+_=-]{48,})/g,
