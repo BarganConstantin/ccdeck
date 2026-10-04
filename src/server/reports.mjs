@@ -639,6 +639,11 @@ export function createReporter({
    *  wait tries on its first beat awake. */
   let failedInARow = 0;
   let retryAt = 0;
+  /** The earliest the timers may send anything at all — a check-in or the
+   *  heartbeat — because the API asked for the wait (a Retry-After), whichever
+   *  request it answered. Kept apart from the backoff, which is the check-ins'
+   *  own: a check-in that owes nothing more clears that, and not this. */
+  let askedWaitUntil = 0;
 
   /** A Retry-After, in seconds or as a date, moves the next try out to it. */
   function waitAsAsked(res) {
@@ -647,9 +652,18 @@ export function createReporter({
       if (!raw) return;
       const at = now().getTime();
       const ms = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - at;
-      if (Number.isFinite(ms) && ms > 0) retryAt = Math.max(retryAt, at + Math.min(ms, RETRY_AFTER_MAX_MS));
+      if (Number.isFinite(ms) && ms > 0) askedWaitUntil = Math.max(askedWaitUntil, at + Math.min(ms, RETRY_AFTER_MAX_MS));
     } catch {
       // A header that will not read: the backoff alone decides.
+    }
+  }
+
+  /** Whether the API's own Retry-After has passed. Never throws. */
+  function askedWaitOver() {
+    try {
+      return now().getTime() >= askedWaitUntil;
+    } catch {
+      return true;
     }
   }
 
@@ -672,10 +686,11 @@ export function createReporter({
     }
   }
 
-  /** Whether the timers may check in now. Never throws. */
+  /** Whether the timers may check in now: the backoff, and any wait the API
+   *  asked for, both over. Never throws. */
   function retryDue() {
     try {
-      return now().getTime() >= retryAt;
+      return now().getTime() >= retryAt && askedWaitOver();
     } catch {
       return true;
     }
@@ -942,11 +957,13 @@ export function createReporter({
    *  dropped if it cannot get through, and it never throws. No id yet means the
    *  first check-in has not run, so there is nothing to be online under and
    *  nothing is sent; the check-in that makes the id is what puts this deck
-   *  online, and the ping only keeps that fresh. */
+   *  online, and the ping only keeps that fresh. Not while a Retry-After the
+   *  API sent — on a ping or a check-in — is still running: it asked to be left
+   *  alone that long, and the heartbeat is the request sent most often. */
   async function ping() {
     try {
       const p = prefs.current();
-      if (!reportsOn(p, env) || !p.report.installId) return;
+      if (!reportsOn(p, env) || !p.report.installId || !askedWaitOver()) return;
       await call("POST", "/v1/app/ping", { installId: p.report.installId });
     } catch {
       // The lightest of the niceties: a heartbeat that could not be sent is gone.
