@@ -136,6 +136,10 @@ claimRestartFailureKey();
 // Re-launching without this is how a restart silently moves the deck out from
 // under an open tab.
 let boundPort = null;
+// What the last worker said about the Claude hooks ("ok", "failed", "off"),
+// handed to the next one: a respawn on the same version installs nothing, so
+// this is the only way it can say what the session's hooks are (activation.mjs).
+let bootHooks = "";
 let restarts = 0;
 let child = null;
 // The npx process fetching a replacement, while the worker above keeps serving.
@@ -212,6 +216,9 @@ function launch(respawn) {
       // different one installs them again. Empty for "we could not tell",
       // which the worker reads as different.
       AGENTS_DECK_BOOT_VERSION: VERSION === "?" ? "" : VERSION,
+      // And how the hooks went, as the last worker said. Empty for "nobody has
+      // said", which the worker reports as nothing rather than a guess.
+      AGENTS_DECK_BOOT_HOOKS: bootHooks,
       AGENTS_DECK_RESTARTS: String(restarts),
       // Empty for "we could not tell", which knownCommand reads as unknown just
       // like an absent one. Set on the worker's environment only: the npx
@@ -227,6 +234,7 @@ function launch(respawn) {
   worker.on("message", (m) => {
     if (!m || typeof m !== "object") return;
     if (m.type === "listening" && typeof m.port === "number") boundPort = m.port;
+    else if (m.type === "setup" && ["ok", "failed", "off"].includes(m.claudeHooks)) bootHooks = m.claudeHooks;
     // The worker saying its boot is finished — every row printed, the browser
     // launched. Forwarded to whoever detached us, who has been tailing the log
     // into the user's terminal and is waiting for exactly this to stop.

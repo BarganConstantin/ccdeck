@@ -162,15 +162,19 @@ export function startupWork({ wantClaude, installHooks, leftoverCodexHooks }) {
  *
  * A failure is one line and the restart goes on: the deck is serving, and the
  * previous forwarder, which is still in place, still reaches it.
+ *
+ * Answers like startupWork's hook job — `{ ok: true, v }` or `{ ok: false, err }`
+ * — when it installed, and null when it did not try, so the usage reports can
+ * say what this respawn saw (respawnHooksJob in activation.mjs).
  */
 export async function respawnHooks({ wantClaude, installHooks, bootVersion }) {
   if (!wantClaude || bootVersion === PKG_VERSION) return null;
   try {
-    return await installHooks({ provider: "claude" });
+    return { ok: true, v: await installHooks({ provider: "claude" }) };
   } catch (err) {
     const why = String(err?.message ?? err).split("\n")[0];
     console.error(`${PRODUCT}: Claude hooks not updated to v${PKG_VERSION} ${G.dash} ${why}`);
-    return null;
+    return { ok: false, err };
   }
 }
 

@@ -27,6 +27,11 @@ describe("what the boot set up", () => {
       [() => Promise.resolve(null), true, { claudeHooks: "off", codexWatch: "on" }],   // tried nothing: no Claude Code
       [() => null, false, { claudeHooks: "off", codexWatch: "off" }],                  // --no-claude
       [() => Promise.reject(new Error("settings.json")), false, { claudeHooks: "failed", codexWatch: "off" }],
+      // A respawn that installed nothing: the first boot's token, handed down…
+      [() => Promise.resolve("failed"), true, { claudeHooks: "failed", codexWatch: "on" }],
+      // …or nothing handed down, which is said as nothing rather than guessed.
+      [() => Promise.resolve(""), true, { codexWatch: "on" }],
+      [() => Promise.resolve("maybe"), false, { codexWatch: "off" }],
     ];
     for (const [claude, codex, want] of cases) {
       const a = await fresh();
@@ -46,8 +51,21 @@ describe("what the boot set up", () => {
 
   it("is said by the boot on both paths, the first boot and a respawn", () => {
     const src = readFileSync(new URL("../../../bin/deck.js", import.meta.url), "utf8");
-    expect(src).toContain("noteSetup({ claude: jobs.hooks, codex: wantCodex });");
-    expect(src).toContain("noteSetup({ claude: wantClaude ? { ok: true } : null, codex: wantCodex });");
+    expect(src).toContain("noteSetup({ claude: jobs.hooks, codex: wantCodex })");
+    expect(src).toContain("claude: respawnHooksJob({ wantClaude, reinstall, carried: process.env.AGENTS_DECK_BOOT_HOOKS })");
+    // Never the "ok" a respawn used to assume before it had done anything.
+    expect(src).not.toMatch(/noteSetup\(\{ claude: wantClaude \? \{ ok: true \}/);
+  });
+
+  it("is, on a respawn, its own re-install's answer, else the one handed down, else nothing", async () => {
+    const a = await fresh();
+    const job = (reinstall: unknown, carried?: string, wantClaude = true) =>
+      Promise.resolve(a.respawnHooksJob({ wantClaude, reinstall: Promise.resolve(reinstall), carried }));
+    expect(await job({ ok: false }, "ok")).toEqual({ ok: false });   // it re-installed, and that failed
+    expect(await job({ ok: true }, "failed")).toEqual({ ok: true });
+    expect(await job(null, "failed")).toBe("failed");                 // installed nothing: the first boot's
+    expect(await job(null, undefined)).toBe("");                      // nothing handed down
+    expect(await job(null, "ok", false)).toBeNull();                  // --no-claude
   });
 });
 

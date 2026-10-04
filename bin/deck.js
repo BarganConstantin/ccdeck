@@ -200,7 +200,7 @@ const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftove
 const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 // What this boot set up, for the usage reports — see activation.mjs.
-const { noteSetup } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
+const { noteSetup, respawnHooksJob } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
 // And the site page the command came from, which only a new install's first
 // report carries — see install-ref.mjs.
 const { noteRef } = await import(pathToFileURL(join(PKG_ROOT, "src/server/install-ref.mjs")).href);
@@ -402,15 +402,33 @@ const starting = startServer({
 // the one the session started on — see respawnHooks.
 if (!RESPAWN) {
   const jobs = startupWork({ wantClaude, installHooks, leftoverCodexHooks });
-  noteSetup({ claude: jobs.hooks, codex: wantCodex });
+  handDownSetup(noteSetup({ claude: jobs.hooks, codex: wantCodex }));
   jobs.cswapQuiet.then(settleCswap);
   await printBanner();
   await reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR });
 } else {
   settleCswap();
-  // The session's first boot installed the hooks; a respawn says the same.
-  noteSetup({ claude: wantClaude ? { ok: true } : null, codex: wantCodex });
-  await respawnHooks({ wantClaude, installHooks, bootVersion: process.env.AGENTS_DECK_BOOT_VERSION });
+  // What a respawn says about the hooks is what it saw: its own re-install when
+  // the package changed under the session, else the first boot's answer as the
+  // supervisor handed it down — never an "ok" it assumed. See respawnHooksJob.
+  const reinstall = respawnHooks({ wantClaude, installHooks, bootVersion: process.env.AGENTS_DECK_BOOT_VERSION });
+  handDownSetup(noteSetup({
+    claude: respawnHooksJob({ wantClaude, reinstall, carried: process.env.AGENTS_DECK_BOOT_HOOKS }),
+    codex: wantCodex,
+  }));
+  await reinstall;
+}
+
+/** The hooks' answer, told to the supervisor, which hands it to the next
+ *  respawn in AGENTS_DECK_BOOT_HOOKS: a respawn on the same version installs
+ *  nothing, and this is how it can still say what the session's hooks are.
+ *  Guarded, and given a callback, like every send down a channel the other end
+ *  may have closed. */
+function handDownSetup(said) {
+  said.then(({ claudeHooks }) => {
+    if (!claudeHooks || !process.connected) return;
+    try { process.send({ type: "setup", claudeHooks }, () => {}); } catch { /* nobody supervising */ }
+  }).catch(() => {});
 }
 
 // Usually settled long ago by the time we get here, which is the point: `step`
