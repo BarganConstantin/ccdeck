@@ -317,7 +317,17 @@ function normaliseReport(raw) {
     firstProvider: text(src.firstProvider),
     activationSent: src.activationSent === true,
     ref: refSlug(src.ref) ?? "",
+    selfUpdate: selfUpdateMarker(src.selfUpdate),
   };
+}
+
+/** The deck's note that it started an update itself (reports.mjs
+ *  noteSelfUpdate): the version it left and when, or null. */
+function selfUpdateMarker(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const from = typeof raw.from === "string" && /^[0-9A-Za-z.+_-]{1,32}$/.test(raw.from) ? raw.from : "";
+  const at = typeof raw.at === "string" && Number.isFinite(Date.parse(raw.at)) ? raw.at : "";
+  return from && at ? { from, at } : null;
 }
 
 // How a refusal to write is told — the error writePrefs throws, and the reason

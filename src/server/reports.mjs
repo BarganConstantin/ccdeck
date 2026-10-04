@@ -11,6 +11,8 @@
 //     was copied from when the command said (`--ref`, install-ref.mjs) — a
 //     page name, never anything about the person,
 //   - an "update" event, with the version it came from, when the version moves,
+//     and how the new one arrived: the deck's own update, the desktop app's
+//     updater, npx, npm, or a source checkout,
 //   - an "active" event at most once a UTC day, which is how many people use
 //     ccdeck gets counted without counting anything else about them, and which
 //     alone also carries coarse counts of how much: how many sessions,
@@ -18,7 +20,12 @@
 //     and that day's date — numbers, never their names (see usage-day.mjs) —
 //     and which of the deck's features were used that day, as fixed names
 //     ("usage-history", "account-switch") and nothing about what was done
-//     with them (feature-use.mjs),
+//     with them (feature-use.mjs), and how the deck held up and who runs it:
+//     how long this run took to start, that day's peak memory and how many
+//     events it took in, each as a bucket ("2s", "512m", "1k"), the Claude and
+//     Codex plan as its category ("max-20x", "plus") and nothing else from the
+//     credentials it is read off, and how many Claude accounts and paired
+//     machines the deck holds, as capped counts (depth-facts.mjs),
 //   - an "uninstall" event when somebody runs `ccdeck --uninstall`, with the
 //     reason they picked from a short list if they picked one (bin/cli/leaving.js),
 //   - an "activated" event, once, when a new install's first session arrives:
@@ -74,12 +81,15 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inApp } from "./app-host.mjs";
 import { reportsVetoed } from "./deck-prefs.mjs";
-import { isGitCheckout } from "./install-layout.mjs";
+import { isGitCheckout, isNpxInstall } from "./install-layout.mjs";
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 import { FEATURES, usageDay, utcDay } from "./usage-day.mjs";
 import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs";
 import { notedRef, refSlug } from "./install-ref.mjs";
+import {
+  CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, launchBucket, memoryBucket, updateVia,
+} from "./depth-facts.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -104,7 +114,7 @@ export const UNINSTALL_REASONS = Object.freeze(["not-useful", "too-noisy", "brok
 
 const EMPTY_REPORT = Object.freeze({
   installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
-  installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "",
+  installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "", selfUpdate: null,
 });
 
 /** Is this deck sending reports right now? The switch, which is on unless
@@ -342,6 +352,16 @@ export function scrub(text, home = homedir()) {
  *   prefs, so the first install event carries the setup. Bounded.
  * @param {() => string | undefined} [deps.reference] the ref this run's command
  *   carried (install-ref.mjs), for the install event alone.
+ * @param {(ctx: { setup: object, prefs: object }) => Promise<object>} [deps.depth] the
+ *   plans, accounts and paired machines the "active" carries (depth-facts.mjs),
+ *   read only when one is about to go. Default: none — the deck's own reporter
+ *   passes deckDepth, so no test reads a real credentials file.
+ * @param {() => number} [deps.launchedIn] ms from this process starting to the
+ *   deck listening, read once by start(), which runs as the deck starts listening.
+ * @param {() => number} [deps.memory] the process's resident memory in bytes,
+ *   sampled on the heartbeat's beat for the usage day's peak.
+ * @param {boolean} [deps.npx] this copy runs out of an npx cache, which is how an
+ *   npm install that changed version under it updated.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -356,11 +376,17 @@ export function createReporter({
   setup = setupFacts,
   setupKnown = () => whenSetupKnown(),
   reference = notedRef,
+  depth = async () => ({}),
+  launchedIn = () => process.uptime() * 1000,
+  memory = () => process.memoryUsage.rss(),
+  npx = false,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
   let timer = null;
   let pingTimer = null;
+  /** How long this run took to start, read when start() runs; null before. */
+  let launchMs = null;
 
   /** The CLI versions to add to the facts right now, tokenised and omitted when
    *  not yet known — read on every send so the background probe's result appears
@@ -422,9 +448,41 @@ export function createReporter({
       // The features used that day, as names off the fixed list — an empty list
       // is a real answer (the deck ran, nothing was opened), not a missing one.
       out.features = Array.isArray(raw.features) ? raw.features.filter(f => FEATURES.includes(f)) : [];
+      // How hard the deck worked that day, as buckets (depth-facts.mjs). A peak
+      // of zero is a day no beat sampled, which says nothing.
+      addIf(out, "events", eventsBucket(raw.events));
+      addIf(out, "deckMemory", raw.peakMb > 0 ? memoryBucket(raw.peakMb) : undefined);
       return out;
     } catch {
       return {};
+    }
+  }
+
+  /** What the "active" says about the deck beyond its day: how long this run
+   *  took to start, as a bucket, and the plans, accounts and paired machines
+   *  the depth provider reads — each only as a word off its list or a capped
+   *  count (depth-facts.mjs). A reading that throws costs the report nothing. */
+  async function depthNow() {
+    const out = {};
+    addIf(out, "launch", launchMs == null ? undefined : launchBucket(launchMs));
+    try {
+      const d = (await depth({ setup: setupNow(), prefs: prefs.current() })) ?? {};
+      addIf(out, "claudePlan", CLAUDE_PLANS.includes(d.claudePlan) ? d.claudePlan : undefined);
+      addIf(out, "codexPlan", CODEX_PLANS.includes(d.codexPlan) ? d.codexPlan : undefined);
+      addIf(out, "accounts", cappedCount(d.accounts));
+      addIf(out, "machines", cappedCount(d.machines));
+    } catch {
+      // A plan or a count that could not be read is left out.
+    }
+    return out;
+  }
+
+  /** The deck's memory into the day's tally, which keeps the day's highest. */
+  function samplePeak() {
+    try {
+      usage.notePeak?.(memory() / (1024 * 1024));
+    } catch {
+      // A reading that failed this beat; the next one tries again.
     }
   }
 
@@ -526,8 +584,14 @@ export function createReporter({
         await remember(installId, { ref });
       }
     } else if (lastVersion !== facts.version) {
-      if (await call("POST", "/v1/app/events", { installId, kind: "update", fromVersion: lastVersion, ...factsNow(), ...setupNow() })) {
-        await remember(installId, { lastVersion: facts.version });
+      const body = { installId, kind: "update", fromVersion: lastVersion, ...factsNow(), ...setupNow() };
+      // How it arrived: the deck's own update if it wrote that it started one
+      // from this version, else what the channel says (depth-facts.mjs).
+      addIf(body, "via", updateVia({
+        marker: prefs.current().report.selfUpdate, lastVersion, channel: facts.channel, npx, now: now(),
+      }));
+      if (await call("POST", "/v1/app/events", body)) {
+        await remember(installId, { lastVersion: facts.version, selfUpdate: null });
       }
     }
 
@@ -537,7 +601,8 @@ export function createReporter({
       // report it belongs to — so a checkIn that sends nothing new never asks the
       // deck for its counts.
       const used = coarseUsage(today);
-      if (await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used })) {
+      const held = await depthNow();
+      if (await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used, ...held })) {
         if (used.usageDay) usage.markSent(used.usageDay);
         await remember(installId, { lastActiveDay: today });
       }
@@ -571,6 +636,20 @@ export function createReporter({
     addIf(body, "firstSession", sinceInstallBucket(r.installedAt, r.firstSessionAt));
     addIf(body, "firstProvider", r.firstProvider === "codex" || r.firstProvider === "claude" ? r.firstProvider : undefined);
     if (await call("POST", "/v1/app/events", body)) await remember(r.installId, { activationSent: true });
+  }
+
+  /** The deck starting an update of its own — the Upgrade press, the npx
+   *  relaunch onto the latest, or the update it runs while nobody is looking
+   *  (lifecycle.mjs) — written down so the "update" the next version sends can
+   *  say so. Only the version it started from and when; never throws. */
+  async function noteSelfUpdate() {
+    try {
+      const p = prefs.current();
+      if (!reportsOn(p, env) || !p.report.installId) return;
+      await remember(p.report.installId, { selfUpdate: { from: facts.version, at: now().toISOString() } });
+    } catch {
+      // Unsaid, the update is credited to its channel instead.
+    }
   }
 
   /** Whether a report would go out right now: reports on, the machine not
@@ -670,6 +749,7 @@ export function createReporter({
    *  tally if it moved, so a deck that stops loses ten minutes of it at most. */
   function scheduleNextPing() {
     pingTimer = setTimeout(() => {
+      samplePeak();
       void ping();
       void saveUsage();
       scheduleNextPing();
@@ -682,6 +762,17 @@ export function createReporter({
    *  open. The first check-in already puts a freshly launched deck online, so the
    *  first ping is a full interval out — nothing pings at boot. */
   function start() {
+    // start() runs as the deck starts listening (index.mjs), so this is the
+    // launch: process start to ready. A second start() keeps the first answer.
+    if (launchMs == null) {
+      try {
+        const ms = launchedIn();
+        launchMs = Number.isFinite(ms) && ms >= 0 ? ms : null;
+      } catch {
+        launchMs = null;
+      }
+    }
+    samplePeak();
     Promise.all([Promise.resolve(ready).catch(() => {}), Promise.resolve(setupKnown()).catch(() => {})])
       .then(restoreUsage)
       .then(checkIn)
@@ -700,7 +791,10 @@ export function createReporter({
     pingTimer = null;
   }
 
-  return { checkIn, ping, setReports, reportError, restoreUsage, saveUsage, sendActivation, willReport, reportUninstall, start, stop };
+  return {
+    checkIn, ping, setReports, reportError, restoreUsage, saveUsage, sendActivation, willReport, reportUninstall,
+    noteSelfUpdate, start, stop,
+  };
 }
 
 // ── the deck's own providers ─────────────────────────────────────────────────
@@ -729,4 +823,4 @@ function deckCliVersions() {
 }
 
 /** The deck's own reporter. */
-export const reporter = createReporter({ versions: deckCliVersions });
+export const reporter = createReporter({ versions: deckCliVersions, depth: deckDepth, npx: isNpxInstall(PKG_ROOT) });
