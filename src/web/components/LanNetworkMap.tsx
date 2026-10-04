@@ -321,7 +321,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
               ? <DeckDetails key={machineKey(shownRow)} row={shownRow} status={status} accounts={accounts} now={now}
                   entrance={entrance}
                   onOpen={() => onOpenDeck(shownRow.fp)} onBack={backToNetwork} />
-              : <NetworkDetails status={status} summary={summary} entrance={entrance} />}
+              : <NetworkDetails status={status} summary={summary} entrance={entrance} slice={layout?.zone != null} />}
           </aside>
         </div>
       </div>
@@ -587,11 +587,15 @@ function Facts({ facts }: { facts: Array<{ label: string; value: ReactNode; quie
 
 /** The panel with nothing pointed at: this deck, the network in numbers —
  *  in ring order, each beside the mark its decks wear — and the one thing
- *  worth doing about it, if there is one. */
-function NetworkDetails({ status, summary, entrance }: {
+ *  worth doing about it, if there is one. Exported to be drawn in a test, where
+ *  the map's portal cannot be. */
+export function NetworkDetails({ status, summary, entrance, slice }: {
   status: LanStatus | null;
   summary: ReturnType<typeof mapSummary>;
   entrance: Entrance;
+  /** Whether the map drew the tailnet's slice: not when every deck is on the
+   *  tailnet, nor where it would leave the names no room — see mapLayout. */
+  slice: boolean;
 }) {
   const addresses = ownAddresses(status);
   const runs = runsLine(status?.about);
@@ -632,7 +636,7 @@ function NetworkDetails({ status, summary, entrance }: {
       </ul>
       {summary.tailnet > 0 && (
         <p className="nm-counts-note">
-          {summary.tailnet} reached over Tailscale — the shaded slice, lower right
+          {summary.tailnet} reached over Tailscale{slice ? " — the shaded slice, lower right" : ""}
         </p>
       )}
       {next && <p className="nm-next">{next}</p>}
