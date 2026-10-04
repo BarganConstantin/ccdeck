@@ -25,7 +25,8 @@ import { createPortal } from "react-dom";
 
 import {
   continuousAngle, deckNextStep, machineKey, mapHeadline, mapLayout, mapSummary, networkNextStep, nodeCaption,
-  nodeName, ownAddresses, presenceLine, troubleFirst, type MapLayout, type MapNode, type MapZone,
+  nodeName, ownAddresses, presenceLine, troubleFirst, ZONE_LABEL_INSET, zoneLabel, type MapLayout, type MapNode,
+  type MapZone,
 } from "../lan-network-map";
 import { HERE_SAID, laneSaid, peerView, runsLine, sinceLabel, THERE_SAID } from "../lan-peer";
 import { rowSource, type DeckRow } from "../lan-roster";
@@ -57,8 +58,6 @@ const STILL_MS = 200;
  *  lights are spread over it by the golden ratio, so no two wires ever pulse
  *  together however many there are. */
 const ROUND_TRIP_S = 8;
-/** How far inside the tailnet slice's outer edge its name runs. */
-const ZONE_LABEL_INSET = 6;
 /** The slice's corners, rounded: wider on the outside, where the slice is
  *  wide, than on the inside by the centre. */
 const ZONE_CORNER_OUTER = 14;
@@ -367,13 +366,14 @@ function Orbits({ layout, w, h }: { layout: MapLayout; w: number; h: number }) {
             </radialGradient>
           </defs>
           <path className="nm-zone" d={zonePath(zone, w / 2, h / 2)} fill="url(#nm-zone-fill)" />
-          <text className="nm-zone-label">
-            <textPath href="#nm-zone-arc" startOffset="50%" textAnchor="middle">
-              {/* What stands in it, not this deck's own address — the panel
-                  has that. */}
-              {`Tailscale · ${zone.count} deck${zone.count === 1 ? "" : "s"}`}
-            </textPath>
-          </text>
+          {/* Where along the edge it crosses no deck's name — see zoneLabelAt. */}
+          {zone.labelAt != null && (
+            <text className="nm-zone-label">
+              <textPath href="#nm-zone-arc" startOffset={`${(zone.labelAt * 100).toFixed(2)}%`} textAnchor="middle">
+                {zoneLabel(zone.count)}
+              </textPath>
+            </text>
+          )}
         </>
       )}
       {layout.rings.map((r, i) => (

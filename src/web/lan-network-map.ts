@@ -102,6 +102,11 @@ export interface MapZone {
   inner: { rx: number; ry: number };
   outer: { rx: number; ry: number };
   count: number;
+  /** Where the slice's name is centred along its outer edge, as a share of
+   *  that edge from its lower end — or null where no stretch of the edge is
+   *  clear of every deck, and the key under the map names the slice alone.
+   *  See zoneLabelAt. */
+  labelAt: number | null;
 }
 
 export interface MapLayout {
@@ -177,10 +182,24 @@ const ZONE_INNER = 0.3;
  *  runs along its outer edge, and the two must not meet. Nothing else stands
  *  out there — no deck off the tailnet is ever placed inside the slice. */
 const ZONE_OUTER_PAD_PX = 84;
+/** How far the edge steps out at a time when its name finds no clear stretch
+ *  — see placeRings. */
+const ZONE_PAD_STEP = 8;
 /** A tailnet deck's room in its slice, as a share over the least gap a ring
  *  gives any deck: a slice's decks sit at its edges' mercy as well as each
  *  other's. */
 const ZONE_ROOM = 1.3;
+/** How far inside the slice's outer edge its name runs. */
+export const ZONE_LABEL_INSET = 6;
+/** The slice's name as the stylesheet sets it — `.nm-zone-label`, 9px mono
+ *  in capitals with 0.06em between letters: each glyph's advance, and how far
+ *  a capital reaches in from the line it stands on, toward the centre. */
+const ZONE_LABEL_CH_W = 5.94;
+const ZONE_LABEL_TALL = 7;
+/** How far the name keeps from either end of the edge — past the slice's
+ *  rounded corner — and from any deck along it. */
+const ZONE_LABEL_END = 16;
+const ZONE_LABEL_CLEAR = 4;
 /** The step out a crowded ring's every other deck takes, as a share of the
  *  distance to the next ring out. */
 const ZIG = 0.16;
@@ -388,15 +407,15 @@ export function mapLayout(
   // cleared even with the dense names, the outer two fold into one, which
   // buys the height back; the tiers keep their own marks and strokes on it.
   const three = placeRings(rows, width, height, coreName, RING_OF, captionOf);
-  if (three.clear || three.layout.rings.length < 3) return three.layout;
+  if (three.clear || three.layout.rings.length < 3) return three.named();
   const two = placeRings(rows, width, height, coreName, RING_OF_FOLDED, captionOf);
-  return two.clear ? { ...two.layout, folded: true } : three.layout;
+  return two.clear ? { ...two.named(), folded: true } : three.named();
 }
 
 function placeRings(
   rows: DeckRow[], width: number, height: number, coreName: string, ringOf: Record<MapTier, number>,
   captionOf: CaptionOf,
-): { layout: MapLayout; clear: boolean } {
+): { layout: MapLayout; clear: boolean; named: () => MapLayout } {
   const byRing = new Map<number, Array<{ row: DeckRow; tier: MapTier }>>();
   for (const row of rows) {
     const tier = mapTier(row);
@@ -505,19 +524,120 @@ function placeRings(
   // for two decks on the first is a large empty shape saying nothing.
   const reached = rings.reduce((far, ring, i) =>
     (byRing.get(ring.ring)!.some(isTailnet) ? Math.max(far, spread[i]) : far), 0);
-  const zone: MapZone | null = zoneWidth > 0
-    ? {
-      from: zoneFrom,
-      to: zoneTo,
-      inner: { rx: ax * ZONE_INNER, ry: ay * ZONE_INNER },
-      outer: {
-        rx: Math.min(width / 2 - 8, ax * reached + ZONE_OUTER_PAD_PX),
-        ry: Math.min(height / 2 - 8, ay * reached + ZONE_OUTER_PAD_PX),
-      },
-      count: overTailnet,
+  const sliceAt = (pad: number): Omit<MapZone, "labelAt"> => ({
+    from: zoneFrom,
+    to: zoneTo,
+    inner: { rx: ax * ZONE_INNER, ry: ay * ZONE_INNER },
+    outer: {
+      rx: Math.min(width / 2 - 8, ax * reached + pad),
+      ry: Math.min(height / 2 - 8, ay * reached + pad),
+    },
+    count: overTailnet,
+  });
+  const layout: MapLayout = {
+    nodes, rings, dense, zone: zoneWidth > 0 ? { ...sliceAt(ZONE_OUTER_PAD_PX), labelAt: null } : null,
+  };
+  /** The same drawing with the slice's name placed — which only the drawing
+   *  the map keeps needs, so it is not worked out for the ones it does not. */
+  const named = (): MapLayout => {
+    if (!layout.zone) return layout;
+    const boxes = placed.flatMap(p => { const [x, y] = pointOf(p); return footprint(p.row, p.tier, x, y, dense, p.caption); });
+    let zone: MapZone = { ...layout.zone, labelAt: zoneLabelAt(layout.zone, boxes) };
+    // A wide name hanging off a deck at the slice's corner reaches further
+    // out than its depth, so where no stretch of the edge is clear, the edge
+    // steps out — as far as the stage lets it — before the name is left off.
+    let last = zone.outer;
+    for (let pad = ZONE_OUTER_PAD_PX + ZONE_PAD_STEP; zone.labelAt == null; pad += ZONE_PAD_STEP) {
+      const wider = sliceAt(pad);
+      if (wider.outer.rx === last.rx && wider.outer.ry === last.ry) break;
+      last = wider.outer;
+      const labelAt = zoneLabelAt(wider, boxes);
+      if (labelAt != null) zone = { ...wider, labelAt };
     }
-    : null;
-  return { layout: { nodes, rings, zone, dense }, clear };
+    return { ...layout, zone };
+  };
+  return { layout, clear, named };
+}
+
+/** What the slice's name says: what stands in it, not this deck's own
+ *  address — the panel has that. */
+export function zoneLabel(count: number): string {
+  return `Tailscale · ${count} deck${count === 1 ? "" : "s"}`;
+}
+
+/**
+ * NO DECK UNDER THE SLICE'S NAME. The name runs along the slice's outer edge,
+ * centred, and the slice's decks hang their own names below them — toward that
+ * edge, at the lower right. Past the outer ring there is not always the room
+ * for both: the edge stops inside the stage, and a deck on the last ring stands
+ * a name's depth from it. So the name is centred where it crosses nothing: in
+ * the middle when it can be, otherwise the nearest stretch of the edge that no
+ * deck's disc or name reaches into — and nowhere at all when none is clear, in
+ * which case the key under the map is what names the slice.
+ *
+ * Walked the way the name's own path is drawn (see zoneArc in the map), from
+ * the slice's lower end back to its upper one, so the share returned is the
+ * path's own `startOffset`.
+ */
+function zoneLabelAt(zone: Omit<MapZone, "labelAt">, boxes: Box[]): number | null {
+  const e = { rx: zone.outer.rx - ZONE_LABEL_INSET, ry: zone.outer.ry - ZONE_LABEL_INSET };
+  if (!(e.rx > 0 && e.ry > 0)) return null;
+  // A point every couple of pixels, whatever the size of the slice.
+  const every = Math.min(0.5, (2 / Math.max(e.rx, e.ry)) * (180 / Math.PI));
+  const edge: Array<[number, number]> = [];
+  for (let deg = zone.to; deg >= zone.from; deg -= every) {
+    const rad = (deg * Math.PI) / 180;
+    edge.push([Math.cos(rad) * e.rx, Math.sin(rad) * e.ry]);
+  }
+  // Only the decks near the edge can reach it.
+  const reach = ZONE_LABEL_TALL + ZONE_LABEL_CLEAR;
+  const span = {
+    x0: Math.min(...edge.map(p => p[0])) - reach, x1: Math.max(...edge.map(p => p[0])) + reach,
+    y0: Math.min(...edge.map(p => p[1])) - reach, y1: Math.max(...edge.map(p => p[1])) + reach,
+  };
+  const near = boxes
+    .map(b => ({ x0: b.x0 - ZONE_LABEL_CLEAR, y0: b.y0 - ZONE_LABEL_CLEAR, x1: b.x1 + ZONE_LABEL_CLEAR, y1: b.y1 + ZONE_LABEL_CLEAR }))
+    .filter(b => overlaps(b, span));
+  const hits = (x: number, y: number) => near.some(b => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1);
+  // Each point along the edge, how far along it is, and how many points up to
+  // it a glyph standing there would land on a deck.
+  const along: number[] = [];
+  const blocked: number[] = [];
+  let length = 0;
+  edge.forEach(([x, y], i) => {
+    if (i > 0) length += Math.hypot(x - edge[i - 1][0], y - edge[i - 1][1]);
+    // A capital stands on the edge and reaches in toward the centre.
+    const d = Math.hypot(x, y) || 1;
+    let under = false;
+    for (let k = 0; k <= ZONE_LABEL_TALL && !under; k += 1.75) under = hits(x - (x / d) * k, y - (y / d) * k);
+    along.push(length);
+    blocked.push((blocked.at(-1) ?? 0) + (under ? 1 : 0));
+  });
+  const half = (zoneLabel(zone.count).length * ZONE_LABEL_CH_W) / 2;
+  const lo = half + ZONE_LABEL_END;
+  const hi = length - half - ZONE_LABEL_END;
+  if (!(length > 0) || hi < lo) return null;
+  /** The first point at least `s` along the edge. */
+  const from = (s: number) => {
+    let a = 0;
+    let b = along.length;
+    while (a < b) { const mid = (a + b) >> 1; if (along[mid] < s) a = mid + 1; else b = mid; }
+    return a;
+  };
+  /** Whether a name centred `at` along the edge crosses nothing. */
+  const clearAt = (at: number) => {
+    const first = from(at - half);
+    const last = from(at + half + 1e-9) - 1;
+    return last < first || blocked[last] - (first > 0 ? blocked[first - 1] : 0) === 0;
+  };
+  // Out from the middle two pixels at a time, either way, nearest first.
+  const middle = length / 2;
+  for (let off = 0; middle - off >= lo; off += 2) {
+    for (const at of off === 0 ? [middle] : [middle - off, middle + off]) {
+      if (clearAt(at)) return at / length;
+    }
+  }
+  return null;
 }
 
 /** The boxes a laid-out map draws — every deck's disc and name, and this
