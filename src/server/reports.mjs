@@ -26,7 +26,8 @@
 //     caught, with home folders, email addresses and key-shaped strings
 //     scrubbed out before they leave,
 //   - a "ping" heartbeat, every ten minutes or so while the deck runs, which
-//     moves the install's "last seen" so the admin can show who is online now.
+//     moves the install's "last seen" so the admin can show who is online now,
+//     and is counted per day, which is how long the deck stays open.
 //     It writes no event and carries the install id alone — no facts, no
 //     fingerprint.
 //
