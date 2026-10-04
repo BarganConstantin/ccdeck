@@ -13,7 +13,7 @@
 // row in the panel stays marked, and this incident is not asked about again.
 // Escape, the backdrop and the × all mean the same "Not now".
 import { useRef, type Ref } from "react";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { modalStack } from "../modal-dismiss";
 import {
   attentionLead, attentionTitle, LATER_EXPLAINED, LOGIN_EXPIRED, promptShows, SINGLE_NOTE, type AttentionRow,
@@ -90,8 +90,9 @@ interface Props {
 export default function AccountAttentionModal({ rows, onSignIn, onLater }: Props) {
   const firstRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onLater, { focusRef: firstRef });
+  const scrimPress = useScrimDismiss(onLater);
   return (
-    <div className="modal-backdrop" onClick={onLater} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal reauth-ask"

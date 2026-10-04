@@ -30,7 +30,7 @@ import { exitRequest, loginEndNotice, loginTabView, restoreWarning, shouldPollLo
 import { createLoginAnnouncer } from "../login-announce";
 import { arrivalCheck, explainFailure } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { type ImportResult, importRowKey, importSummary, outcomeWord, replaceImportRow } from "../share-bundle";
 import { useFeatureUse } from "../feature-use";
@@ -155,6 +155,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // `close`, not `onClose`: Escape has to cancel the sign-in running on the
   // server, exactly as the × does.
   const dialogRef = useModalDismiss(close, { focusRef: primerRef });
+  const scrimPress = useScrimDismiss(close);
 
   // Started by the button, never by arriving. `claude auth login` opens a
   // browser tab as its first act, and a dialog that does that before being
@@ -359,7 +360,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // panel alone, and the dialog squeezed into it at the left edge instead of
   // centred on the screen. At <body>, no panel rule can reach it.
   return createPortal(
-    <div className="modal-backdrop" onClick={close} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal aa-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a Claude account">
         <header className="modal-head">
           <div className="modal-title">

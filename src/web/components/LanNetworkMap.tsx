@@ -32,7 +32,7 @@ import { HERE_SAID, laneSaid, peerView, runsLine, sinceLabel, THERE_SAID } from 
 import { rowSource, type DeckRow } from "../lan-roster";
 import type { LanAccount, LanStatus } from "../lan-types";
 import { Machine } from "./LanPeerMap";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 /** The disc a deck is drawn as, and this deck's own at the centre — the
  *  wires start and stop at their edges rather than under them. */
@@ -82,6 +82,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const scrimPress = useScrimDismiss(onClose);
   const stageRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [still, setStill] = useState(false);
@@ -255,7 +256,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   };
 
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal nm-modal" onClick={e => e.stopPropagation()}
         data-paused={covered || hidden || undefined}
         role="dialog" aria-modal="true" aria-labelledby="nm-title" aria-describedby="nm-sub">

@@ -186,8 +186,11 @@ interface ScrimPress {
  *  arrives as a click whose target is the backdrop, and the dialog's own
  *  stopPropagation is not on that path: a backdrop closing on any click
  *  closed the feedback dialog under a drag-select and threw away the message
- *  and its screenshots. So the press is followed from the pointer going down
- *  to it coming up, and the click closes only when both were on the scrim. */
+ *  and its screenshots — and every other dialog with whatever it held: a name
+ *  being typed, a sign-in code, a share just made. So the press is followed
+ *  from the pointer going down to it coming up, and the click closes only when
+ *  both were on the scrim. Every backdrop spreads these; none closes on a bare
+ *  onClick (dialog-scrim-dismiss.test.ts). */
 export function useScrimDismiss(onDismiss: () => void) {
   const fromScrim = useRef(false);
   return {

@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const dir = fileURLToPath(new URL("../components", import.meta.url));
 const read = (f: string) => readFileSync(`${dir}/${f}`, "utf8");
 
-/** The opening tag of the scrim — the element with the dismiss onClick. */
+/** The opening tag of the scrim — the element with the dismiss handlers. */
 function backdropTag(src: string): string | null {
   const m = /<div className="[a-z-]*backdrop"[^>]*>/.exec(src);
   return m ? m[0] : null;
@@ -92,6 +92,9 @@ describe("ToolModal", () => {
   });
 
   it("still closes on a backdrop click, which is what the scrim is for", () => {
-    expect(backdropTag(src)).toContain("onClick={onClose}");
+    // A press of the scrim itself, not a selection let go over it — see
+    // useScrimDismiss.
+    expect(src).toContain("const scrimPress = useScrimDismiss(onClose);");
+    expect(backdropTag(src)).toContain("{...scrimPress}");
   });
 });

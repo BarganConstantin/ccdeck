@@ -19,7 +19,7 @@ import { explainFailure } from "../admin-failure";
 import { PRODUCT } from "../brand";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { useFocusRescue } from "./use-focus-rescue";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { type NamedAccount, pickedAccounts, pickerRows, shareCountLine, shareExpiry, shareRequest, toggleUnpicked } from "../share-bundle";
 import { useFeatureUse } from "../feature-use";
 
@@ -76,6 +76,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   const busyRef = useRef(false);
 
   const dialogRef = useModalDismiss(onClose, { focusRef: primaryRef });
+  const scrimPress = useScrimDismiss(onClose);
   // Every step here is drawn in place of the last, so each of the three presses
   // that change it took its own button away and dropped focus to <body> — and
   // the trap then sent the next Tab to the ×, not to the copy (#1794). The rule
@@ -152,7 +153,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   // child of the accounts panel, whose `.accounts-panel > *` gave the fixed
   // backdrop the panel's 288px width.
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal sa-modal" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label="Share accounts with another deck">
         <header className="modal-head">

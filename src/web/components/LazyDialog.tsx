@@ -14,7 +14,7 @@
 // Not forwarded as a crash: a missing chunk is the tab being older than the
 // deck, which a reload clears and nobody has to hear about.
 import { lazy, useRef, type ComponentType } from "react";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Closable {
   onClose: () => void;
@@ -37,8 +37,9 @@ export function lazyDialog<P extends Closable>(
 export function DialogDidNotLoad({ name, onClose }: { name: string; onClose: () => void }) {
   const reloadRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: reloadRef });
+  const scrimPress = useScrimDismiss(onClose);
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal dialog-missing"

@@ -31,7 +31,7 @@ import { createPortal } from "react-dom";
 import { peerView, sinceLabel } from "../lan-peer";
 import { focusDropped, pressState } from "../panel-press";
 import { usePeerUnpair } from "../use-peer-unpair";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import LanPeerFoot from "./LanPeerFoot";
 import LanPeerMap from "./LanPeerMap";
 import LanPeerTwins from "./LanPeerTwins";
@@ -89,6 +89,7 @@ export default function LanPeerModal({
   // stray Enter into renaming the machine somebody only came to look at.
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const scrimPress = useScrimDismiss(onClose);
   /** The name being typed, or null while nobody is renaming. */
   const [draft, setDraft] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -193,7 +194,7 @@ export default function LanPeerModal({
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal lan-peer" data-tone={row.tone} onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="lan-peer-title" aria-describedby="lan-peer-sub">
         <header className="modal-head lan-peer-head">

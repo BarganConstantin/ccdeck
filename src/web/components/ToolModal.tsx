@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ToolCall } from "../types";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 // The row that opens this dialog printed the same milliseconds one decimal
 // place coarser, so a 1.24s tool read "1.2s" there and "1.24s" here (#374).
 // One function now; the sentinel below is the only thing that still differs.
@@ -23,6 +23,7 @@ export default function ToolModal({
   // missing is the ref below, without which there is no boundary to hold Tab
   // inside and the claim on the surface tag is a claim about nothing.
   const dialogRef = useModalDismiss(onClose);
+  const scrimPress = useScrimDismiss(onClose);
 
   const status =
     tool.endedAt == null ? "inflight"
@@ -41,7 +42,7 @@ export default function ToolModal({
     // and announced an unnamed "dialog", because neither element carried a
     // name. The name is the tool, which is the only thing that tells one of
     // these apart from the next.
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="tool-modal-title">
         <header className="modal-head">
           <div className="modal-title">

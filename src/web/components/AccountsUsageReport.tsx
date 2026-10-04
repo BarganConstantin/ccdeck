@@ -29,7 +29,7 @@ import {
   freshness, heldNote, nextReportSort, REPORT_WINDOWS, shownUsed, sortReportRows, usageReport, usedAndAvailable,
   type Cell, type ReportRow, type ReportSort, type Status, type WindowTotal,
 } from "../accounts-usage-report";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead } from "./SortHead";
 import { useCountUp } from "../use-count-up";
 
@@ -265,6 +265,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const scrimPress = useScrimDismiss(onClose);
   // The last roster that had anyone in it — see the header. Keyed on the
   // roster the panel holds, which changes once a poll and not once a render.
   const [shown, setShown] = useState<readonly Account[]>(accounts ?? []);
@@ -284,7 +285,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   // Portalled to <body>: opened from inside AccountsPanel, and a dialog left in
   // the panel's subtree is laid out by it (panel-modal-portal).
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal ap-report-modal" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="ap-report-title">
         <header className="ap-proj-head">

@@ -24,7 +24,7 @@
 // for — the whole of what it would buy here is a path string.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { figureText, latencyFigure, rateFigure, type Figure } from "../net-format";
 
 export interface Point { t: number; v: number }
@@ -243,6 +243,7 @@ export default function SectionHistoryModal({ group, title, onClose }: {
   onClose: () => void;
 }) {
   const dialogRef = useModalDismiss(onClose);
+  const scrimPress = useScrimDismiss(onClose);
   const [hist, setHist] = useState<History | null>(null);
 
   useEffect(() => {
@@ -294,7 +295,7 @@ export default function SectionHistoryModal({ group, title, onClose }: {
   // covered nothing. The other ten render from DeckDialogs at the top of the
   // tree and never meet this.
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal hist-modal"

@@ -22,7 +22,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CONFIRM_LAYER } from "../modal-dismiss";
 import { clearCopy, readClearPlan, type ClearPlan } from "../clear-confirm";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
   /** Agents on the canvas right now: the visible half of what goes away. */
@@ -34,6 +34,7 @@ interface Props {
 export default function ClearConfirm({ agentCount, onConfirm, onCancel }: Props) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onCancel, { focusRef: cancelRef, layer: CONFIRM_LAYER });
+  const scrimPress = useScrimDismiss(onCancel);
 
   // The other half of what goes away, and the half this dialog used to get
   // wrong: whose log is on the line. Asked as the dialog opens rather than kept
@@ -54,7 +55,7 @@ export default function ClearConfirm({ agentCount, onConfirm, onCancel }: Props)
   const { goes, stays, final, confirm } = clearCopy(agentCount, plan);
 
   return (
-    <div className="modal-backdrop" onClick={onCancel} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal clear-confirm"
