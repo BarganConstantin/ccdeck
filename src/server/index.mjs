@@ -182,7 +182,7 @@ export function requestUrl(rawUrl) {
 }
 
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
-  armLifecycle({ onRestart, onStop, persist });
+  armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
   // A boot is the one moment the file, and not the engine, is the authority on

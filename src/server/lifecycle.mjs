@@ -47,6 +47,11 @@ let _onRestart = null;
 // directly, or an embedder — and /api/shutdown then answers 501 rather than
 // pretending.
 let _onStop = null;
+// Told when the deck starts updating itself — the Upgrade press, the npx
+// relaunch onto the latest, the away-update — so the reporter can write down
+// that the next version came from the deck (index.mjs hands it in). Absent,
+// nothing is told.
+let _onSelfUpdate = null;
 // A stop is in flight. Two sockets asking at once must not both start one, and
 // the response's 'finish' and 'close' can both fire for the same request.
 let _stopping = false;
@@ -66,9 +71,10 @@ let _deckReady = false;
  * and the stop it may hand to, whether a restart would have a log to replay,
  * and the two in-flight flags and the ready flag, all back to a fresh boot's.
  */
-function armLifecycle({ onRestart, onStop, persist }) {
+function armLifecycle({ onRestart, onStop, persist, onSelfUpdate = null }) {
   _onRestart = typeof onRestart === "function" ? onRestart : null;
   _onStop = typeof onStop === "function" ? onStop : null;
+  _onSelfUpdate = typeof onSelfUpdate === "function" ? onSelfUpdate : null;
   _stopping = false;
   _canRestart = _onRestart != null && persist != null;
   // A new listener is a new boot, whatever a previous one had got as far as
@@ -155,7 +161,14 @@ async function handleUpgrade(_req, res) {
   // lands in the first moments of a boot, or on a server nothing marked ready.
   await pinRunningBuild();
   const out = startUpgrade({ pkgRoot: PKG_ROOT });
+  if (out.ok) selfUpdateStarted();
   send(res, out.ok ? 200 : 409, out);
+}
+
+/** The deck is updating itself: say so to whoever armed it (the reporter's
+ *  note, so the next version's "update" can tell). Never throws. */
+function selfUpdateStarted() {
+  try { void Promise.resolve(_onSelfUpdate?.()).catch(() => {}); } catch { /* a note, nothing more */ }
 }
 
 // Restart is a two-party act: this half answers before it stops listening, so
@@ -214,6 +227,7 @@ async function handleRestart(req, res) {
     }
   }
   _restarting = true;
+  if (mode === "npx") selfUpdateStarted();
   // Accepted either way — the ask is good and the launcher holds on to it — but
   // the two are not the same event and answering 200 to both would be this
   // window's second untruth rather than its first. Between this listener
@@ -394,13 +408,15 @@ async function awayUpdateTick() {
     // Pinned before npm is spawned, never after it — see pinned-build.mjs. On a
     // deck bin/deck.js has marked ready this is a promise that settled long ago.
     await pinRunningBuild();
-    su.startUpgrade({ pkgRoot: PKG_ROOT });
+    const started = su.startUpgrade({ pkgRoot: PKG_ROOT });
+    if (started?.ok) selfUpdateStarted();
     return step.act;
   }
   // handleRestart's own check for the npx path, for the same reason: the mode
   // comes from the install on disk, and a spec it cannot name is no relaunch.
   if (step.act === "npx" && !su.npxRestartSpec(PKG_ROOT)) return null;
   _restarting = true;
+  if (step.act === "npx") selfUpdateStarted();
   handOffRestart(step.act === "npx" ? "npx" : null);
   return step.act;
 }
