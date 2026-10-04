@@ -41,6 +41,9 @@ export interface FeedbackImages {
   shots: readonly Shot[];
   /** What went wrong with the last files added, in sentences; empty when nothing did. */
   problem: string;
+  /** Which refusal `problem` is: a new number each time one is said, the same
+   *  words or not, so the alert can be drawn — and read out — afresh. */
+  problemId: number;
   /** What a screen reader is told about the last change. */
   announcement: string;
   add(files: readonly File[]): void;
@@ -67,7 +70,17 @@ export function withdrawShot(shots: readonly Shot[], id: number, replacing: Shot
 
 export function useFeedbackImages(): FeedbackImages {
   const [shots, setShotsState] = useState<readonly Shot[]>([]);
-  const [problem, setProblem] = useState("");
+  // Each refusal counted as it is said. The words alone cannot tell a second
+  // refusal from the first: with no room left an add awaits nothing, so its
+  // clear and its refusal land in one render with the words unchanged, and
+  // sayFull clears nothing at all.
+  const [refusal, setRefusal] = useState({ problem: "", id: 0 });
+  const setProblem = useCallback((problem: string) => {
+    setRefusal(prev => {
+      if (problem) return { problem, id: prev.id + 1 };
+      return prev.problem ? { problem: "", id: prev.id } : prev;
+    });
+  }, []);
   const [announcement, setAnnouncement] = useState("");
   const shotsRef = useRef<readonly Shot[]>([]);
   const queue = useRef<Promise<void> | null>(null);
@@ -122,8 +135,9 @@ export function useFeedbackImages(): FeedbackImages {
   }, [setShots]);
 
   const addAll = useCallback(async (files: readonly File[]) => {
-    // Cleared first, so the same refusal twice is said twice: an alert whose
-    // text did not change is not read again.
+    // Cleared first, so the last add's refusal is not left standing over this
+    // one. A refusal said again is said again by its id, not by this: with no
+    // room left nothing below is awaited and the two land in one render.
     setProblem("");
     const problems: string[] = [];
     let leftOut = 0;
@@ -145,7 +159,7 @@ export function useFeedbackImages(): FeedbackImages {
     const count = shotsRef.current.length;
     // A refusal is said by the alert beside the images; this says the rest.
     if (added > 0) setAnnouncement(`${added === 1 ? "Image" : `${added} images`} added, ${count} of ${MAX_IMAGES}.`);
-  }, [addOne]);
+  }, [addOne, setProblem]);
 
   const replaceOne = useCallback(async (id: number, file: File) => {
     setProblem("");
@@ -157,7 +171,7 @@ export function useFeedbackImages(): FeedbackImages {
     setProblem(said);
     const at = shotsRef.current.findIndex(shot => shot.id === id);
     if (!said && at !== -1) setAnnouncement(`Image ${at + 1} replaced, ${shotsRef.current.length} of ${MAX_IMAGES}.`);
-  }, [addAll, addOne]);
+  }, [addAll, addOne, setProblem]);
 
   const enqueue = useCallback((job: () => Promise<void>) => {
     queue.current = (queue.current ?? Promise.resolve()).then(job).catch(() => {});
@@ -179,14 +193,14 @@ export function useFeedbackImages(): FeedbackImages {
     setShots(prev => prev.filter(shot => shot.id !== id));
     setProblem("");
     setAnnouncement(`Image removed, ${shotsRef.current.length} of ${MAX_IMAGES}.`);
-  }, [setShots]);
+  }, [setShots, setProblem]);
 
-  const sayFull = useCallback(() => setProblem(FULL_MESSAGE), []);
+  const sayFull = useCallback(() => setProblem(FULL_MESSAGE), [setProblem]);
 
   const ready = useCallback(async () => {
     await queue.current;
     return shotsRef.current.flatMap(shot => (shot.blob ? [shot.blob] : []));
   }, []);
 
-  return { shots, problem, announcement, add, replace, remove, sayFull, ready };
+  return { shots, problem: refusal.problem, problemId: refusal.id, announcement, add, replace, remove, sayFull, ready };
 }
