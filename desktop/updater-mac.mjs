@@ -27,7 +27,8 @@
 // `releases/latest/download/…`, which GitHub redirects to the newest release.
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -111,6 +112,35 @@ export function bundleOf(exePath) {
   return dirname(dirname(dirname(exePath)));
 }
 
+/**
+ * Can this account put a new version where the app at `path` is: move the old
+ * one aside or delete it, and write the new one beside it? That takes write
+ * access to the folder it is in, and to the app itself for the old one to go.
+ * A copy run from its disk image, or one macOS translocated because it was
+ * opened from Downloads without being moved, is on a read-only mount; a
+ * standard account cannot write to /Applications. An update staged for any
+ * of them quits the app into a swap that cannot happen.
+ */
+export async function canReplace(path) {
+  try {
+    await access(dirname(path), constants.W_OK);
+    await access(path, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The release the swap script last failed to put in place, as it wrote it
+ *  to `markerPath`, or null. */
+export async function failedSwap(markerPath) {
+  try {
+    return (await readFile(markerPath, "utf8")).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** The running app's designated requirement, as codesign prints it. */
 async function designatedRequirement(appPath, execFileImpl = run) {
   const { stderr, stdout } = await execFileImpl("codesign", ["-d", "-r-", appPath]);
@@ -192,25 +222,37 @@ export async function stageUpdate(update, { runningApp, fetchImpl = fetch, execF
  * than deleted until the new one is in place, and put back if the move fails.
  * `relaunch` is "1" when the app is restarting into the update; a plain Quit
  * is the person closing ccdeck, and leaves it closed (#1758).
+ *
+ * A swap that fails still opens the app for a restart — the version that was
+ * running — and still throws the download away. It writes the release it
+ * could not put in place to `failed`, which the next check reads, so the same
+ * release is not staged and tried again every couple of minutes; a swap that
+ * succeeds clears it.
  */
 export const SWAP_SCRIPT = `
-pid="$1"; target="$2"; staged="$3"; work="$4"; relaunch="$5"
+pid="$1"; target="$2"; staged="$3"; work="$4"; relaunch="$5"; failed="$6"; version="$7"
 while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done
 backup="$target.ccdeck-old"
+swapped=0
 rm -rf "$backup"
-mv "$target" "$backup" || exit 1
-if ditto "$staged" "$target"; then
-  rm -rf "$backup"
-else
-  rm -rf "$target"; mv "$backup" "$target"
+if mv "$target" "$backup"; then
+  if ditto "$staged" "$target"; then
+    rm -rf "$backup"; swapped=1
+  else
+    rm -rf "$target"; mv "$backup" "$target"
+  fi
+  xattr -dr com.apple.quarantine "$target" 2>/dev/null
 fi
-xattr -dr com.apple.quarantine "$target" 2>/dev/null
 rm -rf "$work"
+if [ -n "$failed" ]; then
+  if [ "$swapped" = 1 ]; then rm -f "$failed"; else printf '%s\\n' "$version" > "$failed"; fi
+fi
 if [ "$relaunch" = 1 ]; then open "$target"; fi
+[ "$swapped" = 1 ]
 `;
 
-export function installOnExit({ pid, target, staged, dir, relaunch = false }) {
-  const child = spawn("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), target, staged, dir, relaunch ? "1" : "0"], {
+export function installOnExit({ pid, target, staged, dir, relaunch = false, failed = "", version = "" }) {
+  const child = spawn("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), target, staged, dir, relaunch ? "1" : "0", failed, version], {
     detached: true,
     stdio: "ignore",
   });
