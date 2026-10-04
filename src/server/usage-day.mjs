@@ -23,6 +23,11 @@
 // counted twice. That is the price of keeping no ids on disk, and a restart is
 // rare next to the day's sessions.
 //
+// DAYS USED. Beside the day, a running count of the days the deck heard any
+// session at all, and the last of them so a restart does not count a day twice
+// — a count and one date, never the list. It is what decides when the deck has
+// been in use long enough to ask how useful it is (rating.mjs).
+//
 // Only live use counts: a Claude hook fires because somebody is running the
 // CLI, and the Codex watcher emits only what a rollout gains while the deck
 // watches (its first scan skips every file's history). Replayed lines and the
@@ -80,10 +85,13 @@ function savedTotals(raw) {
 /** What prefs.json keeps for this, coerced — deck-prefs.mjs normalises with it. */
 export function normaliseUsage(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
+  const day = v => (typeof v === "string" && DAY.test(v) ? v : "");
   return {
     current: savedTotals(src.current),
     done: savedTotals(src.done),
-    sent: typeof src.sent === "string" && DAY.test(src.sent) ? src.sent : "",
+    sent: day(src.sent),
+    daysUsed: whole(src.daysUsed),
+    lastUsedDay: day(src.lastUsedDay),
   };
 }
 
@@ -107,6 +115,12 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   let sent = "";
   /** Moves on every change, so the reporter saves only when there is something new. */
   let changes = 0;
+  /** The days used before this run, as an earlier run saved them: a count and
+   *  the last of them. */
+  let usedBefore = 0;
+  let lastUsedBefore = "";
+  /** The days this run heard a session on — one or two, a deck past midnight. */
+  const usedThisRun = new Set();
   /** The first use this run heard, `{ at, provider }`, for activation.mjs. */
   let first = null;
   const firstListeners = [];
@@ -159,6 +173,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     const c = today();
     c.events++;
     changes++;
+    add(usedThisRun, c.day);
     add(c.sessions, sid);
     if (typeof raw.agent_id === "string" && raw.agent_id) add(c.subagents, `${sid}\u0000${raw.agent_id}`);
     add(c.features, raw.provider === "codex" ? "codex-sessions" : "claude-sessions");
@@ -200,6 +215,21 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     add(today().projects, dir);
   }
 
+  /** How many days in all this deck heard a session on: the saved count, and
+   *  the days of this run that came after the last of them. */
+  function daysUsed() {
+    let n = usedBefore;
+    for (const d of usedThisRun) if (d > lastUsedBefore) n++;
+    return n;
+  }
+
+  /** The last of those days, "" before the first. */
+  function lastUsedDay() {
+    let last = lastUsedBefore;
+    for (const d of usedThisRun) if (d > last) last = d;
+    return last;
+  }
+
   /** The first use this run heard, or null. */
   function firstUse() {
     return first ? { ...first } : null;
@@ -232,7 +262,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
 
   /** What survives a restart: counts and days, never an id or a path. */
   function saved() {
-    return { current: current ? totals(current) : null, done, sent };
+    return { current: current ? totals(current) : null, done, sent, daysUsed: daysUsed(), lastUsedDay: lastUsedDay() };
   }
 
   /**
@@ -244,6 +274,11 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   function restore(raw) {
     const s = normaliseUsage(raw);
     if (s.sent > sent) sent = s.sent;
+    // The further-along of the two, so restoring the same save twice adds nothing.
+    if (s.daysUsed > usedBefore || (s.daysUsed === usedBefore && s.lastUsedDay > lastUsedBefore)) {
+      usedBefore = s.daysUsed;
+      lastUsedBefore = s.lastUsedDay;
+    }
     for (const t of [s.done, s.current]) {
       if (!t) continue;
       const c = today();
@@ -264,7 +299,10 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     return changes;
   }
 
-  return { noteUse, noteProject, noteFolder, noteFeature, notePeak, firstUse, onFirstUse, finished, markSent, saved, restore, version };
+  return {
+    noteUse, noteProject, noteFolder, noteFeature, notePeak, firstUse, onFirstUse, finished, markSent, saved, restore, version,
+    daysUsed,
+  };
 }
 
 /** The deck's own tally, which the event pipeline feeds and the reporter reads. */

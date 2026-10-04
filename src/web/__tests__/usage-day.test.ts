@@ -85,7 +85,11 @@ describe("what survives a restart", () => {
     t.noteProject("/home/alice/.claude/projects/-home-alice-shop/sess-secret.jsonl");
     const saved = JSON.stringify(t.saved());
     for (const secret of ["sess-secret", "agent-secret", "alice", "shop", ".jsonl"]) expect(saved).not.toContain(secret);
-    expect(t.saved()).toEqual({ current: { day: "2026-09-30", sessions: 1, subagents: 1, projects: 1, features: ["claude-sessions"], events: 1, peakMb: 0 }, done: null, sent: "" });
+    // The days used ride along as a count and the last of them — never the list.
+    expect(t.saved()).toEqual({
+      current: { day: "2026-09-30", sessions: 1, subagents: 1, projects: 1, features: ["claude-sessions"], events: 1, peakMb: 0 },
+      done: null, sent: "", daysUsed: 1, lastUsedDay: "2026-09-30",
+    });
   });
 
   it("comes back as the floor of the same day, under what this run already counted", () => {
@@ -119,8 +123,9 @@ describe("what survives a restart", () => {
   });
 
   it("reads anything else as nothing saved", () => {
-    expect(normaliseUsage(null)).toEqual({ current: null, done: null, sent: "" });
-    expect(normaliseUsage({ current: { day: "yesterday", sessions: 3 }, sent: 5 })).toEqual({ current: null, done: null, sent: "" });
+    const nothing = { current: null, done: null, sent: "", daysUsed: 0, lastUsedDay: "" };
+    expect(normaliseUsage(null)).toEqual(nothing);
+    expect(normaliseUsage({ current: { day: "yesterday", sessions: 3 }, sent: 5, daysUsed: -4, lastUsedDay: 7 })).toEqual(nothing);
     expect(normaliseUsage({ current: { day: "2026-09-30", sessions: -2, subagents: 1.5, projects: "3" } }).current)
       .toEqual({ day: "2026-09-30", sessions: 0, subagents: 0, projects: 0, features: [], events: 0, peakMb: 0 });
   });

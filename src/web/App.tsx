@@ -63,6 +63,7 @@ import { useMirroredRef } from "./use-mirrored-ref";
 import { useDialogs } from "./use-dialogs";
 import { useClearFlow } from "./use-clear-flow";
 import { useOldNameNotice } from "./use-old-name-notice";
+import { useRatingAsk } from "./use-rating-ask";
 import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
@@ -222,6 +223,8 @@ function Inner() {
   // shortcuts sheet, Usage history and Browser Watch — what each is open on, and
   // the gate the keys ask before reaching past one: use-dialogs.ts.
   const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
+  // The one question the deck asks about itself, once, after a week of use.
+  const rating = useRatingAsk({ modalOpenRef: dialogs.modalOpenRef });
   const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
           setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
   // Usage reports (#1853): whether they are on, and the page's own errors,
@@ -633,6 +636,7 @@ function Inner() {
       {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
       <DeckBanner
         restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
+        rating={rating} onFeedback={dialogs.openFeedback}
         everConnected={everConnected} live={live} paused={paused}
       />
 

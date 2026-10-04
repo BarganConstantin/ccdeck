@@ -1,5 +1,5 @@
-// The page's ways into reports.mjs (#1853): an error the page caught and the
-// feedback dialog. (The switch in Appearance went on 2026-10-01; its route stays.) The page never
+// The page's ways into reports.mjs (#1853): an error the page caught, the
+// feedback dialog, and the one question the deck asks about itself. (The switch in Appearance went on 2026-10-01; its route stays.) The page never
 // talks to api.ccdeck.dev itself — this server does, which is also why the
 // install id never has to reach the page.
 
@@ -26,6 +26,25 @@ export async function handleReportsWrite(req, res, { report = reporter } = {}) {
   if (typeof body?.on !== "boolean") return send(res, 400, { ok: false, reason: "bad_request" });
   await report.setReports(body.on);
   return send(res, 200, { ok: true, reports: heldPrefs.current().reports, reportsVetoed: reportsVetoed() });
+}
+
+/** `GET /api/rating`: whether the page should ask "How useful is ccdeck to
+ *  you?" now (rating.mjs says when). Nothing leaves the machine. */
+export function handleRatingRead(_req, res, { report = reporter } = {}) {
+  return send(res, 200, { ok: true, ask: report.ratingAsk() });
+}
+
+/** `POST /api/rating` `{ score }` or `{ later: true }`: the question answered,
+ *  0 to 10, or put off. An answer is sent on as a "rated" report; "Not now" is
+ *  kept here and goes nowhere. 409 when there is nothing to keep it under —
+ *  reports off, or already answered. */
+export async function handleRatingWrite(req, res, { report = reporter } = {}) {
+  const body = await readJson(req, res, 1_000);
+  if (body?.later === true) {
+    return (await report.rateLater()) ? send(res, 200, { ok: true }) : send(res, 409, { ok: false, reason: "not_asking" });
+  }
+  if (!Number.isInteger(body?.score) || body.score < 0 || body.score > 10) return send(res, 400, { ok: false, reason: "bad_request" });
+  return (await report.rate(body.score)) ? send(res, 200, { ok: true }) : send(res, 409, { ok: false, reason: "not_asking" });
 }
 
 /** `POST /api/client-error` `{ message, stack? }`: an error the page caught. Sent on only while reports are on. */

@@ -370,6 +370,9 @@ const PRESSES: Press[] = [
   [".ver-banner .ver-cmd:active", "0.97", "transform"],
   [".ver-banner .ver-act:active:not(:disabled)", "0.97", "transform"],
   [".ver-banner .ver-close:active", "0.94", "transform"],
+  // A number on the one question's scale: a 24px square with a digit in it,
+  // so the 0.94 the round glyphs take.
+  [".rating-banner .rating-pick:active", "0.94", "transform"],
   [".tool-burst.clickable:active", "0.97", "scale"],
   // "update anyway" on an import result row. A 10px word in a pill, so
   // 0.97 like every other labelled control rather than the 0.94 the round
