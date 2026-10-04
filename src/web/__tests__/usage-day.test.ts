@@ -26,7 +26,7 @@ describe("a day's tally", () => {
     t.noteProject("C:\\Users\\u\\.claude\\projects\\proj-b\\s3.jsonl");
 
     later(24 * HOUR);
-    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 2, subagents: 2, projects: 2, features: ["claude-sessions"] });
+    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 2, subagents: 2, projects: 2, features: ["claude-sessions"], events: 8, peakMb: 0 });
   });
 
   it("has nothing finished on its first day", () => {
@@ -42,9 +42,9 @@ describe("a day's tally", () => {
     t.noteUse({ session_id: "s2" });
     t.noteUse({ session_id: "s3" });
     // The 6-hourly check-in finds yesterday finished, and today counted apart.
-    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 0, features: ["claude-sessions"] });
+    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 0, features: ["claude-sessions"], events: 1, peakMb: 0 });
     later(24 * HOUR);
-    expect(t.finished("2026-10-02")).toEqual({ day: "2026-10-01", sessions: 2, subagents: 0, projects: 0, features: ["claude-sessions"] });
+    expect(t.finished("2026-10-02")).toEqual({ day: "2026-10-01", sessions: 2, subagents: 0, projects: 0, features: ["claude-sessions"], events: 2, peakMb: 0 });
   });
 
   it("finishes a day the deck ran past with nothing said since", () => {
@@ -64,7 +64,7 @@ describe("a day's tally", () => {
     later(24 * HOUR);
     // The deck ran on the first and nobody used it: the second says so, as
     // zero, and does not say the thirtieth again.
-    expect(t.finished("2026-10-02")).toEqual({ day: "2026-10-01", sessions: 0, subagents: 0, projects: 0, features: [] });
+    expect(t.finished("2026-10-02")).toEqual({ day: "2026-10-01", sessions: 0, subagents: 0, projects: 0, features: [], events: 0, peakMb: 0 });
   });
 
   it("ignores what is not a session id or a path", () => {
@@ -85,7 +85,7 @@ describe("what survives a restart", () => {
     t.noteProject("/home/alice/.claude/projects/-home-alice-shop/sess-secret.jsonl");
     const saved = JSON.stringify(t.saved());
     for (const secret of ["sess-secret", "agent-secret", "alice", "shop", ".jsonl"]) expect(saved).not.toContain(secret);
-    expect(t.saved()).toEqual({ current: { day: "2026-09-30", sessions: 1, subagents: 1, projects: 1, features: ["claude-sessions"] }, done: null, sent: "" });
+    expect(t.saved()).toEqual({ current: { day: "2026-09-30", sessions: 1, subagents: 1, projects: 1, features: ["claude-sessions"], events: 1, peakMb: 0 }, done: null, sent: "" });
   });
 
   it("comes back as the floor of the same day, under what this run already counted", () => {
@@ -105,7 +105,7 @@ describe("what survives a restart", () => {
     before.noteUse({ session_id: "s1" });
     const { t } = tallyAt("2026-10-01T08:00:00Z");
     t.restore(before.saved());
-    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 0, features: ["claude-sessions"] });
+    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 0, features: ["claude-sessions"], events: 1, peakMb: 0 });
   });
 
   it("remembers what was sent, so a restart does not send it again", () => {
@@ -122,7 +122,7 @@ describe("what survives a restart", () => {
     expect(normaliseUsage(null)).toEqual({ current: null, done: null, sent: "" });
     expect(normaliseUsage({ current: { day: "yesterday", sessions: 3 }, sent: 5 })).toEqual({ current: null, done: null, sent: "" });
     expect(normaliseUsage({ current: { day: "2026-09-30", sessions: -2, subagents: 1.5, projects: "3" } }).current)
-      .toEqual({ day: "2026-09-30", sessions: 0, subagents: 0, projects: 0, features: [] });
+      .toEqual({ day: "2026-09-30", sessions: 0, subagents: 0, projects: 0, features: [], events: 0, peakMb: 0 });
   });
 });
 
@@ -156,7 +156,7 @@ describe("what counts as use", () => {
     t.noteFolder("/home/u/blog");
     t.noteFolder(undefined);
     later(24 * HOUR);
-    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 2, features: ["codex-sessions"] });
+    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 1, subagents: 0, projects: 2, features: ["codex-sessions"], events: 1, peakMb: 0 });
   });
 });
 
