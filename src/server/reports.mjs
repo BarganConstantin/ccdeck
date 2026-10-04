@@ -100,7 +100,9 @@ import { daysUsedBucket, normaliseRating, ratingDue, scoreOf } from "./rating.mj
 export const REPORTS_API = "https://api.ccdeck.dev";
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TIMEOUT_MS = 6000;
-/** How often a long-running deck checks whether a new day wants its "active". */
+/** How often a long-running deck checks in whatever the heartbeat found. The beat
+ *  already sends what is due — a new day's "active", a check-in that failed —
+ *  so this is the floor under it, not the schedule. */
 const CHECK_IN_EVERY_MS = 6 * 60 * 60 * 1000;
 /** The heartbeat's beat: a lighter timer than the check-in that only moves the
  *  install's "last seen", so the admin can count who is online now. Ten minutes,
@@ -547,14 +549,39 @@ export function createReporter({
     );
   }
 
+  /** Check-ins under way, so a beat that lands during a slow one does not start
+   *  a second beside it and send the same install twice. */
+  let checkingIn = 0;
+
   /** Send whatever is due: a pending deletion, then install or update, then
    *  today's "active". Never throws: a floating rejection here would be an
    *  unhandled one, and Node's answer to those is to end the process. */
   async function checkIn() {
+    checkingIn++;
     try {
       await sendWhatIsDue();
     } catch {
       // A settings file that cannot be written this minute; the next check-in tries again.
+    } finally {
+      checkingIn--;
+    }
+  }
+
+  /** Whether a check-in has something to send: the conditions sendWhatIsDue
+   *  acts on, read off the prefs and the clock alone — no network — so the
+   *  heartbeat can ask on every beat. Never throws. */
+  function checkInDue() {
+    try {
+      if (reportsVetoed(env)) return false;
+      const p = prefs.current();
+      const r = p.report;
+      if (r.forget) return true;
+      if (!reportsOn(p, env)) return false;
+      if (!r.installId || r.lastVersion !== facts.version || r.lastActiveDay !== utcDay(now())) return true;
+      if (r.installedAt && !r.activationSent && (r.firstSessionAt || usage.firstUse?.())) return true;
+      return r.rating.score !== null && !r.rating.sent;
+    } catch {
+      return false;
     }
   }
 
@@ -810,6 +837,16 @@ export function createReporter({
     return call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack });
   }
 
+  /** One beat. Whatever a check-in still owes goes first: a boot check-in that
+   *  could not get through (a login item started before the Wi-Fi), or a UTC day
+   *  with no "active" yet. Left to the six-hour timer, that was hours of awake
+   *  time — Node's timers stand still while the machine sleeps, so on a laptop it
+   *  could be days, and a day the deck was used could end unsaid. Then the ping. */
+  async function beat() {
+    if (!checkingIn && checkInDue()) await checkIn();
+    await ping();
+  }
+
   /** The heartbeat timer, rescheduled from itself so each beat carries fresh
    *  jitter — a fixed interval would let a fleet that started as one beat as one.
    *  Unref'd, so it never holds the process open. Each beat also saves the day's
@@ -817,7 +854,7 @@ export function createReporter({
   function scheduleNextPing() {
     pingTimer = setTimeout(() => {
       samplePeak();
-      void ping();
+      void beat();
       void saveUsage();
       scheduleNextPing();
     }, PING_EVERY_MS + Math.floor(Math.random() * PING_JITTER_MS));
@@ -825,9 +862,10 @@ export function createReporter({
   }
 
   /** Check in once the prefs are read, and every few hours after; and beat a
-   *  heartbeat on its own, lighter timer. Both timers never hold the process
-   *  open. The first check-in already puts a freshly launched deck online, so the
-   *  first ping is a full interval out — nothing pings at boot. */
+   *  heartbeat on its own, lighter timer, which also sends whatever a check-in
+   *  still owes (beat). Both timers never hold the process open. The first
+   *  check-in already puts a freshly launched deck online, so the first ping is
+   *  a full interval out — nothing pings at boot. */
   function start() {
     // start() runs as the deck starts listening (index.mjs), so this is the
     // launch: process start to ready. A second start() keeps the first answer.
