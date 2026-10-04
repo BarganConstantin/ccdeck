@@ -313,6 +313,9 @@ interface Placed {
   /** The arc it may not leave while it is eased: its slice, or the rest. */
   lo: number;
   hi: number;
+  /** The even step between it and the next deck in its arc, which is what
+   *  its neighbours keep from it while it is eased. */
+  turn: number;
   /** The line under its name, for the width of its box. */
   caption: string;
 }
@@ -332,26 +335,30 @@ const turnBetween = (a: number, b: number) => ((((a - b) % 360) + 540) % 360) - 
  * or name boxes meet is eased apart: the deck further out slides a step round
  * its ring, away from the other, until nothing meets or the rounds run out.
  * Never past a neighbour on its own ring, so the order the list gives is the
- * order the ring keeps; and never a ring of one or two, whose places are
- * exact. Deterministic, like everything else here.
+ * order the ring keeps; and a ring of one or two, whose places are exact, only
+ * ever to step off the centre's name — in a narrow stage the inner ring runs
+ * under it, and a deck there has nowhere else to go. Deterministic, like
+ * everything else here.
  */
-function easeApart(placed: Placed[], dense: boolean, core: Box): boolean {
+function easeApart(placed: Placed[], dense: boolean, core: Box): number {
   const ringOf = new Map<MapRing, Placed[]>();
   for (const p of placed) {
     if (!ringOf.has(p.ring)) ringOf.set(p.ring, []);
     ringOf.get(p.ring)!.push(p);
   }
   const boxesNow = () => placed.map(p => { const [x, y] = pointOf(p); return footprint(p.row, p.tier, x, y, dense, p.caption); });
-  /** Slide `mover` a step away from `from`, if its ring and its arc allow. */
-  const slide = (mover: Placed, dir: number): boolean => {
-    if (mover.count <= 2) return false;
+  /** Slide `mover` a step round its ring, if its ring and its arc allow. */
+  const slide = (mover: Placed, dir: number, offCore = false): boolean => {
+    if (mover.count <= 2 && !offCore) return false;
     const next = mover.theta + dir * EASE_STEP;
-    // Not past a neighbour: the ring keeps the list's order.
+    // Not past a neighbour: the ring keeps the list's order. A deck alone on
+    // its ring has none.
     const mates = ringOf.get(mover.ring)!;
-    const keep = (360 / mover.count) * NEIGHBOUR_KEEP;
+    const keep = (mover.count > 2 ? 360 / mover.count : mover.turn) * NEIGHBOUR_KEEP;
     const ahead = mates[(mover.index + 1) % mover.count];
     const behind = mates[(mover.index - 1 + mover.count) % mover.count];
-    const clear = dir > 0 ? turnBetween(ahead.theta, next) >= keep : turnBetween(next, behind.theta) >= keep;
+    const clear = ahead === mover
+      || (dir > 0 ? turnBetween(ahead.theta, next) >= keep : turnBetween(next, behind.theta) >= keep);
     if (!clear || next < mover.lo || next > mover.hi) return false;
     mover.theta = next;
     return true;
@@ -367,7 +374,7 @@ function easeApart(placed: Placed[], dense: boolean, core: Box): boolean {
       // THE CENTRE'S NAME IS AN OBSTACLE TOO. It hangs under the orb, so a
       // deck at six o'clock whose name lands on it turns away from six.
       if (onCore(boxes[i])) {
-        moved = slide(placed[i], turnBetween(placed[i].theta, 90) >= 0 ? 1 : -1) || moved;
+        moved = slide(placed[i], turnBetween(placed[i].theta, 90) >= 0 ? 1 : -1, true) || moved;
       }
       for (let j = i + 1; j < placed.length; j++) {
         if (!meets(boxes[i], boxes[j])) continue;
@@ -386,11 +393,12 @@ function easeApart(placed: Placed[], dense: boolean, core: Box): boolean {
   // Whether it worked: nothing still meets anything, and nothing meets the
   // centre's name.
   const boxes = boxesNow();
+  let left = 0;
   for (let i = 0; i < boxes.length; i++) {
-    if (onCore(boxes[i])) return false;
-    for (let j = i + 1; j < boxes.length; j++) if (meets(boxes[i], boxes[j])) return false;
+    if (onCore(boxes[i])) left++;
+    for (let j = i + 1; j < boxes.length; j++) if (meets(boxes[i], boxes[j])) left++;
   }
-  return true;
+  return left;
 }
 
 /** The rings when three cannot hold their names — see mapLayout: the decks
@@ -406,16 +414,35 @@ export function mapLayout(
   // pixels apart top to bottom, and a name is forty. When the three cannot be
   // cleared even with the dense names, the outer two fold into one, which
   // buys the height back; the tiers keep their own marks and strokes on it.
-  const three = placeRings(rows, width, height, coreName, RING_OF, captionOf);
-  if (three.clear || three.layout.rings.length < 3) return three.named();
-  const two = placeRings(rows, width, height, coreName, RING_OF_FOLDED, captionOf);
-  return two.clear ? { ...two.named(), folded: true } : three.named();
+  //
+  // AND THE SLICE ONLY WHERE IT LEAVES ROOM. It holds every tailnet deck to
+  // one arc of each ring, and in a narrow stage the inner ring's arc is about
+  // as long as the plate under this deck's name is wide — so a slice can be
+  // the one thing between the map and names that clear. Where neither drawing
+  // clears with the slice and one clears without it, the map is drawn without
+  // it, as it is when every deck is on the tailnet: the panel and each deck's
+  // own line still say which are. Where nothing clears at all, the drawing
+  // with the fewest names on something else.
+  const tried: Array<{ clashes: number; named: () => MapLayout }> = [];
+  for (const slice of [true, false]) {
+    const three = placeRings(rows, width, height, coreName, RING_OF, captionOf, slice);
+    if (three.clashes === 0) return three.named();
+    tried.push(three);
+    if (three.layout.rings.length === 3) {
+      const two = placeRings(rows, width, height, coreName, RING_OF_FOLDED, captionOf, slice);
+      const folded = { clashes: two.clashes, named: () => ({ ...two.named(), folded: true }) };
+      if (folded.clashes === 0) return folded.named();
+      tried.push(folded);
+    }
+    if (!three.layout.zone) break;
+  }
+  return tried.reduce((best, t) => (t.clashes < best.clashes ? t : best)).named();
 }
 
 function placeRings(
   rows: DeckRow[], width: number, height: number, coreName: string, ringOf: Record<MapTier, number>,
-  captionOf: CaptionOf,
-): { layout: MapLayout; clear: boolean; named: () => MapLayout } {
+  captionOf: CaptionOf, slice = true,
+): { layout: MapLayout; clashes: number; named: () => MapLayout } {
   const byRing = new Map<number, Array<{ row: DeckRow; tier: MapTier }>>();
   for (const row of rows) {
     const tier = mapTier(row);
@@ -446,7 +473,7 @@ function placeRings(
     const around = ellipsePerimeter(ring.rx, ring.ry);
     return k > 0 && around > 0 ? ((k * MAP_MIN_GAP * ZONE_ROOM) / around) * 360 : 0;
   }));
-  const zoneWidth = overTailnet > 0 && overTailnet < onMap
+  const zoneWidth = slice && overTailnet > 0 && overTailnet < onMap
     ? Math.min(ZONE_MAX, Math.max(ZONE_MIN, (overTailnet / onMap) * 360, needed))
     : 0;
   const zoneFrom = ZONE_AT - zoneWidth / 2;
@@ -492,6 +519,7 @@ function placeRings(
           reach: zigged * (1 + (outer ? -Math.abs(drift) : drift)),
           lo: group.from == null ? -Infinity : group.from + margin,
           hi: group.from == null ? Infinity : group.from + group.width - margin,
+          turn,
           caption: captionOf(row),
         });
         j++;
@@ -504,10 +532,10 @@ function placeRings(
   // something still meets, it eases again with the dense ones — the step
   // smaller, captionless names the stylesheet draws under `data-dense`.
   const core = coreBox(coreName);
-  let clear = easeApart(placed, dense, core);
-  if (!clear && !dense) {
+  let clashes = easeApart(placed, dense, core);
+  if (clashes > 0 && !dense) {
     dense = true;
-    clear = easeApart(placed, true, core);
+    clashes = easeApart(placed, true, core);
   }
 
   const nodes: MapNode[] = placed.map((p, order) => {
@@ -556,7 +584,7 @@ function placeRings(
     }
     return { ...layout, zone };
   };
-  return { layout, clear, named };
+  return { layout, clashes, named };
 }
 
 /** What the slice's name says: what stands in it, not this deck's own

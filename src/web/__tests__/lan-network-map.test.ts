@@ -192,7 +192,9 @@ describe("the tailnet's own slice of the map", () => {
   it("gives one tailnet deck a slice wide enough to read, and a mostly-tailnet network room for the rest", () => {
     const one = mapLayout([...Array.from({ length: 9 }, () => row({})), row({ via: "tailscale" })], W, H).zone!;
     expect(one.to - one.from).toBeGreaterThanOrEqual(64);
-    const most = mapLayout([row({}), ...Array.from({ length: 9 }, () => row({ via: "tailscale" }))], W, H).zone!;
+    // Six of seven: as many as one ring's slice still holds names for — past
+    // that the map is drawn without it (network-map-narrow-stage.test.ts).
+    const most = mapLayout([row({}), ...Array.from({ length: 6 }, () => row({ via: "tailscale" }))], W, H).zone!;
     expect(most.to - most.from).toBeLessThanOrEqual(150);
   });
 });
@@ -401,7 +403,7 @@ describe("a real office on the map", () => {
   });
 
   it("goes dense where the full names cannot be cleared", () => {
-    expect(mapLayout(office(), 530, 640, "Constantin iMac").dense).toBe(true);
+    expect(mapLayout(office(), 560, 640, "Constantin iMac").dense).toBe(true);
   });
 });
 
