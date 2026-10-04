@@ -233,6 +233,15 @@
 .pl-body .pl-table td:nth-child(4),
 .pl-body .pl-table th:nth-child(6),
 .pl-body .pl-table td:nth-child(6) { padding-right: 18px !important; }
+/* AND THE ONE WHERE A NAME MEETS A NUMBER, which padding governs only at its
+   worst. Between the user and the pid the gap is whatever the pid leaves of its
+   column, which is plenty for a short one — but the name column takes every
+   pixel the table has, the others come down to their content, and a Linux pid
+   has seven digits as often as not. Then the pid filled its cell and ran into
+   the user name: `constantin1365092`. A floor on the user's side, at (0,3,1)
+   over the table's `padding: 2px 0`. */
+.pl-body .pl-table th:nth-child(5),
+.pl-body .pl-table td:nth-child(5) { padding-right: 12px; }
 /* `.sd-procs` IS ON THIS TABLE ALREADY, and naming it here is what makes this
    override an override. Without it this selector is (0,3,1) and so is the
    panel's `:is(.sysdetail, .pl-body) .sd-procs th:nth-child(2) { width: 40px }`

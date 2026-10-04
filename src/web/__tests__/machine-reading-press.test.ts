@@ -65,9 +65,19 @@ let selection: { isCollapsed: boolean };
 beforeEach(() => {
   focused = [];
   selection = { isCollapsed: true };
-  vi.stubGlobal("window", { getSelection: () => selection });
+  // A press on the readings waits out a double-click before it opens the
+  // chart (machine-reading-double-click.test.ts), on the window's clock.
+  vi.useFakeTimers();
+  vi.stubGlobal("window", {
+    getSelection: () => selection,
+    setTimeout: (run: () => void, ms: number) => setTimeout(run, ms),
+    clearTimeout: (id: number) => clearTimeout(id),
+  });
 });
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 /** Every section's history control, each mounted on its own the way React
  *  would mount it, keyed by the history it opens. */
@@ -120,7 +130,7 @@ function pathTo(n: unknown, target: Drawn): Drawn[] | null {
 }
 
 /** A pointer's click on `target`: its own handler, then every ancestor's,
- *  until one stops it. */
+ *  until one stops it — and then the moment a single press waits for. */
 function press(tree: unknown, target: Drawn, detail = 1) {
   const path = pathTo(tree, target);
   if (!path) throw new Error("pressed something that is not drawn");
@@ -131,6 +141,7 @@ function press(tree: unknown, target: Drawn, detail = 1) {
     onClick?.(e);
     if (stopped) break;
   }
+  vi.runOnlyPendingTimers();
 }
 
 const load = () => controls().get("load")!;

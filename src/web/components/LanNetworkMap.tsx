@@ -25,7 +25,8 @@ import { createPortal } from "react-dom";
 
 import {
   continuousAngle, deckNextStep, machineKey, mapHeadline, mapLayout, mapSummary, networkNextStep, nodeCaption,
-  nodeName, ownAddresses, presenceLine, troubleFirst, type MapLayout, type MapNode, type MapZone,
+  nodeName, ownAddresses, presenceLine, troubleFirst, ZONE_LABEL_INSET, zoneLabel, type MapLayout, type MapNode,
+  type MapZone,
 } from "../lan-network-map";
 import { HERE_SAID, laneSaid, peerView, runsLine, sinceLabel, THERE_SAID } from "../lan-peer";
 import { rowSource, type DeckRow } from "../lan-roster";
@@ -57,8 +58,6 @@ const STILL_MS = 200;
  *  lights are spread over it by the golden ratio, so no two wires ever pulse
  *  together however many there are. */
 const ROUND_TRIP_S = 8;
-/** How far inside the tailnet slice's outer edge its name runs. */
-const ZONE_LABEL_INSET = 6;
 /** The slice's corners, rounded: wider on the outside, where the slice is
  *  wide, than on the inside by the centre. */
 const ZONE_CORNER_OUTER = 14;
@@ -322,7 +321,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
               ? <DeckDetails key={machineKey(shownRow)} row={shownRow} status={status} accounts={accounts} now={now}
                   entrance={entrance}
                   onOpen={() => onOpenDeck(shownRow.fp)} onBack={backToNetwork} />
-              : <NetworkDetails status={status} summary={summary} entrance={entrance} />}
+              : <NetworkDetails status={status} summary={summary} entrance={entrance} slice={layout?.zone != null} />}
           </aside>
         </div>
       </div>
@@ -367,13 +366,14 @@ function Orbits({ layout, w, h }: { layout: MapLayout; w: number; h: number }) {
             </radialGradient>
           </defs>
           <path className="nm-zone" d={zonePath(zone, w / 2, h / 2)} fill="url(#nm-zone-fill)" />
-          <text className="nm-zone-label">
-            <textPath href="#nm-zone-arc" startOffset="50%" textAnchor="middle">
-              {/* What stands in it, not this deck's own address — the panel
-                  has that. */}
-              {`Tailscale · ${zone.count} deck${zone.count === 1 ? "" : "s"}`}
-            </textPath>
-          </text>
+          {/* Where along the edge it crosses no deck's name — see zoneLabelAt. */}
+          {zone.labelAt != null && (
+            <text className="nm-zone-label">
+              <textPath href="#nm-zone-arc" startOffset={`${(zone.labelAt * 100).toFixed(2)}%`} textAnchor="middle">
+                {zoneLabel(zone.count)}
+              </textPath>
+            </text>
+          )}
         </>
       )}
       {layout.rings.map((r, i) => (
@@ -587,11 +587,15 @@ function Facts({ facts }: { facts: Array<{ label: string; value: ReactNode; quie
 
 /** The panel with nothing pointed at: this deck, the network in numbers —
  *  in ring order, each beside the mark its decks wear — and the one thing
- *  worth doing about it, if there is one. */
-function NetworkDetails({ status, summary, entrance }: {
+ *  worth doing about it, if there is one. Exported to be drawn in a test, where
+ *  the map's portal cannot be. */
+export function NetworkDetails({ status, summary, entrance, slice }: {
   status: LanStatus | null;
   summary: ReturnType<typeof mapSummary>;
   entrance: Entrance;
+  /** Whether the map drew the tailnet's slice: not when every deck is on the
+   *  tailnet, nor where it would leave the names no room — see mapLayout. */
+  slice: boolean;
 }) {
   const addresses = ownAddresses(status);
   const runs = runsLine(status?.about);
@@ -616,7 +620,7 @@ function NetworkDetails({ status, summary, entrance }: {
     { key: "dialling", n: summary.dialling, words: "still dialling", mark: <i className="nm-key-mark" data-tier="loose" aria-hidden /> },
     { key: "declined", n: summary.declined, words: "declined, not drawn", mark: <i aria-hidden /> },
   ];
-  const next = networkNextStep(summary);
+  const next = networkNextStep(summary, status?.pairingMode);
   return (
     <div className="nm-panel" data-view="network" data-entrance={entrance}>
       <h3 className="nm-panel-name">{status?.name ?? "…"}</h3>
@@ -632,7 +636,7 @@ function NetworkDetails({ status, summary, entrance }: {
       </ul>
       {summary.tailnet > 0 && (
         <p className="nm-counts-note">
-          {summary.tailnet} reached over Tailscale — the shaded slice, lower right
+          {summary.tailnet} reached over Tailscale{slice ? " — the shaded slice, lower right" : ""}
         </p>
       )}
       {next && <p className="nm-next">{next}</p>}
