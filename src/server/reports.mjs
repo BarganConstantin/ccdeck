@@ -78,7 +78,9 @@
 //
 // NOTHING HERE THROWS OR WAITS FOR ANYBODY. A report that cannot be sent is
 // dropped: it is a nicety for the people who make ccdeck, and no part of the
-// deck depends on it.
+// deck depends on it. An event a check-in owes is tried again on the heartbeat,
+// less often the longer the API stays out of reach; one the API refuses (a
+// 4xx) is not sent again, since the same body would be refused the same way.
 
 import { createHash, randomUUID } from "node:crypto";
 import { arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, totalmem } from "node:os";
@@ -110,6 +112,9 @@ const CHECK_IN_EVERY_MS = 6 * 60 * 60 * 1000;
  *  not all beat on the same tick. */
 const PING_EVERY_MS = 10 * 60 * 1000;
 const PING_JITTER_MS = 2 * 60 * 1000;
+/** The longest a 429's or a 503's Retry-After is waited for: a header that asks
+ *  for a week does not silence a deck for one. */
+const RETRY_AFTER_MAX_MS = 24 * 60 * 60 * 1000;
 /** How long a report waits for the CLI versions it is about to carry: a couple
  *  of `--version` answers (cli-versions.mjs). One not known by then is left out. */
 const CLI_PROBE_WAIT_MS = 8_000;
@@ -607,6 +612,9 @@ export function createReporter({
     }
   }
 
+  /** What became of a send: "sent"; "refused", a 4xx — the API saying no to
+   *  this body, which it will say again to the same body, so it is final; or
+   *  "failed" — no answer, a 5xx, a 408 or a 429, which are worth another try. */
   async function call(method, path, body) {
     try {
       const res = await fetchImpl(REPORTS_API + path, {
@@ -615,9 +623,61 @@ export function createReporter({
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-      return res.ok;
+      if (res.ok) return "sent";
+      if (res.status === 429 || res.status === 503) waitAsAsked(res);
+      return res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429 ? "refused" : "failed";
     } catch {
-      return false;
+      return "failed";
+    }
+  }
+
+  /** Delivered, or refused for good: either way nothing more to send. */
+  const settled = outcome => outcome !== "failed";
+
+  /** Check-ins in a row that ended still owing something, and the earliest the
+   *  timers may check in again, by `now` — so a laptop that slept through the
+   *  wait tries on its first beat awake. */
+  let failedInARow = 0;
+  let retryAt = 0;
+
+  /** A Retry-After, in seconds or as a date, moves the next try out to it. */
+  function waitAsAsked(res) {
+    try {
+      const raw = String(res.headers?.get?.("retry-after") ?? "").trim();
+      if (!raw) return;
+      const at = now().getTime();
+      const ms = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - at;
+      if (Number.isFinite(ms) && ms > 0) retryAt = Math.max(retryAt, at + Math.min(ms, RETRY_AFTER_MAX_MS));
+    } catch {
+      // A header that will not read: the backoff alone decides.
+    }
+  }
+
+  /** After a check-in: one that still owes something waits half a beat before
+   *  the next try — so the first is the next beat, however long this one took
+   *  to fail — then twice that each time, up to the six-hour check-in; one that
+   *  owes nothing clears the wait. Never throws. */
+  function afterCheckIn() {
+    try {
+      if (!checkInDue()) {
+        failedInARow = 0;
+        retryAt = 0;
+        return;
+      }
+      failedInARow++;
+      const wait = Math.min((PING_EVERY_MS / 2) * 2 ** (failedInARow - 1), CHECK_IN_EVERY_MS);
+      retryAt = Math.max(retryAt, now().getTime() + wait);
+    } catch {
+      // A clock that cannot say: the next beat tries again.
+    }
+  }
+
+  /** Whether the timers may check in now. Never throws. */
+  function retryDue() {
+    try {
+      return now().getTime() >= retryAt;
+    } catch {
+      return true;
     }
   }
 
@@ -644,6 +704,7 @@ export function createReporter({
       // A settings file that cannot be written this minute; the next check-in tries again.
     } finally {
       checkingIn--;
+      afterCheckIn();
     }
   }
 
@@ -671,7 +732,9 @@ export function createReporter({
     if (reportsVetoed(env)) return;
     const p = prefs.current();
     const { forget } = p.report ?? EMPTY_REPORT;
-    if (forget && (await call("DELETE", `/v1/app/installs/${encodeURIComponent(forget)}`))) {
+    // Only a deletion that landed is done with: one refused stays owed, and is
+    // asked again as a failed one is, rather than dropped.
+    if (forget && (await call("DELETE", `/v1/app/installs/${encodeURIComponent(forget)}`)) === "sent") {
       await prefs.update(prev => (prev.report.forget === forget ? { report: { ...prev.report, forget: "" } } : undefined));
     }
     if (!reportsOn(prefs.current(), env)) return;
@@ -704,7 +767,8 @@ export function createReporter({
       const ref = refSlug(prefs.current().report.ref) ?? refNow();
       const body = { installId, kind: "install", ...factsNow(), ...setupNow() };
       addIf(body, "ref", ref);
-      if (await call("POST", "/v1/app/events", body)) {
+      // Refused is as done as sent: the same body would be refused again.
+      if (settled(await call("POST", "/v1/app/events", body))) {
         await remember(installId, { lastVersion: facts.version, ref: "" });
       } else if (ref) {
         await remember(installId, { ref });
@@ -716,7 +780,7 @@ export function createReporter({
       addIf(body, "via", updateVia({
         marker: prefs.current().report.selfUpdate, lastVersion, channel: facts.channel, npx, now: now(),
       }));
-      if (await call("POST", "/v1/app/events", body)) {
+      if (settled(await call("POST", "/v1/app/events", body))) {
         await remember(installId, { lastVersion: facts.version, selfUpdate: null });
       }
     }
@@ -727,7 +791,7 @@ export function createReporter({
       // deck for its counts.
       const used = coarseUsage(today);
       const held = await depthNow();
-      if (await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used, ...held })) {
+      if (settled(await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used, ...held }))) {
         if (used.usageDay) usage.markSent(used.usageDay);
         await remember(installId, { lastActiveDay: today });
       }
@@ -762,7 +826,7 @@ export function createReporter({
     const body = { installId: r.installId, kind: "activated", ...factsNow(), ...setupNow() };
     addIf(body, "firstSession", sinceInstallBucket(r.installedAt, r.firstSessionAt));
     addIf(body, "firstProvider", r.firstProvider === "codex" || r.firstProvider === "claude" ? r.firstProvider : undefined);
-    if (await call("POST", "/v1/app/events", body)) await remember(r.installId, { activationSent: true });
+    if (settled(await call("POST", "/v1/app/events", body))) await remember(r.installId, { activationSent: true });
   }
 
   /** The deck starting an update of its own — the Upgrade press, the npx
@@ -788,7 +852,7 @@ export function createReporter({
     if (!reportsOn(p, env) || !r.installId || r.rating.score === null || r.rating.sent) return;
     const days = usage.daysUsed?.() ?? 0;
     const body = { installId: r.installId, kind: "rated", ...factsNow(), score: r.rating.score, daysUsed: daysUsedBucket(days) };
-    if (await call("POST", "/v1/app/events", body)) {
+    if (settled(await call("POST", "/v1/app/events", body))) {
       await remember(r.installId, { rating: { ...prefs.current().report.rating, sent: true } });
     }
   }
@@ -856,7 +920,7 @@ export function createReporter({
       if (!(await willReport())) return false;
       const body = { installId: prefs.current().report.installId, kind: "uninstall", ...factsNow() };
       addIf(body, "reason", UNINSTALL_REASONS.includes(reason) ? reason : undefined);
-      return await call("POST", "/v1/app/events", body);
+      return (await call("POST", "/v1/app/events", body)) === "sent";
     } catch {
       return false;
     }
@@ -923,16 +987,18 @@ export function createReporter({
     // Less the runtime, and less the deviceId — an error is not one of the events
     // the fingerprint rides on, so the personal field never leaves on one.
     const { runtime: _runtime, deviceId: _deviceId, ...fields } = factsNow();
-    return call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack });
+    return (await call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack })) === "sent";
   }
 
   /** One beat. Whatever a check-in still owes goes first: a boot check-in that
    *  could not get through (a login item started before the Wi-Fi), or a UTC day
    *  with no "active" yet. Left to the six-hour timer, that was hours of awake
    *  time — Node's timers stand still while the machine sleeps, so on a laptop it
-   *  could be days, and a day the deck was used could end unsaid. Then the ping. */
+   *  could be days, and a day the deck was used could end unsaid. Not before a
+   *  check-in that could not get through has waited its turn (afterCheckIn), so
+   *  an API that is down is not asked again every ten minutes. Then the ping. */
   async function beat() {
-    if (!checkingIn && checkInDue()) await checkIn();
+    if (!checkingIn && checkInDue() && retryDue()) await checkIn();
     await ping();
   }
 
@@ -977,7 +1043,7 @@ export function createReporter({
       .then(checkIn)
       .then(() => usage.onFirstUse?.(() => void onFirstSession()));
     if (!timer) {
-      timer = setInterval(() => void checkIn(), CHECK_IN_EVERY_MS);
+      timer = setInterval(() => { if (retryDue()) void checkIn(); }, CHECK_IN_EVERY_MS);
       timer.unref?.();
     }
     if (!pingTimer) scheduleNextPing();

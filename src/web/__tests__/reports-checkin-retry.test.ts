@@ -35,18 +35,23 @@ function harness({ saved = {} as Record<string, unknown> } = {}) {
   let online = true;
   /** A send that does not answer until it is let go: an API that is slow, not down. */
   let hold: Promise<void> | null = null;
-  let clock = new Date("2026-10-04T10:00:00Z");
+  // The wall clock runs with the fake timers, as a real one runs with real
+  // time; a sleep moves it alone.
+  const t0 = Date.now();
+  let slept = 0;
+  const clock = () => new Date(Date.parse("2026-10-04T10:00:00Z") + (Date.now() - t0) + slept);
+  let offlineTries = 0;
   const fetchImpl = async (url: string, init: { body?: string }) => {
-    if (!online) throw new Error("getaddrinfo ENOTFOUND api.ccdeck.dev");
+    if (!online) { if (url.endsWith("/v1/app/events")) offlineTries++; throw new Error("getaddrinfo ENOTFOUND api.ccdeck.dev"); }
     calls.push({ url, body: init.body ? JSON.parse(init.body) : {} });
     if (hold && url.endsWith("/v1/app/events")) await hold;
     return { ok: true, status: 202 };
   };
   let depthReads = 0;
   const reporter = createReporter({
-    fetchImpl, now: () => clock, prefs: store, env: {}, home: "/home/alice", ready: Promise.resolve(),
+    fetchImpl, now: clock, prefs: store, env: {}, home: "/home/alice", ready: Promise.resolve(),
     facts: { version: "3.37.0", os: "linux", arch: "x64", channel: "npm", runtime: "node-22.18.0" },
-    usage: createUsageDay({ now: () => clock }), setup: () => ({}), setupKnown: () => Promise.resolve(),
+    usage: createUsageDay({ now: clock }), setup: () => ({}), setupKnown: () => Promise.resolve(),
     depth: async () => { depthReads++; return {}; },
     firstRun: () => true,
   });
@@ -56,7 +61,8 @@ function harness({ saved = {} as Record<string, unknown> } = {}) {
     goOnline: () => { online = true; },
     holdEvents: () => { let go = () => {}; hold = new Promise<void>(r => { go = r; }); return () => { hold = null; go(); }; },
     /** The machine slept: the wall clock moved, the deck's timers did not. */
-    sleep: (ms: number) => { clock = new Date(clock.getTime() + ms); },
+    sleep: (ms: number) => { slept += ms; },
+    offlineTries: () => offlineTries,
     depthReads: () => depthReads,
     kinds: () => calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body.kind),
     pings: () => calls.filter(c => c.url.endsWith("/v1/app/ping")).length,
@@ -85,14 +91,18 @@ describe("a check-in the boot could not send", () => {
     expect(h.prefs().report.lastActiveDay).toBe("2026-10-04");
   });
 
-  it("keeps trying on every beat while the API stays out of reach", async () => {
+  it("keeps trying while the API stays out of reach, and gets through once it is back", async () => {
+    // Less often the longer it stays out (reports-refused-event.test.ts), so
+    // it is given until a few beats past the longest wait three misses make.
     vi.useFakeTimers();
     const h = harness();
     h.goOffline();
     h.reporter.start();
     await vi.advanceTimersByTimeAsync(3 * BEAT);
+    // The boot's install and "active", and at least one more go at them.
+    expect(h.offlineTries()).toBeGreaterThanOrEqual(4);
     h.goOnline();
-    await vi.advanceTimersByTimeAsync(BEAT);
+    await vi.advanceTimersByTimeAsync(6 * BEAT);
     h.reporter.stop();
     expect(h.kinds()).toEqual(["install", "active"]);
   });
