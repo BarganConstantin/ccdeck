@@ -647,7 +647,7 @@ describe("switching it off", () => {
     expect(h.prefs().reports).toBe(false);
     expect(h.prefs().report).toEqual({
       installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
-      installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "",
+      installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "", selfUpdate: null,
     });
     expect(h.calls.at(-1)).toMatchObject({ method: "DELETE", url: `https://api.ccdeck.dev/v1/app/installs/${installId}` });
   });
@@ -755,7 +755,7 @@ describe("the machine's veto", () => {
     expect(h.calls).toEqual([]);
     expect(h.prefs().report).toEqual({
       installId: "", lastVersion: "", lastActiveDay: "", forget: installId, usage: null,
-      installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "",
+      installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "", selfUpdate: null,
     });
 
     await h.reporterWith({ env: {} }).checkIn();

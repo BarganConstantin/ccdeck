@@ -754,6 +754,17 @@ export function invalidateClaudeAccountsCache() {
 }
 
 /**
+ * How many accounts the last roster read held, for the daily report's count
+ * (depth-facts.mjs): 0 when claude-swap is installed with nothing added, null
+ * before any read or when the read could not say. Answered from the cache —
+ * never starts a read, so the report costs claude-swap nothing.
+ */
+export function knownAccountCount() {
+  if (_cache?.ok && Array.isArray(_cache.accounts)) return _cache.accounts.length;
+  return _cache?.reason === "no_accounts" ? 0 : null;
+}
+
+/**
  * The slot an account argument names, as a number, or null when it names none.
  *
  * A slot number goes straight into an exec argument as `String(n)`, so the

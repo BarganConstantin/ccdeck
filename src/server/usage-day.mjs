@@ -1,6 +1,8 @@
 // How much this deck was used on one UTC day: the distinct sessions, subagents
-// and projects its hooks heard from. The "active" report carries the totals of
-// the last finished day (reports.mjs).
+// and projects its hooks heard from — and how hard the deck worked for it: how
+// many live events it took in, and its peak memory. The "active" report carries
+// the totals of the last finished day (reports.mjs), the last two as buckets
+// (depth-facts.mjs).
 //
 // WHY A DAY AND NOT A SNAPSHOT. The counts used to be read off the live state at
 // the moment the "active" went out — and that moment is the first check-in of
@@ -12,9 +14,9 @@
 // WHAT IS KEPT. In memory, the session ids, the subagent ids and the folders the
 // transcripts sit in, so a session heard from a hundred times counts once. They
 // never leave this module: what is saved between runs (prefs.json, beside the
-// install id) and what is sent are three counts, the day they belong to, and
-// the names of the features used that day — fixed tokens off FEATURES, a yes
-// for each, never what was done with them.
+// install id) and what is sent are counts, the day they belong to, and the
+// names of the features used that day — fixed tokens off FEATURES, a yes for
+// each, never what was done with them.
 //
 // A RESTART MID-DAY. The saved counts come back as a floor and the new run
 // counts on top of them, so a session that was running across the restart is
@@ -66,12 +68,12 @@ function whole(n) {
   return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
-/** Saved totals, coerced: a day, three counts and the features used, or null for anything else. */
+/** Saved totals, coerced: a day, its counts and the features used, or null for anything else. */
 function savedTotals(raw) {
   if (!raw || typeof raw !== "object" || typeof raw.day !== "string" || !DAY.test(raw.day)) return null;
   return {
     day: raw.day, sessions: whole(raw.sessions), subagents: whole(raw.subagents), projects: whole(raw.projects),
-    features: knownFeatures(raw.features),
+    features: knownFeatures(raw.features), events: whole(raw.events), peakMb: whole(raw.peakMb),
   };
 }
 
@@ -112,11 +114,13 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   function fresh(day, floor = null) {
     return {
       day,
-      floor: floor ?? { sessions: 0, subagents: 0, projects: 0, features: [] },
+      floor: floor ?? { sessions: 0, subagents: 0, projects: 0, features: [], events: 0, peakMb: 0 },
       sessions: new Set(),
       subagents: new Set(),
       projects: new Set(),
       features: new Set(),
+      events: 0,
+      peakMb: 0,
     };
   }
 
@@ -127,6 +131,8 @@ export function createUsageDay({ now = () => new Date() } = {}) {
       subagents: c.floor.subagents + c.subagents.size,
       projects: c.floor.projects + c.projects.size,
       features: knownFeatures([...c.floor.features, ...c.features]),
+      events: c.floor.events + c.events,
+      peakMb: Math.max(c.floor.peakMb, c.peakMb),
     };
   }
 
@@ -151,6 +157,8 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     const sid = raw?.session_id;
     if (!sid || typeof sid !== "string") return;
     const c = today();
+    c.events++;
+    changes++;
     add(c.sessions, sid);
     if (typeof raw.agent_id === "string" && raw.agent_id) add(c.subagents, `${sid}\u0000${raw.agent_id}`);
     add(c.features, raw.provider === "codex" ? "codex-sessions" : "claude-sessions");
@@ -160,6 +168,16 @@ export function createUsageDay({ now = () => new Date() } = {}) {
         try { fn(first); } catch { /* a listener's failure is its own */ }
       }
     }
+  }
+
+  /** The deck's resident memory right now, in MB: the day keeps its highest. */
+  function notePeak(mb) {
+    if (!Number.isFinite(mb) || mb <= 0) return;
+    const c = today();
+    const rounded = Math.round(mb);
+    if (rounded <= c.peakMb) return;
+    c.peakMb = rounded;
+    changes++;
   }
 
   /** A transcript path a Claude hook carried, already accepted as Claude's:
@@ -230,7 +248,10 @@ export function createUsageDay({ now = () => new Date() } = {}) {
       if (!t) continue;
       const c = today();
       if (t.day === c.day) {
-        c.floor = { sessions: t.sessions, subagents: t.subagents, projects: t.projects, features: t.features };
+        c.floor = {
+          sessions: t.sessions, subagents: t.subagents, projects: t.projects, features: t.features,
+          events: t.events, peakMb: t.peakMb,
+        };
       } else if (t.day < c.day && (!done || t.day > done.day)) {
         done = t;
       }
@@ -243,7 +264,7 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     return changes;
   }
 
-  return { noteUse, noteProject, noteFolder, noteFeature, firstUse, onFirstUse, finished, markSent, saved, restore, version };
+  return { noteUse, noteProject, noteFolder, noteFeature, notePeak, firstUse, onFirstUse, finished, markSent, saved, restore, version };
 }
 
 /** The deck's own tally, which the event pipeline feeds and the reporter reads. */
