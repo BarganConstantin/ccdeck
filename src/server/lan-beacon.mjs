@@ -13,6 +13,7 @@ import dgram from "node:dgram";
 import { randomBytes } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { looksLikeTunnel } from "./route-via.mjs";
+import { MAX_STRANGERS } from "./lan-requests.mjs";
 import {
   beaconPayload, beaconVerdict, formerHostId, hostId, notePeer, readBeacon,
   ANNOUNCE_MS, MAX_BEACON_BYTES,
@@ -206,7 +207,13 @@ export function createBeacon({
   /** When this deck last answered a deck it had not heard, so answering cannot
    *  become a storm, and which decks it has already answered — without the
    *  second, a deck that is never accepted is answered again on every packet
-   *  for as long as both are running. */
+   *  for as long as both are running.
+   *
+   *  NEVER MORE OF THEM THAN THE HEARD LIST KEEPS (MAX_STRANGERS, #1738). A
+   *  fingerprint is sixteen hex characters anybody on the network can make up,
+   *  and each new one was an entry kept for the life of the process. The one
+   *  answered longest ago goes first; heard again, it is answered once more,
+   *  which is one packet. */
   let repliedAt = 0;
   const answered = new Set();
 
@@ -304,6 +311,10 @@ export function createBeacon({
     if (newToUs && now() - repliedAt > REPLY_COOLDOWN_MS) {
       repliedAt = now();
       answered.add(beacon.fp);
+      for (const old of answered) {
+        if (answered.size <= MAX_STRANGERS) break;
+        answered.delete(old);
+      }
       // A deck that reached this one over the tailnet is answered there too:
       // a broadcast never gets back down its tunnel.
       announce(via === "tailscale" ? [rinfo.address] : []);
