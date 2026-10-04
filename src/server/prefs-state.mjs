@@ -35,6 +35,10 @@ let _prefs = { ...DEFAULTS };
  *  it. A write that lands first merges onto the file, but leaves the engine on
  *  what it made up, so it does not count. */
 let _unread = false;
+/** Whether the boot read found no file there at all. A file it could not read
+ *  or make sense of was still a deck that ran here, so only "missing" counts.
+ *  False until the read lands. */
+let _noFile = false;
 
 // Read at import, so `consider` has its answer from the first event. LAN sync
 // used to start from this same read, and it must not: bin/deck.js imports the
@@ -43,7 +47,11 @@ let _unread = false;
 // in — which is the `lan sync (listen): EADDRINUSE` line a second `ccdeck`
 // printed above `deck already running`. The engine starts from the listen that
 // succeeds, in startServer, which is the only process that may hold a port.
-export const prefsRead = loadPrefs().then(r => { _prefs = r.prefs; _unread = r.source === "unreadable"; }).catch(() => {});
+export const prefsRead = loadPrefs().then(r => { _prefs = r.prefs; _unread = r.source === "unreadable"; _noFile = r.source === "missing"; }).catch(() => {});
+
+/** Whether the boot read found no settings file at all: the first run on this
+ *  machine, as far as the deck can tell (reports.mjs times only that one). */
+export const bootFoundNoPrefs = () => _noFile;
 
 export const heldPrefs = Object.freeze({
   /** What the last read or write left here. Never a disk read — see above. */

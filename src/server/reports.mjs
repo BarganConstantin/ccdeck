@@ -87,7 +87,7 @@ import { fileURLToPath } from "node:url";
 import { inApp } from "./app-host.mjs";
 import { reportsVetoed } from "./deck-prefs.mjs";
 import { isGitCheckout, isNpxInstall } from "./install-layout.mjs";
-import { heldPrefs, prefsRead } from "./prefs-state.mjs";
+import { bootFoundNoPrefs, heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 import { FEATURES, usageDay, utcDay } from "./usage-day.mjs";
 import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs";
@@ -373,6 +373,9 @@ export function scrub(text, home = homedir()) {
  *   npm install that changed version under it updated.
  * @param {() => number} [deps.uptime] how long this deck has been up, in ms: the
  *   question about the deck is never asked in the minutes after a launch.
+ * @param {() => boolean} [deps.firstRun] this run's boot found no settings file:
+ *   the deck had never run here, so an install id made now is a real install and
+ *   its first session is timed. Default: the boot read's own answer.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -392,6 +395,7 @@ export function createReporter({
   memory = () => process.memoryUsage.rss(),
   npx = false,
   uptime = () => process.uptime() * 1000,
+  firstRun = bootFoundNoPrefs,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
@@ -432,6 +436,16 @@ export function createReporter({
       return out;
     } catch {
       return {};
+    }
+  }
+
+  /** Whether this is the deck's first run here. Never throws: a run it cannot
+   *  tell is not one. */
+  function isFirstRun() {
+    try {
+      return firstRun() === true;
+    } catch {
+      return false;
     }
   }
 
@@ -598,12 +612,16 @@ export function createReporter({
 
     // The id is made here, the first time there is something to send under it.
     if (!prefs.current().report.installId) {
+      const fresh = isFirstRun();
       await prefs.update(prev =>
         prev.reports === false || prev.report.installId
           ? undefined
-          // When the id is made is when this install began: the clock the first
-          // session is measured against. Kept here, never sent as a time.
-          : { report: { ...prev.report, installId: randomUUID(), installedAt: now().toISOString() } },
+          // On a first run, when the id is made is when this install began: the
+          // clock the first session is measured against. Kept here, never sent as
+          // a time. A deck that ran here before — one upgraded from a version
+          // with no reports, which had no id to keep — gets none, and is never
+          // timed: its first session was long ago, and "now" would be a lie.
+          : { report: { ...prev.report, installId: randomUUID(), installedAt: fresh ? now().toISOString() : "" } },
       );
     }
     const { installId, lastVersion, lastActiveDay } = prefs.current().report;
@@ -654,7 +672,8 @@ export function createReporter({
    * after the install it came, in a bucket, and which CLI it came from.
    *
    * Only for an install whose start this deck saw — `installedAt` is made with
-   * the id, so an install from before this version has none and is never
+   * the id, on a first run only, so an install from before this version, or one
+   * whose id was made over an older deck's settings, has none and is never
    * measured: its first session was long ago, and "now" would be a lie. The time
    * is taken from the first use this run heard, so a session that arrived before
    * the first check-in had an id is still dated when it happened. A send that

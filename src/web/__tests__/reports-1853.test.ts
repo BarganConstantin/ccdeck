@@ -69,6 +69,9 @@ function harness({
     usage: over.usage ?? tally,
     ...(over.setup ? { setup: over.setup } : {}),
     ...(over.versions ? { versions: over.versions } : {}),
+    // A deck on its first run here, never this machine's own boot read: an id
+    // made over an older deck's settings is reports-upgrade-first-run's case.
+    firstRun: () => true,
   });
   return {
     reporter: reporterWith(), reporterWith, calls, store, tally,

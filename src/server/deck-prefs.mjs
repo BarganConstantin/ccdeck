@@ -95,7 +95,8 @@ export const DEFAULTS = Object.freeze({
   // not yet acknowledged, retried on the next start so switching off while
   // offline still ends in a deletion; `usage` is the day's tally of sessions,
   // subagents and projects, counts and days only, so a restart carries it on
-  // (usage-day.mjs); `installedAt` is when the id was made, and
+  // (usage-day.mjs); `installedAt` is when the id was made, on a first run
+  // only (an id made over an older deck's settings has none), and
   // `firstSessionAt`/`firstProvider`/`activationSent` the install's first
   // session and whether the "activated" event saying so got through — the times
   // stay here, only a bucket leaves (activation.mjs); `rating` is the one
