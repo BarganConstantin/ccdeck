@@ -52,15 +52,17 @@ function packageTypeIn(resourcesPath) {
 }
 
 /** An update this copy cannot take where it is, and what kind, so the tray can
- *  say what to do about it (tray-menu.mjs) rather than only that it failed. */
-function cannotUpdateHere(message, kind) {
-  return Object.assign(new Error(message), { kind });
+ *  say what to do about it (tray-menu.mjs) rather than only that it failed —
+ *  and, for one about a single release, which release. */
+function cannotUpdateHere(message, kind, version) {
+  return Object.assign(new Error(message), { kind, version });
 }
 
-/** The error state for a failure, with its kind when it has one. */
+/** The error state for a failure, with its kind and release when it has them. */
 function errorState(err) {
   const state = { status: "error", error: String(err?.message ?? err) };
   if (err?.kind) state.kind = err.kind;
+  if (err?.version) state.version = err.version;
   return state;
 }
 
@@ -165,8 +167,10 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
           throw cannotUpdateHere(`ccdeck cannot update itself in ${dirname(runningApp)}, which cannot be written to — move it to Applications`, "unwritable-app");
         }
         const failed = join(app.getPath("userData"), SWAP_FAILED);
+        // Skipped, not failed: trying again is refused the same way until a
+        // newer release is out, so the tray says that (tray-menu.mjs).
         if (await failedSwap(failed) === update.version) {
-          throw new Error(`ccdeck ${update.version} could not be put in place last time, and is not tried again`);
+          throw cannotUpdateHere(`ccdeck ${update.version} could not be put in place last time, and is not tried again`, "skipped-release", update.version);
         }
         set({ status: "downloading", version: update.version });
         const s = await stageUpdate(update, { runningApp });

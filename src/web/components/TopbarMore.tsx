@@ -14,7 +14,10 @@
 //
 // A menu like an account's ⋯ (AnchoredPopover): Up and Down walk it, Escape
 // and a press elsewhere close it. Each item opens its dialog with focus handed
-// back to the ⋯ first, so the dialog gives it back there when it closes.
+// back to the ⋯ first, so the dialog gives it back there when it closes. A
+// window that grows past 480px with the menu open hides the ⋯ under it, and
+// the menu closes with focus on the button its focused item stands for, which
+// the bar has just drawn again (unfolded, below).
 import { useState, type Dispatch, type SetStateAction } from "react";
 import AnchoredPopover from "./AnchoredPopover";
 
@@ -22,6 +25,15 @@ type Toggle = Dispatch<SetStateAction<boolean>>;
 
 const MORE_ID = "tb-more";
 const MENU_ID = "tb-more-menu";
+
+/** The button the menu's focused item stands for, back on the bar once the ⋯
+ *  is not: TopbarRuns.tsx draws the three `.tb-fold` buttons in this menu's
+ *  order. The first of them when focus is on none of the items. */
+function unfolded(): HTMLElement | null {
+  const items = Array.from(document.querySelectorAll(`#${MENU_ID} [role="menuitem"]`));
+  const folded = document.querySelectorAll<HTMLElement>(".topbar .tb-fold");
+  return folded[Math.max(0, items.indexOf(document.activeElement as Element))] ?? null;
+}
 
 export default function TopbarMore({ watchUnseen, setUsageHistoryOpen, setBrowserWatchOpen, onFeedback }: {
   /** Browser Watch's unread findings, which the ⋯ carries while its button is folded. */
@@ -72,6 +84,7 @@ export default function TopbarMore({ watchUnseen, setUsageHistoryOpen, setBrowse
           role="menu"
           labelledBy={MORE_ID}
           start={menu}
+          fallbackFocus={unfolded}
           onClose={() => setMenu(null)}
         >
           <button type="button" role="menuitem" className="ap-menu-item"
