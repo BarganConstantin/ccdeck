@@ -65,6 +65,8 @@ function harness({
   } = {}) => createReporter({
     fetchImpl, now: () => clock, prefs: store, env: over.env ?? env,
     facts: { ...facts, version: over.version ?? version, ...(over.facts ?? {}) }, home: "/home/alice",
+    // Where the harness's deck is installed: the frames of its own errors keep their place in it.
+    root: "/home/alice/.npm/_npx/1/node_modules/ccdeck",
     ...(over.ready ? { ready: over.ready } : {}),
     usage: over.usage ?? tally,
     ...(over.setup ? { setup: over.setup } : {}),
@@ -788,10 +790,11 @@ describe("errors", () => {
     expect(text).not.toContain("sk-ant");
     expect(text).not.toContain("example.com");
     // And the frame still says where: a scrubber that ate the path would leave a
-    // stack nobody can use.
-    expect(String(sent?.body?.stack)).toContain("at save (~/.npm/_npx/1/node_modules/ccdeck/src/server/atomic-write.mjs:40:3)");
+    // stack nobody can use. A frame of the deck's own keeps its place in the
+    // package, and nothing of where the package is (error-report-paths.test.ts).
+    expect(String(sent?.body?.stack)).toContain("at save (ccdeck/src/server/atomic-write.mjs:40:3)");
     expect(sent?.body).toMatchObject({ installId, where: "server", version: "3.32.2", os: "linux", arch: "x64", channel: "npm" });
-    expect(String(sent?.body?.message)).toContain("~/.claude/settings.json");
+    expect(String(sent?.body?.message)).toContain("open '~/.claude/<path>'");
     expect(String(sent?.body?.message)).toContain("<email>");
     expect(String(sent?.body?.message)).toContain("<secret>");
     expect(String(sent?.body?.stack)).toContain(".mjs:40:3");
@@ -830,9 +833,11 @@ describe("errors", () => {
 
 describe("scrubbing", () => {
   it.each([
-    ["/home/alice/x", "~/x"],
-    ["/Users/Bob/Library/ccdeck", "~/Library/ccdeck"],
-    ["C:\\Users\\Bob Smith\\AppData\\ccdeck", "~\\AppData\\ccdeck"],
+    // The user segment goes, and so does the rest: no path outside the deck's
+    // own package leaves (error-report-paths.test.ts has every shape).
+    ["/home/alice/x", "~/<path>"],
+    ["/Users/Bob/Library/ccdeck", "~/<path>"],
+    ["C:\\Users\\Bob Smith\\AppData\\ccdeck", "~\\<path>"],
     ["mail bob@example.org now", "mail <email> now"],
     ["ghp_abcdefghijklmnopqrstuvwxyz0123", "<secret>"],
     ["a plain message 42", "a plain message 42"],
@@ -841,7 +846,7 @@ describe("scrubbing", () => {
   });
 
   it("replaces this user's own home wherever it is", () => {
-    expect(scrub("/srv/homes/alice/work failed", "/srv/homes/alice")).toBe("~/work failed");
+    expect(scrub("/srv/homes/alice/work failed", "/srv/homes/alice")).toBe("~/<path> failed");
   });
 });
 

@@ -11,23 +11,47 @@ const STACK_MAX = 4000;
 /** Noise every browser raises and no bug of ours causes. */
 const IGNORED = [/ResizeObserver loop/i, /^Script error\.?$/i];
 
+// The path and project-folder patterns of `scrub` in server/reports.mjs, the
+// same text (error-report-paths.test.ts holds the two together): see there.
+const NAME = String.raw`[^\s\\/:'"\`<>|?*;,]`;
+const MIDDLE = String.raw`${NAME}(?:[^\\/\r\n:'"\`<>|?*;,]*${NAME})?[\\/]`;
+const LAST = String.raw`[^\s\\/:'"\`<>|?*;,()]+`;
+const TAIL = String.raw`(?:${MIDDLE})*(?:${LAST})?`;
+export const PATH_PATTERN = String.raw`(?<![\w.~/\\\]-])(?:file://(?:/[A-Za-z]:)?[^\s:'"\`<>()]*|~[\\/]${TAIL}|[A-Za-z]:[\\/]${TAIL}|\\\\(?:[?.]\\)?(?:[A-Za-z]:\\)?${TAIL}|/(?=${NAME})${TAIL}|(?<!:)//(?=${NAME})${TAIL})`;
+export const PROJECT_PATTERN = String.raw`(?<![\w-])(?:[A-Za-z]--|-[A-Za-z0-9][\w.]*-)[\w.-]*`;
+const KEPT_HOME_FOLDERS = new Set([".claude", ".codex"]);
+
+/** `<path>`, or `~/<path>` and `~/.claude/<path>` for one under a home folder. */
+function hidePath(path: string): string {
+  if (!path.startsWith("~")) return "<path>";
+  const sep = path[1];
+  const [top, ...rest] = path.slice(2).split(/[\\/]/);
+  if (!top) return path;
+  if (!KEPT_HOME_FOLDERS.has(top)) return `~${sep}<path>`;
+  return rest.join("") ? `~${sep}${top}${sep}<path>` : path;
+}
+
 /**
  * Take out of an error text what could say who someone is, for text that is
  * shown or seeded on the page rather than sent — the crash report the error
  * boundary opens the feedback dialog with (#1853). It mirrors the passes
- * `scrub` in server/reports.mjs makes: this user's kind of home path, anyone
- * else's, email addresses and strings shaped like keys or tokens. That server
- * scrub is still the one that runs on every error the page forwards, and the
- * one the README's promise rests on; this is the same shape done in the browser
- * for the words a person reads before Send — feedback is not scrubbed on its
- * way through the server, so a path must never reach the box in the first place.
- * The browser cannot know the home folder, so the two path patterns carry it
- * rather than an exact replace.
+ * `scrub` in server/reports.mjs makes: home folders, every other path (made
+ * `<path>`), project folders in Claude Code's encoding (`<project>`), email
+ * addresses and strings shaped like keys or tokens. That server scrub is still
+ * the one that runs on every error the page forwards, and the one the README's
+ * promise rests on; this is the same shape done in the browser for the words a
+ * person reads before Send — feedback is not scrubbed on its way through the
+ * server, so a path must never reach the box in the first place. The browser
+ * cannot know the home folder or where the deck is installed, so the home
+ * patterns carry the first, and every path goes — the page's own frames are
+ * addresses, which stay.
  */
 export function scrubReport(text: string): string {
   return String(text ?? "")
     .replace(/\/(?:home|Users)\/[^/\s:'"]+/g, "~")
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
+    .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
+    .replace(new RegExp(PROJECT_PATTERN, "g"), "<project>")
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
     .replace(
       /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+_=-]{48,})/g,

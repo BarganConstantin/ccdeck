@@ -47,11 +47,11 @@ const accounts = read("../components/AccountsPanel.tsx");
 
 describe("scrubReport takes identifying text out of a message shown on the page", () => {
   it.each([
-    // The user segment goes; the tail stays, so a stack still says where — the
-    // same shape the server's scrub keeps (scrubbing, in reports-1853.test.ts).
-    ["/home/alice/x threw", "~/x threw"],
-    ["/Users/Bob/Library/ccdeck", "~/Library/ccdeck"],
-    ["C:\\Users\\Bob Smith\\AppData\\ccdeck", "~\\AppData\\ccdeck"],
+    // The user segment goes, and the rest of the path with it — the same shape
+    // the server's scrub sends (error-report-paths.test.ts has every shape).
+    ["/home/alice/x threw", "~/<path> threw"],
+    ["/Users/Bob/Library/ccdeck", "~/<path>"],
+    ["C:\\Users\\Bob Smith\\AppData\\ccdeck", "~\\<path>"],
     ["mail bob@example.org now", "mail <email> now"],
     ["token sk-ant-abcdefghijklmnop failed", "token <secret> failed"],
     ["ghp_abcdefghijklmnopqrstuvwxyz0123", "<secret>"],
