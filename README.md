@@ -316,6 +316,8 @@ ccdeck [options]
       --claude             Force Claude capture even if Claude Code wasn't found
       --no-claude          Skip Claude entirely — no hooks, no claude-swap,
                            no Accounts panel (Codex only)
+      --ref <name>         The ccdeck.dev page this command was copied from;
+                           sent once, with the first install report
       --uninstall          Remove ccdeck's hooks from settings files, and name
                            the files that still hold this deck's private key
       --purge              With --uninstall: delete those files too
