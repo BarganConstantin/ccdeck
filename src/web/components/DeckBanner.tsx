@@ -13,7 +13,7 @@ import type { useRatingAsk } from "../use-rating-ask";
 import type { useVersionCheck } from "../use-version-check";
 import ConnectionBanner from "./ConnectionBanner";
 import OldNameBanner from "./OldNameBanner";
-import RatingBanner from "./RatingBanner";
+import RatingBanner, { RATING_THANKS } from "./RatingBanner";
 import VersionBanner from "./VersionBanner";
 
 export default function DeckBanner({
@@ -36,8 +36,8 @@ export default function DeckBanner({
   const { version, notice, noticeOpen, dismissNotice } = versionCheck;
   const { upgradeState, startUpgrade, copyCommand, cmdCopied } = upgrade;
   const { oldName, oldNameOpen, dismissOldName } = oldNameNotice;
-  const { ratingPhase, ratingScore, answerRating, rateLater, closeRating } = rating;
-  return (
+  const { ratingPhase, ratingScore, answerRating, rateLater, closeRating, holdThanks } = rating;
+  const row = (
     restartedTo ? (
       // Outranks both: it is the shortest-lived of the three and it answers
       // the question the other two just raised.
@@ -65,8 +65,21 @@ export default function DeckBanner({
       // to act on, and comes back when the row above it goes.
       <RatingBanner
         phase={ratingPhase} score={ratingScore} onAnswer={answerRating} onLater={rateLater} onClose={closeRating}
-        onFeedback={() => { closeRating(); onFeedback(); }}
+        onFeedback={onFeedback} onHold={holdThanks}
       />
     ) : null
+  );
+  return (
+    <>
+      {row}
+      {/* The thanks, said. Mounted whether or not there is anything to say,
+          for the reason App.tsx's removal notice is (#372): words that arrive
+          with their region are the ones screen readers drop, and the thanks
+          used to be the question's own row turned into a live region in the
+          same render as its words. */}
+      <div className="vis-hidden" role="status" aria-atomic="true">
+        {ratingPhase === "thanks" ? RATING_THANKS : ""}
+      </div>
+    </>
   );
 }

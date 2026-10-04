@@ -39,6 +39,8 @@ export function useRatingAsk({ modalOpenRef }: {
 }) {
   const [phase, setPhase] = useState<RatingPhase>("hidden");
   const [score, setScore] = useState<number | null>(null);
+  // Whether focus is in the thanks — see holdThanks.
+  const [held, setHeld] = useState(false);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
 
@@ -62,18 +64,33 @@ export function useRatingAsk({ modalOpenRef }: {
     };
   }, [modalOpenRef]);
 
-  // The thanks goes by itself.
+  // The thanks goes by itself — but never from under somebody. Not while focus
+  // is in it: its offer went with a keyboard reader on it, and focus with it.
+  // And not while a dialog is open, which may be the feedback dialog the offer
+  // opened: that dialog hands focus back to the offer when it closes, and an
+  // offer that had gone in the meantime left focus nowhere. Its time starts
+  // again once focus has left.
   useEffect(() => {
-    if (phase !== "thanks") return;
-    const t = window.setTimeout(() => setPhase("hidden"), score !== null && score <= 6 ? THANKS_LOW_MS : THANKS_MS);
+    if (phase !== "thanks" || held) return;
+    const ms = score !== null && score <= 6 ? THANKS_LOW_MS : THANKS_MS;
+    let t = 0;
+    const end = () => {
+      if (modalOpenRef.current) t = window.setTimeout(end, ms);
+      else setPhase("hidden");
+    };
+    t = window.setTimeout(end, ms);
     return () => window.clearTimeout(t);
-  }, [phase, score]);
+  }, [phase, score, held, modalOpenRef]);
 
   const answerRating = useCallback((picked: number) => {
     setScore(picked);
+    setHeld(false);
     setPhase("thanks");
     void post({ score: picked });
   }, []);
+
+  /** Focus came into the thanks (true), or left it (false). */
+  const holdThanks = useCallback((on: boolean) => setHeld(on), []);
 
   const rateLater = useCallback(() => {
     setPhase("hidden");
@@ -82,5 +99,5 @@ export function useRatingAsk({ modalOpenRef }: {
 
   const closeRating = useCallback(() => setPhase("hidden"), []);
 
-  return { ratingPhase: phase, ratingScore: score, answerRating, rateLater, closeRating };
+  return { ratingPhase: phase, ratingScore: score, answerRating, rateLater, closeRating, holdThanks };
 }
