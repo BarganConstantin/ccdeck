@@ -220,6 +220,11 @@ export const GATES = [
   // Kept out of the block above so the one case is not counted under both
   // gates; the probe is the same one, for the same reason.
   { file: "desktop-updater.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
+  // The macOS updater asked about an app in a folder it cannot write to — a
+  // disk image's mount, a translocated copy, a standard account's
+  // /Applications — which it must not stage an update for, or the swap above
+  // is where it ends up. The same probe, for the same reason.
+  { file: "desktop-update-unreplaceable-app.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
 
   { file: "browser-history.test.ts", gate: "describe.skipIf", condition: "!hasNodeSqlite", sites: 1, cases: 3 },
 

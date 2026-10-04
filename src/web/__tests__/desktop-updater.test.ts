@@ -373,7 +373,8 @@ const deadPid = () => spawnSync(process.execPath, ["-e", ""]).pid!;
  * staged one holding "new" inside the update's work folder, and a bin folder
  * that stands in for what the swap script calls — ditto as `cp -R` (or as
  * whatever `ditto` says), xattr as nothing, and open writing down what it was
- * asked to open. mv, rm, kill and sleep are the system's own.
+ * asked to open. mv, rm, kill and sleep are the system's own. `failed` is
+ * where the script writes a release it could not put in place.
  */
 function swapBed({ folder = "Applications", ditto = 'cp -R "$1" "$2"' } = {}) {
   const root = mkdtempSync(join(tmpdir(), "ccdeck-swap-"));
@@ -394,18 +395,21 @@ function swapBed({ folder = "Applications", ditto = 'cp -R "$1" "$2"' } = {}) {
   mkdirSync(staged, { recursive: true });
   writeFileSync(join(staged, "file"), "new");
   const log = join(root, "opened.log");
+  const failed = join(root, "update-swap-failed");
   return {
-    root, target, staged, work,
+    root, target, staged, work, failed,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, OPEN_LOG: log },
     installed: () => readFileSync(join(target, "file"), "utf8"),
     opened: () => (existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean) : []),
+    failedRelease: () => (existsSync(failed) ? readFileSync(failed, "utf8").trim() : null),
   };
 }
 
 /** The script exactly as installOnExit hands it to /bin/sh, run to the end —
- *  as a restart ("1"), which opens the app afterwards, unless told otherwise. */
+ *  as a restart ("1"), which opens the app afterwards, unless told otherwise —
+ *  installing 3.27.0. */
 const swap = (bed: ReturnType<typeof swapBed>, pid: number, relaunch = "1") =>
-  spawnSync("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), bed.target, bed.staged, bed.work, relaunch], { env: bed.env, encoding: "utf8" });
+  spawnSync("/bin/sh", ["-c", SWAP_SCRIPT, "ccdeck-swap", String(pid), bed.target, bed.staged, bed.work, relaunch, bed.failed, "3.27.0"], { env: bed.env, encoding: "utf8" });
 
 describe.skipIf(process.platform === "win32")("the swap script, run", () => {
   // The step that deletes the installed app, pinned until now by one line of
@@ -428,12 +432,15 @@ describe.skipIf(process.platform === "win32")("the swap script, run", () => {
     // part of what is run.
     const bed = bedFor();
     for (const k of ["PATH", "OPEN_LOG"]) { env[k] = process.env[k]; process.env[k] = bed.env[k]; }
-    installOnExit({ pid: deadPid(), target: bed.target, staged: bed.staged, dir: bed.work, relaunch: true });
+    // A release that failed before: a swap that succeeds forgets it.
+    writeFileSync(bed.failed, "3.26.5\n");
+    installOnExit({ pid: deadPid(), target: bed.target, staged: bed.staged, dir: bed.work, relaunch: true, failed: bed.failed, version: "3.27.0" });
     for (let i = 0; i < 500 && bed.opened().length === 0; i++) await new Promise(r => setTimeout(r, 20));
     expect(bed.opened()).toEqual([bed.target]);
     expect(bed.installed()).toBe("new");
     expect(existsSync(`${bed.target}.ccdeck-old`)).toBe(false);
     expect(existsSync(bed.work)).toBe(false);
+    expect(bed.failedRelease()).toBeNull();
   });
 
   it("leaves the app closed after a plain Quit (#1758)", async () => {
@@ -460,11 +467,15 @@ describe.skipIf(process.platform === "win32")("the swap script, run", () => {
     // A ditto that gets halfway: the half-written bundle has to go before the
     // old one can move back, or the old one ends up INSIDE it.
     const bed = bedFor({ ditto: 'mkdir -p "$2"; echo partial > "$2/file"; exit 1' });
-    swap(bed, deadPid());
+    expect(swap(bed, deadPid()).status).toBe(1);
     expect(bed.installed()).toBe("old");
     expect(existsSync(`${bed.target}.ccdeck-old`)).toBe(false);
     expect(readdirSync(bed.target)).toEqual(["file"]);
     expect(bed.opened()).toEqual([bed.target]);
+    // Written down for the next check, which does not stage 3.27.0 again and
+    // fail the same way every couple of minutes.
+    expect(bed.failedRelease()).toBe("3.27.0");
+    expect(existsSync(bed.work)).toBe(false);
   });
 
   it("touches nothing until the app it replaces has exited", async () => {
@@ -490,7 +501,8 @@ describe.skipIf(process.platform === "win32")("the swap script, run", () => {
 
 describe("the swap script, when the old app cannot be moved", () => {
   // An /Applications the person cannot write to. The script must stop there:
-  // carrying on would copy the new app INTO the old one, and open it.
+  // carrying on would copy the new app INTO the old one, and open it. What it
+  // opens for a restart is the app as it was, which is what was running.
   it.skipIf(!readOnlyDirBlocksWrites)("gives up and leaves the installed app as it was", () => {
     const bed = swapBed();
     chmodSync(dirname(bed.target), 0o555);
@@ -499,7 +511,10 @@ describe("the swap script, when the old app cannot be moved", () => {
       expect(r.status).toBe(1);
       expect(bed.installed()).toBe("old");
       expect(readdirSync(bed.target)).toEqual(["file"]);
-      expect(bed.opened()).toEqual([]);
+      expect(bed.opened()).toEqual([bed.target]);
+      // The download goes, and the release is not tried again.
+      expect(existsSync(bed.work)).toBe(false);
+      expect(bed.failedRelease()).toBe("3.27.0");
     } finally {
       chmodSync(dirname(bed.target), 0o755);
       rmTempDir(bed.root);

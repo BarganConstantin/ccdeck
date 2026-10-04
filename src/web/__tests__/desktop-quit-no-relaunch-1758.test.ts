@@ -19,6 +19,8 @@ vi.mock("../../../desktop/updater-mac.mjs", async (importOriginal) => ({
   stageUpdate: vi.fn(),
   installOnExit: vi.fn(),
   discard: vi.fn(async () => {}),
+  // /Applications/ccdeck.app is not on this disk.
+  canReplace: vi.fn(async () => true),
 }));
 vi.mock("../../../desktop/relaunch-linux.mjs", () => ({ relaunchOnExit: vi.fn() }));
 

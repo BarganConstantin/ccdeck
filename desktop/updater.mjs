@@ -23,14 +23,18 @@
 // update (#1755).
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createPublicKey, verify } from "node:crypto";
-import { bundleOf, checkForUpdate, discard, installOnExit, isNewer, stageUpdate, UPDATE_PUBLIC_KEY, verifyRelease } from "./updater-mac.mjs";
+import { bundleOf, canReplace, checkForUpdate, discard, failedSwap, installOnExit, isNewer, stageUpdate, UPDATE_PUBLIC_KEY, verifyRelease } from "./updater-mac.mjs";
 import { relaunchOnExit } from "./relaunch-linux.mjs";
 
 /** Where releases are published. `releases/latest/download/<file>` is
  *  GitHub's own redirect to the newest release's asset. */
 export const FEED = "https://github.com/BarganConstantin/ccdeck/releases/latest/download";
+
+/** macOS: the file in the app's data folder the swap script names a release
+ *  in when it could not put it in place (updater-mac.mjs SWAP_SCRIPT). */
+const SWAP_FAILED = "update-swap-failed";
 
 /** The installs electron-updater hands to a package manager (#1755): dpkg,
  *  rpm or pacman, run under pkexec or sudo. electron-builder names them in a
@@ -136,10 +140,19 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         set({ status: "checking" });
         const update = await checkForUpdate({ manifestUrl: `${feed}/latest-mac.json`, currentVersion: app.getVersion() });
         if (!update) { set({ status: "current" }); return state; }
-        set({ status: "downloading", version: update.version });
         const runningApp = bundleOf(app.getPath("exe"));
+        // Nothing is staged that the swap cannot put in place: ready, it would
+        // quit the app at the next quiet spell into a swap that fails.
+        if (!(await canReplace(runningApp))) {
+          throw new Error(`ccdeck cannot update itself in ${dirname(runningApp)}, which cannot be written to — move it to Applications`);
+        }
+        const failed = join(app.getPath("userData"), SWAP_FAILED);
+        if (await failedSwap(failed) === update.version) {
+          throw new Error(`ccdeck ${update.version} could not be put in place last time, and is not tried again`);
+        }
+        set({ status: "downloading", version: update.version });
         const s = await stageUpdate(update, { runningApp });
-        staged = { ...s, version: update.version, target: runningApp };
+        staged = { ...s, version: update.version, target: runningApp, failed };
         set({ status: "ready", version: update.version });
       } else {
         await (await setUpAuto()).checkForUpdates();
@@ -161,7 +174,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
   function installOnQuit() {
     if (process.platform === "darwin") {
       if (staged) {
-        installOnExit({ pid: process.pid, target: staged.target, staged: staged.staged, dir: staged.dir, relaunch });
+        installOnExit({ pid: process.pid, target: staged.target, staged: staged.staged, dir: staged.dir, relaunch, failed: staged.failed, version: staged.version });
         staged = null;
       }
       return;
