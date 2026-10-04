@@ -45,6 +45,7 @@ Options:
       --no-codex           Skip Codex capture (Claude only)
       --claude             Force-enable Claude capture even if Claude Code wasn't found
       --no-claude          Skip Claude entirely: no hooks, no claude-swap, no accounts panel
+      --ref <name>         The site page this command was copied from (first run)
       --uninstall          Remove ${PRODUCT}'s hooks from ~/.claude/settings.json and
                            ~/.codex/hooks.json, and restore any sound hooks of yours it parked.
                            Hook entries only: the forwarder script under

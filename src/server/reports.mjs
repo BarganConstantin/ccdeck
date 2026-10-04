@@ -7,7 +7,9 @@
 // WHAT GOES OUT, to api.ccdeck.dev, while `prefs.reports` is true and the
 // machine has not vetoed it (reportsVetoed):
 //
-//   - an "install" event the first time,
+//   - an "install" event the first time, with the ccdeck.dev page its command
+//     was copied from when the command said (`--ref`, install-ref.mjs) — a
+//     page name, never anything about the person,
 //   - an "update" event, with the version it came from, when the version moves,
 //   - an "active" event at most once a UTC day, which is how many people use
 //     ccdeck gets counted without counting anything else about them, and which
@@ -77,6 +79,7 @@ import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 import { FEATURES, usageDay, utcDay } from "./usage-day.mjs";
 import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs";
+import { notedRef, refSlug } from "./install-ref.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -101,7 +104,7 @@ export const UNINSTALL_REASONS = Object.freeze(["not-useful", "too-noisy", "brok
 
 const EMPTY_REPORT = Object.freeze({
   installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
-  installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false,
+  installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "",
 });
 
 /** Is this deck sending reports right now? The switch, which is on unless
@@ -337,6 +340,8 @@ export function scrub(text, home = homedir()) {
  *   boot set up, folded into install, update and active (activation.mjs).
  * @param {() => Promise<unknown>} [deps.setupKnown] what start() waits for besides the
  *   prefs, so the first install event carries the setup. Bounded.
+ * @param {() => string | undefined} [deps.reference] the ref this run's command
+ *   carried (install-ref.mjs), for the install event alone.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -350,6 +355,7 @@ export function createReporter({
   usage = usageDay,
   setup = setupFacts,
   setupKnown = () => whenSetupKnown(),
+  reference = notedRef,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
@@ -388,6 +394,15 @@ export function createReporter({
       return out;
     } catch {
       return {};
+    }
+  }
+
+  /** This run's ref, if it is one. Never throws. */
+  function refNow() {
+    try {
+      return refSlug(reference());
+    } catch {
+      return undefined;
     }
   }
 
@@ -499,8 +514,16 @@ export function createReporter({
     const { installId, lastVersion, lastActiveDay } = prefs.current().report;
     if (!installId) return;
     if (!lastVersion) {
-      if (await call("POST", "/v1/app/events", { installId, kind: "install", ...factsNow(), ...setupNow() })) {
-        await remember(installId, { lastVersion: facts.version });
+      // The site page the command came from: one an earlier try of this install
+      // could not send, else this run's. Kept until the install gets out, then
+      // never again — only a new install has a page to come from.
+      const ref = refSlug(prefs.current().report.ref) ?? refNow();
+      const body = { installId, kind: "install", ...factsNow(), ...setupNow() };
+      addIf(body, "ref", ref);
+      if (await call("POST", "/v1/app/events", body)) {
+        await remember(installId, { lastVersion: facts.version, ref: "" });
+      } else if (ref) {
+        await remember(installId, { ref });
       }
     } else if (lastVersion !== facts.version) {
       if (await call("POST", "/v1/app/events", { installId, kind: "update", fromVersion: lastVersion, ...factsNow(), ...setupNow() })) {
