@@ -18,29 +18,58 @@
 // never a time.
 //
 // The boot (bin/deck.js) is what knows the setup, and it reaches this module
-// through noteSetup. This file imports nothing, so the boot can load it early.
+// through noteSetup. A respawn installs the hooks only when the package changed,
+// so the supervisor carries the first boot's answer down to it (respawnHooksJob).
+// This file imports nothing, so the boot can load it early.
 
 /** Not known yet, until the boot says. */
 let setup = null;
 let settle;
 const known = new Promise(r => { settle = r; });
 
+/** What the boot can say about the Claude hooks. */
+const HOOK_STATES = ["ok", "failed", "off"];
+
+/** A hook job's answer as its token: null is "off" (not attempted), `{ ok }` is
+ *  "ok" or "failed", and a token — the one a respawn was handed down — is kept
+ *  when it is one. Anything else cannot be told, and is left out. */
+function hooksState(job) {
+  if (job == null) return "off";
+  if (typeof job === "string") return HOOK_STATES.includes(job) ? job : undefined;
+  return job.ok ? "ok" : "failed";
+}
+
 /**
  * What the boot set up. `claude` is the hook install job — a promise of null
- * (not attempted), `{ ok: true }` or `{ ok: false }` — or null when Claude is
- * not wanted; `codex` is whether the rollout watcher runs. Never throws, and a
- * job that rejects reads as "failed".
+ * (not attempted), `{ ok: true }` or `{ ok: false }`, or on a respawn the
+ * first boot's token (respawnHooksJob) — or null when Claude is not wanted;
+ * `codex` is whether the rollout watcher runs. Never throws, and a job that
+ * rejects reads as "failed". Resolves to the setup once it is known, for the
+ * boot to hand the hooks' answer to its supervisor.
  */
 export function noteSetup({ claude = null, codex = false } = {}) {
-  Promise.resolve(claude)
-    .then(
-      job => (job == null ? "off" : job.ok ? "ok" : "failed"),
-      () => "failed",
-    )
+  return Promise.resolve(claude)
+    .then(hooksState, () => "failed")
     .then(claudeHooks => {
-      setup = { claudeHooks, codexWatch: codex ? "on" : "off" };
+      setup = { codexWatch: codex ? "on" : "off" };
+      if (claudeHooks) setup.claudeHooks = claudeHooks;
       settle();
+      return { ...setup };
     });
+}
+
+/**
+ * A respawn's hook job, for noteSetup: what this process saw, never a success
+ * it did not. A respawn re-installs the hooks only when the package under the
+ * session has changed (respawnHooks, bin/cli/startup.js), and then it is that
+ * install's own answer. Otherwise it installed nothing, and the answer is the
+ * session's first boot's — `carried`, which the supervisor hands down in
+ * AGENTS_DECK_BOOT_HOOKS — or, under a supervisor that handed nothing down,
+ * none at all.
+ */
+export function respawnHooksJob({ wantClaude, reinstall, carried }) {
+  if (!wantClaude) return null;
+  return Promise.resolve(reinstall).then(job => job ?? String(carried ?? ""));
 }
 
 /** The setup facts, or none while the boot has not said. */
