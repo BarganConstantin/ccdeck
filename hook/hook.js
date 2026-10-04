@@ -942,6 +942,66 @@ function discoverTargets(cwd, cb) {
   normPathAsync(cwd, scan);
 }
 
+// THE DECK REFUSES AN INGEST BODY OVER 5,000,000 CHARACTERS (event-routes.mjs),
+// and every deck has the same cap, so the hand-on below meets the same 413 on
+// each one and the event reaches nobody. Claude Code's PostToolUse for an Edit
+// carries the whole edited file in `tool_response.originalFile`, so editing a
+// file of a few megabytes was enough: the outcome landed on no canvas and in no
+// log, and the turn's end then settled a successful edit as failed. Kept a
+// little under the deck's figure, so the markers that replace what was cut can
+// never carry a trimmed body back over it.
+const MAX_EVENT_CHARS = 4_900_000;
+
+/**
+ * The event as one line under MAX_EVENT_CHARS, or null when cutting its fields
+ * cannot get it there. The biggest values are replaced by a marker saying how
+ * large they were, biggest first and only until it fits; a top-level object is
+ * opened one level, so an Edit keeps its file path and its strings and loses
+ * only `originalFile`. What the deck settles a call by — the event's name, the
+ * session, the tool, the call id, the cwd — is a short scalar and is never what
+ * goes. `serialized` is the event as it would have been sent whole.
+ */
+function withinSizeCap(parsed, serialized) {
+  const out = { ...parsed };
+  const slots = [];
+  for (const [key, value] of Object.entries(out)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const inner = out[key] = { ...value };
+      for (const [k, v] of Object.entries(inner)) slots.push({ holder: inner, key: k, size: JSON.stringify(v)?.length ?? 0 });
+    } else if (typeof value === "string" || Array.isArray(value)) {
+      slots.push({ holder: out, key, size: JSON.stringify(value).length });
+    }
+  }
+  slots.sort((a, b) => b.size - a.size);
+  out.ccdeck_truncated = true;
+  out.ccdeck_truncation_reason = "size";
+  // The two markers above add under 64 characters; the line is measured for
+  // real before it is returned, so this only has to know when to stop.
+  let size = serialized.length + 64;
+  for (const slot of slots) {
+    if (size <= MAX_EVENT_CHARS) break;
+    const marker = { ccdeck_truncated: true, chars: slot.size };
+    slot.holder[slot.key] = marker;
+    size += JSON.stringify(marker).length - slot.size;
+  }
+  const text = JSON.stringify(out);
+  return text.length <= MAX_EVENT_CHARS ? text : null;
+}
+
+/** The event's scalar top-level fields alone, marked as cut and why — what is
+ *  sent when the event cannot be sent whole and nothing gentler fits. */
+function shallowStandIn(parsed, reason) {
+  const shallow = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+      shallow[key] = value;
+    }
+  }
+  shallow.ccdeck_truncated = true;
+  shallow.ccdeck_truncation_reason = reason;
+  return JSON.stringify(shallow);
+}
+
 // JSON.parse can accept nesting that older supported Node releases cannot
 // stringify again. Count structural nesting directly in the original text so
 // the hook never depends on a runtime-specific recursion limit. Strings are
@@ -1088,15 +1148,17 @@ function main() {
         // top-level metadata is safe to copy without walking the deep value,
         // which preserves the event/session/tool identity, canonical cwd and
         // provider while making the loss explicit to the deck. (#1180)
-        const shallow = {};
-        for (const [key, value] of Object.entries(parsed)) {
-          if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
-            shallow[key] = value;
-          }
-        }
-        shallow.ccdeck_truncated = true;
-        shallow.ccdeck_truncation_reason = "serialization-depth";
-        taggedInput = JSON.stringify(shallow);
+        taggedInput = shallowStandIn(parsed, "serialization-depth");
+      }
+      // Too large for any deck to take — the same loss by the other door, and
+      // the same answer: send what fits and say what was cut. See
+      // MAX_EVENT_CHARS.
+      if (taggedInput.length > MAX_EVENT_CHARS) {
+        let fitted = null;
+        // Measuring a field walks it, and a field too deep to serialize throws
+        // here as it did above: the stand-in is the answer for that one too.
+        try { fitted = withinSizeCap(parsed, taggedInput); } catch {}
+        taggedInput = fitted ?? shallowStandIn(parsed, "size");
       }
 
       // See proveTargets for what the other order cost. A record whose pid is
