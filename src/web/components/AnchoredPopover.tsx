@@ -46,6 +46,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { menuMove } from "../menu-keys";
@@ -70,6 +71,10 @@ interface Props {
   /** Which end of a menu focus starts at. ArrowUp on the anchor opens at the
    *  last item, the way a native menu button does. */
   start?: "first" | "last";
+  /** A dialog's first stop, when it is not simply its first control — Done
+   *  rather than the quiet Report this left of it in the issue popover. Left
+   *  unset, useModalDismiss takes the first control. */
+  focusRef?: RefObject<HTMLElement | null>;
   /** Asked to go. By the time this runs, focus has been handed back to the
    *  anchor if it was inside — the caller only has to stop rendering it. */
   onClose: () => void;
@@ -86,7 +91,7 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, boundaryId, id, className, role, labelledBy, start = "first", onClose, children,
+  anchorId, boundaryId, id, className, role, labelledBy, start = "first", focusRef, onClose, children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -99,7 +104,7 @@ export default function AnchoredPopover({
   const ref = useModalDismiss<HTMLDivElement>(() => {
     document.getElementById(anchorId)?.focus();
     closeRef.current();
-  }, { popover: true });
+  }, { popover: true, focusRef });
 
   const place = useCallback(() => {
     const el = ref.current;
