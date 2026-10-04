@@ -38,7 +38,8 @@
 //     unanswered (rating.mjs),
 //   - errors: a request handler that threw on this server, or an error the page
 //     caught, with every path outside the deck's own package, project folder
-//     names, the host of every address, email addresses and key-shaped strings
+//     names, the host of every web address, every IP address and the machine
+//     name a network error carries, email addresses and key-shaped strings
 //     scrubbed out before they leave (see scrub),
 //   - a "ping" heartbeat, every ten minutes or so while the deck runs, which
 //     moves the install's "last seen" so the admin can show who is online now,
@@ -392,6 +393,33 @@ function hideOrigin(_origin, scheme, assets) {
   return assets ? "<deck>" : `${scheme}://<host>`;
 }
 
+const OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
+const IPV4 = String.raw`${OCTET}(?:\.${OCTET}){3}`;
+const HEX = String.raw`[0-9A-Fa-f]{1,4}`;
+/** An IPv6 address: compressed with a `::` or all eight groups there, with a
+ *  digit in it (`Face::Add` is code), an IPv4 address allowed at its end
+ *  (`::ffff:192.168.1.5`), and a port Node glues on with no brackets
+ *  (`fd7a:115c::5:4317`) taken along, since nothing tells it from the last group. */
+const IPV6 = String.raw`(?=[0-9A-Fa-f:]*\d)(?=[0-9A-Fa-f:]*::|(?:${HEX}:){7})(?:(?:${HEX})?:)+(?:${IPV4}|${HEX})?`;
+const ZONE = String.raw`%[\w-]+(?:\.[\w-]+)*`;
+/** The loopback and the any-address, plain or mapped: they name nobody. */
+const KEPT_IPV6 = String.raw`(?:::1?|::ffff:(?:127(?:\.\d{1,3}){3}|0\.0\.0\.0))`;
+
+/** Every IPv4 and IPv6 address, bracketed or bare, but the loopback and the
+ *  any-address, so `connect ECONNREFUSED 127.0.0.1:4317` stays readable. Not a
+ *  version: an IPv4 address is four parts, never one after a slash
+ *  (`Chrome/130.0.0.0`) or a dash (`node-22.18.0`). */
+export const ADDRESS_PATTERN = String.raw`(?<![\w:.%-])(?:\[(?!${KEPT_IPV6}\])${IPV6}(?:${ZONE})?\]|(?!${KEPT_IPV6}(?::\d{1,5})?(?![\w:%]|\.\d))${IPV6}(?:${ZONE})?(?![\w%]|\.\d))|(?<![\w./-])(?!127\.|0\.0\.0\.0\b)${IPV4}(?![\w-]|\.\d)`;
+
+/** A host name, with a letter in it somewhere: one of all digits is an IPv4 address. */
+const HOST = String.raw`(?=[\w.-]*[A-Za-z])[A-Za-z0-9][\w-]*(?:\.[\w-]+)*`;
+/** A host name where a network error puts one: after a DNS or connect failure
+ *  (`getaddrinfo ENOTFOUND bobs-pc`), glued to a port (`bobs-pc:4317`), or
+ *  ending in a local-network suffix (.local, .lan, .home, .internal, .ts.net).
+ *  Not localhost, and not a file:line:col frame: a port has no second number
+ *  after it. */
+export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w))(?:(?<=\b(?:(?:getaddrinfo|connect) E[A-Z_]+|ENOTFOUND|EAI_AGAIN) )${HOST}|${HOST}(?=:\d{1,5}(?![\w:-]|\.\w))|${HOST}\.(?:local|lan|home|internal|ts\.net)(?![\w-]|\.\w))`;
+
 const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Every spelling of `dir` a stack or a message can use — the path, and the
@@ -418,13 +446,19 @@ function spellings(dir) {
  * by (`http://alices-macbook.local:4317/assets/…`); they become `<deck>/assets/…`,
  * which still says where in the bundle and reads the same on every machine, and
  * any other address keeps its scheme and path and loses its host (hideOrigin).
+ * An address with no scheme in front goes the same way: every IPv4 and IPv6
+ * address (ADDRESS_PATTERN), and a host name where a network error puts one
+ * (HOST_PATTERN: `getaddrinfo ENOTFOUND bobs-pc.local`, `bobs-pc:4317`), becomes
+ * `<host>`, a port kept apart from it left in place. The loopback and the
+ * any-address stay — `connect ECONNREFUSED 127.0.0.1:4317` names nobody, and
+ * says which port.
  *
  * The catch-all for long opaque strings deliberately stops at a slash: with one
  * in it, the pattern swallowed every long file path, and a stack whose frames
  * read `at save (~/.<secret>.mjs:40:3)` tells nobody where the bug is.
  * The API scrubs again;
- * this is the pass that means it never has to: paths, project folders, hosts,
- * email addresses, and strings shaped like keys and tokens.
+ * this is the pass that means it never has to: paths, project folders, hosts
+ * and addresses, email addresses, and strings shaped like keys and tokens.
  */
 export function scrub(text, home = homedir(), root = PKG_ROOT) {
   let out = String(text ?? "");
@@ -440,6 +474,8 @@ export function scrub(text, home = homedir(), root = PKG_ROOT) {
     .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
     .replace(new RegExp(PROJECT_PATTERN, "g"), "<project>")
     .replace(new RegExp(ORIGIN_PATTERN, "g"), hideOrigin)
+    .replace(new RegExp(ADDRESS_PATTERN, "g"), "<host>")
+    .replace(new RegExp(HOST_PATTERN, "g"), "<host>")
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
     .replace(
       /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+_=-]{48,})/g,

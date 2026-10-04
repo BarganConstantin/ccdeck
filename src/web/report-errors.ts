@@ -42,14 +42,27 @@ function hideOrigin(_origin: string, scheme: string, assets?: string): string {
   return assets ? "<deck>" : `${scheme}://<host>`;
 }
 
+// The bare-address and host-name patterns of `scrub`, the same text
+// (error-report-addresses.test.ts holds the two together): see there.
+const OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
+const IPV4 = String.raw`${OCTET}(?:\.${OCTET}){3}`;
+const HEX = String.raw`[0-9A-Fa-f]{1,4}`;
+const IPV6 = String.raw`(?=[0-9A-Fa-f:]*\d)(?=[0-9A-Fa-f:]*::|(?:${HEX}:){7})(?:(?:${HEX})?:)+(?:${IPV4}|${HEX})?`;
+const ZONE = String.raw`%[\w-]+(?:\.[\w-]+)*`;
+const KEPT_IPV6 = String.raw`(?:::1?|::ffff:(?:127(?:\.\d{1,3}){3}|0\.0\.0\.0))`;
+export const ADDRESS_PATTERN = String.raw`(?<![\w:.%-])(?:\[(?!${KEPT_IPV6}\])${IPV6}(?:${ZONE})?\]|(?!${KEPT_IPV6}(?::\d{1,5})?(?![\w:%]|\.\d))${IPV6}(?:${ZONE})?(?![\w%]|\.\d))|(?<![\w./-])(?!127\.|0\.0\.0\.0\b)${IPV4}(?![\w-]|\.\d)`;
+const HOST = String.raw`(?=[\w.-]*[A-Za-z])[A-Za-z0-9][\w-]*(?:\.[\w-]+)*`;
+export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w))(?:(?<=\b(?:(?:getaddrinfo|connect) E[A-Z_]+|ENOTFOUND|EAI_AGAIN) )${HOST}|${HOST}(?=:\d{1,5}(?![\w:-]|\.\w))|${HOST}\.(?:local|lan|home|internal|ts\.net)(?![\w-]|\.\w))`;
+
 /**
  * Take out of an error text what could say who someone is, for text that is
  * shown or seeded on the page rather than sent — the crash report the error
  * boundary opens the feedback dialog with (#1853). It mirrors the passes
  * `scrub` in server/reports.mjs makes: home folders, every other path (made
  * `<path>`), project folders in Claude Code's encoding (`<project>`), the host
- * of every address (`<deck>`, `<host>`), email addresses and strings shaped
- * like keys or tokens. That server scrub is still the one that runs on every
+ * of every address (`<deck>`, `<host>`), every bare IP address and the machine
+ * name a network error carries (`<host>`, the loopback kept), email addresses
+ * and strings shaped like keys or tokens. That server scrub is still the one that runs on every
  * error the page forwards, and the one the README's promise rests on; this is
  * the same shape done in the browser for the words a person reads before Send —
  * feedback is not scrubbed on its way through the server, so a path must never
@@ -65,6 +78,8 @@ export function scrubReport(text: string): string {
     .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
     .replace(new RegExp(PROJECT_PATTERN, "g"), "<project>")
     .replace(new RegExp(ORIGIN_PATTERN, "g"), hideOrigin)
+    .replace(new RegExp(ADDRESS_PATTERN, "g"), "<host>")
+    .replace(new RegExp(HOST_PATTERN, "g"), "<host>")
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
     .replace(
       /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+_=-]{48,})/g,
