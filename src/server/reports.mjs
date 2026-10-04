@@ -31,6 +31,11 @@
 //   - an "activated" event, once, when a new install's first session arrives:
 //     how long after the install it came, as a bucket ("5m", "1h", "1d", "7d",
 //     "later"), and whether it was a Claude or a Codex session (activation.mjs),
+//   - a "rated" event, once, if somebody answers the one question the deck asks
+//     about itself after about a week of use — "How useful is ccdeck to you?" —
+//     with the number picked, 0 to 10, and how many days the deck had been used
+//     as a range ("7-13", "30-89"); nothing for a question put off or left
+//     unanswered (rating.mjs),
 //   - errors: a request handler that threw on this server, or an error the page
 //     caught, with home folders, email addresses and key-shaped strings
 //     scrubbed out before they leave,
@@ -90,6 +95,7 @@ import { notedRef, refSlug } from "./install-ref.mjs";
 import {
   CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, launchBucket, memoryBucket, updateVia,
 } from "./depth-facts.mjs";
+import { daysUsedBucket, normaliseRating, ratingDue, scoreOf } from "./rating.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -115,6 +121,7 @@ export const UNINSTALL_REASONS = Object.freeze(["not-useful", "too-noisy", "brok
 const EMPTY_REPORT = Object.freeze({
   installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
   installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "", selfUpdate: null,
+  rating: normaliseRating(null),
 });
 
 /** Is this deck sending reports right now? The switch, which is on unless
@@ -362,6 +369,8 @@ export function scrub(text, home = homedir()) {
  *   sampled on the heartbeat's beat for the usage day's peak.
  * @param {boolean} [deps.npx] this copy runs out of an npx cache, which is how an
  *   npm install that changed version under it updated.
+ * @param {() => number} [deps.uptime] how long this deck has been up, in ms: the
+ *   question about the deck is never asked in the minutes after a launch.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -380,6 +389,7 @@ export function createReporter({
   launchedIn = () => process.uptime() * 1000,
   memory = () => process.memoryUsage.rss(),
   npx = false,
+  uptime = () => process.uptime() * 1000,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
@@ -608,6 +618,7 @@ export function createReporter({
       }
     }
     await sendActivation();
+    await sendRating();
     await saveUsage();
   }
 
@@ -649,6 +660,62 @@ export function createReporter({
       await remember(p.report.installId, { selfUpdate: { from: facts.version, at: now().toISOString() } });
     } catch {
       // Unsaid, the update is credited to its channel instead.
+    }
+  }
+
+  /** The answer to the deck's one question, said once — tried again at the next
+   *  check-in when it cannot get through. The score and how long the deck had
+   *  been used, as a range; nothing else about the question ever leaves. */
+  async function sendRating() {
+    const p = prefs.current();
+    const r = p.report;
+    if (!reportsOn(p, env) || !r.installId || r.rating.score === null || r.rating.sent) return;
+    const days = usage.daysUsed?.() ?? 0;
+    const body = { installId: r.installId, kind: "rated", ...factsNow(), score: r.rating.score, daysUsed: daysUsedBucket(days) };
+    if (await call("POST", "/v1/app/events", body)) {
+      await remember(r.installId, { rating: { ...prefs.current().report.rating, sent: true } });
+    }
+  }
+
+  /** Should the page ask "How useful is ccdeck to you?" now? Only while reports
+   *  are on and there is an install to send the answer under (rating.mjs says
+   *  the rest). Never throws. */
+  function ratingAsk() {
+    try {
+      const p = prefs.current();
+      if (!reportsOn(p, env) || !p.report.installId) return false;
+      return ratingDue(p.report.rating, usage.daysUsed?.() ?? 0, now(), uptime());
+    } catch {
+      return false;
+    }
+  }
+
+  /** The question answered: kept, then sent. A second answer, from a second tab,
+   *  changes nothing. Resolves to whether it was kept; never throws. */
+  async function rate(score) {
+    try {
+      const picked = scoreOf(score);
+      const p = prefs.current();
+      if (picked === null || !reportsOn(p, env) || !p.report.installId || p.report.rating.score !== null) return false;
+      await remember(p.report.installId, { rating: { ...p.report.rating, score: picked, sent: false } });
+      await sendRating();
+      return prefs.current().report.rating.score === picked;
+    } catch {
+      return false;
+    }
+  }
+
+  /** "Not now": the question waits a month, and after the second time it stops.
+   *  Resolves to whether it was kept; never throws. */
+  async function rateLater() {
+    try {
+      const p = prefs.current();
+      const r = p.report.rating;
+      if (!reportsOn(p, env) || !p.report.installId || r.score !== null) return false;
+      await remember(p.report.installId, { rating: { ...r, later: r.later + 1, laterAt: now().toISOString() } });
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -793,7 +860,7 @@ export function createReporter({
 
   return {
     checkIn, ping, setReports, reportError, restoreUsage, saveUsage, sendActivation, willReport, reportUninstall,
-    noteSelfUpdate, start, stop,
+    noteSelfUpdate, ratingAsk, rate, rateLater, sendRating, start, stop,
   };
 }
 
