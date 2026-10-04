@@ -49,11 +49,9 @@ const OUTSIDE: [string, string][] = [
   ["projects/-mnt-work-acme/0f8f.jsonl is empty", "projects/<project>/0f8f.jsonl is empty"],
 ];
 
-/** What must come through untouched: the page's own frames, addresses, Node's internals, plain words. */
+/** What must come through untouched: Node's internals, plain words. An address
+ *  loses its host and keeps its path, never made `<path>`: error-report-origins.test.ts. */
 const KEPT: string[] = [
-  "    at Inner (http://127.0.0.1:4317/assets/index-B3x9.js:12:345)",
-  "    at Inner (http://[::1]:4317/assets/index-B3x9.js:12:345)",
-  "POST https://api.ccdeck.dev/v1/app/errors failed",
   "    at async open (node:internal/fs/promises:638:11)",
   "    at new Promise (<anonymous>)",
   "Cannot read properties of undefined (reading 'agents')",
