@@ -42,7 +42,7 @@ import { withStoreLock } from "./store-lock.mjs";
 // read off the store. The roster puts them on each row; verdictNow and
 // verdictsNow are re-exported because cswap-admin.mjs and lan-deck.mjs reach
 // them through this module.
-import { verdictFor } from "./claude-verdicts.mjs";
+import { verdictFor, verdictsAskedAt } from "./claude-verdicts.mjs";
 export { verdictNow, verdictsNow } from "./claude-verdicts.mjs";
 // Asking claude-swap to collect, which every roster read does when something is
 // due, and when each account will next be read.
@@ -530,7 +530,9 @@ function rosterRow({ seq, num, acct, row, identity, now, key, origin = null }) {
   ].filter(Boolean);
 
   const collector = verdictFor(num, now, acct.email, acct.organizationUuid);
-  const reauth = reauthFor({ entry: origin, trouble, collector, fetchedAt: fetchedAtMs, attemptedAt: attemptedAtMs });
+  const reauth = reauthFor({
+    entry: origin, trouble, collector, fetchedAt: fetchedAtMs, attemptedAt: attemptedAtMs, verdictAt: verdictsAskedAt(),
+  });
   return {
     num:      Number(num),
     email:    acct.email ?? null,

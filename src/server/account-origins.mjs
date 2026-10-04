@@ -183,11 +183,18 @@ export function needsSignIn(trouble, collector) {
  * the new login has not happened yet, and saying "expired" over a sign-in that
  * just succeeded is the one moment this must stay quiet.
  */
-export function reauthFor({ entry, trouble, collector, fetchedAt = null, attemptedAt = null }) {
+export function reauthFor({ entry, trouble, collector, fetchedAt = null, attemptedAt = null, verdictAt = null }) {
   if (entry?.origin !== SIGNED_IN_HERE) return null;
   if (!needsSignIn(trouble, collector)) return null;
   const signedInAt = entry.signedInAt ?? 0;
   if (!Number.isFinite(attemptedAt) || attemptedAt <= signedInAt) return null;
+  // A collector that stopped is a dead login only on claude-swap's own
+  // verdict, and a verdict asked before the last sign-in here is about the
+  // login that sign-in replaced. Without this, the first collection after a
+  // re-sign-in — which stamps its attempt as it claims the slot, long before
+  // it records anything — read as a refusal of the new login, on a row whose
+  // last good read is still from before (`cswap add` does not move it).
+  if (trouble?.kind === "stopped" && !(Number.isFinite(verdictAt) && verdictAt > signedInAt)) return null;
   const since = Math.floor(Math.max(Number.isFinite(fetchedAt) ? fetchedAt : 0, signedInAt));
   return { since, dismissed: entry.dismissed === since };
 }
