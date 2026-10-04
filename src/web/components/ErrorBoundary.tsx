@@ -17,6 +17,7 @@
 // with is scrubbed here, because feedback is not scrubbed on its way through the
 // server and the words are on screen before Send — see report-errors' scrubReport.
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { isEscapeKey, modalStack } from "../modal-dismiss";
 import { forwardCaughtError, scrubReport } from "../report-errors";
 import FeedbackDialog from "./FeedbackDialog";
 
@@ -65,6 +66,25 @@ export default class ErrorBoundary extends Component<Props, State> {
     console.error("ccdeck hit a render error it could not draw past", error, info.componentStack);
     this.setState({ componentStack: info.componentStack ?? null });
     forwardCaughtError(error.message, error.stack);
+  }
+
+  // Escape, for the report dialog. A modal hears it only through
+  // modalStack.dismissTop(), and the one listener that calls that is in
+  // use-deck-shortcuts.ts, which went down with the tree this pane replaced —
+  // so the pane answers the key itself while its dialog is open, and only
+  // then: while the deck runs, that listener is Escape's one owner.
+  private readonly onKey = (e: KeyboardEvent) => {
+    if (isEscapeKey(e.key)) modalStack.dismissTop();
+  };
+
+  componentDidUpdate(_prev: Props, prevState: State): void {
+    if (this.state.reportOpen === prevState.reportOpen) return;
+    if (this.state.reportOpen) window.addEventListener("keydown", this.onKey);
+    else window.removeEventListener("keydown", this.onKey);
+  }
+
+  componentWillUnmount(): void {
+    window.removeEventListener("keydown", this.onKey);
   }
 
   render(): ReactNode {
