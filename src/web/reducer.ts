@@ -18,8 +18,8 @@
 //
 // The rest of the client imports what it reads of these from here.
 import { extractModel } from "./payload-model";
-import { initialState, type GraphState } from "./graph-state";
-import { noteKeyedSubagent, resolveOwner } from "./agent-attribution";
+import { initialState, rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
+import { explicitSubagentKey, noteKeyedSubagent, resolveOwner } from "./agent-attribution";
 import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, noteSessionHeard } from "./session-lifecycle";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
 import { applyPreToolUse, applyToolOutcome, returnLentCalls } from "./tool-calls";
@@ -141,8 +141,13 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
 
   // Snapshot model whenever it shows up in the payload — we want the most
   // recent observation per owner since either CLI can switch models mid-session.
+  // Only onto the agent the payload itself names, though: a payload naming
+  // nobody carries the root's model (the CLI's, or the one pushEvent stamped),
+  // and the stack handing it to a subagent does not make it the subagent's.
   const observedModel = extractModel(p);
-  if (observedModel) owner.model = observedModel;
+  const namedKey = explicitSubagentKey(p);
+  const named = namedKey ? subagentIdFor(sessionId, namedKey) : rootAgentId(sessionId);
+  if (observedModel && owner.id === named) owner.model = observedModel;
 
   switch (name) {
     case "SessionStart": applySessionStart(state, p, sessionId, now); break;
