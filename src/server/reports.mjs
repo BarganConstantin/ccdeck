@@ -239,16 +239,38 @@ function intlLocale() {
 }
 
 /** The shell as a bare name — "zsh", "bash", "fish". `SHELL` names it on POSIX;
- *  on Windows there is no `SHELL` (unless a Git-Bash-style one set it), so the
- *  hints are PowerShell's `PSModulePath` and cmd's `ComSpec`. */
+ *  on Windows there is no `SHELL` (unless a Git-Bash-style one set it), so it is
+ *  read off what each shell leaves for what it starts (windowsShell). */
 export function shellToken(env = process.env, platform = process.platform) {
   const sh = env?.SHELL;
   if (sh) return token(baseName(sh), TOKEN_CAPS.shell);
-  if (platform === "win32") {
-    if (env?.PSModulePath) return "pwsh";
-    const comSpec = env?.ComSpec ?? env?.COMSPEC;
-    return comSpec ? token(baseName(comSpec), TOKEN_CAPS.shell) : "cmd";
-  }
+  if (platform === "win32") return windowsShell(env);
+  return undefined;
+}
+
+/**
+ * The Windows shell that started the deck — "pwsh", "powershell", "cmd" — or
+ * nothing when it cannot be told.
+ *
+ * Not `PSModulePath` being set, nor `ComSpec`: Windows sets both machine-wide,
+ * so every process has them — cmd.exe, Windows PowerShell, and the desktop app
+ * started from the Start menu — and every Windows deck used to say "pwsh".
+ * What PowerShell adds for what it starts is its user module folder, under the
+ * user's profile: Documents\PowerShell\Modules for PowerShell 7,
+ * Documents\WindowsPowerShell\Modules for Windows PowerShell. cmd.exe defines
+ * `PROMPT`. PowerShell is asked first, because npm's .cmd shim runs through
+ * cmd.exe even from a PowerShell prompt.
+ */
+function windowsShell(env) {
+  const profile = String(env?.USERPROFILE ?? "").replace(/[\\/]+$/, "").toLowerCase();
+  const userModules = profile
+    ? String(env?.PSModulePath ?? "").split(";")
+      .map(p => p.trim().replace(/[\\/]+$/, "").toLowerCase())
+      .filter(p => p.startsWith(`${profile}\\`) || p.startsWith(`${profile}/`))
+    : [];
+  if (userModules.some(p => /[\\/]powershell[\\/]modules$/.test(p))) return "pwsh";
+  if (userModules.some(p => /[\\/]windowspowershell[\\/]modules$/.test(p))) return "powershell";
+  if (env?.PROMPT) return token(baseName(env?.ComSpec ?? env?.COMSPEC ?? "cmd"), TOKEN_CAPS.shell) ?? "cmd";
   return undefined;
 }
 

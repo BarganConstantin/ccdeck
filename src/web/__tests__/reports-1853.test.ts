@@ -897,8 +897,9 @@ describe("what an install says about itself", () => {
     expect(localeToken({}, "en-GB")).toBe("en-GB");
     // Shell: the basename of $SHELL on POSIX; a Windows hint otherwise.
     expect(shellToken({ SHELL: "/usr/bin/zsh" }, "linux")).toBe("zsh");
-    expect(shellToken({ PSModulePath: "C:\\x" }, "win32")).toBe("pwsh");
-    expect(shellToken({ ComSpec: "C:\\Windows\\System32\\cmd.exe" }, "win32")).toBe("cmd");
+    // (PSModulePath and ComSpec alone are machine-wide: shell-token-windows.)
+    expect(shellToken({ USERPROFILE: "C:\\Users\\Bob", PSModulePath: "C:\\Users\\Bob\\Documents\\PowerShell\\Modules" }, "win32")).toBe("pwsh");
+    expect(shellToken({ ComSpec: "C:\\Windows\\System32\\cmd.exe", PROMPT: "$P$G" }, "win32")).toBe("cmd");
     // Terminal: TERM_PROGRAM, tokenised; then Windows Terminal; then TERM.
     expect(termToken({ TERM_PROGRAM: "Apple Terminal" })).toBe("Apple_Terminal");
     expect(termToken({ WT_SESSION: "abc" })).toBe("Windows_Terminal");
