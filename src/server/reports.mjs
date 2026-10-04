@@ -79,8 +79,9 @@
 // NOTHING HERE THROWS OR WAITS FOR ANYBODY. A report that cannot be sent is
 // dropped: it is a nicety for the people who make ccdeck, and no part of the
 // deck depends on it. An event a check-in owes is tried again on the heartbeat,
-// less often the longer the API stays out of reach; one the API refuses (a
-// 4xx) is not sent again, since the same body would be refused the same way.
+// less often the longer the API stays out of reach; one the API itself refuses
+// (its 400, 413 or 422 problem+json) is not sent again, since the same body would
+// be refused the same way. A 4xx the edge in front of it answers with is tried again.
 
 import { createHash, randomUUID } from "node:crypto";
 import { arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, totalmem } from "node:os";
@@ -612,9 +613,9 @@ export function createReporter({
     }
   }
 
-  /** What became of a send: "sent"; "refused", a 4xx — the API saying no to
-   *  this body, which it will say again to the same body, so it is final; or
-   *  "failed" — no answer, a 5xx, a 408 or a 429, which are worth another try. */
+  /** What became of a send: "sent"; "refused" — the API saying no to this body,
+   *  which it will say again to the same body, so it is final; or "failed" —
+   *  anything else, worth another try. */
   async function call(method, path, body) {
     try {
       const res = await fetchImpl(REPORTS_API + path, {
@@ -625,9 +626,24 @@ export function createReporter({
       });
       if (res.ok) return "sent";
       if (res.status === 429 || res.status === 503) waitAsAsked(res);
-      return res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429 ? "refused" : "failed";
+      return refusedByApi(res) ? "refused" : "failed";
     } catch {
       return "failed";
+    }
+  }
+
+  /** Whether an answer is the API's own verdict on the body: a 400, 413 or 422
+   *  it wrote as application/problem+json, the only way it turns a body down.
+   *  Any other 4xx — a 403 or 404 Cloudflare answers with itself (a challenge,
+   *  a rule, a tunnel being moved), a proxy's 401 — says nothing about the body,
+   *  and a later try can get through, so it is tried again like a 5xx. */
+  function refusedByApi(res) {
+    try {
+      if (res.status !== 400 && res.status !== 413 && res.status !== 422) return false;
+      const type = String(res.headers?.get?.("content-type") ?? "").toLowerCase();
+      return type.split(";")[0].trim() === "application/problem+json";
+    } catch {
+      return false;
     }
   }
 
@@ -782,7 +798,7 @@ export function createReporter({
       const ref = refSlug(prefs.current().report.ref) ?? refNow();
       const body = { installId, kind: "install", ...factsNow(), ...setupNow() };
       addIf(body, "ref", ref);
-      // Refused is as done as sent: the same body would be refused again.
+      // Refused by the API is as done as sent: the same body would be refused again.
       if (settled(await call("POST", "/v1/app/events", body))) {
         await remember(installId, { lastVersion: facts.version, ref: "" });
       } else if (ref) {
