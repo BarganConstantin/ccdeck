@@ -97,14 +97,18 @@ const MIN = 60_000;
 // good reading — which is the thing a switch has to throw away.
 const STORE_AGE = 40 * MIN;
 
+// Both windows still running: a row from before its own reset is not
+// served as the reading at all (quota-lapsed-reading.test.ts).
+const ahead = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+
 /** claude-swap's row for whichever account is active, collected `ageMs` ago. */
 const row = (num: number, pct: number, ageMs = STORE_AGE) => ({
   num,
   email: `account-${num}@b.c`,
   fetchedAt: Date.now() - ageMs,
   lastGood: {
-    five_hour: { pct, resets_at: "2026-08-14T18:00:00Z" },
-    seven_day: { pct: Math.round(pct / 3), resets_at: "2026-08-19T04:00:00Z" },
+    five_hour: { pct, resets_at: ahead(3) },
+    seven_day: { pct: Math.round(pct / 3), resets_at: ahead(96) },
   },
 });
 

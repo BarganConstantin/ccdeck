@@ -53,7 +53,7 @@
 // quota-oauth.mjs's; running source 3 is quota-cli.mjs's; and the store path's
 // reset inventory is quota-store-resets.mjs's.
 import { activeAccountUsage, requestCollection } from "./claude-accounts.mjs";
-import { quotaFromStore, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
+import { quotaFromStore, readingLapsed, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
 import {
   SELF_POLL_MS, clearCooldown, coolingDown, cooldownUntil, fetchOAuthUsage, hasSubscriptionCredential,
 } from "./quota-oauth.mjs";
@@ -149,7 +149,9 @@ export const QUOTA_DEADLINE_MS = 5_000;
  */
 export async function fetchClaudeQuota({ force = false, deadlineMs = 0 } = {}) {
   const now = Date.now();
-  if (!force && _cache && now - _cacheAt < CACHE_MS) return _cache;
+  // Not a reading whose window has reset since it was cached, though: inside
+  // the minute it is still the newest answer, and it is no longer a true one.
+  if (!force && _cache && now - _cacheAt < CACHE_MS && !readingLapsed(_cache, now)) return _cache;
 
   // If another CLI probe is already in flight, wait for it instead of spawning a
   // second concurrent process (which can return empty output and overwrite the
@@ -363,7 +365,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   // Refresh asks for newer numbers, and the honest way to get them from this
   // source is to ask the collector that owns it — which applies its own
   // schedule and backoff, so this cannot become a poll loop.
-  if (force && (!store || now - store.fetchedAt > FORCE_POLL_MS)) {
+  if (force && (!store || now - store.fetchedAt > FORCE_POLL_MS || readingLapsed(store, now))) {
     store = await nudgeAndReread(store);
   }
   if (store && now - store.fetchedAt <= STORE_TRUSTED_MS) {
@@ -373,10 +375,18 @@ async function _doFetch(now, force = false, gen = _generation) {
     // throttle inside is shared with the accounts panel, so two open panels
     // ask no more often than one.
     if (!force) requestCollection().catch(() => {});
-    // The saved limit resets are the one thing the store cannot say. Read
-    // behind this answer, never in front of it; see refreshStoreResetCredits.
-    refreshStoreResetCredits({ now, force, account: _accountOfReading.get(store) });
-    return publish(gen, store, now, { good: true });
+    // A row collected before its window reset is recent and still wrong: the
+    // 45 minutes it is trusted for are long enough to hold a 5-hour reset,
+    // and claude-swap's rows get that old exactly when its collector is
+    // backing off. It is not the answer, so the read goes on below like one
+    // for a row that is too old, and the row stays to be held if nothing
+    // newer turns up.
+    if (!readingLapsed(store, now)) {
+      // The saved limit resets are the one thing the store cannot say. Read
+      // behind this answer, never in front of it; see refreshStoreResetCredits.
+      refreshStoreResetCredits({ now, force, account: _accountOfReading.get(store) });
+      return publish(gen, store, now, { good: true });
+    }
   }
 
   // Nothing usable in the store. Everything below spends the user's budget, so
@@ -415,9 +425,12 @@ async function _doFetch(now, force = false, gen = _generation) {
   // now" over percentages collected hours earlier for one poll in five, then let
   // the label snap back to the true age: an age indicator that oscillates, and
   // vouches for numbers this branch already knows are stale. Short-cache so we
-  // retry the CLI again soon.
-  if (_lastGood) {
-    return publish(gen, { ..._lastGood, stale: true }, shortLived(now));
+  // retry the CLI again soon. The store's row is a candidate too, as it is on
+  // the floor above: a row passed over because its window reset is still the
+  // last thing claude-swap read, and stale says what it is.
+  const held = freshest(store, _lastGood);
+  if (held) {
+    return publish(gen, { ...held, stale: true }, shortLived(now));
   }
 
   // Never had good data. A CLI that RAN and printed no quota lines is two

@@ -146,6 +146,20 @@ export function quotaFromStore(entry) {
   return out;
 }
 
+/**
+ * Whether a window this reading measured has reset since it was taken: its
+ * reset instant is at or before `now`, so the percentage beside it belongs to a
+ * window that is over, and a new one has started near empty.
+ *
+ * Both windows, because both end: a reading from before a weekly reset is as
+ * wrong about the week as one from before a 5-hour reset is about the session.
+ * A window with no reset instant cannot be said to have passed it.
+ */
+export function readingLapsed(reading, now) {
+  const past = (at) => typeof at === "number" && at * 1000 <= now;
+  return past(reading?.session5hResetAt) || past(reading?.week7dResetAt);
+}
+
 // Parse "Jun 18, 4:09pm" (local time, no tz) into unix seconds.
 // Claude shows times in the user's local timezone, so parsing as local is correct.
 // `now` is injectable so the year-boundary case is testable.
