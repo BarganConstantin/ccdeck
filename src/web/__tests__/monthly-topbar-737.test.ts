@@ -104,11 +104,13 @@ describe("month-to-date topbar usage (#737)", () => {
   it("drops the ribbon's cost exactly where its cap is held under the usual one", () => {
     // Where min(380px, 24vw) takes over again the ribbon is its usual self, cost
     // and all. Short of that the name gets the room, and the cost stays on the
-    // card, in the detail panel and in the ribbon's own title.
+    // card, in the detail panel and in the ribbon's own title. Under 1040 too,
+    // with no lower bound: there the controls leave the ribbon short of 24vw,
+    // and its cost ran over them (topbar-ribbon-cost.test.ts).
     const reserve = (re: RegExp) => Number(re.exec(css)![1]);
     const g = reserve(/max-width: min\(24vw, calc\(100vw - (\d+)px\)\)/);
     const w = reserve(/max-width: min\(380px, calc\(100vw - (\d+)px\)\)/);
-    const cost = /@media \(min-width: 1040px\) and \(max-width: (\d+)px\), \(min-width: 1440px\) and \(max-width: (\d+)px\) \{\s*\.selected-ribbon \.selected-cost \{ display: none; \}\s*\}/.exec(css);
+    const cost = /@media \(max-width: (\d+)px\), \(min-width: 1440px\) and \(max-width: (\d+)px\) \{\s*\.selected-ribbon \.selected-cost \{ display: none; \}\s*\}/.exec(css);
     expect(cost, "the cost's band").toBeTruthy();
     const [, gEnd, wEnd] = cost!.map(Number);
     // Glyphs: W - g meets 24vw at g / 0.76. Words: W - w meets 380 at w + 380.

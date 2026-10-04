@@ -2,7 +2,22 @@
    when an agent is selected. Click → fit-view to that agent. The × on
    the right clears selection without leaving the topbar. */
 .selected-ribbon {
-  display: inline-flex;
+  /* COLUMNS, NOT A FLEX ROW, so the ribbon knows its least. As a flex row it
+     needed `min-width: 0` for the name to ellipse at all, and with it the
+     ribbon had no floor: the bar shrinks it with the readout, in proportion to
+     their widths, so a short name or a +N chip had it cut under its own state
+     and ×, and the × was drawn past its edge — at 641px 30px past it for an
+     agent called "x", and with a +2 chip 18px into the Session list button.
+     In columns the name's is the only one that can go under its content
+     (`minmax(0, max-content)`), so the ribbon's min-content is its state, its
+     chips and its × whole beside a name ellipsed to nothing, and the
+     `min-width` below holds it there. Every other part takes an auto column
+     after the name, in order. With room to spare it draws the same pixels the
+     flex row did, light and dark. The label's `flex` and the ×'s `flex: none`
+     below said this order to the flex row; the columns keep it now. */
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-template-columns: auto minmax(0, max-content);
   align-items: center;
   gap: 8px;
   padding: 4px 6px 4px 10px;
@@ -32,7 +47,7 @@
      leaves a blocked session readable beside them at that width (see THE
      WORDS). */
   max-width: min(380px, 24vw);
-  min-width: 0;
+  min-width: min-content;
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
