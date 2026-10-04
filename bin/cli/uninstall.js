@@ -124,6 +124,14 @@ export async function uninstall(flags) {
   // HERE, and the position is the point: after every hook is out, and before
   // --purge takes the key files, so no deck is left running to write them back.
   if (!(await stopLiveDecks())) refused = true;
+  // The reporter the goodbye at the end goes out through, loaded HERE rather
+  // than where it is used. Importing reports.mjs is what reads prefs.json into
+  // memory, install id and all, and `--purge` just below deletes that file:
+  // read after it, the reporter found no id, decided nothing would go out, and
+  // the uninstall that most meant it was the one never counted or asked why.
+  // willReport() waits for that read, so the id is held before the file goes.
+  const { reporter } = await import(pathToFileURL(join(PKG_ROOT, "src/server/reports.mjs")).href);
+  await reporter.willReport();
   // ── THE PRIVATE KEY ────────────────────────────────────────────────────────
   //
   // The one thing left on the disk that is a CREDENTIAL rather than data. Every
@@ -181,11 +189,9 @@ export async function uninstall(flags) {
 
   // Last, once everything above is done, and only while reports are on: the
   // usage reports hear that this install left, with a reason if the person at
-  // the terminal picks one. See bin/cli/leaving.js.
-  {
-    const { reporter } = await import(pathToFileURL(join(PKG_ROOT, "src/server/reports.mjs")).href);
-    await sayGoodbye({ reporter });
-  }
+  // the terminal picks one. See bin/cli/leaving.js, and the reporter's own
+  // comment above the key section for why it was loaded there.
+  await sayGoodbye({ reporter });
   // Non-zero when any half of it refused, so `ccdeck --uninstall && …` and every
   // CI step that runs this stops on the failure instead of continuing past it.
   return refused ? 1 : 0;
