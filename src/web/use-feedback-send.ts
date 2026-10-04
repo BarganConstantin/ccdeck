@@ -12,6 +12,13 @@
 // fades out over SENT_EXIT_MS and closes itself, the way a toast leaves: the
 // person pressed Send to be done, and a Close button to press afterwards was
 // one more thing to do. Escape, the × and the scrim still close it at once.
+//
+// CLOSED WHILE SENDING, IT DOES NOT SEND. Cancel, Escape, the × or the scrim
+// pressed while a report is out is the person taking it back: a send still
+// waiting on its images never posts, one under way is aborted, and neither
+// says anything to a dialog that is gone. Without that the report, images and
+// all, could start uploading after the dialog had closed, and a failure of it
+// was told to nobody.
 import { useEffect, useRef, useState } from "react";
 import { selfPressAccepted } from "./panel-press";
 import { feedbackRequest } from "./feedback-images";
@@ -29,20 +36,24 @@ export interface FeedbackSend {
 export function useFeedbackSend(images: FeedbackImages): FeedbackSend {
   const [outcome, setOutcome] = useState<Outcome>({ state: "idle" });
   const sendingRef = useRef(false);
+  const inflight = useRef<AbortController | null>(null);
+  useEffect(() => () => inflight.current?.abort(), []);
 
   async function send(draft: FeedbackDraft) {
     if (!selfPressAccepted(sendingRef.current)) return;
     sendingRef.current = true;
+    const { signal } = (inflight.current = new AbortController());
     setOutcome({ state: "sending" });
     try {
       const attached = await images.ready();
-      const response = await fetch("/api/feedback", feedbackRequest(fieldsToSend(draft), attached));
+      if (signal.aborted) return;
+      const response = await fetch("/api/feedback", { ...feedbackRequest(fieldsToSend(draft), attached), signal });
       const d = await response.json().catch(() => null);
       setOutcome(response.ok && d?.ok
         ? { state: "sent" }
         : { state: "failed", message: feedbackFailure(response.status, d?.reason, d?.errors) });
     } catch {
-      setOutcome({ state: "failed", message: feedbackFailure(0, null) });
+      if (!signal.aborted) setOutcome({ state: "failed", message: feedbackFailure(0, null) });
     } finally {
       sendingRef.current = false;
     }

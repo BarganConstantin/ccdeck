@@ -111,10 +111,11 @@ export function mount<P>(
   let tree: unknown = null;
   let shown = props;
   let running = false;
+  let gone = false;
   const inst: Instance = {
     slots: [], effects: [], queued: [], cursor: 0, effectCursor: 0, dirty: false,
     update() {
-      if (running) return;
+      if (running || gone) return;
       running = true;
       try {
         let passes = 0;
@@ -144,6 +145,12 @@ export function mount<P>(
   return {
     get tree() { return tree; },
     rerender(next: P = shown) { shown = next; inst.update(); },
+    /** Takes the component away, the way a dialog closing does: every
+     *  effect's cleanup runs, and a state set afterwards draws nothing. */
+    unmount() {
+      gone = true;
+      for (const e of inst.effects) if (typeof e?.cleanup === "function") e.cleanup();
+    },
   };
 }
 
