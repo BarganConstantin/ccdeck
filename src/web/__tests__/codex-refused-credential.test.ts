@@ -160,3 +160,70 @@ describe("a refresh token the token endpoint has refused", () => {
     expect(tokenCalls()).toHaveLength(2);
   });
 });
+
+// The cooldown a refused login sets is five minutes long, and nothing could end
+// it early: the panel's own hint says "run codex login", the user does, presses
+// ↻, and is answered with the cached refusal until the five minutes are up. A
+// wait that guards a dead credential is about that credential, and ends with
+// it.
+describe("the cooldown after a refused login", () => {
+  /** A usage read refused, and the refresh it forces refused too. */
+  async function refusedLogin(): Promise<QuotaModule> {
+    seedAuth({ tokens: { access_token: jwt("cur", Date.now() + 10 * DAY), refresh_token: "refresh-1" } });
+    wire.usage = { status: 401, body: {} };
+    wire.token = { status: 400, body: { error: "invalid_grant" } };
+    const quota = await freshQuota();
+    expect(await quota.fetchCodexQuota({ force: true })).toMatchObject({ ok: false, reason: "refresh_rejected" });
+    return quota;
+  }
+
+  it("ends as soon as codex login writes a new credential", async () => {
+    const quota = await refusedLogin();
+    seedAuth({ tokens: { access_token: jwt("new", Date.now() + 10 * DAY), refresh_token: "refresh-new" } });
+    wire.usage = { status: 200, body: {} };
+    wire.usedPercent = 12;
+    advance(2 * MIN);
+    const r = await quota.fetchCodexQuota({ force: true });
+    expect(r).toMatchObject({ ok: true });
+    expect(r.windows?.[0]?.pct).toBe(12);
+  });
+
+  it("holds, and asks nobody, while auth.json still carries the refused one", async () => {
+    const quota = await refusedLogin();
+    wire.calls.length = 0;
+    advance(2 * MIN);
+    expect(await quota.fetchCodexQuota({ force: true })).toMatchObject({ ok: false, reason: "refresh_rejected", stale: true });
+    expect(wire.calls).toEqual([]);
+  });
+});
+
+// A 429 used to replace the last good lanes with the failure, and then hold
+// that failure through a cooldown of up to an hour under the panel's default
+// hint — "ChatGPT API unreachable — click ↻ to retry" — which the cooldown
+// refuses. The lanes the deck already read are still the best thing it has.
+describe("a 429 from the usage endpoint", () => {
+  it("keeps the last good lanes, marked stale, through the cooldown", async () => {
+    seedAuth({ tokens: { access_token: jwt("cur", Date.now() + 10 * DAY), refresh_token: "refresh-1" } });
+    wire.usedPercent = 42;
+    const quota = await freshQuota();
+    expect(await quota.fetchCodexQuota({ force: true })).toMatchObject({ ok: true });
+
+    advance(61 * SEC);
+    wire.usage = { status: 429, body: {}, retryAfter: "3600" };
+    const limited = await quota.fetchCodexQuota({ force: true });
+    expect(limited).toMatchObject({ ok: true, stale: true });
+    expect(limited.windows?.[0]?.pct).toBe(42);
+
+    advance(2 * MIN);
+    const held = await quota.fetchCodexQuota({ force: true });
+    expect(held).toMatchObject({ ok: true, stale: true });
+    expect(held.windows?.[0]?.pct).toBe(42);
+  });
+
+  it("says the deck is waiting when it has no reading to hold", async () => {
+    seedAuth({ tokens: { access_token: jwt("cur", Date.now() + 10 * DAY), refresh_token: "refresh-1" } });
+    wire.usage = { status: 429, body: {} };
+    const quota = await freshQuota();
+    expect(await quota.fetchCodexQuota({ force: true })).toMatchObject({ ok: false, reason: "rate_limited" });
+  });
+});

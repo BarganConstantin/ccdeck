@@ -390,6 +390,20 @@ export async function getCodexAuth({ allowRefresh = true } = {}) {
 }
 
 /**
+ * Which credential auth.json holds right now, as a hash of its two tokens, or
+ * null when it holds neither. Never the tokens themselves.
+ *
+ * For codex-quota.mjs, whose cooldown after a refused login is about the
+ * credential that was refused: `codex login` writes a new pair, and a wait
+ * that outlived it answered the user's ↻ with the old refusal.
+ */
+export async function codexCredentialFingerprint() {
+  const tokens = (await readAuthFile())?.tokens;
+  if (!tokens?.access_token && !tokens?.refresh_token) return null;
+  return tokenHash(`${tokens.access_token ?? ""}\n${tokens.refresh_token ?? ""}`);
+}
+
+/**
  * Refresh because the backend rejected a token that looked valid locally —
  * OpenAI revokes server-side, so the JWT's own `exp` is not the last word.
  *

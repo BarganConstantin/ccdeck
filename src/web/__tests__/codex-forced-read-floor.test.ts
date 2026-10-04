@@ -368,7 +368,7 @@ describe("a backend that keeps answering 401, which is the credential half", () 
     wire.usageStatus = 429;
     wire.retryAfter = 600;
     const { fetchCodexQuota } = await freshModule();
-    expect(await fetchCodexQuota({ force: true })).toMatchObject({ ok: false, reason: "http_429" });
+    expect(await fetchCodexQuota({ force: true })).toMatchObject({ ok: false, reason: "rate_limited" });
     expect(usageCalls()).toHaveLength(1);
 
     advance(9 * FLOOR_MS);           // nine minutes: past the floor, inside the 600s
