@@ -11,7 +11,7 @@
 // the running decks — is a stand-in below, and only the key files and the
 // reporter are real, on a temp CCDECK_HOME. The network is a stubbed fetch.
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
@@ -101,6 +101,29 @@ async function runUninstall(flags: Record<string, boolean>): Promise<number> {
 
 const prefsFile = () => join(data, "prefs.json");
 const uninstallEvents = () => sent.filter(s => s.url.endsWith("/v1/app/events") && s.body.kind === "uninstall");
+
+describe("a prefs.json the deck could not boot on", () => {
+  // Half a file, as a power cut between the write and the rename leaves one.
+  const TRUNCATED = '{"reports": true, "report": {"installId": "' + INSTALL_ID + '"}, "lan": {"secret": "k';
+
+  // The reporter's first read is the deck's boot read, which moves a file it
+  // cannot parse aside and announces fresh settings. The uninstall had just
+  // printed that same path as the file holding the key.
+  for (const vetoed of [false, true]) {
+    it(`is left where the uninstall said it was${vetoed ? ", with reports vetoed" : ""}`, async () => {
+      if (vetoed) process.env.AGENTS_DECK_NO_REPORTS = "1";
+      writeFileSync(prefsFile(), TRUNCATED);
+
+      expect(await runUninstall({ uninstall: true }), printed).toBe(0);
+
+      expect(readdirSync(data)).toEqual(["prefs.json"]);
+      expect(readFileSync(prefsFile(), "utf8")).toBe(TRUNCATED);
+      expect(printed).toContain(`${prefsFile()}  (unreadable`);
+      expect(printed).not.toMatch(/fresh settings|has been kept as/);
+      expect(sent).toEqual([]);
+    });
+  }
+});
 
 describe("the goodbye after --purge", () => {
   for (const flags of [{ uninstall: true, purge: true }, { purge: true }]) {
