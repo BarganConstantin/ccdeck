@@ -150,11 +150,16 @@ describe("when an account is an incident", () => {
 
   it("is one when claude-swap stopped collecting and says relogin_required", () => {
     const trouble = { kind: "stopped", error: null };
-    expect(reauthFor({ entry, trouble, collector: "relogin_required", ...after })).not.toBeNull();
+    // The verdict asked after the last sign-in, so it is about this login.
+    const asked = { ...after, verdictAt: NOW - MIN };
+    expect(reauthFor({ entry, trouble, collector: "relogin_required", ...asked })).not.toBeNull();
     // Any other verdict on a stopped collector is not a sign-in: an unreadable
     // keychain is about the deck, and no verdict at all is a silence.
-    expect(reauthFor({ entry, trouble, collector: "keychain_unavailable", ...after })).toBeNull();
-    expect(reauthFor({ entry, trouble, collector: null, ...after })).toBeNull();
+    expect(reauthFor({ entry, trouble, collector: "keychain_unavailable", ...asked })).toBeNull();
+    expect(reauthFor({ entry, trouble, collector: null, ...asked })).toBeNull();
+    // Nor is one asked before the sign-in, which is about the login it replaced.
+    expect(reauthFor({ entry, trouble, collector: "relogin_required", ...after, verdictAt: NOW - 11 * MIN })).toBeNull();
+    expect(reauthFor({ entry, trouble, collector: "relogin_required", ...after })).toBeNull();
   });
 
   it("is never one for an account the deck did not sign in", () => {

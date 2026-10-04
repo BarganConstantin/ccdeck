@@ -22,6 +22,7 @@ import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
 import AppearanceMenu from "./AppearanceMenu";
 import SoundMenu from "./SoundMenu";
+import TopbarMore from "./TopbarMore";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
@@ -114,7 +115,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
           needed. The label says "Open" rather than "Toggle", and
           aria-haspopup says what kind of thing opens. */}
       <button
-        className="btn icon-btn"
+        className="btn icon-btn tb-fold"
         onClick={() => setUsageHistoryOpen(o => !o)}
         title="Usage history — ccusage (H)"
         aria-label="Open usage history"
@@ -227,7 +228,7 @@ export function SourceRun({
           is unread, in the bar's resting grey, and the pupil says the
           watch is on. */}
       <button
-        className="btn icon-btn bw-btn"
+        className="btn icon-btn bw-btn tb-fold"
         onClick={() => setBrowserWatchOpen(o => !o)}
         title={watchOn
           ? "Browser watch — watching; the deck is keeping its own copy (B)"
@@ -253,7 +254,10 @@ export function SourceRun({
 }
 
 /** Sound and Appearance: the two settings, each a button that opens its menu. */
-export function SettingsRun({ providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm, onFeedback }: {
+export function SettingsRun({
+  providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm, onFeedback,
+  watchUnseen, setUsageHistoryOpen, setBrowserWatchOpen,
+}: {
   providers: Providers;
   sound: ReturnType<typeof useSoundSwitch>;
   tones: ReturnType<typeof useTonePrefs>;
@@ -266,6 +270,10 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
   appearance: ReturnType<typeof useAppearance>;
   fm: ReturnType<typeof useClaudeFm>;
   onFeedback: () => void;
+  /** What the phone-width ⋯ needs of the two dialogs it also opens. */
+  watchUnseen: number;
+  setUsageHistoryOpen: Toggle;
+  setBrowserWatchOpen: Toggle;
 }) {
   const { soundOn, toggleSound } = sound;
   const { tonePrefs, previewTone, changeTone } = tones;
@@ -438,7 +446,7 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
           Browser watch already use for a button that opens a modal rather
           than discloses a region. */}
       <button
-        className="btn icon-btn"
+        className="btn icon-btn tb-fold"
         onClick={onFeedback}
         title="Send feedback — a problem, an idea or anything else, to the people who make ccdeck"
         aria-label="Send feedback"
@@ -455,6 +463,13 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
         </svg>
         <span className="tb-word-wide">Feedback</span>
       </button>
+      {/* History, Browser watch and Feedback above, folded into one ⋯ at a
+          phone's width, where the bar cannot hold all nine controls and the
+          waiting pill as well — components/TopbarMore.tsx. */}
+      <TopbarMore
+        watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen}
+        setBrowserWatchOpen={setBrowserWatchOpen} onFeedback={onFeedback}
+      />
     </div>
   );
 }

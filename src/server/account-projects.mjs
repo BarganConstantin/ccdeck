@@ -29,17 +29,19 @@ import { renameWithRetry } from "./atomic-write.mjs";
 import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
 import { accountKey } from "./lan-sync.mjs";
 import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from "./swap-log.mjs";
-// The two rules the live transcript scan counts a line's usage by, so this
-// rollup and a session's card cannot disagree about which lines billed
-// anything — see transcript-scan.mjs.
-import { hasSpend, repeatsRequestUsage } from "./transcript-scan.mjs";
+// The rules the live transcript scan counts a line's usage by, so this rollup
+// and a session's card cannot disagree about which lines billed anything, nor
+// about the speed they were billed at — see transcript-scan.mjs.
+import {
+  billedSpeed, hasSpend, MAX_SPEEDS_PER_MODEL, repeatsRequestUsage, UNRECOGNISED_SPEED,
+} from "./transcript-scan.mjs";
 
 /** The pseudo-account for messages the swap log cannot place — everything
  *  before tracking began, or a gap. Shown once, apart from any real account, so
  *  a per-account total is never quietly inflated by work that is not that
  *  account's. A NUL keeps it from ever colliding with a real `email@@org` key. */
 export const UNATTRIBUTED = "\u0000unattributed";
-const STATE_VERSION = 3;
+const STATE_VERSION = 4;
 
 /** Where the tally and cursors live, beside cswap-auto's own state. */
 export function statePath(home = homedir()) {
@@ -94,10 +96,27 @@ function asUsageTotals(c) {
   };
 }
 
+/** Add `src` into `dst`, and its speed shares into `dst`'s. */
 function addInto(dst, src) {
   dst.i += src.i; dst.o += src.o; dst.cr += src.cr;
   dst.cc += src.cc; dst.c1h += src.c1h; dst.c5m += src.c5m;
+  if (src.s) for (const [speed, share] of Object.entries(src.s)) addInto(speedShareOf(dst, speed), share);
   return dst;
+}
+
+/** The share of `counters` billed at `speed` (#754), created on first sight:
+ *  `s[speed]`, a SUBSET of the counters it sits on, the way the 1h/5m split is
+ *  of `cc`, so the totals read exactly as they did and the client prices the
+ *  share at its own speed's rate. Capped like a session's buckets in
+ *  transcript-scan.mjs, the value being bytes out of a transcript; whatever is
+ *  past the cap is kept as UNRECOGNISED_SPEED, which no rate table names, so it
+ *  is counted and left unpriced rather than priced at the standard rate. */
+function speedShareOf(counters, speed) {
+  const shares = counters.s ??= {};
+  if (Object.hasOwn(shares, speed)) return shares[speed];
+  const key = Object.keys(shares).length < MAX_SPEEDS_PER_MODEL ? speed : UNRECOGNISED_SPEED;
+  if (!Object.hasOwn(shares, key)) shares[key] = zero();
+  return shares[key];
 }
 
 function zero() { return { i: 0, o: 0, cr: 0, cc: 0, c1h: 0, c5m: 0 }; }
@@ -227,7 +246,12 @@ export function foldLine(tally, line, timeline, from) {
   const key = who ? accountKey(who.email, who.orgUuid) : UNATTRIBUTED;
   const day = localDay(ts);
   const proj = (((tally[key] ??= {})[cwd] ??= {})[day] ??= {});
-  addInto(proj[model] ??= zero(), c);
+  const counters = addInto(proj[model] ??= zero(), c);
+  // A fast turn costs more than a standard one of the same model, and the
+  // board prices it so (#754). Kept as a share rather than a model of its own,
+  // so a row's tokens and its model read exactly as before.
+  const speed = billedSpeed(obj);
+  if (speed) addInto(speedShareOf(counters, speed), c);
 }
 
 /** Read the bytes of `path` from `start` to `size`, folding each COMPLETE line,
@@ -413,10 +437,11 @@ export function createProjectRollup({
       if (disk && disk.version === STATE_VERSION && disk.tally && disk.cursors) {
         state = disk;
         state.folders ??= {};
-      } else if (disk && (disk.version === 1 || disk.version === 2)) {
+      } else if (disk && (disk.version === 1 || disk.version === 2 || disk.version === 3)) {
         // Version 1 counted every API content block; version 2 keyed each row
-        // by the line's own cwd, a row per folder the agent cd'd into (#1278).
-        // Neither tally can be re-keyed, since it no longer knows which
+        // by the line's own cwd, a row per folder the agent cd'd into (#1278);
+        // version 3 kept no speed, so every fast turn read at the standard
+        // rate. None of them can be re-keyed, since it no longer knows which
         // transcript a count came from. Keep the heartbeat so a restart gap
         // remains fenced, but rebuild the tally from transcripts.
         state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, lastAlive: disk.lastAlive };

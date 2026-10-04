@@ -623,6 +623,7 @@ function Inner() {
             providers={providers} sound={sound} tones={tones} customTones={customTones} notify={notify}
             chimeState={chimeState} menus={menus} appearance={appearance} fm={fm}
             onFeedback={() => dialogs.openFeedback()}
+            watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen} setBrowserWatchOpen={setBrowserWatchOpen}
           />
         </div>
       </header>

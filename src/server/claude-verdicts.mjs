@@ -106,6 +106,10 @@ export async function verdictNow(email, org, { runner = run, bin = cswapBin } = 
  * collection that can take a minute on a cold network.
  */
 async function collectVerdicts({ runner, bin }) {
+  // Stamped when the question was ASKED, not when it was answered. A
+  // collection that began before a sign-in reports on the login it began
+  // with, and the re-sign-in prompt must be able to tell (see verdictsAskedAt).
+  const asked = Date.now();
   try {
     const out = await runner(await bin(), ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS });
     if (!out?.ok) return null;
@@ -119,7 +123,7 @@ async function collectVerdicts({ runner, bin }) {
         identities[String(a.number)] = accountKey(a.email, a.organizationUuid);
       }
     }
-    _verdicts = { at: Date.now(), byNum, identities };
+    _verdicts = { at: asked, byNum, identities };
     return (Array.isArray(d?.accounts) ? d.accounts : []).map(a => ({
       number: a?.number,
       email: String(a?.email ?? "").trim().toLowerCase(),
@@ -141,6 +145,13 @@ export function verdictsNow({ runner = run, bin = cswapBin, fresh = false } = {}
   // Tests and callers supplying their own runner must receive their own answer.
   if (runner !== run || bin !== cswapBin) return collectVerdicts({ runner, bin });
   return verdictQueue.ask({ fresh });
+}
+
+/** When the cached verdicts were asked for, in ms, or null before the first.
+ *  A verdict asked before the deck last signed an account in is about the
+ *  login that sign-in replaced — see reauthFor in account-origins.mjs. */
+export function verdictsAskedAt() {
+  return _verdicts.at > 0 ? _verdicts.at : null;
 }
 
 /** claude-swap's verdict for a slot, or null when there is none fresh enough. */

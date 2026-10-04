@@ -200,6 +200,9 @@ describe("the modals themselves", () => {
       // here for the same reason as the shortcuts sheet above.
       "LanPeerModal.tsx",
       "LanSetupModal.tsx",
+      // What stands in for Usage history or Browser Watch when its chunk did
+      // not arrive, joining the loop below like the dialogs it replaces.
+      "LazyDialog.tsx",
       // #712's release notes, named here for the same reason.
       // #738's whole-candidate process list, named here for the same reason as
       // the four above.

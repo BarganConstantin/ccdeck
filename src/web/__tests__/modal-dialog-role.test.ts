@@ -48,7 +48,9 @@ describe("the deck's modals", () => {
     // anonymous reports; it went when reports became on by default, with a
     // switch in place of the question. The twenty-second is the re-sign-in
     // prompt for an account the deck signed in whose login expired (#1893).
-    expect(MODALS.length).toBe(22);
+    // The twenty-third is the note that stands in for Usage history or Browser
+    // Watch when its chunk did not arrive, a tab older than an upgrade.
+    expect(MODALS.length).toBe(23);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

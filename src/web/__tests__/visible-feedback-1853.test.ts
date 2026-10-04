@@ -183,7 +183,8 @@ describe("the topbar's Feedback button", () => {
   })();
 
   it("is a topbar icon button that opens the dialog through the one door", () => {
-    expect(button).toMatch(/className="btn icon-btn"/);
+    // Folded into the ⋯ with History and Browser watch at a phone's width.
+    expect(button).toMatch(/className="btn icon-btn tb-fold"/);
     expect(button).toMatch(/onClick=\{onFeedback\}/);
     expect(button).toMatch(/aria-haspopup="dialog"/);
     expect(button).toMatch(/title="Send feedback/);

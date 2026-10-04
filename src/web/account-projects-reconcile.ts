@@ -38,12 +38,29 @@
 // full lands on ccusage's cost to the cent at whatever rate ccusage used. The
 // split is kept where nothing calibrates, the one place pricing.ts's rate is
 // the answer rather than the shape.
-import { costForUsage, fmtCost, ratesForModel, UNPRICED_LABEL } from "./pricing";
+//
+// A FAST TURN IS PRICED AT THE FAST RATE, AS THE BOARD PRICES IT (#754). The
+// server keeps the tokens billed at a speed other than standard as a share of
+// their model's counters (`s`), and each share is priced at its own speed's
+// rate card, or counted unpriced when this build has none. ccusage prices fast
+// mode too, but its breakdowns carry no speed, so a day's drift holds the
+// day's whole premium over a standard-rate denominator. Applied as it stands
+// to every project, it charged a standard-only project for another's fast
+// turns. So the drift is taken back to the standard basis by the day's own mix
+// — our tokens of that day and model priced by speed, over the same tokens at
+// the standard rate — and then multiplies each project priced by speed: the
+// day still totals ccusage's dollars, and each project carries its own premium.
+import { costAtSpeed, costForUsage, fmtCost, ratesForModel, speedShares, STANDARD_SPEED, UNPRICED_LABEL } from "./pricing";
 import { bareModelId } from "./model-id";
 import { fmtTokens } from "./token-format";
 import type { TokenUsage } from "./types";
 
-export interface Counters { i: number; o: number; cr: number; cc: number; c1h: number; c5m: number }
+export interface Counters {
+  i: number; o: number; cr: number; cc: number; c1h: number; c5m: number;
+  /** The share billed at each speed other than standard (#754), a subset of
+   *  the counters above. Absent when every token ran at the standard speed. */
+  s?: Record<string, Counters>;
+}
 export interface DayInput {
   day: string;
   projects: Array<{ path: string; models: Record<string, Counters> }>;
@@ -72,22 +89,58 @@ export interface Reconciled {
 }
 
 export function toUsage(c: Counters): TokenUsage {
-  return {
+  const u: TokenUsage = {
     inputTokens: c.i, outputTokens: c.o,
     cacheReadTokens: c.cr, cacheCreateTokens: c.cc,
     cacheCreate1hTokens: c.c1h, cacheCreate5mTokens: c.c5m,
   };
+  const shares = c.s ? Object.entries(c.s) : [];
+  if (shares.length > 0) u.bySpeed = Object.fromEntries(shares.map(([speed, share]) => [speed, toUsage(share)]));
+  return u;
 }
 
 /** The same counters as ccusage's breakdowns report them: every write in one
- *  flat count, with no TTL split — the basis a drift is measured on. */
+ *  flat count, with no TTL split — the basis a drift is measured on. The
+ *  speed shares are kept, each flat as well. */
 function flatUsage(c: Counters): TokenUsage {
-  return { ...toUsage(c), cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 };
+  const flat = (u: TokenUsage): TokenUsage => ({ ...u, cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 });
+  const u = flat(toUsage(c));
+  if (u.bySpeed) u.bySpeed = Object.fromEntries(Object.entries(u.bySpeed).map(([speed, share]) => [speed, flat(share)]));
+  return u;
 }
 
 /** Billed tokens of one counter set. c1h/c5m are a split OF cc, not extra. */
 function billedOf(c: Counters): number {
   return c.i + c.o + c.cr + c.cc;
+}
+
+/** Add `src` into `dst`, speed shares and all. */
+function addCounters(dst: Counters, src: Counters): Counters {
+  dst.i += src.i; dst.o += src.o; dst.cr += src.cr;
+  dst.cc += src.cc; dst.c1h += src.c1h; dst.c5m += src.c5m;
+  for (const [speed, share] of Object.entries(src.s ?? {})) {
+    addCounters((dst.s ??= {})[speed] ??= { i: 0, o: 0, cr: 0, cc: 0, c1h: 0, c5m: 0 }, share);
+  }
+  return dst;
+}
+
+/** `usage` priced share by share at each one's own speed (#754), the same
+ *  shares at the standard rate, and the shares no rate reaches: their tokens
+ *  and their speeds. The standard share is priced whenever the model is. */
+function bySpeed(usage: TokenUsage, model: string, now: number) {
+  let atSpeed = 0, atStandard = 0, unpriced = 0;
+  const unpricedSpeeds: string[] = [];
+  for (const share of speedShares(usage)) {
+    if (!ratesForModel(model, now, share.speed)) {
+      const u = share.usage;
+      const t = u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheCreateTokens;
+      if (t > 0) { unpriced += t; unpricedSpeeds.push(share.speed); }
+      continue;
+    }
+    atSpeed += costAtSpeed(share.usage, model, share.speed, now).total;
+    atStandard += costAtSpeed(share.usage, model, STANDARD_SPEED, now).total;
+  }
+  return { atSpeed, atStandard, unpriced, unpricedSpeeds };
 }
 
 /** Billed tokens of a model spread. */
@@ -148,6 +201,33 @@ export function reconcile(
   ccByDayModel: Map<string, CcCell>,
   now: number = Date.now(),
 ): Reconciled {
+  // Each day's speed mix per model, from every token we folded that day: our
+  // tokens priced by speed over the same tokens at the standard rate. 1 — and
+  // so absent — for a day that ran nothing fast. Keyed by the bare id as well,
+  // which is how a ccusage cell names the model.
+  const mixByDay = new Map<string, Map<string, number>>();
+  for (const d of daily) {
+    const sums: Record<string, Counters> = {};
+    const add = (models: Record<string, Counters>) => {
+      for (const [m, c] of Object.entries(models)) addCounters(sums[m] ??= { i: 0, o: 0, cr: 0, cc: 0, c1h: 0, c5m: 0 }, c);
+    };
+    for (const p of d.projects) add(p.models);
+    if (d.unattributed) add(d.unattributed);
+    for (const [m, c] of Object.entries(sums)) {
+      if (!c.s) continue;
+      const { atSpeed, atStandard } = bySpeed(flatUsage(c), m, now);
+      if (!(atSpeed > 0 && atStandard > 0)) continue;
+      let mix = mixByDay.get(d.day);
+      if (!mix) { mix = new Map(); mixByDay.set(d.day, mix); }
+      mix.set(m, atSpeed / atStandard);
+      if (!mix.has(bareModelId(m))) mix.set(bareModelId(m), atSpeed / atStandard);
+    }
+  }
+  const mixFor = (day: string, model: string): number => {
+    const m = mixByDay.get(day);
+    return (m?.get(model) ?? m?.get(bareModelId(model))) ?? 1;
+  };
+
   // The drift factor per (day, model): ccusage's cost over pricing.ts's price of
   // ccusage's OWN tokens. Near 1; none when a day/model is not in ccusage. A cell
   // is a calibration only when BOTH sides priced it: pricing.ts's zero is a
@@ -159,7 +239,9 @@ export function reconcile(
     const bar = key.indexOf("|");
     const day = key.slice(0, bar);
     const model = key.slice(bar + 1);
-    const priced = costForUsage(cell.usage, model, now).total;
+    // ccusage's tokens carry no speed, so they are priced at the standard rate
+    // and then by the day's own mix, the basis our tokens are priced on below.
+    const priced = costForUsage(cell.usage, model, now).total * mixFor(day, model);
     if (!(priced > 0 && cell.cost > 0)) continue;
     // The window's average drift, for Unattributed below, is summed over the
     // same cells and no others. A cost pricing.ts cannot match with a price of
@@ -181,13 +263,18 @@ export function reconcile(
   const unpricedModels = new Set<string>();
   /** A spread's priced dollars, and the tokens no row reached. A model with a
    *  drift is priced flat and scaled by it, which is ccusage's rate; one with
-   *  none (null) is pricing.ts's own price, TTL split and all (#1773). */
+   *  none (null) is pricing.ts's own price, TTL split and all (#1773). Either
+   *  way each speed share is priced at its own speed's rate (#754), and a
+   *  share with none is counted apart, under its model and speed. */
   const priceSpread = (models: Record<string, Counters>, drift: (model: string) => number | null) => {
     let cost = 0, unpriced = 0;
     for (const [m, c] of Object.entries(models)) {
       if (ratesForModel(m, now)) {
         const d = drift(m);
-        cost += d === null ? costForUsage(toUsage(c), m, now).total : costForUsage(flatUsage(c), m, now).total * d;
+        const p = bySpeed(d === null ? toUsage(c) : flatUsage(c), m, now);
+        cost += d === null ? p.atSpeed : p.atSpeed * d;
+        unpriced += p.unpriced;
+        for (const speed of p.unpricedSpeeds) unpricedModels.add(`${m} (${speed})`);
         continue;
       }
       const t = billedOf(c);
