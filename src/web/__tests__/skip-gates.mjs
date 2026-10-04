@@ -181,6 +181,11 @@ export const GATES = [
   // stub that writes down what it was asked, so a prerelease tag is seen to
   // make a prerelease that is never Latest. Windows has no /bin/sh to hand it.
   { file: "desktop-release-prerelease-1756.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
+  // The desktop app's read of the login shell, run through a real /bin/sh
+  // standing in for the user's $SHELL with a profile that exports the opt-outs.
+  // The app never asks a shell on Windows, where a GUI app gets the user's own
+  // environment; that branch, the parse and the merge are un-gated beside it.
+  { file: "desktop-shell-env.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },

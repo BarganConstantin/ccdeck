@@ -21,7 +21,7 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream, restartAsked } from "./deck-link.mjs";
-import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
+import { shellEnv, startDeck, withShellSettings, writeLauncher } from "./deck-host.mjs";
 import { navigationFor } from "./nav.mjs";
 import { overFullScreen, windowsOnScreen } from "./fullscreen-space.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
@@ -48,6 +48,25 @@ const APP_ID = "dev.ccdeck.app";
 function deckRoot() {
   if (process.env.CCDECK_DECK_ROOT) return process.env.CCDECK_DECK_ROOT;
   return app.isPackaged ? join(process.resourcesPath, "deck") : join(here, "..");
+}
+
+/**
+ * The login shell's PATH and the documented variables it sets (deck-host.mjs),
+ * read once per run of the app.
+ *
+ * ONTO THIS PROCESS'S OWN ENVIRONMENT, and before the first look for a deck:
+ * findDecks reads the registry CLAUDE_CONFIG_DIR names, writeLauncher writes
+ * the hook's launcher beside it, and the deck this app starts inherits the
+ * rest — AGENTS_DECK_NO_REPORTS among them. An app opened from the Dock has
+ * none of them otherwise.
+ */
+let loginShell = null;
+function fromLoginShell() {
+  if (!loginShell) {
+    loginShell = shellEnv();
+    withShellSettings(process.env, loginShell);
+  }
+  return loginShell;
 }
 
 // ── one app per machine ─────────────────────────────────────────────────────
@@ -333,7 +352,7 @@ async function ensureDeck() {
       deckRoot: deckRoot(),
       appBinary: process.execPath,
       logFile: join(app.getPath("logs"), "deck-app.log"),
-      path: shellPath(),
+      path: fromLoginShell().PATH,
       launcher,
     }), code => { trace(`own deck exited ${code}`); discoverSoon(); });
     for (let i = 0; i < 80 && !deck; i++) {
@@ -417,6 +436,7 @@ function bundledDeckVersion() {
  */
 async function discover({ willStart = false } = {}) {
   try {
+    fromLoginShell();
     const decks = await findDecks(deckRoot());
     const found = decks[0] ?? null;
     const { olderVersion } = await import(pathToFileURL(join(deckRoot(), "src", "server", "running-deck.mjs")).href);
