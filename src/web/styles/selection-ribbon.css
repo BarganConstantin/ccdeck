@@ -161,7 +161,15 @@
    with no room for it: squeezed under its own state pill and ×, about 100px,
    it drew them over the Session list button and took the waiting pill's room.
    The selected card on the canvas still says which agent it is, and a tap on
-   the canvas clears it. */
-@media (max-width: 480px) {
+   the canvas clears it.
+   AT THE SHEET'S OWN BREAKPOINT, NOT THE FOLD'S. It left at 480, with the ⋯
+   (TopbarMore.tsx), and at 481 all nine controls came back with it: at its
+   floor — a state, a name ellipsed to nothing, a × — it needs 503px beside the
+   waiting pill, so the readout gave first and the pill lost up to 5px of its
+   left edge to 499, and with a running agent's cost up to 15px to 520, the
+   cost and × running on over the Session list button. Every width under 640
+   is one where the sheet says what the ribbon says, so it goes there.
+   topbar-ribbon-room.test.ts adds the bar up. */
+@media (max-width: 640px) {
   .selected-ribbon { display: none; }
 }
