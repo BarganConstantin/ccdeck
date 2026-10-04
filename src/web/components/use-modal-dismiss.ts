@@ -170,3 +170,33 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
 
   return dialogRef;
 }
+
+/** Where a press on a backdrop landed, read structurally so a test can hand
+ *  in plain objects; React's pointer and mouse events both satisfy it. */
+interface ScrimPress {
+  target: EventTarget | null;
+  currentTarget: EventTarget | null;
+}
+
+/** The handlers a backdrop spreads to close its dialog on a press of the
+ *  scrim — one that goes down on the scrim itself and comes up there.
+ *
+ *  A click goes to the nearest element its press and its release share. A
+ *  selection begun in a field and let go past the dialog's edge therefore
+ *  arrives as a click whose target is the backdrop, and the dialog's own
+ *  stopPropagation is not on that path: a backdrop closing on any click
+ *  closed the feedback dialog under a drag-select and threw away the message
+ *  and its screenshots. So the press is followed from the pointer going down
+ *  to it coming up, and the click closes only when both were on the scrim. */
+export function useScrimDismiss(onDismiss: () => void) {
+  const fromScrim = useRef(false);
+  return {
+    onPointerDown: (e: ScrimPress) => { fromScrim.current = e.target === e.currentTarget; },
+    onPointerUp: (e: ScrimPress) => { if (e.target !== e.currentTarget) fromScrim.current = false; },
+    onClick: (e: ScrimPress) => {
+      const close = fromScrim.current && e.target === e.currentTarget;
+      fromScrim.current = false;
+      if (close) onDismiss();
+    },
+  };
+}

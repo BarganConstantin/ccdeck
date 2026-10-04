@@ -6,8 +6,11 @@
 // difference matters.
 //
 // Native radios under the paint, so the arrows walk them, Tab stops once and a
-// screen reader hears a group of three; each <label> is the target.
-import { KINDS, type Kind } from "../feedback";
+// screen reader hears a group of three; each <label> is the target. Being in
+// the form, a radio would submit it on a bare Enter, which is how a kind
+// picked with the arrows and settled with Enter sent the report on the spot;
+// that Enter does nothing here, as in the contact field (isPlainEnter).
+import { KINDS, isPlainEnter, type Kind } from "../feedback";
 
 interface Props {
   kind: Kind;
@@ -26,6 +29,7 @@ export default function FeedbackKinds({ kind, onChange }: Props) {
             value={option.value}
             checked={kind === option.value}
             onChange={() => onChange(option.value)}
+            onKeyDown={e => { if (isPlainEnter(e.nativeEvent)) e.preventDefault(); }}
           />
           {option.label}
         </label>
