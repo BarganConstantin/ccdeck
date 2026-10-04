@@ -9,6 +9,7 @@
 // self-poll floor; this module knows only how, and when a 429 says to stop.
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { mapOAuthUsage } from "./quota-shape.mjs";
 
@@ -95,6 +96,23 @@ export async function readOAuthToken() {
     // expiresAt is epoch milliseconds. If expired, the CLI fallback handles it.
     if (auth.expiresAt && Date.now() >= auth.expiresAt) return null;
     return auth.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Which token the credentials file holds, as a hash, or null when it holds
+ * none — expired or not, because this is a question of whose it is rather
+ * than whether it still works. The token itself is not kept.
+ *
+ * For quota.mjs, which stamps a reading with it so a held reading is not
+ * served after Claude Code has been signed in as somebody else.
+ */
+export async function credentialFingerprint() {
+  try {
+    const token = JSON.parse(await readFile(credentialsPath(), "utf8"))?.claudeAiOauth?.accessToken;
+    return typeof token === "string" && token ? createHash("sha256").update(token).digest("hex") : null;
   } catch {
     return null;
   }

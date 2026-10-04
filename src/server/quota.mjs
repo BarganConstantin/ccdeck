@@ -55,10 +55,11 @@
 import { activeAccountUsage, requestCollection } from "./claude-accounts.mjs";
 import { quotaFromStore, readingLapsed, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
 import {
-  SELF_POLL_MS, clearCooldown, coolingDown, cooldownUntil, fetchOAuthUsage, hasSubscriptionCredential,
+  SELF_POLL_MS, clearCooldown, coolingDown, cooldownUntil, credentialFingerprint, fetchOAuthUsage,
+  hasSubscriptionCredential,
 } from "./quota-oauth.mjs";
 import {
-  accountOf, clearResetCreditsFloor, forgetResetCredits, heldResetCredits, refreshStoreResetCredits,
+  accountOf, clearResetCreditsFloor, forgetResetCredits, heldResetCredits, refreshStoreResetCredits, sameAccount,
 } from "./quota-store-resets.mjs";
 import { runUsageOnce, quotaClaudeBin } from "./quota-cli.mjs";
 
@@ -79,6 +80,7 @@ let _cache    = null;
 let _cacheAt  = 0;
 let _inflight = null;   // deduplicates concurrent CLI probes
 let _lastGood = null;   // last result that had real quota percentages
+let _lastGoodFor = null; // whose it is — see readFor()
 let _lastSelfPollAt = 0;
 // Which account the readings below are about — as a counter, because the
 // account's identity is not something this module holds. invalidateQuotaCache
@@ -244,12 +246,39 @@ function notYet(now) {
  * survives the result cache's minute and comes back under a "stale" label for as
  * long as the store has nothing to say about the new account.
  */
-function publish(gen, result, at, { good = false } = {}) {
+function publish(gen, result, at, { good = false, who = null } = {}) {
   if (gen !== _generation) return result;
   _cache   = result;
   _cacheAt = at;
-  if (good) _lastGood = result;
+  if (good) { _lastGood = result; _lastGoodFor = who; }
   return result;
+}
+
+/**
+ * Whose numbers a read that starts now will be: claude-swap's active account
+ * when its store names one, and the token in Claude Code's credentials file.
+ *
+ * invalidateQuotaCache covers the switches the deck makes itself. The rest —
+ * `cswap switch` in a terminal, claude-swap's own auto-switch, `claude /login`
+ * as somebody else — reach nothing here, and the self-poll floor went on
+ * serving the previous account's `_lastGood` for up to five minutes, beside an
+ * accounts panel that already showed the new account as live. So `_lastGood`
+ * carries this, and a read that finds it changed does not serve it.
+ */
+async function readFor(store) {
+  return { account: _accountOfReading.get(store) ?? null, token: await credentialFingerprint() };
+}
+
+/**
+ * Whether the account in use is no longer the one `then` was read for. The
+ * account decides whenever both sides name one: a token is refreshed under
+ * the same account every few hours, and that is not a switch. Without one,
+ * a different token is the only sign there is.
+ */
+function switchedSince(then, now) {
+  if (!then) return false;
+  if (then.account && now.account) return !sameAccount(then.account, now.account);
+  return !!(then.token && now.token && then.token !== now.token);
 }
 
 /**
@@ -368,6 +397,14 @@ async function _doFetch(now, force = false, gen = _generation) {
   if (force && (!store || now - store.fetchedAt > FORCE_POLL_MS || readingLapsed(store, now))) {
     store = await nudgeAndReread(store);
   }
+  // A reading held over from an earlier read is only ever served for the
+  // account it was read for; see readFor. When the account has moved, the read
+  // that answers for the new one may go out on the refresh button's floor:
+  // the question is new, and it can be asked at most once per reading held.
+  const who = await readFor(store);
+  const switched = _lastGood != null && switchedSince(_lastGoodFor, who);
+  if (switched) { _lastGood = null; _lastGoodFor = null; }
+
   if (store && now - store.fetchedAt <= STORE_TRUSTED_MS) {
     // Keep the store moving even when the accounts panel is closed. Without
     // this the numbers only advance while something else asks — claude-swap's
@@ -385,13 +422,13 @@ async function _doFetch(now, force = false, gen = _generation) {
       // The saved limit resets are the one thing the store cannot say. Read
       // behind this answer, never in front of it; see refreshStoreResetCredits.
       refreshStoreResetCredits({ now, force, account: _accountOfReading.get(store) });
-      return publish(gen, store, now, { good: true });
+      return publish(gen, store, now, { good: true, who });
     }
   }
 
   // Nothing usable in the store. Everything below spends the user's budget, so
   // it happens on a floor, and not at all while a 429 cooldown is running.
-  if (!maySelfPoll({ now, force, lastSelfPollAt: _lastSelfPollAt, rateLimitedUntil: cooldownUntil() })) {
+  if (!maySelfPoll({ now, force: force || switched, lastSelfPollAt: _lastSelfPollAt, rateLimitedUntil: cooldownUntil() })) {
     // A stale row still beats an empty panel, and says how stale it is — but
     // it must be the freshest thing we hold, not just the store. Preferring
     // the store here threw away readings we had already paid for: after a boot
@@ -408,7 +445,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   // Source 2: OAuth usage API — instant, exact, no cold-start gap.
   const api = await fetchOAuthUsage();
   if (api) {
-    return publish(gen, { ok: true, ...api, source: "api", fetchedAt: now }, now, { good: true });
+    return publish(gen, { ok: true, ...api, source: "api", fetchedAt: now }, now, { good: true, who });
   }
 
   // Source 3: parse `claude --print /usage` CLI output.
@@ -416,7 +453,7 @@ async function _doFetch(now, force = false, gen = _generation) {
 
   // Got real quota lines — cache normally and remember as last-known-good.
   if (parsed) {
-    return publish(gen, { ok: true, ...parsed, source: "cli", fetchedAt: now }, now, { good: true });
+    return publish(gen, { ok: true, ...parsed, source: "cli", fetchedAt: now }, now, { good: true, who });
   }
 
   // No quota lines after retries. If we've ever seen real values, keep showing
@@ -511,6 +548,7 @@ export function invalidateQuotaCache() {
   _cache = null;
   _cacheAt = 0;
   _lastGood = null;
+  _lastGoodFor = null;
   _generation++;
   _inflight = null;
   // Forgotten with the rest, because it is about the account the deck just
