@@ -387,13 +387,20 @@ function originsNow() {
  * Local network — exactly what the mark must never be. Safe to decide off one
  * read: claude-swap replaces sequence.json whole (temp file and rename), and an
  * import refreshes a slot in place rather than removing it first. Asked of every
- * account in the store, not of the ordered list drawn above, and never of a
- * store with none: an emptied store is the one state where waiting costs
- * nothing.
+ * account in the store, not of the ordered list drawn above.
+ *
+ * AN EMPTIED STORE IS AN ANSWER TOO. Removing the last account leaves
+ * sequence.json with `accounts: {}`, and this used to be the one store the
+ * read waited out — but a mark kept there is inherited by the same address
+ * pasted from a share later, which then reads as one this deck signed in and
+ * is prompted for as one. Only a file that could not be read says nothing, and
+ * readRoster never gets this far with one. `held` that is not a map of slots is
+ * no store at all, and forgets nothing.
  */
 function tidyOrigins(origins, recovered, held) {
-  const present = new Set(Object.values(held ?? {}).map(a => accountKey(a?.email, a?.organizationUuid)));
-  const gone = present.size ? Object.keys(origins).filter(k => !present.has(k)) : [];
+  const isStore = held != null && typeof held === "object" && !Array.isArray(held);
+  const present = new Set(Object.values(isStore ? held : {}).map(a => accountKey(a?.email, a?.organizationUuid)));
+  const gone = isStore ? Object.keys(origins).filter(k => !present.has(k)) : [];
   if (!recovered.length && !gone.length) return;
   // `seen` rides along so the write changes only what this read judged: a mark
   // re-made, or an incident put off, since then is not this read's to undo.
