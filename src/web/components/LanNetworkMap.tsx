@@ -314,7 +314,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
               </>
             )}
           </div>
-          <Legend />
+          <Legend slice={layout?.zone != null} />
           </div>
 
           <aside className="nm-side" aria-label="Details">
@@ -559,15 +559,21 @@ function EmptyNote({ status }: { status: LanStatus | null }) {
 }
 
 /** The key: the three rings inside out, each drawn as the wire and the mark
- *  its decks wear, and the tailnet's slice. Four entries, one word each —
- *  the same four words the decks and the panel use. */
-function Legend() {
+ *  its decks wear, and the tailnet's slice where one is drawn. Four entries at
+ *  most, one word each — the same four words the decks and the panel use.
+ *  Exported to be drawn in a test, where the map's portal cannot be. */
+export function Legend({ slice }: {
+  /** Whether the map drew the tailnet's slice — with its name or without, when
+   *  no stretch of its edge was clear (zoneLabelAt), and then this is all that
+   *  says what it is. Not drawn, it has no key: see NetworkDetails. */
+  slice: boolean;
+}) {
   return (
     <ul className="nm-legend">
       <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="online" /><i className="nm-key-mark" data-tier="online" /></span>online</li>
       <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="offline" /><i className="nm-key-mark" data-tier="offline" /></span>away</li>
       <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="loose" /><i className="nm-key-mark" data-tier="loose" /></span>not paired</li>
-      <li><i className="nm-key-zone" aria-hidden />over Tailscale</li>
+      {slice && <li><i className="nm-key-zone" aria-hidden />over Tailscale</li>}
     </ul>
   );
 }
