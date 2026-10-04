@@ -163,7 +163,8 @@ describe("Feedback says its word only where the busiest bar still fits", () => {
     // nothing in the sheet quietens it.
     const at = app.indexOf('<span className="tb-word-wide">Feedback</span>');
     const button = app.slice(app.lastIndexOf("<button", at), at);
-    expect(button).toMatch(/^<button\s+className="btn icon-btn"\s/);
+    // `tb-fold` only folds it into the ⋯ at a phone's width (TopbarMore.tsx).
+    expect(button).toMatch(/^<button\s+className="btn icon-btn tb-fold"\s/);
     expect(button).not.toMatch(/style=/);
     expect(body(".topbar button.btn.icon-btn")).toMatch(/color: var\(--muted\);/);
     const aimed = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
@@ -252,7 +253,7 @@ describe("the bar keeps amber for the alarm", () => {
     // Cut out of the corner it overlaps, not laid over the button's edge.
     expect(body(".bw-badge")).toMatch(/box-shadow: 0 0 0 2px var\(--panel\);/);
     expect(css).not.toMatch(/\.bw-btn\.(?:has-findings|watching)/);
-    expect(app).toMatch(/className="btn icon-btn bw-btn"/);
+    expect(app).toMatch(/className="btn icon-btn bw-btn tb-fold"/);
   });
 
   it("keeps the alarm when the readout gives, and draws no gap for an empty strip", () => {
