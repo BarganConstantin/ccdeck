@@ -21,10 +21,11 @@
 //
 // SEND IS NEVER GREYED OUT BEFORE IT IS PRESSED. Pressed with nothing written
 // it says so beside the message and moves there; while the request is out it
-// stays focusable and says aria-busy (#518). Once sent, the form goes inert
-// under a thanks, focus goes to the × (#1762's rule), the one live
-// region — present from the first render — says it was sent, and the dialog
-// closes itself a moment later.
+// stays focusable and says aria-busy (#518), and everything above it and
+// Cancel is inert, since the request was built from it when Send was pressed.
+// Once sent, the form goes inert under a thanks, focus goes to the × (#1762's
+// rule), the one live region — present from the first render — says it was
+// sent, and the dialog closes itself a moment later.
 //
 // AN IMAGE ARRIVES THE WAY A SCREENSHOT DOES — pasted, the common way, or
 // dropped anywhere on the dialog, which says so while a file is over it — or
@@ -61,6 +62,9 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const closeRef = useRef<HTMLButtonElement>(null);
   const addRef = useRef<HTMLButtonElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const fieldsRef = useRef<HTMLElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
+  const lockedFrom = useRef<HTMLElement | null>(null);
   const dragDepth = useRef(0);
   const dialogRef = useModalDismiss(onClose, { focusRef: bodyRef });
   // Only a press of the scrim itself: a selection dragged out of the message
@@ -93,6 +97,32 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
     if (sent && held) closeRef.current?.focus();
   }, [sent]);
 
+  // Sending, the message, the kinds, the images and the details go inert
+  // until the answer. The request was built from them when Send was pressed,
+  // so an edit made now would not be in it: a screenshot removed would go
+  // anyway, one pasted would not, and words typed would close with the
+  // dialog. Cancel and Send stay live. Focus in there would go down with it,
+  // so it moves to Send, which says it is working, and comes back if the send
+  // fails, to be put right where it was left — from Send, or from nowhere,
+  // when a press on the inert part dropped it; never from where the reader
+  // has since put it.
+  useEffect(() => {
+    const fields = fieldsRef.current;
+    if (!fields) return;
+    if (sending) {
+      const active = document.activeElement as HTMLElement | null;
+      lockedFrom.current = active && fields.contains(active) ? active : null;
+      fields.inert = true;
+      if (lockedFrom.current) sendRef.current?.focus();
+      return;
+    }
+    fields.inert = false;
+    const back = lockedFrom.current;
+    lockedFrom.current = null;
+    const waiting = document.activeElement === sendRef.current || focusDropped(document.activeElement?.tagName ?? null);
+    if (!sent && back && waiting) back.focus();
+  }, [sending, sent]);
+
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!hasMessage(body)) {
@@ -103,10 +133,11 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
     void send({ kind, body, contact });
   }
 
-  /** The whole dialog takes a dropped file while the form is up. The depth
-   *  counts enters against leaves, since the pointer crossing into a child is
-   *  a leave from its parent and would otherwise flicker the overlay off. */
-  const accepting = !sent;
+  /** The whole dialog takes a dropped file while the form is up and no send
+   *  is out. The depth counts enters against leaves, since the pointer
+   *  crossing into a child is a leave from its parent and would otherwise
+   *  flicker the overlay off. */
+  const accepting = !sent && !sending;
   const fileDrag = (e: DragEvent) => carriesFiles(Array.from(e.dataTransfer.types));
   function dragEnter(e: DragEvent) {
     if (!fileDrag(e) || !accepting) return;
@@ -191,7 +222,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
             }}
             noValidate
           >
-            <section className="modal-body fb-body">
+            <section ref={fieldsRef} className="modal-body fb-body">
               <FeedbackKinds kind={kind} onChange={setKind} />
               <div className="fb-compose">
                 <label className="fb-label" htmlFor="fb-body">{copy.question}</label>
@@ -228,7 +259,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
                 <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> to send
               </span>
               <button type="button" className="btn" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn primary fb-send" aria-keyshortcuts="Meta+Enter Control+Enter" {...selfPressProps(sending)}>
+              <button ref={sendRef} type="submit" className="btn primary fb-send" aria-keyshortcuts="Meta+Enter Control+Enter" {...selfPressProps(sending)}>
                 {/* Both words always laid out in one cell, one of them hidden,
                     so the button is as wide sending as before and Cancel never
                     shifts under the pointer. */}
