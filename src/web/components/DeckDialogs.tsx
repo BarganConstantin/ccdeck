@@ -33,7 +33,7 @@ import GuideModal from "./GuideModal";
 import { WELCOME_STEPS } from "./guide-art";
 import KeyboardHelp from "./KeyboardHelp";
 import { lazyDialog } from "./LazyDialog";
-import { LanPairRequests } from "./LanPairRequestModal";
+import { usePairRequestDialog } from "./LanPairRequestModal";
 import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
@@ -170,13 +170,14 @@ export default function DeckDialogs({
           outranks the prompt somebody is standing in front of deciding
           whether to truncate a log. Like the re-sign-in prompt, it waits for
           any dialog already open to close before it first appears, rather
-          than taking the keyboard from under it. */}
-      <LanPairRequests {...lanPairs} />
-      {/* After the pairing request, which holds another machine up, and ahead
-          of the sheet, the tour and the clear prompt (#1893). It also waits
-          for any dialog already open to close before it first appears, so it
-          never takes the keyboard from somebody mid-task — see promptShows. */}
-      <AccountAttention {...attention} />
+          than taking the keyboard from under it.
+          The re-sign-in prompt comes after the pairing request, which holds
+          another machine up, and ahead of the sheet, the tour and the clear
+          prompt (#1893). It also waits for any dialog already open to close
+          before it first appears, so it never takes the keyboard from
+          somebody mid-task — see promptShows — and the two come up one at a
+          time: see UnaskedPrompts, below. */}
+      <UnaskedPrompts lanPairs={lanPairs} attention={attention} />
       {/* Before the clear prompt and after everything else, which is where a
           reference belongs: it may paint over a tool inspector somebody opened
           the sheet on top of, and it must not paint over the one dialog that is
@@ -197,6 +198,31 @@ export default function DeckDialogs({
           onCancel={() => setClearConfirmOpen(false)}
         />
       )}
+    </>
+  );
+}
+
+/** The two dialogs that arrive on their own and wait their turn: a LAN pairing
+ *  request, then an account that needs signing in again — decided together,
+ *  in one render, so they come one at a time and in that order.
+ *
+ *  Each used to decide by itself, from the number of dialogs on the stack, and
+ *  a dialog joins the stack only after the render that draws it. So when a
+ *  dialog both were waiting on closed, both counted none on the same render
+ *  and came up together, the re-sign-in prompt — later in the document, and
+ *  the one that can wait — painted over the request and holding the keyboard.
+ *  Here the request is decided first, and one going up counts against the
+ *  prompt behind it. Its own component, so DeckDialogs stays one that calls no
+ *  hooks. */
+export function UnaskedPrompts({ lanPairs, attention }: {
+  lanPairs: ReturnType<typeof useLanPairRequests>;
+  attention: Attention;
+}) {
+  const pairRequest = usePairRequestDialog(lanPairs);
+  return (
+    <>
+      {pairRequest}
+      <AccountAttention {...attention} pairing={pairRequest != null} />
     </>
   );
 }

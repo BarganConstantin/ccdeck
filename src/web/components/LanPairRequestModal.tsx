@@ -145,8 +145,8 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
   );
 }
 
-/** What DeckDialogs mounts: the request to ask about now, if there is one and
- *  it is its turn — see pairRequestFor.
+/** What DeckDialogs draws: the request to ask about now, if there is one and
+ *  it is its turn — see pairRequestFor — or null.
  *
  *  IT WAITS ITS TURN, by the rule the re-sign-in prompt waits by (promptShows).
  *  It arrives on a poll, whatever is open, and it is not portalled, while the
@@ -156,8 +156,14 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
  *  the Enter of somebody typing a sign-in code declined the other deck unseen.
  *  So it is drawn only while no other dialog is up, and once it is, it stays,
  *  answer after answer, whatever opens over it. The stack is read on each
- *  render, which the board's clock brings every quarter second. */
-export function LanPairRequests(pairs: ReturnType<typeof useLanPairRequests>) {
+ *  render, which the board's clock brings every quarter second.
+ *
+ *  A hook rather than a component so that DeckDialogs knows, in the same
+ *  render, whether it is going up — and can tell the re-sign-in prompt, which
+ *  waits behind it. A dialog joins the stack only after the render that draws
+ *  it, so on the render where the last dialog closed, both used to count none
+ *  and both came up together. */
+export function usePairRequestDialog(pairs: ReturnType<typeof useLanPairRequests>) {
   // Whether a request was up last render.
   const oursRef = useRef(false);
   const dialog = pairRequestFor(pairs);

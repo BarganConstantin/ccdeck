@@ -127,12 +127,21 @@ export default function AccountAttentionModal({ rows, onSignIn, onLater }: Props
  * by then, and an empty list is no dialog. And it waits for any other dialog to
  * close before it first appears — see promptShows. The stack is read on each
  * render, which the board's clock brings every quarter second.
+ *
+ * AND IT WAITS FOR A PAIRING REQUEST going up in the same render, which counts
+ * as one more dialog (`pairing`). That request is not on the stack until after
+ * the render that draws it, so when a dialog both were waiting on closed, they
+ * came up together, this one over the request it is meant to follow.
  */
-export function AccountAttention({ rows, signingIn, signIn, signedIn, refresh, closeSignIn, later }: Attention) {
+export function AccountAttention({ rows, signingIn, signIn, signedIn, refresh, closeSignIn, later, pairing = false }: Attention & {
+  /** A pairing request is up, or goes up in this render — DeckDialogs. */
+  pairing?: boolean;
+}) {
   // Whether the prompt — or the sign-in it opened — was up last render.
   const oursRef = useRef(false);
+  const dialogs = modalStack.dialogDepth() + (pairing ? 1 : 0);
   const shows = signingIn != null
-    || promptShows({ rows: rows.length, ours: oursRef.current, dialogs: modalStack.dialogDepth() });
+    || promptShows({ rows: rows.length, ours: oursRef.current, dialogs });
   oursRef.current = shows;
   if (signingIn) {
     return (
