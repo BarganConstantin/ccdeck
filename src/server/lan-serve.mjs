@@ -5,7 +5,7 @@
 // answered at all. It keeps nothing of its own: every check reads the
 // engine's settings, listener and key at the moment it is made, because any
 // of them can change while the store is read.
-import { credentialAad, seal, slotFor, transferChallenge, trustedPeer } from "./lan-sync.mjs";
+import { credentialAad, seal, sharedWith, slotFor, transferChallenge, trustedPeer } from "./lan-sync.mjs";
 import { liveLoginIs } from "./account-health.mjs";
 
 /**
@@ -58,8 +58,10 @@ export function createServe({
         // A listener may have authenticated this socket before its owner
         // unpaired the caller or switched sharing off. Recheck at the moment
         // a credential is requested and again after every asynchronous read.
+        // What this deck offers THAT deck, which for one the accept switch
+        // paired is less than everything ticked — see sharedWith.
         const maySend = () => settings().enabled && !!serverNow() && !!trustedPeer(settings().trusted, ctx.peerFp)
-          && settings().shared.includes(msg.key);
+          && sharedWith(settings(), ctx.peerFp).includes(msg.key);
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A SECOND PROOF, for the one operation that moves a credential. The
         // session says who connected; this says they are asking for this

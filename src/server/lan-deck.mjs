@@ -234,7 +234,9 @@ export const lanEngine = createEngine({
       const before = heldPrefs.current();
       const after = await heldPrefs.update(withShared(key));
       if (after?.lan?.shared === before?.lan?.shared) return;   // it was already ticked
-      await lanEngine.apply({ shared: after.lan.shared });
+      // With the mark that says an arrival ticked it, which decides who it is
+      // offered to — see sharedWith in lan-sync.mjs.
+      await lanEngine.apply({ shared: after.lan.shared, onward: after.lan.onward });
     } catch (err) {
       console.error(`${PRODUCT}: lan sync could not share the account it just received:`, err?.message ?? err);
     }
@@ -341,6 +343,10 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     enabled: lanEnabled(prefs, env),
     name: lan.name || defaultName(),
     shared: Array.isArray(lan.shared) ? lan.shared : [],
+    // Which of those an arrival ticked, so a deck the accept switch paired is
+    // not offered them — see sharedWith in lan-sync.mjs. Read with `shared`,
+    // from the same copy, so the two always agree.
+    onward: Array.isArray(lan.onward) ? lan.onward : [],
     autoAsk: lan.autoAsk !== false,
     autoAccept: lan.autoAccept !== false,
     pairingMode: lan.pairingMode === "invite" ? "invite" : "automatic",

@@ -147,7 +147,7 @@ describe("the shape on disk", () => {
     // next field and not this one: `shared` is empty, so a deck that pairs is
     // offered nothing until a person ticks a login here.
     expect(normalise({}).lan).toEqual({
-      enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], unpaired: [], port: 0,
+      enabled: true, name: "", secret: "", shared: [], onward: [], manual: [], trusted: [], unpaired: [], port: 0,
       autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {}, shareActive: true,
       // Tailscale discovery is off until somebody turns it on; its own two
       // permissions ship on, and answer only for the owner's own machines.
@@ -176,7 +176,7 @@ describe("the shape on disk", () => {
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
     const saved = JSON.parse(staged[0].body) as Record<string, unknown>;
     expect(saved.lan).toEqual({
-      enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], unpaired: [], port: 0,
+      enabled: true, name: "", secret: "kept", shared: ["a@@1"], onward: [], manual: [], trusted: [], unpaired: [], port: 0,
       autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {}, shareActive: true,
       tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
     });

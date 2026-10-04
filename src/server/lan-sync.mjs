@@ -101,8 +101,11 @@
 // downloads a week and four dependencies of its own; running unmaintained
 // cryptography to protect live credentials is worse than the plain construction
 // in lan-wire.mjs.
-import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { createHash, createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
 import os from "node:os";
+import { win32 as winPath } from "node:path";
 // What two decks say once one has dialled the other — the keys, the proofs and
 // the seals — is lan-wire.mjs's, and so is PROTOCOL, which the beacon below
 // carries: every label there is derived under it, and that file cannot import
@@ -211,9 +214,74 @@ export function cleanName(raw, fallback = "unnamed deck") {
  * The home directory is in it so that a copied `~/.claude` — which is how two
  * real machines end up holding one key, and the reason `id-clash` exists —
  * still reads as two machines when the hostnames differ, which they do.
+ *
+ * AND KEYED, because a plain hash of those two hid neither. The hostname rides
+ * in the same packet as the deck's name on a deck nobody renamed, which left
+ * only the home directory to guess — and /Users/<name>, /home/<name> and
+ * C:\Users\<name> over a list of first names is a guess that lands. The key is
+ * a secret this machine already has and never sends (see machineSecret): the
+ * same for every deck on it, so they still agree without writing anything, and
+ * another machine's own, so a copied config reads as another machine even under
+ * the same hostname. A machine with no such secret to read keys with nothing
+ * and sends the plain hash every deck sent before (see formerHostId).
  */
-export function hostId({ hostname = os.hostname(), home = os.homedir() } = {}) {
-  return createHash("sha256").update(`${machineName(hostname)}\u0000${home}`).digest("hex").slice(0, 12);
+export function hostId({ hostname = os.hostname(), home = os.homedir(), key = machineKey() } = {}) {
+  const input = `${machineName(hostname)}\u0000${home}`;
+  if (!key) return createHash("sha256").update(input).digest("hex").slice(0, 12);
+  return createHmac("sha256", key).update(`ccdeck host id\u0000${input}`).digest("hex").slice(0, 12);
+}
+
+/**
+ * This machine's id as a deck from before the key sends it — the plain hash.
+ *
+ * Never sent by this one. Read so that a beacon carrying it is known for what
+ * it is: an older deck on this same computer, which a newer one must not take
+ * for a stranger to pair with or for a copy of its key (see beaconVerdict). It
+ * names this machine and no other, because its inputs are this machine's.
+ */
+export function formerHostId({ hostname = os.hostname(), home = os.homedir() } = {}) {
+  return hostId({ hostname, home, key: "" });
+}
+
+/**
+ * The secret hostId is keyed with: an id the operating system keeps for this
+ * machine, readable by any user on it and never sent anywhere by this deck —
+ * systemd's (or D-Bus's) machine id on Linux, the platform UUID on a Mac, the
+ * machine GUID on Windows. Null where none can be read: a container without a
+ * machine id, a tool that would not run.
+ *
+ * Only ever the key of an HMAC, never the message and never on the wire, which
+ * is how systemd asks for its machine id to be used by an application.
+ */
+export function machineSecret({ platform = process.platform, env = process.env, readFile = readFileSync, run = execFileSync } = {}) {
+  const tool = (file, args, pattern) => {
+    try {
+      const out = run(file, args, { encoding: "utf8", timeout: 3_000, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+      return pattern.exec(String(out ?? ""))?.[1] ?? null;
+    } catch { return null; }
+  };
+  if (platform === "darwin") {
+    return tool("/usr/sbin/ioreg", ["-rd1", "-c", "IOPlatformExpertDevice"], /"IOPlatformUUID"\s*=\s*"([0-9A-Fa-f-]{16,})"/);
+  }
+  if (platform === "win32") {
+    const reg = winPath.join(env.SystemRoot || env.windir || "C:\\Windows", "System32", "reg.exe");
+    return tool(reg, ["query", "HKLM\\SOFTWARE\\Microsoft\\Cryptography", "/v", "MachineGuid"], /MachineGuid\s+REG_SZ\s+([0-9A-Fa-f-]{16,})/);
+  }
+  for (const file of ["/etc/machine-id", "/var/lib/dbus/machine-id"]) {
+    try {
+      const id = String(readFile(file, "utf8") ?? "").trim();
+      if (/^[0-9A-Fa-f-]{16,}$/.test(id)) return id;
+    } catch { /* the next place, or none */ }
+  }
+  return null;
+}
+
+/** machineSecret, read once per process: it cannot change while one runs, and
+ *  on a Mac or Windows it is a process to start. Empty when there is none. */
+let machineKeyRead = null;
+function machineKey() {
+  machineKeyRead ??= machineSecret() ?? "";
+  return machineKeyRead;
 }
 
 /**
@@ -325,15 +393,18 @@ export function readBeacon(buf, { maxBytes = MAX_BEACON_BYTES } = {}) {
  * broadcast on every interface it owns, and filtering by address would need a
  * list of them that changes when a VPN comes up.
  */
-export function beaconVerdict(beacon, { selfFp, selfInstance, selfHost, trusted } = {}) {
+export function beaconVerdict(beacon, { selfFp, selfInstance, selfHost, formerHost, trusted } = {}) {
   if (!beacon) return "unreadable";
+  // THIS COMPUTER'S ID, as this deck sends it or as a deck from before the key
+  // did (see formerHostId) — both name this machine and no other.
+  const here = !!selfHost && !!beacon.host && (beacon.host === selfHost || (!!formerHost && beacon.host === formerHost));
   // ANOTHER DECK ON THIS COMPUTER. Not this process — a different key, honestly
   // its own — and still nothing to pair with: both read one claude-swap store,
   // so neither holds a login the other could heal. It used to be filtered by
   // the address the packet came from, which is true and needs the list of this
   // machine's addresses to be current; the machine's own id needs nothing and
   // is the same answer.
-  if (selfHost && beacon.host && beacon.host === selfHost && beacon.fp !== selfFp) return "self";
+  if (here && beacon.fp !== selfFp) return "self";
   if (beacon.fp === selfFp) {
     // OUR OWN NAME, FROM SOMEBODY ELSE'S PROCESS. Two decks sharing a config
     // directory hold the same key — and so does the second machine when
@@ -363,7 +434,7 @@ export function beaconVerdict(beacon, { selfFp, selfInstance, selfHost, trusted 
     // the OTHER one: a `~/.claude` copied to a second machine, where two real
     // decks would otherwise be permanently invisible to each other.
     if (selfInstance && beacon.instance !== selfInstance) {
-      return selfHost && beacon.host === selfHost ? "self" : "id-clash";
+      return here ? "self" : "id-clash";
     }
     return "self";
   }
@@ -428,6 +499,26 @@ export function addTrusted(trusted, entry) {
  *  and true here for the same reason. */
 export function dropTrusted(trusted, fp) {
   return (Array.isArray(trusted) ? trusted : []).filter(t => t && t.fp !== fp);
+}
+
+/**
+ * The accounts this deck offers the paired deck `fp`: everything ticked here,
+ * less what an arrival ticked when that deck is one the accept switch paired.
+ *
+ * An account that arrives from a deck somebody here chose is ticked on arrival
+ * (#1188), and `onward` keeps which ticks those were. The reasoning for that
+ * tick is that the group already has the login, and the group is the decks a
+ * person here chose. A deck the switch paired (`auto`, see addTrusted) is
+ * offered what a person ticked and nothing else, which is what keeps the
+ * switch's promise: a deck that pairs is offered nothing until somebody ticks
+ * a login here. A person who unticks and ticks the account again takes the
+ * mark off, and from then on it is offered like any other tick.
+ */
+export function sharedWith(cfg, fp) {
+  const shared = Array.isArray(cfg?.shared) ? cfg.shared : [];
+  if (trustedPeer(cfg?.trusted, fp)?.auto !== true) return shared;
+  const onward = Array.isArray(cfg?.onward) ? cfg.onward : [];
+  return shared.filter(key => !onward.includes(key));
 }
 
 /**

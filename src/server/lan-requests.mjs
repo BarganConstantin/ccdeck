@@ -6,6 +6,7 @@
 // this decides who is on which list and when that accept is pressed.
 
 import { pairable, PRESENT_MS } from "./lan-sync.mjs";
+import { inTailnetBlock } from "./tailscale.mjs";
 
 /**
  * The most decks the heard list keeps at once (#1738).
@@ -56,6 +57,21 @@ export const REQUEST_MS = 10 * 60_000;
  */
 export const asksOn = (cfg, via) => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
 export const saysYesOn = (cfg, via) => cfg.pairingMode !== "invite" && (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
+
+/**
+ * Whether a switch may press accept on a request at all, by where it came from:
+ * the Tailscale pair only for the owner's own machine, and the local pair only
+ * for an address that is plainly on the local network.
+ *
+ * AN ADDRESS IN TAILSCALE'S BLOCK IS NOT PLAINLY LOCAL. Once Tailscale has
+ * been read and is running, routeOf places every such address on the tailnet,
+ * and this asks the first question of it. One that still reads as the local
+ * network is one nothing here has placed — no read yet, a read that failed, a
+ * read from before Tailscale came up — and the block is also what carrier NAT
+ * and other overlay networks hand out. Such a deck is a row for somebody to
+ * accept, as an unknown tailnet machine is, rather than a local one by default.
+ */
+const switchMayAnswer = (via, own, addr) => (via === "tailscale" ? own : !inTailnetBlock(addr));
 
 /**
  * `settings` answers the engine's settings in force at the moment of asking,
@@ -164,7 +180,7 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
     // An accept the switch pressed that did not pin — the switch's own budget
     // is spent, see MAX_AUTO_PINS in lan-engine.mjs — leaves the request as it
     // would be with the switch off: a row, drawn, for somebody to answer.
-    if (!wasUnpaired(entry.fp) && saysYesOn(cfg, via) && (via === "lan" || own)) {
+    if (!wasUnpaired(entry.fp) && saysYesOn(cfg, via) && switchMayAnswer(via, own, entry.addr)) {
       if (engineNow()?.accept(entry.fp, { byHand: false })) return;
     }
     if (!had) onChange?.();
@@ -234,7 +250,7 @@ export function createRequests({ now, settings, routeTo, wasUnpaired, engineNow,
     // the local one on does not answer a tailnet request, and turning the
     // Tailscale one on answers only the owner's own machines.
     const turnedOn = (f, via) => !f(was, via) && f(settings(), via);
-    const mayAnswer = p => (p.via === "tailscale" ? turnedOn(saysYesOn, "tailscale") && p.own : turnedOn(saysYesOn, "lan"));
+    const mayAnswer = p => turnedOn(saysYesOn, p.via === "tailscale" ? "tailscale" : "lan") && switchMayAnswer(p.via, p.own, p.addr);
     for (const [fp, p] of [...pending]) if (!wasUnpaired(fp) && mayAnswer(p)) engineNow().accept(fp, { byHand: false });
     // The same for the other direction: switching `ask` on with four machines
     // already listed asks those four.
