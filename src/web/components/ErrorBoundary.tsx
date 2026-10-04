@@ -19,6 +19,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { isEscapeKey, modalStack } from "../modal-dismiss";
 import { forwardCaughtError, scrubReport } from "../report-errors";
+import { showTabIcon } from "../use-tab-ambient";
 import FeedbackDialog from "./FeedbackDialog";
 
 /** How much of the component path to seed: enough to place the crash, not a
@@ -66,6 +67,12 @@ export default class ErrorBoundary extends Component<Props, State> {
     console.error("ccdeck hit a render error it could not draw past", error, info.componentStack);
     this.setState({ componentStack: info.componentStack ?? null });
     forwardCaughtError(error.message, error.stack);
+    // The tab, the one part of the deck on screen while it is not, kept the
+    // mark useTabAmbient last gave it, and that hook went down with the tree:
+    // a waiting or syncing mark, for good, over a deck taking no more events.
+    // The offline mark is the true one now (ambient.ts). The count in the
+    // title stays, as it does through a lost stream.
+    showTabIcon("offline");
   }
 
   // Escape, for the report dialog. A modal hears it only through
