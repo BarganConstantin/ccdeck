@@ -50,7 +50,7 @@ export function statusWorthAsking(snapshot) {
  * @param {boolean | null} s.notifyOn  the deck's own switch; null until it is read
  * @param {boolean} s.openAtLogin
  * @param {string} s.appVersion
- * @param {{ status: string, version?: string }} s.update  the updater's state
+ * @param {{ status: string, version?: string, kind?: string }} s.update  the updater's state
  * @param {boolean} [s.updateAsksPassword]  installing it asks for a password
  *   (a package manager's install, #1755)
  * @param {Array<{ label: string, href: string }>} [s.incidents]  what the
@@ -115,5 +115,19 @@ export function updateItem(u, on, asksPassword = false) {
   }
   if (u.status === "downloading") return { label: `Downloading ccdeck v${u.version}…`, enabled: false };
   if (u.status === "checking") return { label: "Checking for updates…", enabled: false };
+  // A failure is said, not left looking like an update nobody looked for:
+  // what to do about it where the updater knows (updater.mjs), else that it
+  // failed. Clicked, it checks again, as "Check for updates" did.
+  if (u.status === "error") {
+    const label = Object.hasOwn(UPDATE_FAILED, u.kind ?? "") ? UPDATE_FAILED[u.kind] : "Update failed — try again";
+    return { label, click: () => on.checkForUpdates() };
+  }
   return { label: u.status === "current" ? "Up to date — check again" : "Check for updates", click: () => on.checkForUpdates() };
 }
+
+/** The update row for a failure the person can do something about: an app in a
+ *  folder it cannot write to, which cannot replace itself there (#1927). */
+const UPDATE_FAILED = {
+  "unwritable-app": "Move ccdeck to Applications to update",
+  "unwritable-appimage": "Move the AppImage to a writable folder to update",
+};

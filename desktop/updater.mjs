@@ -51,6 +51,19 @@ function packageTypeIn(resourcesPath) {
   }
 }
 
+/** An update this copy cannot take where it is, and what kind, so the tray can
+ *  say what to do about it (tray-menu.mjs) rather than only that it failed. */
+function cannotUpdateHere(message, kind) {
+  return Object.assign(new Error(message), { kind });
+}
+
+/** The error state for a failure, with its kind when it has one. */
+function errorState(err) {
+  const state = { status: "error", error: String(err?.message ?? err) };
+  if (err?.kind) state.kind = err.kind;
+  return state;
+}
+
 /** Verify an Ed25519 signature over a file's bytes with ccdeck's update key. */
 export function verifyFileSignature(bytes, signatureB64, publicKeyPem = UPDATE_PUBLIC_KEY) {
   if (!signatureB64) return false;
@@ -81,7 +94,7 @@ export function verifyDownload(bytes, info, file, publicKeyPem = UPDATE_PUBLIC_K
 /**
  * @param {object} o
  * @param {import("electron").App} o.app
- * @param {(state: {status: string, version?: string, error?: string}) => void} o.onChange
+ * @param {(state: {status: string, version?: string, error?: string, kind?: string}) => void} o.onChange
  * @param {(line: string) => void} [o.log]
  * @param {string} [o.feed]  override for testing against a local server
  * @param {string} [o.resourcesPath]  where the installed app's package-type
@@ -126,12 +139,12 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         // The AppImage replaces its own file. One kept where this account
         // cannot write is not ready: nothing could install it.
         if (process.platform === "linux" && isAppImage() && !(await canReplace(process.env.APPIMAGE))) {
-          throw new Error(`ccdeck cannot update itself in ${dirname(process.env.APPIMAGE)}, which cannot be written to`);
+          throw cannotUpdateHere(`ccdeck cannot update itself in ${dirname(process.env.APPIMAGE)}, which cannot be written to`, "unwritable-appimage");
         }
         set({ status: "ready", version: info.version });
       } catch (err) {
         log(`update refused: ${err.message}`);
-        set({ status: "error", error: err.message });
+        set(errorState(err));
       }
     });
     return auto;
@@ -149,7 +162,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         // Nothing is staged that the swap cannot put in place: ready, it would
         // quit the app at the next quiet spell into a swap that fails.
         if (!(await canReplace(runningApp))) {
-          throw new Error(`ccdeck cannot update itself in ${dirname(runningApp)}, which cannot be written to — move it to Applications`);
+          throw cannotUpdateHere(`ccdeck cannot update itself in ${dirname(runningApp)}, which cannot be written to — move it to Applications`, "unwritable-app");
         }
         const failed = join(app.getPath("userData"), SWAP_FAILED);
         if (await failedSwap(failed) === update.version) {
@@ -168,7 +181,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
       }
     } catch (err) {
       log(`update check failed: ${err?.message ?? err}`);
-      set({ status: "error", error: String(err?.message ?? err) });
+      set(errorState(err));
     }
     return state;
   }
