@@ -15,9 +15,8 @@
   min-width: 0;
 }
 /* The question and the scale may wrap too, unlike the version banner's one
-   line: at 1024px with the accounts panel and both rail panels open the strip
-   has 130px left to it, and a scale that would not wrap ran on under the rail
-   with six of its numbers and "Not now" out of reach. */
+   line: on the narrowest phones the question's column is shorter than its one
+   line, and a scale that would not wrap ran past the window's edge. */
 .rating-banner strong { white-space: normal; }
 .rating-banner .rating-scale {
   display: inline-flex;
@@ -53,31 +52,72 @@
    reader in its own name. The first thing to go when the row is short of room. */
 .rating-banner .rating-ends { font-size: 11px; }
 
-/* THE RIGHT RAIL COVERS THIS ROW. The usage and machine panels are fixed over
-   the right end of the strip, 280px each with 20px between and 8px to the
-   edge of whatever they float over — and both are open by default. The version
-   banner answers that by keeping its × right after its sentence; a scale of
-   eleven buttons and a "Not now" is too long for that, and at 1440px with the
-   accounts panel open "Not now" sat under the machine panel where nothing could
-   press it. So the row ends where the rail begins, and what does not fit wraps
-   to a second line in the part of the strip that can be seen.
-   Above 640px only: under it the two panels span the window, one above the
-   other, and a padding the width of the rail would leave the row no width. */
-@media (min-width: 641px) {
-  .app:has(.usage-panel) .ver-banner.rating-banner,
-  .app:has(.sysdetail) .ver-banner.rating-banner { padding-right: calc(288px + 18px); }
-  .app:has(.usage-panel):has(.sysdetail) .ver-banner.rating-banner { padding-right: calc(588px + 18px); }
+/* THE ROW SPANS THE WINDOW, AND EVERYTHING DOCKED STARTS UNDER IT. The usage
+   and machine panels are fixed over the right end of the strip, 280px each
+   with 20px between — and both are open by default. The version banner answers
+   that by keeping its × right after its sentence; a scale of eleven buttons and
+   a "Not now" is too long for that. It used to keep the rail's width free as
+   padding instead, and that only held while the strip was wider than the rail:
+   with a session selected at 1024px the row had 40px left and stood 492px
+   tall, one word to a line, with the board pushed down under it; with the
+   accounts panel open as well the padding was wider than the strip, the page
+   scrolled sideways, and the machine panel sat over every number.
+   So for as long as it is up the question takes the whole row under the
+   topbar, across the left panel's column and the detail panel's, and those
+   two panels start a row lower. The rail is fixed rather than in the grid, so
+   it is moved by the row's own height, which RatingBanner.tsx writes as
+   --rating-h, and gives the same height back at its foot. Nothing covers the
+   row at any width, and nothing it holds can widen the page. */
+.app .ver-banner.rating-banner { grid-column: 1 / -1; }
+.app:has(.rating-banner) :is(.session-list, .accounts-panel, .detail) { grid-row: 3 / -1; }
+.app:has(.rating-banner) :is(.usage-panel, .sysdetail) {
+  top: calc(60px + var(--rating-h, 0px));
+  max-height: calc(100vh - 76px - var(--rating-h, 0px));
 }
 
-@media (max-width: 560px) {
+/* ON A PHONE, TWO LINES: the question with its "Not now" at the end, and the
+   scale under the question's first word. Left to wrap, the row took three at
+   390px — the scale and "Not now" together are wider than the window — and a
+   fingertip's 32px numbers wrapped the scale itself. What the two ends mean
+   goes; each end's button still says it to a screen reader. The thanks for a
+   low score takes the same shape — its × at the end, its offer underneath —
+   where it used to leave the × alone on a line of its own.
+   The rail and the detail panel span the window here, so the question moves
+   them too: the usage panel and the detail sheet start under the row, and the
+   usage panel gives its height back so the pair stays stacked. The machine
+   panel keeps the foot of the window. */
+@media (max-width: 640px) {
+  .ver-banner.rating-banner:has(> .rating-scale),
+  .ver-banner.rating-banner:has(> .ver-act + .ver-close) {
+    display: grid;
+    grid-template-columns: 7px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "dot ask  end"
+      ".   next next";
+  }
+  .rating-banner > .ver-dot { grid-area: dot; }
+  .rating-banner > strong { grid-area: ask; }
+  .rating-banner > :is(.ver-act, .ver-close) { grid-area: end; }
+  .rating-banner > .rating-scale { grid-area: next; }
+  .rating-banner > .ver-act:has(+ .ver-close) { grid-area: next; justify-self: start; }
   .rating-banner .rating-ends { display: none; }
+
+  .app:has(.rating-banner) .usage-panel { max-height: calc(50vh - 38px - var(--rating-h, 0px)); }
+  .app:has(.rating-banner) .sysdetail { top: auto; max-height: calc(50vh - 38px); }
+  .app:has(.rating-banner) .detail { top: calc(52px + var(--rating-h, 0px)); }
 }
 
 /* A fingertip gets the 32px the rest of the deck's small targets grow to under
    a coarse pointer (touch-and-forced-colours.css). Here rather than in that
-   block because this sheet comes after it, and the 24px above would win. Eleven
-   of them is 372px, so on a phone the scale takes its own line, as it already
-   does. */
+   block because this sheet comes after it, and the 24px above would win.
+   Eleven of them is 372px, and on a phone the scale's line is the window less
+   the question's indent — 307px at 360 — so there each number takes an equal
+   share of it instead: 32px where there is room, never under the 24px floor,
+   and still one line. */
 @media (pointer: coarse) {
   .rating-banner .rating-pick { width: 32px; height: 32px; }
+}
+@media (pointer: coarse) and (max-width: 640px) {
+  .rating-banner .rating-scale { display: grid; grid-template-columns: repeat(11, minmax(24px, 32px)); }
+  .rating-banner .rating-pick { width: auto; }
 }

@@ -381,7 +381,8 @@ describe("when the prompt takes its turn", () => {
     expect(promptShows({ rows: 2, ours: true, dialogs: 3 })).toBe(true);
     expect(promptShows({ rows: 0, ours: true, dialogs: 0 })).toBe(false);
     const host = src("../components/AccountAttentionModal.tsx");
-    expect(host).toMatch(/promptShows\(\{ rows: rows\.length, ours: oursRef\.current, dialogs: modalStack\.dialogDepth\(\) \}\)/);
+    expect(host).toMatch(/const dialogs = modalStack\.dialogDepth\(\) \+ \(pairing \? 1 : 0\);/);
+    expect(host).toMatch(/promptShows\(\{ rows: rows\.length, ours: oursRef\.current, dialogs \}\)/);
   });
 });
 

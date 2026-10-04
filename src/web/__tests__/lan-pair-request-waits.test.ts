@@ -12,8 +12,8 @@
 // Now it waits its turn, as the re-sign-in prompt already did: drawn only while
 // no other dialog is up, and kept once it is (promptShows).
 //
-// Run, not read: LanPairRequests is drawn on fake-react.ts's React, against the
-// real stack every dialog registers itself on.
+// Run, not read: usePairRequestDialog is called on fake-react.ts's React,
+// against the real stack every dialog registers itself on.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { mount, type Drawn } from "./fake-react";
@@ -21,7 +21,7 @@ import type { LanStranger } from "../lan-types";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
 
-const { LanPairRequests } = await import("../components/LanPairRequestModal");
+const { usePairRequestDialog } = await import("../components/LanPairRequestModal");
 const { modalStack } = await import("../modal-dismiss");
 
 const ask = (fp: string, name: string, at: number): LanStranger => ({ fp, name, addr: "192.168.1.9", port: 62259, at });
@@ -52,25 +52,25 @@ const asked = (tree: unknown) => (tree && typeof tree === "object" ? String((tre
 describe("a pairing request that arrives while another dialog is open", () => {
   it("is not drawn under it, so it cannot take the keyboard from it", () => {
     openDialog();
-    const view = mount(LanPairRequests, props([asking]));
+    const view = mount(usePairRequestDialog, props([asking]));
     expect(asked(view.tree)).toBeNull();
   });
 
   it("is asked once that dialog has closed", () => {
     openDialog();
-    const view = mount(LanPairRequests, props([asking]));
+    const view = mount(usePairRequestDialog, props([asking]));
     opened.pop()!();
     view.rerender();
     expect(asked(view.tree)).toBe(asking.fp);
   });
 
   it("is asked at once when nothing else is open", () => {
-    const view = mount(LanPairRequests, props([asking]));
+    const view = mount(usePairRequestDialog, props([asking]));
     expect(asked(view.tree)).toBe(asking.fp);
   });
 
   it("stays once it is asked, whatever opens over it, and brings the next request with its answer", () => {
-    const view = mount(LanPairRequests, props([asking, next]));
+    const view = mount(usePairRequestDialog, props([asking, next]));
     expect(asked(view.tree)).toBe(asking.fp);
     // Its own dialog is on the stack while it is up, and something arrives
     // over it — neither takes it away.
