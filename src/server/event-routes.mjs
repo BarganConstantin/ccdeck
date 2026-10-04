@@ -18,6 +18,8 @@ import { SEQ_EPOCH, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
 // The one door every event comes through — see event-pipeline.mjs.
 import { pushEvent } from "./event-pipeline.mjs";
 import { noteLogWriter } from "./event-log.mjs";
+// Which CLIs this deck watches — see deck-scope.mjs.
+import { deckProviders } from "./deck-scope.mjs";
 // The SSE subscribers and the backpressure every frame to them is written
 // under — see sse-clients.mjs.
 import { dropSse, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
@@ -176,6 +178,16 @@ export function handleEventIngest(req, res, persist = true) {
     let parsed;
     try { parsed = JSON.parse(body); }
     catch { return send(res, 400, { error: "invalid json" }); }
+    // A deck started with --no-claude takes no Claude hook event, which is what
+    // its replay already decides (see replayScope) and what a current hook no
+    // longer sends it. A hook installed before that still does, so the refusal
+    // is an answer rather than a silent drop: a hook that elected this deck to
+    // write the log hands it on to the next deck instead of losing the line.
+    // Read off the provider every Claude hook has stamped since Codex support
+    // arrived, so it is the payload saying whose it is.
+    if (!deckProviders().claude && parsed?.provider === "claude") {
+      return send(res, 409, { error: "this deck is not watching Claude" });
+    }
     // Everything past the parse is inside one net, because this listener is the
     // one place in the route table `guard` cannot reach. The route does wrap the
     // call — `guard(handleEventIngest(req, res, …), res)` — but this function

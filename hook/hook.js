@@ -818,6 +818,15 @@ function readRecord(file, resolvedCwd, found, done) {
 
     if (!isAlive(d.pid)) return fs.unlink(full, () => done());
 
+    // A deck started with --no-claude says so in its record, and is not a
+    // target for a Claude event. Starting one removes no hooks an earlier run
+    // installed, so without this it drew every Claude session live — and could
+    // be elected to log them — while its replay, which does read the flag,
+    // dropped them all again at the next boot. Refused here, before the
+    // election, so the log goes to a deck that wants the session. A record
+    // with no `claude` field predates the flag and is taken, as it always was.
+    if (PROVIDER === "claude" && d.claude === false) return done();
+
     // Where this record lives, for the one later verdict that may forget it —
     // see forgetIfAbandoned.
     RECORD_FILE.set(d, full);
