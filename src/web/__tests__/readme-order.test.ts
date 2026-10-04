@@ -103,21 +103,24 @@ describe("the disclosures the README must keep, and keep in one place", () => {
   });
 
   it("leaves the three-beat line under the install command, and a way through to the rest", () => {
-    // "No config file. No account. Nothing about your sessions is reported
-    // anywhere." is the claim on the page most tools in this category cannot
-    // honestly make. The third beat has changed twice, both times in #1853. It
-    // read "No telemetry" until anonymous reports existed, which made that
-    // false; then "Nothing sent without your yes", while the reports sat
-    // behind a question; and the owner chose on-by-default on 2026-09-30, which
-    // made that false too. What is pinned is the sentence that stayed true
-    // through all three, and the README says the rest of it beside it: that
-    // the reports exist, that they are on, and where the switch is. Moving the
+    // "No config file. No account. What your sessions contain … is never
+    // reported anywhere." is the claim on the page most tools in this category
+    // cannot honestly make. The third beat has changed three times. It read
+    // "No telemetry" until anonymous reports existed, which made that false;
+    // then "Nothing sent without your yes", while the reports sat behind a
+    // question; then "Nothing about your sessions is reported anywhere" once
+    // the owner chose on-by-default on 2026-09-30 — which the daily "active"
+    // made false too, since it counts the day's sessions. What is pinned is
+    // the sentence that stays true — what a session contains never leaves —
+    // and the README says the rest of it beside it: that the reports exist,
+    // that they are on, what they count, and how to keep them off. Moving the
     // detail out from under it is only an improvement while the line itself
     // stays put.
     const quick = at("## Quick start");
-    const three = readme.indexOf("No config file. No account. Nothing about your sessions is reported anywhere —");
+    const three = readme.indexOf("No config file. No account. What your sessions contain");
     expect(three).toBeGreaterThan(quick);
     expect(three).toBeLessThan(at("## Requirements"));
+    expect(readme).not.toContain("Nothing about your sessions is reported");
     expect(readme).toContain("[What it touches](#what-it-touches)");
   });
 });
