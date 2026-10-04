@@ -537,6 +537,9 @@ const CONTROLS: Control[] = [
   // The auto-restart switch is the shared one since #886. Armed, it fills with
   // the banner's warning colour, measured here on the banner's own beds.
   { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
+  // The one question's scale, eleven numbered buttons on the calm `note` bed,
+  // framed at rest like the version banner's command and louder on hover.
+  { at: ".rating-banner .rating-pick", states: [".rating-banner .rating-pick:hover"], beds: ["--bg-soft"] },
   // canvas, detail panel, modals
   // `.detail-close:hover` and `.ctx-modal-close` used to be here, and they are
   // gone rather than exempted. Both are `.glyph-btn` now — a bare character in
@@ -832,7 +835,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // at rest. And back down to 106 when the dialog was made effortless: the
     // starters went, pill and hover, and a kind no longer frames itself at
     // rest — only the chosen one does — so three rules stopped drawing one.
-    expect(EDGED_CONTROLS.length).toBeLessThan(106);
+    // And from 106 to 108 with the one question's scale: a number framed at
+    // rest, and louder under the pointer.
+    expect(EDGED_CONTROLS.length).toBeLessThan(108);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

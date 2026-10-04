@@ -1,0 +1,83 @@
+/* ---------------- the one question (RatingBanner.tsx) ----------------
+   "How useful is ccdeck to you?", in the banner slot under the topbar, in the
+   shape of the version banner's calm `note`: the row, the dot, the "Not now"
+   button and the × are .ver-banner's own (search-and-banners.css). What is
+   new is the scale — eleven numbered buttons, each a 24px square, the floor
+   SC 2.5.8 sets, laid edge to edge with 2px between them so the row reads as
+   one control rather than eleven. The row wraps rather than overflowing: at
+   390px the question takes a line and the scale the next. */
+.ver-banner.rating-banner {
+  flex-wrap: wrap;
+  row-gap: 6px;
+  /* A grid item is as wide as its widest unbreakable piece unless told
+     otherwise, and the hint's one line is wider than a narrow strip: it pushed
+     the page 12px past the window at 1024px. The hint ellipsises instead. */
+  min-width: 0;
+}
+/* The question and the scale may wrap too, unlike the version banner's one
+   line: at 1024px with the accounts panel and both rail panels open the strip
+   has 130px left to it, and a scale that would not wrap ran on under the rail
+   with six of its numbers and "Not now" out of reach. */
+.rating-banner strong { white-space: normal; }
+.rating-banner .rating-scale {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+}
+.rating-banner .rating-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 6px;
+  background: var(--ctl-fill);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.rating-banner .rating-pick:hover { border-color: var(--text); background: var(--panel); }
+.rating-banner .rating-pick:active { transform: scale(0.94); }
+/* Its press switches off under reduced motion with every other one, in the one
+   list at accounts-details.css. Under a Contrast theme the border is redrawn in
+   the theme's own colour, so each number stays a separate target there too. */
+/* What the two ends mean, for the eye; each end's button says it to a screen
+   reader in its own name. The first thing to go when the row is short of room. */
+.rating-banner .rating-ends { font-size: 11px; }
+
+/* THE RIGHT RAIL COVERS THIS ROW. The usage and machine panels are fixed over
+   the right end of the strip, 280px each with 20px between and 8px to the
+   edge of whatever they float over — and both are open by default. The version
+   banner answers that by keeping its × right after its sentence; a scale of
+   eleven buttons and a "Not now" is too long for that, and at 1440px with the
+   accounts panel open "Not now" sat under the machine panel where nothing could
+   press it. So the row ends where the rail begins, and what does not fit wraps
+   to a second line in the part of the strip that can be seen.
+   Above 640px only: under it the two panels span the window, one above the
+   other, and a padding the width of the rail would leave the row no width. */
+@media (min-width: 641px) {
+  .app:has(.usage-panel) .ver-banner.rating-banner,
+  .app:has(.sysdetail) .ver-banner.rating-banner { padding-right: calc(288px + 18px); }
+  .app:has(.usage-panel):has(.sysdetail) .ver-banner.rating-banner { padding-right: calc(588px + 18px); }
+}
+
+@media (max-width: 560px) {
+  .rating-banner .rating-ends { display: none; }
+}
+
+/* A fingertip gets the 32px the rest of the deck's small targets grow to under
+   a coarse pointer (touch-and-forced-colours.css). Here rather than in that
+   block because this sheet comes after it, and the 24px above would win. Eleven
+   of them is 372px, so on a phone the scale takes its own line, as it already
+   does. */
+@media (pointer: coarse) {
+  .rating-banner .rating-pick { width: 32px; height: 32px; }
+}

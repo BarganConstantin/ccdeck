@@ -1,5 +1,5 @@
 // "How useful is ccdeck to you?" — the one question the deck asks about itself
-// (rating.mjs, reports.mjs).
+// (rating.mjs, reports.mjs, use-rating-ask.ts, RatingBanner.tsx).
 //
 // What these pin: it is asked only after seven days the deck was used, only
 // while reports are on, never in the minutes after a launch; "Not now" puts it
@@ -10,6 +10,8 @@
 // from 0 to 10 or "later".
 import { readFileSync } from "node:fs";
 import { Readable } from "node:stream";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error — plain JS module, no types
 import { normalise } from "../../server/deck-prefs.mjs";
@@ -23,6 +25,7 @@ import { createReporter } from "../../server/reports.mjs";
 import { handleRatingRead, handleRatingWrite } from "../../server/reports-routes.mjs";
 // @ts-expect-error — plain JS module, no types
 import { createUsageDay } from "../../server/usage-day.mjs";
+import RatingBanner from "../components/RatingBanner";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -273,5 +276,34 @@ describe("the page's route", () => {
     const route = src.indexOf('url.pathname === "/api/rating")       return guard(handleRatingWrite');
     expect(route).toBeGreaterThan(src.indexOf("isAuthorizedMutation(req)"));
     expect(route).toBeLessThan(src.indexOf("AN UNMATCHED /api/ PATH IS A 404"));
+  });
+});
+
+describe("the banner", () => {
+  const props = {
+    phase: "asking" as const, score: null, onAnswer: () => {}, onLater: () => {}, onClose: () => {}, onFeedback: () => {},
+  };
+
+  it("offers eleven numbered buttons, each named for a screen reader, and a way to put it off", () => {
+    const html = renderToStaticMarkup(createElement(RatingBanner, props));
+    expect(html).toContain("How useful is ccdeck to you?");
+    const picks = [...html.matchAll(/<button[^>]*class="rating-pick"[^>]*aria-label="([^"]+)"[^>]*>(\d+)<\/button>/g)];
+    expect(picks.map(m => m[2])).toEqual(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    expect(picks[0][1]).toMatch(/^0 out of 10/);
+    expect(picks[10][1]).toMatch(/^10 out of 10/);
+    expect(html).toMatch(/<button[^>]*>Not now<\/button>/);
+    // A group named by its question, never a dialog and never a live alarm.
+    expect(html).toMatch(/role="group"[^>]*aria-labelledby="rating-question"/);
+    expect(html).not.toMatch(/role="(dialog|alert|alertdialog)"/);
+    expect(html).not.toContain("autofocus");
+  });
+
+  it("thanks, and for a low score offers the feedback dialog without sending any words", () => {
+    const low = renderToStaticMarkup(createElement(RatingBanner, { ...props, phase: "thanks", score: 4 }));
+    expect(low).toContain("Thanks");
+    expect(low).toMatch(/<button[^>]*>Tell us what would make it better<\/button>/);
+    const high = renderToStaticMarkup(createElement(RatingBanner, { ...props, phase: "thanks", score: 9 }));
+    expect(high).toContain("Thanks");
+    expect(high).not.toContain("make it better");
   });
 });

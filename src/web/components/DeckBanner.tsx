@@ -1,6 +1,7 @@
-// The strip under the topbar, and which of its four banners it shows: a
-// restart that has just landed, a dropped connection, a release waiting, or a
-// deck started under its old name — at most one, in that order.
+// The strip under the topbar, and which of its five banners it shows: a
+// restart that has just landed, a dropped connection, a release waiting, a
+// deck started under its old name, or the one question the deck asks about
+// itself — at most one, in that order.
 //
 // Moved out of App.tsx's markup unchanged. Each banner is its own component;
 // this is the order they outrank each other in. Each hook's return comes in
@@ -8,16 +9,23 @@
 import type { useAutoRestart } from "../use-auto-restart";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useOldNameNotice } from "../use-old-name-notice";
+import type { useRatingAsk } from "../use-rating-ask";
 import type { useVersionCheck } from "../use-version-check";
 import ConnectionBanner from "./ConnectionBanner";
 import OldNameBanner from "./OldNameBanner";
+import RatingBanner from "./RatingBanner";
 import VersionBanner from "./VersionBanner";
 
-export default function DeckBanner({ restart, versionCheck, upgrade, oldNameNotice, everConnected, live, paused }: {
+export default function DeckBanner({
+  restart, versionCheck, upgrade, oldNameNotice, rating, onFeedback, everConnected, live, paused,
+}: {
   restart: ReturnType<typeof useAutoRestart>;
   versionCheck: ReturnType<typeof useVersionCheck>;
   upgrade: ReturnType<typeof useDeckUpgrade>;
   oldNameNotice: ReturnType<typeof useOldNameNotice>;
+  rating: ReturnType<typeof useRatingAsk>;
+  /** Opens the feedback dialog, blank — the low-score thanks offers it. */
+  onFeedback: () => void;
   /** Whether the stream has connected at least once, and whether it is now. */
   everConnected: boolean;
   live: boolean;
@@ -28,6 +36,7 @@ export default function DeckBanner({ restart, versionCheck, upgrade, oldNameNoti
   const { version, notice, noticeOpen, dismissNotice } = versionCheck;
   const { upgradeState, startUpgrade, copyCommand, cmdCopied } = upgrade;
   const { oldName, oldNameOpen, dismissOldName } = oldNameNotice;
+  const { ratingPhase, ratingScore, answerRating, rateLater, closeRating } = rating;
   return (
     restartedTo ? (
       // Outranks both: it is the shortest-lived of the three and it answers
@@ -51,6 +60,13 @@ export default function DeckBanner({ restart, versionCheck, upgrade, oldNameNoti
       // today: a dropped connection, a restart and a release all outrank a
       // name. It comes back the moment the row above it is dismissed.
       <OldNameBanner oldName={oldName} version={version} dismissOldName={dismissOldName} />
+    ) : ratingPhase !== "hidden" ? (
+      // Last of all: a question about us waits behind anything the reader has
+      // to act on, and comes back when the row above it goes.
+      <RatingBanner
+        phase={ratingPhase} score={ratingScore} onAnswer={answerRating} onLater={rateLater} onClose={closeRating}
+        onFeedback={() => { closeRating(); onFeedback(); }}
+      />
     ) : null
   );
 }
