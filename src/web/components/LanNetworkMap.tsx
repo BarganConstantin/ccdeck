@@ -620,7 +620,7 @@ export function NetworkDetails({ status, summary, entrance, slice }: {
     { key: "dialling", n: summary.dialling, words: "still dialling", mark: <i className="nm-key-mark" data-tier="loose" aria-hidden /> },
     { key: "declined", n: summary.declined, words: "declined, not drawn", mark: <i aria-hidden /> },
   ];
-  const next = networkNextStep(summary);
+  const next = networkNextStep(summary, status?.pairingMode);
   return (
     <div className="nm-panel" data-view="network" data-entrance={entrance}>
       <h3 className="nm-panel-name">{status?.name ?? "…"}</h3>

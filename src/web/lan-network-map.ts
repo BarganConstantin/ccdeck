@@ -835,9 +835,11 @@ export function continuousAngle(prev: number | undefined, next: number): number 
  * pointed at — the first that applies, in the order a person would want to
  * hear them: somebody waiting on this keyboard, then decks this one cannot
  * reach back, then addresses answering nothing, then machines not yet paired.
- * Every verb names a control that exists where it says.
+ * Every verb names a control that exists where it says — so a deck that pairs
+ * by invite only is not sent to ask, which its nearby decks' dialogs do not
+ * offer, but to an invite, in deckNextStep's own words.
  */
-export function networkNextStep(s: MapSummary): string | null {
+export function networkNextStep(s: MapSummary, pairingMode?: "automatic" | "invite"): string | null {
   if (s.asks) {
     return s.asks === 1
       ? "1 deck wants to pair. Answer it in the Local network list, behind this map."
@@ -854,12 +856,15 @@ export function networkNextStep(s: MapSummary): string | null {
       : `${s.dialling} addresses have never answered. Open one to stop dialling it.`;
   }
   if (s.nearby) {
-    return s.nearby === 1
-      ? "1 deck nearby is not paired. Open it to ask to pair."
-      : `${s.nearby} decks nearby are not paired. Open one to ask to pair.`;
+    const unpaired = s.nearby === 1 ? "1 deck nearby is not paired." : `${s.nearby} decks nearby are not paired.`;
+    if (pairingMode === "invite") return `${unpaired} ${INVITE_ONLY}`;
+    return s.nearby === 1 ? `${unpaired} Open it to ask to pair.` : `${unpaired} Open one to ask to pair.`;
   }
   return null;
 }
+
+/** What a deck that pairs by invite only does about a machine heard nearby. */
+const INVITE_ONLY = "This deck pairs by invite only. Send one from Add a deck.";
 
 /** What to do about one deck that is not online, in its panel — or nothing,
  *  for a deck that is on or simply away. */
@@ -868,9 +873,7 @@ export function deckNextStep(row: DeckRow, pairingMode?: "automatic" | "invite")
     case "asks": return "Waiting for your answer, in the Local network list behind this map.";
     case "dialling": return "Nothing has answered here yet. Its dialog can stop dialling it.";
     case "nearby":
-      return pairingMode === "invite"
-        ? "This deck pairs by invite only. Send one from Add a deck."
-        : "Not paired yet. Its dialog can ask to pair.";
+      return pairingMode === "invite" ? INVITE_ONLY : "Not paired yet. Its dialog can ask to pair.";
     case "paired":
       return !row.here && row.state.startsWith("one-way")
         ? "It can reach this deck, not the other way. Add its address through Add a deck."
