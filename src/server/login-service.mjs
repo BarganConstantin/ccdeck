@@ -469,8 +469,21 @@ export function installService({
   product = "ccdeck",
   fs = { mkdirSync, writeFileSync },
   run = spawnSync,
+  // Whether systemd is this machine's init — sd_booted(3)'s own test. Only
+  // this machine can be asked, so a Linux job written from anywhere else is
+  // taken to have one.
+  systemd = () => process.platform !== "linux" || existsSync("/run/systemd/system"),
 } = {}) {
   const path = servicePath(platform, home, env);
+  // NO SYSTEMD, NO LOGIN ITEM — Alpine and Gentoo on OpenRC, Void, Devuan, a
+  // container, WSL with systemd off. A unit written there is read by nothing,
+  // and `systemctl` is missing or refuses; the refusal used to read as
+  // "file-only", so the first start said the deck would start at login, saved
+  // the item as installed and never offered again. Asked before anything is
+  // written, so nothing is left behind in a directory nobody reads.
+  if (platform === "linux" && !systemd()) {
+    return { ok: false, path, reason: "this machine does not run systemd" };
+  }
   try {
     // BEFORE THE SERVICE MANAGER IS TOLD ANYTHING. launchd opens
     // StandardOutPath when it starts the job and systemd opens

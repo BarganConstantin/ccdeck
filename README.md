@@ -357,7 +357,8 @@ own, because the one that decides when a crashed deck stops coming back lives in
 ccdeck and two policies over one process is how a stop becomes a suggestion. An
 `npx` run never installs one: it would name a path inside npm's cache, which npm
 deletes without warning — nor does a `pnpm dlx`, `bunx` or `yarn dlx` run, for the
-same reason. On Linux, `systemd --user` is torn down at logout unless
+same reason. A Linux machine that does not run systemd gets none either, and the
+first start says so. On Linux, `systemd --user` is torn down at logout unless
 `loginctl enable-linger` is on for your account — the install says so rather than
 changing that for you.
 
