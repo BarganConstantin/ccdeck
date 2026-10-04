@@ -260,7 +260,9 @@ describe("the error boundary catches a render crash and offers a report", () => 
   });
 
   it("shows a calm reachable pane with Reload and Send report", () => {
-    expect(boundary).toMatch(/className="error-fallback" role="alert"/);
+    // The card is the alert, not the pane, so the report dialog is not read
+    // out inside it (crash-pane-alert.test.ts draws it).
+    expect(boundary).toMatch(/className="error-fallback-card" role="alert"/);
     expect(boundary).toMatch(/Something went wrong/);
     expect(boundary).toMatch(/onClick=\{\(\) => window\.location\.reload\(\)\}/);
     expect(boundary).toMatch(/>\s*Reload\s*</);

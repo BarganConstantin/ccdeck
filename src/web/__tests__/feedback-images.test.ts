@@ -470,9 +470,12 @@ describe("the dialog takes an image three ways", () => {
   });
 
   it("names what went wrong beside the images", () => {
-    expect(shotsView).toMatch(/\{images\.problem && <p ref=\{problemRef\} className="fb-error" role="alert">\{images\.problem\}<\/p>\}/);
-    // And brought into view, since on a short window it lands below the fold.
-    expect(shotsView).toMatch(/if \(images\.problem\) problemRef\.current\?\.scrollIntoView\(\{ block: "nearest" \}\);/);
+    // Keyed on the refusal, so the same words twice are a new alert, read out
+    // again (feedback-image-refusal-repeat.test.ts runs the hook).
+    expect(shotsView).toMatch(/\{images\.problem && <p key=\{images\.problemId\} ref=\{problemRef\} className="fb-error" role="alert">\{images\.problem\}<\/p>\}/);
+    // And brought into view, since on a short window it lands below the fold,
+    // every time.
+    expect(shotsView).toMatch(/if \(images\.problem\) problemRef\.current\?\.scrollIntoView\(\{ block: "nearest" \}\); \}, \[images\.problem, images\.problemId\]\);/);
   });
 
   it("finishes every fit before it sends, and sends the fitted images", () => {

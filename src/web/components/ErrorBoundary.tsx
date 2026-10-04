@@ -17,7 +17,9 @@
 // with is scrubbed here, because feedback is not scrubbed on its way through the
 // server and the words are on screen before Send — see report-errors' scrubReport.
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { isEscapeKey, modalStack } from "../modal-dismiss";
 import { forwardCaughtError, scrubReport } from "../report-errors";
+import { showTabIcon } from "../use-tab-ambient";
 import FeedbackDialog from "./FeedbackDialog";
 
 /** How much of the component path to seed: enough to place the crash, not a
@@ -65,14 +67,42 @@ export default class ErrorBoundary extends Component<Props, State> {
     console.error("ccdeck hit a render error it could not draw past", error, info.componentStack);
     this.setState({ componentStack: info.componentStack ?? null });
     forwardCaughtError(error.message, error.stack);
+    // The tab, the one part of the deck on screen while it is not, kept the
+    // mark useTabAmbient last gave it, and that hook went down with the tree:
+    // a waiting or syncing mark, for good, over a deck taking no more events.
+    // The offline mark is the true one now (ambient.ts). The count in the
+    // title stays, as it does through a lost stream.
+    showTabIcon("offline");
+  }
+
+  // Escape, for the report dialog. A modal hears it only through
+  // modalStack.dismissTop(), and the one listener that calls that is in
+  // use-deck-shortcuts.ts, which went down with the tree this pane replaced —
+  // so the pane answers the key itself while its dialog is open, and only
+  // then: while the deck runs, that listener is Escape's one owner.
+  private readonly onKey = (e: KeyboardEvent) => {
+    if (isEscapeKey(e.key)) modalStack.dismissTop();
+  };
+
+  componentDidUpdate(_prev: Props, prevState: State): void {
+    if (this.state.reportOpen === prevState.reportOpen) return;
+    if (this.state.reportOpen) window.addEventListener("keydown", this.onKey);
+    else window.removeEventListener("keydown", this.onKey);
+  }
+
+  componentWillUnmount(): void {
+    window.removeEventListener("keydown", this.onKey);
   }
 
   render(): ReactNode {
     const { error, componentStack, reportOpen } = this.state;
     if (!error) return this.props.children;
     return (
-      <div className="error-fallback" role="alert">
-        <div className="error-fallback-card">
+      <div className="error-fallback">
+        {/* The alert is the card, not the pane: the report dialog opens beside
+            it, since everything inside an alert is read out, assertively,
+            whenever any of it changes. */}
+        <div className="error-fallback-card" role="alert">
           <p className="error-fallback-title">Something went wrong</p>
           <p className="error-fallback-note">
             The deck hit an error it could not draw past. Reloading usually clears it — and if it
