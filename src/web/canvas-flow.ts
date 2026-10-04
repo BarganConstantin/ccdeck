@@ -23,6 +23,7 @@
 import { type Edge, type Node } from "reactflow";
 import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
+import { NODE_W } from "./layout-geometry";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
@@ -102,6 +103,65 @@ export function laneMap(state: GraphState): Map<string, number> {
     if (a.tools.length > 0) lanes.set(a.id, Math.min(4, a.tools.length));
   }
   return lanes;
+}
+
+/**
+ * The order the frame hands its nodes to React Flow in, which is the order the
+ * DOM holds them in and so the order Tab walks the cards.
+ *
+ * It was the reducer's agent map, and that is arrival order: a subagent spawned
+ * after another session started landed in the DOM after that session, so Tab
+ * went from one session's root into the next session and back for the rest of
+ * its subagents, the ring jumping across the canvas. The board's own order is
+ * the one the layout packs it in: down a column of sessions, then across, and
+ * inside a session the root and then each rank of subagents from the top (a
+ * recap note, which is no tab stop, sits ahead of its root, where it is drawn).
+ *
+ * A column is the sessions whose boxes overlap side to side. The packer leaves
+ * a tool lane and a card's width between columns, so on a laid-out board no box
+ * reaches the next column, and a note put down to the left of its card still
+ * overlaps the column its card stands in.
+ */
+export function boardOrder<N extends Node>(nodes: readonly N[], depthOf: (n: N) => number): N[] {
+  const sessionOf = (n: N) => (n.data as { sessionId?: string } | undefined)?.sessionId ?? n.id;
+  const boxes = new Map<string, { minX: number; maxX: number; minY: number }>();
+  for (const n of nodes) {
+    const sid = sessionOf(n);
+    const x2 = n.position.x + (n.width ?? NODE_W);
+    const b = boxes.get(sid);
+    if (!b) boxes.set(sid, { minX: n.position.x, maxX: x2, minY: n.position.y });
+    else {
+      b.minX = Math.min(b.minX, n.position.x);
+      b.maxX = Math.max(b.maxX, x2);
+      b.minY = Math.min(b.minY, n.position.y);
+    }
+  }
+  // Left edge first; a session joins the column before it while its box
+  // overlaps that column's.
+  const columns: { maxX: number; sessions: { sid: string; top: number }[] }[] = [];
+  for (const [sid, b] of [...boxes].sort((p, q) => p[1].minX - q[1].minX)) {
+    const last = columns[columns.length - 1];
+    if (last && b.minX < last.maxX) {
+      last.maxX = Math.max(last.maxX, b.maxX);
+      last.sessions.push({ sid, top: b.minY });
+    } else columns.push({ maxX: b.maxX, sessions: [{ sid, top: b.minY }] });
+  }
+  const rank = new Map<string, number>();
+  for (const col of columns) {
+    for (const { sid } of col.sessions.sort((p, q) => p.top - q.top)) rank.set(sid, rank.size);
+  }
+  return nodes.slice().sort((p, q) =>
+    (rank.get(sessionOf(p))! - rank.get(sessionOf(q))!)
+    || (depthOf(p) - depthOf(q))
+    || (p.position.y - q.position.y)
+    || (p.position.x - q.position.x));
+}
+
+/** How many parents up an agent's root is: 0 for a root, 1 for its subagents. */
+function depthIn(state: GraphState, a: AgentNodeData): number {
+  let depth = 0;
+  for (let p = a.parentId; p != null && depth < state.agents.size; p = state.agents.get(p)?.parentId) depth++;
+  return depth;
 }
 
 export function snapshotToFlow(
@@ -454,5 +514,13 @@ export function snapshotToFlow(
     // place it could be.
     lastLayoutSigRef.current = "";
   }
-  return { nodes: finalNodes, edges };
+  // In board order rather than arrival order, because it is also Tab's order.
+  // Sorted only here, after every pass above has run in the order it always
+  // ran in, so the layout cannot tell.
+  const depthOf = (n: Node<FlowNodeData>) => {
+    if (n.type === "recapNote") return -1;
+    const a = state.agents.get(n.id);
+    return a ? depthIn(state, a) : 0;
+  };
+  return { nodes: boardOrder(finalNodes, depthOf), edges };
 }
