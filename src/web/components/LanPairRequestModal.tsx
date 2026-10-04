@@ -23,7 +23,9 @@
 // gets pressed by reflex leaves it exactly where it was — in the panel, where
 // the section has listed it all along.
 import { useRef } from "react";
+import { modalStack } from "../modal-dismiss";
 import { pressState } from "../panel-press";
+import { promptShows } from "../reauth-attention";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { askedLabel } from "../lan-roster";
 import type { LanStranger } from "../lan-types";
@@ -142,17 +144,38 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
   );
 }
 
-/** What DeckDialogs mounts: the request to ask about now, if any — the oldest not
- *  put off this session, see nextRequest — with its answers wired to the hook
- *  that holds them (use-lan-pair-requests.ts). Moved out of App.tsx's markup,
- *  where it was an inline function.
+/** What DeckDialogs mounts: the request to ask about now, if there is one and
+ *  it is its turn — see pairRequestFor.
+ *
+ *  IT WAITS ITS TURN, by the rule the re-sign-in prompt waits by (promptShows).
+ *  It arrives on a poll, whatever is open, and it is not portalled, while the
+ *  panel's dialogs are — the network map, Busiest processes, a sign-in and its
+ *  code — so it was drawn UNDER the one somebody was using, and its mount took
+ *  the keyboard all the same: Escape meant for the map put the request off, and
+ *  the Enter of somebody typing a sign-in code declined the other deck unseen.
+ *  So it is drawn only while no other dialog is up, and once it is, it stays,
+ *  answer after answer, whatever opens over it. The stack is read on each
+ *  render, which the board's clock brings every quarter second. */
+export function LanPairRequests(pairs: ReturnType<typeof useLanPairRequests>) {
+  // Whether a request was up last render.
+  const oursRef = useRef(false);
+  const dialog = pairRequestFor(pairs);
+  const shows = promptShows({ rows: dialog ? 1 : 0, ours: oursRef.current, dialogs: modalStack.dialogDepth() });
+  oursRef.current = shows;
+  return shows ? dialog : null;
+}
+
+/** The request to ask about now, if any — the oldest not put off this session,
+ *  see nextRequest — with its answers wired to the hook that holds them
+ *  (use-lan-pair-requests.ts). Moved out of App.tsx's markup, where it was an
+ *  inline function.
  *
  *  Keyed by the request, so the next deck in the queue is a new dialog rather
  *  than this one filled in again. The answer to one request brings the next
  *  one with it, and without the key React kept the same dialog, with focus on
  *  whichever answer was just pressed. A fresh mount puts it on Decline, the
  *  way every request is first asked. */
-export function LanPairRequests({ lanPending, lanDeferred, lanBusy, answerLanPair, deferLanPair }: ReturnType<typeof useLanPairRequests>) {
+export function pairRequestFor({ lanPending, lanDeferred, lanBusy, answerLanPair, deferLanPair }: ReturnType<typeof useLanPairRequests>) {
   const { request, waiting } = nextRequest(lanPending, lanDeferred.current);
   if (!request) return null;
   return (

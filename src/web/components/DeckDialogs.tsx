@@ -168,7 +168,9 @@ export default function DeckDialogs({
           the order of what they want: a question that is holding another
           machine up outranks an announcement about this one, and neither
           outranks the prompt somebody is standing in front of deciding
-          whether to truncate a log. */}
+          whether to truncate a log. Like the re-sign-in prompt, it waits for
+          any dialog already open to close before it first appears, rather
+          than taking the keyboard from under it. */}
       <LanPairRequests {...lanPairs} />
       {/* After the pairing request, which holds another machine up, and ahead
           of the sheet, the tour and the clear prompt (#1893). It also waits
