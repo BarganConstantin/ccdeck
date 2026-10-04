@@ -14,7 +14,7 @@ import { randomBytes } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { looksLikeTunnel } from "./route-via.mjs";
 import {
-  beaconPayload, beaconVerdict, hostId, notePeer, readBeacon,
+  beaconPayload, beaconVerdict, formerHostId, hostId, notePeer, readBeacon,
   ANNOUNCE_MS, MAX_BEACON_BYTES,
 } from "./lan-sync.mjs";
 
@@ -166,6 +166,10 @@ export function createBeacon({
    *  is running, and hashing a hostname thirty seconds apart forever is work
    *  nobody asked for. See hostId. */
   const host = hostId();
+  /** The id a deck from before the key sends from this computer, which is
+   *  never sent from here and only ever read: a beacon carrying it is an older
+   *  deck on this same machine. See formerHostId. */
+  const formerHost = formerHostId();
   const peers = new Map();
   let sock = null;
   /**
@@ -280,7 +284,7 @@ export function createBeacon({
     try { via = routeFor(rinfo.address); } catch { via = "lan"; }
     if (!via) return;
     const beacon = readBeacon(msg);
-    const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, trusted: trusted() });
+    const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, formerHost, trusted: trusted() });
     // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
     // part is the change. It used to answer only a deck already in the group,
     // which was fine when a group existed. Now the first thing a new deck has
