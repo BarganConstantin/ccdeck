@@ -19,10 +19,10 @@
 // The rest of the client imports what it reads of these from here.
 import { extractModel } from "./payload-model";
 import { initialState, type GraphState } from "./graph-state";
-import { resolveOwner } from "./agent-attribution";
+import { noteKeyedSubagent, resolveOwner } from "./agent-attribution";
 import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, noteSessionHeard } from "./session-lifecycle";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
-import { applyPreToolUse, applyToolOutcome } from "./tool-calls";
+import { applyPreToolUse, applyToolOutcome, returnLentCalls } from "./tool-calls";
 import {
   applyContextObserved, applyModelObserved, applyOutputObserved, applySessionNamed, applySessionRecapped,
   applyUsageObserved, stampSessionFacts,
@@ -127,6 +127,11 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   }
 
   const owner = resolveOwner(state, p, now);
+  // A subagent naming itself on its own traffic settles, for the rest of the
+  // session, that an event naming nobody is the root's — and the root takes
+  // back what the stack lent its subagents before this said so. See
+  // `keyedSubagents` in types.ts.
+  if (noteKeyedSubagent(state, name, p, sessionId)) returnLentCalls(state, sessionId);
 
   // Stamp provider on first observation. Defaults to "claude" for legacy
   // events recorded before multi-provider support.

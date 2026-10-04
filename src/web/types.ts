@@ -472,6 +472,21 @@ export interface AgentNodeData {
    *  fingerprint, the root's counterpart of `outcomeApplied` on a `ToolCall` —
    *  a record of WHO settled the node rather than THAT it is settled. */
   lastTurnEndAt?: number;
+  /** Set on a root once a subagent of its session has named itself on its own
+   *  traffic — an `agent_id` on a call, never on the `SubagentStart` or
+   *  `SubagentStop`, which carry one on every version. From then on an event
+   *  that names nobody is the root's, and `resolveOwner` stops reading the
+   *  attribution stack for this session.
+   *
+   *  The stack rule was written for Claude Code versions whose subagent calls
+   *  carried no agent_id, and for those it is still the only evidence there is.
+   *  Current versions put one on every call a subagent makes and none on the
+   *  main thread's, so with a background Task running beside the root the rule
+   *  handed the root's own Read, Edit and Bash to the subagent: drawn and
+   *  counted on its card, and still in flight there after it had finished.
+   *  Learned per session rather than assumed, so a session on an older version
+   *  keeps the rule it needs. Never rendered. */
+  keyedSubagents?: boolean;
   /** Server-derived breakdown of what's in the context window. Only the root
    *  agent carries this — subagent context isn't separately observable.
    *
