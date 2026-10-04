@@ -431,7 +431,8 @@ describe("what the dialog says", () => {
   it("uses the deck's modal system: the shared hook, Escape and the backdrop as Not now", () => {
     const modal = src("../components/AccountAttentionModal.tsx");
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onLater, \{ focusRef: firstRef \}\)/);
-    expect(modal).toMatch(/<div className="modal-backdrop" onClick=\{onLater\} role="presentation">/);
+    expect(modal).toMatch(/const scrimPress = useScrimDismiss\(onLater\);/);
+    expect(modal).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
     expect(modal).toMatch(/aria-label="Not now \(Esc\)"/);
   });
 });

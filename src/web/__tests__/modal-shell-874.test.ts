@@ -21,7 +21,7 @@ const RULES = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => [m[1].trim(), 
 describe("every dialog composes the one .modal shell (#874)", () => {
   it("puts the context and usage-history dialogs on .modal-backdrop and .modal", () => {
     for (const [name, src, modifier] of [["ContextModal", ctx, "ctx-modal"], ["UsageHistoryModal", history, "uh-modal"]] as const) {
-      expect(src, name).toMatch(/<div className="modal-backdrop" onClick=\{onClose\} role="presentation">/);
+      expect(src, name).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
       expect(src, name).toContain(`className="modal ${modifier}"`);
     }
   });

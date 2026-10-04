@@ -30,7 +30,7 @@
 // its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
 import { KEY_HELP, KEY_HELP_NOTE } from "../key-help";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
   onClose: () => void;
@@ -41,9 +41,10 @@ interface Props {
 
 export default function KeyboardHelp({ onClose, onTour }: Props) {
   const dialogRef = useModalDismiss(onClose);
+  const scrimPress = useScrimDismiss(onClose);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal key-help"

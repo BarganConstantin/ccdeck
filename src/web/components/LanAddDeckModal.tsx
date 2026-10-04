@@ -33,7 +33,7 @@
 // invite does not.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped, pressAccepted, pressState } from "../panel-press";
 import LanReachNote from "./LanReachNote";
 import { leftLabel, parseAddress } from "../lan-add-deck";
@@ -101,6 +101,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
   // reader pressed `+ add a deck` and the deck they mean is either an address
   // or a token, and only one of the two is something they are holding.
   const dialogRef = useModalDismiss(onClose, { focusRef: inviteOnly ? joinRef : addrRef });
+  const scrimPress = useScrimDismiss(onClose);
   const [addrDraft, setAddrDraft] = useState("");
   const [joinDraft, setJoinDraft] = useState("");
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -274,7 +275,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal lan-add" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="lan-add-title">
         <header className="modal-head">

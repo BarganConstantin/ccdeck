@@ -81,7 +81,8 @@ describe("every exit the dialog offers takes that rule", () => {
     // reader takes without thinking, and the one a component is likeliest to
     // wire to the prop it was given.
     expect(src).toMatch(/useModalDismiss\(close, \{ focusRef: primerRef \}\)/);
-    expect(src).toMatch(/className="modal-backdrop" onClick=\{close\}/);
+    expect(src).toMatch(/const scrimPress = useScrimDismiss\(close\);/);
+    expect(src).toMatch(/className="modal-backdrop" \{\.\.\.scrimPress\}/);
     expect(src).toMatch(/onClick=\{close\} aria-label="Close \(Esc\)"/);
     // Both Done buttons — the sign-in's success screen and the import's.
     expect([...src.matchAll(/onClick=\{close\}>Done<\/button>/g)]).toHaveLength(2);

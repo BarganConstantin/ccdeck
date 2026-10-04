@@ -26,7 +26,7 @@ import { useRef } from "react";
 import { modalStack } from "../modal-dismiss";
 import { pressState } from "../panel-press";
 import { promptShows } from "../reauth-attention";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { askedLabel } from "../lan-roster";
 import type { LanStranger } from "../lan-types";
 import type { useLanPairRequests } from "../use-lan-pair-requests";
@@ -67,6 +67,7 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
   // costs the other person one more press; accepting by accident costs a login.
   const declineRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onLater, { focusRef: declineRef });
+  const scrimPress = useScrimDismiss(onLater);
   /** #518's rule, in a dialog rather than in the panel: the answer that was
    *  pressed stays enabled and says it is working — disabling it would drop
    *  focus to `<body>` and leave a keyboard user outside the dialog its own
@@ -75,7 +76,7 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
   const decline = pressState(busy, "dismiss");
 
   return (
-    <div className="modal-backdrop" onClick={onLater} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal lan-ask"

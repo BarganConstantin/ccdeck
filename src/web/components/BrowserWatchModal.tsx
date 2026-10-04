@@ -13,7 +13,7 @@
 // and then it is worthless on the day it is right. It reports what a program
 // did and shows the evidence; the person reading it decides what it was.
 import { useEffect, useRef, useState } from "react";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import BrowserWatchFeed from "./BrowserWatchFeed";
 import BrowserWatchFindings from "./BrowserWatchFindings";
 import BrowserWatchOverview from "./BrowserWatchOverview";
@@ -51,6 +51,7 @@ export default function BrowserWatchModal({
   palette: Palette;
 }) {
   const dialogRef = useModalDismiss(onClose);
+  const scrimPress = useScrimDismiss(onClose);
   const { snap, error, writeError, setWriteError, busy, quiet, setQuiet, saving, load, dismiss, save } =
     useBrowserWatch(onWatching);
   const [why, setWhy] = useState(false);
@@ -84,7 +85,7 @@ export default function BrowserWatchModal({
   const profileCount = watching.reduce((n, b) => n + b.profiles, 0);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal bw-modal"

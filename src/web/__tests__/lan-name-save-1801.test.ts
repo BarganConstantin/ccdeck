@@ -16,7 +16,10 @@ import { flush, mount, one, textOf, type Drawn } from "./fake-react";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
 vi.mock("react-dom", async (orig) => ({ ...(await orig<typeof import("react-dom")>()), createPortal: (node: unknown) => node }));
-vi.mock("../components/use-modal-dismiss", () => ({ useModalDismiss: () => ({ current: null }) }));
+vi.mock("../components/use-modal-dismiss", async orig => ({
+  ...(await orig<typeof import("../components/use-modal-dismiss")>()),
+  useModalDismiss: () => ({ current: null }),
+}));
 
 const { default: LanSetupModal } = await import("../components/LanSetupModal");
 
