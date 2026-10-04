@@ -37,8 +37,9 @@
 //     as a range ("7-13", "30-89"); nothing for a question put off or left
 //     unanswered (rating.mjs),
 //   - errors: a request handler that threw on this server, or an error the page
-//     caught, with home folders, email addresses and key-shaped strings
-//     scrubbed out before they leave,
+//     caught, with every path outside the deck's own package, project folder
+//     names, email addresses and key-shaped strings scrubbed out before they
+//     leave (see scrub),
 //   - a "ping" heartbeat, every ten minutes or so while the deck runs, which
 //     moves the install's "last seen" so the admin can show who is online now,
 //     and is counted per day, which is how long the deck stays open.
@@ -86,8 +87,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
 import { arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, totalmem } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { inApp } from "./app-host.mjs";
 import { stripBom, writeFileAtomic } from "./atomic-write.mjs";
 import { deckDataDir } from "./deck-home.mjs";
@@ -348,22 +349,78 @@ export function installFacts({
   return facts;
 }
 
+// One folder or file name of a path. One in the middle may hold spaces ("Bob
+// Smith", "Application Support"), because the separator after it says where it
+// ends; the last stops at the first space, so the words after a path are kept.
+const NAME = String.raw`[^\s\\/:'"\`<>|?*;,]`;
+const MIDDLE = String.raw`${NAME}(?:[^\\/\r\n:'"\`<>|?*;,]*${NAME})?[\\/]`;
+const LAST = String.raw`[^\s\\/:'"\`<>|?*;,()]+`;
+const TAIL = String.raw`(?:${MIDDLE})*(?:${LAST})?`;
+/** A path in any shape an error carries one: a file:// URL, a ~ path, a drive
+ *  path, a UNC path, an absolute POSIX path. Not an address — `https://host/x`
+ *  starts after a colon and its path after the host — and not `node:internal/…`.
+ *  A `:42:7` after it is left where it is. */
+export const PATH_PATTERN = String.raw`(?<![\w.~/\\\]-])(?:file://(?:/[A-Za-z]:)?[^\s:'"\`<>()]*|~[\\/]${TAIL}|[A-Za-z]:[\\/]${TAIL}|\\\\(?:[?.]\\)?(?:[A-Za-z]:\\)?${TAIL}|/(?=${NAME})${TAIL}|(?<!:)//(?=${NAME})${TAIL})`;
+/** A folder name in Claude Code's encoding of a project's path, every character
+ *  but letters and digits made a dash: `-home-alice-acme`, `C--Users-Bob-acme`. */
+export const PROJECT_PATTERN = String.raw`(?<![\w-])(?:[A-Za-z]--|-[A-Za-z0-9][\w.]*-)[\w.-]*`;
+/** The folders under home whose name is kept in front of a scrubbed path: the
+ *  two CLIs the deck reads. They say which side an error came from, and name nobody. */
+const KEPT_HOME_FOLDERS = new Set([".claude", ".codex"]);
+
+/** What a path outside the deck is sent as: `<path>`, or `~/<path>` and
+ *  `~/.claude/<path>` for one under the home folder. */
+function hidePath(path) {
+  if (!path.startsWith("~")) return "<path>";
+  const sep = path[1];
+  const [top, ...rest] = path.slice(2).split(/[\\/]/);
+  if (!top) return path;
+  if (!KEPT_HOME_FOLDERS.has(top)) return `~${sep}<path>`;
+  return rest.join("") ? `~${sep}${top}${sep}<path>` : path;
+}
+
+const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Every spelling of `dir` a stack or a message can use — the path, and the
+ *  file:// URL an ES module's frames carry — as a pattern for `dir` and the
+ *  separator after it, so `/x/ccdeck-fork` is not taken for `/x/ccdeck`. */
+function spellings(dir) {
+  const windows = /^(?:[A-Za-z]:[\\/]|\\\\)/.test(dir);
+  const url = pathToFileURL(dir, { windows }).href.replace(/\/$/, "");
+  return new RegExp(`(?:${escapeRegExp(url)}|${escapeRegExp(dir)})(?=[\\\\/])`, windows ? "gi" : "g");
+}
+
 /**
  * Take out of an error what could say who someone is.
+ *
+ * No path outside the deck's own package leaves. A path inside it keeps its
+ * place in the package — `ccdeck/src/server/tail.mjs:42:7`, however the deck was
+ * installed — so a stack still says where the bug is and reads the same on every
+ * machine; so does a dependency npx put beside it (`node_modules/ws/…`). Every
+ * other path becomes `<path>` (`~/.claude/<path>` under the home folder, see
+ * hidePath), and a project folder in Claude Code's encoding `<project>`: either
+ * would name what somebody works on.
  *
  * The catch-all for long opaque strings deliberately stops at a slash: with one
  * in it, the pattern swallowed every long file path, and a stack whose frames
  * read `at save (~/.<secret>.mjs:40:3)` tells nobody where the bug is.
  * The API scrubs again;
- * this is the pass that means it never has to: this user's home folder, anyone
- * else's home folder, email addresses, and strings shaped like keys and tokens.
+ * this is the pass that means it never has to: paths, project folders, email
+ * addresses, and strings shaped like keys and tokens.
  */
-export function scrub(text, home = homedir()) {
+export function scrub(text, home = homedir(), root = PKG_ROOT) {
   let out = String(text ?? "");
-  if (home && home.length > 1) out = out.split(home).join("~");
+  if (root && root.length > 1) {
+    out = out.replace(spellings(root), "ccdeck");
+    if (basename(dirname(root)) === "node_modules") out = out.replace(spellings(dirname(root)), "node_modules");
+  }
+  // Never half a name: a home of /home/al is not the start of /home/alice.
+  if (home && home.length > 1) out = out.replace(new RegExp(`${escapeRegExp(home)}(?![\\w.-])`, "g"), "~");
   return out
     .replace(/\/(?:home|Users)\/[^/\s:'"]+/g, "~")
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
+    .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
+    .replace(new RegExp(PROJECT_PATTERN, "g"), "<project>")
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
     .replace(
       /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+_=-]{48,})/g,
@@ -382,6 +439,7 @@ export function scrub(text, home = homedir()) {
  * @param {NodeJS.ProcessEnv} [deps.env]
  * @param {ReturnType<typeof installFacts>} [deps.facts]
  * @param {string} [deps.home]
+ * @param {string} [deps.root] the deck's own package, whose paths an error keeps (see scrub)
  * @param {Promise<unknown>} [deps.ready] what start() waits for: the prefs read at import
  * @param {() => { claudeVersion?: string, codexVersion?: string }} [deps.versions] the CLI
  *   versions to fold into the facts, read fresh on every send so a background
@@ -428,6 +486,7 @@ export function createReporter({
   env = process.env,
   facts = installFacts({ env }),
   home = homedir(),
+  root = PKG_ROOT,
   ready = prefsRead,
   versions = () => ({}),
   probe = async () => {},
@@ -1055,7 +1114,7 @@ export function createReporter({
   async function reportError(where, error) {
     const p = prefs.current();
     if (!reportsOn(p, env) || !p.report.installId) return false;
-    const message = scrub(error?.message ?? error, home).slice(0, MESSAGE_MAX).trim();
+    const message = scrub(error?.message ?? error, home, root).slice(0, MESSAGE_MAX).trim();
     if (!message) return false;
     const at = now().getTime();
     while (errorsSent.length && at - errorsSent[0] > SAME_ERROR_QUIET_MS) errorsSent.shift();
@@ -1063,7 +1122,7 @@ export function createReporter({
     if (errorsSent.length >= ERRORS_PER_HOUR || at - (lastSentAt.get(key) ?? -Infinity) < SAME_ERROR_QUIET_MS) return false;
     errorsSent.push(at);
     lastSentAt.set(key, at);
-    const stack = typeof error?.stack === "string" ? scrub(error.stack, home).slice(0, STACK_MAX) : undefined;
+    const stack = typeof error?.stack === "string" ? scrub(error.stack, home, root).slice(0, STACK_MAX) : undefined;
     // Less the runtime, and less the deviceId — an error is not one of the events
     // the fingerprint rides on, so the personal field never leaves on one.
     const { runtime: _runtime, deviceId: _deviceId, ...fields } = factsNow();

@@ -114,7 +114,7 @@ UI copy claiming the deck looks only at agents would be false.
   script.
 - **Identifiable reports, on by default (#1853).** Nothing about a session is
   reported anywhere. What is: installs, updates, one "active" a day and the
-  errors the deck runs into, scrubbed of folders, addresses and keys — and, with
+  errors the deck runs into, scrubbed of paths, project names, addresses and keys — and, with
   every report, your IP address and a device fingerprint (a stable hashed machine
   id, a one-way hash, never the traits in the clear). The install id is random,
   but the fingerprint follows the machine and the server keeps the IP, so these
