@@ -110,6 +110,9 @@ const CHECK_IN_EVERY_MS = 6 * 60 * 60 * 1000;
  *  not all beat on the same tick. */
 const PING_EVERY_MS = 10 * 60 * 1000;
 const PING_JITTER_MS = 2 * 60 * 1000;
+/** How long a report waits for the CLI versions it is about to carry: a couple
+ *  of `--version` answers (cli-versions.mjs). One not known by then is left out. */
+const CLI_PROBE_WAIT_MS = 8_000;
 /** Errors per hour this deck may send, and how long one error is not repeated. */
 const ERRORS_PER_HOUR = 20;
 const SAME_ERROR_QUIET_MS = 60 * 60 * 1000;
@@ -373,6 +376,11 @@ export function scrub(text, home = homedir()) {
  * @param {() => { claudeVersion?: string, codexVersion?: string }} [deps.versions] the CLI
  *   versions to fold into the facts, read fresh on every send so a background
  *   probe's answer rides along the moment it arrives. Default: none.
+ * @param {() => Promise<unknown>} [deps.probe] asks the CLIs their versions again,
+ *   for `versions` to answer with: started by start() once the prefs say reports
+ *   are on, again on each new UTC day, and waited for — never past
+ *   CLI_PROBE_WAIT_MS — before an install, update or "active" goes out.
+ *   Default: none.
  * @param {ReturnType<typeof import("./usage-day.mjs").createUsageDay>} [deps.usage]
  *   the day's tally: the "active" report carries the last finished day's totals,
  *   read only when an "active" is about to be sent, and the tally is saved into
@@ -408,6 +416,7 @@ export function createReporter({
   home = homedir(),
   ready = prefsRead,
   versions = () => ({}),
+  probe = async () => {},
   usage = usageDay,
   setup = setupFacts,
   setupKnown = () => whenSetupKnown(),
@@ -439,6 +448,41 @@ export function createReporter({
     } catch {
       return {};
     }
+  }
+
+  /** The UTC day the CLIs were last asked their versions, and the asking under way. */
+  let probedDay = "";
+  let probing = null;
+
+  /** Ask the CLIs their versions, at most once a UTC day — so a deck left running
+   *  for a week says the Claude Code it has now, not the one it booted with — and
+   *  resolve once the answer is in. Never rejects. */
+  function probeVersions() {
+    try {
+      const today = utcDay(now());
+      if (!probing && probedDay !== today) {
+        probedDay = today;
+        probing = Promise.resolve()
+          .then(() => probe())
+          .catch(() => { /* a probe that could not run leaves the versions as they were */ })
+          .finally(() => { probing = null; });
+      }
+    } catch {
+      // A clock that cannot say the day; the report goes with what is known.
+    }
+    return probing ?? Promise.resolve();
+  }
+
+  /** The versions fresh for a report about to carry them: the day's probe, waited
+   *  for, but never past CLI_PROBE_WAIT_MS — a version not known by then is left
+   *  out, and rides on a later report. */
+  async function versionsReady() {
+    let timer;
+    await Promise.race([
+      probeVersions(),
+      new Promise(r => { timer = setTimeout(r, CLI_PROBE_WAIT_MS); timer.unref?.(); }),
+    ]);
+    clearTimeout(timer);
   }
 
   /** The full facts an event carries: the fixed install facts, plus whatever CLI
@@ -648,6 +692,11 @@ export function createReporter({
     }
     const { installId, lastVersion, lastActiveDay } = prefs.current().report;
     if (!installId) return;
+    const today = utcDay(now());
+    // The CLI versions ride on install, update and "active", and those go out at a
+    // boot more often than not: so they are asked for first, and on a new day
+    // asked again.
+    if (lastVersion !== facts.version || lastActiveDay !== today) await versionsReady();
     if (!lastVersion) {
       // The site page the command came from: one an earlier try of this install
       // could not send, else this run's. Kept until the install gets out, then
@@ -672,7 +721,6 @@ export function createReporter({
       }
     }
 
-    const today = utcDay(now());
     if (lastActiveDay !== today) {
       // Usage rides on the "active" event alone, and is read only here — the one
       // report it belongs to — so a checkIn that sends nothing new never asks the
@@ -919,7 +967,12 @@ export function createReporter({
       }
     }
     samplePeak();
-    Promise.all([Promise.resolve(ready).catch(() => {}), Promise.resolve(setupKnown()).catch(() => {})])
+    const prefsIn = Promise.resolve(ready).catch(() => {});
+    // The CLIs are asked their versions as soon as the prefs say reports are on —
+    // past boot, beside the wait for the setup — so the first check-in, which
+    // waits for the answer, is held up by little or nothing.
+    prefsIn.then(() => { if (reportsOn(prefs.current(), env)) void probeVersions(); }).catch(() => {});
+    Promise.all([prefsIn, Promise.resolve(setupKnown()).catch(() => {})])
       .then(restoreUsage)
       .then(checkIn)
       .then(() => usage.onFirstUse?.(() => void onFirstSession()));
@@ -951,22 +1004,18 @@ export function createReporter({
 // `--version` that imports it for nothing. The day's usage tally is imported
 // directly: usage-day.mjs imports nothing.
 
-// The CLI versions, detected once in the background, off the boot path. The
-// first send starts the probe (past boot, and not while the machine has vetoed
-// reports) and reads back an empty answer; the version rides along on the
-// reports that follow, once the probe has filled this cache.
+// The CLI versions, detected in the background, off the boot path: the reporter
+// runs this once the prefs say reports are on (never under the machine's veto),
+// and again on each new UTC day (probeVersions). The last answer is kept until
+// the next one lands, and a probe that comes back with less — a wedged shim, a
+// timeout — does not take a version it knew away.
 let cliVersionCache = {};
-let cliProbeStarted = false;
-function deckCliVersions() {
-  if (!cliProbeStarted && !reportsVetoed(process.env)) {
-    cliProbeStarted = true;
-    import("./cli-versions.mjs")
-      .then(m => m.detectCliVersions())
-      .then(v => { cliVersionCache = { ...cliVersionCache, ...v }; })
-      .catch(() => { /* a probe that could not run leaves the versions unsent */ });
-  }
-  return cliVersionCache;
+async function probeCliVersions() {
+  const { detectCliVersions } = await import("./cli-versions.mjs");
+  cliVersionCache = { ...cliVersionCache, ...(await detectCliVersions()) };
 }
 
 /** The deck's own reporter. */
-export const reporter = createReporter({ versions: deckCliVersions, depth: deckDepth, npx: isNpxInstall(PKG_ROOT) });
+export const reporter = createReporter({
+  versions: () => cliVersionCache, probe: probeCliVersions, depth: deckDepth, npx: isNpxInstall(PKG_ROOT),
+});
