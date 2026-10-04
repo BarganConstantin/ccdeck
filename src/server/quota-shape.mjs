@@ -172,6 +172,20 @@ export function parseResetToSec(resetStr, now = Date.now()) {
       .replace(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
                (_all, h, mm, ampm) => `${h}:${mm ?? "00"} ${ampm}`)
       .trim();
+    // A bare clock reading is what the CLI prints for a reset that falls
+    // today, and it has no date to find a year for: with one appended anyway,
+    // "4:09 pm 2027" reads as the first of January and the bar counted down
+    // to it. It means the next time that reading comes round — today, or
+    // tomorrow once today's has gone by. The CLI prints to the minute, so the
+    // minute it names is still today's.
+    const bare = /^(\d{1,2}):(\d{2}) (am|pm)$/i.exec(norm);
+    if (bare && +bare[1] >= 1 && +bare[1] <= 12 && +bare[2] < 60) {
+      const hour = (+bare[1] % 12) + (/pm/i.test(bare[3]) ? 12 : 0);
+      const d = new Date(now);
+      const on = (day) => new Date(d.getFullYear(), d.getMonth(), day, hour, +bare[2]).getTime();
+      const today = on(d.getDate());
+      return Math.floor((today + 60_000 <= now ? on(d.getDate() + 1) : today) / 1000);
+    }
     // The CLI prints no year, so we have to supply one. Stamping the current
     // year blindly puts a "Jan 2" reset read on Dec 30 eleven months in the
     // past, which hides the countdown and pins the pace marker at 100%. A
