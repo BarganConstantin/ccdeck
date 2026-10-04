@@ -155,7 +155,11 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         staged = { ...s, version: update.version, target: runningApp, failed };
         set({ status: "ready", version: update.version });
       } else {
-        await (await setUpAuto()).checkForUpdates();
+        // With autoDownload, the download comes back as a promise of its own,
+        // which rejects after its failure has reached the 'error' listener.
+        // Left unheld, that rejection would end in Electron's modal error box.
+        const result = await (await setUpAuto()).checkForUpdates();
+        result?.downloadPromise?.catch(() => {});
       }
     } catch (err) {
       log(`update check failed: ${err?.message ?? err}`);
