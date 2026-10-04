@@ -132,11 +132,12 @@ export function restLine(peers: readonly Peer[], mode: {
   return { text: clauses.join(" · "), tone, free };
 }
 
-/** The most room any of these has left, or null when none of them has ever been
- *  read. */
+/** The most room any of these has left, as the whole percentage it is printed
+ *  as, or null when none of them has ever been read. Headroom is `100 - pct` in
+ *  floating point, and printed raw it read "14.444445000000002% free". */
 function bestFree(peers: readonly Peer[]): number | null {
   const known = peers.map(p => p.headroom).filter((h): h is number => typeof h === "number");
-  return known.length ? Math.max(...known) : null;
+  return known.length ? Math.round(Math.max(...known)) : null;
 }
 
 /**

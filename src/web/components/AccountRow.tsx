@@ -51,7 +51,10 @@ function LaneBar({ lane, nowSec, frozen, sortedBy }: { lane: Lane; nowSec: numbe
       <div className="ap-lane-track">
         <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || record ? 0.4 : 1 }} />
       </div>
-      <span className="ap-lane-pct" style={{ color }}>{capped}%</span>
+      {/* Whole, as the shut row and the Usage panel print it: claude-swap keeps
+          the utilisation as it came, and 85.555555% beside a shut-row 86% is
+          one window read two ways. */}
+      <span className="ap-lane-pct" style={{ color }}>{Math.round(capped)}%</span>
       {/* When the window rolls over, at the end of its own bar rather than on a
           line under it: two resets under two bars made the live row five lines
           tall for two facts. The word is said to a screen reader and in the
