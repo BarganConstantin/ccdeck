@@ -124,6 +124,10 @@ ${vars}
 `;
 }
 
+/** A value as systemd will read it back: `%` starts a specifier anywhere in a
+ *  unit, and `%%` is the literal. */
+const sdEscape = (s) => String(s).replace(/%/g, "%%");
+
 /**
  * The systemd --user unit.
  *
@@ -131,7 +135,19 @@ ${vars}
  * still receiving updates. No Restart=, for the reason in the header.
  */
 export function unitFor({ execPath, script, logPath, args = [], env = {}, product = "ccdeck" } = {}) {
-  const cmd = [execPath, script, ...args].map(a => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
+  // EVERY VALUE, not only the Environment= lines below. systemd expands `%`
+  // in StandardOutput=/StandardError= and in ExecStart as well, and `$NAME` in
+  // ExecStart; those were written raw, so a deck home like the
+  // `/home/ana/100%backup` below had its log path rewritten — systemd 259
+  // drops the setting with "Failed to resolve unit specifiers … ignoring" for
+  // an unknown one and substitutes a known one (`%b`, the boot ID) silently —
+  // and the same `%` in an install path made ExecStart a fatal error.
+  // An argument with whitespace, a quote or a backslash is quoted, with the
+  // C escapes systemd's word splitting reads inside the quotes.
+  const cmd = [execPath, script, ...args].map(a => {
+    const v = sdEscape(a).replace(/\$/g, "$$$$");
+    return /[\s"'\\]/.test(v) ? `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : v;
+  }).join(" ");
   // QUOTED, AND `%` ESCAPED. systemd.exec(5) splits an Environment= assignment
   // on whitespace unless the whole thing is double-quoted, and it expands `%`
   // specifiers in the value. ExecStart above quotes its own arguments; this
@@ -150,7 +166,7 @@ export function unitFor({ execPath, script, logPath, args = [], env = {}, produc
   // The macOS branch was always safe: plistFor puts each value in its own
   // <string> and XML-escapes it. Windows carries none of them.
   const vars = Object.entries({ AGENTS_DECK_DETACHED: "1", ...env })
-    .map(([k, v]) => `Environment="${k}=${String(v).replace(/%/g, "%%")}"`).join("\n");
+    .map(([k, v]) => `Environment="${k}=${sdEscape(v)}"`).join("\n");
   return `[Unit]
 Description=${product} — live deck of Claude Code + Codex agents
 After=default.target
@@ -159,8 +175,8 @@ After=default.target
 Type=simple
 ${vars}
 ExecStart=${cmd}
-StandardOutput=append:${logPath}
-StandardError=append:${logPath}
+StandardOutput=append:${sdEscape(logPath)}
+StandardError=append:${sdEscape(logPath)}
 
 [Install]
 WantedBy=default.target
