@@ -9,7 +9,9 @@
 // open (use-rating-ask.ts).
 //
 // HOW OFTEN. "Not now" puts it off by RATING_AGAIN_AFTER_MS, once. A second
-// "Not now", or an answer, and it is never asked again.
+// "Not now", or an answer, and it is never asked again — even after a 3.36.x
+// deck sharing the data dir rewrites prefs.json without it: the outcome is kept
+// a second time beside that file (reports.mjs ratingFile).
 //
 // WHAT LEAVES. The number picked and how many days the deck had been used, as a
 // range (daysUsedBucket) — a "rated" event, sent once (reports.mjs). Nothing
@@ -41,6 +43,15 @@ export function normaliseRating(raw) {
     later,
     laterAt: typeof src.laterAt === "string" && !Number.isNaN(Date.parse(src.laterAt)) ? src.laterAt : "",
   };
+}
+
+/** How far the question has got: put off none, once or twice, then answered,
+ *  then answered and sent. Of two copies of it, the further one is the truth —
+ *  nothing ever moves it back. */
+export function ratingStage(rating) {
+  const r = normaliseRating(rating);
+  if (r.score === null) return r.later;
+  return r.sent ? LATER_LIMIT + 2 : LATER_LIMIT + 1;
 }
 
 /** A score the page may send: a whole number from 0 to 10, else null. */
