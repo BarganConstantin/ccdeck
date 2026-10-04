@@ -340,9 +340,10 @@ describe("the favicon", () => {
     expect(writer, "the tab's write stopped asking for the fallback link index.html declares")
       .toMatch(/querySelector<HTMLLinkElement>\(\s*'link\[rel="icon"\]\[sizes="32x32"\]'\s*\)/);
     // One writer, showTabIcon, which the hook runs on each change of state
-    // and the error boundary runs once, for the offline mark, after a crash.
-    expect(writer).toMatch(/\.href = FAVICON_HREF\[icon\]/);
-    expect(writer).toMatch(/\.href = FAVICON_FALLBACK_HREF\[icon\]/);
+    // and the error boundary runs once, for the offline mark, after a crash —
+    // through the held copy of each file (tab-icons.ts), never past the table.
+    expect(writer).toMatch(/\.href = tabIconHref\(FAVICON_HREF\[icon\]\)/);
+    expect(writer).toMatch(/\.href = tabIconHref\(FAVICON_FALLBACK_HREF\[icon\]\)/);
     expect(writer).toMatch(/showTabIcon\(next\.icon\)/);
   });
 
