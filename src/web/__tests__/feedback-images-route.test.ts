@@ -74,6 +74,11 @@ const TEXT: [string, Part][] = [
   ["body", "It was fine yesterday."],
 ];
 
+/** The form the API would read: the upstream body as fetch writes it, parsed. */
+function sentForm({ url, init }: Sent): Promise<FormData> {
+  return new Request(url, { method: init.method, headers: init.headers, body: init.body as BodyInit }).formData();
+}
+
 async function send(parts: [string, Part][], { status = 202, answer = undefined as unknown, env = {} as Record<string, string> } = {}) {
   const { type, bytes } = await multipart(parts);
   const api = upstream(status, answer);
@@ -97,8 +102,9 @@ describe("a report with images goes on as a multipart form", () => {
     expect(calls.length).toBe(1);
     expect(calls[0].url).toBe("https://api.ccdeck.dev/v1/feedback");
     expect(calls[0].init.method).toBe("POST");
-    const form = calls[0].init.body as FormData;
-    expect(form).toBeInstanceOf(FormData);
+    // A multipart body whose type carries its boundary.
+    expect((calls[0].init.body as Blob).type).toMatch(/^multipart\/form-data; boundary=/);
+    const form = await sentForm(calls[0]);
     expect(form.get("kind")).toBe("bug");
     expect(form.get("title")).toBe("The usage panel is empty");
     expect(form.get("body")).toBe("It was fine yesterday.");
@@ -126,16 +132,16 @@ describe("a report with images goes on as a multipart form", () => {
       ["platform", "amiga-m68k"],
       ["images", { bytes: png(), name: "a.png", type: "image/png" }],
     ]);
-    const form = calls[0].init.body as FormData;
+    const form = await sentForm(calls[0]);
     expect(form.getAll("appVersion")).toEqual([installFacts({ env: {} }).version]);
     expect(form.getAll("platform")).toEqual([`${process.platform}-${process.arch}`]);
   });
 
   it("leaves the contact out when none was given, or only spaces", async () => {
     const none = await send([...TEXT, ["images", { bytes: png(), name: "a.png" }]]);
-    expect((none.calls[0].init.body as FormData).has("contact")).toBe(false);
+    expect((await sentForm(none.calls[0])).has("contact")).toBe(false);
     const blank = await send([...TEXT, ["contact", "   "], ["images", { bytes: png(), name: "a.png" }]]);
-    expect((blank.calls[0].init.body as FormData).has("contact")).toBe(false);
+    expect((await sentForm(blank.calls[0])).has("contact")).toBe(false);
   });
 
   it("knows an image by its bytes, not by its name or the type the page declared", async () => {
@@ -150,7 +156,7 @@ describe("a report with images goes on as a multipart form", () => {
     const png1 = png(80);
     const mislabelled = await send([...TEXT, ["images", { bytes: png1, name: "shot.gif", type: "image/gif" }]]);
     expect(mislabelled.reply.status).toBe(200);
-    const sent = (mislabelled.calls[0].init.body as FormData).getAll("images") as File[];
+    const sent = (await sentForm(mislabelled.calls[0])).getAll("images") as File[];
     expect(sent.map(i => [i.name, i.type])).toEqual([["image-1.png", "image/png"]]);
   });
 });
@@ -167,7 +173,7 @@ describe("the API's limits, held here first so a bad request never leaves the ma
     const three: [string, Part][] = [1, 2, 3].map(n => ["images", { bytes: png(), name: `${n}.png` }]);
     const { calls, reply } = await send([...TEXT, ...three]);
     expect(reply.status).toBe(200);
-    expect(((calls[0].init.body as FormData).getAll("images")).length).toBe(3);
+    expect((await sentForm(calls[0])).getAll("images").length).toBe(3);
   });
 
   it("refuses an image over 5 MB, and names which one", async () => {
@@ -183,7 +189,7 @@ describe("the API's limits, held here first so a bad request never leaves the ma
   it("sends an image of exactly 5 MB", async () => {
     const { calls, reply } = await send([...TEXT, ["images", { bytes: png(5 * MB), name: "edge.png" }]]);
     expect(reply.status).toBe(200);
-    expect(((calls[0].init.body as FormData).get("images") as File).size).toBe(5 * MB);
+    expect(((await sentForm(calls[0])).get("images") as File).size).toBe(5 * MB);
   });
 
   it("answers too_large for a request over 12 MB in all, each image inside its own 5", async () => {
