@@ -11,7 +11,7 @@
 // comes in whole and is taken apart here under the names the markup already
 // used. Usage history and Browser Watch load when they open (#883), so their two
 // lazy imports came with them.
-import { lazy, Suspense, type MutableRefObject } from "react";
+import { Suspense, type MutableRefObject } from "react";
 import { updateRestartFailureText } from "../desktop-update";
 import type { Providers } from "../providers";
 import type { GraphState } from "../reducer";
@@ -32,6 +32,7 @@ import FeedbackDialog from "./FeedbackDialog";
 import GuideModal from "./GuideModal";
 import { WELCOME_STEPS } from "./guide-art";
 import KeyboardHelp from "./KeyboardHelp";
+import { lazyDialog } from "./LazyDialog";
 import { LanPairRequests } from "./LanPairRequestModal";
 import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
@@ -41,8 +42,10 @@ import ToolModal from "./ToolModal";
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
 // needs only Browser Watch's unseen count, which lives in browser-watch-seen.
-const UsageHistoryModal = lazy(() => import("./UsageHistoryModal"));
-const BrowserWatchModal = lazy(() => import("./BrowserWatchModal"));
+// A chunk that does not arrive — a tab older than an upgrade asking for a name
+// the new build no longer has — fails that dialog alone; see LazyDialog.tsx.
+const UsageHistoryModal = lazyDialog(() => import("./UsageHistoryModal"), "Usage history");
+const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), "Browser Watch");
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, lanPairs, attention, clearFlow, watchBadge, announcements,

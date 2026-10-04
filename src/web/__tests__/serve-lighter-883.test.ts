@@ -78,8 +78,11 @@ describe("the rarely opened dialogs load when they open (#883)", () => {
   const dialogs = read("../components/DeckDialogs.tsx");
 
   it("lazy-loads Browser Watch and the usage history", () => {
-    expect(dialogs).toMatch(/const BrowserWatchModal = lazy\(\(\) => import\("\.\/BrowserWatchModal"\)\);/);
-    expect(dialogs).toMatch(/const UsageHistoryModal = lazy\(\(\) => import\("\.\/UsageHistoryModal"\)\);/);
+    // Through lazyDialog, which is React.lazy with a note in place of the
+    // dialog when its chunk does not arrive (LazyDialog.tsx).
+    expect(dialogs).toMatch(/const BrowserWatchModal = lazyDialog\(\(\) => import\("\.\/BrowserWatchModal"\), "Browser Watch"\);/);
+    expect(dialogs).toMatch(/const UsageHistoryModal = lazyDialog\(\(\) => import\("\.\/UsageHistoryModal"\), "Usage history"\);/);
+    expect(sourceOf("components/LazyDialog.tsx")).toMatch(/return lazy\(\(\) =>\s*load\(\)\.catch\(/);
     expect(app).toMatch(/^import DeckDialogs from "\.\/components\/DeckDialogs";$/m);
     expect(app + "\n" + dialogs).not.toMatch(/^import BrowserWatchModal\b/m);
     expect(app + "\n" + dialogs).not.toMatch(/^import UsageHistoryModal\b/m);
