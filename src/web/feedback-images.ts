@@ -248,6 +248,8 @@ export const ADD_LABEL = "Add screenshot";
 export const ADD_HINT = "PNG or JPEG, up to three. You can also paste one, or drop it on this dialog.";
 export const SHOTS_NOTE = "A screenshot can show emails, costs and paths. Crop out what should not be seen.";
 export const FULL_MESSAGE = "Three images at most. Remove one to add another.";
+/** Why a send stopped: an image was refused while it waited for the fits. */
+export const REFUSED_WHILE_SENDING = "An image could not be attached, so nothing was sent. Check the images and send again; your text is still here.";
 
 /** What a thumbnail says it does, and which image it is: pressed, it opens the
  *  picker and the file chosen takes this image's place. A redrawn image says

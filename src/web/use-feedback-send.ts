@@ -21,7 +21,7 @@
 // was told to nobody.
 import { useEffect, useRef, useState } from "react";
 import { selfPressAccepted } from "./panel-press";
-import { feedbackRequest } from "./feedback-images";
+import { REFUSED_WHILE_SENDING, feedbackRequest } from "./feedback-images";
 import {
   SENT_EXIT_MS, SENT_HOLD_MS, feedbackFailure, fieldsToSend, type FeedbackDraft, type Outcome,
 } from "./feedback";
@@ -47,6 +47,12 @@ export function useFeedbackSend(images: FeedbackImages): FeedbackSend {
     try {
       const attached = await images.ready();
       if (signal.aborted) return;
+      // An image refused while this waited: what would go is not what the
+      // person pressed Send on, and the thanks would cover the refusal.
+      if (!attached) {
+        setOutcome({ state: "failed", message: REFUSED_WHILE_SENDING });
+        return;
+      }
       const response = await fetch("/api/feedback", { ...feedbackRequest(fieldsToSend(draft), attached), signal });
       const d = await response.json().catch(() => null);
       setOutcome(response.ok && d?.ok

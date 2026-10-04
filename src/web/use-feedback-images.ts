@@ -7,7 +7,9 @@
 // the request's 12 MB and a fit still in progress has no size yet. A drop of
 // three large screenshots therefore fits them in turn, and a fourth is left out
 // by count rather than by a race. Send waits on the same chain, so what it
-// posts is the images as they will go, never one half-drawn.
+// posts is the images as they will go, never one half-drawn — and when one of
+// them is refused while it waits, it posts nothing: the refusal would be said
+// beside the images just as the thanks covered them and the dialog closed.
 //
 // An image inside every limit is shown once its header has been read, which
 // is at once. One that has to be drawn again is shown the moment the fit
@@ -52,8 +54,9 @@ export interface FeedbackImages {
   remove(id: number): void;
   /** Says the three are already there, for an add pressed with no room. */
   sayFull(): void;
-  /** Every image as it will be sent, once the fits under way have finished. */
-  ready(): Promise<Blob[]>;
+  /** Every image as it will be sent, once the fits under way have finished;
+   *  null when something was refused meanwhile, which `problem` says. */
+  ready(): Promise<Blob[] | null>;
 }
 
 /** The list with `fresh` drawn in it: in the place of the image it replaces,
@@ -73,9 +76,12 @@ export function useFeedbackImages(): FeedbackImages {
   // Each refusal counted as it is said. The words alone cannot tell a second
   // refusal from the first: with no room left an add awaits nothing, so its
   // clear and its refusal land in one render with the words unchanged, and
-  // sayFull clears nothing at all.
+  // sayFull clears nothing at all. The count is kept in a ref as well, so
+  // `ready` can tell a refusal said while it waited.
   const [refusal, setRefusal] = useState({ problem: "", id: 0 });
+  const refusals = useRef(0);
   const setProblem = useCallback((problem: string) => {
+    if (problem) refusals.current++;
     setRefusal(prev => {
       if (problem) return { problem, id: prev.id + 1 };
       return prev.problem ? { problem: "", id: prev.id } : prev;
@@ -198,7 +204,9 @@ export function useFeedbackImages(): FeedbackImages {
   const sayFull = useCallback(() => setProblem(FULL_MESSAGE), [setProblem]);
 
   const ready = useCallback(async () => {
+    const said = refusals.current;
     await queue.current;
+    if (refusals.current !== said) return null;
     return shotsRef.current.flatMap(shot => (shot.blob ? [shot.blob] : []));
   }, []);
 
