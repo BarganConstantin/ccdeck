@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { PRODUCT } from "./brand.mjs";
 import { codexCwdInWorkspace } from "./log-election.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
-import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, isEnrichment, payloadChars } from "./ring-bounds.mjs";
+import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, isEnrichment, isReservedEventName, payloadChars } from "./ring-bounds.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
@@ -60,7 +60,8 @@ import { pushEvent } from "./event-sink.mjs";
  *     everything before it. It has not been written to the log since #698, but
  *     logs the decks before that wrote still carry it, and dropping it on a
  *     scoped deck would replay the state a user had explicitly cleared, so it
- *     is always admitted.
+ *     is always admitted — when the server recorded it, which replayLog
+ *     checks before asking this (see `usable` there).
  *   * a payload with no cwd and no session the map has seen — refused on a
  *     scoped deck, which is exactly what `capturesSession` decides live for a
  *     session that never said where it runs.
@@ -324,7 +325,12 @@ export async function replayLog(filePath, workspace = "", {
       return null;
     }
   };
-  const usable = (evt) => evt && typeof evt === "object" && evt.payload;
+  // A control marker counts only when the server itself recorded it: the one
+  // writer of `__clear` has always stamped it `internal`, and since #698 it is
+  // not written at all. A line under a reserved name from anywhere else is not
+  // the deck's instruction, and replaying it would hide everything before it.
+  const usable = (evt) => evt && typeof evt === "object" && evt.payload
+    && (evt.source === "internal" || !isReservedEventName(evt.payload.hook_event_name));
 
   let count = 0;
   if (admits.orderDependent) {

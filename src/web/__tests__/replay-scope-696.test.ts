@@ -205,13 +205,15 @@ const TREE2 = join(DIR, "tree2");
 const ELSEWHERE = join(DIR, "elsewhere");
 const LOG = join(DIR, "events.jsonl");
 
-/** One envelope, in exactly the shape the writer appends. */
+/** One envelope, in exactly the shape the writer appends — `__clear` under
+ *  the `internal` source the deck has always recorded it with, since the
+ *  replay honours the marker from nowhere else. */
 let seq = 0;
 const envelope = (payload: Partial<HookPayload>) => JSON.stringify({
   seq: ++seq,
   epoch: 1,
   receivedAt: 1_700_000_000_000 + seq,
-  source: "hook",
+  source: payload.hook_event_name === "__clear" ? "internal" : "hook",
   payload,
 });
 

@@ -20,6 +20,8 @@ import { pushEvent } from "./event-pipeline.mjs";
 import { noteLogWriter } from "./event-log.mjs";
 // Which CLIs this deck watches — see deck-scope.mjs.
 import { deckProviders } from "./deck-scope.mjs";
+// The names only the server may send — see ring-bounds.mjs.
+import { isReservedEventName } from "./ring-bounds.mjs";
 // The SSE subscribers and the backpressure every frame to them is written
 // under — see sse-clients.mjs.
 import { dropSse, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
@@ -178,6 +180,14 @@ export function handleEventIngest(req, res, persist = true) {
     let parsed;
     try { parsed = JSON.parse(body); }
     catch { return send(res, 400, { error: "invalid json" }); }
+    // Names beginning `__` are the deck's own control markers — `__clear` is
+    // the one handleClear sends — and only the server may send them. This is
+    // the one mutating route open without the deck's token, so a reserved name
+    // arriving here is refused before it can reach the ring, the pages or the
+    // log. No hook event is named that way.
+    if (isReservedEventName(parsed?.hook_event_name)) {
+      return send(res, 400, { error: "reserved event name" });
+    }
     // A deck started with --no-claude takes no Claude hook event, which is what
     // its replay already decides (see replayScope) and what a current hook no
     // longer sends it. A hook installed before that still does, so the refusal
