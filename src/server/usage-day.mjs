@@ -73,12 +73,16 @@ function whole(n) {
   return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
-/** Saved totals, coerced: a day, its counts and the features used, or null for anything else. */
+/** Saved totals, coerced: a day, its counts and the features used, or null for anything else.
+ *  Events a save does not say — 3.36.x counted none — stay null, not 0: that
+ *  day was not counted in full, and says nothing about them. */
 function savedTotals(raw) {
   if (!raw || typeof raw !== "object" || typeof raw.day !== "string" || !DAY.test(raw.day)) return null;
   return {
     day: raw.day, sessions: whole(raw.sessions), subagents: whole(raw.subagents), projects: whole(raw.projects),
-    features: knownFeatures(raw.features), events: whole(raw.events), peakMb: whole(raw.peakMb),
+    features: knownFeatures(raw.features),
+    events: Number.isInteger(raw.events) && raw.events >= 0 ? raw.events : null,
+    peakMb: whole(raw.peakMb),
   };
 }
 
@@ -145,7 +149,9 @@ export function createUsageDay({ now = () => new Date() } = {}) {
       subagents: c.floor.subagents + c.subagents.size,
       projects: c.floor.projects + c.projects.size,
       features: knownFeatures([...c.floor.features, ...c.features]),
-      events: c.floor.events + c.events,
+      // A floor with no events count makes the day's unknown too: this run's
+      // alone would undercount it.
+      events: c.floor.events === null ? null : c.floor.events + c.events,
       peakMb: Math.max(c.floor.peakMb, c.peakMb),
     };
   }

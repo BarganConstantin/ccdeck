@@ -79,15 +79,20 @@
 // NOTHING HERE THROWS OR WAITS FOR ANYBODY. A report that cannot be sent is
 // dropped: it is a nicety for the people who make ccdeck, and no part of the
 // deck depends on it. An event a check-in owes is tried again on the heartbeat,
-// less often the longer the API stays out of reach; one the API refuses (a
-// 4xx) is not sent again, since the same body would be refused the same way.
+// less often the longer the API stays out of reach; one the API itself refuses
+// (its 400, 413 or 422 problem+json) is not sent again, since the same body would
+// be refused the same way. A 4xx the edge in front of it answers with is tried again.
 
 import { createHash, randomUUID } from "node:crypto";
+import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
 import { arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, totalmem } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inApp } from "./app-host.mjs";
+import { stripBom, writeFileAtomic } from "./atomic-write.mjs";
+import { deckDataDir } from "./deck-home.mjs";
 import { reportsVetoed } from "./deck-prefs.mjs";
+import { prefsDir } from "./prefs-path.mjs";
 import { isGitCheckout, isNpxInstall } from "./install-layout.mjs";
 import { bootFoundNoPrefs, heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
@@ -97,7 +102,7 @@ import { notedRef, refSlug } from "./install-ref.mjs";
 import {
   CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, launchBucket, memoryBucket, updateVia,
 } from "./depth-facts.mjs";
-import { daysUsedBucket, normaliseRating, ratingDue, scoreOf } from "./rating.mjs";
+import { daysUsedBucket, normaliseRating, ratingDue, ratingStage, scoreOf } from "./rating.mjs";
 
 export const REPORTS_API = "https://api.ccdeck.dev";
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -411,6 +416,10 @@ export function scrub(text, home = homedir()) {
  * @param {() => boolean} [deps.firstRun] this run's boot found no settings file:
  *   the deck had never run here, so an install id made now is a real install and
  *   its first session is timed. Default: the boot read's own answer.
+ * @param {{ read: () => Promise<unknown>, write: (kept: object | null) => Promise<void> }} [deps.ratingKept]
+ *   where the question's outcome is kept a second time, out of reach of an
+ *   older deck's write of prefs.json (ratingFile). Default: none — the deck's
+ *   own reporter passes ratingFile(), so no test writes beside a real prefs.json.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -432,6 +441,7 @@ export function createReporter({
   npx = false,
   uptime = () => process.uptime() * 1000,
   firstRun = bootFoundNoPrefs,
+  ratingKept = null,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
@@ -546,7 +556,8 @@ export function createReporter({
       // is a real answer (the deck ran, nothing was opened), not a missing one.
       out.features = Array.isArray(raw.features) ? raw.features.filter(f => FEATURES.includes(f)) : [];
       // How hard the deck worked that day, as buckets (depth-facts.mjs). A peak
-      // of zero is a day no beat sampled, which says nothing.
+      // of zero is a day no beat sampled, and null events a day this deck did
+      // not count in full (usage-day.mjs): neither says anything.
       addIf(out, "events", eventsBucket(raw.events));
       addIf(out, "deckMemory", raw.peakMb > 0 ? memoryBucket(raw.peakMb) : undefined);
       return out;
@@ -612,9 +623,9 @@ export function createReporter({
     }
   }
 
-  /** What became of a send: "sent"; "refused", a 4xx — the API saying no to
-   *  this body, which it will say again to the same body, so it is final; or
-   *  "failed" — no answer, a 5xx, a 408 or a 429, which are worth another try. */
+  /** What became of a send: "sent"; "refused" — the API saying no to this body,
+   *  which it will say again to the same body, so it is final; or "failed" —
+   *  anything else, worth another try. */
   async function call(method, path, body) {
     try {
       const res = await fetchImpl(REPORTS_API + path, {
@@ -625,9 +636,24 @@ export function createReporter({
       });
       if (res.ok) return "sent";
       if (res.status === 429 || res.status === 503) waitAsAsked(res);
-      return res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429 ? "refused" : "failed";
+      return refusedByApi(res) ? "refused" : "failed";
     } catch {
       return "failed";
+    }
+  }
+
+  /** Whether an answer is the API's own verdict on the body: a 400, 413 or 422
+   *  it wrote as application/problem+json, the only way it turns a body down.
+   *  Any other 4xx — a 403 or 404 Cloudflare answers with itself (a challenge,
+   *  a rule, a tunnel being moved), a proxy's 401 — says nothing about the body,
+   *  and a later try can get through, so it is tried again like a 5xx. */
+  function refusedByApi(res) {
+    try {
+      if (res.status !== 400 && res.status !== 413 && res.status !== 422) return false;
+      const type = String(res.headers?.get?.("content-type") ?? "").toLowerCase();
+      return type.split(";")[0].trim() === "application/problem+json";
+    } catch {
+      return false;
     }
   }
 
@@ -782,7 +808,7 @@ export function createReporter({
       const ref = refSlug(prefs.current().report.ref) ?? refNow();
       const body = { installId, kind: "install", ...factsNow(), ...setupNow() };
       addIf(body, "ref", ref);
-      // Refused is as done as sent: the same body would be refused again.
+      // Refused by the API is as done as sent: the same body would be refused again.
       if (settled(await call("POST", "/v1/app/events", body))) {
         await remember(installId, { lastVersion: facts.version, ref: "" });
       } else if (ref) {
@@ -869,6 +895,7 @@ export function createReporter({
     const body = { installId: r.installId, kind: "rated", ...factsNow(), score: r.rating.score, daysUsed: daysUsedBucket(days) };
     if (settled(await call("POST", "/v1/app/events", body))) {
       await remember(r.installId, { rating: { ...prefs.current().report.rating, sent: true } });
+      await keepRating();
     }
   }
 
@@ -893,6 +920,7 @@ export function createReporter({
       const p = prefs.current();
       if (picked === null || !reportsOn(p, env) || !p.report.installId || p.report.rating.score !== null) return false;
       await remember(p.report.installId, { rating: { ...p.report.rating, score: picked, sent: false } });
+      await keepRating();
       await sendRating();
       return prefs.current().report.rating.score === picked;
     } catch {
@@ -908,9 +936,43 @@ export function createReporter({
       const r = p.report.rating;
       if (!reportsOn(p, env) || !p.report.installId || r.score !== null) return false;
       await remember(p.report.installId, { rating: { ...r, later: r.later + 1, laterAt: now().toISOString() } });
+      await keepRating();
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /** The question's outcome, kept a second time beside prefs.json (ratingFile)
+   *  under the install it belongs to — or taken off the disk once there is no
+   *  install to keep it for, so switching reports off forgets the id there too.
+   *  Never throws. */
+  async function keepRating() {
+    try {
+      if (!ratingKept) return;
+      const p = prefs.current();
+      const { installId, rating } = p.report;
+      await ratingKept.write(reportsOn(p, env) && installId ? { installId, rating } : null);
+    } catch {
+      // Unkept, the outcome still lives in prefs.json, as it always did.
+    }
+  }
+
+  /** The kept outcome, back into the prefs when it is further along than what
+   *  prefs.json says: an older deck wrote that file in between, and its write
+   *  drops every key it does not know, the rating among them — so the question
+   *  would be asked again, and a second answer sent. Only under the install it
+   *  was kept for. Never throws. */
+  async function restoreRating() {
+    try {
+      if (!ratingKept) return;
+      const kept = await ratingKept.read();
+      const p = prefs.current();
+      if (!reportsOn(p, env) || !p.report.installId || kept?.installId !== p.report.installId) return;
+      const rating = normaliseRating(kept.rating);
+      if (ratingStage(rating) > ratingStage(p.report.rating)) await remember(p.report.installId, { rating });
+    } catch {
+      // A kept file that will not read: what prefs.json says stands.
     }
   }
 
@@ -981,6 +1043,7 @@ export function createReporter({
       reports: false,
       report: { ...EMPTY_REPORT, forget: prev.report.installId || prev.report.forget },
     }));
+    await keepRating();
     await checkIn();
   }
 
@@ -1057,6 +1120,7 @@ export function createReporter({
     prefsIn.then(() => { if (reportsOn(prefs.current(), env)) void probeVersions(); }).catch(() => {});
     Promise.all([prefsIn, Promise.resolve(setupKnown()).catch(() => {})])
       .then(restoreUsage)
+      .then(restoreRating)
       .then(checkIn)
       .then(() => usage.onFirstUse?.(() => void onFirstSession()));
     if (!timer) {
@@ -1074,8 +1138,8 @@ export function createReporter({
   }
 
   return {
-    checkIn, ping, setReports, reportError, restoreUsage, saveUsage, sendActivation, willReport, reportUninstall,
-    noteSelfUpdate, ratingAsk, rate, rateLater, sendRating, start, stop,
+    checkIn, ping, setReports, reportError, restoreUsage, restoreRating, saveUsage, sendActivation, willReport,
+    reportUninstall, noteSelfUpdate, ratingAsk, rate, rateLater, sendRating, start, stop,
   };
 }
 
@@ -1098,7 +1162,41 @@ async function probeCliVersions() {
   cliVersionCache = { ...cliVersionCache, ...(await detectCliVersions()) };
 }
 
+/**
+ * Where the question's outcome is kept a second time: rating.json, beside
+ * prefs.json. A 3.36.x deck shares that folder — the desktop app before it
+ * updates, an `npx ccdeck@3.36.9` — and its normalise drops every key it does
+ * not know the first time it writes prefs.json, report.rating among them. It
+ * never writes this file. `dir` is the deck's data dir, read when it is used.
+ * Only the install id and the question's state go in it; `write(null)` takes
+ * it off the disk.
+ */
+export function ratingFile(dir) {
+  const path = () => join(prefsDir(dir ?? deckDataDir()), "rating.json");
+  return {
+    async read() {
+      try {
+        return JSON.parse(stripBom(await readFile(path(), "utf8")));
+      } catch {
+        return null;
+      }
+    },
+    async write(kept) {
+      const at = path();
+      if (!kept) {
+        await unlink(at).catch(err => { if (err?.code !== "ENOENT") throw err; });
+        return;
+      }
+      await mkdir(dirname(at), { recursive: true, mode: 0o700 });
+      await writeFileAtomic(at, JSON.stringify(kept) + "\n");
+      // The install id is kept as close as prefs.json keeps it.
+      await chmod(at, 0o600).catch(() => {});
+    },
+  };
+}
+
 /** The deck's own reporter. */
 export const reporter = createReporter({
   versions: () => cliVersionCache, probe: probeCliVersions, depth: deckDepth, npx: isNpxInstall(PKG_ROOT),
+  ratingKept: ratingFile(),
 });

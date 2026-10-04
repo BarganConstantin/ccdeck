@@ -4,10 +4,12 @@
 // update, "active", "activated" or "rated" the API answered with a 400, a 413
 // or a 422 — a field it validates differently, say — went out again on every
 // beat, about every ten minutes, for as long as the deck ran. The API will
-// refuse the same body the same way every time, so a refusal is final for that
-// event: it is not sent again. What is worth another try — no answer at all, a
-// 5xx, a 408 or a 429 — is tried again on the heartbeat, less often the longer
-// it keeps failing, and never sooner than a 429's Retry-After asks.
+// refuse the same body the same way every time, so its refusal — written as
+// application/problem+json — is final for that event: it is not sent again.
+// What is worth another try — no answer at all, a 5xx, a 408 or a 429, or a
+// 4xx the edge answered with (reports-edge-refusal.test.ts) — is tried again on
+// the heartbeat, less often the longer it keeps failing, and never sooner than
+// a 429's Retry-After asks.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { normalise } from "../../server/deck-prefs.mjs";
 // @ts-expect-error — plain JS module, no types
@@ -21,6 +23,8 @@ const DAY = 24 * HOUR;
 /** PING_EVERY_MS (10m) + PING_JITTER_MS (2m): one beat, whatever the jitter. */
 const BEAT = 12 * MIN;
 const START = new Date("2026-10-04T10:00:00Z");
+/** How the API writes a body it turns down: a ValidationProblem. */
+const PROBLEM = { "Content-Type": "application/problem+json; charset=utf-8" };
 
 type Answer = { status: number; headers?: Record<string, string> } | "offline";
 type Sent = { url: string; body: Record<string, unknown>; at: number };
@@ -70,7 +74,7 @@ afterEach(() => { vi.useRealTimers(); });
 
 describe("an event the API refuses", () => {
   it.each([400, 413, 422])("goes out once on a %i, and not again on later beats", async (status) => {
-    const h = harness({ answer: b => (b.kind === "install" ? { status } : { status: 202 }) });
+    const h = harness({ answer: b => (b.kind === "install" ? { status, headers: PROBLEM } : { status: 202 }) });
     h.reporter.start();
     await vi.advanceTimersByTimeAsync(6 * BEAT);
     h.reporter.stop();
@@ -83,7 +87,7 @@ describe("an event the API refuses", () => {
   it("is an update said once, not resent all day", async () => {
     const h = harness({
       saved: { report: { installId: "id-1", lastVersion: "3.36.0", lastActiveDay: "2026-10-04" } },
-      answer: b => (b.kind === "update" ? { status: 400 } : { status: 202 }),
+      answer: b => (b.kind === "update" ? { status: 400, headers: PROBLEM } : { status: 202 }),
     });
     h.reporter.start();
     await vi.advanceTimersByTimeAsync(6 * BEAT);
@@ -95,7 +99,7 @@ describe("an event the API refuses", () => {
   it("is a refused 'active' given up for that day, and the next day's is sent", async () => {
     const h = harness({
       saved: { report: { installId: "id-1", lastVersion: "3.37.0", lastActiveDay: "2026-10-03" } },
-      answer: b => (b.kind === "active" ? { status: 422 } : { status: 202 }),
+      answer: b => (b.kind === "active" ? { status: 422, headers: PROBLEM } : { status: 202 }),
     });
     h.reporter.start();
     await vi.advanceTimersByTimeAsync(6 * BEAT);
@@ -116,7 +120,7 @@ describe("an event the API refuses", () => {
           rating: { score: 9 },
         },
       },
-      answer: b => (b.kind === "activated" || b.kind === "rated" ? { status: 400 } : { status: 202 }),
+      answer: b => (b.kind === "activated" || b.kind === "rated" ? { status: 400, headers: PROBLEM } : { status: 202 }),
     });
     h.reporter.start();
     await vi.advanceTimersByTimeAsync(6 * BEAT);
@@ -132,7 +136,7 @@ describe("an event the API refuses", () => {
     // it is not asked for every ten minutes either.
     const h = harness({
       saved: { reports: false, report: { forget: "8d4b2c1e-0000-4000-8000-000000000001" } },
-      answer: () => ({ status: 404 }),
+      answer: () => ({ status: 404, headers: PROBLEM }),
     });
     h.reporter.start();
     await vi.advanceTimersByTimeAsync(6 * HOUR);

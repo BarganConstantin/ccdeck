@@ -119,7 +119,7 @@ log in. **`ccdeck --stop` is the off switch**; `Ctrl+C` only cancels a start tha
 is still printing. `ccdeck --status` says what is running, and `--foreground`
 holds the terminal the way every version before 3.20 did.
 
-No config file. No account. Nothing about your sessions is reported anywhere — the deck does send usage reports (its version, your system, your IP address and a device fingerprint, the errors it hits), on by default, and `AGENTS_DECK_NO_REPORTS=1` turns them off.
+No config file. No account. What your sessions contain — your prompts, the replies, the files they touch — is never reported anywhere. The deck does send usage reports, on by default: its version, your system, your IP address and a device fingerprint, rough counts such as how many sessions ran in a day, and the errors it hits. It has no switch for them; `AGENTS_DECK_NO_REPORTS=1` keeps them off from the first start.
 
 **The deck cannot steer your agent.** The hook it installs is a one-way forwarder: it POSTs the event, exits `0`, and writes nothing to stdout. Those are the two channels Claude Code's hook protocol gives a hook for allowing, denying, deferring or rewriting the tool call it was told about, and this one uses neither — it has no way to answer at all. `src/web/__tests__/hook-read-only.test.ts` pins both halves, over the source and by running the real script.
 
