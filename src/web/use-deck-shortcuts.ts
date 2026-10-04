@@ -188,7 +188,15 @@ export function useDeckShortcuts({
         modalOpen: canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() }),
         sheetOpen: keyHelpOpenRef.current,
       })) return;
-      if (e.key === " ") { e.preventDefault(); togglePause(); }
+      // A held key is one press. Every auto-repeat used to run its shortcut
+      // again, so a held Space flipped pause about thirty times a second and
+      // left the stream in whichever state the key came up on, and T, L, D and
+      // U flickered the same way. J and K keep repeating: holding them to step
+      // through the board is what a held key is for. Space goes on to its own
+      // line, which pauses on the first press only and still cancels every
+      // repeat, or the page behind the canvas scrolls.
+      if (e.repeat && !/^[ jkJK]$/.test(e.key)) return;
+      if (e.key === " ") { e.preventDefault(); if (!e.repeat) togglePause(); }
       if (e.key === "c" || e.key === "C") requestClear("shortcut");
       if (e.key === "r" || e.key === "R") handleRelayout();
       if (e.key === "f" || e.key === "F") handleFit();
