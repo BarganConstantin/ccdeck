@@ -127,7 +127,7 @@ describe("what survives a restart", () => {
     expect(normaliseUsage(null)).toEqual(nothing);
     expect(normaliseUsage({ current: { day: "yesterday", sessions: 3 }, sent: 5, daysUsed: -4, lastUsedDay: 7 })).toEqual(nothing);
     expect(normaliseUsage({ current: { day: "2026-09-30", sessions: -2, subagents: 1.5, projects: "3" } }).current)
-      .toEqual({ day: "2026-09-30", sessions: 0, subagents: 0, projects: 0, features: [], events: 0, peakMb: 0 });
+      .toEqual({ day: "2026-09-30", sessions: 0, subagents: 0, projects: 0, features: [], events: null, peakMb: 0 });
   });
 });
 

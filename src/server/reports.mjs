@@ -547,7 +547,8 @@ export function createReporter({
       // is a real answer (the deck ran, nothing was opened), not a missing one.
       out.features = Array.isArray(raw.features) ? raw.features.filter(f => FEATURES.includes(f)) : [];
       // How hard the deck worked that day, as buckets (depth-facts.mjs). A peak
-      // of zero is a day no beat sampled, which says nothing.
+      // of zero is a day no beat sampled, and null events a day this deck did
+      // not count in full (usage-day.mjs): neither says anything.
       addIf(out, "events", eventsBucket(raw.events));
       addIf(out, "deckMemory", raw.peakMb > 0 ? memoryBucket(raw.peakMb) : undefined);
       return out;
