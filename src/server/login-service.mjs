@@ -251,7 +251,9 @@ export function taskXmlFor({ execPath, script, args = [], product = "ccdeck" } =
  *
  *   `npx` runs out of ~/.npm/_npx/<hash>/, which npm deletes whenever it feels
  *   like it. A login item pointing at nothing, forever, on a machine where the
- *   user never installed anything.
+ *   user never installed anything. pnpm dlx, bunx and yarn dlx are the same
+ *   case in another cache or temp folder, and callers pass `npx` for all four
+ *   (isOneOffRun).
  *
  *   A CHECKOUT is somebody's working tree. Found by running this: a test boot
  *   from the repo on the author's own machine wrote a LaunchAgent naming

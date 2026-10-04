@@ -356,7 +356,8 @@ Scheduler logon task on Windows — none of them carrying a restart policy of it
 own, because the one that decides when a crashed deck stops coming back lives in
 ccdeck and two policies over one process is how a stop becomes a suggestion. An
 `npx` run never installs one: it would name a path inside npm's cache, which npm
-deletes without warning. On Linux, `systemd --user` is torn down at logout unless
+deletes without warning — nor does a `pnpm dlx`, `bunx` or `yarn dlx` run, for the
+same reason. On Linux, `systemd --user` is torn down at logout unless
 `loginctl enable-linger` is on for your account — the install says so rather than
 changing that for you.
 
@@ -489,6 +490,7 @@ What the banner offers depends on how this copy was installed:
 |---|---|
 | global npm install | **Update now** — runs `npm install -g` on the package you installed, then restarts once nothing is running |
 | `npx` | **Update & restart** — re-runs the spec through npx, which fetches a fresh copy and takes over the same port |
+| `pnpm dlx`, `bunx` or `yarn dlx` | the command — a one-off copy cannot be upgraded in place, so the global install is what is shown |
 | git checkout | the command, because your working copy leads npm: `git pull && npm run build` |
 | directory not writable | the command — a root-owned prefix is declined up front rather than failing inside npm |
 | `AGENTS_DECK_NO_INSTALL=1` | the command only; you asked for no installs |
