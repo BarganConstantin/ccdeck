@@ -62,6 +62,14 @@
    name, which keeps about ten characters at the 1040 floor and twelve at 1440.
    Under 1040 even that ribbon leaves no room, and the phrase leaves whole —
    which also covers the phone bar, where the readout is spent on the alarm.
+   The cost stays off down there too. With the phrase gone the ribbon is back
+   under its usual cap, but from 641, where it returns (selection-ribbon.css),
+   the controls leave it less than 24vw, and a cost does not shrink: the name
+   ellipsed to nothing while the cost kept its width, and the cost and the ×
+   ran on past the ribbon's edge — 67px into the controls at 641, and over the
+   Session list button, taking its presses, at 720 to 750. So the cost's band
+   runs from wherever the ribbon is drawn up to 1139, with no lower bound of
+   its own (topbar-ribbon-cost.test.ts adds the bar up).
    A paused pill or the app's ready-update chip on top of the budget is outside
    it, the way .tb-word leaves a paused deck outside its own, and there the
    readout gives up the logo and the wordmark from the left, never the alarm.
@@ -84,6 +92,6 @@
 @media (min-width: 1440px) {
   .selected-ribbon { max-width: min(380px, calc(100vw - 1253px)); }
 }
-@media (min-width: 1040px) and (max-width: 1139px), (min-width: 1440px) and (max-width: 1632px) {
+@media (max-width: 1139px), (min-width: 1440px) and (max-width: 1632px) {
   .selected-ribbon .selected-cost { display: none; }
 }
