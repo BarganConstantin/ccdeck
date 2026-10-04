@@ -91,8 +91,11 @@ export default class ErrorBoundary extends Component<Props, State> {
     const { error, componentStack, reportOpen } = this.state;
     if (!error) return this.props.children;
     return (
-      <div className="error-fallback" role="alert">
-        <div className="error-fallback-card">
+      <div className="error-fallback">
+        {/* The alert is the card, not the pane: the report dialog opens beside
+            it, since everything inside an alert is read out, assertively,
+            whenever any of it changes. */}
+        <div className="error-fallback-card" role="alert">
           <p className="error-fallback-title">Something went wrong</p>
           <p className="error-fallback-note">
             The deck hit an error it could not draw past. Reloading usually clears it — and if it
