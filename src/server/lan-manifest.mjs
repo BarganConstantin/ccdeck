@@ -4,14 +4,15 @@
 // two maps only these fill, so saying and hearing sit in one file as they sat
 // side by side in the engine. The rules for the lists themselves are
 // lan-copies.mjs's, and the card's are lan-about.mjs's.
-import { currentFor, heardCurrent, manifestFor, offered } from "./lan-sync.mjs";
+import { currentFor, heardCurrent, manifestFor, offered, sharedWith } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 
 /**
  * `about` is this deck's own card, or null for a deck built without one. `now`
  * is the engine's clock. `myFp` answers this deck's fingerprint as it is at
  * the moment of asking — a restart for a new key changes it — and `settings`
- * the settings in force, of which a manifest reads `shared` and `shareActive`.
+ * the settings in force, of which a manifest reads `shared`, `onward`,
+ * `trusted` and `shareActive`.
  */
 export function createManifests({ about, now, myFp, settings }) {
   /** What each paired deck said about itself — version, operating system,
@@ -35,13 +36,15 @@ export function createManifests({ about, now, myFp, settings }) {
   };
 
   /** This deck's manifest for the deck on the other end of `key`: the accounts
-   *  it shares, which of them it is on, and its card. One frame whichever way
-   *  it travels — the question a round asks, and the answer `serve` gives. */
+   *  it shares with that deck (see sharedWith), which of them it is on, and its
+   *  card. One frame whichever way it travels — the question a round asks, and
+   *  the answer `serve` gives. */
   const manifestFrame = (accounts, key, toFp) => {
     const cfg = settings();
+    const shared = sharedWith(cfg, toFp);
     return {
-      t: "manifest", accounts: manifestFor(accounts, cfg.shared),
-      ...currentFor(accounts, cfg.shared, cfg.shareActive),
+      t: "manifest", accounts: manifestFor(accounts, shared),
+      ...currentFor(accounts, shared, cfg.shareActive),
       ...cardFor(key, toFp),
     };
   };

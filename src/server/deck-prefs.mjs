@@ -115,7 +115,7 @@ export const DEFAULTS = Object.freeze({
   // write below names a mode. AGENTS_DECK_NO_LAN=1 keeps a deck off the network
   // whatever this file says — see lanEnabled.
   lan: Object.freeze({
-    enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], unpaired: [], port: 0,
+    enabled: true, name: "", secret: "", shared: [], onward: [], manual: [], trusted: [], unpaired: [], port: 0,
     // WHO PAIRS WITH WHOM, WITHOUT ANYBODY PRESSING ANYTHING. Asking is on, so
     // two decks on one network find each other and send each other a request —
     // which is what a person with three of their own machines wants and had to
@@ -232,6 +232,11 @@ function normaliseLan(raw) {
     // anybody can act on and refusing to start would take the feature away.
     secret: typeof src.secret === "string" ? src.secret : "",
     shared: strings(src.shared),
+    // WHICH OF THOSE AN ARRIVAL TICKED rather than a person (#1188), so a deck
+    // the accept switch paired is not offered them — see sharedWith in
+    // lan-sync.mjs. Only ever a subset of `shared`: an untick takes the mark
+    // with it, so ticking the account again is a person's tick.
+    onward: strings(src.onward).filter(key => strings(src.shared).includes(key)),
     manual: strings(src.manual),
     // THE DECKS SOMEBODY PRESSED ACCEPT ON. The public key is the load-bearing
     // half: a fingerprint is a hash of it, so an entry without one cannot be
@@ -523,11 +528,15 @@ export function withManualEntry(entry) {
  * to the next machine as the deck that gave it. Only on arrival — an untick
  * afterwards is the person's answer and nothing re-ticks it, because an account
  * this deck already holds is never added again.
+ *
+ * AND MARKED AS THE ARRIVAL'S in `lan.onward`, in the same write, so a restart
+ * cannot turn it into a tick somebody made — see sharedWith in lan-sync.mjs.
  */
 export function withShared(key) {
   return prev => {
     const shared = Array.isArray(prev?.lan?.shared) ? prev.lan.shared : [];
-    return !key || shared.includes(key) ? null : { lan: { shared: [...shared, key] } };
+    const onward = Array.isArray(prev?.lan?.onward) ? prev.lan.onward : [];
+    return !key || shared.includes(key) ? null : { lan: { shared: [...shared, key], onward: [...onward, key] } };
   };
 }
 
@@ -650,8 +659,10 @@ export function publicPrefs(prefs) {
   const { report: _report, accounts: _accounts, ...p } = normalise(prefs);
   // unpaired is engine-authored state too. No page draws or edits it; keeping
   // it out also means a future whole-prefs form cannot replay a stale unpair
-  // list over a decision the engine made after the form loaded.
-  const { secret, trusted, unpaired: _unpaired, ...lan } = p.lan;
+  // list over a decision the engine made after the form loaded. `onward` is
+  // the deck's own bookkeeping of which ticks an arrival made, for the same
+  // reason.
+  const { secret, trusted, unpaired: _unpaired, onward: _onward, ...lan } = p.lan;
   return {
     ...p,
     lan: { ...lan, trusted: trusted.map(t => ({ fp: t.fp, name: t.name })) },

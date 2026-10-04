@@ -431,6 +431,26 @@ export function dropTrusted(trusted, fp) {
 }
 
 /**
+ * The accounts this deck offers the paired deck `fp`: everything ticked here,
+ * less what an arrival ticked when that deck is one the accept switch paired.
+ *
+ * An account that arrives from a deck somebody here chose is ticked on arrival
+ * (#1188), and `onward` keeps which ticks those were. The reasoning for that
+ * tick is that the group already has the login, and the group is the decks a
+ * person here chose. A deck the switch paired (`auto`, see addTrusted) is
+ * offered what a person ticked and nothing else, which is what keeps the
+ * switch's promise: a deck that pairs is offered nothing until somebody ticks
+ * a login here. A person who unticks and ticks the account again takes the
+ * mark off, and from then on it is offered like any other tick.
+ */
+export function sharedWith(cfg, fp) {
+  const shared = Array.isArray(cfg?.shared) ? cfg.shared : [];
+  if (trustedPeer(cfg?.trusted, fp)?.auto !== true) return shared;
+  const onward = Array.isArray(cfg?.onward) ? cfg.onward : [];
+  return shared.filter(key => !onward.includes(key));
+}
+
+/**
  * The decks worth offering to pair with, out of everything that has ever been
  * heard.
  *
