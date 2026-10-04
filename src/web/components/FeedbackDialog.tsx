@@ -31,7 +31,7 @@
 // through the picker. What is checked and redrawn before it goes is
 // feedback-images.ts's. With no image, Send posts the JSON it always did.
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped, selfPressProps } from "../panel-press";
 import SuccessMark from "./SuccessMark";
 import FeedbackKinds from "./FeedbackKinds";
@@ -63,6 +63,9 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const formRef = useRef<HTMLFormElement>(null);
   const dragDepth = useRef(0);
   const dialogRef = useModalDismiss(onClose, { focusRef: bodyRef });
+  // Only a press of the scrim itself: a selection dragged out of the message
+  // and let go over it would otherwise close the dialog and lose the report.
+  const scrimPress = useScrimDismiss(onClose);
   const [kind, setKind] = useState<Kind>(initialKind ?? "bug");
   const [body, setBody] = useState(initialBody ?? "");
   const [contact, setContact] = useState("");
@@ -152,7 +155,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation" onDragOver={refuseBesideDialog} onDrop={dropBesideDialog}
+    <div className="modal-backdrop" {...scrimPress} role="presentation" onDragOver={refuseBesideDialog} onDrop={dropBesideDialog}
       data-leaving={leaving || undefined}>
       <div
         ref={dialogRef}
