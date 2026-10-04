@@ -123,6 +123,14 @@ export default function BoardFlow({
       minZoom={CANVAS_MIN_ZOOM}
       maxZoom={CANVAS_MAX_ZOOM}
       panOnScroll
+      // NO PAN KEY. React Flow's is Space unless it is told otherwise, and it
+      // listens for it on the whole document: a Space keydown anywhere but a
+      // text field or a `.nokey` element was cancelled, and a cancelled Space
+      // is a <button> that never fires. So Space pressed none of the deck's
+      // buttons — the topbar's toggles, the ⋯ menu, the rating numbers, a
+      // dialog's Cancel — and Enter did. Holding it would only have panned the
+      // pane, which dragging and scrolling already do.
+      panActivationKeyCode={null}
       nodesDraggable
       nodesConnectable={false}
       selectionOnDrag={false}
