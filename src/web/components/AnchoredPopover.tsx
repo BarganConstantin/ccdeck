@@ -75,8 +75,12 @@ interface Props {
    *  rather than the quiet Report this left of it in the issue popover. Left
    *  unset, useModalDismiss takes the first control. */
   focusRef?: RefObject<HTMLElement | null>;
+  /** Where focus goes if the anchor stops being drawn while focus is inside:
+   *  the anchor cannot take it back then. Left unset, it falls to the page. */
+  fallbackFocus?: () => HTMLElement | null;
   /** Asked to go. By the time this runs, focus has been handed back to the
-   *  anchor if it was inside — the caller only has to stop rendering it. */
+   *  anchor if it was inside — or to fallbackFocus, when the anchor is no
+   *  longer drawn — so the caller only has to stop rendering it. */
   onClose: () => void;
   children: ReactNode;
 }
@@ -91,10 +95,12 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, boundaryId, id, className, role, labelledBy, start = "first", focusRef, onClose, children,
+  anchorId, boundaryId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  const fallbackRef = useRef(fallbackFocus);
+  fallbackRef.current = fallbackFocus;
 
   // Escape reaches this through App's one listener and the dismiss stack. It
   // hands focus to the anchor before closing, rather than leaving it to the
@@ -112,6 +118,15 @@ export default function AnchoredPopover({
     const anchor = document.getElementById(anchorId);
     // The row it hung off is gone — removed from another terminal, or moved.
     if (!anchor) { closeRef.current(); return; }
+    // Or it is still there and no longer drawn: the topbar's ⋯, which the
+    // sheet hides once the window is wider than a phone (TopbarMore.tsx). Its
+    // box is all zeros then, and placed against that the popover went to the
+    // window's top-left corner, still open and holding focus.
+    if (anchor.getClientRects().length === 0) {
+      if (el.contains(document.activeElement)) fallbackRef.current?.()?.focus();
+      closeRef.current();
+      return;
+    }
     const box = anchor.getBoundingClientRect();
     const clip = boundaryId ? document.getElementById(boundaryId)?.getBoundingClientRect() : null;
     if (clip && (box.bottom <= clip.top || box.top >= clip.bottom)) {
