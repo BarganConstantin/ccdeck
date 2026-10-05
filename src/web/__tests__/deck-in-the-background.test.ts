@@ -24,7 +24,7 @@ import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — plain .mjs module, no types
 const detach = await import("../../server/detach.mjs");
-const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMode, shouldDetach, stopCommand, tailFile } = detach as {
+const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, startsFresh, shouldDetach, stopCommand, tailFile } = detach as {
   DECK_LOG: string;
   DETACHED_ENV: string;
   backgroundNote: (o: {
@@ -32,7 +32,7 @@ const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMo
   }) => string;
   detachAndWatch: (o: Record<string, unknown>) => Promise<{ ok: false; reason: string }>;
   detachEnv: (o?: { isTTY?: boolean; profile?: string; columns?: number }) => Record<string, string>;
-  logMode: (n: number) => string;
+  startsFresh: (n: number, booting?: boolean) => boolean;
   shouldDetach: (o?: { detached?: boolean; leashed?: boolean; flags?: Record<string, unknown> }) => boolean;
   stopCommand: (o?: { npx?: boolean; invokedAs?: string | null; product?: string }) => string;
   tailFile: (p: string, out: { write: (b: Buffer) => void }, o?: { from?: number; everyMs?: number })
@@ -62,21 +62,25 @@ describe("the child's output is a file, never a pipe", () => {
     expect(SRC).toContain("tailFile(path, out,");
   });
 
-  it("truncates the log only when it can be nobody's", () => {
+  it("starts the log afresh only when it can be nobody's, and never by truncating it", () => {
     // A registered deck is holding an open descriptor at some offset into this
     // very file. Truncating under it does not make it start again at zero — it
-    // makes its next write land past the end and leave a hole.
-    expect(logMode(0)).toBe("w");
-    expect(logMode(1)).toBe("a");
-    expect(logMode(3)).toBe("a");
+    // makes its next write land past the end and leave a hole. A deck in its
+    // boot window is not registered yet, and holds the boot lock instead.
+    expect(startsFresh(0)).toBe(true);
+    expect(startsFresh(1)).toBe(false);
+    expect(startsFresh(3)).toBe(false);
+    expect(startsFresh(0, true)).toBe(false);
+    // Afresh is a move aside, and every writer appends: deck-log-append.test.ts.
+    expect(SRC).toContain('fd = openSync(path, "a", 0o600);');
+    expect(SRC).not.toMatch(/openSync\(path, "w"/);
   });
 
   it("reads an appended log from its old end, not from the top", () => {
     // Otherwise the attach, which is the case that reaches here with a deck
     // already up, would replay that deck's whole boot into the terminal before
     // saying its own six lines.
-    expect(SRC).toContain('const from = mode === "a" ?');
-    expect(SRC).toContain("statSync(path).size");
+    expect(SRC).toContain("const from = (() => { try { return statSync(path).size; }");
   });
 
   it("keeps the deck out of the terminal's process group", () => {

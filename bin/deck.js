@@ -13,7 +13,7 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
-import { RESTART_CODE, UPGRADE_CODE, dieWithParent } from "../src/server/supervisor.mjs";
+import { RESTART_CODE, UPGRADE_CODE, dieWithParent, signalExitAction } from "../src/server/supervisor.mjs";
 import { parseArgs, startPort, wantsCli } from "../src/server/args.mjs";
 import { unregisteredDetail } from "../src/server/pulse-line.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
@@ -33,7 +33,7 @@ import { offerLoginItem } from "./cli/login-item.js";
 import { oneShot } from "./cli/one-shot.js";
 // The terminal the boot draws in: palette, glyphs, rows, the wordmark and the spinner.
 import {
-  G, P, fileLink, printBanner, showCursor, step, takeCursor, tty, write,
+  G, P, fileLink, onHangup, printBanner, showCursor, step, takeCursor, tty, write,
 } from "./cli/screen.js";
 // The once-per-session work and the rows that report it.
 import { reportReady, reportRestarted, reportStartup, respawnHooks, startupWork } from "./cli/startup.js";
@@ -580,7 +580,9 @@ async function shutdown(code = 0) {
     // Before anything that can take time: a Ctrl+C the user has to watch for a
     // second and a half is a second and a half without a cursor.
     showCursor();
-    if (tty && code !== RESTART_CODE && code !== UPGRADE_CODE) {
+    // Nothing for a terminal that hung up (onHangup, below): it is not there.
+    const hungUp = code === hangupCode();
+    if (tty && code !== RESTART_CODE && code !== UPGRADE_CODE && !hungUp) {
       write(`\n\n  ${P.warn}${G.stop}  shutting down${G.ellipsis}${P.reset}\n`);
     }
     // WHAT THIS DECK STARTED, ENDED WITH IT. Every deadline in exec.mjs lives
@@ -648,6 +650,17 @@ async function shutdown(code = 0) {
 }
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
+// A terminal closed under a `--foreground` deck, or a console window closed on
+// Windows, which Node reports as SIGHUP. Dying of it on the spot dropped every
+// append already acknowledged, left the discovery record for the hooks and
+// gave the LAN no goodbye, so it takes the way out the other two take. With
+// the hangup's own exit code, so the supervisor reads what it read before; and
+// with nothing written to the terminal that is gone — a write there fails, and
+// an unhandled 'error' on stdout would end the shutdown halfway.
+onHangup(() => {
+  for (const out of [process.stdout, process.stderr]) out.on("error", () => {});
+  shutdown(hangupCode());
+});
 process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDiscovery(discoveryFile); });
 // The boot lock's `exit` handler is NOT here with its siblings. It is armed up
 // beside `let bootLock = null;`, above the start gate, because the three ways
@@ -655,6 +668,13 @@ process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDis
 // see the note there (#980).
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+/** The code a death by SIGHUP is reported as, 129: what a hangup that runs
+ *  shutdown instead of dying of it exits with. A function, like shutdown, so
+ *  it is there at any instant of the boot. */
+function hangupCode() {
+  return signalExitAction("SIGHUP").code;
+}
 
 // The deck is up and the discovery file could not be written. Said in full —
 // the path, the reason — because the alternative is what this replaced: an

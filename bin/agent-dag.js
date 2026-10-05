@@ -98,7 +98,8 @@ const LEASHED = typeof process.send === "function";
 const FLAGS = parseArgs(process.argv.slice(2));
 if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {
   const { deckLogDir } = await import("../src/server/deck-home.mjs");
-  const { registeredDecks } = await import("../src/server/running-deck.mjs");
+  const { deckRegistryDir, registeredDecks } = await import("../src/server/running-deck.mjs");
+  const { BOOT_LOCK_FILE } = await import("../src/server/boot-lock.mjs");
   const isTTY = Boolean(process.stdout.isTTY);
   const profile = colorProfile({ isTTY });
   const tone = palette(profile);
@@ -107,9 +108,11 @@ if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {
     file: fileURLToPath(import.meta.url),
     argv: process.argv.slice(2),
     logDir: deckLogDir(),
-    // Only the count, and only to decide whether deck.log is anybody's — see
-    // logMode. No handshake: this is a directory listing and a signal-0 each.
+    // Only the count and the boot lock, and only to decide whether deck.log is
+    // anybody's — see startsFresh. No handshake: this is a directory listing
+    // and a signal-0 each.
     liveCount: (await registeredDecks().catch(() => [])).length,
+    booting: existsSync(join(deckRegistryDir(), BOOT_LOCK_FILE)),
     isTTY,
     profile,
     columns: termColumns(process.stdout),

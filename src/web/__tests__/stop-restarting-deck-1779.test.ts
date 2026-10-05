@@ -63,6 +63,9 @@ const CRASHED: Rec = { pid: 222, parent: 111, port: 4497, token: "t", startedAt:
 describe("a record whose worker crashed and whose supervisor is still there", () => {
   const fresh = registry({ "222.json": { rec: CRASHED, mtimeMs: NOW - 4_000 } });
   const alive = (p: number) => p === 111;
+  // The supervisor started before its worker, and the machine has not rebooted
+  // since: stop-deck-identity.test.ts is where either one failing is pinned.
+  const proven = { bootedAt: NOW - 86_400_000, startedAt: async () => NOW - 3_700_000 };
 
   it("is dropped by the lists a live deck is found on, which is why --stop missed it", async () => {
     expect(await registeredDecks({ dir: "/x", fs: fresh, self: 1, alive })).toEqual([]);
@@ -70,19 +73,19 @@ describe("a record whose worker crashed and whose supervisor is still there", ()
   });
 
   it("is found by restartingDecks, and marked so", async () => {
-    const got = await restartingDecks({ dir: "/x", fs: fresh, self: 1, selfParent: 2, alive, now: NOW });
+    const got = await restartingDecks({ dir: "/x", fs: fresh, self: 1, selfParent: 2, alive, now: NOW, ...proven });
     expect(got).toEqual([{ ...CRASHED, restarting: true }]);
   });
 
   it("is not found once it is older than the crash window", async () => {
     const stale = registry({ "222.json": { rec: CRASHED, mtimeMs: NOW - CRASH_WINDOW_MS - 1 } });
-    expect(await restartingDecks({ dir: "/x", fs: stale, self: 1, selfParent: 2, alive, now: NOW })).toEqual([]);
+    expect(await restartingDecks({ dir: "/x", fs: stale, self: 1, selfParent: 2, alive, now: NOW, ...proven })).toEqual([]);
   });
 
   it("is not found when the supervisor is gone too, or was never named", async () => {
-    expect(await restartingDecks({ dir: "/x", fs: fresh, self: 1, selfParent: 2, alive: () => false, now: NOW })).toEqual([]);
+    expect(await restartingDecks({ dir: "/x", fs: fresh, self: 1, selfParent: 2, alive: () => false, now: NOW, ...proven })).toEqual([]);
     const orphan = registry({ "222.json": { rec: { ...CRASHED, parent: null }, mtimeMs: NOW - 4_000 } });
-    expect(await restartingDecks({ dir: "/x", fs: orphan, self: 1, selfParent: 2, alive: () => true, now: NOW })).toEqual([]);
+    expect(await restartingDecks({ dir: "/x", fs: orphan, self: 1, selfParent: 2, alive: () => true, now: NOW, ...proven })).toEqual([]);
   });
 
   it("is not found when the supervisor already has a live worker registered", async () => {
@@ -91,13 +94,13 @@ describe("a record whose worker crashed and whose supervisor is still there", ()
       "222.json": { rec: CRASHED, mtimeMs: NOW - 4_000 },
       "333.json": { rec: { pid: 333, parent: 111, port: 4497, token: "t" }, mtimeMs: NOW },
     });
-    expect(await restartingDecks({ dir: "/x", fs: both, self: 1, selfParent: 2, alive: (p: number) => p === 111 || p === 333, now: NOW }))
+    expect(await restartingDecks({ dir: "/x", fs: both, self: 1, selfParent: 2, alive: (p: number) => p === 111 || p === 333, now: NOW, ...proven }))
       .toEqual([]);
   });
 
   it("never names this process or the supervisor it runs under", async () => {
-    expect(await restartingDecks({ dir: "/x", fs: fresh, self: 111, selfParent: 2, alive, now: NOW })).toEqual([]);
-    expect(await restartingDecks({ dir: "/x", fs: fresh, self: 1, selfParent: 111, alive, now: NOW })).toEqual([]);
+    expect(await restartingDecks({ dir: "/x", fs: fresh, self: 111, selfParent: 2, alive, now: NOW, ...proven })).toEqual([]);
+    expect(await restartingDecks({ dir: "/x", fs: fresh, self: 1, selfParent: 111, alive, now: NOW, ...proven })).toEqual([]);
   });
 });
 
@@ -191,10 +194,12 @@ beforeEach(async () => {
   supervisorGone = new Promise(done => sup.on("exit", () => done()));
   const worker = await deadPid();
   file = join(REGISTRY, `${worker}.json`);
+  // Started after its supervisor, as every worker is: restartingDecks reads the
+  // supervisor's start time and refuses a parent that came later.
   writeFileSync(file, JSON.stringify({
     pid: worker, parent: supervisor.pid, port: 4497, token: "t",
     workspace: "", persist: null, codex: false, claude: false, version: "3.32.0",
-    startedAt: new Date(Date.now() - 3_600_000).toISOString(),
+    startedAt: new Date().toISOString(),
   }));
 });
 
