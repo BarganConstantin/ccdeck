@@ -163,10 +163,15 @@ export function unitFor({ execPath, script, logPath, args = [], env = {}, produc
   // decks and two LAN keys on one machine". `%b` is the boot-ID specifier, so
   // `/home/ana/100%backup` was rewritten just as quietly.
   //
+  // AND `"` AND `\` ESCAPED INSIDE THOSE QUOTES, which systemd reads with C
+  // escapes: a `"` in the value closed them early and a `\` began an escape,
+  // so `/home/ana/a "quote` and a value ending in `\` were dropped as
+  // "Invalid syntax, ignoring" and `back\slash` came back with a space in it.
+  //
   // The macOS branch was always safe: plistFor puts each value in its own
   // <string> and XML-escapes it. Windows carries none of them.
   const vars = Object.entries({ AGENTS_DECK_DETACHED: "1", ...env })
-    .map(([k, v]) => `Environment="${k}=${sdEscape(v)}"`).join("\n");
+    .map(([k, v]) => `Environment="${sdEscape(`${k}=${v}`).replace(/[\\"]/g, "\\$&")}"`).join("\n");
   return `[Unit]
 Description=${product} — live deck of Claude Code + Codex agents
 After=default.target
@@ -536,11 +541,17 @@ export function installService({
     fs.writeFileSync(path, body, { mode: 0o644 });
     const cmd = registerCommand(platform, path);
     const out = run(cmd.file, cmd.args, { encoding: "utf8" });
-    // A registration that failed still leaves the file, and both launchd and
-    // systemd read their directories at the next login — so the service works
-    // from then on either way. Said, not hidden, and not treated as fatal.
+    // A registration that failed still leaves the file. launchd loads every
+    // plist in ~/Library/LaunchAgents at the next login, so on a Mac the item
+    // works from then on. systemd does not: it starts at login only a user
+    // unit that is ENABLED, which is the link the failed `enable` never made,
+    // so the verdict carries the command that makes it. Said, not hidden, and
+    // not treated as fatal.
     if (out?.status !== 0) {
-      return { ok: true, path, how: "file-only", reason: oneLine(out?.stderr || out?.stdout) || `${cmd.file} refused` };
+      const reason = oneLine(out?.stderr || out?.stdout) || `${cmd.file} refused`;
+      return platform === "darwin"
+        ? { ok: true, path, how: "file-only", reason }
+        : { ok: true, path, how: "file-only", reason, enable: `systemctl --user enable ${SERVICE_LABEL}.service` };
     }
     return { ok: true, path, how: cmd.file };
   } catch (err) {

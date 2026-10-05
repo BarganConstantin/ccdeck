@@ -22,7 +22,9 @@
 // very file is taken — a different node earlier on PATH is a different
 // program, with its own version and its own globals. Nothing found, and the
 // running binary is the answer, as it always was: nvm, fnm and Volta have no
-// such link, and a machine with nothing better loses nothing.
+// such link, and a machine with nothing better loses nothing. For the hook,
+// the command itself falls back to the node on PATH once that binary is gone
+// (hookCommand in installer.mjs).
 import { realpathSync } from "node:fs";
 import { posix as posixPath, win32 as winPath } from "node:path";
 

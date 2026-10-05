@@ -8,6 +8,7 @@
 // deck sees most into what they are — a change as a diff, a command and its
 // output, a file and its text — and everything else into its values with real
 // newlines. The raw payload is still one press away, behind the copy buttons.
+import { fmtBytes } from "./byte-format";
 
 export type Tone = "del" | "add" | "ctx";
 
@@ -36,6 +37,44 @@ export const CLIP_CHARS = 6_000;
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => v != null && typeof v === "object" && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
+
+/**
+ * A field the hook cut to keep an event under the deck's size cap: hook.js's
+ * withinSizeCap puts `{ ccdeck_truncated: true, chars }` where the value was,
+ * and the value never reached the deck. Exactly those two keys, so an object of
+ * a tool's own that merely uses the name is left as it is.
+ */
+function cutChars(v: unknown): number | null {
+  return isRec(v) && v.ccdeck_truncated === true && typeof v.chars === "number"
+    && Object.keys(v).length === 2 ? v.chars : null;
+}
+
+/**
+ * A payload with every field the hook cut said as a note in its place —
+ * `(too large to show — 4.8 MB, cut by the hook)` — so the dialog, its copy
+ * buttons and a call's preview say what happened rather than print the marker
+ * as if it were the payload. The note is in parentheses like `(none)`, which
+ * `readable` prints for a value that is not there either. Untouched values are
+ * handed back as they came.
+ */
+export function withCutNotes(v: unknown): unknown {
+  const cut = cutChars(v);
+  if (cut != null) return `(too large to show — ${fmtBytes(cut)}, cut by the hook)`;
+  if (Array.isArray(v)) {
+    const out = v.map(withCutNotes);
+    return out.some((x, i) => x !== v[i]) ? out : v;
+  }
+  if (isRec(v)) {
+    let changed = false;
+    const out: Rec = {};
+    for (const [k, x] of Object.entries(v)) {
+      out[k] = withCutNotes(x);
+      if (out[k] !== x) changed = true;
+    }
+    return changed ? out : v;
+  }
+  return v;
+}
 
 /**
  * Any value, readable. A string is itself. An object is `key: value` lines, a
@@ -183,7 +222,8 @@ function bashResponse(response: unknown): Block[] {
 }
 
 /** One call's input and response, as blocks a person reads. */
-export function toolView(name: string, input: unknown, response: unknown): ToolView {
+export function toolView(name: string, rawInput: unknown, rawResponse: unknown): ToolView {
+  const input = withCutNotes(rawInput), response = withCutNotes(rawResponse);
   const i = isRec(input) ? input : null;
   if (i && (name === "Edit" || name === "MultiEdit")) {
     const file = str(i.file_path);
@@ -226,7 +266,8 @@ export function toolView(name: string, input: unknown, response: unknown): ToolV
  * one — a command, its output, a file's text — and otherwise the raw payload
  * as pretty-printed JSON, which is what somebody pastes into an issue.
  */
-export function copyOf(name: string, side: "input" | "response", v: unknown): string {
+export function copyOf(name: string, side: "input" | "response", raw: unknown): string {
+  const v = withCutNotes(raw);
   if (v === undefined || v === null) return "";
   if (typeof v === "string") return v;
   if (isRec(v)) {

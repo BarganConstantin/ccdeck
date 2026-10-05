@@ -80,12 +80,26 @@ export function isNpxInstall(pkgRoot) {
  *  has a path anybody promised to keep. Segment-wise and separator-agnostic,
  *  for the reasons isNpxInstall gives. */
 export function isOneOffRun(pkgRoot) {
-  if (typeof pkgRoot !== "string") return false;
+  return oneOffRunner(pkgRoot) !== null;
+}
+
+/** Which of those four unpacked this copy — "npx", "pnpm dlx", "bunx" or
+ *  "yarn dlx" — or null for a copy that stays. None of them leaves the
+ *  package's command on PATH, so a command this deck tells somebody to type
+ *  goes through the runner they used. yarn's `dlx-<pid>` sits in an `xfs-`
+ *  folder; pnpm's, from before it cached them, does not. */
+export function oneOffRunner(pkgRoot) {
+  if (typeof pkgRoot !== "string") return null;
+  if (isNpxInstall(pkgRoot)) return "npx";
   // `dlx` alone only under pnpm's cache directory (pnpm/, pnpm-cache/), so a
   // project folder that happens to be called that is not taken for one.
   const parts = pkgRoot.split(/[\\/]/);
-  return isNpxInstall(pkgRoot) || parts.some((p, i) =>
-    (p === "dlx" && /pnpm/i.test(parts[i - 1] ?? "")) || /^dlx-\d+$/.test(p) || /^bunx-\d+-/.test(p));
+  for (const [i, p] of parts.entries()) {
+    if (p === "dlx" && /pnpm/i.test(parts[i - 1] ?? "")) return "pnpm dlx";
+    if (/^bunx-\d+-/.test(p)) return "bunx";
+    if (/^dlx-\d+$/.test(p)) return /^xfs-/.test(parts[i - 1] ?? "") ? "yarn dlx" : "pnpm dlx";
+  }
+  return null;
 }
 
 /** A git checkout is the maintainer's own tree. Its version routinely sits

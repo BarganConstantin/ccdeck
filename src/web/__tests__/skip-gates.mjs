@@ -187,6 +187,11 @@ export const GATES = [
   // environment; that branch, the parse and the merge are un-gated beside it.
   { file: "desktop-shell-env.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
+  // The hook command's fallback to the node on PATH once the recorded one is
+  // gone, run through a real /bin/sh with stand-in nodes that write down their
+  // argv. Windows keeps the direct command and has no /bin/sh to run it with;
+  // its quoting is executed through cmd.exe by no-shell-hook-commands.
+  { file: "hook-command-node-fallback.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
   // A real deck sent SIGHUP, to see its shutdown run. Windows cannot send a

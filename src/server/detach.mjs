@@ -161,31 +161,43 @@ export function noConsoleOptions({ detached = false, platform = process.platform
  * An npx run has no `ccdeck` on PATH — that is the whole point of npx — so
  * telling one to run `ccdeck --stop` is telling them to run something that does
  * not exist on their machine. `invokedAs` already answers which of the three
- * published names was typed; this only decides whether `npx ` goes in front.
+ * published names was typed; this only decides which runner goes in front.
+ * `runner` is install-layout's oneOffRunner — "npx", "pnpm dlx", "bunx" or
+ * "yarn dlx", none of which leaves the command on PATH either — and `npx` the
+ * older spelling of the first.
  */
-export function stopCommand({ npx = false, invokedAs = null, product = "ccdeck" } = {}) {
+export function stopCommand({ runner = null, npx = false, invokedAs = null, product = "ccdeck" } = {}) {
+  return command("--stop", { runner, npx, invokedAs, product });
+}
+
+/** `<runner> <name> <flag>`, or `<name> <flag>` for a copy that stays. */
+function command(flag, { runner = null, npx = false, invokedAs = null, product = "ccdeck" }) {
+  const via = runner || (npx ? "npx" : null);
   const name = invokedAs || product;
-  return npx ? `npx ${name} --stop` : `${name} --stop`;
+  return via ? `${via} ${name} ${flag}` : `${name} ${flag}`;
 }
 
 /**
  * What the terminal is left with once the deck has gone to the background: the
- * command that ends it, and — for an npx run — the one thing it cannot have.
+ * command that ends it, and — for a one-off run — the one thing it cannot have.
  *
- * THE ONE THING AN NPX RUN CANNOT HAVE, said where it is missing. A login item
- * must name a path that will still be there tomorrow, and npx runs out of a
- * cache npm deletes whenever it likes — so an npx deck runs in the background
- * and cannot come back after a reboot. One line, no disk written, offered
- * rather than done: `npx` means "run without installing", and a tool that
- * installs itself anyway is the one people uninstall.
+ * THE ONE THING A ONE-OFF RUN CANNOT HAVE, said where it is missing. A login
+ * item must name a path that will still be there tomorrow, and npx, pnpm dlx,
+ * bunx and yarn dlx all run out of a cache or a temp folder that is deleted
+ * whenever its owner likes — so such a deck runs in the background and cannot
+ * come back after a reboot. One line, no disk written, offered rather than
+ * done: `npx` means "run without installing", and a tool that installs itself
+ * anyway is the one people uninstall. Through the same runner, like the stop
+ * command: neither is on PATH after a one-off run.
  *
  * `tone` is a palette and `g` a glyph tier, both from term.mjs, so a pipe gets
  * no escapes and a console without the em dash gets its stand-in.
  */
-export function backgroundNote({ npx = false, invokedAs = null, product = "ccdeck", tone, g }) {
-  const stop = stopCommand({ npx, invokedAs, product });
-  const offer = npx
-    ? `     ${tone.muted}\`${invokedAs ?? product} --install\` also starts it at login${tone.reset}\n`
+export function backgroundNote({ runner = null, npx = false, invokedAs = null, product = "ccdeck", tone, g }) {
+  const how = { runner, npx, invokedAs, product };
+  const stop = stopCommand(how);
+  const offer = runner || npx
+    ? `     ${tone.muted}\`${command("--install", how)}\` also starts it at login${tone.reset}\n`
     : "";
   return `  ${tone.muted}${g.dash}  running in the background ${g.bullet} \`${stop}\` ends it${tone.reset}\n${offer}\n`;
 }

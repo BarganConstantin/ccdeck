@@ -117,16 +117,20 @@ export function updateVia({ marker, lastVersion, channel, npx = false, now = new
 
 /** The Claude plan, unless the boot left Claude out. Bedrock, Vertex and an
  *  API key are "api"; a machine that keeps its login in the macOS Keychain has
- *  no file to read, and says nothing. */
+ *  no file to read, and says nothing. Bedrock, Vertex and the key are read
+ *  where the quota reader reads them — Claude Code's settings as well as this
+ *  deck's environment, "true", "yes" and "on" as well as "1" — so the plan
+ *  reported and the quota panel agree about one install. */
 async function claudePlan(env) {
-  if (env.CLAUDE_CODE_USE_BEDROCK === "1" || env.CLAUDE_CODE_USE_VERTEX === "1") return "api";
-  const [{ readFile }, { credentialsPath }] = await Promise.all([import("node:fs/promises"), import("./quota-oauth.mjs")]);
+  const [{ readFile }, { claudeSignIn, credentialsPath }] = await Promise.all([import("node:fs/promises"), import("./quota-oauth.mjs")]);
+  const { cloud, apiKey } = await claudeSignIn(env);
+  if (cloud) return "api";
   let oauth = null;
   try {
     oauth = JSON.parse(await readFile(credentialsPath(), "utf8"))?.claudeAiOauth ?? null;
   } catch { /* no file, or not one we can read */ }
   if (oauth) return claudePlanToken(oauth);
-  return env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN ? "api" : undefined;
+  return apiKey ? "api" : undefined;
 }
 
 /** The Codex plan, never refreshing a token to learn it. */

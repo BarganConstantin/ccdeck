@@ -333,7 +333,7 @@ describe("the panel's wiring", () => {
   });
 
   it("orders the list with reachability, and holds it while a reader is in it", () => {
-    expect(panel).toMatch(/const rest = holdOrder\(sortAccounts\(others, shownOrder, a => reachable\(a, nowSec\)\), held\);/);
+    expect(panel).toMatch(/const rest = holdOrder\(sortAccounts\(others, shownOrder, a => reachable\(a, nowSec\), nowSec\), held\);/);
     expect(panel).toMatch(/<ul className="ap-list ap-others" id="ap-rest-list" \{\.\.\.listHold\}>/);
   });
 

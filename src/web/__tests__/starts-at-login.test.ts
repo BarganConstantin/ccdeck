@@ -451,8 +451,10 @@ describe("installing it, and saying so", () => {
   });
 
   it("still counts as installed when the registration is refused", () => {
-    // The file is on disk and both launchd and systemd read their directories
-    // at the next login, so it works from then on. Said rather than hidden:
+    // The file is on disk. launchd loads its directory at the next login, so a
+    // Mac's item works from then on; systemd starts only an enabled unit, so
+    // a Linux verdict carries the command that enables it — what the CLI says
+    // for each is login-item-not-enabled.test.ts's. Said rather than hidden:
     // "it will work tomorrow" is a different promise from "it works now".
     const out = installService({
       platform: "linux", home: "/home/x", ...JOB,

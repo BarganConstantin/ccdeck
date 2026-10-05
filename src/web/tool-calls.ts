@@ -11,8 +11,11 @@ import { explicitSubagentKey } from "./agent-attribution";
 import { rootAgentId, subagentIdFor, toolKey, type GraphState } from "./graph-state";
 import { extractUsage } from "./usage-wire";
 import type { AgentNodeData, HookEnvelope, HookPayload, ToolCall } from "./types";
+import { withCutNotes } from "./tool-view";
 
-export function shortPreview(input: any, max = 80): string {
+export function shortPreview(raw: any, max = 80): string {
+  // A field the hook cut for size reads as the note the dialog shows for it.
+  const input = withCutNotes(raw);
   if (input == null) return "";
   if (typeof input === "string") return input.length > max ? input.slice(0, max - 1) + "…" : input;
   try {

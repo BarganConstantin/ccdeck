@@ -316,14 +316,17 @@ describe("what an npx run is told it is missing", () => {
     // is the tool people uninstall — and the global prefix is root-owned on
     // plenty of machines, so it would be a sudo prompt out of a command that
     // was only supposed to start a deck.
+    // Through npx, like the stop command: an npx run has no `ccdeck` on PATH.
     expect(backgroundNote({ npx: true, invokedAs: "ccdeck", ...plain }))
-      .toContain("\n     `ccdeck --install` also starts it at login\n");
+      .toContain("\n     `npx ccdeck --install` also starts it at login\n");
     // Named the way the user typed it, like the stop command above it.
     expect(backgroundNote({ npx: true, invokedAs: "agents-deck", ...plain }))
-      .toContain("`agents-deck --install` also starts it at login");
-    // And the launcher asks the install where it was started from.
-    expect(SRC_SUP).toContain('const npx = isNpxInstall(PKG_ROOT);');
-    expect(SRC_SUP).toMatch(/backgroundNote\(\{ npx, /);
+      .toContain("`npx agents-deck --install` also starts it at login");
+    // And the launcher asks the install where it was started from — which
+    // runner, since pnpm dlx, bunx and yarn dlx leave no command on PATH
+    // either (background-note-runner.test.ts).
+    expect(SRC_SUP).toContain("const runner = oneOffRunner(PKG_ROOT);");
+    expect(SRC_SUP).toMatch(/backgroundNote\(\{ runner, /);
   });
 
   it("says nothing extra when the deck was installed normally", () => {
@@ -335,7 +338,7 @@ describe("what an npx run is told it is missing", () => {
 
   it("spells the dash and the bullet the terminal can draw, and nothing else in a pipe", () => {
     const said = backgroundNote({ npx: true, invokedAs: "ccdeck", tone: palette("none"), g: glyphs(false) });
-    expect(said).toBe("  -  running in the background - `npx ccdeck --stop` ends it\n     `ccdeck --install` also starts it at login\n\n");
+    expect(said).toBe("  -  running in the background - `npx ccdeck --stop` ends it\n     `npx ccdeck --install` also starts it at login\n\n");
     const painted = backgroundNote({ npx: true, invokedAs: "ccdeck", tone: palette("ansi16"), g: glyphs(true) });
     expect(painted).toContain("\x1b[");
   });

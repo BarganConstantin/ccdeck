@@ -101,7 +101,12 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
             deck reads its store instead of spending a second call — which is
             why this age is minutes rather than seconds. */}
         {claudeAge && !quotaLoading && (
-          <span className="up-section-age" title={quotaSourceHint(quota?.source)}>{claudeAge}</span>
+          <span className="up-section-age" title={quotaSourceHint(quota?.source)}>
+            {/* Said when the server is holding the last reading it has rather
+                than a new one, as a bar says its window has reset: the age
+                alone reads as the last poll's. */}
+            {claudeAge}{quota?.stale && " · no newer reading"}
+          </span>
         )}
       </h3>
       {/* Above the bars rather than beside "Quota unavailable.": the quota can

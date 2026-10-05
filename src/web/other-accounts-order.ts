@@ -23,6 +23,7 @@
 // accounts-prefs.ts's.
 import type { Account, Lane } from "./claude-accounts";
 import { laneKey, toggleLane, type LaneOwner } from "./lane-open";
+import { headroomAt, lapsed } from "./lane-view";
 
 // ── the order ───────────────────────────────────────────────────────────────
 
@@ -83,10 +84,13 @@ export function orderChoices(accounts: readonly Account[]): OrderChoice[] {
   ];
 }
 
-/** An account's reading of one window, or null when it has none. */
-function windowPct(a: Account, name: string): number | null {
+/** An account's reading of one window, or null when it has none — which a
+ *  window that has reset since it was read is, at `nowSec`: its number is the
+ *  old window's (lane-view.ts's lapsed). */
+function windowPct(a: Account, name: string, nowSec?: number): number | null {
   const fixed = WINDOWS.find(w => w.name === name);
   const lane = (a.lanes ?? []).find(l => (fixed ? l.id === fixed.lane : isModelLane(l) && l.label === name));
+  if (lane && nowSec != null && lapsed(lane, nowSec)) return null;
   return lane && Number.isFinite(lane.pct) ? lane.pct : null;
 }
 
@@ -109,22 +113,27 @@ function windowPct(a: Account, name: string): number | null {
  *
  * An order this build does not offer, or one for a model no account has any
  * more, is slot order: the stored choice is whatever was in the store.
+ *
+ * `nowSec` is the panel's clock: a window that has reset since it was read is
+ * unread by it, and room is measured against the windows still running. Left
+ * out, the readings are taken as they came.
  */
 export function sortAccounts<T extends Account>(
-  accounts: readonly T[], order: string, reachable: (a: T) => boolean = () => true,
+  accounts: readonly T[], order: string, reachable: (a: T) => boolean = () => true, nowSec?: number,
 ): T[] {
   // "Slot" is the roster's own order — claude-swap's sequence, which the live
   // row above is drawn in too — and it is every other order's tiebreak.
   const bySlot = [...accounts];
   const reachableFirst = (sorted: T[]) => [...sorted.filter(reachable), ...sorted.filter(a => !reachable(a))];
   if (order === "room") {
-    return reachableFirst(rank(bySlot, a => (Number.isFinite(a.headroom) ? a.headroom : null), "desc"));
+    const room = (a: T) => (nowSec == null ? a.headroom : headroomAt(a, nowSec));
+    return reachableFirst(rank(bySlot, a => { const r = room(a); return Number.isFinite(r) ? r : null; }, "desc"));
   }
   const m = /^(.+):(full|empty)$/.exec(order);
   if (!m) return bySlot;
   const [, name, dir] = m;
-  if (!bySlot.some(a => windowPct(a, name) != null)) return bySlot;
-  const ranked = rank(bySlot, a => windowPct(a, name), dir === "full" ? "desc" : "asc");
+  if (!bySlot.some(a => windowPct(a, name, nowSec) != null)) return bySlot;
+  const ranked = rank(bySlot, a => windowPct(a, name, nowSec), dir === "full" ? "desc" : "asc");
   return dir === "empty" ? reachableFirst(ranked) : ranked;
 }
 
