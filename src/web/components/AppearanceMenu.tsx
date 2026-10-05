@@ -10,6 +10,7 @@ import {
 } from "../fm-stations";
 import { isEscapeKey } from "../modal-dismiss";
 import { isTypingTarget } from "../shortcuts";
+import { toggleGit, useGitOn } from "../git-pref";
 
 const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
@@ -74,6 +75,8 @@ export default function AppearanceMenu({
   onAddFmStation, onRenameFmStation, onRemoveFmStation, onClose,
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
+  // The git view's switch, which the server reads as well — git-pref.ts.
+  const gitOn = useGitOn();
   const scrimPress = useScrimDismiss(onClose);
   const fmSources = [
     ...FM_SOURCES.map(source => ({
@@ -372,6 +375,32 @@ export default function AppearanceMenu({
               </span>
             </button>
           ))}
+        </div>
+      </section>
+
+      {/* The git view: each card's branch, and the reads behind it. One switch
+          for all of it, the server's reads included, so the subline can make
+          the promise it makes. */}
+      <section className="appearance-section" aria-labelledby="appearance-git-caption">
+        <div className="appearance-caption">
+          <h3 id="appearance-git-caption">Git</h3>
+        </div>
+        <div className="appearance-controls">
+          <label className="appearance-row">
+            <span className="appearance-row-label" id="appearance-git-label">Git: branch on cards and the git view</span>
+            <button
+              type="button"
+              className="switch"
+              role="switch"
+              aria-checked={gitOn}
+              aria-labelledby="appearance-git-label"
+              aria-describedby="appearance-git-note"
+              onClick={toggleGit}
+            >
+              <span className="switch-knob" />
+            </button>
+            <span id="appearance-git-note" className="appearance-row-note">Reads your repos locally; never changes them.</span>
+          </label>
         </div>
       </section>
 

@@ -41,6 +41,7 @@ import { RecapMark } from "./RecapMark";
 // The branch this agent's folder is on, from the server's GitObserved — see
 // git-chip.ts for which cards show one.
 import { branchChip } from "../git-chip";
+import { useGitOn } from "../git-pref";
 import GitChip from "./GitChip";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
@@ -112,7 +113,9 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   const cost = costChip(data);
   // The branch chip, last on the sub row. A subagent's takes the place of its
   // folder name, which moves into the chip's tooltip.
-  const chip = branchChip(data);
+  // None at all while the git view is switched off in Appearance.
+  const gitOn = useGitOn();
+  const chip = gitOn ? branchChip(data) : null;
   const modelSaid = data.model ? `${shortModel(data.model)}${otherModels.length > 0 ? ` +${otherModels.length}` : ""}` : data.provider === "codex" ? "Codex" : "";
 
   return (

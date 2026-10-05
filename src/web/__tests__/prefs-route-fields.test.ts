@@ -134,7 +134,7 @@ describe("POST /api/prefs and the fields the deck writes itself", () => {
 
 // Every write the page and the desktop app make, in the shape they make it:
 // use-os-notifications.ts and desktop/main.mjs, use-welcome-and-notes.ts,
-// use-auto-restart.ts, use-lan-section.ts, LanAddDeckModal.tsx and
+// use-auto-restart.ts, git-pref.ts, use-lan-section.ts, LanAddDeckModal.tsx and
 // LanSetupModal.tsx.
 const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifications", { notifications: true }, p => p.notifications, true],
