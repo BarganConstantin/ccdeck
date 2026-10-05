@@ -163,10 +163,15 @@ export function unitFor({ execPath, script, logPath, args = [], env = {}, produc
   // decks and two LAN keys on one machine". `%b` is the boot-ID specifier, so
   // `/home/ana/100%backup` was rewritten just as quietly.
   //
+  // AND `"` AND `\` ESCAPED INSIDE THOSE QUOTES, which systemd reads with C
+  // escapes: a `"` in the value closed them early and a `\` began an escape,
+  // so `/home/ana/a "quote` and a value ending in `\` were dropped as
+  // "Invalid syntax, ignoring" and `back\slash` came back with a space in it.
+  //
   // The macOS branch was always safe: plistFor puts each value in its own
   // <string> and XML-escapes it. Windows carries none of them.
   const vars = Object.entries({ AGENTS_DECK_DETACHED: "1", ...env })
-    .map(([k, v]) => `Environment="${k}=${sdEscape(v)}"`).join("\n");
+    .map(([k, v]) => `Environment="${sdEscape(`${k}=${v}`).replace(/[\\"]/g, "\\$&")}"`).join("\n");
   return `[Unit]
 Description=${product} — live deck of Claude Code + Codex agents
 After=default.target
