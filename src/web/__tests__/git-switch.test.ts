@@ -123,7 +123,7 @@ describe("the switch", () => {
       await call("POST", "/api/event", { hook_event_name: "PostToolUse", session_id: "S-off", cwd: dir, tool_name: "Bash" });
       await sleep(900);
       expect(await observed("S-off", since)).toEqual([]);
-      for (const route of ["repo", "log", "status", "diff", "commit"]) {
+      for (const route of ["repo", "log", "status", "diff", "commit", "edits"]) {
         const r = await call("GET", `/api/git/${route}?session=S-off&path=a.txt&sha=abcd`);
         expect(r.status, route).toBe(409);
       }

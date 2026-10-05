@@ -469,6 +469,8 @@ export const GUARDED_READS = new Set([
   "/api/git/status",
   "/api/git/diff",
   "/api/git/commit",
+  // Which files each of a session's agents edited, by path in its repository.
+  "/api/git/edits",
 ]);
 
 export function isAuthorizedMutation(req) {

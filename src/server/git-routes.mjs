@@ -1,4 +1,4 @@
-// GET /api/git/{repo,log,status,diff,commit} — the git view's reads, each for
+// GET /api/git/{repo,log,status,diff,commit,edits} — the git view's reads, each for
 // one session's repository.
 //
 // A request names a SESSION, never a folder: the folder is the one the deck
@@ -24,6 +24,7 @@
 // window follow it with `outsideWindow: true`.
 import { send } from "./http-io.mjs";
 import { attributeHistory } from "./git-attribution.mjs";
+import { sessionEdits } from "./git-edits.mjs";
 import { isShaLike } from "./git-reads.mjs";
 import { sessionFolder } from "./git-sessions.mjs";
 import { gitEnabled } from "./git-watch.mjs";
@@ -120,4 +121,15 @@ export async function handleGitCommit(req, res, url) {
   send(res, 200, diff.ok
     ? { ok: true, state: "repo", repo: found.repo, commit: c.commit, file, diff }
     : { ok: false, state: "repo", repo: found.repo, commit: c.commit, file, reason: diff.reason });
+}
+
+/** `?session[&agent]` — the files the session's agents edited through their
+ *  edit tools, as paths in its repository (git-edits.mjs):
+ *  `edits: [{ path, agentId, label, at }]`, newest first, one row per agent
+ *  per file. The whole session by default; `agent` narrows to one subagent. */
+export async function handleGitEdits(req, res, url) {
+  const found = await sessionRepo(url, res);
+  if (!found) return;
+  const edits = await sessionEdits(found.repo, param(url, "session"), found.folder.agent);
+  send(res, 200, { ok: true, state: "repo", repo: found.repo, edits });
 }
