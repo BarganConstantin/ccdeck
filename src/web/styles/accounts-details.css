@@ -77,7 +77,7 @@
   .topbar .brand button.v:active,
   .ver-banner .ver-act:active:not(:disabled),
   .rating-banner .rating-pick:active,
-  .ctx-donut:active,
+  .ctx-donut:active, .git-chip:active,
   .session-list .sl-row:active, button.tool.clickable:active,
   .uh-bar-col:active, .ap-failure-x:active,
   /* Every switch in the deck, one control since #886. */

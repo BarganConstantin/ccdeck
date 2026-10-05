@@ -36,6 +36,7 @@ const ON_DISK = {
   notifications: false,
   tourSeen: false,
   autoUpdate: true,
+  git: true,
   reports: true,
   report: {
     installId: "install-1", lastVersion: "3.36.0", lastActiveDay: "2026-10-04",
@@ -133,12 +134,13 @@ describe("POST /api/prefs and the fields the deck writes itself", () => {
 
 // Every write the page and the desktop app make, in the shape they make it:
 // use-os-notifications.ts and desktop/main.mjs, use-welcome-and-notes.ts,
-// use-auto-restart.ts, use-lan-section.ts, LanAddDeckModal.tsx and
+// use-auto-restart.ts, git-pref.ts, use-lan-section.ts, LanAddDeckModal.tsx and
 // LanSetupModal.tsx.
 const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifications", { notifications: true }, p => p.notifications, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
+  ["git", { git: false }, p => p.git, false],
   ["lan.enabled", { lan: { enabled: false } }, p => p.lan.enabled, false],
   ["lan.manual", { lan: { manual: ["10.0.0.1:5000", "10.0.0.2:5001"] } }, p => p.lan.manual, ["10.0.0.1:5000", "10.0.0.2:5001"]],
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
@@ -179,7 +181,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "tourSeen", "autoUpdate"],
+      top: ["notifications", "tourSeen", "autoUpdate", "git"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

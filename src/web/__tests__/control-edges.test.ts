@@ -618,6 +618,12 @@ const CONTROLS: Control[] = [
     states: [".ap-rest-sort select:focus-visible", ".ap-rest-sort select[data-held]"], beds: ACCOUNTS },
   { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
     states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
+  // The branch chip on a card's sub row, on the same terms as the two above:
+  // no boundary at rest — the branch is its own label — and the control edge
+  // under the pointer and the keyboard, measured on the surfaces a card's own
+  // gradient runs between.
+  { at: ".git-chip:hover", fillFrom: ".git-chip:hover",
+    states: [".git-chip:focus-visible"], beds: ["--panel", "--bg-soft"] },
   // The network map's way in, over Local network's row, on the same terms as
   // the two above: no boundary at rest, an edge under the pointer and the
   // keyboard, measured on the column's foot.
@@ -836,8 +842,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // starters went, pill and hover, and a kind no longer frames itself at
     // rest — only the chosen one does — so three rules stopped drawing one.
     // And from 106 to 108 with the one question's scale: a number framed at
-    // rest, and louder under the pointer.
-    expect(EDGED_CONTROLS.length).toBeLessThan(108);
+    // rest, and louder under the pointer. And from 108 to 110 with the branch
+    // chip on a card, which gains an edge under the pointer and the keyboard.
+    expect(EDGED_CONTROLS.length).toBeLessThan(110);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

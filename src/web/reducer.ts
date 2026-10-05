@@ -14,6 +14,7 @@
 //   tool-calls.ts          a call's start and outcome, and its history window
 //   waiting-block.ts       Notification, and what clears the block it raises
 //   transcript-events.ts   the server's transcript scans
+//   git-events.ts          the server's word on each agent's repository
 //   board-sweeps.ts        the tick's sweeps and pruners, which no event drives
 //
 // The rest of the client imports what it reads of these from here.
@@ -28,6 +29,7 @@ import {
   applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
 import { applyNotification, clearAnsweredWaiting } from "./waiting-block";
+import { applyGitObserved } from "./git-events";
 import type { HookEnvelope } from "./types";
 
 // The board's state and the keys it is filed under are graph-state.ts's, where
@@ -85,6 +87,12 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   state.revision += 1;
 
   const sessionId = p.session_id ?? "unknown";
+
+  // The server's word on an agent's repository, and nothing more: it reaches
+  // sessions that did nothing (a checkout in a shared folder, a boot), so it is
+  // applied before anything below can read it as the session moving. See
+  // git-events.ts.
+  if (name === "GitObserved") { applyGitObserved(state, p, sessionId); return state; }
 
   // Clear the waiting block here rather than adding a line to eight cases. A
   // badge that outlives the block is worse than no badge — it teaches the user

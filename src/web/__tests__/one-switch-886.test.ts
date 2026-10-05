@@ -36,8 +36,9 @@ describe("every switch is the one switch (#886)", () => {
     // fifteen since invite-only pairing (#1236), which was two native radios
     // before it was made one of these.
     // Sixteen with #1853's "Send usage reports" in Appearance, and fifteen
-    // again since that switch went with its section (2026-10-01).
-    expect(switches, "the fifteen switches in the app").toBe(15);
+    // again since that switch went with its section (2026-10-01). Sixteen
+    // again with the git view's switch in Appearance.
+    expect(switches, "the sixteen switches in the app").toBe(16);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

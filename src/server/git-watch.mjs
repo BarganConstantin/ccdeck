@@ -10,11 +10,15 @@
 //   { hook_event_name: "GitObserved", session_id, provider?: "codex",
 //     git: { subagent?, state, stale, topLevel?, name?, mainName?, folderName?,
 //            nameDiffers?, linkedWorktree?, branch?, detached?, sha?, unborn?,
-//            empty? } }
+//            empty?, fromLog? } }
 //
 // for the session's root and for each subagent whose folder is not the
 // root's (`git.subagent` is its key). `state` is "repo" or why there is none
-// ("not-a-repo", "gone", "no-git", "bare", "unsafe"); a read that timed out
+// ("not-a-repo", "gone", "no-git", "bare", "unsafe") — sent only to take back
+// a branch the page was already shown, since a card without one needs no
+// event. The exception is a root whose folder is "gone": its own log still
+// names a branch (the transcript's `gitBranch`, a Codex rollout's
+// session_meta), sent as `branch` with `fromLog: true`. A read that timed out
 // or failed sends nothing, so a slow disk never takes a branch off a card.
 // `sha` is the short SHA, which a detached HEAD is named by. `stale` counts
 // the worktree's marks — a page with a view open on that repository refetches
@@ -30,12 +34,23 @@
 // forward, never pushed back, so a session that edits without pause is still
 // looked at.
 //
+// AFTER A BOOT, the sessions the replay put back are looked at once
+// (refreshGit), and the GitObserved lines the replay found are taken as sent,
+// so only what changed while the deck was down goes out. The Settings switch
+// (`git` in prefs.json) stops all of it: off, nothing is looked at and the
+// routes refuse; on again, the recent sessions are looked at straight away.
+//
 // Like the transcript scans' events, these are last-value-wins state
 // (LAST_VALUE_WINS in ring-bounds.mjs): the ring does not count them against
 // the hook events it keeps.
 import { pushEvent } from "./event-sink.mjs";
-import { sessionFolder, sessionSubagents } from "./git-sessions.mjs";
+import { gitOn } from "./deck-prefs.mjs";
+import { heldPrefs } from "./prefs-state.mjs";
+import { recentSessions, sessionFolder, sessionSubagents, sessionTranscript } from "./git-sessions.mjs";
 import { markStale, repoOf } from "./git-state.mjs";
+// The two records of a branch that outlive a deleted folder.
+import { scanTranscript } from "./transcript-scan.mjs";
+import { codexRolloutBranch } from "./codex-watch.mjs";
 
 /** The tools whose finished call can change a repository. */
 const CHANGING_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"]);
@@ -47,8 +62,12 @@ export const FIRST_LOOK_MS = 250;
 export const AFTER_COMMAND_MS = 600;
 export const AFTER_EDIT_MS = 2_000;
 
-const watched = new Map(); // sid -> { timer, due, seen: Set<key>, sent: Map<key, { sig, stale, top }> }
-let enabled = () => true;
+const watched = new Map(); // sid -> { timer, due, seen: Set<key>, sent: Map<key, { sig, stale, top, state }> }
+/** The Settings switch: off, the deck runs no git at all. */
+let enabled = () => gitOn(heldPrefs.current());
+/** How many of the most recently heard sessions a refresh looks at — every
+ *  card a board can be showing, with room to spare. */
+export const REFRESH_SESSIONS = 64;
 /** A backstop on the sessions looked after; the session cap forgets them
  *  first (forgetGitSession), this only bounds a map fed from outside. */
 const MAX_WATCHED = 2048;
@@ -63,20 +82,37 @@ export function changesRepo(raw) {
  *  cannot. Codex's tool calls carry no name on their outcome, so all count. */
 const mayMoveHead = (raw) => raw.provider === "codex" || raw.tool_name === "Bash";
 
+/** Whether the deck may read repositories at all. */
+export const gitEnabled = () => enabled();
+
+function watching(sid) {
+  let w = watched.get(sid);
+  if (!w) {
+    w = { timer: null, due: Infinity, seen: new Set(), sent: new Map() };
+    watched.set(sid, w);
+    while (watched.size > MAX_WATCHED) forgetGitSession(watched.keys().next().value);
+  }
+  return w;
+}
+
 /**
- * One live event, from pushEvent. Never throws, never waits.
+ * One event, from pushEvent. Never throws, never waits.
+ *
+ * A REPLAYED GitObserved is what the page will be shown again from the ring,
+ * so it is taken as already sent: a refresh after the boot says only what has
+ * changed since. Nothing else from a replay is looked at.
  */
-export function noteGitEvent(raw) {
+export function noteGitEvent(raw, { replay = false } = {}) {
   try {
-    if (!raw || typeof raw !== "object" || !enabled()) return;
+    if (!raw || typeof raw !== "object") return;
+    if (replay) {
+      if (raw.hook_event_name === "GitObserved") seedFromLog(raw);
+      return;
+    }
+    if (!enabled()) return;
     const sid = raw.session_id;
     if (typeof sid !== "string" || sid === "" || typeof raw.cwd !== "string" || raw.cwd === "") return;
-    let w = watched.get(sid);
-    if (!w) {
-      w = { timer: null, due: Infinity, seen: new Set(), sent: new Map() };
-      watched.set(sid, w);
-      while (watched.size > MAX_WATCHED) forgetGitSession(watched.keys().next().value);
-    }
+    const w = watching(sid);
     if (changesRepo(raw)) {
       const tops = [...new Set([...w.sent.values()].map((s) => s.top).filter(Boolean))];
       markStale(raw.cwd, tops);
@@ -106,6 +142,25 @@ function schedule(sid, w, delay) {
 function signature(git) {
   return JSON.stringify([git.state, git.topLevel ?? null, git.branch ?? null, git.detached ? git.sha : null, Boolean(git.unborn)]);
 }
+
+/**
+ * The branch a session's own log recorded, for a session whose folder no
+ * longer exists: the newest `gitBranch` on its Claude transcript, or the
+ * branch its Codex rollout named when the session began. Null when neither
+ * says, and for a detached HEAD, which both spell "HEAD" or not at all.
+ */
+export async function loggedBranch(sid, provider) {
+  let branch = null;
+  if (provider === "codex") branch = codexRolloutBranch(sid);
+  else {
+    const path = sessionTranscript(sid);
+    if (path) branch = (await scanTranscript(path).catch(() => null))?.gitBranch ?? null;
+  }
+  return typeof branch === "string" && branch && branch !== "HEAD" ? branch : null;
+}
+
+/** Whether a card draws a branch for this observation. */
+const drawable = (git) => git?.state === "repo" || (git?.state === "gone" && typeof git.branch === "string");
 
 /** What GitObserved says about one folder's repository. */
 export function describeRepo(repo) {
@@ -143,16 +198,22 @@ async function look(sid) {
     const repo = await repoOf(cwd);
     if (!DEFINITE.has(repo.state) || watched.get(sid) !== w) continue;
     const git = describeRepo(repo);
+    // A deleted folder still names the branch its session last ran on, from
+    // the session's own log — the root's only; a subagent keeps no log of one.
+    if (git.state === "gone" && !key) {
+      const branch = await loggedBranch(sid, root.provider);
+      if (branch) Object.assign(git, { branch, fromLog: true });
+    }
     const sig = signature(git);
     const prev = w.sent.get(key);
     if (prev && prev.sig === sig && prev.stale === git.stale) continue;
     const identity = !prev || prev.sig !== sig;
     if (identity && prev && git.topLevel) moved.add(git.topLevel);
-    w.sent.set(key, { sig, stale: git.stale, top: git.topLevel ?? null, state: git.state });
+    w.sent.set(key, { sig, stale: git.stale, top: git.topLevel ?? null, state: git.state, drawn: drawable(git) });
     // A folder that is not a repository is the common case, and a card with no
     // branch needs no event to say so; only a branch the page was shown is
     // taken back.
-    if (git.state !== "repo" && prev?.state !== "repo") continue;
+    if (!drawable(git) && !prev?.drawn) continue;
     pushEvent({
       hook_event_name: "GitObserved",
       session_id: sid,
@@ -167,6 +228,32 @@ async function look(sid) {
       if ([...ow.sent.values()].some((s) => s.top && moved.has(s.top))) schedule(other, ow, AFTER_COMMAND_MS);
     }
   }
+}
+
+function seedFromLog(raw) {
+  const sid = raw.session_id;
+  const git = raw.git;
+  if (typeof sid !== "string" || sid === "" || !git || typeof git !== "object" || typeof git.state !== "string") return;
+  const key = typeof git.subagent === "string" ? git.subagent : "";
+  // The counter is this process's own and starts at nought.
+  watching(sid).sent.set(key, { sig: signature(git), stale: 0, top: git.topLevel ?? null, state: git.state, drawn: drawable(git) });
+}
+
+/**
+ * Look again at the sessions heard from most recently — after the boot replay,
+ * and when the switch is turned back on — so every card on a board gets its
+ * branch without waiting for its session's next event.
+ */
+export function refreshGit(limit = REFRESH_SESSIONS) {
+  if (!enabled()) return;
+  for (const sid of recentSessions(limit)) schedule(sid, watching(sid), FIRST_LOOK_MS);
+}
+
+/** The switch was pressed. Off forgets what the page was told, so turning it
+ *  back on tells it everything again. */
+export function gitSwitched(on) {
+  clearGitWatch();
+  if (on) refreshGit();
 }
 
 /** Forget what was sent for a session, so the next event sends it again — the

@@ -194,7 +194,13 @@ const strip = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^
 const menuCode = strip(menu);
 const appCode = strip(app);
 const css = strip(sheetText());
-const between = (text: string, from: string, to: string) => text.slice(text.indexOf(from), text.indexOf(to));
+// The end is looked for AFTER the start: the menu has more than one
+// `appearance-row` now (the Git section's switch sits above the music), and a
+// slice that ended at the first one in the file came back empty.
+const between = (text: string, from: string, to: string) => {
+  const at = text.indexOf(from);
+  return text.slice(at, text.indexOf(to, at));
+};
 
 /** The value of `prop` in the rule written for exactly this selector. */
 function decl(selector: string, prop: string): string | null {

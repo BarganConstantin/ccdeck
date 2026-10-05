@@ -67,6 +67,18 @@ import { pushEvent } from "./event-sink.mjs";
 // broadcasts them exactly like a hook event, and persists them when this deck is
 // the one elected to log this rollout — see writesCodexLog. This path is
 // entirely additive — the Claude hook flow is untouched.
+// The branch each rollout's session_meta named, by session id. Codex writes it
+// once, when the session starts, so a later checkout is NOT in it: the git view
+// reads the repository itself, and asks this only when the session's folder no
+// longer exists (git-watch.mjs). Capped like the maps below.
+const codexMetaBranch = new Map();
+const MAX_META_BRANCHES = 512;
+
+/** The branch a Codex session's rollout recorded at its start, or null. */
+export function codexRolloutBranch(sid) {
+  return codexMetaBranch.get(sid) ?? null;
+}
+
 // path -> { offset, sid, cwd, skip, sawBeginning, rootOpened, seenAt, mtimeMs }
 const codexFileState = new Map();
 // How long a rollout's tail cursor is kept once nothing has moved it: not
@@ -219,6 +231,12 @@ async function readCodexHeader(path) {
           // workspace test below, the log election, the cwd on every event this
           // rollout produces — reads state.cwd, and this is the one place it is
           // read off disk. See canonicalCwd.
+          const branch = meta.git && typeof meta.git.branch === "string" ? meta.git.branch : "";
+          if (sid && branch) {
+            codexMetaBranch.delete(sid);
+            codexMetaBranch.set(sid, branch);
+            while (codexMetaBranch.size > MAX_META_BRANCHES) codexMetaBranch.delete(codexMetaBranch.keys().next().value);
+          }
           return { sid, cwd: await canonicalCwd(meta.cwd) };
         }
         // The other rename the scan would otherwise retry in silence: a first
