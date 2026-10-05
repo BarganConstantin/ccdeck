@@ -225,6 +225,36 @@ export interface ContextBreakdown {
   memoryFiles: Array<{ path: string; bytes: number }>;
 }
 
+/** Where an agent's folder sits in git, as the server last read it — the
+ *  synthetic `GitObserved` (src/server/git-watch.mjs). Read from the
+ *  repository itself, worktree-aware, for Claude and Codex alike, and re-read
+ *  when the agent's own tool calls could have changed it.
+ *
+ *  `state` is "repo", or why there is none. A folder that is gone may still
+ *  name the branch its session last ran on, read from the session's own log
+ *  (`fromLog`), which is the one value here that is not the repository's own
+ *  word. `stale` counts the times the repository was marked changed — a view
+ *  showing it refetches when it moves. */
+export interface GitFacts {
+  state: "repo" | "not-a-repo" | "gone" | "no-git" | "bare" | "unsafe";
+  topLevel?: string;
+  name?: string;
+  mainName?: string;
+  folderName?: string;
+  nameDiffers?: boolean;
+  linkedWorktree?: boolean;
+  /** The branch HEAD is on, or null for a detached HEAD. */
+  branch?: string | null;
+  detached?: boolean;
+  /** The short SHA of HEAD — what a detached HEAD is named by. */
+  sha?: string | null;
+  /** A branch with no commit yet. */
+  unborn?: boolean;
+  empty?: boolean;
+  fromLog?: boolean;
+  stale: number;
+}
+
 export interface AgentNodeData {
   id: string;                 // session_id or `${session}::${parent_tool_use_id}`
   sessionId: string;          // root session id (same as id for root agents)
@@ -260,6 +290,9 @@ export interface AgentNodeData {
   outputs?: number[];
   cwd?: string;
   cwdBasename?: string;
+  /** The repository this agent's folder is in, and its branch — see GitFacts.
+   *  Absent until the server has said, and for a folder in no repository. */
+  git?: GitFacts;
   firstPrompt?: string;
   /** The name Claude Code gave this session, from the transcript's `agent-name`
    *  records — e.g. "account-management-oauth-flow". Session root only, and
@@ -593,6 +626,9 @@ export interface HookPayload {
   /** Claude-only, on the synthetic `SessionRecapped`: Claude Code's recap as the
    *  transcript last showed it, or null once a later turn has retired it. */
   recap?: SessionRecap | null;
+  /** On the synthetic `GitObserved`: the agent's repository and branch, with
+   *  `subagent` naming the subagent it is about when it is not the root. */
+  git?: GitFacts & { subagent?: string };
   /** Codex-only: per-turn identifier for tool-call attribution. */
   turn_id?: string;
   /** Codex-only: emitted by sessions/<sid>/event_msg/task_started events,
