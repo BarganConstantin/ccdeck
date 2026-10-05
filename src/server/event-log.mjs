@@ -147,6 +147,8 @@ export async function logSharing() {
 const ROTATE_AT_BYTES = 50 * 1024 * 1024;
 let lastRotateCheckAt = 0;
 let rotateInProgress = false;
+/** The idle look's timer, armed once by openEventLog. */
+let rotateTimer = null;
 /** Bytes handed to appendLogLine since the last time we looked at the file.
  *
  *  THE 30-SECOND CLOCK MADE THE THRESHOLD ADVISORY. The stat was throttled to
@@ -320,6 +322,19 @@ async function openEventLog(persist) {
   // Taken the moment the probe answers, so that a line landing from here on
   // is evidence newer than it. See logWritableNow.
   _landedAtProbe = appendsLanded(persistPath);
+  // THE IDLE FLOOR, RUN. ROTATE_CHECK_EVERY_MS was described as the look that
+  // notices "another deck appending to a log they share", and the push path
+  // was its one caller — so the deck that owns a log and writes nothing to it,
+  // a scoped deck on a quiet tree beside a machine-wide one, never looked, and
+  // the deck appending every line was not the owner and returned at the
+  // ownership gate. The file grew past the cap for as long as both ran. A
+  // timer makes the owner look whether or not it writes; the gate and
+  // `rotateInProgress` already make a look from here safe. One per process,
+  // and it never holds the process open.
+  if (!rotateTimer) {
+    rotateTimer = setInterval(() => { maybeRotatePersistFile(0); }, ROTATE_CHECK_EVERY_MS);
+    rotateTimer.unref?.();
+  }
 }
 
 // What index.mjs calls besides the three exported above. Listed rather than

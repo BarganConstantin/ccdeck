@@ -88,9 +88,12 @@ export function pushEvent(raw, source, opts = {}) {
   raw = redactDeckToken(raw);
 
   // Synchronous enrichment: if we already know this session's model, stamp
-  // it on the payload so the client's recursive scanner picks it up.
+  // it on the payload so the client's recursive scanner picks it up — the
+  // subagent's own model on a subagent's own event, never the root's. See
+  // knownModelId.
   if (raw && typeof raw === "object" && raw.session_id && !raw.model) {
-    const modelId = knownModelId(raw.session_id);
+    const subagentKey = [raw.agent_id, raw.parent_tool_use_id].find(k => typeof k === "string" && k) ?? null;
+    const modelId = knownModelId(raw.session_id, subagentKey);
     if (modelId) raw.model = modelId;
   }
 
