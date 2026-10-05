@@ -8,12 +8,17 @@
 // folder a session's root names is the one it keeps, and a subagent's first
 // folder is its own. A subagent is keyed the way the card keys it, by
 // `agent_id` and else `parent_tool_use_id`.
+//
+// A Claude session's transcript path is kept beside its folder — only one the
+// transcript gate accepts, since a hook payload is not trusted to name a file —
+// for the one question the repository cannot answer once its folder is gone.
+import { isClaudeTranscriptPath } from "./transcript-gate.mjs";
 
 /** The most sessions remembered; the least recently heard go first. Eight
  *  times the server's session cap, which is forty times the page's. */
 export const MAX_GIT_SESSIONS = 2048;
 
-const sessions = new Map(); // sid -> { cwd, provisional, provider, subagents: Map<key, cwd> }
+const sessions = new Map(); // sid -> { cwd, provisional, provider, transcript, subagents: Map<key, cwd> }
 
 const subagentKey = (p) => [p.agent_id, p.parent_tool_use_id].find((k) => typeof k === "string" && k) ?? null;
 
@@ -25,9 +30,10 @@ export function noteSessionFolder(raw) {
   if (typeof sid !== "string" || sid === "" || typeof cwd !== "string" || cwd === "") return;
   let s = sessions.get(sid);
   if (s) sessions.delete(sid);
-  else s = { cwd: null, provisional: true, provider: "claude", subagents: new Map() };
+  else s = { cwd: null, provisional: true, provider: "claude", transcript: null, subagents: new Map() };
   sessions.set(sid, s);
   if (raw.provider === "codex") s.provider = "codex";
+  if (!s.transcript && isClaudeTranscriptPath(raw.transcript_path)) s.transcript = raw.transcript_path;
   const key = subagentKey(raw);
   if (key) {
     if (!s.subagents.has(key)) s.subagents.set(key, cwd);
@@ -52,6 +58,11 @@ export function sessionFolder(sid, agent = null) {
   if (!s || !s.cwd) return null;
   const own = typeof agent === "string" && agent ? s.subagents.get(agent) : undefined;
   return { cwd: own ?? s.cwd, provider: s.provider, agent: own ? agent : null };
+}
+
+/** The transcript the deck heard `sid` write to, or null. */
+export function sessionTranscript(sid) {
+  return (typeof sid === "string" && sessions.get(sid)?.transcript) || null;
 }
 
 /** The subagents `sid` has been heard with, as [key, folder] pairs. */

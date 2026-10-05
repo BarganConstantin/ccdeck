@@ -317,6 +317,7 @@ function newTranscriptState() {
     aiTitle: null,      // newest "ai-title" entry, the session's sentence title
     agentName: null,    // newest "agent-name" entry, the session's short name
     recap: null,        // newest "away_summary" no later turn retired — session-recap.mjs
+    gitBranch: null,    // newest "gitBranch" any line carries — foldGitBranchLine
     usage: newUsageTotals(),
     // The same totals, split by the model that produced them (#686). The flat
     // bucket above stays the whole-transcript sum and is what every token count
@@ -373,6 +374,21 @@ export function foldSessionNamingLine(out, line) {
   }
 }
 
+/** The branch Claude Code stamped on a line, newest wins. Every record carries
+ *  `"gitBranch"` while the session runs in a repository, so it is the branch
+ *  as the CLI last saw it — kept only for when the session's folder is gone
+ *  and the repository itself can no longer be asked (git-watch.mjs). */
+const GIT_BRANCH_RE = /"gitBranch":"((?:[^"\\]|\\.)*)"/;
+export function foldGitBranchLine(state, line) {
+  if (!line.includes('"gitBranch"')) return;
+  const m = GIT_BRANCH_RE.exec(line);
+  if (!m) return;
+  try {
+    const branch = JSON.parse(`"${m[1]}"`);
+    if (typeof branch === "string" && branch) state.gitBranch = branch;
+  } catch { /* a fragment; the next line says it again */ }
+}
+
 /** Fold one transcript line into the running state. Every fact the three
  *  scanners need lives on a single line, so line-at-a-time folding sees
  *  exactly what a whole-file pass would. */
@@ -387,6 +403,8 @@ function foldTranscriptLine(state, line) {
   // The recap rides the same pass for the same reason, and costs the ordinary
   // line two substring tests. See session-recap.mjs.
   foldRecapLine(state, line);
+  // And the branch, one substring test for a line that has none.
+  foldGitBranchLine(state, line);
   // Parsed once, and only when the line mentions a model: no other line can
   // change the model, and every assistant line names its model, so the usage
   // and context folds read the record off this same parse.

@@ -10,11 +10,15 @@
 //   { hook_event_name: "GitObserved", session_id, provider?: "codex",
 //     git: { subagent?, state, stale, topLevel?, name?, mainName?, folderName?,
 //            nameDiffers?, linkedWorktree?, branch?, detached?, sha?, unborn?,
-//            empty? } }
+//            empty?, fromLog? } }
 //
 // for the session's root and for each subagent whose folder is not the
 // root's (`git.subagent` is its key). `state` is "repo" or why there is none
-// ("not-a-repo", "gone", "no-git", "bare", "unsafe"); a read that timed out
+// ("not-a-repo", "gone", "no-git", "bare", "unsafe") — sent only to take back
+// a branch the page was already shown, since a card without one needs no
+// event. The exception is a root whose folder is "gone": its own log still
+// names a branch (the transcript's `gitBranch`, a Codex rollout's
+// session_meta), sent as `branch` with `fromLog: true`. A read that timed out
 // or failed sends nothing, so a slow disk never takes a branch off a card.
 // `sha` is the short SHA, which a detached HEAD is named by. `stale` counts
 // the worktree's marks — a page with a view open on that repository refetches
@@ -42,8 +46,11 @@
 import { pushEvent } from "./event-sink.mjs";
 import { gitOn } from "./deck-prefs.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
-import { recentSessions, sessionFolder, sessionSubagents } from "./git-sessions.mjs";
+import { recentSessions, sessionFolder, sessionSubagents, sessionTranscript } from "./git-sessions.mjs";
 import { markStale, repoOf } from "./git-state.mjs";
+// The two records of a branch that outlive a deleted folder.
+import { scanTranscript } from "./transcript-scan.mjs";
+import { codexRolloutBranch } from "./codex-watch.mjs";
 
 /** The tools whose finished call can change a repository. */
 const CHANGING_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"]);
@@ -136,6 +143,25 @@ function signature(git) {
   return JSON.stringify([git.state, git.topLevel ?? null, git.branch ?? null, git.detached ? git.sha : null, Boolean(git.unborn)]);
 }
 
+/**
+ * The branch a session's own log recorded, for a session whose folder no
+ * longer exists: the newest `gitBranch` on its Claude transcript, or the
+ * branch its Codex rollout named when the session began. Null when neither
+ * says, and for a detached HEAD, which both spell "HEAD" or not at all.
+ */
+export async function loggedBranch(sid, provider) {
+  let branch = null;
+  if (provider === "codex") branch = codexRolloutBranch(sid);
+  else {
+    const path = sessionTranscript(sid);
+    if (path) branch = (await scanTranscript(path).catch(() => null))?.gitBranch ?? null;
+  }
+  return typeof branch === "string" && branch && branch !== "HEAD" ? branch : null;
+}
+
+/** Whether a card draws a branch for this observation. */
+const drawable = (git) => git?.state === "repo" || (git?.state === "gone" && typeof git.branch === "string");
+
 /** What GitObserved says about one folder's repository. */
 export function describeRepo(repo) {
   if (repo.state !== "repo") return { state: repo.state, stale: 0 };
@@ -172,16 +198,22 @@ async function look(sid) {
     const repo = await repoOf(cwd);
     if (!DEFINITE.has(repo.state) || watched.get(sid) !== w) continue;
     const git = describeRepo(repo);
+    // A deleted folder still names the branch its session last ran on, from
+    // the session's own log — the root's only; a subagent keeps no log of one.
+    if (git.state === "gone" && !key) {
+      const branch = await loggedBranch(sid, root.provider);
+      if (branch) Object.assign(git, { branch, fromLog: true });
+    }
     const sig = signature(git);
     const prev = w.sent.get(key);
     if (prev && prev.sig === sig && prev.stale === git.stale) continue;
     const identity = !prev || prev.sig !== sig;
     if (identity && prev && git.topLevel) moved.add(git.topLevel);
-    w.sent.set(key, { sig, stale: git.stale, top: git.topLevel ?? null, state: git.state });
+    w.sent.set(key, { sig, stale: git.stale, top: git.topLevel ?? null, state: git.state, drawn: drawable(git) });
     // A folder that is not a repository is the common case, and a card with no
     // branch needs no event to say so; only a branch the page was shown is
     // taken back.
-    if (git.state !== "repo" && prev?.state !== "repo") continue;
+    if (!drawable(git) && !prev?.drawn) continue;
     pushEvent({
       hook_event_name: "GitObserved",
       session_id: sid,
@@ -204,7 +236,7 @@ function seedFromLog(raw) {
   if (typeof sid !== "string" || sid === "" || !git || typeof git !== "object" || typeof git.state !== "string") return;
   const key = typeof git.subagent === "string" ? git.subagent : "";
   // The counter is this process's own and starts at nought.
-  watching(sid).sent.set(key, { sig: signature(git), stale: 0, top: git.topLevel ?? null, state: git.state });
+  watching(sid).sent.set(key, { sig: signature(git), stale: 0, top: git.topLevel ?? null, state: git.state, drawn: drawable(git) });
 }
 
 /**
