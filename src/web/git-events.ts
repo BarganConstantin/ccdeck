@@ -6,10 +6,11 @@
 // out a branch, and after its own boot for sessions that ended long ago, so it
 // is never evidence that THIS session did anything: it does not clear a
 // waiting block, does not stamp the session as heard from (which would bring a
-// reaped session back), and never creates a card — a session or a subagent the
-// board does not hold is left alone.
-import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
-import type { GitCollisionRef, GitCollisions, GitFacts, HookPayload } from "./types";
+// reaped session back), and never creates a card. What it says about a session
+// or a subagent the board does not hold yet waits for that card instead
+// (`parkedGit` in graph-state.ts) and lands on it when it is created.
+import { rootAgentId, subagentIdFor, type GraphState, type ParkedGit } from "./graph-state";
+import type { AgentNodeData, GitCollisionRef, GitCollisions, GitFacts, HookPayload } from "./types";
 
 const STATES = new Set<GitFacts["state"]>(["repo", "not-a-repo", "gone", "no-git", "bare", "unsafe"]);
 
@@ -38,9 +39,50 @@ export function applyGitObserved(state: GraphState, p: HookPayload, sessionId: s
   const facts = gitFactsFrom(p.git);
   if (!facts) return;
   const key = str(p.git?.subagent);
-  const agent = state.agents.get(key ? subagentIdFor(sessionId, key) : rootAgentId(sessionId));
-  if (!agent) return;
-  agent.git = facts;
+  const id = key ? subagentIdFor(sessionId, key) : rootAgentId(sessionId);
+  const agent = state.agents.get(id);
+  if (agent) agent.git = facts;
+  else park(state, id, { observed: facts });
+}
+
+/** The most agents a page holds git values for before their cards exist: every
+ *  card a board can show several times over (the server looks at its 64 most
+ *  recent sessions after a boot), and a few kilobytes at most. */
+export const PARKED_GIT_MAX = 256;
+
+/** Hold what the server said about an agent whose card is not on the board
+ *  yet, merged over whatever was already waiting: last value wins per field.
+ *  A restated agent moves to the back, so the cap evicts the one heard from
+ *  longest ago. */
+function park(state: GraphState, id: string, value: ParkedGit): void {
+  const next: ParkedGit = { ...state.parkedGit.get(id), ...value };
+  if (!next.collisions) delete next.collisions;
+  state.parkedGit.delete(id);
+  if (next.observed || next.collisions) state.parkedGit.set(id, next);
+  while (state.parkedGit.size > PARKED_GIT_MAX) {
+    const oldest = state.parkedGit.keys().next().value;
+    if (oldest === undefined) break;
+    state.parkedGit.delete(oldest);
+  }
+}
+
+/** A card was just created: give it what the server said about it before it
+ *  existed. Called by the two places that create cards (agent-attribution.ts). */
+export function adoptParkedGit(state: GraphState, agent: AgentNodeData): void {
+  const parked = state.parkedGit.get(agent.id);
+  if (!parked) return;
+  state.parkedGit.delete(agent.id);
+  if (parked.observed) agent.git = parked.observed;
+  if (parked.collisions && agent.kind === "root") agent.gitCollisions = parked.collisions;
+}
+
+/** A session left the board: nothing it was waiting for may land on a card
+ *  that comes back under its id later. */
+export function forgetParkedGit(state: GraphState, sessionId: string): void {
+  const subPrefix = subagentIdFor(sessionId, "");
+  for (const id of state.parkedGit.keys()) {
+    if (id === rootAgentId(sessionId) || id.startsWith(subPrefix)) state.parkedGit.delete(id);
+  }
 }
 
 const refFrom = (v: unknown): GitCollisionRef | null => {
@@ -79,14 +121,15 @@ export function gitCollisionsFrom(raw: unknown): GitCollisions | null {
  * GitObserved it is the server's word and not the session's traffic: it
  * reaches sessions that did nothing (another session started editing the same
  * file), so it never clears a waiting block, never marks a session as heard
- * from, and never creates a card. Last value wins; an empty one takes the
- * marks away.
+ * from, and never creates a card: for a session not on the board yet it waits
+ * for the card. Last value wins; an empty one takes the marks away.
  */
 export function applyGitCollisions(state: GraphState, p: HookPayload, sessionId: string): void {
   const collisions = gitCollisionsFrom(p.collisions);
   if (!collisions) return;
+  const any = collisions.quiet.length > 0 || collisions.sharp.length > 0;
   const root = state.agents.get(rootAgentId(sessionId));
-  if (!root) return;
-  if (collisions.quiet.length || collisions.sharp.length) root.gitCollisions = collisions;
+  if (!root) { park(state, rootAgentId(sessionId), { collisions: any ? collisions : undefined }); return; }
+  if (any) root.gitCollisions = collisions;
   else delete root.gitCollisions;
 }

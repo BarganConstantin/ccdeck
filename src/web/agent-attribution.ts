@@ -8,6 +8,7 @@
 // ever by its own `SubagentStart`, so a stray key on a terminal event cannot
 // conjure one.
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
+import { adoptParkedGit } from "./git-events";
 import { looksLikeId, readableBasename } from "./readable-name";
 import { emptyUsage } from "./usage-wire";
 import type { AgentNodeData, HookPayload } from "./types";
@@ -76,6 +77,8 @@ export function ensureRoot(state: GraphState, sessionId: string, now: number, sy
     usage: emptyUsage(),
   };
   state.agents.set(id, a);
+  // A branch or collisions the server sent before this card existed.
+  adoptParkedGit(state, a);
   return a;
 }
 
@@ -213,6 +216,7 @@ export function ensureSubagent(state: GraphState, sessionId: string, key: string
     usage: emptyUsage(),
   };
   state.agents.set(id, a);
+  adoptParkedGit(state, a);
   const pendingModel = state.pendingSubagentModels.get(id);
   if (pendingModel) {
     a.model = pendingModel;
