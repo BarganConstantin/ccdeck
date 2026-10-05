@@ -105,8 +105,14 @@ export async function readLog(topLevel, head, { limit = LOG_LIMIT } = {}) {
   const args = ["-z", "--topo-order", `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"];
   const r = await git("log", args, { cwd: topLevel });
   if (!r.ok) return { ok: false, reason: r.timedOut ? "timeout" : r.tooLarge ? "too-large" : "error" };
+  return { ok: true, commits: withRefs(r.stdout, refs, head) };
+}
+
+/** Every record of a `log -z --format=LOG_FORMAT` answer, with the refs that
+ *  name it and whether HEAD is on it. */
+function withRefs(stdout, refs, head) {
   const commits = [];
-  for (const record of r.stdout.split("\0")) {
+  for (const record of stdout.split("\0")) {
     const c = parseLogRecord(record);
     if (!c) continue;
     const slot = refs.get(c.sha);
@@ -118,7 +124,36 @@ export async function readLog(topLevel, head, { limit = LOG_LIMIT } = {}) {
     };
     commits.push(c);
   }
-  return { ok: true, commits };
+  return commits;
+}
+
+/** A SHA as the commit store holds it: git's shortest default abbreviation
+ *  or longer, hex only — so it can never be read as an option or a range. */
+const STORED_SHA = /^[0-9a-f]{7,64}$/;
+
+/**
+ * Named commits that are still part of the history, wherever they are in it —
+ * the ones LOG_LIMIT leaves out that the view still shows. Each is read on its
+ * own (`--no-walk`, so no parent is followed), newest first, with refs as
+ * readLog attaches them. A SHA the repository does not hold is skipped, and so
+ * is a commit no branch, remote-tracking branch, tag or HEAD reaches any more —
+ * what an amend or a rebase left behind, kept only by the reflog.
+ *
+ * `{ ok: true, commits }`, or `{ ok: false, reason }` for a read that failed.
+ */
+export async function readCommitsBySha(topLevel, shas, head) {
+  const list = [...new Set((Array.isArray(shas) ? shas : []).filter((s) => typeof s === "string" && STORED_SHA.test(s)))];
+  if (!list.length) return { ok: true, commits: [] };
+  const ends = ["--branches", "--remotes", "--tags", ...(head?.sha ? ["HEAD"] : [])];
+  // What no ref reaches: the named commits that left the history, with their
+  // own ancestors that left with them.
+  const lost = await git("rev-list", ["--ignore-missing", ...list, "--not", ...ends, "--"], { cwd: topLevel });
+  if (!lost.ok) return { ok: false, reason: lost.timedOut ? "timeout" : lost.tooLarge ? "too-large" : "error" };
+  const gone = new Set(lost.stdout.split("\n").map((l) => l.trim()).filter(Boolean));
+  const refs = await refsByCommit(topLevel);
+  const r = await git("log", ["-z", "--no-walk", "--ignore-missing", `--format=${LOG_FORMAT}`, ...list, "--"], { cwd: topLevel });
+  if (!r.ok) return { ok: false, reason: r.timedOut ? "timeout" : r.tooLarge ? "too-large" : "error" };
+  return { ok: true, commits: withRefs(r.stdout, refs, head).filter((c) => !gone.has(c.sha)) };
 }
 
 // ─── status ───────────────────────────────────────────────────────────────

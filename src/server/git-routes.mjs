@@ -18,7 +18,12 @@
 //                                 "unsafe", "timeout", "error" — with
 //                                 `repo: null`; `ok: false` with `reason` is a
 //                                 read that failed inside a repository.
+//
+// The log's commits each carry `agent` — who made it, and how the deck knows
+// (git-attribution.mjs) — and the session's own agent commits older than the
+// window follow it with `outsideWindow: true`.
 import { send } from "./http-io.mjs";
+import { attributeHistory } from "./git-attribution.mjs";
 import { isShaLike } from "./git-reads.mjs";
 import { sessionFolder } from "./git-sessions.mjs";
 import { gitEnabled } from "./git-watch.mjs";
@@ -54,13 +59,17 @@ export async function handleGitRepo(req, res, url) {
   send(res, 200, { ok: true, state: "repo", repo: found.repo });
 }
 
+/** `?session[&agent]` — the history, each commit with the agent that made it
+ *  (git-attribution.mjs), and after it the session's own agent commits older
+ *  than the window, flagged `outsideWindow`. `agent` narrows those to one
+ *  subagent's. */
 export async function handleGitLog(req, res, url) {
   const found = await sessionRepo(url, res);
   if (!found) return;
   const log = await logOf(found.repo);
-  send(res, 200, log.ok
-    ? { ok: true, state: "repo", repo: found.repo, commits: log.commits }
-    : { ok: false, state: "repo", repo: found.repo, reason: log.reason });
+  if (!log.ok) return send(res, 200, { ok: false, state: "repo", repo: found.repo, reason: log.reason });
+  const commits = await attributeHistory(found.repo, log.commits, { sessionId: param(url, "session"), agentId: found.folder.agent });
+  send(res, 200, { ok: true, state: "repo", repo: found.repo, commits });
 }
 
 export async function handleGitStatus(req, res, url) {
