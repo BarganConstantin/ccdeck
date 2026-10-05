@@ -5,6 +5,7 @@
 // only the CURRENT one's exit means the app has no deck of its own: a deck
 // replaced earlier that exits afterwards used to clear the reference to the
 // one that replaced it, and Quit then stopped neither.
+import { spawn } from "node:child_process";
 import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 
 /** The deck this app started, if it did. */
@@ -114,8 +115,13 @@ function exitText({ code, signal }) {
  * worker stuck in its own event loop never gets to handle — the hung deck a
  * restart is asked for — and takes a second as the order to SIGKILL it
  * (bin/agent-dag.js). Resolves whether it exited.
+ *
+ * Windows has no signal to pass on: `child.kill()` there is TerminateProcess
+ * on the supervisor alone, and the worker under it — hung, so deaf to the
+ * disconnect that would end it — kept the port and its record. So there the
+ * whole tree is ended, see endTree.
  */
-export function stopChild(child, { graceMs = 4000, signals = 2 } = {}) {
+export function stopChild(child, { graceMs = 4000, signals = 2, platform = process.platform, spawnFn = spawn } = {}) {
   return new Promise(resolve => {
     if (child.exitCode != null || child.signalCode != null) return resolve(true);
     let sent = 0;
@@ -126,13 +132,37 @@ export function stopChild(child, { graceMs = 4000, signals = 2 } = {}) {
       timer = setTimeout(() => {
         if (sent >= signals) return done(false);
         sent++;
-        try { child.kill(); } catch { /* already gone */ }
+        endTree(child, { platform, spawnFn });
         wait();
       }, graceMs);
     };
     child.once("exit", onExit);
     wait();
   });
+}
+
+/**
+ * Signal `child`, or on Windows end it and everything under it.
+ *
+ * exec.mjs's killTree, spelled again because this module is packed into the
+ * app and the deck's own modules are not: `taskkill /T` is the descendant walk
+ * Windows has, `/F` ends a process that is not pumping messages, and it is
+ * taken from System32 rather than from PATH. A taskkill that cannot run still
+ * leaves the plain kill, which is no worse than before.
+ */
+function endTree(child, { platform, spawnFn }) {
+  const plain = () => { try { child.kill(); } catch { /* already gone */ } };
+  if (platform !== "win32" || !child.pid) return plain();
+  try {
+    const root = process.env.SystemRoot || process.env.systemroot;
+    const exe = root ? `${root}\\System32\\taskkill.exe` : "taskkill";
+    const killer = spawnFn(exe, ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    killer.on("error", plain);
+    killer.on("exit", (code) => { if (code !== 0) plain(); });
+    killer.unref?.();
+  } catch {
+    plain();
+  }
 }
 
 /**
