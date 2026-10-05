@@ -37,21 +37,35 @@
 .tool-conn.status-err  { stroke: rgba(252,165,165,0.85); }
 .tool-conn.fading { stroke-dasharray: 4 6; }
 
+/* The camera for the bubbles, as one transform: the same translate and scale
+   React Flow writes to .react-flow__viewport, and the same move .session-clusters
+   made in #353. The bubbles under it are placed in world coordinates and are not
+   touched by a pan or a zoom at all — before this every wrap carried the camera
+   in its own left, top and scale, and a pan frame restyled every bubble on the
+   board. The origin is the top-left corner because the coordinates underneath
+   are measured from the canvas origin; will-change names the one property a
+   frame still writes, and nothing here may be given a `transition`, for the
+   reason .session-clusters gives. */
+.tool-bursts-world {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform;
+}
 .tool-burst-wrap {
   position: absolute;
   /* Wrap stays non-interactive — the bubble itself opts in to pointer events
      so the canvas can still be panned where the wrap extends beyond the pill. */
   pointer-events: none;
-  /* Position snaps, on both axes. `left` and `top` are rewritten together from
-     the viewport on every pan and zoom frame, and the leader line to this
-     bubble is an SVG path redrawn from the same coordinates with no easing of
-     its own — so easing either axis here detaches the pill from its own
-     connector for the length of the transition. That held for the sibling
-     index shift the easing was added for as much as for a camera move: the
-     bubble slid up while its line jumped. Both ends move on the same frame or
-     neither does. Only `transform` is still written per frame, so only it is
-     worth promoting. */
-  will-change: transform;
+  /* Position snaps, on both axes. `left` and `top` are written together, and
+     the leader line to this bubble is an SVG path drawn from the same
+     coordinates with no easing of its own — so easing either axis here
+     detaches the pill from its own connector for the length of the
+     transition. That held for the sibling index shift the easing was added
+     for: the bubble slid up while its line jumped. Both ends move on the same
+     frame or neither does. Nothing on the wrap is written per frame any more
+     — the camera is .tool-bursts-world's — so nothing here is promoted. */
 }
 .tool-burst {
   display: inline-flex;
