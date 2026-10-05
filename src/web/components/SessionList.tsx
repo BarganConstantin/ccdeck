@@ -232,7 +232,13 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       On a blocked row that is the number worth the space: the
                       session's own age says nothing about whether to go look,
                       and "waiting 6m" says all of it. The run time is still on
-                      the tooltip, where it costs nothing. */}
+                      the tooltip, where it costs nothing.
+                      "waiting" only for the blocks the header counts — a
+                      permission prompt or a question, isAlarming's set. A turn
+                      that simply ended reads "your turn", which is what the
+                      card and the peek call it; it said "waiting" too, and the
+                      list then held more "waiting" rows than its own header
+                      counted. */}
                   {r.waiting
                     ? (
                       <span
@@ -240,10 +246,10 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                         title={[
                           waitingSentence(r.waiting),
                           blockedToolTooltip(r.waiting, waitingSentence(r.waiting)),
-                          `Blocked since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`,
+                          `${isAlarming(r.waiting) ? "Blocked" : "Your turn"} since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`,
                         ].filter(Boolean).join("\n")}
                       >
-                        waiting {elapsedShort(r.waiting.since, undefined, now)}
+                        {isAlarming(r.waiting) ? "waiting" : "your turn"} {elapsedShort(r.waiting.since, undefined, now)}
                         {/* The tool NAME only, never the preview: this sits at the
                             end of a row that already carries a model, a tool count
                             and a cost, and the preview is a command line. The
