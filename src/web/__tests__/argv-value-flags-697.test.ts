@@ -116,14 +116,14 @@ function valueFlags(): ValueFlag[] {
 const VALUE_FLAGS = valueFlags();
 
 describe("the sweep below covers every flag that takes a value", () => {
-  it("finds all three in the parser, each with a key and an expectation", () => {
-    // Three today. The assertion is not the number — it is that the derivation
+  it("finds all four in the parser, each with a key and an expectation", () => {
+    // Four today. The assertion is not the number — it is that the derivation
     // works at all, since a regex that matched nothing would make every
     // table-driven case below vacuously pass.
-    expect(VALUE_FLAGS.length).toBeGreaterThanOrEqual(3);
-    expect(VALUE_FLAGS.map(f => f.key).sort()).toEqual(["history", "port", "workspace"]);
+    expect(VALUE_FLAGS.length).toBeGreaterThanOrEqual(4);
+    expect(VALUE_FLAGS.map(f => f.key).sort()).toEqual(["history", "port", "ref", "workspace"]);
     expect(VALUE_FLAGS.flatMap(f => f.spellings).sort())
-      .toEqual(["--history", "--port", "--workspace", "-p"]);
+      .toEqual(["--history", "--port", "--ref", "--workspace", "-p"]);
     for (const f of VALUE_FLAGS) expect(f.expects, f.key).toMatch(/^a \w/);
   });
 });

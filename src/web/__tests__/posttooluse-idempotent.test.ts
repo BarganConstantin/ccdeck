@@ -410,9 +410,12 @@ describe("#444 — trimTools releases an id only where the index still names tha
     expect(s.toolIndex.get(toolKey("s", "dup-1"))).toBe(live);
     expect(s.toolIndex.get(toolKey("s", "dup-1"))?.agentId).toBe("s::k9");
 
-    // And it still settles the ordinary way, through the index.
+    // And it still settles the ordinary way, through the index. Naming nobody,
+    // as the call's own PreToolUse did: an agent_id here would be this
+    // session's subagents naming themselves, which hands every call that named
+    // nobody back to the root (`keyedSubagents`).
     s = send(s, T0 + 20 * MIN, {
-      hook_event_name: "PostToolUse", session_id: "s", agent_id: "k9",
+      hook_event_name: "PostToolUse", session_id: "s",
       tool_name: "Bash", tool_use_id: "dup-1", tool_response: "done", model: MODEL,
     });
     expect(live!.ok).toBe(true);

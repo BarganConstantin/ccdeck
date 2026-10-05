@@ -67,6 +67,41 @@ export function isNpxInstall(pkgRoot) {
   return typeof pkgRoot === "string" && pkgRoot.split(/[\\/]/).includes("_npx");
 }
 
+/** Any one-off runner's copy: npx's, and the three that are not npm's —
+ *
+ *    pnpm dlx   <cache>/pnpm/dlx/<hash>/…, and dlx-<pid>/ in a temp folder before pnpm cached them
+ *    bunx       <tmp>/bunx-<uid>-<spec>/, cleared at reboot
+ *    yarn dlx   <tmp>/xfs-<id>/dlx-<pid>/
+ *
+ *  Only `_npx` used to be recognised, so the other three looked like a global
+ *  install: the first start wrote a login item naming a file inside the cache,
+ *  and the writable folder made the update an `npm i -g` the away-update ran by
+ *  itself, every thirty minutes, without ever moving the running copy. Neither
+ *  has a path anybody promised to keep. Segment-wise and separator-agnostic,
+ *  for the reasons isNpxInstall gives. */
+export function isOneOffRun(pkgRoot) {
+  return oneOffRunner(pkgRoot) !== null;
+}
+
+/** Which of those four unpacked this copy — "npx", "pnpm dlx", "bunx" or
+ *  "yarn dlx" — or null for a copy that stays. None of them leaves the
+ *  package's command on PATH, so a command this deck tells somebody to type
+ *  goes through the runner they used. yarn's `dlx-<pid>` sits in an `xfs-`
+ *  folder; pnpm's, from before it cached them, does not. */
+export function oneOffRunner(pkgRoot) {
+  if (typeof pkgRoot !== "string") return null;
+  if (isNpxInstall(pkgRoot)) return "npx";
+  // `dlx` alone only under pnpm's cache directory (pnpm/, pnpm-cache/), so a
+  // project folder that happens to be called that is not taken for one.
+  const parts = pkgRoot.split(/[\\/]/);
+  for (const [i, p] of parts.entries()) {
+    if (p === "dlx" && /pnpm/i.test(parts[i - 1] ?? "")) return "pnpm dlx";
+    if (/^bunx-\d+-/.test(p)) return "bunx";
+    if (/^dlx-\d+$/.test(p)) return /^xfs-/.test(parts[i - 1] ?? "") ? "yarn dlx" : "pnpm dlx";
+  }
+  return null;
+}
+
 /** A git checkout is the maintainer's own tree. Its version routinely sits
  *  ahead of npm, and telling someone to `npm i -g` over their working copy is
  *  actively wrong, so the registry side of the check is skipped there.

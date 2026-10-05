@@ -23,7 +23,11 @@ export default function SelectedRibbon({ selected, now, selectedIds, focusAgent,
 }) {
   const c = agentCost(selected);
   const elapsedSec = Math.max(0, ((selected.endedAt ?? now) - selected.startedAt) / 1000);
-  const rate = selected.state === "active" ? fmtCostRate(c.total, elapsedSec) : null;
+  // Not for a session the deck joined late, the rule the card has kept since
+  // #822 (card-cost.ts): its cost is the whole session's and its clock only the
+  // part this page saw, so the quotient overstated the burn — "$105/min"
+  // sixteen seconds after joining a session hours old.
+  const rate = selected.state === "active" && !selected.synthetic ? fmtCostRate(c.total, elapsedSec) : null;
   const extra = selectedIds.size - 1;
   return (
     <button

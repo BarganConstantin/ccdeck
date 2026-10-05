@@ -306,6 +306,17 @@
 @media (max-width: 480px) {
   .topbar .readout .provider-incident { display: none; }
 }
+/* THREE CONTROLS FOLD INTO ONE AT A PHONE'S WIDTH (TopbarMore.tsx). With
+   Feedback (#1853) the controls came to 314px, and at 360 that left the
+   readout group a sliver: the waiting pill was cut off the left edge, and at
+   320 the last control went off the right one. Under 480 History, Browser
+   watch and Feedback leave for a ⋯ that opens them, 68px back for the pill.
+   The ⋯ wears Browser watch's unread badge while it stands in for it. */
+.topbar .tb-more { display: none; position: relative; }
+@media (max-width: 480px) {
+  .topbar .tb-fold { display: none; }
+  .topbar .tb-more { display: inline-flex; }
+}
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
    controls still do not shrink; the bar spends less on padding and gaps so all
    of them fit down to a 320px screen. */

@@ -24,7 +24,7 @@
 // you believe it was the whole machine would be lying about what it can answer.
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead as ColumnSortHead, type SortOf } from "./SortHead";
 import MachineStrip from "./MachineStrip";
 import { fmtBytes } from "../byte-format";
@@ -219,6 +219,7 @@ export default function ProcessListModal({ sys, onClose }: {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("process-list");
   const dialogRef = useModalDismiss(onClose);
+  const scrimPress = useScrimDismiss(onClose);
   const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
   const read = useProcesses();
 
@@ -226,7 +227,7 @@ export default function ProcessListModal({ sys, onClose }: {
     // Portalled for the reason SectionHistoryModal is: this opens from inside
     // `.sysdetail`, which is `position: fixed` and animates a transform, and a
     // transformed ancestor becomes the containing block for a fixed descendant.
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal pl-modal"

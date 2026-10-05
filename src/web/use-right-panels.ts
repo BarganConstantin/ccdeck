@@ -76,7 +76,8 @@ export function useRightPanels() {
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
   useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
   // A panel shown is one of the features the usage reports name (feature-use.ts).
-  useFeatureUse("detail-panel", detailOpen);
+  // Not the detail panel: its flag is kept and the selection is not, so after a
+  // reload it is on with nothing drawn. DetailAside says it, when it mounts.
   useFeatureUse("usage-panel", usagePanelOpen);
   useFeatureUse("machine-panel", machinePanelOpen);
   return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen };

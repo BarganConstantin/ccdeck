@@ -9,7 +9,8 @@
 // self-poll floor; this module knows only how, and when a 429 says to stop.
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { join, win32 as winPath } from "node:path";
 import { mapOAuthUsage } from "./quota-shape.mjs";
 
 export const USAGE_URL   = "https://api.anthropic.com/api/oauth/usage";
@@ -101,6 +102,23 @@ export async function readOAuthToken() {
 }
 
 /**
+ * Which token the credentials file holds, as a hash, or null when it holds
+ * none — expired or not, because this is a question of whose it is rather
+ * than whether it still works. The token itself is not kept.
+ *
+ * For quota.mjs, which stamps a reading with it so a held reading is not
+ * served after Claude Code has been signed in as somebody else.
+ */
+export async function credentialFingerprint() {
+  try {
+    const token = JSON.parse(await readFile(credentialsPath(), "utf8"))?.claudeAiOauth?.accessToken;
+    return typeof token === "string" && token ? createHash("sha256").update(token).digest("hex") : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * A cooldown from a `retry-after`, kept inside limits the deck can live with.
  *
  * Unclamped, the header decided the poller's fate in both directions: `0` (or a
@@ -136,23 +154,80 @@ export function cooldownFromHeader(raw, fallbackMs, minMs = 30_000, maxMs = 3600
  * answers this properly, with `api_key_mode` as its own reason and its own
  * sentence.
  *
- * Cheap and synchronous: environment first, because a machine configured for
- * Bedrock or Vertex says so there, then the presence of the OAuth block in the
- * credentials file. `readOAuthToken` above answers a different question — it
- * also rejects an EXPIRED token, and an expired subscription is still a
- * subscription.
+ * Cheap: configuration first, because a machine set up for Bedrock or Vertex
+ * says so there, then the presence of the OAuth block in the credentials file.
+ * `readOAuthToken` above answers a different question — it also rejects an
+ * EXPIRED token, and an expired subscription is still a subscription.
+ *
+ * THE CONFIGURATION IS CLAUDE CODE'S, not only this process's environment. The
+ * documented place for it is the `env` block of Claude Code's settings — user
+ * or managed — an API key can come from an `apiKeyHelper` there, and a deck
+ * started by the desktop app or a login item never sees the shell's exports at
+ * all. Reading process.env alone brought the two zero bars back on each of
+ * those machines. Values are read the way Claude Code reads them: "true",
+ * "yes" and "on" switch a provider on as well as "1".
+ *
+ * @param files Claude Code's settings files to read; claudeSettingsFiles() by
+ *   default, and a parameter so a test can name its own.
  */
-export async function hasSubscriptionCredential(env = process.env) {
-  if (env.CLAUDE_CODE_USE_BEDROCK === "1" || env.CLAUDE_CODE_USE_VERTEX === "1") return false;
+export async function hasSubscriptionCredential(env = process.env, files = claudeSettingsFiles()) {
+  const { cloud, apiKey } = await claudeSignIn(env, files);
+  if (cloud) return false;
   try {
     const raw = await readFile(credentialsPath(), "utf8");
     if (JSON.parse(raw)?.claudeAiOauth?.accessToken) return true;
   } catch { /* absent or unreadable, decided below */ }
-  // A key in the environment and no OAuth block beside it is the API-key
-  // install. Without either, this deck simply has not been signed in yet, and
-  // "sign in" is the right thing to say — which is the `waiting` branch, not
-  // this one.
-  return !(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN);
+  // A key — in an environment, or from a helper — and no OAuth block beside
+  // it is the API-key install. Without any, this deck simply has not been
+  // signed in yet, and "sign in" is the right thing to say — which is the
+  // `waiting` branch, not this one.
+  return !apiKey;
+}
+
+/**
+ * What Claude Code's configuration says about how it signs in, from `env` and
+ * the `env` blocks of its settings files, read as hasSubscriptionCredential
+ * explains: `cloud` when Bedrock or Vertex is switched on, `apiKey` when a key
+ * is set or an `apiKeyHelper` supplies one. The OAuth block in the credentials
+ * file is each caller's own question — it outranks a key, and only a cloud
+ * provider outranks it. Exported for the deck's own report of its plan
+ * (depth-facts.mjs), which has to answer the way the quota panel does.
+ */
+export async function claudeSignIn(env = process.env, files = claudeSettingsFiles()) {
+  const settings = await readSettings(files);
+  const envs = [env, ...settings.map(s => (s.env && typeof s.env === "object" ? s.env : {}))];
+  return {
+    cloud: envs.some(e => isOn(e.CLAUDE_CODE_USE_BEDROCK) || isOn(e.CLAUDE_CODE_USE_VERTEX)),
+    apiKey: settings.some(s => typeof s.apiKeyHelper === "string" && s.apiKeyHelper.trim())
+      || envs.some(e => e.ANTHROPIC_API_KEY || e.ANTHROPIC_AUTH_TOKEN),
+  };
+}
+
+/** On, as Claude Code reads a switch in its environment. */
+const isOn = (v) => /^(1|true|yes|on)$/i.test(String(v ?? "").trim());
+
+/**
+ * The settings files in which Claude Code can be told how to sign in: the
+ * user's, in its config dir, and the managed one an administrator deploys.
+ * Project settings are left out — a deck watches every project at once, and
+ * no one project's file speaks for the machine.
+ */
+export function claudeSettingsFiles(platform = process.platform, env = process.env) {
+  const managed = platform === "darwin" ? "/Library/Application Support/ClaudeCode/managed-settings.json"
+    : platform === "win32" ? winPath.join(env.ProgramFiles || "C:\\Program Files", "ClaudeCode", "managed-settings.json")
+    : "/etc/claude-code/managed-settings.json";
+  return [join(claudeConfigDir(env), "settings.json"), managed];
+}
+
+/** Each of `files` that parses as an object; a missing or broken one says nothing. */
+async function readSettings(files) {
+  const read = await Promise.all(files.map(async (f) => {
+    try {
+      const parsed = JSON.parse(await readFile(f, "utf8"));
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch { return null; }
+  }));
+  return read.filter(Boolean);
 }
 
 /** The headers every request made with the Claude Code token sends. */

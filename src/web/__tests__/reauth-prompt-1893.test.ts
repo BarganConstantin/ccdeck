@@ -25,7 +25,7 @@ import {
 } from "../../server/account-origins.mjs";
 import { accountKey } from "../../server/lan-copies.mjs";
 import { authTrouble } from "../../server/claude-accounts.mjs";
-import { loadPrefs, normalise, publicPrefs, updatePrefs } from "../../server/deck-prefs.mjs";
+import { loadPrefs, normalise, pagePatch, publicPrefs, updatePrefs } from "../../server/deck-prefs.mjs";
 import { deadLogin } from "../account-issue";
 import { lanRepairExpected } from "../account-lan";
 import type { Account } from "../claude-accounts";
@@ -127,10 +127,11 @@ describe("where it is kept", () => {
     const prefs = normalise({ accounts: { [KEY]: { origin: SIGNED_IN_HERE, signedInAt: NOW } } });
     expect(prefs.accounts[KEY]).toBeDefined();
     expect("accounts" in publicPrefs(prefs)).toBe(false);
-    // POST /api/prefs takes everything else in a patch, so the field is cut
-    // out of the body by name, beside the reporter's own state.
-    expect(src("../../server/prefs-routes.mjs"))
-      .toMatch(/const \{ reports: _reports, report: _report, accounts: _accounts, \.\.\.patch \} = body;/);
+    // POST /api/prefs takes only the fields the page edits, and this is not
+    // one of them: the body is cut down to those before it is written.
+    expect(pagePatch({ accounts: { [KEY]: { origin: SIGNED_IN_HERE, signedInAt: NOW } }, notifications: true }))
+      .toEqual({ notifications: true });
+    expect(src("../../server/prefs-routes.mjs")).toMatch(/const patch = pagePatch\(body\);/);
   });
 });
 
@@ -150,11 +151,16 @@ describe("when an account is an incident", () => {
 
   it("is one when claude-swap stopped collecting and says relogin_required", () => {
     const trouble = { kind: "stopped", error: null };
-    expect(reauthFor({ entry, trouble, collector: "relogin_required", ...after })).not.toBeNull();
+    // The verdict asked after the last sign-in, so it is about this login.
+    const asked = { ...after, verdictAt: NOW - MIN };
+    expect(reauthFor({ entry, trouble, collector: "relogin_required", ...asked })).not.toBeNull();
     // Any other verdict on a stopped collector is not a sign-in: an unreadable
     // keychain is about the deck, and no verdict at all is a silence.
-    expect(reauthFor({ entry, trouble, collector: "keychain_unavailable", ...after })).toBeNull();
-    expect(reauthFor({ entry, trouble, collector: null, ...after })).toBeNull();
+    expect(reauthFor({ entry, trouble, collector: "keychain_unavailable", ...asked })).toBeNull();
+    expect(reauthFor({ entry, trouble, collector: null, ...asked })).toBeNull();
+    // Nor is one asked before the sign-in, which is about the login it replaced.
+    expect(reauthFor({ entry, trouble, collector: "relogin_required", ...after, verdictAt: NOW - 11 * MIN })).toBeNull();
+    expect(reauthFor({ entry, trouble, collector: "relogin_required", ...after })).toBeNull();
   });
 
   it("is never one for an account the deck did not sign in", () => {
@@ -376,7 +382,8 @@ describe("when the prompt takes its turn", () => {
     expect(promptShows({ rows: 2, ours: true, dialogs: 3 })).toBe(true);
     expect(promptShows({ rows: 0, ours: true, dialogs: 0 })).toBe(false);
     const host = src("../components/AccountAttentionModal.tsx");
-    expect(host).toMatch(/promptShows\(\{ rows: rows\.length, ours: oursRef\.current, dialogs: modalStack\.dialogDepth\(\) \}\)/);
+    expect(host).toMatch(/const dialogs = modalStack\.dialogDepth\(\) \+ \(pairing \? 1 : 0\);/);
+    expect(host).toMatch(/promptShows\(\{ rows: rows\.length, ours: oursRef\.current, dialogs \}\)/);
   });
 });
 
@@ -426,7 +433,8 @@ describe("what the dialog says", () => {
   it("uses the deck's modal system: the shared hook, Escape and the backdrop as Not now", () => {
     const modal = src("../components/AccountAttentionModal.tsx");
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onLater, \{ focusRef: firstRef \}\)/);
-    expect(modal).toMatch(/<div className="modal-backdrop" onClick=\{onLater\} role="presentation">/);
+    expect(modal).toMatch(/const scrimPress = useScrimDismiss\(onLater\);/);
+    expect(modal).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
     expect(modal).toMatch(/aria-label="Not now \(Esc\)"/);
   });
 });

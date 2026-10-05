@@ -2,7 +2,22 @@
    when an agent is selected. Click → fit-view to that agent. The × on
    the right clears selection without leaving the topbar. */
 .selected-ribbon {
-  display: inline-flex;
+  /* COLUMNS, NOT A FLEX ROW, so the ribbon knows its least. As a flex row it
+     needed `min-width: 0` for the name to ellipse at all, and with it the
+     ribbon had no floor: the bar shrinks it with the readout, in proportion to
+     their widths, so a short name or a +N chip had it cut under its own state
+     and ×, and the × was drawn past its edge — at 641px 30px past it for an
+     agent called "x", and with a +2 chip 18px into the Session list button.
+     In columns the name's is the only one that can go under its content
+     (`minmax(0, max-content)`), so the ribbon's min-content is its state, its
+     chips and its × whole beside a name ellipsed to nothing, and the
+     `min-width` below holds it there. Every other part takes an auto column
+     after the name, in order. With room to spare it draws the same pixels the
+     flex row did, light and dark. The label's `flex` and the ×'s `flex: none`
+     below said this order to the flex row; the columns keep it now. */
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-template-columns: auto minmax(0, max-content);
   align-items: center;
   gap: 8px;
   padding: 4px 6px 4px 10px;
@@ -32,7 +47,7 @@
      leaves a blocked session readable beside them at that width (see THE
      WORDS). */
   max-width: min(380px, 24vw);
-  min-width: 0;
+  min-width: min-content;
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -152,12 +167,24 @@
 }
 .selected-ribbon .selected-close:hover { background: var(--line); color: var(--text); }
 .selected-ribbon .selected-close:active { transform: scale(0.94); }
-/* NOT WHILE THE DETAIL SHEET IS UP, at a phone's width (#1790). Below 640px the
-   panel stands over the canvas under this bar, with the session's name in its
-   hero and its own ×, so the ribbon only says it again — and it is what a
-   selection adds to a bar that holds its controls down to 320px only without
-   it: at 320 it shrank to its × and pushed the last control 12px off the
-   right edge. Closing the sheet brings it back. */
-@media (max-width: 480px) {
-  .app:has(.detail) .selected-ribbon { display: none; }
+/* NOT ON A PHONE'S BAR (#1790). Below 640px the detail panel stands over the
+   canvas under this bar, with the session's name in its hero and its own ×,
+   so the ribbon only says it again — and it is what a selection adds to a bar
+   that holds its controls down to 320px only without it: at 320 it shrank to
+   its × and pushed the last control 12px off the right edge. It went only
+   while the sheet was up, and with the sheet closed it came back to a bar
+   with no room for it: squeezed under its own state pill and ×, about 100px,
+   it drew them over the Session list button and took the waiting pill's room.
+   The selected card on the canvas still says which agent it is, and a tap on
+   the canvas clears it.
+   AT THE SHEET'S OWN BREAKPOINT, NOT THE FOLD'S. It left at 480, with the ⋯
+   (TopbarMore.tsx), and at 481 all nine controls came back with it: at its
+   floor — a state, a name ellipsed to nothing, a × — it needs 503px beside the
+   waiting pill, so the readout gave first and the pill lost up to 5px of its
+   left edge to 499, and with a running agent's cost up to 15px to 520, the
+   cost and × running on over the Session list button. Every width under 640
+   is one where the sheet says what the ribbon says, so it goes there.
+   topbar-ribbon-room.test.ts adds the bar up. */
+@media (max-width: 640px) {
+  .selected-ribbon { display: none; }
 }

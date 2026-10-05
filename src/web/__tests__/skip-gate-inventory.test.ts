@@ -153,16 +153,17 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
   });
 
-  it("expects the fifty-three platform-gated cases to skip on Windows, file by file", () => {
-    // Forty-three behind `process.platform === "win32"`, eight behind the posix
-    // runIf family, and the two read-only-directory cases — sound-hook-park's
-    // and the swap script's in desktop-updater — whose probe reports false on
+  it("expects the sixty platform-gated cases to skip on Windows, file by file", () => {
+    // Forty-nine behind `process.platform === "win32"`, eight behind the posix
+    // runIf family, and the three read-only-directory cases — sound-hook-park's,
+    // the swap script's in desktop-updater and the macOS updater's in
+    // desktop-update-unreplaceable-app — whose probe reports false on
     // Windows because chmod there toggles a read-only bit that does not stop a
     // write into the directory. Written out per file rather
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 53,
+      total: 60,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -170,11 +171,15 @@ describe("the register of conditionally-skipped cases", () => {
         "codex-auth-temp-collision.test.ts": 3,
         "desktop-appimage-relaunch-1630.test.ts": 2,
         "desktop-release-prerelease-1756.test.ts": 2,
+        "desktop-shell-env.test.ts": 2,
+        "desktop-update-unreplaceable-app.test.ts": 1,
         "discovery-live.test.ts": 3,
         "desktop-updater.test.ts": 7,
         "exec-shim-callers.test.ts": 5,
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
+        "hangup-shuts-down.test.ts": 1,
+        "hook-command-node-fallback.test.ts": 3,
         "no-shell-hook-commands.test.ts": 2,
         "prefs-corrupt-1002.test.ts": 2,
         "relay-guard.test.ts": 6,
@@ -212,8 +217,10 @@ describe("the register of conditionally-skipped cases", () => {
     // with a legitimate per-platform answer — and the reason it is stated here as
     // a function of platform is that it is not checkable any other way from macOS.
     // Two since #1176: sound-hook-park's, and the swap script's failed move.
+    // Three since the macOS updater stopped staging an update for an app in a
+    // folder it cannot write to.
     const readOnly = gates().filter((g) => g.condition === "!readOnlyDirBlocksWrites");
-    expect(readOnly.map((g) => g.file).sort()).toEqual(["desktop-updater.test.ts", "sound-hook-park.test.ts"]);
+    expect(readOnly.map((g) => g.file).sort()).toEqual(["desktop-update-unreplaceable-app.test.ts", "desktop-updater.test.ts", "sound-hook-park.test.ts"]);
     for (const g of readOnly) {
       expect(g.sites).toBe(1);
       expect(skipsOn(g, "win32")).toBe(true);
@@ -372,7 +379,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(26);
+    expect(win32Sites).toBe(29);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

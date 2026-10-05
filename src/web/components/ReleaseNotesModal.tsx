@@ -27,7 +27,7 @@
 // and `firstRun` is how this component knows to say that rather than either of
 // the two sentences that came before it.
 import { releaseNotesIntro, splitNoteTitle, versionRangeLabel, type VersionNotes } from "../release-notes";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
 import { RESTART_TO_UPDATE } from "../desktop-update";
 
@@ -71,10 +71,11 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
   // default — the dialog's first tabbable — already lands there, and the body
   // below holds no control that would be a better first stop.
   const dialogRef = useModalDismiss(onClose);
+  const scrimPress = useScrimDismiss(onClose);
   const range = versionRangeLabel(entries);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal release-notes"

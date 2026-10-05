@@ -654,10 +654,13 @@ function scanTranscript(path) {
   });
 }
 
-// What session-enrichment.mjs calls, and the two rules the Projects report
-// (account-projects.mjs) reads its own pass of the transcripts by. Listed here
-// rather than marked at each declaration so that every declaration above reads
-// exactly as it did where it came from.
+// What session-enrichment.mjs calls, and the rules the Projects report
+// (account-projects.mjs) reads its own pass of the transcripts by: which lines
+// billed anything, and the speed each was billed at with the cap on how many
+// speeds one model keeps apart. Listed here rather than marked at each
+// declaration so that every declaration above reads exactly as it did where it
+// came from.
 export {
   scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, copyUsageBucket, repeatsRequestUsage,
+  billedSpeed, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
 };

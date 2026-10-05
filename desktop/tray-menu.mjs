@@ -17,11 +17,14 @@ export function ago(ms) {
   return m < 60 ? `${m}m` : `${Math.round(m / 60)}h`;
 }
 
-/** The first row of the menu, and the second half of the tooltip. */
-export function statusLine({ restarting, starting, deck, snapshot }) {
+/** The first row of the menu, and the second half of the tooltip.
+ *  `startFailed` is why the app's own deck did not start, until a deck answers:
+ *  "No deck running" after one that exited in its first second read as if
+ *  nothing had been tried. */
+export function statusLine({ restarting, starting, deck, snapshot, startFailed = null }) {
   if (restarting) return "Restarting the deck…";
   if (starting) return "Starting the deck…";
-  if (!deck) return "No deck running";
+  if (!deck) return startFailed ? "The deck could not start" : "No deck running";
   if (snapshot.icon === "offline") return "Reconnecting to the deck…";
   if (snapshot.waiting > 0) return `${snapshot.waiting} session${snapshot.waiting === 1 ? "" : "s"} waiting for you`;
   if (snapshot.running > 0) return `${snapshot.running} session${snapshot.running === 1 ? "" : "s"} running`;
@@ -47,18 +50,19 @@ export function statusWorthAsking(snapshot) {
  * @param {{ port: number, version?: string } | null} s.deck
  * @param {unknown} s.starting    a deck start in flight
  * @param {unknown} s.restarting  a restart asked for and not yet answered
+ * @param {string | null} [s.startFailed]  why the app's own deck did not start
  * @param {boolean | null} s.notifyOn  the deck's own switch; null until it is read
  * @param {boolean} s.openAtLogin
  * @param {string} s.appVersion
- * @param {{ status: string, version?: string }} s.update  the updater's state
+ * @param {{ status: string, version?: string, kind?: string }} s.update  the updater's state
  * @param {boolean} [s.updateAsksPassword]  installing it asks for a password
  *   (a package manager's install, #1755)
  * @param {Array<{ label: string, href: string }>} [s.incidents]  what the
  *   providers' status pages report, incidents only — the page's own incidentsOf
  * @param {object} on  what each row does when it is clicked
  */
-export function trayMenuItems({ now, snapshot, deck, starting, restarting, notifyOn, openAtLogin, appVersion, update, updateAsksPassword = false, incidents = [] }, on) {
-  const items = [{ label: statusLine({ restarting, starting, deck, snapshot }), enabled: false }];
+export function trayMenuItems({ now, snapshot, deck, starting, restarting, startFailed = null, notifyOn, openAtLogin, appVersion, update, updateAsksPassword = false, incidents = [] }, on) {
+  const items = [{ label: statusLine({ restarting, starting, deck, snapshot, startFailed }), enabled: false }];
   for (const b of snapshot.blocked.slice(0, 6)) {
     const what = b.kind === "asked" ? "asking" : "needs permission";
     items.push({ label: `${b.label} — ${what}, ${ago(now - b.since)}`, click: () => on.openWindow() });
@@ -115,5 +119,25 @@ export function updateItem(u, on, asksPassword = false) {
   }
   if (u.status === "downloading") return { label: `Downloading ccdeck v${u.version}…`, enabled: false };
   if (u.status === "checking") return { label: "Checking for updates…", enabled: false };
+  // A failure is said, not left looking like an update nobody looked for:
+  // what to do about it where the updater knows (updater.mjs), else that it
+  // failed. Clicked, it checks again, as "Check for updates" did.
+  if (u.status === "error") {
+    // A release the macOS swap could not put in place is not tried again
+    // (#1927), so "try again" would only be refused again: the row says it is
+    // skipped, and the click looks for a newer one.
+    if (u.kind === "skipped-release" && u.version) {
+      return { label: `Skipped v${u.version} — check for the next release`, click: () => on.checkForUpdates() };
+    }
+    const label = Object.hasOwn(UPDATE_FAILED, u.kind ?? "") ? UPDATE_FAILED[u.kind] : "Update failed — try again";
+    return { label, click: () => on.checkForUpdates() };
+  }
   return { label: u.status === "current" ? "Up to date — check again" : "Check for updates", click: () => on.checkForUpdates() };
 }
+
+/** The update row for a failure the person can do something about: an app in a
+ *  folder it cannot write to, which cannot replace itself there (#1927). */
+const UPDATE_FAILED = {
+  "unwritable-app": "Move ccdeck to Applications to update",
+  "unwritable-appimage": "Move the AppImage to a writable folder to update",
+};

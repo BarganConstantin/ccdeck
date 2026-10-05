@@ -48,9 +48,11 @@ describe("a link inside the app's window", () => {
     // scheme handed to the shell, that this file would not see.
     const open = main.match(/setWindowOpenHandler\(\(\{ url \}\) => \{[\s\S]*?\}\);/)?.[0] ?? "";
     const navigate = main.match(/on\("will-navigate", \(event, url\) => \{[\s\S]*?\n {2}\}\);/)?.[0] ?? "";
-    expect(open).toMatch(/navigationFor\(url, origin\) !== "block"/);
-    expect(navigate).toMatch(/navigationFor\(url, origin\)/);
+    // Against the origin the window shows now, which attach() moves when the
+    // deck moves to another port (desktop-window-follows-deck.test.ts).
+    expect(open).toMatch(/navigationFor\(url, windowOrigin\) !== "block"/);
+    expect(navigate).toMatch(/navigationFor\(url, windowOrigin\)/);
     expect(navigate).toMatch(/shell\.openExternal\(url\)/);
-    expect(main).not.toMatch(/url\.startsWith\(origin\)/);
+    expect(main).not.toMatch(/url\.startsWith\((?:window)?[oO]rigin\)/);
   });
 });

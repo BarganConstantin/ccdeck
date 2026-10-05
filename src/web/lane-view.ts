@@ -105,6 +105,33 @@ export function laneSplit<T extends LaneLike>(lanes: readonly T[]): LaneSplit<T>
   return { shown: head, rest: tail, fuller, peak: fuller ?? top };
 }
 
+/**
+ * A window whose reset has passed since it was read. Its number is the old
+ * window's, and nothing is known about this one until claude-swap reads it
+ * again — so it is drawn as having reset, ordered as unread and left out of
+ * the room an account has. The open row's bars and the Usage panel's draw by
+ * the same rule; this is where the rest of the accounts panel asks it.
+ */
+export function lapsed(l: { resetAt?: number | null }, nowSec: number): boolean {
+  return !!l.resetAt && l.resetAt <= nowSec;
+}
+
+/**
+ * The room an account has, against the tightest window still running: the
+ * server's own `headroom` while none has lapsed, and measured again without
+ * the ones that have — a window that rolled over says nothing about room until
+ * it is read. Null when no window is left to measure against.
+ */
+export function headroomAt(
+  a: { lanes?: readonly (LaneLike & { resetAt?: number | null })[]; headroom: number | null },
+  nowSec: number,
+): number | null {
+  const lanes = a.lanes ?? [];
+  const live = lanes.filter(l => !lapsed(l, nowSec));
+  if (live.length === lanes.length) return a.headroom;
+  return live.length ? Math.max(0, 100 - Math.max(...live.map(l => l.pct))) : null;
+}
+
 // NO COUNT OF WHAT IS FOLDED. The row's disclosure used to be a word in its
 // footer — `1 more`, `fewer`, or the hot lane's label — and "1 more" named no
 // thing a reader could picture. The shut row now shows its windows plus `fuller`

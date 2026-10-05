@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const dir = fileURLToPath(new URL("../components", import.meta.url));
 const read = (f: string) => readFileSync(`${dir}/${f}`, "utf8");
 
-/** The opening tag of the scrim — the element with the dismiss onClick. */
+/** The opening tag of the scrim — the element with the dismiss handlers. */
 function backdropTag(src: string): string | null {
   const m = /<div className="[a-z-]*backdrop"[^>]*>/.exec(src);
   return m ? m[0] : null;
@@ -48,7 +48,9 @@ describe("the deck's modals", () => {
     // anonymous reports; it went when reports became on by default, with a
     // switch in place of the question. The twenty-second is the re-sign-in
     // prompt for an account the deck signed in whose login expired (#1893).
-    expect(MODALS.length).toBe(22);
+    // The twenty-third is the note that stands in for Usage history or Browser
+    // Watch when its chunk did not arrive, a tab older than an upgrade.
+    expect(MODALS.length).toBe(23);
   });
 
   it("never calls the dismiss scrim a dialog", () => {
@@ -90,6 +92,9 @@ describe("ToolModal", () => {
   });
 
   it("still closes on a backdrop click, which is what the scrim is for", () => {
-    expect(backdropTag(src)).toContain("onClick={onClose}");
+    // A press of the scrim itself, not a selection let go over it — see
+    // useScrimDismiss.
+    expect(src).toContain("const scrimPress = useScrimDismiss(onClose);");
+    expect(backdropTag(src)).toContain("{...scrimPress}");
   });
 });

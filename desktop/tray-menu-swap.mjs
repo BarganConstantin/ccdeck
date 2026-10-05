@@ -59,6 +59,14 @@ export function createMenuSwap({ build, install, now = Date.now, holdMs = MENU_H
 
   const isOpen = () => openSince !== null && now() - openSince < holdMs;
 
+  // Electron ticks a checkbox in the native menu before it calls the row's
+  // click, so after one the menu may no longer show what `shown` says. If the
+  // toggle does not take, the next template is the same as the last, and only
+  // forgetting `shown` puts the box back.
+  const forgetOnToggle = item => (item.type === "checkbox" && typeof item.click === "function"
+    ? { ...item, click: (...args) => { shown = null; return item.click(...args); } }
+    : item);
+
   function refresh() {
     if (isOpen()) {
       waiting = true;
@@ -71,7 +79,7 @@ export function createMenuSwap({ build, install, now = Date.now, holdMs = MENU_H
     const signature = menuSignature(template);
     if (signature === shown) return "unchanged";
     shown = signature;
-    install(template, { opened, closed });
+    install(template.map(forgetOnToggle), { opened, closed });
     return "installed";
   }
 

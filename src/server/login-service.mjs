@@ -32,6 +32,7 @@
 // tested. Two policies over one process is how `ccdeck --stop` becomes a
 // suggestion the machine overrules a second later.
 import { inApp } from "./app-host.mjs";
+import { stableNodePath } from "./stable-node.mjs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -123,6 +124,10 @@ ${vars}
 `;
 }
 
+/** A value as systemd will read it back: `%` starts a specifier anywhere in a
+ *  unit, and `%%` is the literal. */
+const sdEscape = (s) => String(s).replace(/%/g, "%%");
+
 /**
  * The systemd --user unit.
  *
@@ -130,7 +135,19 @@ ${vars}
  * still receiving updates. No Restart=, for the reason in the header.
  */
 export function unitFor({ execPath, script, logPath, args = [], env = {}, product = "ccdeck" } = {}) {
-  const cmd = [execPath, script, ...args].map(a => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
+  // EVERY VALUE, not only the Environment= lines below. systemd expands `%`
+  // in StandardOutput=/StandardError= and in ExecStart as well, and `$NAME` in
+  // ExecStart; those were written raw, so a deck home like the
+  // `/home/ana/100%backup` below had its log path rewritten — systemd 259
+  // drops the setting with "Failed to resolve unit specifiers … ignoring" for
+  // an unknown one and substitutes a known one (`%b`, the boot ID) silently —
+  // and the same `%` in an install path made ExecStart a fatal error.
+  // An argument with whitespace, a quote or a backslash is quoted, with the
+  // C escapes systemd's word splitting reads inside the quotes.
+  const cmd = [execPath, script, ...args].map(a => {
+    const v = sdEscape(a).replace(/\$/g, "$$$$");
+    return /[\s"'\\]/.test(v) ? `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : v;
+  }).join(" ");
   // QUOTED, AND `%` ESCAPED. systemd.exec(5) splits an Environment= assignment
   // on whitespace unless the whole thing is double-quoted, and it expands `%`
   // specifiers in the value. ExecStart above quotes its own arguments; this
@@ -146,10 +163,15 @@ export function unitFor({ execPath, script, logPath, args = [], env = {}, produc
   // decks and two LAN keys on one machine". `%b` is the boot-ID specifier, so
   // `/home/ana/100%backup` was rewritten just as quietly.
   //
+  // AND `"` AND `\` ESCAPED INSIDE THOSE QUOTES, which systemd reads with C
+  // escapes: a `"` in the value closed them early and a `\` began an escape,
+  // so `/home/ana/a "quote` and a value ending in `\` were dropped as
+  // "Invalid syntax, ignoring" and `back\slash` came back with a space in it.
+  //
   // The macOS branch was always safe: plistFor puts each value in its own
   // <string> and XML-escapes it. Windows carries none of them.
   const vars = Object.entries({ AGENTS_DECK_DETACHED: "1", ...env })
-    .map(([k, v]) => `Environment="${k}=${String(v).replace(/%/g, "%%")}"`).join("\n");
+    .map(([k, v]) => `Environment="${sdEscape(`${k}=${v}`).replace(/[\\"]/g, "\\$&")}"`).join("\n");
   return `[Unit]
 Description=${product} — live deck of Claude Code + Codex agents
 After=default.target
@@ -158,8 +180,8 @@ After=default.target
 Type=simple
 ${vars}
 ExecStart=${cmd}
-StandardOutput=append:${logPath}
-StandardError=append:${logPath}
+StandardOutput=append:${sdEscape(logPath)}
+StandardError=append:${sdEscape(logPath)}
 
 [Install]
 WantedBy=default.target
@@ -250,7 +272,9 @@ export function taskXmlFor({ execPath, script, args = [], product = "ccdeck" } =
  *
  *   `npx` runs out of ~/.npm/_npx/<hash>/, which npm deletes whenever it feels
  *   like it. A login item pointing at nothing, forever, on a machine where the
- *   user never installed anything.
+ *   user never installed anything. pnpm dlx, bunx and yarn dlx are the same
+ *   case in another cache or temp folder, and callers pass `npx` for all four
+ *   (isOneOffRun).
  *
  *   A CHECKOUT is somebody's working tree. Found by running this: a test boot
  *   from the repo on the author's own machine wrote a LaunchAgent naming
@@ -354,8 +378,40 @@ export function lingerState({ platform = process.platform, run = spawnSync, user
 export const SCOPE_VARS = Object.freeze(["CLAUDE_CONFIG_DIR", "CCDECK_HOME", "CODEX_HOME"]);
 
 export function scopeEnv(env = process.env) {
+  return setOnes(SCOPE_VARS, env);
+}
+
+/**
+ * …and the variables that decide what that deck DOES: every other row of
+ * README's environment table, by name.
+ *
+ * Lost the same way the scope directories were, and with a cost the user had
+ * already said no to. `AGENTS_DECK_NO_REPORTS=1 ccdeck`, or the variable in
+ * ~/.zshrc, installed an item on the first start whose deck ran at the next
+ * login with no veto: an install event with the device fingerprint, a daily
+ * "active", and — AGENTS_DECK_NO_LAN gone too — the beacon on the local
+ * network. A terminal exporting the variable afterwards attached to that deck
+ * rather than starting one of its own, so not even it was spared.
+ *
+ * BY NAME, NOT BY PREFIX. A shell holds tokens and keys a login item has no
+ * business copying into a file in ~/Library/LaunchAgents; the list is what the
+ * deck documents and reads, and a test holds it to README's table. Only the
+ * ones that are set, for the reason scopeEnv gives.
+ */
+export const SETTING_VARS = Object.freeze([
+  "AGENT_DAG_PORT",
+  "AGENTS_DECK_NO_INSTALL", "AGENTS_DECK_NO_DOWNLOAD", "AGENTS_DECK_NO_UPDATE_CHECK", "AGENTS_DECK_NO_STATUS",
+  "AGENTS_DECK_NO_FRESHEN", "AGENTS_DECK_NO_NOTIFY", "AGENTS_DECK_NO_LAN", "AGENTS_DECK_NO_REPORTS",
+  "AGENTS_DECK_CSWAP", "AGENTS_DECK_CLAUDE", "AGENTS_DECK_CCUSAGE", "CLAUDE_SWAP_BACKUP", "AGENTS_DECK_LHM_PORT",
+]);
+
+export function settingsEnv(env = process.env) {
+  return setOnes(SETTING_VARS, env);
+}
+
+function setOnes(names, env) {
   return Object.fromEntries(
-    SCOPE_VARS.filter(k => typeof env?.[k] === "string" && env[k].trim() !== "").map(k => [k, env[k]]),
+    names.filter(k => typeof env?.[k] === "string" && env[k].trim() !== "").map(k => [k, env[k]]),
   );
 }
 
@@ -394,7 +450,11 @@ export function installService({
   platform = process.platform,
   home = homedir(),
   env = process.env,
-  execPath = process.execPath,
+  // The node an upgrade of the same install does not delete, which is not
+  // `process.execPath` on Homebrew or a linked tarball — see stable-node.mjs.
+  // Looked up on THIS machine whatever `platform` asks about: it is this
+  // machine's node that the job will run.
+  execPath = stableNodePath({ env }),
   script,
   logPath,
   // `--at-login` because registering the job also STARTS it, on Linux and
@@ -422,12 +482,29 @@ export function installService({
   // genuinely wants a different job environment — the sandboxed end-to-end
   // test, which passes HOME and the deck's own directories — still says so,
   // and replaces this outright rather than adding to it.
-  serviceEnv = scopeEnv(env),
+  //
+  // The opt-outs ride along for the same reason (settingsEnv): an item that
+  // starts a deck without the shell's AGENTS_DECK_NO_REPORTS is a deck that
+  // reports from the next login on.
+  serviceEnv = { ...scopeEnv(env), ...settingsEnv(env) },
   product = "ccdeck",
   fs = { mkdirSync, writeFileSync },
   run = spawnSync,
+  // Whether systemd is this machine's init — sd_booted(3)'s own test. Only
+  // this machine can be asked, so a Linux job written from anywhere else is
+  // taken to have one.
+  systemd = () => process.platform !== "linux" || existsSync("/run/systemd/system"),
 } = {}) {
   const path = servicePath(platform, home, env);
+  // NO SYSTEMD, NO LOGIN ITEM — Alpine and Gentoo on OpenRC, Void, Devuan, a
+  // container, WSL with systemd off. A unit written there is read by nothing,
+  // and `systemctl` is missing or refuses; the refusal used to read as
+  // "file-only", so the first start said the deck would start at login, saved
+  // the item as installed and never offered again. Asked before anything is
+  // written, so nothing is left behind in a directory nobody reads.
+  if (platform === "linux" && !systemd()) {
+    return { ok: false, path, reason: "this machine does not run systemd" };
+  }
   try {
     // BEFORE THE SERVICE MANAGER IS TOLD ANYTHING. launchd opens
     // StandardOutPath when it starts the job and systemd opens
@@ -464,11 +541,17 @@ export function installService({
     fs.writeFileSync(path, body, { mode: 0o644 });
     const cmd = registerCommand(platform, path);
     const out = run(cmd.file, cmd.args, { encoding: "utf8" });
-    // A registration that failed still leaves the file, and both launchd and
-    // systemd read their directories at the next login — so the service works
-    // from then on either way. Said, not hidden, and not treated as fatal.
+    // A registration that failed still leaves the file. launchd loads every
+    // plist in ~/Library/LaunchAgents at the next login, so on a Mac the item
+    // works from then on. systemd does not: it starts at login only a user
+    // unit that is ENABLED, which is the link the failed `enable` never made,
+    // so the verdict carries the command that makes it. Said, not hidden, and
+    // not treated as fatal.
     if (out?.status !== 0) {
-      return { ok: true, path, how: "file-only", reason: oneLine(out?.stderr || out?.stdout) || `${cmd.file} refused` };
+      const reason = oneLine(out?.stderr || out?.stdout) || `${cmd.file} refused`;
+      return platform === "darwin"
+        ? { ok: true, path, how: "file-only", reason }
+        : { ok: true, path, how: "file-only", reason, enable: `systemctl --user enable ${SERVICE_LABEL}.service` };
     }
     return { ok: true, path, how: cmd.file };
   } catch (err) {

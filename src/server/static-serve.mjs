@@ -62,6 +62,11 @@ async function serveStatic(req, res, url) {
     });
     res.end(body);
   } catch {
+    // Nothing under assets/ is a client-side route: a name there that is not
+    // on disk is a bundle from before an upgrade asking for a chunk the new
+    // build no longer has. index.html in its place is a 200 the browser cannot
+    // run as a module, so it is a 404, which says what happened.
+    if (rel.startsWith("assets/")) return send(res, 404, { error: "not found" });
     // SPA fallback to index.html for client-side routes
     try {
       const idx = await readFile(join(WEB_DIST, "index.html"));

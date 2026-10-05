@@ -15,7 +15,7 @@ import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import type { GraphState } from "./reducer";
-import { canvasModalOpen, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import type { Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -136,6 +136,14 @@ export function useDeckShortcuts({
       // Arrows belong to the card, whatever React Flow does or does not do with
       // them. Delete does not: it is the deck's Remove from board (#1668).
       if (intent.kind === "node") return;
+      // `?` closes the sheet it opened, whatever in the sheet has focus — see
+      // closesKeySheet. Asked before the gate below, which kept the key for the
+      // sheet's ×, and not on a held key's repeat, which would shut the sheet
+      // the same press had just opened.
+      if (closesKeySheet({ key: e.key, sheetOpen: keyHelpOpenRef.current, target })) {
+        if (!e.repeat) setKeyHelpOpen(false);
+        return;
+      }
       // A focused control owns its own keys: Space presses a button, letters
       // run a <select>'s type-ahead. Answering them stole the button's
       // activation key and let a bare "c" from a dropdown wipe the event log.
@@ -180,7 +188,15 @@ export function useDeckShortcuts({
         modalOpen: canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() }),
         sheetOpen: keyHelpOpenRef.current,
       })) return;
-      if (e.key === " ") { e.preventDefault(); togglePause(); }
+      // A held key is one press. Every auto-repeat used to run its shortcut
+      // again, so a held Space flipped pause about thirty times a second and
+      // left the stream in whichever state the key came up on, and T, L, D and
+      // U flickered the same way. J and K keep repeating: holding them to step
+      // through the board is what a held key is for. Space goes on to its own
+      // line, which pauses on the first press only and still cancels every
+      // repeat, or the page behind the canvas scrolls.
+      if (e.repeat && !/^[ jkJK]$/.test(e.key)) return;
+      if (e.key === " ") { e.preventDefault(); if (!e.repeat) togglePause(); }
       if (e.key === "c" || e.key === "C") requestClear("shortcut");
       if (e.key === "r" || e.key === "R") handleRelayout();
       if (e.key === "f" || e.key === "F") handleFit();

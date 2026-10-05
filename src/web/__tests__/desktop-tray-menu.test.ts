@@ -154,7 +154,9 @@ describe("the update row", () => {
     expect(updateItem({ status: "downloading", version: "3.30.0" }, on)).toEqual({ label: "Downloading ccdeck v3.30.0…", enabled: false });
     expect(updateItem({ status: "checking" }, on)).toEqual({ label: "Checking for updates…", enabled: false });
     expect(updateItem({ status: "current" }, on).label).toBe("Up to date — check again");
-    for (const status of ["idle", "error"]) expect(updateItem({ status }, on).label).toBe("Check for updates");
+    expect(updateItem({ status: "idle" }, on).label).toBe("Check for updates");
+    // A failure is said (desktop-update-failed-tray.test.ts), and still checks again.
+    expect(updateItem({ status: "error" }, on).label).toBe("Update failed — try again");
     updateItem({ status: "error" }, on).click();
     expect(on.checkForUpdates).toHaveBeenCalledTimes(1);
   });
@@ -170,7 +172,7 @@ describe("the app's wiring", () => {
     expect(main).toMatch(/function buildMenu\(\) \{\s*return trayMenuItems\(\{[\s\S]*?\}, TRAY_ACTIONS\);\s*\}/);
     expect(main).toContain("build: buildMenu,");
     expect(main).toContain("const menu = Menu.buildFromTemplate(template);");
-    expect(main).toContain("tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);");
+    expect(main).toContain("tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot, startFailed })}`);");
     // Nothing of the menu is left written out in main.mjs to drift from it.
     expect(main).not.toMatch(/label: "(?:Restart ccdeck|Quit ccdeck|Start at login|Open in browser)"/);
   });

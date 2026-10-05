@@ -33,6 +33,11 @@ export interface QuotaData {
    *  help, because they have no subscription window to report. */
   reason?: string;
   fetchedAt?: number;
+  /** The server is holding the last reading it has rather than a new one —
+   *  over its own floor, through a 429 cooldown, or past the answer's deadline
+   *  (quota.mjs). `fetchedAt` is still that reading's own time. The server has
+   *  sent it all along; declared so the section can say it. */
+  stale?: boolean;
 
   // ─── Pay-as-you-go top-up, which the server has always sent ───────────────
   //

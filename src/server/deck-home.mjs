@@ -220,6 +220,11 @@ export const TEMP_STALE_MS = 60 * 60 * 1000;
  * after the ones that are not — and it is deliberately blind to WHICH deck made
  * a file, because it cannot know: it goes by age instead, which is a fact about
  * the file rather than a guess about a pid.
+ *
+ * BUT ONLY THE DECK'S OWN NAMES. CCDECK_HOME is used as it is, so these can be
+ * somebody's own folder — a USB stick's root, a synced tools folder — and a
+ * `report.tmp` or a downloader's staging file in it is theirs. Every shape the
+ * deck's writers have ever used is in deckTemp, and nothing else is touched.
  */
 export async function sweepTempFiles({ dirs, fs, now = Date.now(), onError } = {}) {
   let removed = 0;
@@ -227,7 +232,7 @@ export async function sweepTempFiles({ dirs, fs, now = Date.now(), onError } = {
     let names;
     try { names = await fs.readdir(dir); } catch { continue; }
     for (const name of names) {
-      if (!name.endsWith(".tmp") && !name.endsWith(".migrating")) continue;
+      if (!deckTemp(name)) continue;
       const path = join(dir, name);
       try {
         const st = await fs.stat(path);
@@ -240,4 +245,21 @@ export async function sweepTempFiles({ dirs, fs, now = Date.now(), onError } = {
     }
   }
   return removed;
+}
+
+const escaped = (name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const DECK_TEMP = [
+  // atomic-write.mjs: `<target>.agent-dag-<pid>-<n>.tmp`, and before the
+  // sequence number `<target>.agent-dag-<pid>.tmp`.
+  /\.agent-dag-\d+(?:-\d+)?\.tmp$/,
+  // The preferences' and the Browser Watch archive's own writers, from before
+  // atomic-write.mjs and since: `prefs.json.<pid>.tmp`, `state.json.<pid>.<n>.tmp`.
+  /^(?:prefs|state)\.json\.\d+(?:\.\d+)?\.tmp$/,
+  // migrateDeckFiles: `<moved file>.<pid>.migrating`.
+  new RegExp(`^(?:${MOVED.map(m => escaped(m.name)).join("|")})\\.\\d+\\.migrating$`),
+];
+
+/** Is `name` a temp file the deck itself makes? */
+export function deckTemp(name) {
+  return DECK_TEMP.some(re => re.test(name));
 }

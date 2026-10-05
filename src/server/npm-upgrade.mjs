@@ -16,7 +16,7 @@ import { join, resolve } from "node:path";
 import { killTree, shimPath, spawnSpec } from "./exec.mjs";
 import { npmCliLaunch } from "./npx.mjs";
 import {
-  frozenNameInstall, hostPackage, installedName, isGitCheckout, isNpxInstall,
+  frozenNameInstall, hostPackage, installedName, isGitCheckout, isNpxInstall, isOneOffRun,
   PUBLISHED_NAME, successorRoot, upgradeCommand, upgradeName,
 } from "./install-layout.mjs";
 
@@ -78,7 +78,7 @@ export function upgradeSpec(target, platform = process.platform, deps) {
  * Pure so the policy can be read and tested on its own — it is the part that
  * decides whether we are allowed to write to the user's machine.
  */
-export function upgradeBlockedReason({ git, npx, writable, optedOut, frozen }) {
+export function upgradeBlockedReason({ git, npx, oneOff, writable, optedOut, frozen }) {
   if (optedOut) return "opted_out";
   // The maintainer's own tree. Its version leads npm's, and installing over it
   // would replace a working copy with a published tarball.
@@ -87,6 +87,12 @@ export function upgradeBlockedReason({ git, npx, writable, optedOut, frozen }) {
   // place — `npx agents-deck@latest` fetches a DIFFERENT directory, which this
   // process could not switch to even after restarting.
   if (npx) return "npx";
+  // pnpm dlx, bunx and yarn dlx: a cache or temp folder as well, but with no
+  // spec recorded to re-run the way npx's is. Writable, so it looked like a
+  // global install, and `npm i -g` from here installs a copy this process
+  // never runs — the running version never moves, and the away-update tried
+  // again every thirty minutes. The command is shown instead.
+  if (oneOff) return "one_off";
   // A flat install of a retired name: the one shape where `npm i -g <us>@latest`
   // runs cleanly, reports success, and leaves no deck behind — the registry
   // serves a 5 KB pointer for those names now, and npm's reify removes bin/,
@@ -108,8 +114,9 @@ export function upgradeBlockedReason({ git, npx, writable, optedOut, frozen }) {
  *   "install" — `npm i -g` here and restart into the new files.
  *   "npx"     — nothing to install: the supervisor re-runs `npx -y <spec>`,
  *               which fetches a NEW cache directory and hands the port to it.
- *   null      — a checkout, an unwritable prefix, or an explicit opt-out; the
- *               user gets the command and does it themselves.
+ *   null      — a checkout, a one-off runner's cache, an unwritable prefix, or
+ *               an explicit opt-out; the user gets the command and does it
+ *               themselves.
  *
  * Pure, so the policy is one readable expression rather than three conditions
  * spread across the server and the UI.
@@ -182,6 +189,7 @@ export function upgradeBlock(pkgRoot) {
   return upgradeBlockedReason({
     git: isGitCheckout(pkgRoot),
     npx: isNpxInstall(pkgRoot),
+    oneOff: isOneOffRun(pkgRoot),
     // npm -g rewrites the package directory and its parent (the global
     // node_modules), so both have to be ours to write.
     writable: dirWritable(target) && dirWritable(resolve(target, "..")),

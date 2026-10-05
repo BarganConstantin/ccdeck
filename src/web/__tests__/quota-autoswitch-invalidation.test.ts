@@ -147,8 +147,10 @@ function writeStore(activeNum: number, pct: Record<number, number>) {
       ...account(n),
       fetchedAt: (Date.now() - MIN) / 1000,          // claude-swap stores seconds
       lastGood: {
-        five_hour: { pct: pct[n], resets_at: "2026-08-25T18:00:00Z" },
-        seven_day: { pct: Math.round(pct[n] / 3), resets_at: "2026-08-30T04:00:00Z" },
+        // Ahead of now: a row from before its own reset is not served as the
+        // reading at all (quota-lapsed-reading.test.ts).
+        five_hour: { pct: pct[n], resets_at: new Date(Date.now() + 3 * 3600_000).toISOString() },
+        seven_day: { pct: Math.round(pct[n] / 3), resets_at: new Date(Date.now() + 96 * 3600_000).toISOString() },
       },
     }])),
   }));

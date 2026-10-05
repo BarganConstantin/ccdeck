@@ -108,6 +108,15 @@ const ATTACH: [token: string, argv: string[], parsed: Record<string, unknown>][]
   ["--at-login", ["--at-login"], { atLogin: true }],
 ];
 
+// ── the page a command was copied from ──────────────────────────────────────
+//
+// `--ref <name>` is how ccdeck.dev says which of its pages a command came from,
+// for the first install report (install-ref.mjs). Its own table for the reason
+// ATTACH gives.
+const REF: [token: string, argv: string[], parsed: Record<string, unknown>][] = [
+  ["--ref", ["--ref", "home"], { ref: "home" }],
+];
+
 describe("the flag list is swept whole, not sampled", () => {
   it("covers every token the parser matches on, and no token it does not", () => {
     // The parser's own source is the authority on what the list is. Every
@@ -119,7 +128,7 @@ describe("the flag list is swept whole, not sampled", () => {
     expect(inSource.length, "a token is matched twice in args.mjs")
       .toBe(new Set(inSource).size);
     expect([...inSource].sort())
-      .toEqual([...KEPT, ...ADDED, ...ATTACH].map(r => r[0]).sort());
+      .toEqual([...KEPT, ...ADDED, ...ATTACH, ...REF].map(r => r[0]).sort());
   });
 });
 
@@ -163,7 +172,7 @@ describe("everything that parsed to something still parses to exactly that", () 
 describe("no flag the deck knows is ever reported as unknown", () => {
   // The other half of the sweep, and the half that is new: every one of the
   // seventeen tokens, plus the trailing-flag case, has to leave the list empty.
-  for (const [token, argv] of [...KEPT, ...ADDED, ...ATTACH]) {
+  for (const [token, argv] of [...KEPT, ...ADDED, ...ATTACH, ...REF]) {
     it(`${token} leaves nothing in unknown`, () => {
       expect(parseArgs(argv).unknown).toEqual([]);
     });
@@ -179,7 +188,7 @@ describe("no flag the deck knows is ever reported as unknown", () => {
 });
 
 describe("--version and -v", () => {
-  for (const [token, argv, parsed] of [...ADDED, ...ATTACH]) {
+  for (const [token, argv, parsed] of [...ADDED, ...ATTACH, ...REF]) {
     it(`${token} sets the flag and nothing else`, () => {
       expect(parseArgs(argv)).toEqual({ ...parsed, unknown: [], incomplete: [] });
     });

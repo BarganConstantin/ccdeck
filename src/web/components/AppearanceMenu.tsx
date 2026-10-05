@@ -1,7 +1,7 @@
 import { type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import VolumeRow from "./VolumeRow";
 import { FM_SOURCE_OPTIONS } from "../appearance";
 import {
@@ -74,6 +74,7 @@ export default function AppearanceMenu({
   onAddFmStation, onRenameFmStation, onRemoveFmStation, onClose,
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
+  const scrimPress = useScrimDismiss(onClose);
   const fmSources = [
     ...FM_SOURCES.map(source => ({
       ...source,
@@ -306,7 +307,7 @@ export default function AppearanceMenu({
 
   return createPortal(
     (
-    <div className="modal-backdrop appearance-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop appearance-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         id="appearance-menu"

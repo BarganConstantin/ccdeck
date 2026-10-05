@@ -58,7 +58,7 @@ export function transcriptTarget(payload) {
 // agents created before the model was resolved. The cache is the emit
 // filter, not a read filter: reading once per session meant a subagent
 // model that only appears after the root is known was never picked up.
-const modelBySession = new Map();         // sessionId -> { rootModel, subsSig }
+const modelBySession = new Map();         // sessionId -> { rootModel, subsSig, subagentModels }
 const MODEL_READ_THROTTLE_MS = 2500;
 const modelReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 
@@ -71,10 +71,18 @@ export function cachedModelId(cached) {
   return typeof rootModel === "string" && rootModel ? rootModel : null;
 }
 
-/** The root model already resolved for this session, or null — what pushEvent
- *  stamps on a payload that arrives without one. */
-function knownModelId(sid) {
-  return cachedModelId(modelBySession.get(sid));
+/** The model already resolved for whoever this payload is about, or null —
+ *  what pushEvent stamps on a payload that arrives without one. A payload that
+ *  names a subagent (`agent_id`, or the legacy `parent_tool_use_id`) is that
+ *  subagent's own traffic and gets its model from the transcript scan's map,
+ *  or nothing: the root's model on it overwrote the subagent's on its card,
+ *  and nothing ever sent the right one again. */
+function knownModelId(sid, subagentKey = null) {
+  const cached = modelBySession.get(sid);
+  if (!subagentKey) return cachedModelId(cached);
+  const subs = cached?.subagentModels;
+  const model = subs && Object.hasOwn(subs, subagentKey) ? subs[subagentKey] : null;
+  return typeof model === "string" && model ? model : null;
 }
 
 /** Read the main session JSONL. Returns the root model and any
@@ -246,7 +254,7 @@ function maybeResolveModel(payload) {
       const prev = modelBySession.get(sid);
       const subsSig = JSON.stringify(subagentModels);
       if (prev && prev.rootModel === rootModel && prev.subsSig === subsSig) return;
-      modelBySession.set(sid, { rootModel, subsSig });
+      modelBySession.set(sid, { rootModel, subsSig, subagentModels });
       pushEvent({
         hook_event_name: "ModelObserved",
         session_id: sid,

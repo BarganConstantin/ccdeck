@@ -297,7 +297,7 @@ describe("Send feedback is never greyed out, and never drops focus (#518)", () =
   });
 
   it("says aria-busy while the request is out, and refuses a second press itself", () => {
-    expect(flatDialog).toMatch(/<button type="submit" className="btn primary fb-send"[^>]*\{\.\.\.selfPressProps\(sending\)\}/);
+    expect(flatDialog).toMatch(/<button ref=\{sendRef\} type="submit" className="btn primary fb-send"[^>]*\{\.\.\.selfPressProps\(sending\)\}/);
     expect(sendHook).toMatch(/if \(!selfPressAccepted\(sendingRef\.current\)\) return;/);
     expect(flatDialog).toMatch(/<span className="fb-send-busy">Sending…<\/span>/);
   });

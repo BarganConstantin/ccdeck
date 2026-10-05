@@ -14,7 +14,7 @@ import { typedPrompts } from "../injected-prompt";
 // which differed from the other two by its name and the one class that makes it
 // taller (#374). That class is the `size` prop now.
 import CostBar from "./CostBar";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
   state: GraphState;
@@ -23,17 +23,23 @@ interface Props {
 }
 
 export default function SessionSummary({ state, sessionId, onClose }: Props) {
-  const summary = useMemo(() => buildSummary(state, sessionId), [state, sessionId]);
+  // `state.revision` as well as `state`, for the reason SessionList gives: the
+  // prop is `stateRef.current`, which the reducer mutates in place, so its
+  // identity never moves and a memo keyed on it alone froze the recap at the
+  // moment it opened — the turn's usage that lands after its Stop, a background
+  // subagent still working, a session resuming underneath it all stayed out.
+  const summary = useMemo(() => buildSummary(state, sessionId), [state, state.revision, sessionId]);
   // Registered before the early return, so the hook order holds on the render
   // where the session has already been pruned. This is the modal nobody asked
   // for — it opens on a Stop hook — which makes Escape the first thing a user
   // reaches for and made its absence here the worst of the two.
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const scrimPress = useScrimDismiss(onClose);
   if (!summary) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal session-summary" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="ss-title">
         <div className="modal-head">
           <div className="modal-title">

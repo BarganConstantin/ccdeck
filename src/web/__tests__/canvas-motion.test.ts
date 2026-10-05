@@ -210,13 +210,19 @@ describe(".tool-burst-wrap and the connector drawn to it", () => {
   });
 
   it("promotes only the property still written per frame", () => {
-    expect(decl(wrap.body, "will-change")).toBe("transform");
+    // A pan or zoom frame writes one transform, on the layer that carries the
+    // camera for every bubble; the wraps under it are not written per frame and
+    // are not promoted (tool-bursts-camera.test.ts draws the layer at two
+    // cameras).
+    const world = all.find(r => r.selector === ".tool-bursts-world")!;
+    expect(decl(world.body, "will-change")).toBe("transform");
+    expect(decl(wrap.body, "will-change")).toBeNull();
   });
 
   it("is still positioned by both axes in JS, so the pairing is not theoretical", () => {
     const style = /const wrapStyle[\s\S]*?\};/.exec(bursts)![0];
-    expect(style).toMatch(/left:\s*`\$\{px\}px`/);
-    expect(style).toMatch(/top:\s*`\$\{py\}px`/);
+    expect(style).toMatch(/left:\s*`\$\{b\.worldX\}px`/);
+    expect(style).toMatch(/top:\s*`\$\{b\.worldY\}px`/);
   });
 });
 
@@ -370,6 +376,9 @@ const PRESSES: Press[] = [
   [".ver-banner .ver-cmd:active", "0.97", "transform"],
   [".ver-banner .ver-act:active:not(:disabled)", "0.97", "transform"],
   [".ver-banner .ver-close:active", "0.94", "transform"],
+  // A number on the one question's scale: a 24px square with a digit in it,
+  // so the 0.94 the round glyphs take.
+  [".rating-banner .rating-pick:active", "0.94", "transform"],
   [".tool-burst.clickable:active", "0.97", "scale"],
   // "update anyway" on an import result row. A 10px word in a pill, so
   // 0.97 like every other labelled control rather than the 0.94 the round

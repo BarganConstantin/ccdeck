@@ -179,9 +179,11 @@ export function beaconTargets(tailnet) {
   return out;
 }
 
-/** 100.64.0.0/10, the block Tailscale draws every IPv4 node address from. */
-function inTailnetBlock(addr) {
-  const m = /^100\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(addr);
+/** 100.64.0.0/10, the block Tailscale draws every IPv4 node address from.
+ *  Exported for the accept switches — see askToAccept in lan-requests.mjs,
+ *  which asks it of an address whose route this file could not answer. */
+export function inTailnetBlock(addr) {
+  const m = /^100\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(String(addr ?? "").replace(/^::ffff:/, ""));
   return !!m && Number(m[1]) >= 64 && Number(m[1]) <= 127;
 }
 
@@ -190,7 +192,9 @@ function inTailnetBlock(addr) {
  *
  * Null means the local network, which is every answer this deck gave before
  * Tailscale was read — and still the answer on a machine where it is not
- * running.
+ * running. It is an answer about routing, not about trust: the local accept
+ * switch still waits for a press on an address in Tailscale's block that this
+ * could not place — see askToAccept in lan-requests.mjs.
  *
  * WHAT MAKES THE ANSWER SAFE TO ACT ON is Tailscale, not the packet: WireGuard
  * binds each node address to that node's key, and tailscaled drops a packet

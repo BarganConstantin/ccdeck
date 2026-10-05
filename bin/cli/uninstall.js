@@ -6,6 +6,7 @@
 // well before the heavy imports, exactly where the block used to sit. Every
 // module the uninstall touches is still imported off PKG_ROOT at the moment it
 // is needed, so `--uninstall` loads only what it uses and starts nothing.
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PRODUCT } from "../../src/server/brand.mjs";
@@ -124,6 +125,14 @@ export async function uninstall(flags) {
   // HERE, and the position is the point: after every hook is out, and before
   // --purge takes the key files, so no deck is left running to write them back.
   if (!(await stopLiveDecks())) refused = true;
+  // The reporter the goodbye at the end goes out through, loaded HERE rather
+  // than where it is used. Importing reports.mjs is what reads prefs.json into
+  // memory, install id and all, and `--purge` just below deletes that file:
+  // read after it, the reporter found no id, decided nothing would go out, and
+  // the uninstall that most meant it was the one never counted or asked why.
+  // Null when no goodbye can go out — see goodbyeReporter for why that is
+  // decided before the import rather than by it.
+  const reporter = await goodbyeReporter();
   // ── THE PRIVATE KEY ────────────────────────────────────────────────────────
   //
   // The one thing left on the disk that is a CREDENTIAL rather than data. Every
@@ -181,14 +190,41 @@ export async function uninstall(flags) {
 
   // Last, once everything above is done, and only while reports are on: the
   // usage reports hear that this install left, with a reason if the person at
-  // the terminal picks one. See bin/cli/leaving.js.
-  {
-    const { reporter } = await import(pathToFileURL(join(PKG_ROOT, "src/server/reports.mjs")).href);
-    await sayGoodbye({ reporter });
-  }
+  // the terminal picks one. See bin/cli/leaving.js, and the reporter's own
+  // comment above the key section for why it was loaded there.
+  await sayGoodbye({ reporter });
   // Non-zero when any half of it refused, so `ccdeck --uninstall && …` and every
   // CI step that runs this stops on the failure instead of continuing past it.
   return refused ? 1 : 0;
+}
+
+/**
+ * The usage reporter the goodbye goes out through, with the install id already
+ * read into memory — or null, when no goodbye can go out.
+ *
+ * NOT A BARE IMPORT. Importing reports.mjs reads prefs.json with the deck's own
+ * boot read (prefs-state.mjs), and that read MOVES ASIDE a file it cannot parse
+ * or that another user owns, and announces that the deck is starting with fresh
+ * settings. In an uninstall that is a rename, under the user, of the very file
+ * the key section names as the one to remove, by a command that promises to
+ * leave their data where it is. So with reports vetoed nothing is read at all,
+ * and otherwise the file is read here first, touching nothing: a file the boot
+ * read would not take as it is has no install id to say goodbye under either.
+ */
+async function goodbyeReporter() {
+  const { normalise, prefsPath, reportsVetoed } =
+    await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-prefs.mjs")).href);
+  if (reportsVetoed(process.env)) return null;
+  const { stripBom } = await import(pathToFileURL(join(PKG_ROOT, "src/server/atomic-write.mjs")).href);
+  try {
+    normalise(JSON.parse(stripBom(await readFile(prefsPath(), "utf8"))));
+  } catch {
+    return null;
+  }
+  const { reporter } = await import(pathToFileURL(join(PKG_ROOT, "src/server/reports.mjs")).href);
+  // willReport() waits for the import's read, so the id is held from here on.
+  await reporter.willReport();
+  return reporter;
 }
 
 /**

@@ -44,22 +44,26 @@ import { RecapMark } from "./RecapMark";
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
-function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+  // No `selected` here. React Flow's prop is never true on this canvas, so the
+  // class it set matched nothing; the frame marks a selected card's wrapper
+  // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
   const cls = [
     "agent-node",
     `state-${data.state}`,
     data.synthetic ? "synthetic" : "",
-    selected ? "selected" : "",
   ].filter(Boolean).join(" ");
 
   const inflight = data.tools.filter(t => !t.endedAt).length;
   // WHAT WENT WRONG, KEPT. The only place a failed tool call was ever drawn is
   // the burst bubble, and that layer holds four per agent and then drops the
   // oldest — so a failure was visible for four more calls and then existed
-  // nowhere on the canvas. The card counts them instead, in the shape the
-  // in-flight count already uses, and the count does not expire. Silent at
-  // zero, like the in-flight one: a session with nothing wrong says nothing.
-  const failed = data.tools.filter(t => t.ok === false).length;
+  // nowhere on the canvas. The card counts them instead, and the count does not
+  // expire: the lifetime count (#1809) the detail panel reads, not the failures
+  // still inside the 200-call window `tools` keeps, which forgot a long
+  // session's early ones. Silent at zero, like the in-flight count: a session
+  // with nothing wrong says nothing.
+  const failed = data.toolErrorCount ?? 0;
   const hue = sessionHue(data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
   const hasContextSignal = data.kind === "root" && currentContextTokens > 0;

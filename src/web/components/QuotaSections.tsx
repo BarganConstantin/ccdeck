@@ -72,6 +72,10 @@ function codexHint(reason?: string): string {
     // The deck will not put a live ChatGPT token on the wire to somewhere it
     // read out of a config file it does not own, so it says which file.
     case "untrusted_base_url": return "chatgpt_base_url in ~/.codex/config.toml is not an https OpenAI host, so the token was not sent.";
+    // The two states a refused read is answered with, said as the Claude
+    // section says them: the API did answer, and ↻ is what the wait refuses.
+    case "rate_limited":     return "OpenAI asked the deck to wait — it will retry on its own.";
+    case "waiting":          return "Waiting for the next allowed read — or click ↻.";
     default:                 return "ChatGPT API unreachable — click ↻ to retry.";
   }
 }
@@ -97,7 +101,12 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
             deck reads its store instead of spending a second call — which is
             why this age is minutes rather than seconds. */}
         {claudeAge && !quotaLoading && (
-          <span className="up-section-age" title={quotaSourceHint(quota?.source)}>{claudeAge}</span>
+          <span className="up-section-age" title={quotaSourceHint(quota?.source)}>
+            {/* Said when the server is holding the last reading it has rather
+                than a new one, as a bar says its window has reset: the age
+                alone reads as the last poll's. */}
+            {claudeAge}{quota?.stale && " · no newer reading"}
+          </span>
         )}
       </h3>
       {/* Above the bars rather than beside "Quota unavailable.": the quota can

@@ -96,9 +96,10 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
 
   // Said below the images, which on a short window is below the fold of the
   // dialog's scroll: brought into view, so a refusal is seen as well as heard.
+  // Every refusal, by its id: the same words twice are two refusals.
   useEffect(() => {
     if (images.problem) problemRef.current?.scrollIntoView({ block: "nearest" });
-  }, [images.problem]);
+  }, [images.problem, images.problemId]);
 
   function removeShot(id: number) {
     setFocusNext(focusAfterRemove(shots.map(shot => shot.id), id) ?? "add");
@@ -162,7 +163,9 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
           <p className="fb-hint">{SHOTS_NOTE}</p>
         </div>
       )}
-      {images.problem && <p ref={problemRef} className="fb-error" role="alert">{images.problem}</p>}
+      {/* Keyed on the refusal, so each one is a new alert and read out, even
+          in the words of the one before. */}
+      {images.problem && <p key={images.problemId} ref={problemRef} className="fb-error" role="alert">{images.problem}</p>}
     </>
   );
 }

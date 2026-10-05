@@ -8,11 +8,14 @@
 // releases here only ever drop an entry that still points at the call being
 // released (#443).
 import { explicitSubagentKey } from "./agent-attribution";
-import { subagentIdFor, toolKey, type GraphState } from "./graph-state";
+import { rootAgentId, subagentIdFor, toolKey, type GraphState } from "./graph-state";
 import { extractUsage } from "./usage-wire";
 import type { AgentNodeData, HookEnvelope, HookPayload, ToolCall } from "./types";
+import { withCutNotes } from "./tool-view";
 
-export function shortPreview(input: any, max = 80): string {
+export function shortPreview(raw: any, max = 80): string {
+  // A field the hook cut for size reads as the note the dialog shows for it.
+  const input = withCutNotes(raw);
   if (input == null) return "";
   if (typeof input === "string") return input.length > max ? input.slice(0, max - 1) + "…" : input;
   try {
@@ -44,8 +47,9 @@ function setOk(a: AgentNodeData | undefined, t: ToolCall, ok: boolean): void {
   if (a && failed === ok) a.toolErrorCount = (a.toolErrorCount ?? 0) + (ok ? -1 : 1);
 }
 
-/** The agent whose `tools` holds `t`: the one it was pushed on, since a call
- *  never moves and `agentId` is stamped with that agent at the push. */
+/** The agent whose `tools` holds `t`: the one it was pushed on, since
+ *  `agentId` is stamped with that agent at the push and restamped by the one
+ *  thing that moves a call, `returnLentCalls`. */
 function holderOf(state: GraphState, t: ToolCall): AgentNodeData | undefined {
   return t.agentId == null ? undefined : state.agents.get(t.agentId);
 }
@@ -235,6 +239,54 @@ export function releaseToolIds(state: GraphState, a: AgentNodeData): void {
 function releaseToolId(state: GraphState, a: AgentNodeData, t: ToolCall): void {
   const key = toolKey(a.sessionId, t.id);
   if (state.toolIndex.get(key) === t) state.toolIndex.delete(key);
+}
+
+/** Give a session's root back the calls the attribution stack lent its
+ *  subagents: every call held by a subagent of the session whose own payload
+ *  named nobody. Run once, when a subagent of the session is first seen naming
+ *  itself (`keyedSubagents` in types.ts) — from then on a call naming nobody is
+ *  the main thread's, and so were the ones that reached a subagent before the
+ *  evidence did. A background Task's first call routinely lands after the
+ *  root's next one, and without this the root's Bash stayed on the subagent's
+ *  card, still in flight after the subagent had finished.
+ *
+ *  The counts move with the calls, and the root's history goes back into the
+ *  order its calls started in. The live index needs nothing: it is keyed on the
+ *  session and the id, and both are unchanged. */
+export function returnLentCalls(state: GraphState, sessionId: string): void {
+  const root = state.agents.get(rootAgentId(sessionId));
+  if (!root) return;
+  let returned = false;
+  for (const a of state.agents.values()) {
+    if (a === root || a.sessionId !== sessionId) continue;
+    const lent = a.tools.filter(t => t.explicitSubagentId == null);
+    if (lent.length === 0) continue;
+    for (const t of lent) {
+      a.toolCount -= 1;
+      countToolName(a, t.name, -1);
+      if (t.ok === false) a.toolErrorCount = (a.toolErrorCount ?? 0) - 1;
+      t.agentId = root.id;
+      root.tools.push(t);
+      root.toolCount += 1;
+      countToolName(root, t.name, 1);
+      if (t.ok === false) root.toolErrorCount = (root.toolErrorCount ?? 0) + 1;
+    }
+    a.tools = a.tools.filter(t => t.explicitSubagentId != null);
+    returned = true;
+  }
+  if (!returned) return;
+  root.tools.sort((x, y) => x.startedAt - y.startedAt);
+  trimTools(state, root);
+  // `trimTools` walks back only over the entries that just crossed the blob
+  // window and stops at the first one already released, so a returned call
+  // sorted in below an older released one is released here instead.
+  for (let i = 0; i < root.tools.length - TOOL_BLOB_WINDOW; i++) {
+    const t = root.tools[i];
+    if (t.trimmed) continue;
+    t.input = undefined;
+    t.response = undefined;
+    t.trimmed = true;
+  }
 }
 
 /** What a call left without an outcome says when the deck itself dropped events

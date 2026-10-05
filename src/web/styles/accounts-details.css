@@ -76,6 +76,7 @@
   .ver-banner .ver-close:active,
   .topbar .brand button.v:active,
   .ver-banner .ver-act:active:not(:disabled),
+  .rating-banner .rating-pick:active,
   .ctx-donut:active,
   .session-list .sl-row:active, button.tool.clickable:active,
   .uh-bar-col:active, .ap-failure-x:active,

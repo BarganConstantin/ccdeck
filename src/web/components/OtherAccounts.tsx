@@ -85,7 +85,7 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
                 A name nothing has ever been collected for gets no number and no
                 guess — see foldPeek on why it also sorts last. */}
             <span className="ap-fold-state" data-tone={p.ready ? "ok" : p.warn ? "warn" : "idle"}>
-              {p.ready ? (p.headroom == null ? "not read yet" : `${p.headroom}% free`) : p.why}
+              {p.ready ? (p.headroom == null ? "not read yet" : `${Math.round(p.headroom)}% free`) : p.why}
             </span>
           </span>
         ))}

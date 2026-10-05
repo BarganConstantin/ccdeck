@@ -192,7 +192,8 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   const now = useNow(1000);
 
   const naming = sessionDisplay(a.sessionName, a.sessionTitle);
-  const failed = a.tools.filter(x => x.ok === false).length;
+  // Over the agent's whole life, like the card's "err" (#1809).
+  const failed = a.toolErrorCount ?? 0;
   const inflight = a.tools.filter(x => !x.endedAt).length;
   const cost = agentCost(a, now).total;
   const tokens = a.usage.inputTokens + a.usage.outputTokens;

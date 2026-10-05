@@ -16,7 +16,7 @@
 // and Escape still close it from any step, and the arrow keys move either way.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped } from "../panel-press";
 
 export interface GuideStep {
@@ -43,6 +43,7 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
 }) {
   const nextRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: nextRef });
+  const scrimPress = useScrimDismiss(onClose);
   const [at, setAt] = useState(0);
   const last = at === steps.length - 1;
   const step = steps[at];
@@ -77,7 +78,7 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
   // Portalled because LanSyncSection opens this guide from inside the accounts
   // panel, and a modal is not the panel's to lay out — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal guide" onClick={e => e.stopPropagation()}
         onKeyDown={onKey} role="dialog" aria-modal="true" aria-labelledby="guide-title">
         <header className="modal-head">

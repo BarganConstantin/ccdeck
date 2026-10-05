@@ -26,7 +26,7 @@ import { shouldOfferService } from "../../server/login-service.mjs";
 // @ts-expect-error — plain .mjs, no types
 import { claudeConfigDir } from "../../server/claude-dir.mjs";
 // @ts-expect-error — plain .mjs, no types
-import { claudeDir, launcherScript, shellPath, writeLauncher } from "../../../desktop/deck-host.mjs";
+import { claudeDir, launcherScript, shellEnv, writeLauncher } from "../../../desktop/deck-host.mjs";
 import { rmTempDir } from "./rm-temp-dir";
 import { endStdin } from "./child-stdin";
 
@@ -44,8 +44,10 @@ describe("knowing the app is the host", () => {
   });
 
   it("writes that launcher into the hook command, quoted like any path", () => {
+    // After the fallback script's four words, which run it while it is there
+    // and the node on PATH once it is not (hook-command-node-fallback.test.ts).
     expect(hookCommand("/u/.claude/agent-dag/hook.js", "claude", "/u/.claude/agent-dag/ccdeck-node", "darwin"))
-      .toBe("'/u/.claude/agent-dag/ccdeck-node' '/u/.claude/agent-dag/hook.js' --provider 'claude'");
+      .toMatch(/^\/bin\/sh -c '[^']*' ccdeck-hook '\/u\/\.claude\/agent-dag\/ccdeck-node' '\/u\/\.claude\/agent-dag\/hook\.js' --provider 'claude'$/);
   });
 
   it("never offers its own login item — the app owns that switch", () => {
@@ -302,16 +304,16 @@ describe("the launcher the desktop app writes", () => {
 
 describe("the PATH an app started from the Dock is given", () => {
   it("reads the login shell's, ignoring whatever a profile prints", () => {
-    const run = () => "Welcome back!\n__CCDECK_PATH__/opt/homebrew/bin:/usr/bin";
-    expect(shellPath({ env: { SHELL: "/bin/zsh", PATH: "/usr/bin" }, platform: "darwin", run })).toBe("/opt/homebrew/bin:/usr/bin");
+    const run = () => "Welcome back!\n__CCDECK_ENV__PATH=/opt/homebrew/bin:/usr/bin\n";
+    expect(shellEnv({ env: { SHELL: "/bin/zsh", PATH: "/usr/bin" }, platform: "darwin", run }).PATH).toBe("/opt/homebrew/bin:/usr/bin");
   });
 
   it("keeps the current one when the shell cannot be asked", () => {
     const run = () => { throw new Error("timed out"); };
-    expect(shellPath({ env: { SHELL: "/bin/zsh", PATH: "/usr/bin:/bin" }, platform: "darwin", run })).toBe("/usr/bin:/bin");
+    expect(shellEnv({ env: { SHELL: "/bin/zsh", PATH: "/usr/bin:/bin" }, platform: "darwin", run }).PATH).toBe("/usr/bin:/bin");
   });
 
   it("does not ask on Windows, where GUI apps get the full PATH", () => {
-    expect(shellPath({ env: { PATH: "C:\\a" }, platform: "win32", run: () => { throw new Error("not called"); } })).toBe("C:\\a");
+    expect(shellEnv({ env: { PATH: "C:\\a" }, platform: "win32", run: () => { throw new Error("not called"); } }).PATH).toBe("C:\\a");
   });
 });

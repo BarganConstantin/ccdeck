@@ -357,11 +357,12 @@ describe("what the roster says about each account", () => {
     await read();
     expect(seen).toEqual([expect.objectContaining({ recovered: [], gone: [removed] })]);
 
-    // An emptied store forgets nothing: it is the one state where waiting costs nothing.
+    // An emptied store forgets what it no longer holds as well: a mark kept
+    // there is inherited by the same address arriving later by a share.
     store({}, null);
     seen.length = 0;
     await read();
-    expect(seen).toEqual([]);
+    expect(seen).toEqual([expect.objectContaining({ recovered: [], gone: [KEY, removed, unlisted] })]);
   });
 
   it("has no origins at all until the server hands them in", async () => {

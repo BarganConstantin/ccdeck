@@ -79,6 +79,9 @@ vi.mock("../../../desktop/updater-mac.mjs", async (importOriginal) => ({
   stageUpdate: vi.fn(),
   installOnExit: vi.fn(),
   discard: vi.fn(async () => {}),
+  // The apps here are at paths that are not on this disk; one that cannot be
+  // replaced is desktop-update-unreplaceable-app.test.ts's.
+  canReplace: vi.fn(async () => true),
 }));
 
 vi.mock("../../../desktop/relaunch-linux.mjs", () => ({ relaunchOnExit: vi.fn() }));
@@ -327,7 +330,7 @@ describe("the macOS update", () => {
     u.installOnQuit();
     expect(mac.installOnExit).toHaveBeenCalledTimes(1);
     // A plain Quit: the swap leaves the app closed (#1758).
-    expect(mac.installOnExit).toHaveBeenCalledWith({ pid: process.pid, target: "/Applications/ccdeck.app", ...staged, relaunch: false });
+    expect(mac.installOnExit).toHaveBeenCalledWith({ pid: process.pid, target: "/Applications/ccdeck.app", ...staged, relaunch: false, failed: join("/nowhere/userData", "update-swap-failed"), version: "3.27.0" });
   });
 
   it("reports a refused update as an error, and installs nothing on quit", async () => {

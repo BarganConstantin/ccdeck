@@ -65,7 +65,7 @@
 // labels do not say it again.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
 import { pressState } from "../panel-press";
 import { nextShared, settlePending } from "../lan-share";
@@ -111,6 +111,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("lan-setup");
   const dialogRef = useModalDismiss(onClose);
+  const scrimPress = useScrimDismiss(onClose);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [failure, setFailure] = useState<SettingsLine | null>(null);
   /** The fingerprint's copy word reads `copied` for a moment after it lands. */
@@ -240,7 +241,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal lan-modal" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="lan-modal-title">
         <header className="modal-head">

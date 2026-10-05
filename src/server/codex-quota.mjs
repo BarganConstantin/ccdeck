@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { cooldownFromHeader } from "./quota-oauth.mjs";
 import { join } from "node:path";
 import { CODEX_HOME } from "./codex-dir.mjs";
-import { getCodexAuth, forceCodexRefresh, isCredentialHost } from "./codex-auth.mjs";
+import { codexCredentialFingerprint, getCodexAuth, forceCodexRefresh, isCredentialHost } from "./codex-auth.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { resetLabel } from "./reset-label.mjs";
 
@@ -28,6 +28,11 @@ const DEFAULT_BASE = "https://chatgpt.com/backend-api";
 let _cache   = null;
 let _cacheAt = 0;
 const CACHE_MS = 60_000;
+// The last reading that had lanes in it, apart from `_cache`, which also holds
+// failures. A 429 is the backend asking for a pause, not a statement that the
+// lanes read a minute ago have stopped being true, so they are what is held
+// through it — as quota.mjs keeps its own `_lastGood` for the same case.
+let _lastGood = null;
 
 // The last base URL we refused, so the refusal is said once rather than once a
 // minute for as long as the config stays that way.
@@ -280,6 +285,12 @@ const FORCE_POLL_MS = 60_000;
 // _rateLimitedUntil, which is likewise never beaten by force.
 let _rateLimitedUntil = 0;
 const COOLDOWN_MS = 5 * 60_000;
+// Set when the cooldown above is for a refused login rather than a 429: the
+// fingerprint of the credential auth.json held when it was refused. That wait
+// is about the credential, and `codex login` — the very thing the panel tells
+// the user to run — replaces it; held to the clock alone, ↻ was answered with
+// the old refusal for five minutes after the login that fixed it.
+let _refusedWith = null;
 
 // Stamped when a fetch STARTS rather than when it lands: what the floor is
 // rationing is the round trip, and one that is still in flight has already been
@@ -323,10 +334,27 @@ export function fetchCodexQuota({ force = false } = {}) {
   // that has not landed yet is one.
   if (_inflight) return _inflight;
   if (!mayFetchQuota({ now, lastFetchAt: _lastFetchAt, rateLimitedUntil: _rateLimitedUntil })) {
+    // Past the floor and inside a refused login's cooldown, the one question
+    // worth asking is whether auth.json still holds what was refused — a local
+    // read, and the wire stays quiet unless the answer is no.
+    if (_refusedWith && mayFetchQuota({ now, lastFetchAt: _lastFetchAt, rateLimitedUntil: 0 })) {
+      return track((async () => {
+        if (await codexCredentialFingerprint() === _refusedWith) return heldReading(Date.now());
+        _rateLimitedUntil = 0;
+        _refusedWith = null;
+        _lastFetchAt = Date.now();
+        return doFetchCodexQuota();
+      })());
+    }
     return Promise.resolve(heldReading(now));
   }
   _lastFetchAt = now;
-  _inflight = doFetchCodexQuota().finally(() => { _inflight = null; });
+  return track(doFetchCodexQuota());
+}
+
+/** `run`, as the one outstanding fetch every caller joins until it settles. */
+function track(run) {
+  _inflight = run.finally(() => { _inflight = null; });
   return _inflight;
 }
 
@@ -335,7 +363,12 @@ async function doFetchCodexQuota() {
   // Stamped at completion, not at entry: the two calls below can take up to
   // 17s between them, and a cache entry that is already stale on arrival
   // shortens the effective TTL for no reason.
-  const finish = (r) => { _cache = r; _cacheAt = Date.now(); return r; };
+  const finish = (r) => {
+    _cache = r;
+    _cacheAt = Date.now();
+    if (r.ok && !r.stale) _lastGood = r;
+    return r;
+  };
   const fail   = (reason) => finish({ ok: false, reason, fetchedAt: started });
   // A refusal we were told about, rather than one we inferred: back off further
   // than the ordinary floor before asking again. `retry-after` is honoured when
@@ -345,6 +378,13 @@ async function doFetchCodexQuota() {
     // defeats the cooldown a 429 exists to impose, and a day freezes this
     // poller for the life of the process.
     _rateLimitedUntil = Date.now() + cooldownFromHeader(res?.headers?.get?.("retry-after"), COOLDOWN_MS);
+    _refusedWith = null;
+  };
+  // The same wait for a login that was refused, stamped with the credential it
+  // was refused for, so a new one ends it (see fetchCodexQuota).
+  const refused = async (res) => {
+    cooldown(res);
+    _refusedWith = await codexCredentialFingerprint();
   };
 
   let auth, base, res;
@@ -388,7 +428,7 @@ async function doFetchCodexQuota() {
         // The credential is gone and only `codex login` brings it back, so
         // rotating another single-use token at the next request would burn the
         // one the CLI is still holding. Wait.
-        if (refreshed.reason === "refresh_rejected") cooldown(null);
+        if (refreshed.reason === "refresh_rejected") await refused(null);
         return fail(refreshed.reason);
       }
       auth = refreshed;
@@ -398,9 +438,19 @@ async function doFetchCodexQuota() {
     if (!res.ok) {
       // A second 401 means the token we just rotated to was rejected as well —
       // the case that turned into one rotation per request. 429 is the backend
-      // saying the same thing in the ordinary way.
-      if (res.status === 401 || res.status === 429) cooldown(res);
-      return fail(res.status === 401 ? "refresh_rejected" : `http_${res.status}`);
+      // saying the same thing in the ordinary way, and it says nothing against
+      // the lanes already read: they are held, stale, through the wait, and
+      // without any the panel is told the deck is waiting rather than to press
+      // a ↻ the cooldown refuses.
+      if (res.status === 401) {
+        await refused(res);
+        return fail("refresh_rejected");
+      }
+      if (res.status === 429) {
+        cooldown(res);
+        return _lastGood ? finish({ ..._lastGood, stale: true }) : fail("rate_limited");
+      }
+      return fail(`http_${res.status}`);
     }
   } catch (err) {
     console.error(`${PRODUCT} codex-quota: fetch failed:`, err?.message ?? err);

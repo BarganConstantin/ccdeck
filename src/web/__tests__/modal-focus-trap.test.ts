@@ -277,7 +277,8 @@ describe("the deck's ten overlays", () => {
     // network map, opened from Local network's row and its view's header.
     // The twenty-first is the feedback dialog, opened from Appearance (#1853).
     // The twenty-second is the re-sign-in prompt over the canvas (#1893).
-    expect(MODALS.length).toBe(22);
+    // The twenty-third stands in for a lazy dialog whose chunk did not arrive.
+    expect(MODALS.length).toBe(23);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -347,6 +348,9 @@ describe("the deck's ten overlays", () => {
       // first control is the pencil that renames the machine, which a stray
       // Enter should not reach.
       "LanPeerModal.tsx",
+      // A dialog whose chunk did not arrive names Reload, the one press that
+      // brings the dialog back; Close is beside it and Escape still closes.
+      "LazyDialog.tsx",
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.

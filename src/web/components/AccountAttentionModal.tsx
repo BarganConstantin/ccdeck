@@ -13,7 +13,7 @@
 // row in the panel stays marked, and this incident is not asked about again.
 // Escape, the backdrop and the × all mean the same "Not now".
 import { useRef, type Ref } from "react";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { modalStack } from "../modal-dismiss";
 import {
   attentionLead, attentionTitle, LATER_EXPLAINED, LOGIN_EXPIRED, promptShows, SINGLE_NOTE, type AttentionRow,
@@ -90,8 +90,9 @@ interface Props {
 export default function AccountAttentionModal({ rows, onSignIn, onLater }: Props) {
   const firstRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onLater, { focusRef: firstRef });
+  const scrimPress = useScrimDismiss(onLater);
   return (
-    <div className="modal-backdrop" onClick={onLater} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
         className="modal reauth-ask"
@@ -126,12 +127,21 @@ export default function AccountAttentionModal({ rows, onSignIn, onLater }: Props
  * by then, and an empty list is no dialog. And it waits for any other dialog to
  * close before it first appears — see promptShows. The stack is read on each
  * render, which the board's clock brings every quarter second.
+ *
+ * AND IT WAITS FOR A PAIRING REQUEST going up in the same render, which counts
+ * as one more dialog (`pairing`). That request is not on the stack until after
+ * the render that draws it, so when a dialog both were waiting on closed, they
+ * came up together, this one over the request it is meant to follow.
  */
-export function AccountAttention({ rows, signingIn, signIn, signedIn, refresh, closeSignIn, later }: Attention) {
+export function AccountAttention({ rows, signingIn, signIn, signedIn, refresh, closeSignIn, later, pairing = false }: Attention & {
+  /** A pairing request is up, or goes up in this render — DeckDialogs. */
+  pairing?: boolean;
+}) {
   // Whether the prompt — or the sign-in it opened — was up last render.
   const oursRef = useRef(false);
+  const dialogs = modalStack.dialogDepth() + (pairing ? 1 : 0);
   const shows = signingIn != null
-    || promptShows({ rows: rows.length, ours: oursRef.current, dialogs: modalStack.dialogDepth() });
+    || promptShows({ rows: rows.length, ours: oursRef.current, dialogs });
   oursRef.current = shows;
   if (signingIn) {
     return (

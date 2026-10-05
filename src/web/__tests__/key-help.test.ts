@@ -167,7 +167,8 @@ describe("the way in", () => {
     // entrance and the reduced-motion answer, and the shared hook carries
     // Escape, the focus trap and the hand-back.
     expect(sheet).toMatch(/const dialogRef = useModalDismiss\(onClose\);/);
-    expect(sheet).toMatch(/<div className="modal-backdrop" onClick=\{onClose\} role="presentation">/);
+    expect(sheet).toMatch(/const scrimPress = useScrimDismiss\(onClose\);/);
+    expect(sheet).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
     expect(sheet).toMatch(/className="modal key-help"/);
     expect(sheet).toMatch(/aria-modal="true"/);
   });

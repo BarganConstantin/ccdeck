@@ -189,6 +189,13 @@
 }
 .cc-final { margin: 0; color: var(--text); font-size: 12px; font-weight: 500; }
 
+/* ---------------- a dialog whose chunk did not arrive ---------------- */
+
+/* One sentence and two buttons, sized like the clear prompt (LazyDialog.tsx). */
+.modal.dialog-missing { width: min(440px, 92vw); }
+.dm-note { margin: 0; color: var(--text); font-size: 12px; line-height: 1.5; }
+.dm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
 /* ---------------- feedback (#1853) ---------------- */
 
 /* ONE THING TO DO. The dialog is a question and a field to answer it in: the

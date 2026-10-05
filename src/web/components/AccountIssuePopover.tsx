@@ -8,6 +8,7 @@
 // the issue's own: a row's warning, the notice over the list and this popover's
 // title are the three places it is drawn, and the panel imports it for the
 // other two.
+import { useRef } from "react";
 import AnchoredPopover from "./AnchoredPopover";
 import { type AccountIssue } from "../account-issue";
 import { ago } from "../account-freshness";
@@ -53,6 +54,10 @@ interface Props {
  * moves nothing.
  */
 export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, fetchedAt, nowSec, onClose, onSignIn, onReport }: Props) {
+  // Focus opens on Done. Report this is first in the DOM, held left, and was
+  // the first control the dismiss hook found: a keyboard Enter after opening
+  // the popover filed a report instead of answering it.
+  const doneRef = useRef<HTMLButtonElement>(null);
   return (
     <AnchoredPopover
       anchorId={anchorId}
@@ -61,6 +66,7 @@ export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, 
       className="ap-pop ap-issue-pop"
       role="dialog"
       labelledBy="ap-issue-title"
+      focusRef={doneRef}
       onClose={() => onClose()}
     >
       <div className="ap-pop-form">
@@ -85,7 +91,7 @@ export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, 
               Report this
             </button>
           )}
-          <button type="button" className="btn" onClick={() => onClose(true)}>Done</button>
+          <button type="button" ref={doneRef} className="btn" onClick={() => onClose(true)}>Done</button>
           {issue.fix && (
             <button type="button" className="btn primary" onClick={() => { onClose(true); onSignIn(); }}
               title="Open the sign-in dialog. Signing in as this account puts its login back in this slot — it keeps its slot, its alias and its history.">

@@ -1,10 +1,12 @@
 // Which agent an event belongs to, and the nodes that answer the question.
 //
-// CC's tool-call hooks carry no agent_id of their own, so most traffic has to be
-// attributed: to the subagent the payload names when that subagent exists, else
-// to the deepest one still live on the session's stack, else to the root. A root
-// is created by the first event heard from its session; a subagent only ever by
-// its own `SubagentStart`, so a stray key on a terminal event cannot conjure one.
+// Older CC tool-call hooks carry no agent_id of their own, so their traffic has
+// to be attributed: to the subagent the payload names when that subagent exists,
+// else to the deepest one still live on the session's stack, else to the root.
+// A session whose subagents name themselves skips the stack (`keyedSubagents`).
+// A root is created by the first event heard from its session; a subagent only
+// ever by its own `SubagentStart`, so a stray key on a terminal event cannot
+// conjure one.
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { looksLikeId, readableBasename } from "./readable-name";
 import { emptyUsage } from "./usage-wire";
@@ -94,7 +96,9 @@ export function lookupSubagent(state: GraphState, sessionId: string, key: string
  *  - If the payload explicitly names a subagent (agent_id / parent_tool_use_id)
  *    AND that subagent already exists, that subagent is the owner.
  *  - Otherwise, attribute to the deepest currently-active subagent of this
- *    session if any, else to the root session.
+ *    session if any, else to the root session — unless a subagent of this
+ *    session has already named itself on its own traffic, in which case an
+ *    event naming nobody is the root's (see `keyedSubagents` in types.ts).
  *
  *  Critically, this never CREATES a subagent — only SubagentStart does.
  *  Earlier versions auto-created on first sight of any explicit key, which
@@ -112,8 +116,11 @@ export function resolveOwner(state: GraphState, p: HookPayload, now: number): Ag
     // attribution rather than fabricating one.
   }
 
-  // No (resolvable) explicit subagent. Attribute to top of active stack.
-  const stack = state.activeSubagentStack.get(sessionId);
+  // No (resolvable) explicit subagent. Attribute to top of active stack —
+  // only for a session whose subagents have never named themselves, because
+  // in one that has, naming nobody is what the main thread's calls look like.
+  const keyed = state.agents.get(rootAgentId(sessionId))?.keyedSubagents === true;
+  const stack = keyed ? undefined : state.activeSubagentStack.get(sessionId);
   const topKey = stack && stack.length > 0 ? stack[stack.length - 1] : null;
   if (topKey) {
     const sub = state.agents.get(subagentIdFor(sessionId, topKey));
@@ -160,6 +167,20 @@ export function resolveOwner(state: GraphState, p: HookPayload, now: number): Ag
   adoptCwd(root, p);
   adoptRootLabel(root, p);
   return root;
+}
+
+/** Note that a subagent of this session named itself on its own traffic, and
+ *  answer true when that is news — the moment the session stops being
+ *  attributed by the stack. `SubagentStart` and `SubagentStop` are not
+ *  evidence: they carry an agent_id on versions whose subagent calls do not.
+ *  See `keyedSubagents` in types.ts. */
+export function noteKeyedSubagent(state: GraphState, name: string, p: HookPayload, sessionId: string): boolean {
+  if (name === "SubagentStart" || name === "SubagentStop") return false;
+  if (typeof p.agent_id !== "string" || p.agent_id === "") return false;
+  const root = state.agents.get(rootAgentId(sessionId));
+  if (!root || root.keyedSubagents) return false;
+  root.keyedSubagents = true;
+  return true;
 }
 
 export function ensureSubagent(state: GraphState, sessionId: string, key: string, p: HookPayload, now: number): AgentNodeData {

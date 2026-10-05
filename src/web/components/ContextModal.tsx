@@ -17,7 +17,7 @@ import { fmtBytes } from "../byte-format";
 import { fmtCost } from "../pricing";
 import { effectiveContextWindow } from "../context-window";
 import { agentCost } from "../usage-models";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 /** Every line in this modal whose truth depends on which CLI the session is.
  *
@@ -109,6 +109,7 @@ export default function ContextModal({ agent, onClose }: Props) {
   // the question of where focus went when it closed.
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const scrimPress = useScrimDismiss(onClose);
 
   const ctx = agent.context;
   const usage = agent.usage;
@@ -151,7 +152,7 @@ export default function ContextModal({ agent, onClose }: Props) {
   const copy = contextCopy(agent.provider);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Context breakdown">
         <header className="ctx-modal-head">
           <div>

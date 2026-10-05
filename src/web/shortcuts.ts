@@ -127,7 +127,12 @@ export function ownsKeystroke(t: FocusTarget | null | undefined, key?: string): 
   // no use for a letter; what it owns is Space and Enter, which stay its own so
   // the press that activates it is never stolen. Reached by Tab, it keeps
   // every key, as before.
-  if (key != null && key.length === 1 && key !== " " && t.pointerFocused && isButtonLike(t)) return false;
+  //
+  // Delete joins the letters. Selecting a card through a button — a session
+  // row, a session's name on the canvas, the ribbon — leaves focus on that
+  // button, and Delete is the deck's Remove from board; a button has no use for
+  // it. Esc was no way round, because Esc also clears the selection.
+  if (key != null && (key.length === 1 || key === "Delete") && key !== " " && t.pointerFocused && isButtonLike(t)) return false;
   if (KEY_OWNING_TAGS.has(tagOf(t))) return true;
   // role takes a whitespace-separated fallback list; an interactive role
   // anywhere in it is enough reason for us to stay out of the way.
@@ -165,6 +170,24 @@ export function shortcutBlocked(
 ): boolean {
   if (!modalOpen) return false;
   return !(key === "?" && sheetOpen);
+}
+
+/**
+ * Whether this keystroke is `?` closing the shortcuts sheet, which it does
+ * whatever in the sheet has focus.
+ *
+ * The exception above was never reached from the keyboard. Opening the sheet
+ * hands focus to its first stop, the header ×, by program — so that button is
+ * not one the mouse pressed (#851), `ownsKeystroke` keeps every key for it, and
+ * the handler returned on that gate before it got here. `?` closed the sheet
+ * only when the mouse had opened it, inside the moment that marks a focus as
+ * the pointer's. Nothing in the sheet answers `?` itself; a text field would,
+ * so one keeps it.
+ */
+export function closesKeySheet(
+  { key, sheetOpen, target }: { key: string; sheetOpen: boolean; target: FocusTarget | null | undefined },
+): boolean {
+  return sheetOpen && key === "?" && !isTypingTarget(target);
 }
 
 /**

@@ -128,7 +128,7 @@ describe("the tick an account gets when it arrives", () => {
     // is updatePrefs — so the tick is still computed inside the job — and the
     // engine is handed the list that write returned.
     expect(onShared).toMatch(/const after = await heldPrefs\.update\(withShared\(key\)\)/);
-    expect(onShared).toMatch(/lanEngine\.apply\(\{ shared: after\.lan\.shared \}\)/);
+    expect(onShared).toMatch(/lanEngine\.apply\(\{ shared: after\.lan\.shared, onward: after\.lan\.onward \}\)/);
     const held = readFileSync(fileURLToPath(new URL("../../server/prefs-state.mjs", import.meta.url)), "utf8");
     expect(held).toMatch(/update: async mutate => \(_prefs = await updatePrefs\(mutate\)\)/);
   });
@@ -252,6 +252,8 @@ describe("the fields the engine authors", () => {
       enabled: true,
       name: "Deck-B",
       shared: ["a@example.test@@org-1"],
+      // Which of those an arrival ticked, read from the same copy as `shared`.
+      onward: [],
       autoAsk: true,
       autoAccept: false,
       // A page owns the pairing mode too (#1236); absent is automatic.

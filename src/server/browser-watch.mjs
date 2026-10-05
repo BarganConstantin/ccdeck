@@ -278,8 +278,9 @@ function occupy(read) {
  *
  * It costs a `dig`, a `pgrep` per browser and an `lsof` per running one — up to
  * a dozen subprocesses — and none of what it reports moves quickly: a browser
- * does not get installed twice a minute. Thirty seconds is far below the
- * interval the badge polls on and far above the rate a person clicks Refresh.
+ * does not get installed twice a minute. Thirty seconds is far above the rate
+ * a person clicks Refresh. Only the panel's own reads come here: the badge's
+ * background poll does not survey (see browserWatchSnapshot).
  */
 const SURVEY_TTL_MS = 30_000;
 let surveyCache = { atMs: 0, rows: [] };
@@ -857,7 +858,12 @@ export async function browserWatchSnapshot({
   // database and can take a second.
   _checkedMs = now;
 
-  const browsers = await surveyBrowsers(platform, env, now, deps);
+  // THE SURVEY ONLY FOR SOMEBODY LOOKING. Its first step is a `dig` for the
+  // relay's address, a DNS query to whatever resolver the machine uses, which
+  // leaves the machine — and the badge's background poll reads none of what it
+  // finds, only the episodes and the switch. So that poll answers with the last
+  // survey the panel asked for, and asks nobody anything.
+  const browsers = readBrowsers ? await surveyBrowsers(platform, env, now, deps) : surveyCache.rows;
   // Two small reads, and the answer to the one question this panel exists
   // beside: whether somebody else's Claude Code can drive this browser (#799).
   const relay = await relayGuard(profiles, { platform, env, deps }).catch(() => null);

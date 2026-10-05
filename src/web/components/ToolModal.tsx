@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ToolCall } from "../types";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 // The row that opens this dialog printed the same milliseconds one decimal
 // place coarser, so a 1.24s tool read "1.2s" there and "1.24s" here (#374).
 // One function now; the sentinel below is the only thing that still differs.
@@ -23,17 +23,44 @@ export default function ToolModal({
   // missing is the ref below, without which there is no boundary to hold Tab
   // inside and the claim on the surface tag is a claim about nothing.
   const dialogRef = useModalDismiss(onClose);
+  const scrimPress = useScrimDismiss(onClose);
 
   const status =
     tool.endedAt == null ? "inflight"
     : tool.ok === false  ? "err"
     :                       "done";
 
-  // The full payloads while the reducer still holds them, the previews once it
-  // has released them (see `trimmed` below).
-  const input = tool.input ?? tool.inputPreview;
-  const response = tool.response ?? tool.errorPreview;
-  const view = toolView(tool.name, input, response);
+  // The full payloads while they are held, the previews once they are not (see
+  // `released` below). HELD HERE AS WELL AS IN THE REDUCER: trimTools lets go of
+  // a call's payloads once 25 newer calls land, in place, on the very ToolCall
+  // this renders — so a dialog opened on a working agent's newest call read its
+  // Input as the 80-character preview and its Response as "(none)" a minute
+  // later, while it was being read. What this dialog has seen of the call it
+  // keeps until it closes; a call that was already released when it opened has
+  // nothing here to keep, and says so.
+  const held = useRef<{ of: ToolCall | null; input?: unknown; response?: unknown }>({ of: null });
+  if (held.current.of !== tool) held.current = { of: tool };
+  if (tool.input !== undefined) held.current.input = tool.input;
+  if (tool.response !== undefined) held.current.response = tool.response;
+  const input = held.current.input ?? tool.inputPreview;
+  const response = held.current.response ?? tool.errorPreview;
+  const released = tool.trimmed === true && held.current.input === undefined && held.current.response === undefined;
+  // ONCE PER PAYLOAD, NOT ONCE PER RENDER. The board's tick re-renders the deck
+  // four times a second and this dialog with it, and every piece of this walks
+  // the whole payload: toolView reads it all, a generic tool's copy string is
+  // its JSON, and a block splits its full text to show sixty lines of it — tens
+  // of milliseconds a tick on a multi-megabyte Read or WebFetch result. The
+  // blocks are made here too, so a tick hands React the same elements and it
+  // skips them rather than drawing an opened block's thousands of lines again.
+  const drawn = useMemo(() => {
+    const view = toolView(tool.name, input, response);
+    return {
+      input: view.input.map((b, n) => <ToolBlock key={n} block={b} />),
+      response: view.response.map((b, n) => <ToolBlock key={n} block={b} />),
+      copyInput: copyOf(tool.name, "input", input),
+      copyResponse: copyOf(tool.name, "response", response),
+    };
+  }, [tool.name, input, response]);
 
   return (
     // The scrim is the dismiss gesture, not the dialog: with role="dialog" on
@@ -41,7 +68,7 @@ export default function ToolModal({
     // and announced an unnamed "dialog", because neither element carried a
     // name. The name is the tool, which is the only thing that tells one of
     // these apart from the next.
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="tool-modal-title">
         <header className="modal-head">
           <div className="modal-title">
@@ -62,7 +89,7 @@ export default function ToolModal({
         </header>
 
         <section className="modal-body">
-          {tool.trimmed && (
+          {released && (
             <div className="modal-section">
               <p className="modal-note">
                 Full payloads for this call were released to keep memory bounded — only
@@ -73,18 +100,18 @@ export default function ToolModal({
           <div className="modal-section">
             <div className="tm-head">
               <h4>Input</h4>
-              <CopyButton text={copyOf(tool.name, "input", input)} what="input" />
+              <CopyButton text={drawn.copyInput} what="input" />
             </div>
-            {view.input.map((b, n) => <ToolBlock key={n} block={b} />)}
+            {drawn.input}
           </div>
           <div className="modal-section">
             <div className="tm-head">
               <h4>Response {status === "err" && <span className="err-tag">error</span>}</h4>
-              {tool.endedAt != null && <CopyButton text={copyOf(tool.name, "response", response)} what="response" />}
+              {tool.endedAt != null && <CopyButton text={drawn.copyResponse} what="response" />}
             </div>
             {tool.endedAt == null
               ? <pre>(waiting…)</pre>
-              : view.response.map((b, n) => <ToolBlock key={n} block={b} />)}
+              : drawn.response}
           </div>
         </section>
       </div>
@@ -112,7 +139,9 @@ export function ToolBlock({ block }: { block: Block }) {
       </p>
     );
   }
-  const lines = linesOf(block);
+  // Split once per block: opening it or closing it again is no reason to cut
+  // the whole text into lines a second time.
+  const lines = useMemo(() => linesOf(block), [block]);
   const { shown } = clip(lines, open);
   const more = moreControl(lines, open);
   return (

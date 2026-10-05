@@ -43,7 +43,7 @@ import { parseArgs } from "../src/server/args.mjs";
 import { holdOutput, npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, currentName, installedName, installedVersion,
-  isNpxInstall, lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure,
+  lastKnownLatest, npxRestartSpec, oneOffRunner, readRestartFailure, recordRestartFailure,
   successorRoot,
 } from "../src/server/self-update.mjs";
 import {
@@ -98,22 +98,27 @@ const LEASHED = typeof process.send === "function";
 const FLAGS = parseArgs(process.argv.slice(2));
 if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {
   const { deckLogDir } = await import("../src/server/deck-home.mjs");
-  const { registeredDecks } = await import("../src/server/running-deck.mjs");
+  const { deckRegistryDir, registeredDecks } = await import("../src/server/running-deck.mjs");
+  const { BOOT_LOCK_FILE } = await import("../src/server/boot-lock.mjs");
   const isTTY = Boolean(process.stdout.isTTY);
   const profile = colorProfile({ isTTY });
   const tone = palette(profile);
-  const npx = isNpxInstall(PKG_ROOT);
+  // npx, pnpm dlx, bunx or yarn dlx: the runner the background line's two
+  // commands go through, since none of them leaves the command on PATH.
+  const runner = oneOffRunner(PKG_ROOT);
   const outcome = await detachAndWatch({
     file: fileURLToPath(import.meta.url),
     argv: process.argv.slice(2),
     logDir: deckLogDir(),
-    // Only the count, and only to decide whether deck.log is anybody's — see
-    // logMode. No handshake: this is a directory listing and a signal-0 each.
+    // Only the count and the boot lock, and only to decide whether deck.log is
+    // anybody's — see startsFresh. No handshake: this is a directory listing
+    // and a signal-0 each.
     liveCount: (await registeredDecks().catch(() => [])).length,
+    booting: existsSync(join(deckRegistryDir(), BOOT_LOCK_FILE)),
     isTTY,
     profile,
     columns: termColumns(process.stdout),
-    backgroundLine: backgroundNote({ npx, invokedAs: INVOKED_AS, product: PRODUCT, tone, g: G }),
+    backgroundLine: backgroundNote({ runner, invokedAs: INVOKED_AS, product: PRODUCT, tone, g: G }),
   });
   // detachAndWatch never returns on the paths that worked. Reaching this line
   // means the log could not be opened at all — a read-only home, a full disk —
@@ -136,6 +141,10 @@ claimRestartFailureKey();
 // Re-launching without this is how a restart silently moves the deck out from
 // under an open tab.
 let boundPort = null;
+// What the last worker said about the Claude hooks ("ok", "failed", "off"),
+// handed to the next one: a respawn on the same version installs nothing, so
+// this is the only way it can say what the session's hooks are (activation.mjs).
+let bootHooks = "";
 let restarts = 0;
 let child = null;
 // The npx process fetching a replacement, while the worker above keeps serving.
@@ -212,6 +221,9 @@ function launch(respawn) {
       // different one installs them again. Empty for "we could not tell",
       // which the worker reads as different.
       AGENTS_DECK_BOOT_VERSION: VERSION === "?" ? "" : VERSION,
+      // And how the hooks went, as the last worker said. Empty for "nobody has
+      // said", which the worker reports as nothing rather than a guess.
+      AGENTS_DECK_BOOT_HOOKS: bootHooks,
       AGENTS_DECK_RESTARTS: String(restarts),
       // Empty for "we could not tell", which knownCommand reads as unknown just
       // like an absent one. Set on the worker's environment only: the npx
@@ -227,6 +239,7 @@ function launch(respawn) {
   worker.on("message", (m) => {
     if (!m || typeof m !== "object") return;
     if (m.type === "listening" && typeof m.port === "number") boundPort = m.port;
+    else if (m.type === "setup" && ["ok", "failed", "off"].includes(m.claudeHooks)) bootHooks = m.claudeHooks;
     // The worker saying its boot is finished — every row printed, the browser
     // launched. Forwarded to whoever detached us, who has been tailing the log
     // into the user's terminal and is waiting for exactly this to stop.

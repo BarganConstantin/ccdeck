@@ -14,16 +14,17 @@ import { describe, expect, it } from "vitest";
 import { isValidElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { LanPairRequests } from "../components/LanPairRequestModal";
+import { pairRequestFor } from "../components/LanPairRequestModal";
 import type { LanStranger } from "../lan-types";
 
 const ask = (fp: string, name: string, at: number): LanStranger => ({ fp, name, addr: "192.168.1.9", port: 62259, at });
 const first = ask("aa11", "trusted-mac", 1_000);
 const second = ask("bb22", "stranger", 2_000);
 
-/** What DeckDialogs mounts for this queue, with answers that go nowhere. */
+/** The dialog DeckDialogs mounts for this queue, once it is its turn (see
+ *  lan-pair-request-waits.test.ts), with answers that go nowhere. */
 function dialogFor(lanPending: LanStranger[]) {
-  return LanPairRequests({
+  return pairRequestFor({
     lanPending,
     lanDeferred: { current: new Set() },
     lanBusy: null,

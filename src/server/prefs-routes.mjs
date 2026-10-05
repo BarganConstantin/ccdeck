@@ -7,7 +7,7 @@
 // engine had (lan-deck.mjs): what is left of them is a body read, a write
 // through the one, a push to the other, and an answer. The notifier stays in
 // index.mjs, beside the desktop-app connections it notifies through.
-import { notificationsOn, notificationsVetoed, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed } from "./deck-prefs.mjs";
+import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed } from "./deck-prefs.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
@@ -52,13 +52,10 @@ export async function handlePrefsWrite(req, res) {
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
-  // The reports switch has consequences a plain write would skip — a deletion
-  // asked for — so it is changed only through /api/reports, and its state never
-  // by the page at all (#1853).
-  // Which accounts the deck signed in is the deck's to record, on a sign-in it
-  // ran itself (#1893); a page that could write it could give any account a
-  // provenance it never had.
-  const { reports: _reports, report: _report, accounts: _accounts, ...patch } = body;
+  // Only the fields the page edits. The rest — the LAN key and pairings, the
+  // reports switch (#1853), the reporter's state, the accounts the deck signed
+  // in (#1893) — are the deck's own and keep what is on disk; see pagePatch.
+  const patch = pagePatch(body);
   try {
     await heldPrefs.write(patch);
   } catch (err) {

@@ -14,7 +14,7 @@ import { shortModel } from "../model-label";
 import { agentLabel, usageSubtitle } from "../provider-copy";
 import { agentColor, agentTotals, sharePct } from "../usage-agents";
 import type { Providers } from "../providers";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
 import { selfPressProps } from "../panel-press";
 import { byCost, historyTotals, legendOf, modelColor, percentOf } from "../usage-history";
@@ -44,6 +44,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   // other modal on the deck starts on its dismiss control too.
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const scrimPress = useScrimDismiss(onClose);
 
   const view = usageView({
     loading,
@@ -92,7 +93,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   const selectedDay = selected ? days.find(d => d.period === selected) ?? null : null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal uh-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Usage history">
         <header className="uh-head">
           <div className="uh-titlewrap">

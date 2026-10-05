@@ -13,7 +13,7 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
-import { RESTART_CODE, UPGRADE_CODE, dieWithParent } from "../src/server/supervisor.mjs";
+import { RESTART_CODE, UPGRADE_CODE, dieWithParent, signalExitAction } from "../src/server/supervisor.mjs";
 import { parseArgs, startPort, wantsCli } from "../src/server/args.mjs";
 import { unregisteredDetail } from "../src/server/pulse-line.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
@@ -33,7 +33,7 @@ import { offerLoginItem } from "./cli/login-item.js";
 import { oneShot } from "./cli/one-shot.js";
 // The terminal the boot draws in: palette, glyphs, rows, the wordmark and the spinner.
 import {
-  G, P, fileLink, printBanner, showCursor, step, takeCursor, tty, write,
+  G, P, fileLink, onHangup, printBanner, showCursor, step, takeCursor, tty, write,
 } from "./cli/screen.js";
 // The once-per-session work and the rows that report it.
 import { reportReady, reportRestarted, reportStartup, respawnHooks, startupWork } from "./cli/startup.js";
@@ -200,7 +200,11 @@ const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftove
 const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 // What this boot set up, for the usage reports — see activation.mjs.
-const { noteSetup } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
+const { noteSetup, respawnHooksJob } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
+// And the site page the command came from, which only a new install's first
+// report carries — see install-ref.mjs.
+const { noteRef } = await import(pathToFileURL(join(PKG_ROOT, "src/server/install-ref.mjs")).href);
+noteRef(flags.ref);
 
 // Resolved here rather than left as typed, for the reason the events log above
 // is: the discovery file publishes this path, and the hook that reads it runs in
@@ -398,15 +402,33 @@ const starting = startServer({
 // the one the session started on — see respawnHooks.
 if (!RESPAWN) {
   const jobs = startupWork({ wantClaude, installHooks, leftoverCodexHooks });
-  noteSetup({ claude: jobs.hooks, codex: wantCodex });
+  handDownSetup(noteSetup({ claude: jobs.hooks, codex: wantCodex }));
   jobs.cswapQuiet.then(settleCswap);
   await printBanner();
   await reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR });
 } else {
   settleCswap();
-  // The session's first boot installed the hooks; a respawn says the same.
-  noteSetup({ claude: wantClaude ? { ok: true } : null, codex: wantCodex });
-  await respawnHooks({ wantClaude, installHooks, bootVersion: process.env.AGENTS_DECK_BOOT_VERSION });
+  // What a respawn says about the hooks is what it saw: its own re-install when
+  // the package changed under the session, else the first boot's answer as the
+  // supervisor handed it down — never an "ok" it assumed. See respawnHooksJob.
+  const reinstall = respawnHooks({ wantClaude, installHooks, bootVersion: process.env.AGENTS_DECK_BOOT_VERSION });
+  handDownSetup(noteSetup({
+    claude: respawnHooksJob({ wantClaude, reinstall, carried: process.env.AGENTS_DECK_BOOT_HOOKS }),
+    codex: wantCodex,
+  }));
+  await reinstall;
+}
+
+/** The hooks' answer, told to the supervisor, which hands it to the next
+ *  respawn in AGENTS_DECK_BOOT_HOOKS: a respawn on the same version installs
+ *  nothing, and this is how it can still say what the session's hooks are.
+ *  Guarded, and given a callback, like every send down a channel the other end
+ *  may have closed. */
+function handDownSetup(said) {
+  said.then(({ claudeHooks }) => {
+    if (!claudeHooks || !process.connected) return;
+    try { process.send({ type: "setup", claudeHooks }, () => {}); } catch { /* nobody supervising */ }
+  }).catch(() => {});
 }
 
 // Usually settled long ago by the time we get here, which is the point: `step`
@@ -558,7 +580,9 @@ async function shutdown(code = 0) {
     // Before anything that can take time: a Ctrl+C the user has to watch for a
     // second and a half is a second and a half without a cursor.
     showCursor();
-    if (tty && code !== RESTART_CODE && code !== UPGRADE_CODE) {
+    // Nothing for a terminal that hung up (onHangup, below): it is not there.
+    const hungUp = code === hangupCode();
+    if (tty && code !== RESTART_CODE && code !== UPGRADE_CODE && !hungUp) {
       write(`\n\n  ${P.warn}${G.stop}  shutting down${G.ellipsis}${P.reset}\n`);
     }
     // WHAT THIS DECK STARTED, ENDED WITH IT. Every deadline in exec.mjs lives
@@ -626,6 +650,17 @@ async function shutdown(code = 0) {
 }
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
+// A terminal closed under a `--foreground` deck, or a console window closed on
+// Windows, which Node reports as SIGHUP. Dying of it on the spot dropped every
+// append already acknowledged, left the discovery record for the hooks and
+// gave the LAN no goodbye, so it takes the way out the other two take. With
+// the hangup's own exit code, so the supervisor reads what it read before; and
+// with nothing written to the terminal that is gone — a write there fails, and
+// an unhandled 'error' on stdout would end the shutdown halfway.
+onHangup(() => {
+  for (const out of [process.stdout, process.stderr]) out.on("error", () => {});
+  shutdown(hangupCode());
+});
 process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDiscovery(discoveryFile); });
 // The boot lock's `exit` handler is NOT here with its siblings. It is armed up
 // beside `let bootLock = null;`, above the start gate, because the three ways
@@ -633,6 +668,13 @@ process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDis
 // see the note there (#980).
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+/** The code a death by SIGHUP is reported as, 129: what a hangup that runs
+ *  shutdown instead of dying of it exits with. A function, like shutdown, so
+ *  it is there at any instant of the boot. */
+function hangupCode() {
+  return signalExitAction("SIGHUP").code;
+}
 
 // The deck is up and the discovery file could not be written. Said in full —
 // the path, the reason — because the alternative is what this replaced: an

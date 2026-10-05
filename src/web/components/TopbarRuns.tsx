@@ -12,6 +12,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { selfPressProps } from "../panel-press";
 import { finishSoundTitle } from "../provider-copy";
 import type { Providers } from "../providers";
+import type { PanelToggles } from "../use-panel-return";
 import type { useAppearance } from "../use-appearance";
 import type { useChimePlayer } from "../use-chime-player";
 import type { useClaudeFm } from "../use-claude-fm";
@@ -22,16 +23,19 @@ import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
 import AppearanceMenu from "./AppearanceMenu";
 import SoundMenu from "./SoundMenu";
+import TopbarMore from "./TopbarMore";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
 /** Session list, Usage and its History. */
-export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen, setUsagePanelOpen, setUsageHistoryOpen }: {
+export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen, setUsagePanelOpen, setUsageHistoryOpen, toggles }: {
   sessionListOpen: boolean;
   toggleSessionList: () => void;
   usagePanelOpen: boolean;
   setUsagePanelOpen: Toggle;
   setUsageHistoryOpen: Toggle;
+  /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
+  toggles: PanelToggles;
 }) {
   return (
     <div className="action-run">
@@ -63,6 +67,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
           the three TEXT buttons that went with it, not about a 24px
           glyph. */}
       <button
+        ref={toggles.sessionList}
         className="btn icon-btn"
         onClick={toggleSessionList}
         title={`${sessionListOpen ? "Hide" : "Show"} session list (L)`}
@@ -84,6 +89,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
         <span className="tb-word">Session list</span>
       </button>
       <button
+        ref={toggles.usage}
         className="btn icon-btn"
         onClick={() => setUsagePanelOpen(o => !o)}
         title={`${usagePanelOpen ? "Hide" : "Show"} usage panel (U)`}
@@ -114,7 +120,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
           needed. The label says "Open" rather than "Toggle", and
           aria-haspopup says what kind of thing opens. */}
       <button
-        className="btn icon-btn"
+        className="btn icon-btn tb-fold"
         onClick={() => setUsageHistoryOpen(o => !o)}
         title="Usage history — ccusage (H)"
         aria-label="Open usage history"
@@ -138,7 +144,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
 /** Accounts, Machine and Browser watch. */
 export function SourceRun({
   providers, accountsPanelOpen, toggleAccountsPanel, machinePanelOpen, setMachinePanelOpen,
-  watchOn, watchUnseen, setBrowserWatchOpen,
+  watchOn, watchUnseen, setBrowserWatchOpen, toggles,
 }: {
   providers: Providers;
   accountsPanelOpen: boolean;
@@ -150,6 +156,8 @@ export function SourceRun({
   /** Findings nobody has looked at yet. */
   watchUnseen: number;
   setBrowserWatchOpen: Toggle;
+  /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
+  toggles: PanelToggles;
 }) {
   return (
     <div className="action-run">
@@ -161,6 +169,7 @@ export function SourceRun({
           Codex, which has exactly one logged-in account and no store. */}
       {providers.claude && (
       <button
+        ref={toggles.accounts}
         className="btn icon-btn"
         onClick={toggleAccountsPanel}
         title={`${accountsPanelOpen ? "Hide" : "Show"} accounts (A)`}
@@ -196,6 +205,7 @@ export function SourceRun({
           region, which is what aria-expanded means, and the region names
           itself back through aria-controls. */}
       <button
+        ref={toggles.machine}
         className="btn icon-btn"
         onClick={() => setMachinePanelOpen(o => !o)}
         title={`${machinePanelOpen ? "Hide" : "Show"} this machine — cores, memory, temperature (S)`}
@@ -227,7 +237,7 @@ export function SourceRun({
           is unread, in the bar's resting grey, and the pupil says the
           watch is on. */}
       <button
-        className="btn icon-btn bw-btn"
+        className="btn icon-btn bw-btn tb-fold"
         onClick={() => setBrowserWatchOpen(o => !o)}
         title={watchOn
           ? "Browser watch — watching; the deck is keeping its own copy (B)"
@@ -253,7 +263,10 @@ export function SourceRun({
 }
 
 /** Sound and Appearance: the two settings, each a button that opens its menu. */
-export function SettingsRun({ providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm, onFeedback }: {
+export function SettingsRun({
+  providers, sound, tones, customTones, notify, chimeState, menus, appearance, fm, onFeedback,
+  watchUnseen, setUsageHistoryOpen, setBrowserWatchOpen,
+}: {
   providers: Providers;
   sound: ReturnType<typeof useSoundSwitch>;
   tones: ReturnType<typeof useTonePrefs>;
@@ -266,6 +279,10 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
   appearance: ReturnType<typeof useAppearance>;
   fm: ReturnType<typeof useClaudeFm>;
   onFeedback: () => void;
+  /** What the phone-width ⋯ needs of the two dialogs it also opens. */
+  watchUnseen: number;
+  setUsageHistoryOpen: Toggle;
+  setBrowserWatchOpen: Toggle;
 }) {
   const { soundOn, toggleSound } = sound;
   const { tonePrefs, previewTone, changeTone } = tones;
@@ -438,7 +455,7 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
           Browser watch already use for a button that opens a modal rather
           than discloses a region. */}
       <button
-        className="btn icon-btn"
+        className="btn icon-btn tb-fold"
         onClick={onFeedback}
         title="Send feedback — a problem, an idea or anything else, to the people who make ccdeck"
         aria-label="Send feedback"
@@ -455,6 +472,13 @@ export function SettingsRun({ providers, sound, tones, customTones, notify, chim
         </svg>
         <span className="tb-word-wide">Feedback</span>
       </button>
+      {/* History, Browser watch and Feedback above, folded into one ⋯ at a
+          phone's width, where the bar cannot hold all nine controls and the
+          waiting pill as well — components/TopbarMore.tsx. */}
+      <TopbarMore
+        watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen}
+        setBrowserWatchOpen={setBrowserWatchOpen} onFeedback={onFeedback}
+      />
     </div>
   );
 }

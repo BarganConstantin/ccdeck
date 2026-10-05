@@ -245,6 +245,9 @@ export function parseArgs(args) {
     else if (a === "--no-codex") out.noCodex = true;
     else if (a === "--claude") out.claude = true;
     else if (a === "--no-claude") out.noClaude = true;
+    // The ccdeck.dev page the command was copied from, for the first install
+    // report (install-ref.mjs). A value that is not a ref is dropped there.
+    else if (a === "--ref") set("ref", "a page name");
     else out.unknown.push(argv[i]);   // the token as typed, `=` half included
   }
   return out;

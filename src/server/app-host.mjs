@@ -20,6 +20,8 @@
 // Environment, not flags: the supervisor re-spawns the worker with its own
 // argv, and the environment is what both of them inherit unchanged.
 
+import { stableNodePath } from "./stable-node.mjs";
+
 /** "1" when the desktop app started this deck. */
 export const APP_ENV = "CCDECK_APP";
 
@@ -31,7 +33,10 @@ export function inApp(env = process.env) {
   return env[APP_ENV] === "1";
 }
 
-export function hookRuntime(env = process.env, execPath = process.execPath) {
+/** Outside the app, this node under the name an upgrade does not delete — see
+ *  stable-node.mjs. `execPath` is taken as given when a caller names one. */
+export function hookRuntime(env = process.env, execPath = undefined) {
   const given = env[HOOK_RUNTIME_ENV];
-  return typeof given === "string" && given.trim() ? given : execPath;
+  if (typeof given === "string" && given.trim()) return given;
+  return execPath ?? stableNodePath({ env });
 }

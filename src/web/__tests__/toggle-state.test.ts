@@ -497,7 +497,8 @@ describe("what each of the four toggles announces", () => {
     const body = client.slice(client.indexOf("const toggleSessionList"), client.indexOf("const toggleAccountsPanel"));
     expect(body).toMatch(/setSessionListOpen\(open => \{[\s\S]*?return !open;/);
     expect(app).toMatch(/\{sessionListOpen && \(\s*<SessionList/);
-    expect(app).toMatch(/onClose=\{closeSessionList\}/);
+    // The close arms the keyboard's hand-off on the way (panel-close-focus.test.ts).
+    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(client).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
     expect(sessionList).toMatch(/className="glyph-btn sl-close" onClick=\{onClose\}/);
     // Escape is not a third way out and never was: this is an <aside> beside

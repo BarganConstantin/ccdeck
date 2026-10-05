@@ -24,7 +24,7 @@ import { cliSurface } from "./cli-surface";
 
 // @ts-expect-error — plain .mjs module, no types
 const detach = await import("../../server/detach.mjs");
-const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMode, shouldDetach, stopCommand, tailFile } = detach as {
+const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, startsFresh, shouldDetach, stopCommand, tailFile } = detach as {
   DECK_LOG: string;
   DETACHED_ENV: string;
   backgroundNote: (o: {
@@ -32,7 +32,7 @@ const { DECK_LOG, DETACHED_ENV, backgroundNote, detachAndWatch, detachEnv, logMo
   }) => string;
   detachAndWatch: (o: Record<string, unknown>) => Promise<{ ok: false; reason: string }>;
   detachEnv: (o?: { isTTY?: boolean; profile?: string; columns?: number }) => Record<string, string>;
-  logMode: (n: number) => string;
+  startsFresh: (n: number, booting?: boolean) => boolean;
   shouldDetach: (o?: { detached?: boolean; leashed?: boolean; flags?: Record<string, unknown> }) => boolean;
   stopCommand: (o?: { npx?: boolean; invokedAs?: string | null; product?: string }) => string;
   tailFile: (p: string, out: { write: (b: Buffer) => void }, o?: { from?: number; everyMs?: number })
@@ -62,21 +62,25 @@ describe("the child's output is a file, never a pipe", () => {
     expect(SRC).toContain("tailFile(path, out,");
   });
 
-  it("truncates the log only when it can be nobody's", () => {
+  it("starts the log afresh only when it can be nobody's, and never by truncating it", () => {
     // A registered deck is holding an open descriptor at some offset into this
     // very file. Truncating under it does not make it start again at zero — it
-    // makes its next write land past the end and leave a hole.
-    expect(logMode(0)).toBe("w");
-    expect(logMode(1)).toBe("a");
-    expect(logMode(3)).toBe("a");
+    // makes its next write land past the end and leave a hole. A deck in its
+    // boot window is not registered yet, and holds the boot lock instead.
+    expect(startsFresh(0)).toBe(true);
+    expect(startsFresh(1)).toBe(false);
+    expect(startsFresh(3)).toBe(false);
+    expect(startsFresh(0, true)).toBe(false);
+    // Afresh is a move aside, and every writer appends: deck-log-append.test.ts.
+    expect(SRC).toContain('fd = openSync(path, "a", 0o600);');
+    expect(SRC).not.toMatch(/openSync\(path, "w"/);
   });
 
   it("reads an appended log from its old end, not from the top", () => {
     // Otherwise the attach, which is the case that reaches here with a deck
     // already up, would replay that deck's whole boot into the terminal before
     // saying its own six lines.
-    expect(SRC).toContain('const from = mode === "a" ?');
-    expect(SRC).toContain("statSync(path).size");
+    expect(SRC).toContain("const from = (() => { try { return statSync(path).size; }");
   });
 
   it("keeps the deck out of the terminal's process group", () => {
@@ -312,14 +316,17 @@ describe("what an npx run is told it is missing", () => {
     // is the tool people uninstall — and the global prefix is root-owned on
     // plenty of machines, so it would be a sudo prompt out of a command that
     // was only supposed to start a deck.
+    // Through npx, like the stop command: an npx run has no `ccdeck` on PATH.
     expect(backgroundNote({ npx: true, invokedAs: "ccdeck", ...plain }))
-      .toContain("\n     `ccdeck --install` also starts it at login\n");
+      .toContain("\n     `npx ccdeck --install` also starts it at login\n");
     // Named the way the user typed it, like the stop command above it.
     expect(backgroundNote({ npx: true, invokedAs: "agents-deck", ...plain }))
-      .toContain("`agents-deck --install` also starts it at login");
-    // And the launcher asks the install where it was started from.
-    expect(SRC_SUP).toContain('const npx = isNpxInstall(PKG_ROOT);');
-    expect(SRC_SUP).toMatch(/backgroundNote\(\{ npx, /);
+      .toContain("`npx agents-deck --install` also starts it at login");
+    // And the launcher asks the install where it was started from — which
+    // runner, since pnpm dlx, bunx and yarn dlx leave no command on PATH
+    // either (background-note-runner.test.ts).
+    expect(SRC_SUP).toContain("const runner = oneOffRunner(PKG_ROOT);");
+    expect(SRC_SUP).toMatch(/backgroundNote\(\{ runner, /);
   });
 
   it("says nothing extra when the deck was installed normally", () => {
@@ -331,7 +338,7 @@ describe("what an npx run is told it is missing", () => {
 
   it("spells the dash and the bullet the terminal can draw, and nothing else in a pipe", () => {
     const said = backgroundNote({ npx: true, invokedAs: "ccdeck", tone: palette("none"), g: glyphs(false) });
-    expect(said).toBe("  -  running in the background - `npx ccdeck --stop` ends it\n     `ccdeck --install` also starts it at login\n\n");
+    expect(said).toBe("  -  running in the background - `npx ccdeck --stop` ends it\n     `npx ccdeck --install` also starts it at login\n\n");
     const painted = backgroundNote({ npx: true, invokedAs: "ccdeck", tone: palette("ansi16"), g: glyphs(true) });
     expect(painted).toContain("\x1b[");
   });

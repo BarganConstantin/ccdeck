@@ -114,7 +114,7 @@ UI copy claiming the deck looks only at agents would be false.
   script.
 - **Identifiable reports, on by default (#1853).** Nothing about a session is
   reported anywhere. What is: installs, updates, one "active" a day and the
-  errors the deck runs into, scrubbed of folders, addresses and keys — and, with
+  errors the deck runs into, scrubbed of paths, project names, machine names, addresses and keys — and, with
   every report, your IP address and a device fingerprint (a stable hashed machine
   id, a one-way hash, never the traits in the clear). The install id is random,
   but the fingerprint follows the machine and the server keeps the IP, so these
@@ -127,6 +127,13 @@ UI copy claiming the deck looks only at agents would be false.
   are therefore claims this product can no longer make, and copy must make
   neither: what it can still promise is about sessions — prompts, files, project
   names and paths never leave.
+- **One question about the deck, once.** After about a week of use the strip
+  under the topbar asks "How useful is ccdeck to you?", 0 to 10, as a row the
+  deck works the same without — never a dialog, never focus taken, behind any
+  banner the reader has to act on. "Not now" puts it off a month, once; an
+  answer or a second "Not now" ends it. The number and a range of days used go
+  out as one report; a low score is offered the feedback dialog, empty, and no
+  words ever travel with the number.
 - **The web server binds loopback.** LAN discovery and pairing are a separate
   surface and are **on unless switched off**: the deck announces itself over UDP
   45317 and pairs with the decks that answer. Outbound traffic is the README's list

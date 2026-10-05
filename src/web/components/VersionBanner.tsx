@@ -20,6 +20,9 @@ import { ownRow } from "../own-row";
 const UPGRADE_BLOCK_TEXT: Record<string, string> = {
   git_checkout: "this deck runs from a git checkout — pull instead:",
   npx: "npx runs from a cache that cannot be upgraded in place — run:",
+  // pnpm dlx, bunx and yarn dlx: the same cache problem without npx's record
+  // of what to re-run, so the command is the global install.
+  one_off: "this deck runs from a one-off pnpm dlx, bunx or yarn dlx copy that cannot be upgraded in place — to keep one, run:",
   not_writable: "the install directory is not writable by this user — run:",
   opted_out: "installs are off (AGENTS_DECK_NO_INSTALL=1) — run:",
   // The deck was installed under a name npm no longer serves a deck for, so

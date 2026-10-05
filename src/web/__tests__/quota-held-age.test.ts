@@ -90,14 +90,18 @@ const MIN = 60_000;
 // from "now" that a re-stamped timestamp cannot pass for the real one.
 const STORE_AGE = 40 * MIN;
 
+// Both windows still running: a row from before its own reset is not
+// served as the reading at all (quota-lapsed-reading.test.ts).
+const ahead = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+
 /** claude-swap's row for the active account, collected `ageMs` ago. */
 const row = (ageMs: number) => ({
   num: 2,
   email: "a@b.c",
   fetchedAt: Date.now() - ageMs,
   lastGood: {
-    five_hour: { pct: 63, resets_at: "2026-08-14T18:00:00Z" },
-    seven_day: { pct: 18, resets_at: "2026-08-19T04:00:00Z" },
+    five_hour: { pct: 63, resets_at: ahead(3) },
+    seven_day: { pct: 18, resets_at: ahead(96) },
   },
 });
 
@@ -189,7 +193,7 @@ describe("a refresh that asks claude-swap to collect", () => {
 
   it("adopts the row the collection wrote as soon as a re-read finds it", async () => {
     const old = row(STORE_AGE);
-    const fresh = { ...row(5_000), lastGood: { ...old.lastGood, five_hour: { pct: 71, resets_at: "2026-08-14T18:00:00Z" } } };
+    const fresh = { ...row(5_000), lastGood: { ...old.lastGood, five_hour: { pct: 71, resets_at: ahead(3) } } };
     swap.collects = true;
     // The first read and the first re-read find the old row; the collection
     // lands before the second re-read.

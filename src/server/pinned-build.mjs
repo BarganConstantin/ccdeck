@@ -89,6 +89,9 @@ const PINNED_MODULES = [
   "cli-versions.mjs",
   "session-tracking.mjs",
   "session-enrichment.mjs",
+  // The plans the daily report says, read through import() by depth-facts.mjs.
+  "quota-oauth.mjs",
+  "codex-auth.mjs",
 ];
 
 let _pinned = null;

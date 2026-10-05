@@ -23,14 +23,18 @@
 // update (#1755).
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createPublicKey, verify } from "node:crypto";
-import { bundleOf, checkForUpdate, discard, installOnExit, isNewer, stageUpdate, UPDATE_PUBLIC_KEY, verifyRelease } from "./updater-mac.mjs";
+import { bundleOf, canReplace, checkForUpdate, discard, failedSwap, installOnExit, isNewer, stageUpdate, UPDATE_PUBLIC_KEY, verifyRelease } from "./updater-mac.mjs";
 import { relaunchOnExit } from "./relaunch-linux.mjs";
 
 /** Where releases are published. `releases/latest/download/<file>` is
  *  GitHub's own redirect to the newest release's asset. */
 export const FEED = "https://github.com/BarganConstantin/ccdeck/releases/latest/download";
+
+/** macOS: the file in the app's data folder the swap script names a release
+ *  in when it could not put it in place (updater-mac.mjs SWAP_SCRIPT). */
+const SWAP_FAILED = "update-swap-failed";
 
 /** The installs electron-updater hands to a package manager (#1755): dpkg,
  *  rpm or pacman, run under pkexec or sudo. electron-builder names them in a
@@ -45,6 +49,21 @@ function packageTypeIn(resourcesPath) {
   } catch {
     return null;
   }
+}
+
+/** An update this copy cannot take where it is, and what kind, so the tray can
+ *  say what to do about it (tray-menu.mjs) rather than only that it failed —
+ *  and, for one about a single release, which release. */
+function cannotUpdateHere(message, kind, version) {
+  return Object.assign(new Error(message), { kind, version });
+}
+
+/** The error state for a failure, with its kind and release when it has them. */
+function errorState(err) {
+  const state = { status: "error", error: String(err?.message ?? err) };
+  if (err?.kind) state.kind = err.kind;
+  if (err?.version) state.version = err.version;
+  return state;
 }
 
 /** Verify an Ed25519 signature over a file's bytes with ccdeck's update key. */
@@ -77,7 +96,7 @@ export function verifyDownload(bytes, info, file, publicKeyPem = UPDATE_PUBLIC_K
 /**
  * @param {object} o
  * @param {import("electron").App} o.app
- * @param {(state: {status: string, version?: string, error?: string}) => void} o.onChange
+ * @param {(state: {status: string, version?: string, error?: string, kind?: string}) => void} o.onChange
  * @param {(line: string) => void} [o.log]
  * @param {string} [o.feed]  override for testing against a local server
  * @param {string} [o.resourcesPath]  where the installed app's package-type
@@ -119,10 +138,15 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         if (!isNewer(info.version, app.getVersion())) throw new Error(`${info.version} is not newer than the running ${app.getVersion()}`);
         const ok = verifyDownload(await readFile(file), info, file);
         if (!ok) throw new Error(`the download is not signed by ccdeck's update key as ${info.version}`);
+        // The AppImage replaces its own file. One kept where this account
+        // cannot write is not ready: nothing could install it.
+        if (process.platform === "linux" && isAppImage() && !(await canReplace(process.env.APPIMAGE))) {
+          throw cannotUpdateHere(`ccdeck cannot update itself in ${dirname(process.env.APPIMAGE)}, which cannot be written to`, "unwritable-appimage");
+        }
         set({ status: "ready", version: info.version });
       } catch (err) {
         log(`update refused: ${err.message}`);
-        set({ status: "error", error: err.message });
+        set(errorState(err));
       }
     });
     return auto;
@@ -136,17 +160,32 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         set({ status: "checking" });
         const update = await checkForUpdate({ manifestUrl: `${feed}/latest-mac.json`, currentVersion: app.getVersion() });
         if (!update) { set({ status: "current" }); return state; }
-        set({ status: "downloading", version: update.version });
         const runningApp = bundleOf(app.getPath("exe"));
+        // Nothing is staged that the swap cannot put in place: ready, it would
+        // quit the app at the next quiet spell into a swap that fails.
+        if (!(await canReplace(runningApp))) {
+          throw cannotUpdateHere(`ccdeck cannot update itself in ${dirname(runningApp)}, which cannot be written to — move it to Applications`, "unwritable-app");
+        }
+        const failed = join(app.getPath("userData"), SWAP_FAILED);
+        // Skipped, not failed: trying again is refused the same way until a
+        // newer release is out, so the tray says that (tray-menu.mjs).
+        if (await failedSwap(failed) === update.version) {
+          throw cannotUpdateHere(`ccdeck ${update.version} could not be put in place last time, and is not tried again`, "skipped-release", update.version);
+        }
+        set({ status: "downloading", version: update.version });
         const s = await stageUpdate(update, { runningApp });
-        staged = { ...s, version: update.version, target: runningApp };
+        staged = { ...s, version: update.version, target: runningApp, failed };
         set({ status: "ready", version: update.version });
       } else {
-        await (await setUpAuto()).checkForUpdates();
+        // With autoDownload, the download comes back as a promise of its own,
+        // which rejects after its failure has reached the 'error' listener.
+        // Left unheld, that rejection would end in Electron's modal error box.
+        const result = await (await setUpAuto()).checkForUpdates();
+        result?.downloadPromise?.catch(() => {});
       }
     } catch (err) {
       log(`update check failed: ${err?.message ?? err}`);
-      set({ status: "error", error: String(err?.message ?? err) });
+      set(errorState(err));
     }
     return state;
   }
@@ -161,7 +200,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
   function installOnQuit() {
     if (process.platform === "darwin") {
       if (staged) {
-        installOnExit({ pid: process.pid, target: staged.target, staged: staged.staged, dir: staged.dir, relaunch });
+        installOnExit({ pid: process.pid, target: staged.target, staged: staged.staged, dir: staged.dir, relaunch, failed: staged.failed, version: staged.version });
         staged = null;
       }
       return;
@@ -181,6 +220,12 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
    */
   function canInstallUnattended() {
     if (process.platform === "darwin" || process.platform === "win32") return true;
+    return isAppImage();
+  }
+
+  /** Linux: is this the AppImage, rather than a package manager's install
+   *  started with APPIMAGE inherited from wherever it was started? */
+  function isAppImage() {
     if (packageType === undefined) packageType = packageTypeIn(resourcesPath);
     return !!process.env.APPIMAGE && !PACKAGE_MANAGED.has(packageType);
   }
@@ -195,7 +240,9 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     // macOS installs on the way out either way; what makes this a restart
     // rather than a Quit is the swap opening the new version after (#1758).
     if (process.platform === "darwin") { relaunch = true; app.quit(); return; }
-    if (process.platform === "linux" && process.env.APPIMAGE) { restartAppImage(); return; }
+    // The same test the unattended rule makes: a package install that
+    // inherited APPIMAGE restarts the package way, not as that AppImage.
+    if (process.platform === "linux" && isAppImage()) { restartAppImage(); return; }
     if (!auto) return;
     installing = true;
     auto.quitAndInstall(false, true);
@@ -223,7 +270,17 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     } finally {
       auto.off("appimage-filename-updated", renamed);
     }
-    if (!installed) return;
+    if (!installed) {
+      // install() latches on its first call, and only electron-updater's own
+      // quitAndInstall lets go after one that failed. Let go here too, or every
+      // later install is ignored while the next check says ready again — and
+      // the quiet install tries it every minute. The failure is the state
+      // until then, so nothing tries again by itself before that check.
+      auto.quitAndInstallCalled = false;
+      installing = false;
+      if (state.status === "ready") set({ status: "error", error: `ccdeck ${state.version} could not be installed` });
+      return;
+    }
     relaunchOnExit({ pid: process.pid, appImage: target });
     app.quit();
   }

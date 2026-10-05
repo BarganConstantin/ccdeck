@@ -11,7 +11,7 @@
 // comes in whole and is taken apart here under the names the markup already
 // used. Usage history and Browser Watch load when they open (#883), so their two
 // lazy imports came with them.
-import { lazy, Suspense, type MutableRefObject } from "react";
+import { Suspense, type MutableRefObject } from "react";
 import { updateRestartFailureText } from "../desktop-update";
 import type { Providers } from "../providers";
 import type { GraphState } from "../reducer";
@@ -32,7 +32,8 @@ import FeedbackDialog from "./FeedbackDialog";
 import GuideModal from "./GuideModal";
 import { WELCOME_STEPS } from "./guide-art";
 import KeyboardHelp from "./KeyboardHelp";
-import { LanPairRequests } from "./LanPairRequestModal";
+import { lazyDialog } from "./LazyDialog";
+import { usePairRequestDialog } from "./LanPairRequestModal";
 import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
@@ -41,8 +42,10 @@ import ToolModal from "./ToolModal";
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
 // needs only Browser Watch's unseen count, which lives in browser-watch-seen.
-const UsageHistoryModal = lazy(() => import("./UsageHistoryModal"));
-const BrowserWatchModal = lazy(() => import("./BrowserWatchModal"));
+// A chunk that does not arrive — a tab older than an upgrade asking for a name
+// the new build no longer has — fails that dialog alone; see LazyDialog.tsx.
+const UsageHistoryModal = lazyDialog(() => import("./UsageHistoryModal"), "Usage history");
+const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), "Browser Watch");
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, lanPairs, attention, clearFlow, watchBadge, announcements,
@@ -165,13 +168,16 @@ export default function DeckDialogs({
           the order of what they want: a question that is holding another
           machine up outranks an announcement about this one, and neither
           outranks the prompt somebody is standing in front of deciding
-          whether to truncate a log. */}
-      <LanPairRequests {...lanPairs} />
-      {/* After the pairing request, which holds another machine up, and ahead
-          of the sheet, the tour and the clear prompt (#1893). It also waits
-          for any dialog already open to close before it first appears, so it
-          never takes the keyboard from somebody mid-task — see promptShows. */}
-      <AccountAttention {...attention} />
+          whether to truncate a log. Like the re-sign-in prompt, it waits for
+          any dialog already open to close before it first appears, rather
+          than taking the keyboard from under it.
+          The re-sign-in prompt comes after the pairing request, which holds
+          another machine up, and ahead of the sheet, the tour and the clear
+          prompt (#1893). It also waits for any dialog already open to close
+          before it first appears, so it never takes the keyboard from
+          somebody mid-task — see promptShows — and the two come up one at a
+          time: see UnaskedPrompts, below. */}
+      <UnaskedPrompts lanPairs={lanPairs} attention={attention} />
       {/* Before the clear prompt and after everything else, which is where a
           reference belongs: it may paint over a tool inspector somebody opened
           the sheet on top of, and it must not paint over the one dialog that is
@@ -192,6 +198,31 @@ export default function DeckDialogs({
           onCancel={() => setClearConfirmOpen(false)}
         />
       )}
+    </>
+  );
+}
+
+/** The two dialogs that arrive on their own and wait their turn: a LAN pairing
+ *  request, then an account that needs signing in again — decided together,
+ *  in one render, so they come one at a time and in that order.
+ *
+ *  Each used to decide by itself, from the number of dialogs on the stack, and
+ *  a dialog joins the stack only after the render that draws it. So when a
+ *  dialog both were waiting on closed, both counted none on the same render
+ *  and came up together, the re-sign-in prompt — later in the document, and
+ *  the one that can wait — painted over the request and holding the keyboard.
+ *  Here the request is decided first, and one going up counts against the
+ *  prompt behind it. Its own component, so DeckDialogs stays one that calls no
+ *  hooks. */
+export function UnaskedPrompts({ lanPairs, attention }: {
+  lanPairs: ReturnType<typeof useLanPairRequests>;
+  attention: Attention;
+}) {
+  const pairRequest = usePairRequestDialog(lanPairs);
+  return (
+    <>
+      {pairRequest}
+      <AccountAttention {...attention} pairing={pairRequest != null} />
     </>
   );
 }

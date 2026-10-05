@@ -87,6 +87,17 @@ export function isEnrichment(raw) {
 }
 
 /**
+ * Whether an event name is one of the deck's own control markers — `__clear`,
+ * which handleClear sends, is the one in use — which only the server may send.
+ * Here beside isEnrichment for the same reason: the ingest that refuses one
+ * from a hook and the boot replay that honours one only from the server ask
+ * the same question.
+ */
+export function isReservedEventName(name) {
+  return typeof name === "string" && name.startsWith("__");
+}
+
+/**
  * The ring's array-length backstop, distinct from its event budget.
  *
  * MAX_BUFFER now counts hook events only, so the array holds those plus

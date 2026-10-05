@@ -15,7 +15,7 @@ import { ccCellsFrom, projectCostLabel, reconcile, unpricedNote, unpricedTitle, 
 import { INITIAL_LOAD, loadProjects, projectsLoad, reportLoading } from "../account-projects-load";
 import { copyText } from "../copy-text";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
-import { useModalDismiss } from "./use-modal-dismiss";
+import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { emptyWindowSentence, showsDayChart, widerWindow, windowPhrase } from "../account-projects-window";
 import { useFeatureUse } from "../feature-use";
 
@@ -130,6 +130,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   useEffect(() => () => { alive.current = false; window.clearTimeout(copiedTimer.current); }, []);
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const scrimPress = useScrimDismiss(onClose);
   const reqId = useRef(0);
 
   useEffect(() => {
@@ -255,7 +256,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   // Portalled to <body>: the report is opened from inside AccountsPanel, and a
   // dialog left in the panel's subtree is laid out by it (panel-modal-portal).
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal ap-proj-modal" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="ap-proj-title ap-proj-sub">
         <header className="ap-proj-head">

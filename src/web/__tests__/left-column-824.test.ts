@@ -28,8 +28,9 @@ describe("the session list evicts the accounts panel, and gives it back (#824)",
     // The list's own close and L both reach it, because it reacts to the state.
     // The close is two links now — the button calls closeSessionList, which is
     // setSessionListOpen(false) — so both are pinned, and the chain is proved
-    // rather than assumed.
-    expect(app).toMatch(/onClose=\{closeSessionList\}/);
+    // rather than assumed. (It arms the keyboard's hand-off on the way:
+    // panel-close-focus.test.ts.)
+    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(app).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
   });
 

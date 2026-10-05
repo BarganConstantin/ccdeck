@@ -30,6 +30,7 @@ import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
 import { useDeckShortcuts } from "./use-deck-shortcuts";
+import { usePanelReturn } from "./use-panel-return";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
@@ -63,6 +64,7 @@ import { useMirroredRef } from "./use-mirrored-ref";
 import { useDialogs } from "./use-dialogs";
 import { useClearFlow } from "./use-clear-flow";
 import { useOldNameNotice } from "./use-old-name-notice";
+import { useRatingAsk } from "./use-rating-ask";
 import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
@@ -222,6 +224,8 @@ function Inner() {
   // shortcuts sheet, Usage history and Browser Watch — what each is open on, and
   // the gate the keys ask before reaching past one: use-dialogs.ts.
   const dialogs = useDialogs({ stateRef, tourOpen, releaseNotes });
+  // The one question the deck asks about itself, once, after a week of use.
+  const rating = useRatingAsk({ modalOpenRef: dialogs.modalOpenRef });
   const { openTool, setSummaryFor, setContextFor, openContext, setKeyHelpOpen, setUsageHistoryOpen,
           setBrowserWatchOpen, keyHelpOpenRef, modalOpenRef } = dialogs;
   // Usage reports (#1853): whether they are on, and the page's own errors,
@@ -387,6 +391,13 @@ function Inner() {
    *  Not `detailOpen` on its own — the panel is `detailOpen && selected`, so a
    *  deck with the panel enabled and nothing selected is 360px out. */
   const detailShown = detailOpen && selected != null;
+  // Where keyboard focus goes when a panel's own × or ‹ takes it away with the
+  // panel: the topbar button that opens it, or the card the detail panel was
+  // about — use-panel-return.ts.
+  const panelReturn = usePanelReturn({
+    sessionListShown: sessionListOpen, usageShown: isMounted(usagePhase), machineShown: isMounted(machinePhase),
+    accountsShown: isMounted(accountsPhase) && providers.claude, detailShown, primarySelectedId, canvasRef,
+  });
 
   // What the floating panels cover of the canvas, and the frame the layout and
   // every fit pack the board for: see use-layout-frame.ts.
@@ -607,12 +618,13 @@ function Inner() {
           <SessionRun
             sessionListOpen={sessionListOpen} toggleSessionList={toggleSessionList}
             usagePanelOpen={usagePanelOpen} setUsagePanelOpen={setUsagePanelOpen}
-            setUsageHistoryOpen={setUsageHistoryOpen}
+            setUsageHistoryOpen={setUsageHistoryOpen} toggles={panelReturn.toggles}
           />
           <SourceRun
             providers={providers} accountsPanelOpen={accountsPanelOpen} toggleAccountsPanel={toggleAccountsPanel}
             machinePanelOpen={machinePanelOpen} setMachinePanelOpen={setMachinePanelOpen}
             watchOn={watchOn} watchUnseen={watchUnseen} setBrowserWatchOpen={setBrowserWatchOpen}
+            toggles={panelReturn.toggles}
           />
           {/* Sound and Appearance, each a button that opens its menu —
               components/TopbarRuns.tsx. */}
@@ -620,6 +632,7 @@ function Inner() {
             providers={providers} sound={sound} tones={tones} customTones={customTones} notify={notify}
             chimeState={chimeState} menus={menus} appearance={appearance} fm={fm}
             onFeedback={() => dialogs.openFeedback()}
+            watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen} setBrowserWatchOpen={setBrowserWatchOpen}
           />
         </div>
       </header>
@@ -633,6 +646,7 @@ function Inner() {
       {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
       <DeckBanner
         restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
+        rating={rating} onFeedback={dialogs.openFeedback}
         everConnected={everConnected} live={live} paused={paused}
       />
 
@@ -643,8 +657,8 @@ function Inner() {
           be run: not on PATH". The panel is also open by default, so that was
           the first thing such a user saw. */}
       {isMounted(accountsPhase) && providers.claude && (
-        <AccountsPanel leaving={accountsPhase === "leaving"} onClose={closeAccountsPanel} onReport={dialogs.openFeedback}
-          onRoster={attention.observe} />
+        <AccountsPanel leaving={accountsPhase === "leaving"} onReport={dialogs.openFeedback}
+          onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }} />
       )}
 
       {sessionListOpen && (
@@ -653,7 +667,7 @@ function Inner() {
           now={now}
           selectedIds={selectedIds}
           onSelect={openSession}
-          onClose={closeSessionList}
+          onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
           removedIds={removedAgentIds}
           onBringBackAll={bringBackAll}
         />
@@ -708,7 +722,7 @@ function Inner() {
           incidents={incidents}
           liveSince={liveSince}
           leaving={usagePhase === "leaving"}
-          onClose={() => setUsagePanelOpen(false)}
+          onClose={() => { panelReturn.usage(); setUsagePanelOpen(false); }}
         />
       )}
 
@@ -718,7 +732,7 @@ function Inner() {
           slot left when usage has the first one — see .sysdetail.shifted. */}
       {isMounted(machinePhase) && (
         <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
-          onClose={() => setMachinePanelOpen(false)} />
+          onClose={() => { panelReturn.machine(); setMachinePanelOpen(false); }} />
       )}
 
       {/* NOTHING SELECTED, NO PANEL. It used to draw an `EmptyDetail` — a title,
@@ -732,7 +746,8 @@ function Inner() {
       {detailOpen && selected ? (
         <DetailAside
           selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
-          setDetailOpen={setDetailOpen} stateRef={stateRef} removeSelectedNode={removeSelectedNode}
+          stateRef={stateRef} removeSelectedNode={removeSelectedNode}
+          onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
         />
       ) : null}
 

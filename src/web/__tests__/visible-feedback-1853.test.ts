@@ -47,11 +47,11 @@ const accounts = read("../components/AccountsPanel.tsx");
 
 describe("scrubReport takes identifying text out of a message shown on the page", () => {
   it.each([
-    // The user segment goes; the tail stays, so a stack still says where — the
-    // same shape the server's scrub keeps (scrubbing, in reports-1853.test.ts).
-    ["/home/alice/x threw", "~/x threw"],
-    ["/Users/Bob/Library/ccdeck", "~/Library/ccdeck"],
-    ["C:\\Users\\Bob Smith\\AppData\\ccdeck", "~\\AppData\\ccdeck"],
+    // The user segment goes, and the rest of the path with it — the same shape
+    // the server's scrub sends (error-report-paths.test.ts has every shape).
+    ["/home/alice/x threw", "~/<path> threw"],
+    ["/Users/Bob/Library/ccdeck", "~/<path>"],
+    ["C:\\Users\\Bob Smith\\AppData\\ccdeck", "~\\<path>"],
     ["mail bob@example.org now", "mail <email> now"],
     ["token sk-ant-abcdefghijklmnop failed", "token <secret> failed"],
     ["ghp_abcdefghijklmnopqrstuvwxyz0123", "<secret>"],
@@ -183,7 +183,8 @@ describe("the topbar's Feedback button", () => {
   })();
 
   it("is a topbar icon button that opens the dialog through the one door", () => {
-    expect(button).toMatch(/className="btn icon-btn"/);
+    // Folded into the ⋯ with History and Browser watch at a phone's width.
+    expect(button).toMatch(/className="btn icon-btn tb-fold"/);
     expect(button).toMatch(/onClick=\{onFeedback\}/);
     expect(button).toMatch(/aria-haspopup="dialog"/);
     expect(button).toMatch(/title="Send feedback/);
@@ -260,7 +261,9 @@ describe("the error boundary catches a render crash and offers a report", () => 
   });
 
   it("shows a calm reachable pane with Reload and Send report", () => {
-    expect(boundary).toMatch(/className="error-fallback" role="alert"/);
+    // The card is the alert, not the pane, so the report dialog is not read
+    // out inside it (crash-pane-alert.test.ts draws it).
+    expect(boundary).toMatch(/className="error-fallback-card" role="alert"/);
     expect(boundary).toMatch(/Something went wrong/);
     expect(boundary).toMatch(/onClick=\{\(\) => window\.location\.reload\(\)\}/);
     expect(boundary).toMatch(/>\s*Reload\s*</);

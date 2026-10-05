@@ -20,7 +20,7 @@ import { ago, due } from "../account-freshness";
 import { type Failure } from "../accounts-reload";
 import { type SwapNote } from "../account-move";
 import { type Account, type Lane } from "../claude-accounts";
-import { laneSplit } from "../lane-view";
+import { lapsed, laneSplit } from "../lane-view";
 import { resetCountdown } from "../relative-time";
 import { type useRequestSlot } from "../use-request-slot";
 import { laneName } from "../other-accounts-order";
@@ -36,24 +36,34 @@ function fullness(pct: number): "mid" | "hi" | undefined {
 
 function LaneBar({ lane, nowSec, frozen, sortedBy }: { lane: Lane; nowSec: number; frozen?: boolean; sortedBy?: boolean }) {
   const capped = Math.min(100, Math.max(0, lane.pct));
+  // A window whose reset has passed since it was read is over, and the number
+  // is the old window's: a record too, however recent the collection.
+  const rolled = lapsed(lane, nowSec);
   // A reading that cannot move is drawn as a record rather than a reading: one
   // ink, no warning colours, the fill at half strength. The row says how old.
-  const color  = frozen ? "var(--muted)" : capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+  const record = frozen || rolled;
+  const color  = record ? "var(--muted)" : capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
   // And a reset from a reading that old has most likely happened already.
-  const reset  = lane.resetAt && !frozen ? resetCountdown(lane.resetAt, nowSec) : null;
+  const reset  = lane.resetAt && !record ? resetCountdown(lane.resetAt, nowSec) : null;
   return (
     <div className="ap-lane" data-sort-key={sortedBy ? "" : undefined}>
       <span className="ap-lane-label" title={lane.label}>{lane.label}</span>
       <div className="ap-lane-track">
-        <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || frozen ? 0.4 : 1 }} />
+        <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || record ? 0.4 : 1 }} />
       </div>
-      <span className="ap-lane-pct" style={{ color }}>{capped}%</span>
+      {/* Whole, as the shut row and the Usage panel print it: claude-swap keeps
+          the utilisation as it came, and 85.555555% beside a shut-row 86% is
+          one window read two ways. */}
+      <span className="ap-lane-pct" style={{ color }}>{Math.round(capped)}%</span>
       {/* When the window rolls over, at the end of its own bar rather than on a
           line under it: two resets under two bars made the live row five lines
           tall for two facts. The word is said to a screen reader and in the
-          title; on screen a countdown beside a quota reads as one. */}
-      <span className="ap-lane-reset" title={reset ? `${lane.label} resets in ${reset}` : undefined}>
+          title; on screen a countdown beside a quota reads as one. Once it has
+          rolled over, the same place says so. */}
+      <span className="ap-lane-reset"
+        title={reset ? `${lane.label} resets in ${reset}` : rolled && !frozen ? `${lane.label} has reset since this reading` : undefined}>
         {reset && <><span className="vis-hidden">resets in </span>{reset}</>}
+        {rolled && !frozen && "reset"}
       </span>
     </div>
   );
@@ -96,13 +106,19 @@ export default function AccountRow({
   a, nowSec, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
   refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
 }: Props) {
-  const { shown, fuller } = laneSplit(a.lanes);
+  // The windows that have not reset since they were read: the only ones whose
+  // numbers say anything about this window (lane-view.ts's lapsed).
+  const live = a.lanes.filter(l => !lapsed(l, nowSec));
+  const { shown } = laneSplit(a.lanes);
+  // A folded lane joins the shut row when it is fuller than every window still
+  // running — not measured against one that has reset since.
+  const { fuller } = laneSplit(live);
   // THE NUMBER THIS ROW WAS PLACED BY (#1579), marked in the shut line and on
   // the bars, so a sorted list says what it is sorted by at the numbers
   // themselves rather than only in the control that sorted it. Under "room"
-  // it is the tightest window: the one the room is measured from.
+  // it is the tightest window still running: the one the room is measured from.
   const keyLane = sortKey === "room"
-    ? a.lanes.reduce<Lane | null>((x, l) => (x && x.pct >= l.pct ? x : l), null)
+    ? live.reduce<Lane | null>((x, l) => (x && x.pct >= l.pct ? x : l), null)
     : sortKey ? a.lanes.find(l => laneName(l) === sortKey) ?? null : null;
   const issue = accountIssue(a, nowSec, lan);
   // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.
@@ -291,7 +307,13 @@ export default function AccountRow({
             ? quick.map(l => (
                 <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
                   <span className="ap-q-label">{l.label}</span>{" "}
-                  <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>
+                  {/* A window that has reset since it was read is said to
+                      have, as its open bar says it: its number is the old
+                      window's, and in the warning ink it read as a reason not
+                      to switch to an account that has the room. */}
+                  {lapsed(l, nowSec)
+                    ? <span className="ap-q-pct" title={`${l.label} has reset since this reading`}>reset</span>
+                    : <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>}
                 </span>
               ))
             : <span className="ap-q-label">no usage recorded yet</span>}

@@ -16,10 +16,12 @@
 // can say whose machine it was on — "alice-desk.png" — and the API keeps no
 // name, so none is sent. The API strips EXIF, GPS and text chunks itself.
 //
-// Node's own Request parses the form and its FormData builds the next one, so
-// this costs no dependency. Both are there on the Node 18 the package promises
-// (undici's multipart reader shipped inside it); `File` is not a global before
-// Node 20 and is never named here.
+// Node's own Request parses the form and the next one is written out by hand
+// (upstreamForm says why), so this costs no dependency. Request is there on the
+// Node 18 the package promises (undici's multipart reader shipped inside it);
+// `File` is not a global before Node 20 and is never named here.
+
+import { randomBytes } from "node:crypto";
 
 export const IMAGES_FIELD = "images";
 export const MAX_IMAGES = 3;
@@ -80,7 +82,9 @@ export async function readFeedbackForm(bytes, contentType) {
     } else if (isFile) {
       fileElsewhere = true;
     } else if (TEXT_FIELDS.includes(name) && !(name in fields)) {
-      fields[name] = value;
+      // Back to the LF the box held. A textarea's value never has a CR in it,
+      // so every CRLF here is the form encoding's, not the person's.
+      fields[name] = value.replace(/\r\n/g, "\n");
     }
   }
   // Refused rather than ignored, as the API does: a part named "image" would
@@ -107,19 +111,38 @@ export async function readFeedbackForm(bytes, contentType) {
   return { fields, images, problems };
 }
 
-/** The form this server posts on: the page's text, this deck's facts (feedbackFacts in reports-routes.mjs), and the images under names of its own. */
+/**
+ * The form this server posts on: the page's text, this deck's facts
+ * (feedbackFacts in reports-routes.mjs), and the images under names of its own.
+ *
+ * WRITTEN OUT HERE rather than through FormData, for the line breaks. A form's
+ * encoding turns every line break in a text field into CRLF, FormData's too,
+ * and the API counts a CRLF as two characters of the message's 10,000. A pasted
+ * log of a thousand short lines that fitted the box went over with an image
+ * attached, while the same words went through as JSON without one. So the text
+ * goes on as the box held it, LF for LF, and the limit means the same on both
+ * paths.
+ *
+ * A Blob whose type carries the boundary, so fetch still writes the content
+ * type itself. The boundary is lower case because a Blob's type is, and random
+ * so no message can contain it.
+ */
 export function upstreamForm({ fields, images }, facts) {
-  const form = new FormData();
+  const boundary = `ccdeck-${randomBytes(16).toString("hex")}`;
+  const parts = [];
+  const head = (name, file = "") => `--${boundary}\r\nContent-Disposition: form-data; name="${name}"${file}\r\n`;
+  const text = (name, value) => parts.push(`${head(name)}\r\n${value}\r\n`);
   for (const name of ["kind", "title", "body"]) {
-    if (typeof fields[name] === "string") form.append(name, fields[name]);
+    if (typeof fields[name] === "string") text(name, fields[name]);
   }
   const contact = typeof fields.contact === "string" ? fields.contact.trim() : "";
-  if (contact) form.append("contact", contact);
-  form.append("appVersion", facts.appVersion);
-  form.append("platform", facts.platform);
+  if (contact) text("contact", contact);
+  text("appVersion", facts.appVersion);
+  text("platform", facts.platform);
   for (const [index, { data, format }] of images.entries()) {
     const { type, extension } = FORMAT[format];
-    form.append(IMAGES_FIELD, new Blob([data], { type }), `image-${index + 1}.${extension}`);
+    parts.push(`${head(IMAGES_FIELD, `; filename="image-${index + 1}.${extension}"`)}Content-Type: ${type}\r\n\r\n`, data, "\r\n");
   }
-  return form;
+  parts.push(`--${boundary}--\r\n`);
+  return new Blob(parts, { type: `multipart/form-data; boundary=${boundary}` });
 }

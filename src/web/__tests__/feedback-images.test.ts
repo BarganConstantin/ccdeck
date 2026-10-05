@@ -437,7 +437,7 @@ describe("the dialog takes an image three ways", () => {
   it("keeps a file dropped beside the dialog from opening in place of the deck", () => {
     // The browser's own answer to a file dropped on a page is to open it,
     // which would throw away everything typed.
-    expect(flatDialog).toMatch(/<div className="modal-backdrop" onClick=\{onClose\} role="presentation" onDragOver=\{refuseBesideDialog\} onDrop=\{dropBesideDialog\} data-leaving=\{leaving \|\| undefined\}>/);
+    expect(flatDialog).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation" onDragOver=\{refuseBesideDialog\} onDrop=\{dropBesideDialog\} data-leaving=\{leaving \|\| undefined\}>/);
     expect(flatDialog).toMatch(/function refuseBesideDialog\(e: DragEvent\) \{ if \(e\.target !== e\.currentTarget \|\| !fileDrag\(e\)\) return; e\.preventDefault\(\); e\.dataTransfer\.dropEffect = "none"; \}/);
     expect(flatDialog).toMatch(/function dropBesideDialog\(e: DragEvent\) \{ if \(fileDrag\(e\)\) e\.preventDefault\(\); \}/);
   });
@@ -470,9 +470,12 @@ describe("the dialog takes an image three ways", () => {
   });
 
   it("names what went wrong beside the images", () => {
-    expect(shotsView).toMatch(/\{images\.problem && <p ref=\{problemRef\} className="fb-error" role="alert">\{images\.problem\}<\/p>\}/);
-    // And brought into view, since on a short window it lands below the fold.
-    expect(shotsView).toMatch(/if \(images\.problem\) problemRef\.current\?\.scrollIntoView\(\{ block: "nearest" \}\);/);
+    // Keyed on the refusal, so the same words twice are a new alert, read out
+    // again (feedback-image-refusal-repeat.test.ts runs the hook).
+    expect(shotsView).toMatch(/\{images\.problem && <p key=\{images\.problemId\} ref=\{problemRef\} className="fb-error" role="alert">\{images\.problem\}<\/p>\}/);
+    // And brought into view, since on a short window it lands below the fold,
+    // every time.
+    expect(shotsView).toMatch(/if \(images\.problem\) problemRef\.current\?\.scrollIntoView\(\{ block: "nearest" \}\); \}, \[images\.problem, images\.problemId\]\);/);
   });
 
   it("finishes every fit before it sends, and sends the fitted images", () => {

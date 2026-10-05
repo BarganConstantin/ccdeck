@@ -296,7 +296,9 @@ export function createEngine({
   routes = null,
 } = {}) {
   let cfg = {
-    enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], unpaired: [], port: 0,
+    // `onward`: which of `shared` an arrival ticked rather than a person — see
+    // sharedWith in lan-sync.mjs.
+    enabled: false, name: defaultName(), secret: "", shared: [], onward: [], trusted: [], unpaired: [], port: 0,
     autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {},
     // Tell paired decks which shared account this one is on — see currentFor.
     shareActive: true,
@@ -822,6 +824,13 @@ export function createEngine({
         // revoked this peer. Keep the imported slot, but do not turn it into
         // a newly shared credential on behalf of an obsolete transfer.
         if (ok && stillPaired() && ticksOnArrival(step, viaOf(peer), trustedPeer(cfg.trusted, conn.peerFp))) {
+          // MARKED AS THIS ARRIVAL'S TICK, here and in what onShared keeps, so
+          // it is offered to the decks somebody here chose and not to one the
+          // accept switch paired — see sharedWith. Only while nobody has
+          // ticked the account already: a person's tick stays a person's.
+          if (!cfg.shared.includes(step.key) && !cfg.onward?.includes(step.key)) {
+            cfg = { ...cfg, onward: [...(cfg.onward ?? []), step.key] };
+          }
           try { await onShared?.(step.key); }
           catch { /* the account is here; the tick is retried the next time one arrives */ }
         }

@@ -47,6 +47,8 @@ import { deckDataDir } from "./deck-home.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { normaliseOrigins } from "./account-origins.mjs";
 import { normaliseUsage } from "./usage-day.mjs";
+import { refSlug } from "./install-ref.mjs";
+import { normaliseRating } from "./rating.mjs";
 
 /** Set to "1" to keep the deck off the desktop whatever the stored preference
  *  says. Same sheet of switches as AGENTS_DECK_NO_DOWNLOAD and
@@ -93,13 +95,16 @@ export const DEFAULTS = Object.freeze({
   // not yet acknowledged, retried on the next start so switching off while
   // offline still ends in a deletion; `usage` is the day's tally of sessions,
   // subagents and projects, counts and days only, so a restart carries it on
-  // (usage-day.mjs); `installedAt` is when the id was made, and
+  // (usage-day.mjs); `installedAt` is when the id was made, on a first run
+  // only (an id made over an older deck's settings has none), and
   // `firstSessionAt`/`firstProvider`/`activationSent` the install's first
   // session and whether the "activated" event saying so got through — the times
-  // stay here, only a bucket leaves (activation.mjs).
+  // stay here, only a bucket leaves (activation.mjs); `rating` is the one
+  // question the deck asks about itself, answered or put off (rating.mjs).
   report: Object.freeze({
     installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
     installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false,
+    rating: Object.freeze(normaliseRating(null)),
   }),
   // The accounts this deck signed in itself, and the re-sign-in prompts
   // somebody put off (#1893) — keyed by account identity, written by the deck
@@ -110,7 +115,7 @@ export const DEFAULTS = Object.freeze({
   // write below names a mode. AGENTS_DECK_NO_LAN=1 keeps a deck off the network
   // whatever this file says — see lanEnabled.
   lan: Object.freeze({
-    enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], unpaired: [], port: 0,
+    enabled: true, name: "", secret: "", shared: [], onward: [], manual: [], trusted: [], unpaired: [], port: 0,
     // WHO PAIRS WITH WHOM, WITHOUT ANYBODY PRESSING ANYTHING. Asking is on, so
     // two decks on one network find each other and send each other a request —
     // which is what a person with three of their own machines wants and had to
@@ -227,6 +232,11 @@ function normaliseLan(raw) {
     // anybody can act on and refusing to start would take the feature away.
     secret: typeof src.secret === "string" ? src.secret : "",
     shared: strings(src.shared),
+    // WHICH OF THOSE AN ARRIVAL TICKED rather than a person (#1188), so a deck
+    // the accept switch paired is not offered them — see sharedWith in
+    // lan-sync.mjs. Only ever a subset of `shared`: an untick takes the mark
+    // with it, so ticking the account again is a person's tick.
+    onward: strings(src.onward).filter(key => strings(src.shared).includes(key)),
     manual: strings(src.manual),
     // THE DECKS SOMEBODY PRESSED ACCEPT ON. The public key is the load-bearing
     // half: a fingerprint is a hash of it, so an entry without one cannot be
@@ -301,7 +311,7 @@ export function normalise(raw) {
 }
 
 /** The reporter's own state, coerced: strings empty when absent, the day's
- *  tally null until there is one, and one flag. */
+ *  tally null until there is one, one flag, and a ref only if it is one. */
 function normaliseReport(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const text = v => (typeof v === "string" ? v : "");
@@ -315,7 +325,19 @@ function normaliseReport(raw) {
     firstSessionAt: text(src.firstSessionAt),
     firstProvider: text(src.firstProvider),
     activationSent: src.activationSent === true,
+    ref: refSlug(src.ref) ?? "",
+    selfUpdate: selfUpdateMarker(src.selfUpdate),
+    rating: normaliseRating(src.rating),
   };
+}
+
+/** The deck's note that it started an update itself (reports.mjs
+ *  noteSelfUpdate): the version it left and when, or null. */
+function selfUpdateMarker(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const from = typeof raw.from === "string" && /^[0-9A-Za-z.+_-]{1,32}$/.test(raw.from) ? raw.from : "";
+  const at = typeof raw.at === "string" && Number.isFinite(Date.parse(raw.at)) ? raw.at : "";
+  return from && at ? { from, at } : null;
 }
 
 // How a refusal to write is told — the error writePrefs throws, and the reason
@@ -506,11 +528,15 @@ export function withManualEntry(entry) {
  * to the next machine as the deck that gave it. Only on arrival — an untick
  * afterwards is the person's answer and nothing re-ticks it, because an account
  * this deck already holds is never added again.
+ *
+ * AND MARKED AS THE ARRIVAL'S in `lan.onward`, in the same write, so a restart
+ * cannot turn it into a tick somebody made — see sharedWith in lan-sync.mjs.
  */
 export function withShared(key) {
   return prev => {
     const shared = Array.isArray(prev?.lan?.shared) ? prev.lan.shared : [];
-    return !key || shared.includes(key) ? null : { lan: { shared: [...shared, key] } };
+    const onward = Array.isArray(prev?.lan?.onward) ? prev.lan.onward : [];
+    return !key || shared.includes(key) ? null : { lan: { shared: [...shared, key], onward: [...onward, key] } };
   };
 }
 
@@ -633,12 +659,49 @@ export function publicPrefs(prefs) {
   const { report: _report, accounts: _accounts, ...p } = normalise(prefs);
   // unpaired is engine-authored state too. No page draws or edits it; keeping
   // it out also means a future whole-prefs form cannot replay a stale unpair
-  // list over a decision the engine made after the form loaded.
-  const { secret, trusted, unpaired: _unpaired, ...lan } = p.lan;
+  // list over a decision the engine made after the form loaded. `onward` is
+  // the deck's own bookkeeping of which ticks an arrival made, for the same
+  // reason.
+  const { secret, trusted, unpaired: _unpaired, onward: _onward, ...lan } = p.lan;
   return {
     ...p,
     lan: { ...lan, trusted: trusted.map(t => ({ fp: t.fp, name: t.name })) },
   };
+}
+
+/**
+ * The preferences a PAGE may write — publicPrefs's other half, and the fields
+ * `POST /api/prefs` takes. Exactly what the page and the desktop app send:
+ * the three switches, and the LAN dialog's fields.
+ *
+ * EVERYTHING ELSE IS THE DECK'S OWN, and kept as it is on disk whatever a body
+ * names. The LAN key, the decks somebody accepted or unpaired, which ticks an
+ * arrival made and the port are written by the engine and read back at the
+ * next start (see lanApplyFields in lan-deck.mjs); a name for another deck
+ * goes through its own route, which cleans it; the reports switch only through
+ * /api/reports, because turning it off asks for a deletion (#1853); the
+ * reporter's state and the accounts the deck signed in (#1893) are the deck's
+ * to record. A new preference is not writable from a page until it is named
+ * here — prefs-route-fields.test.ts lists them.
+ */
+export const PAGE_FIELDS = Object.freeze({
+  top: Object.freeze(["notifications", "tourSeen", "autoUpdate"]),
+  lan: Object.freeze([
+    "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
+    "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
+  ]),
+});
+
+/** A page's body cut down to PAGE_FIELDS: the patch writePrefs is handed. A
+ *  field the body does not name is not in it, so it keeps its value. */
+export function pagePatch(body) {
+  const pick = (src, keys) => {
+    const from = src && typeof src === "object" && !Array.isArray(src) ? src : {};
+    return Object.fromEntries(keys.filter(k => Object.hasOwn(from, k)).map(k => [k, from[k]]));
+  };
+  const patch = pick(body, PAGE_FIELDS.top);
+  const lan = pick(body?.lan, PAGE_FIELDS.lan);
+  return Object.keys(lan).length ? { ...patch, lan } : patch;
 }
 
 /**

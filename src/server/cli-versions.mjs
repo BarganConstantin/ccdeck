@@ -3,10 +3,12 @@
 //
 // SPAWNED, BUT NEVER ON THE BOOT PATH. claude-dir.mjs measured a Claude Code
 // child at ~3.0s and says out loud that boot is the wrong place to spend one, so
-// this is run once, lazily, in the background — reports.mjs kicks it from the
-// first check-in, which is already past boot — and its result rides along on the
-// reports that come after. A version that is not known yet is simply not sent;
-// the field is optional and the API records nothing for an absent one.
+// this runs in the background — reports.mjs starts it once the deck is listening
+// and the prefs say reports are on, and asks again on each new UTC day so a deck
+// left running reports the CLI it has now. The first report waits a few seconds
+// for the answer, beside the wait for the boot's setup, rather than going out
+// without it. A version that is not known by then is simply not sent; the field
+// is optional and the API records nothing for an absent one.
 //
 // WHAT LEAVES IS A VERSION AND NOTHING ELSE. parseVersion keeps only a
 // dotted-number token (with the `^[0-9A-Za-z.+_-]+$` shape the API enforces, and

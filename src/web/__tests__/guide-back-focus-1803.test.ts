@@ -17,9 +17,10 @@ import { mount, one, textOf, type Drawn } from "./fake-react";
 vi.mock("react", async () => (await import("./fake-react")).react);
 vi.mock("react-dom", async (orig) => ({ ...(await orig<typeof import("react-dom")>()), createPortal: (node: unknown) => node }));
 // The dialog's own start: focus goes to the ref it was handed, once, on mount.
-vi.mock("../components/use-modal-dismiss", async () => {
+vi.mock("../components/use-modal-dismiss", async orig => {
   const { react } = await import("./fake-react");
   return {
+    ...(await orig<typeof import("../components/use-modal-dismiss")>()),
     useModalDismiss: (_: unknown, opts: { focusRef?: { current: { focus(): void } | null } } = {}) => {
       react.useEffect(() => { opts.focusRef?.current?.focus(); }, []);
       return react.useRef(null);

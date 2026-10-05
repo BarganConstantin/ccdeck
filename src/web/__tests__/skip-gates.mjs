@@ -181,9 +181,22 @@ export const GATES = [
   // stub that writes down what it was asked, so a prerelease tag is seen to
   // make a prerelease that is never Latest. Windows has no /bin/sh to hand it.
   { file: "desktop-release-prerelease-1756.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
+  // The desktop app's read of the login shell, run through a real /bin/sh
+  // standing in for the user's $SHELL with a profile that exports the opt-outs.
+  // The app never asks a shell on Windows, where a GUI app gets the user's own
+  // environment; that branch, the parse and the merge are un-gated beside it.
+  { file: "desktop-shell-env.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
+  // The hook command's fallback to the node on PATH once the recorded one is
+  // gone, run through a real /bin/sh with stand-in nodes that write down their
+  // argv. Windows keeps the direct command and has no /bin/sh to run it with;
+  // its quoting is executed through cmd.exe by no-shell-hook-commands.
+  { file: "hook-command-node-fallback.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
+  // A real deck sent SIGHUP, to see its shutdown run. Windows cannot send a
+  // process SIGHUP: there a child.kill of any signal is TerminateProcess.
+  { file: "hangup-shuts-down.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // #1002's two mode assertions, the same shape as codex-auth-temp-collision's
   // above and for the same reason: they read POSIX permission bits off a real
   // file — the quarantined prefs.json, and the temp file the private key is
@@ -220,6 +233,11 @@ export const GATES = [
   // Kept out of the block above so the one case is not counted under both
   // gates; the probe is the same one, for the same reason.
   { file: "desktop-updater.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
+  // The macOS updater asked about an app in a folder it cannot write to — a
+  // disk image's mount, a translocated copy, a standard account's
+  // /Applications — which it must not stage an update for, or the swap above
+  // is where it ends up. The same probe, for the same reason.
+  { file: "desktop-update-unreplaceable-app.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
 
   { file: "browser-history.test.ts", gate: "describe.skipIf", condition: "!hasNodeSqlite", sites: 1, cases: 3 },
 

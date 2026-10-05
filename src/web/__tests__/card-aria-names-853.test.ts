@@ -36,8 +36,10 @@ describe("a card's spoken name (#853)", () => {
   });
 
   it("counts tools and failures the way the card does", () => {
+    // The failures as the reducer counts them, over the agent's whole life
+    // (#1809) — the count the card's "err" prints too.
     const tools = [{ ok: true }, { ok: false }, { ok: false }] as AgentNodeData["tools"];
-    expect(agentAriaLabel(card({ tools, toolCount: 3 }))).toBe("agents-deck, session, live, 3 tools, 2 failed");
+    expect(agentAriaLabel(card({ tools, toolCount: 3, toolErrorCount: 2 }))).toBe("agents-deck, session, live, 3 tools, 2 failed");
     expect(agentAriaLabel(card({ toolCount: 1 }))).toContain("1 tool");
   });
 
@@ -47,7 +49,7 @@ describe("a card's spoken name (#853)", () => {
   });
 
   it("stays short — a name, not the card read out", () => {
-    const busy = card({ toolCount: 250, tools: Array.from({ length: 21 }, () => ({ ok: false })) as AgentNodeData["tools"] });
+    const busy = card({ toolCount: 250, toolErrorCount: 21, tools: Array.from({ length: 21 }, () => ({ ok: false })) as AgentNodeData["tools"] });
     expect(agentAriaLabel(busy).length).toBeLessThan(90);
   });
 });

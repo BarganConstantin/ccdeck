@@ -29,6 +29,18 @@ const loginJob = (script, deckLogDir) => ({ script, logPath: join(deckLogDir(), 
 const installedRecord = (path) => ({ installed: PKG_VERSION, at: new Date().toISOString(), path });
 export const removedRecord = () => ({ removed: new Date().toISOString(), version: PKG_VERSION });
 
+/**
+ * A Linux unit written and not enabled, said as what it is. systemd starts at
+ * login only an enabled user unit, so a refused `systemctl --user enable` is a
+ * file nothing reads until somebody runs the command the verdict carries —
+ * unlike a refused `launchctl load`, whose plist launchd still loads at the
+ * next login. Two lines, the way every warning here is said.
+ */
+function sayNotEnabled(out, { say, tone, gWarn, dash }) {
+  say(`  ${tone.warn}${gWarn}  the login item is written but not enabled ${dash} ${out.reason}${tone.reset}`);
+  say(`     ${tone.muted}systemd starts only an enabled unit at login ${dash} \`${out.enable}\` turns it on${tone.reset}`);
+}
+
 /** The one place the three platforms genuinely differ in what a login item buys you. */
 function warnWhenLingerOff(svc, { say, tone, gWarn }) {
   if (svc.lingerState() === "off") {
@@ -79,7 +91,8 @@ export async function installGlobally({ say, tone, dash, gOk, gWarn, bullet, gEl
     return 0;
   }
   svc.writeServiceRecord(deckDataDir(), installedRecord(out.path));
-  say(`  ${tone.ok}${gOk}${tone.reset}  and starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
+  if (out.enable) sayNotEnabled(out, { say, tone, gWarn, dash });
+  else say(`  ${tone.ok}${gOk}${tone.reset}  and starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
   warnWhenLingerOff(svc, { say, tone, gWarn });
   say(`     ${tone.muted}\`${pkg} --uninstall-service\` undoes the login part${tone.reset}\n`);
   return 0;
@@ -91,7 +104,7 @@ export async function installGlobally({ say, tone, dash, gOk, gWarn, bullet, gEl
 // with three.
 export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bullet, deckDataDir, deckLogDir }) {
   const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
-  const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+  const { isGitCheckout, isNpxInstall, isOneOffRun } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
   if (flags.uninstallService) {
     const out = svc.uninstallService();
     // Recorded either way. The record is what stops the next ordinary start
@@ -116,11 +129,14 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
     say(`\n  ${tone.warn}${gWarn}  this is a checkout, so the login item would name ${PKG_ROOT}${tone.reset}`);
     say(`     ${tone.muted}a renamed, moved or deleted working tree leaves a login item pointing at nothing${tone.reset}\n`);
   }
-  if (isNpxInstall(PKG_ROOT)) {
+  if (isOneOffRun(PKG_ROOT)) {
     // The item would name a path inside ~/.npm/_npx/<hash>/, which npm deletes
     // whenever it feels like it — a login item pointing at nothing, forever,
-    // on a machine where nothing was ever installed.
-    say(`\n  ${tone.warn}${gWarn}  an npx run cannot start at login ${dash} its files live in npm's cache and are deleted without warning.${tone.reset}`);
+    // on a machine where nothing was ever installed. pnpm dlx, bunx and yarn
+    // dlx keep theirs in a cache or a temp folder the same way.
+    say(isNpxInstall(PKG_ROOT)
+      ? `\n  ${tone.warn}${gWarn}  an npx run cannot start at login ${dash} its files live in npm's cache and are deleted without warning.${tone.reset}`
+      : `\n  ${tone.warn}${gWarn}  a pnpm dlx, bunx or yarn dlx run cannot start at login ${dash} its files live in a cache or temp folder and are deleted without warning.${tone.reset}`);
     say(`     ${tone.muted}install it first: \`npm i -g ${COMMAND}\`${tone.reset}\n`);
     return 1;
   }
@@ -130,12 +146,17 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
     return 1;
   }
   svc.writeServiceRecord(deckDataDir(), installedRecord(out.path));
-  say(`\n  ${tone.ok}${gOk}${tone.reset}  starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
-  if (out.how === "file-only") {
-    // The file is on disk and both launchd and systemd read their directories
-    // at the next login, so this works from then on. Said rather than hidden:
-    // "it will work tomorrow" is a different promise from "it works now".
-    say(`  ${tone.warn}${gWarn}  not started now ${dash} ${out.reason}. It will come up at your next login.${tone.reset}`);
+  if (out.enable) {
+    say("");
+    sayNotEnabled(out, { say, tone, gWarn, dash });
+  } else {
+    say(`\n  ${tone.ok}${gOk}${tone.reset}  starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
+    if (out.how === "file-only") {
+      // The plist is on disk and launchd loads its directory at the next
+      // login, so this works from then on. Said rather than hidden: "it will
+      // work tomorrow" is a different promise from "it works now".
+      say(`  ${tone.warn}${gWarn}  not started now ${dash} ${out.reason}. It will come up at your next login.${tone.reset}`);
+    }
   }
   warnWhenLingerOff(svc, { say, tone, gWarn });
   say(`     ${tone.muted}\`${COMMAND} --uninstall-service\` undoes it${tone.reset}\n`);
@@ -148,20 +169,21 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
 // makes that true: without it, `--uninstall-service` would be undone by the next
 // start, which is not an uninstall — it is a tool arguing with its user.
 //
-// npx is excluded and AGENTS_DECK_NO_INSTALL is honoured — see
-// shouldOfferService, which owns both rules and says why. A failure is one line
-// and nothing else: the deck is already running, and the worst case is the
-// behaviour every version before this one had.
+// npx and the other one-off runners are excluded and AGENTS_DECK_NO_INSTALL is
+// honoured — see shouldOfferService, which owns both rules and says why. A
+// failure is one line and nothing else: the deck is already running, and the
+// worst case is the behaviour every version before this one had.
 //
 // Called by the boot, not by a one-shot, so it writes the boot's way: `P`, `G`
 // and `write`, straight from bin/cli/screen.js.
 export async function offerLoginItem({ deckDataDir, deckLogDir }) {
   try {
     const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
-    const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+    const { isGitCheckout, isOneOffRun } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
     if (svc.shouldOfferService({
       record: svc.readServiceRecord(deckDataDir()),
-      npx: isNpxInstall(PKG_ROOT),
+      // npx, pnpm dlx, bunx and yarn dlx alike: none has a path to name.
+      npx: isOneOffRun(PKG_ROOT),
       checkout: isGitCheckout(PKG_ROOT),
     })) {
       const out = svc.installService(loginJob(OWN_SCRIPT, deckLogDir));
@@ -171,9 +193,11 @@ export async function offerLoginItem({ deckDataDir, deckLogDir }) {
       // Said once, on the one run that does it, and never again. A tool that
       // adds itself to your login items and does not mention it is a tool you
       // find later, in a settings pane, and stop trusting.
-      write(out.ok
-        ? `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${COMMAND} --uninstall-service\` undoes it${P.reset}\n\n`
-        : `  ${P.muted}${G.dash}  could not set ${PRODUCT} to start at login (${out.reason}) ${G.dash} it still starts when you type it${P.reset}\n\n`);
+      write(!out.ok
+        ? `  ${P.muted}${G.dash}  could not set ${PRODUCT} to start at login (${out.reason}) ${G.dash} it still starts when you type it${P.reset}\n\n`
+        : out.enable
+          ? `  ${P.muted}${G.dash}  ${PRODUCT}'s login item is written but systemd did not enable it (${out.reason}) ${G.dash} \`${out.enable}\` turns it on${P.reset}\n\n`
+          : `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${COMMAND} --uninstall-service\` undoes it${P.reset}\n\n`);
     }
   } catch (err) {
     // Never fatal. The deck is up; this is a convenience that did not happen.
