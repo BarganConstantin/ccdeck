@@ -35,7 +35,7 @@ import { createMenuSwap } from "./tray-menu-swap.mjs";
 import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
 import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
-import { createOwnDeck, discoverPlan, stopChild } from "./own-deck.mjs";
+import { createOwnDeck, discoverPlan, startOwnDeck, stopChild } from "./own-deck.mjs";
 import { trayIconFile } from "./tray-icon.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -99,6 +99,8 @@ let redraw = null;
 let menuSwap = null;          // tray-menu-swap.mjs, once the tray exists
 const ownDeck = createOwnDeck(); // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
+let startFailed = null;       // why the app's own deck did not start, until a deck answers
+let sayingStartFailed = false;
 let restarting = null;        // since when a restart has been asked for, until a new deck answers
 let updater = null;           // updater.mjs, created once the app is ready
 let quietSince = null;        // since when nothing is running, waiting or open (#1187)
@@ -122,6 +124,7 @@ function buildMenu() {
     deck,
     starting,
     restarting,
+    startFailed,
     notifyOn,
     openAtLogin: openAtLogin(loginItemOptions()),
     appVersion: app.getVersion(),
@@ -135,7 +138,8 @@ function buildMenu() {
 
 const TRAY_ACTIONS = {
   openWindow: () => openWindow(),
-  startDeck: () => ensureDeck().then(() => openWindow()),
+  // Only for a deck that came up: openWindow with none starts another.
+  startDeck: () => ensureDeck().then(found => { if (found) openWindow(); }).catch(err => trace(`start failed: ${err?.message ?? err}`)),
   openInBrowser: () => deck && shell.openExternal(`http://127.0.0.1:${deck.port}/`),
   toggleNotifications: () => toggleNotifications(),
   setOpenAtLogin: checked => { if (!setOpenAtLogin(checked, loginItemOptions())) trace(`could not ${checked ? "set" : "clear"} start at login`); scheduleRedraw(); },
@@ -170,7 +174,7 @@ function scheduleRedraw() {
     tray.setImage(trayImage(snapshot.icon));
     // macOS draws text beside a menu-bar icon; nowhere else can.
     if (process.platform === "darwin") tray.setTitle(snapshot.waiting > 0 ? ` ${snapshot.waiting}` : "");
-    tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);
+    tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot, startFailed })}`);
     // Only when what it says has changed, and not while it is open: a new
     // menu closes the one somebody is reading (tray-menu-swap.mjs).
     menuSwap?.refresh();
@@ -295,8 +299,10 @@ async function toggleNotifications() {
  *  pid and a new token). */
 function attach(found) {
   if (deck && found && deck.pid === found.pid && deck.token === found.token) return;
-  // A different deck answering is the restart having landed.
+  // A different deck answering is the restart having landed, and a start that
+  // failed before it is not what the tray has to say any more.
   if (found && restarting) restarting = null;
+  if (found) startFailed = null;
   stream?.close();
   stream = null;
   deck = found ?? null;
@@ -346,22 +352,64 @@ async function ensureDeck() {
   if (deck) return deck;
   if (starting) return starting;
   starting = (async () => {
+    startFailed = null;
     scheduleRedraw();
-    const launcher = writeLauncher(process.execPath);
-    ownDeck.track(startDeck({
-      deckRoot: deckRoot(),
-      appBinary: process.execPath,
-      logFile: join(app.getPath("logs"), "deck-app.log"),
-      path: fromLoginShell().PATH,
-      launcher,
-    }), code => { trace(`own deck exited ${code}`); discoverSoon(); });
-    for (let i = 0; i < 80 && !deck; i++) {
-      await new Promise(r => setTimeout(r, 500));
-      await discover();
+    const logFile = join(app.getPath("logs"), "deck-app.log");
+    // The wait ends when the deck exits, and a start that throws is a failed
+    // start rather than a rejection — see startOwnDeck.
+    const started = await startOwnDeck({
+      logFile,
+      start: exited => {
+        const launcher = writeLauncher(process.execPath);
+        ownDeck.track(startDeck({
+          deckRoot: deckRoot(),
+          appBinary: process.execPath,
+          logFile,
+          path: fromLoginShell().PATH,
+          launcher,
+        }), (code, signal) => {
+          trace(`own deck exited ${code}`);
+          discoverSoon();
+          exited(code, signal);
+        });
+      },
+      look: () => discover(),
+      found: () => !!deck,
+    });
+    if (!started.ok && started.reason) {
+      startFailed = started.reason;
+      trace(`own deck did not start: ${started.reason.replace(/\n/g, " | ")}`);
+      sayStartFailed(started.reason, logFile);
     }
     return deck;
   })();
   try { return await starting; } finally { starting = null; scheduleRedraw(); }
+}
+
+/**
+ * Why the app's own deck did not start, in front of the person: in a terminal
+ * the deck prints it where it stopped, and an app started from the Dock or at
+ * login has nowhere else to say it. One at a time — a second failed start
+ * while this is still up has the same reason.
+ */
+async function sayStartFailed(reason, logFile) {
+  if (sayingStartFailed) return;
+  sayingStartFailed = true;
+  try {
+    const { response } = await ask({
+      type: "error",
+      message: "The deck could not start",
+      detail: `${reason}\n\nThe deck's log is ${logFile}`,
+      buttons: ["OK", "Show the log"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (response === 1) shell.showItemInFolder(logFile);
+  } catch (err) {
+    trace(`could not say why the deck did not start: ${err?.message ?? err}`);
+  } finally {
+    sayingStartFailed = false;
+  }
 }
 
 /**
@@ -510,7 +558,7 @@ function trace(line) {
  *  fullscreen browser Space to do it (#1214). */
 function openWindow(steal = true) {
   if (!deck) {
-    ensureDeck().then(found => { if (found) openWindow(steal); });
+    ensureDeck().then(found => { if (found) openWindow(steal); }).catch(err => trace(`start failed: ${err?.message ?? err}`));
     return;
   }
   if (win && !win.isDestroyed()) {
@@ -861,7 +909,9 @@ app.whenReady().then(async () => {
   // development run has nothing to update into.
   setTimeout(() => updater.check(), 15_000);
   setInterval(() => updater.check(), 6 * 60 * 60_000);
-  await ensureDeck();
+  // Caught, so a start that fails still leaves the timers below, the window
+  // and the first-run question in place.
+  await ensureDeck().catch(err => trace(`start failed: ${err?.message ?? err}`));
   // The page's housekeeping (stale sessions, evictions), and a look for a deck
   // that came up while none was running.
   setInterval(() => { model?.tick(); scheduleRedraw(); updateWhenQuiet(); }, 10_000);
