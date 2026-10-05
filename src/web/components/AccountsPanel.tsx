@@ -232,7 +232,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
   // list. An order stored for a model no account has any more is slot order.
   const choices = orderChoices(others);
   const shownOrder = validOrder(order, others);
-  const rest = holdOrder(sortAccounts(others, shownOrder, a => reachable(a, nowSec)), held);
+  const rest = holdOrder(sortAccounts(others, shownOrder, a => reachable(a, nowSec), nowSec), held);
   /**
    * HELD WHILE A READER IS IN IT (#1579). A sorted list whose rows jumped on a
    * poll would move the Switch the reader was reaching for, so the order is
@@ -293,7 +293,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
   // the live account is past the threshold, whether anything will switch
   // without a press — is read in account-fold.ts.
   const peers = peersOf(rest, nowSec, lanFor);
-  const strained = pastThreshold(activeAcct, threshold);
+  const strained = pastThreshold(activeAcct, threshold, nowSec);
   const autoArmed = isAutoArmed(auto);
   /** The box a row scrolls inside, which is what a popover hanging off it
    *  closes against. Once the fold is open its list has a scroll of its own —

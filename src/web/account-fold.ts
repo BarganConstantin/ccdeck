@@ -9,6 +9,7 @@
 import { accountIssue } from "./account-issue";
 import { type Account, type AutoStatus } from "./claude-accounts";
 import { laneKey } from "./lane-open";
+import { headroomAt } from "./lane-view";
 import { type Peer } from "./other-accounts";
 
 /** The accounts behind the fold, each as the fold's row counts it. */
@@ -37,7 +38,9 @@ export function peersOf(
       ready: reachable(a, nowSec),
       why: a.disabled ? "held out" : issue?.blocksSwitch ? issue.text : null,
       warn: issue?.tone === "warn",
-      headroom: a.headroom,
+      // Against the windows still running: one that has reset since it was
+      // read says nothing about room (lane-view.ts).
+      headroom: headroomAt(a, nowSec),
     };
   });
 }
@@ -46,12 +49,14 @@ export function peersOf(
  * Where auto-switch would already be acting. Past it, "where do I go next" is
  * the question the reader has, and the row answers it before it is unfolded.
  * Derived from the same `headroom` the peers carry rather than from a second
- * walk over the lanes, so the two numbers cannot disagree.
+ * walk over the lanes, so the two numbers cannot disagree — and at the
+ * panel's `nowSec` the same way, so a window that has reset since it was read
+ * does not hold the live account past the threshold on its old number.
  */
-export function pastThreshold(activeAcct: Account | undefined, threshold: string): boolean {
+export function pastThreshold(activeAcct: Account | undefined, threshold: string, nowSec?: number): boolean {
   const trip = Number(threshold);
-  return activeAcct?.headroom != null && Number.isFinite(trip)
-    && 100 - activeAcct.headroom >= trip;
+  const room = activeAcct && (nowSec == null ? activeAcct.headroom : headroomAt(activeAcct, nowSec));
+  return room != null && Number.isFinite(trip) && 100 - room >= trip;
 }
 
 /**

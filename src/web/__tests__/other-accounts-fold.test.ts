@@ -251,7 +251,7 @@ describe("what the column folds, and when it does not", () => {
   it("keeps the live account whole above the fold and puts every other account behind it", () => {
     expect(panel).toMatch(/const others = activeAcct \? roster\.filter\(a => !a\.active\) : \[\];/);
     // In the reader's order since #1579, and held while they are in the list.
-    expect(panel).toMatch(/const rest = holdOrder\(sortAccounts\(others, shownOrder, a => reachable\(a, nowSec\)\), held\);/);
+    expect(panel).toMatch(/const rest = holdOrder\(sortAccounts\(others, shownOrder, a => reachable\(a, nowSec\), nowSec\), held\);/);
     expect(panel).toMatch(/const head = rest\.length \? roster\.filter\(a => a\.active\) : roster;/);
     // The row stands between the two lists, which is the only place an
     // accordion's handle can be.
@@ -311,8 +311,11 @@ describe("what the column folds, and when it does not", () => {
   });
 
   it("reads the live account's strain off the field the peers already carry", () => {
-    expect(accountFold).toMatch(/return activeAcct\?\.headroom != null && Number\.isFinite\(trip\)\s*\n\s*&& 100 - activeAcct\.headroom >= trip;/);
-    expect(panel).toMatch(/const strained = pastThreshold\(activeAcct, threshold\);/);
+    // At the panel's clock, as the peers' is (accounts-lapsed-window.test.ts).
+    expect(accountFold).toMatch(/const room = activeAcct && \(nowSec == null \? activeAcct\.headroom : headroomAt\(activeAcct, nowSec\)\);/);
+    expect(accountFold).toMatch(/return room != null && Number\.isFinite\(trip\) && 100 - room >= trip;/);
+    expect(accountFold).toMatch(/headroom: headroomAt\(a, nowSec\),/);
+    expect(panel).toMatch(/const strained = pastThreshold\(activeAcct, threshold, nowSec\);/);
   });
 
   it("carries the panel's inset itself, because it stands in the scroll and not in the foot", () => {

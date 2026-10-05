@@ -183,7 +183,10 @@ describe("the row renders the windows, and the panel reads the same function", (
   };
 
   it("shuts a row on its windows, plus a folded lane only when it is the fullest (#647)", () => {
-    expect(clientText()).toMatch(/const \{ shown, fuller \} = laneSplit\(a\.lanes\);/);
+    // The fuller lane is asked of the windows still running: one that has
+    // reset since it was read is no measure (accounts-lapsed-window.test.ts).
+    expect(clientText()).toMatch(/const \{ shown \} = laneSplit\(a\.lanes\);/);
+    expect(clientText()).toMatch(/const \{ fuller \} = laneSplit\(live\);/);
     expect(clientText()).toMatch(/const quick = fuller \? \[\.\.\.shown, fuller\] : shown;/);
     // Two calm windows over a hidden hot one would be the panel lying by
     // omission, so the hot one joins them; a calm folded lane stays folded.
