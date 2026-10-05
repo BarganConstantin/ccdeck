@@ -460,6 +460,13 @@ network private key**, the one every deck you paired with has pinned. Leaving it
 behind leaves that identity on the machine. (`~/.agents-deck/` holds the managed
 tools rather than the deck's own state, and goes when you remove them.)
 
+`agent-commits.jsonl`, beside it, is the git view's memory of which agent made
+which commit: the repository folder, the commit's SHA, subject and author time,
+the session, its model, how long it had worked and the tokens it had used by
+then. It stays on this machine — no report, error report or feedback ever
+carries it — and deleting it only takes the agent marks off the commits the
+deck saw being made.
+
 `uv tool uninstall claude-swap` (or `pipx uninstall claude-swap`) removes the
 account switcher.
 

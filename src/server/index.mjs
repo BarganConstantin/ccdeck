@@ -162,6 +162,9 @@ import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus
 // The git view's reads of a session's repository — see git-routes.mjs.
 import { handleGitCommit, handleGitDiff, handleGitLog, handleGitRepo, handleGitStatus } from "./git-routes.mjs";
 import { refreshGit } from "./git-watch.mjs";
+// Commit recording: the repository's word on each commit an agent's shell
+// output reports — see git-confirm.mjs.
+import { connectCommitRecording } from "./git-confirm.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -209,6 +212,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // Where the log is and whether it can be written, asked before the first
   // event — see openEventLog.
   await openEventLog(persist);
+  // The commits agents make are recorded from here on, by the deck writing
+  // the log (agent-git-tap.mjs) and only while the git view is switched on.
+  connectCommitRecording();
   if (persist) {
     // `deckWorkspace()`, not `workspace`: setDeckScope has normalised the
     // field above, and the replay has to answer the same question the live
