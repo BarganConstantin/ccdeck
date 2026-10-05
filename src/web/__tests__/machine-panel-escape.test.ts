@@ -216,7 +216,7 @@ describe("the panel's label and the panel's behaviour agree", () => {
     expect(app, "the button does not say whether the panel is open")
       .toMatch(/aria-expanded=\{machinePanelOpen\}/);
     expect(app, "the panel is on screen with nothing mounting it")
-      .toMatch(/\{(?:machinePanelOpen|isMounted\(machinePhase\)) && \(\s*<MachinePanel usageOpen=\{usagePanelOpen\}[\s\S]{0,80}?onClose=\{\(\) => setMachinePanelOpen\(false\)\} \/>/);
+      .toMatch(/\{(?:machinePanelOpen|isMounted\(machinePhase\)) && \(\s*<MachinePanel usageOpen=\{usagePanelOpen\}[\s\S]{0,80}?onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\} \/>/);
   });
 });
 

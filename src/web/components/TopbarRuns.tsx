@@ -12,6 +12,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { selfPressProps } from "../panel-press";
 import { finishSoundTitle } from "../provider-copy";
 import type { Providers } from "../providers";
+import type { PanelToggles } from "../use-panel-return";
 import type { useAppearance } from "../use-appearance";
 import type { useChimePlayer } from "../use-chime-player";
 import type { useClaudeFm } from "../use-claude-fm";
@@ -27,12 +28,14 @@ import TopbarMore from "./TopbarMore";
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
 /** Session list, Usage and its History. */
-export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen, setUsagePanelOpen, setUsageHistoryOpen }: {
+export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen, setUsagePanelOpen, setUsageHistoryOpen, toggles }: {
   sessionListOpen: boolean;
   toggleSessionList: () => void;
   usagePanelOpen: boolean;
   setUsagePanelOpen: Toggle;
   setUsageHistoryOpen: Toggle;
+  /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
+  toggles: PanelToggles;
 }) {
   return (
     <div className="action-run">
@@ -64,6 +67,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
           the three TEXT buttons that went with it, not about a 24px
           glyph. */}
       <button
+        ref={toggles.sessionList}
         className="btn icon-btn"
         onClick={toggleSessionList}
         title={`${sessionListOpen ? "Hide" : "Show"} session list (L)`}
@@ -85,6 +89,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
         <span className="tb-word">Session list</span>
       </button>
       <button
+        ref={toggles.usage}
         className="btn icon-btn"
         onClick={() => setUsagePanelOpen(o => !o)}
         title={`${usagePanelOpen ? "Hide" : "Show"} usage panel (U)`}
@@ -139,7 +144,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
 /** Accounts, Machine and Browser watch. */
 export function SourceRun({
   providers, accountsPanelOpen, toggleAccountsPanel, machinePanelOpen, setMachinePanelOpen,
-  watchOn, watchUnseen, setBrowserWatchOpen,
+  watchOn, watchUnseen, setBrowserWatchOpen, toggles,
 }: {
   providers: Providers;
   accountsPanelOpen: boolean;
@@ -151,6 +156,8 @@ export function SourceRun({
   /** Findings nobody has looked at yet. */
   watchUnseen: number;
   setBrowserWatchOpen: Toggle;
+  /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
+  toggles: PanelToggles;
 }) {
   return (
     <div className="action-run">
@@ -162,6 +169,7 @@ export function SourceRun({
           Codex, which has exactly one logged-in account and no store. */}
       {providers.claude && (
       <button
+        ref={toggles.accounts}
         className="btn icon-btn"
         onClick={toggleAccountsPanel}
         title={`${accountsPanelOpen ? "Hide" : "Show"} accounts (A)`}
@@ -197,6 +205,7 @@ export function SourceRun({
           region, which is what aria-expanded means, and the region names
           itself back through aria-controls. */}
       <button
+        ref={toggles.machine}
         className="btn icon-btn"
         onClick={() => setMachinePanelOpen(o => !o)}
         title={`${machinePanelOpen ? "Hide" : "Show"} this machine — cores, memory, temperature (S)`}

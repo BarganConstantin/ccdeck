@@ -9,7 +9,8 @@
 //   .react-flow__node.selectable:focus-visible { outline: none; }
 //
 // at 0,3,0. Nothing selected a card on focus either, so the one outline a card
-// does draw — `.agent-node.selected` — did not help. A keyboard reader moving
+// does draw — the selection's, now `.react-flow__node.rf-selected .agent-node`
+// (card-selection-ring.test.ts) — did not help. A keyboard reader moving
 // through the cards could not see which one Enter would act on.
 //
 // The ring goes back on the CARD, not the wrapper: the card is the box with the
@@ -27,6 +28,7 @@ const reactFlowCss = readFileSync(
   fileURLToPath(new URL("../../../node_modules/reactflow/dist/style.css", import.meta.url)), "utf8");
 
 const FOCUSED_CARD = ".react-flow__node:focus-visible .agent-node";
+const SELECTED_CARD = ".react-flow__node.rf-selected .agent-node";
 
 function decl(selector: string, prop: string): string | null {
   const re = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`, "m");
@@ -51,8 +53,8 @@ describe("a canvas card reached by keyboard shows a ring (#869)", () => {
   it("is the same ring selection draws, so the canvas has one focus language", () => {
     // Focus without selection still reads apart: selection also lifts the
     // card with --shadow-2, focus does not.
-    expect(decl(".agent-node.selected", "outline")).toBe(decl(FOCUSED_CARD, "outline"));
-    expect(decl(".agent-node.selected", "outline-offset")).toBe(decl(FOCUSED_CARD, "outline-offset"));
+    expect(decl(SELECTED_CARD, "outline")).toBe(decl(FOCUSED_CARD, "outline"));
+    expect(decl(SELECTED_CARD, "outline-offset")).toBe(decl(FOCUSED_CARD, "outline-offset"));
     expect(decl(FOCUSED_CARD, "box-shadow")).toBeNull();
   });
 });

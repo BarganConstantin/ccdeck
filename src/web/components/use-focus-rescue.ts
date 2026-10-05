@@ -14,16 +14,18 @@ import { focusDropped } from "../panel-press";
 
 /**
  * @param gone Whether the pressed control is no longer drawn.
- * @param target The surviving element focus goes to.
+ * @param target The surviving element focus goes to, or a function that puts
+ *   it there when where that is has to be worked out at the time.
  * @returns What the press calls, so that only a press is rescued — a control
  *   that went without being pressed took no focus with it.
  */
-export function useFocusRescue(gone: boolean, target: RefObject<HTMLElement | null>) {
+export function useFocusRescue(gone: boolean, target: RefObject<HTMLElement | null> | (() => void)) {
   const armed = useRef(false);
   useEffect(() => {
     if (!gone || !armed.current) return;
     armed.current = false;
-    if (focusDropped(document.activeElement?.tagName ?? null)) target.current?.focus();
+    if (!focusDropped(document.activeElement?.tagName ?? null)) return;
+    if (typeof target === "function") target(); else target.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gone]);
   return () => { armed.current = true; };

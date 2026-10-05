@@ -57,8 +57,14 @@
    with whatever colour the state put there instead of overwriting it, costs no
    layout, and survives a zoom level at which a 1px border swapping hue does
    not. The ring is the session's own colour — it read --accent-dim, the global
-   sky blue, so a selected node in a magenta session drew a blue halo. */
-.agent-node.selected {
+   sky blue, so a selected node in a magenta session drew a blue halo.
+
+   AND IT IS READ OFF THE WRAPPER. This was `.agent-node.selected`, from React
+   Flow's `selected` prop, which is never true on a canvas whose `nodes` are
+   controlled — so for as long as it was written that way it matched nothing,
+   and a selected card looked exactly like the others. snapshotToFlow marks the
+   selected cards' wrappers with `rf-selected`, as it marks rf-exiting. */
+.react-flow__node.rf-selected .agent-node {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   box-shadow: var(--shadow-2);
@@ -69,7 +75,7 @@
    main.tsx imports ahead of this one, removes it from the node wrapper —
    `.react-flow__node.selectable:focus-visible { outline: none }` at (0,3,0),
    beating `:focus-visible` at (0,1,0) — and nothing selects a card on focus,
-   so `.selected` above never stood in for it. The ring goes on the card, like
+   so `.rf-selected` above never stands in for it. The ring goes on the card, like
    selection's, because the card is the box with the radius and the session's
    own --accent. Focus without selection still reads apart: no lift. */
 .react-flow__node:focus-visible .agent-node {
@@ -190,7 +196,7 @@
    card's own outline is 2px of layout, which at a distance is a hairline. No
    mode in the selectors: the face is only ever drawn at the two distances this
    is for, and a ring gated on a canvas attribute is the shape #434 refused. */
-.agent-node.selected > .lod-face {
+.react-flow__node.rf-selected .agent-node > .lod-face {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

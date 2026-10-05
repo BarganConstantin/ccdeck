@@ -33,13 +33,14 @@ function exportSessionJson(state: GraphState, sessionId: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function DetailAside({ selected, now, openTool, setSummaryFor, setDetailOpen, stateRef, removeSelectedNode }: {
+export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, stateRef, removeSelectedNode }: {
   /** The primary selection, which is what the panel is about. */
   selected: AgentNodeData;
   now: number;
   openTool: (agentId: string, toolId: string) => void;
   setSummaryFor: (sessionId: string) => void;
-  setDetailOpen: (open: boolean) => void;
+  /** The × — closes the panel, and hands keyboard focus to the card it was about. */
+  onClose: () => void;
   /** Read when Export is pressed, for the graph as it is then. */
   stateRef: MutableRefObject<GraphState>;
   removeSelectedNode: () => void;
@@ -62,7 +63,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, se
         className="glyph-btn detail-close"
         title="Close panel"
         aria-label="Close detail panel"
-        onClick={() => setDetailOpen(false)}
+        onClick={onClose}
       >×</button>
       <Detail
             agent={selected}

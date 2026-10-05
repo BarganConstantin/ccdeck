@@ -413,7 +413,9 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
   it("leaves Space exactly where it was", () => {
     // The key is how this feature is actually used and nothing about it moved:
     // the same handler, the same gate, the same row in the shortcuts sheet.
-    expect(app).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); togglePause\(\); \}/);
+    // A held Space pauses once (held-shortcut-repeat.test.ts); its repeats are
+    // still cancelled.
+    expect(app).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); if \(!e\.repeat\) togglePause\(\); \}/);
     // The row, read from the table the sheet renders. It used to be read from
     // the detail rail's shorter copy of it; that rail is gone, and the copy was
     // never the thing this case was about.
