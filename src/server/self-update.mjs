@@ -32,7 +32,7 @@ import {
   installedVersion, PUBLISHED_NAME, registryName, upgradeCommand, upgradeName,
 } from "./install-layout.mjs";
 export {
-  installedVersion, isNpxInstall, isOneOffRun, isGitCheckout, npxRoot, bareSpecName, npxSpecFromMeta,
+  installedVersion, isNpxInstall, isOneOffRun, oneOffRunner, isGitCheckout, npxRoot, bareSpecName, npxSpecFromMeta,
   npxRestartSpec, ALIAS_PACKAGES, PUBLISHED_NAME, RETIRED_NAMES, currentName, installedName,
   hostRoot, hostNameFromMeta, hostPackage, successorRoot, frozenNameInstall, upgradeName,
   upgradeCommand, registryName,

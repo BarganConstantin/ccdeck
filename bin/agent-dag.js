@@ -43,7 +43,7 @@ import { parseArgs } from "../src/server/args.mjs";
 import { holdOutput, npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, currentName, installedName, installedVersion,
-  isNpxInstall, lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure,
+  lastKnownLatest, npxRestartSpec, oneOffRunner, readRestartFailure, recordRestartFailure,
   successorRoot,
 } from "../src/server/self-update.mjs";
 import {
@@ -103,7 +103,9 @@ if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {
   const isTTY = Boolean(process.stdout.isTTY);
   const profile = colorProfile({ isTTY });
   const tone = palette(profile);
-  const npx = isNpxInstall(PKG_ROOT);
+  // npx, pnpm dlx, bunx or yarn dlx: the runner the background line's two
+  // commands go through, since none of them leaves the command on PATH.
+  const runner = oneOffRunner(PKG_ROOT);
   const outcome = await detachAndWatch({
     file: fileURLToPath(import.meta.url),
     argv: process.argv.slice(2),
@@ -116,7 +118,7 @@ if (shouldDetach({ detached: DETACHED, leashed: LEASHED, flags: FLAGS })) {
     isTTY,
     profile,
     columns: termColumns(process.stdout),
-    backgroundLine: backgroundNote({ npx, invokedAs: INVOKED_AS, product: PRODUCT, tone, g: G }),
+    backgroundLine: backgroundNote({ runner, invokedAs: INVOKED_AS, product: PRODUCT, tone, g: G }),
   });
   // detachAndWatch never returns on the paths that worked. Reaching this line
   // means the log could not be opened at all — a read-only home, a full disk —
