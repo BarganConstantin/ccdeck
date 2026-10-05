@@ -22,7 +22,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream, restartAsked } from "./deck-link.mjs";
 import { shellEnv, startDeck, withShellSettings, writeLauncher } from "./deck-host.mjs";
-import { navigationFor } from "./nav.mjs";
+import { deckOrigin, navigationFor, originToFollow } from "./nav.mjs";
 import { overFullScreen, windowsOnScreen } from "./fullscreen-space.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
@@ -86,6 +86,7 @@ app.setAppUserModelId(APP_ID);
 // ── state ───────────────────────────────────────────────────────────────────
 let tray = null;
 let win = null;
+let windowOrigin = null;      // the deck origin the window shows, which its handlers hold links to
 let deck = null;              // { pid, port, token, version }
 let stream = null;
 let model = null;             // TrayModel from dist/lib/tray-model.mjs
@@ -306,6 +307,14 @@ function attach(found) {
   stream?.close();
   stream = null;
   deck = found ?? null;
+  // A deck on another port: an open window goes with it, or it would go on
+  // retrying a port nobody listens on (originToFollow).
+  const moveTo = win && !win.isDestroyed() ? originToFollow(windowOrigin, deck) : null;
+  if (moveTo) {
+    trace(`window follows the deck to ${moveTo}`);
+    windowOrigin = moveTo;
+    win.loadURL(`${moveTo}/`);
+  }
   // Another deck's answer is not this one's, and no deck has none.
   providerStatus = null;
   model?.reset();
@@ -568,7 +577,9 @@ function openWindow(steal = true) {
     offerReadyUpdate();
     return;
   }
-  const origin = `http://127.0.0.1:${deck.port}`;
+  // Kept where both handlers below read it when they are asked, rather than
+  // copied into them: attach() moves it when the deck moves to another port.
+  windowOrigin = deckOrigin(deck.port);
   win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -591,11 +602,11 @@ function openWindow(steal = true) {
   // login flow, a docs link — never inside this window, and anything that is
   // not a web page is not opened at all (nav.mjs).
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (navigationFor(url, origin) !== "block") shell.openExternal(url);
+    if (navigationFor(url, windowOrigin) !== "block") shell.openExternal(url);
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
-    const where = navigationFor(url, origin);
+    const where = navigationFor(url, windowOrigin);
     if (where === "stay") return;
     event.preventDefault();
     if (where === "external") shell.openExternal(url);
@@ -612,13 +623,14 @@ function openWindow(steal = true) {
   win.on("blur", () => trace(`blur onTop=${win?.isAlwaysOnTop()} visible=${win?.isVisible()}`));
   win.on("closed", () => {
     win = null;
+    windowOrigin = null;
     setRegular(false);
   });
   setRegular(true);
   // The page reads this to word itself for a window and to drop the browser
   // notification section it has no use for here (src/web/in-app.ts).
   win.webContents.setUserAgent(`${win.webContents.getUserAgent()} ccdeck-desktop/${app.getVersion()}`);
-  win.loadURL(`${origin}/`);
+  win.loadURL(`${windowOrigin}/`);
 }
 
 /** How long after macOS says the app let go before looking: the app's own
