@@ -124,7 +124,7 @@ function printLogs(deckLogDir, { say, tone, dash, bullet }) {
     say(`\n  ${tone.muted}${dash}  nothing logged yet ${dash} ${logPath}${tone.reset}\n`);
     return 0;
   }
-  // The tail, not the file. It is truncated at the first start on an idle
+  // The tail, not the file. It starts afresh at the first start on an idle
   // machine, so it is normally small — but an attach appends to a running
   // deck's log every time, and a long-lived deck's log is somebody's week.
   const lines = text.split("\n");

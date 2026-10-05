@@ -20,11 +20,13 @@
 // the terminal is fed by TAILING that file rather than by holding a pipe open.
 // One sink, no handover, nothing to break when the launcher goes.
 //
-// That file is `deck.log`, and it is truncated only when no deck is registered
-// on this machine. A running deck holds an open descriptor into it, so
-// truncating underneath one would punch a hole in the log of a deck nobody
-// asked to disturb — and the case that reaches here with a deck already up is
-// the attach, which has six lines to say and no business erasing anything.
+// That file is `deck.log`, every writer appends to it, and it is started afresh
+// only when no deck is registered or booting on this machine — by moving the
+// old one aside, never by truncating it. A running deck holds an open
+// descriptor into it, so truncating underneath one would punch a hole in the
+// log of a deck nobody asked to disturb — and the case that reaches here with a
+// deck already up is the attach, which has six lines to say and no business
+// erasing anything.
 //
 // ONE PLATFORM WHERE THIS IS NOT ENOUGH, and it is worth knowing before someone
 // reports it as a bug. Windows OpenSSH puts a session's processes in a job
@@ -45,7 +47,7 @@
 // deck was started from, which is what makes `--logs` worth reading, and the
 // launcher passes nothing at all when it is not itself a terminal.
 import { spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync, readSync, statSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readSync, renameSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { isOneShot } from "./args.mjs";
 
@@ -60,16 +62,23 @@ export const DETACHED_ENV = "AGENTS_DECK_DETACHED";
 export const DECK_LOG = "deck.log";
 
 /**
- * Truncate this log, or append to it?
+ * Start this log afresh, or carry on in it?
  *
- * Truncated when nothing is registered, which is the ordinary start and the
- * only moment the previous contents are certainly nobody's. Appended otherwise,
- * because a registered deck is holding an open descriptor at some offset into
- * this very file: truncating under it does not make it start again at zero, it
- * makes its next write land past the end and leave a hole.
+ * Afresh when nothing is registered and no deck holds the boot lock, which is
+ * the ordinary start and the only moment the previous contents are certainly
+ * nobody's. A deck in its boot window is not registered yet — it registers up
+ * to eight seconds later (boot-lock.mjs) — so two starts inside one window both
+ * read an empty registry; the lock is what the second one can see.
+ *
+ * AFRESH IS NEVER A TRUNCATION. A deck holds an open descriptor into this file,
+ * and truncating under it does not make it start again at zero: its next write
+ * lands past the end and leaves a hole. So the old log is moved aside to
+ * `deck.log.1` — a deck still writing to it keeps writing there — and a new
+ * file is opened. And every writer appends (see detachAndWatch), so nobody's
+ * offset can fall behind anybody else's.
  */
-export function logMode(liveCount) {
-  return liveCount > 0 ? "a" : "w";
+export function startsFresh(liveCount, booting = false) {
+  return liveCount === 0 && !booting;
 }
 
 /**
@@ -241,6 +250,7 @@ export async function detachAndWatch({
   argv = [],
   logDir,
   liveCount = 0,
+  booting = false,
   env = process.env,
   out = process.stdout,
   isTTY = false,
@@ -254,14 +264,20 @@ export async function detachAndWatch({
   const path = join(logDir, DECK_LOG);
   try { mkdirSync(logDir, { recursive: true }); } catch { /* reported by the open below */ }
 
-  const mode = logMode(liveCount);
-  // Where the terminal starts reading. An append leaves the previous deck's log
-  // alone and shows only what this child writes.
-  const from = mode === "a" ? (() => { try { return statSync(path).size; } catch { return 0; } })() : 0;
+  if (startsFresh(liveCount, booting)) {
+    try { renameSync(path, `${path}.1`); } catch { /* no log yet, or held where it cannot move: carry on in it */ }
+  }
+  // Where the terminal starts reading: the end of what is there. An attach
+  // leaves the running deck's log alone and shows only what this child writes.
+  const from = (() => { try { return statSync(path).size; } catch { return 0; } })();
 
   let fd;
   try {
-    fd = openSync(path, mode, 0o600);
+    // "a", O_APPEND, for every start. The supervisor and worker share this
+    // descriptor, an attach appends its own lines to the same file, and a login
+    // item's service manager appends to it too; opened at an offset of its own,
+    // the running deck's next write landed over whatever came after it.
+    fd = openSync(path, "a", 0o600);
   } catch (err) {
     // A log we cannot open is not a reason to refuse to start. Say so once and
     // run in the foreground, which is exactly what every version before this
