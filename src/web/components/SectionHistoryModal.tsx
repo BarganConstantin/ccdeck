@@ -114,6 +114,28 @@ export function yFor(v: number, top = 100, height = H, pad: Pad = PAD): number {
   return pad.t + inner * (1 - Math.max(0, Math.min(top, v)) / top);
 }
 
+/** The span a series is drawn across: the one it is handed, or its own first
+ *  and last point. */
+export type Domain = [t0: number, t1: number];
+function domainOf(points: Point[], domain?: Domain): Domain {
+  return domain ?? [points[0].t, points[points.length - 1].t];
+}
+
+/**
+ * Where a moment sits, left to right, inside the plot box.
+ *
+ * Against `[t0, t1]`, which in the dialog is the span EVERY chart in it covers
+ * rather than each series' own: one minute is one x down the whole stack, and a
+ * series that started late or stopped early leaves its part of the width empty.
+ * Stretched to its own points, forty minutes of latency under three hours of
+ * download drew the same minute in two places.
+ */
+export function xFor(t: number, [t0, t1]: Domain, width: number, pad: Pad = PAD): number {
+  const inner = width - pad.l - pad.r;
+  const span = t1 - t0;
+  return pad.l + (span > 0 ? (inner * (t - t0)) / span : inner / 2);
+}
+
 /**
  * The line, in path commands, with gaps left as gaps.
  *
@@ -122,14 +144,13 @@ export function yFor(v: number, top = 100, height = H, pad: Pad = PAD): number {
  * invent a reading for every minute in between — the one thing this whole
  * feature refuses to do. Anything more than two steps apart starts a new
  * subpath instead.
+ *
+ * `domain` is the span to draw across (xFor); without one, the series' own.
  */
-export function linePath(points: Point[], width: number, stepMs: number, top = 100, height = H, pad: Pad = PAD): string {
+export function linePath(points: Point[], width: number, stepMs: number, top = 100, height = H, pad: Pad = PAD, domain?: Domain): string {
   if (!points.length) return "";
-  const span = points[points.length - 1].t - points[0].t;
-  const x = (t: number) => {
-    const inner = width - pad.l - pad.r;
-    return pad.l + (span > 0 ? (inner * (t - points[0].t)) / span : inner / 2);
-  };
+  const span = domainOf(points, domain);
+  const x = (t: number) => xFor(t, span, width, pad);
   let d = "";
   let prev: Point | null = null;
   for (const p of points) {
@@ -151,12 +172,11 @@ export function linePath(points: Point[], width: number, stepMs: number, top = 1
  * for the other two hours to avoid inventing twelve minutes. Each run is
  * dropped to the floor on its own and the gap stays empty.
  */
-export function areaPath(points: Point[], width: number, stepMs: number, top = 100, height = H, pad: Pad = PAD): string {
+export function areaPath(points: Point[], width: number, stepMs: number, top = 100, height = H, pad: Pad = PAD, domain?: Domain): string {
   if (points.length < 2) return "";
   const floor = height - pad.b;
-  const span = points[points.length - 1].t - points[0].t;
-  const inner = width - pad.l - pad.r;
-  const x = (t: number) => pad.l + (span > 0 ? (inner * (t - points[0].t)) / span : inner / 2);
+  const span = domainOf(points, domain);
+  const x = (t: number) => xFor(t, span, width, pad);
   let out = "";
   let run: Point[] = [];
   const flush = () => {
@@ -275,7 +295,7 @@ export default function SectionHistoryModal({ group, title, onClose }: {
    * the answer before the first bucket exists, and it is the smaller of the two
    * exactly then.
    */
-  const [oldest, newest] = useMemo(() => {
+  const [oldest, newest, domain] = useMemo((): [number, number, Domain | undefined] => {
     let lo = Infinity;
     let hi = 0;
     for (const s of series) {
@@ -283,7 +303,11 @@ export default function SectionHistoryModal({ group, title, onClose }: {
       lo = Math.min(lo, s.points[0].t);
       hi = Math.max(hi, s.points[s.points.length - 1].t);
     }
-    return [Number.isFinite(lo) ? Math.max(lo, hist?.sinceMs ?? 0) : (hist?.sinceMs ?? 0), hi];
+    if (!Number.isFinite(lo)) return [hist?.sinceMs ?? 0, hi, undefined];
+    // The span every chart below is drawn across — ONE TIME AXIS, as the
+    // header of this file promises — and the points' own, not clamped to
+    // `sinceMs` the way the header's clock is, so no point falls off the left.
+    return [Math.max(lo, hist?.sinceMs ?? 0), hi, [lo, hi]];
   }, [series, hist?.sinceMs]);
 
   // Through a portal, unlike every other modal in this app, and for a reason
@@ -326,7 +350,7 @@ export default function SectionHistoryModal({ group, title, onClose }: {
             <p className="hist-empty">Nothing has been measured yet.</p>
           ) : (
             series.map(s => (
-              <Chart key={s.label} series={s} stepMs={hist.stepMs} />
+              <Chart key={s.label} series={s} stepMs={hist.stepMs} domain={domain} />
             ))
           )}
         </div>
@@ -336,7 +360,7 @@ export default function SectionHistoryModal({ group, title, onClose }: {
   );
 }
 
-function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
+function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; domain?: Domain }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(560);
   const [hover, setHover] = useState<number | null>(null);
@@ -361,17 +385,16 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
   const note = label === "Throttling" ? throttleNote(points, stepMs) : null;
 
   const at = hover != null ? points[hover] : null;
-  const span = points.length > 1 ? points[points.length - 1].t - points[0].t : 0;
-  const xOf = (t: number) => {
-    const inner = w - PAD.l - PAD.r;
-    return PAD.l + (span > 0 ? (inner * (t - points[0].t)) / span : inner / 2);
-  };
+  // The dialog's span, shared by every chart in it; the series' own only when
+  // it has no points to say anything about.
+  const [t0, t1]: Domain = domain ?? (points.length ? [points[0].t, points[points.length - 1].t] : [0, 0]);
+  const xOf = (t: number) => xFor(t, [t0, t1], w);
 
   const read = (e: React.PointerEvent<SVGSVGElement>) => {
     if (points.length < 2) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const frac = (e.clientX - rect.left - PAD.l) / Math.max(1, rect.width - PAD.l - PAD.r);
-    const t = points[0].t + span * Math.max(0, Math.min(1, frac));
+    const t = t0 + (t1 - t0) * Math.max(0, Math.min(1, frac));
     let best = 0;
     for (let i = 1; i < points.length; i++) {
       if (Math.abs(points[i].t - t) < Math.abs(points[best].t - t)) best = i;
@@ -429,11 +452,11 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
           {/* Only a real change is marked: the first route seen is where
               looking began, and a line there would claim a switch that never
               happened. */}
-          {(changes ?? []).filter(c => c.from != null && points.length > 1 && c.t >= points[0].t && c.t <= points[points.length - 1].t).map(c => (
+          {(changes ?? []).filter(c => c.from != null && points.length > 1 && c.t >= t0 && c.t <= t1).map(c => (
             <line key={c.t} className="hist-mark" x1={xOf(c.t)} x2={xOf(c.t)} y1={PAD.t} y2={h - PAD.b} />
           ))}
-          <path className="hist-area" d={areaPath(points, w, stepMs, top, h)} />
-          <path className="hist-line" d={linePath(points, w, stepMs, top, h)} />
+          <path className="hist-area" d={areaPath(points, w, stepMs, top, h, PAD, [t0, t1])} />
+          <path className="hist-line" d={linePath(points, w, stepMs, top, h, PAD, [t0, t1])} />
 
           {/* One measured point is a measurement, just not yet a trend — so it
               draws as a dot rather than as nothing or as a fake line. */}
@@ -460,9 +483,11 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
             return <><b>{f.value}</b>{f.unit === "%" || f.unit === "°C" || !f.unit ? f.unit : ` ${f.unit}`}</>;
           })()}</span>
         ) : (
+          // The span the chart is drawn across, the same under every chart
+          // in the dialog.
           <>
-            <span>{points.length ? clock(points[0].t) : ""}</span>
-            <span>{points.length ? clock(points[points.length - 1].t) : ""}</span>
+            <span>{points.length ? clock(t0) : ""}</span>
+            <span>{points.length ? clock(t1) : ""}</span>
           </>
         )}
       </div>
