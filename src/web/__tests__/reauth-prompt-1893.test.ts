@@ -25,7 +25,7 @@ import {
 } from "../../server/account-origins.mjs";
 import { accountKey } from "../../server/lan-copies.mjs";
 import { authTrouble } from "../../server/claude-accounts.mjs";
-import { loadPrefs, normalise, publicPrefs, updatePrefs } from "../../server/deck-prefs.mjs";
+import { loadPrefs, normalise, pagePatch, publicPrefs, updatePrefs } from "../../server/deck-prefs.mjs";
 import { deadLogin } from "../account-issue";
 import { lanRepairExpected } from "../account-lan";
 import type { Account } from "../claude-accounts";
@@ -127,10 +127,11 @@ describe("where it is kept", () => {
     const prefs = normalise({ accounts: { [KEY]: { origin: SIGNED_IN_HERE, signedInAt: NOW } } });
     expect(prefs.accounts[KEY]).toBeDefined();
     expect("accounts" in publicPrefs(prefs)).toBe(false);
-    // POST /api/prefs takes everything else in a patch, so the field is cut
-    // out of the body by name, beside the reporter's own state.
-    expect(src("../../server/prefs-routes.mjs"))
-      .toMatch(/const \{ reports: _reports, report: _report, accounts: _accounts, \.\.\.patch \} = body;/);
+    // POST /api/prefs takes only the fields the page edits, and this is not
+    // one of them: the body is cut down to those before it is written.
+    expect(pagePatch({ accounts: { [KEY]: { origin: SIGNED_IN_HERE, signedInAt: NOW } }, notifications: true }))
+      .toEqual({ notifications: true });
+    expect(src("../../server/prefs-routes.mjs")).toMatch(/const patch = pagePatch\(body\);/);
   });
 });
 

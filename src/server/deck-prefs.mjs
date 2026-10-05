@@ -670,6 +670,41 @@ export function publicPrefs(prefs) {
 }
 
 /**
+ * The preferences a PAGE may write — publicPrefs's other half, and the fields
+ * `POST /api/prefs` takes. Exactly what the page and the desktop app send:
+ * the three switches, and the LAN dialog's fields.
+ *
+ * EVERYTHING ELSE IS THE DECK'S OWN, and kept as it is on disk whatever a body
+ * names. The LAN key, the decks somebody accepted or unpaired, which ticks an
+ * arrival made and the port are written by the engine and read back at the
+ * next start (see lanApplyFields in lan-deck.mjs); a name for another deck
+ * goes through its own route, which cleans it; the reports switch only through
+ * /api/reports, because turning it off asks for a deletion (#1853); the
+ * reporter's state and the accounts the deck signed in (#1893) are the deck's
+ * to record. A new preference is not writable from a page until it is named
+ * here — prefs-route-fields.test.ts lists them.
+ */
+export const PAGE_FIELDS = Object.freeze({
+  top: Object.freeze(["notifications", "tourSeen", "autoUpdate"]),
+  lan: Object.freeze([
+    "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
+    "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
+  ]),
+});
+
+/** A page's body cut down to PAGE_FIELDS: the patch writePrefs is handed. A
+ *  field the body does not name is not in it, so it keeps its value. */
+export function pagePatch(body) {
+  const pick = (src, keys) => {
+    const from = src && typeof src === "object" && !Array.isArray(src) ? src : {};
+    return Object.fromEntries(keys.filter(k => Object.hasOwn(from, k)).map(k => [k, from[k]]));
+  };
+  const patch = pick(body, PAGE_FIELDS.top);
+  const lan = pick(body?.lan, PAGE_FIELDS.lan);
+  return Object.keys(lan).length ? { ...patch, lan } : patch;
+}
+
+/**
  * May the deck raise a desktop notification right now?
  *
  * The env var wins. A machine launched with AGENTS_DECK_NO_NOTIFY=1 has been
