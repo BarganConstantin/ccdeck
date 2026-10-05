@@ -271,8 +271,14 @@ describe("the hook command written into settings.json", () => {
       // argv the hook would actually receive. NUL rather than newline because
       // one of the paths below contains a newline, and splitting on that would
       // report the shell's correct answer as a failure.
+      //
+      // The arguments go to /bin/sh's fallback script (the recorded node, or
+      // the one on PATH once it is gone — hook-command-node-fallback.test.ts
+      // runs it), so they are what follows its four words.
       const argv = shellArgv(cmd.replace(shellQuoteArg(NODE, "linux"), "printf-args"));
-      expect(argv, path).toEqual(["printf-args", path, "--provider", "claude"]);
+      expect(argv.slice(0, 2), path).toEqual(["/bin/sh", "-c"]);
+      expect(argv[3], path).toBe("ccdeck-hook");
+      expect(argv.slice(4), path).toEqual(["printf-args", path, "--provider", "claude"]);
     }
   });
 

@@ -100,11 +100,28 @@ const LEGACY_DIRS = ["ccgraph", "agent-flow", "agent-dag"];
  * double quotes), so without the second parameter the only assertion a test can
  * make is the one its own OS happens to produce, which is how this went five
  * releases with the Windows half of it never once executed.
+ *
+ * WHEN THE NODE IT NAMES IS GONE. stable-node.mjs finds a spelling of the node
+ * that outlives an upgrade where there is one, and nvm, fnm and Volta have
+ * none: the command named ~/.nvm/versions/node/<v>/bin/node, `nvm uninstall`
+ * took it away, and every tool call of every session showed a hook error from
+ * then on. So on POSIX the arguments go to a fixed /bin/sh script that runs the
+ * recorded node while it is executable, the node on Claude Code's own PATH once
+ * it is not, and nothing when there is no node at all — exit 0 and no output,
+ * which Claude Code does not report. The script is a constant and the paths
+ * reach it as positional arguments, quoted once by the same escaper, so none of
+ * them is ever spliced into shell code; and it is /bin/sh by its path, the
+ * shell Claude Code itself runs the line with, so neither a PATH without it
+ * nor a login shell that is not POSIX changes what the script means. The cost
+ * is one `sh` exec before node's own start. Windows keeps the direct command.
  */
+const NODE_FALLBACK = 'n=$1; shift; [ -x "$n" ] || n=$(command -v node) || exit 0; exec "$n" "$@"';
+
 export function hookCommand(installedHookPath, provider, node = process.execPath,
                             platform = process.platform) {
   const q = (s) => shellQuoteArg(s, platform);
-  return `${q(node)} ${q(installedHookPath)} --provider ${q(provider)}`;
+  const args = `${q(node)} ${q(installedHookPath)} --provider ${q(provider)}`;
+  return platform === "win32" ? args : `/bin/sh -c ${q(NODE_FALLBACK)} ccdeck-hook ${args}`;
 }
 
 function isMarked(g) {

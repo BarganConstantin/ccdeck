@@ -44,8 +44,10 @@ describe("knowing the app is the host", () => {
   });
 
   it("writes that launcher into the hook command, quoted like any path", () => {
+    // After the fallback script's four words, which run it while it is there
+    // and the node on PATH once it is not (hook-command-node-fallback.test.ts).
     expect(hookCommand("/u/.claude/agent-dag/hook.js", "claude", "/u/.claude/agent-dag/ccdeck-node", "darwin"))
-      .toBe("'/u/.claude/agent-dag/ccdeck-node' '/u/.claude/agent-dag/hook.js' --provider 'claude'");
+      .toMatch(/^\/bin\/sh -c '[^']*' ccdeck-hook '\/u\/\.claude\/agent-dag\/ccdeck-node' '\/u\/\.claude\/agent-dag\/hook\.js' --provider 'claude'$/);
   });
 
   it("never offers its own login item — the app owns that switch", () => {
