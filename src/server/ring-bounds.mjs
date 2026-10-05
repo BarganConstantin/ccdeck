@@ -73,8 +73,11 @@ export const MAX_BUFFER = 2000;     // recent HOOK events kept for late SSE subs
  * `OutputObserved` is deliberately NOT here. It says something landed at a
  * given moment, which is history — two of them are two events, not one value
  * twice.
+ *
+ * `GitObserved` is: a session's repository and branch as last read, which a
+ * newer one supersedes entirely (git-watch.mjs).
  */
-const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed"]);
+const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed", "GitObserved"]);
 
 /**
  * Whether this payload is enrichment MAX_BUFFER does not count — see

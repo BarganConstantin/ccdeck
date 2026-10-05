@@ -461,6 +461,14 @@ export const GUARDED_READS = new Set([
   // only caller that needs it is the deck's own canvas, which sends
   // Sec-Fetch-Site: same-origin on every fetch.
   "/api/fm-station",
+  // A session's repository: its history, its working tree and the content of
+  // every change in it — the user's own work, like the per-project spend
+  // above. The deck's own page is the only caller.
+  "/api/git/repo",
+  "/api/git/log",
+  "/api/git/status",
+  "/api/git/diff",
+  "/api/git/commit",
 ]);
 
 export function isAuthorizedMutation(req) {

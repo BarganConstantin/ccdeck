@@ -21,6 +21,10 @@ import { logSharing } from "./event-log.mjs";
 import { emptyLog } from "./log-writer.mjs";
 import { outputWatch } from "./session-tracking.mjs";
 import { clearEnrichmentGates } from "./session-enrichment.mjs";
+// The git view's folders, cached reads and the GitObserved gate — see the git-*.mjs modules.
+import { clearSessionFolders } from "./git-sessions.mjs";
+import { clearGitState } from "./git-state.mjs";
+import { clearGitWatch } from "./git-watch.mjs";
 
 /**
  * GET /api/clear — what a POST to this path would do, and to whose log.
@@ -151,6 +155,10 @@ export async function handleClear(res) {
   // (forgetEnrichment).
   outputWatch.clear();
   clearEnrichmentGates();
+  // GitObserved is gated on "has this changed" too, so it goes with them.
+  clearGitWatch();
+  clearSessionFolders();
+  clearGitState();
   pushEvent({ hook_event_name: "__clear", cwd: "" }, "internal", { persist: false });
   // The end of the press. Awaited, where the truncate used to be fired and
   // forgotten, so the answer does not go out before the file has actually

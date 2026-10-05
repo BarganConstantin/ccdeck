@@ -15,6 +15,9 @@ import { readBody, send } from "./http-io.mjs";
 import { createOutputWatch } from "./output-watch.mjs";
 import { forgetEnrichment, onRecapTail } from "./session-enrichment.mjs";
 import { forgetCodexSession } from "./codex-enrichment.mjs";
+// What the page was told about each session's repository — see
+// git-watch.mjs.
+import { forgetGitSession } from "./git-watch.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
@@ -145,6 +148,7 @@ function forgetSession(sid) {
   outputWatch.forget(sid);
   forgetEnrichment(sid);
   forgetCodexSession(sid);
+  forgetGitSession(sid);
 }
 
 function touchSession(sid) {

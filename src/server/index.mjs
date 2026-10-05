@@ -159,6 +159,8 @@ import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettin
 import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl } from "./music-routes.mjs";
 // The usage panel's quota and history reads — see usage-routes.mjs.
 import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota } from "./usage-routes.mjs";
+// The git view's reads of a session's repository — see git-routes.mjs.
+import { handleGitCommit, handleGitDiff, handleGitLog, handleGitRepo, handleGitStatus } from "./git-routes.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -365,6 +367,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch/dismiss") return guard(handleBrowserWatchDismiss(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/account-projects") return guard(handleAccountProjects(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/git/repo")    return guard(handleGitRepo(req, res, url), res);
+    if (req.method === "GET"  && url.pathname === "/api/git/log")     return guard(handleGitLog(req, res, url), res);
+    if (req.method === "GET"  && url.pathname === "/api/git/status")  return guard(handleGitStatus(req, res, url), res);
+    if (req.method === "GET"  && url.pathname === "/api/git/diff")    return guard(handleGitDiff(req, res, url), res);
+    if (req.method === "GET"  && url.pathname === "/api/git/commit")  return guard(handleGitCommit(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);
