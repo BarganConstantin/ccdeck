@@ -17,7 +17,7 @@ import {
   CARD_BODY_PX, COMPACT_ENTER, COMPACT_EXIT, DEFAULT_CARD, DETAIL_ENTER_PX, DETAIL_ENTER_ZOOM, DETAIL_EXIT_PX,
   DETAIL_EXIT_ZOOM, FOCUS_MAX_ZOOM, FOCUS_MIN_ZOOM, fitZoomForDrawnLanes, nextLod, referenceCard, type LodMode,
 } from "../semantic-zoom";
-import { branchLong, branchShort, branchSummaries, faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
+import { branchLong, branchShort, branchSummaries, faceSignal, faceTitle, stateMarkKind, type BranchSummary } from "../node-face";
 import { focusViewport, unionBox } from "../focus-camera";
 import { hidePeek, peekedId, showPeek } from "../components/SessionPeek";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
@@ -220,6 +220,23 @@ describe("a small face says one thing, in the order a reader would want it", () 
   });
 });
 
+describe("a name cut short on a small face has its whole text on hover", () => {
+  it("carries the card's own tooltip when that already holds the whole text, and the text above it when not", () => {
+    // A root is named after its folder, which the card's tooltip opens with.
+    expect(faceTitle("shop-api-auth", "/w/shop-api-auth\nAdd the login route")).toBe("/w/shop-api-auth\nAdd the login route");
+    // A subagent is named after its type; its tooltip is only its folder.
+    expect(faceTitle("test-writer", "/w/shop-api-auth")).toBe("test-writer\n/w/shop-api-auth");
+    // A session's name over the title its tooltip holds.
+    expect(faceTitle("develop-hotfix", "Round currency half-up")).toBe("develop-hotfix\nRound currency half-up");
+    expect(faceTitle("empty-repo", undefined)).toBe("empty-repo");
+  });
+
+  it("puts it on the name and on the session's line, as the full card does", () => {
+    expect(node).toContain('<span className="lod-name" title={faceTitle(data.label, tips.name)}>{data.label}</span>');
+    expect(node).toContain('{title && <div className="lod-title" title={faceTitle(title, tips.title)}>{title}</div>}');
+  });
+});
+
 describe("a focus frames the session where nobody is covering it", () => {
   const pane = { width: 1080, height: 850 };
   const noRail = { top: 56, left: 72, bottom: 32, right: 32 };
@@ -329,7 +346,7 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("draws the face in every card and hides it from assistive technology", () => {
-    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />');
+    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }} />');
     expect(node).toMatch(/className="lod-face"[\s\S]{0,200}aria-hidden/);
     expect(css).toMatch(/\.lod-face \{ display: none; \}/);
   });

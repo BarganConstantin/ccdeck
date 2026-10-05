@@ -32,7 +32,7 @@ import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { recapShown } from "../session-recap";
 import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note";
-import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
+import { faceSignal, faceTitle, stateMarkKind, type BranchSummary } from "../node-face";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
 // The activity chart's counting and its scale. See tool-spark.ts.
 import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
@@ -315,7 +315,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         )}
       </div>
 
-      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />
+      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }} />
 
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
@@ -345,9 +345,16 @@ const NO_YIELDS: RowYield[] = [];
  *
  * Hidden from assistive technology like the rows it stands in for: the node's
  * accessible name is agentAriaLabel, composed from the data, and says all of
- * this at every zoom.
+ * this at every zoom. A line the face cuts short carries its whole text on
+ * hover, as the full card's name does (faceTitle).
  */
-function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSummary }; title?: string }) {
+function NodeFace({ data, title, tips }: {
+  data: AgentNodeData & { branch?: BranchSummary };
+  title?: string;
+  /** The full card's tooltips for the name and the session's line, which the
+   *  face's cut lines carry too (faceTitle). */
+  tips: { name?: string; title?: string };
+}) {
   const alarm = data.kind === "root" && isAlarming(data.waiting);
   const signal = faceSignal(data, data.branch, {
     sayWaiting: waitingLabel,
@@ -363,11 +370,11 @@ function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSumm
     >
       <div className="lod-id">
         <StateMark kind={stateMarkKind(data.state)} />
-        <span className="lod-name">{data.label}</span>
+        <span className="lod-name" title={faceTitle(data.label, tips.name)}>{data.label}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
         {alarm && <AlertMark />}
       </div>
-      {title && <div className="lod-title">{title}</div>}
+      {title && <div className="lod-title" title={faceTitle(title, tips.title)}>{title}</div>}
       {signal && (
         <div className="lod-signal" data-tone={signal.tone}>
           <span className="lod-long">{signal.long}</span>
