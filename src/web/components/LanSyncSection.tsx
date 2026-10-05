@@ -42,6 +42,7 @@ import type { LanAccount } from "../lan-types";
 import { useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
 import { useRowUnpair } from "../use-row-unpair";
+import FilmLink from "./FilmLink";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
@@ -297,13 +298,18 @@ export default function LanSyncSection({ accounts, onChanged, onNoCopy, view, on
                 report was that nobody could tell from it what would happen or what
                 to do on the other machine. The drawing says the first half at a
                 glance; the press opens the guide that says the rest. */}
+            {/* The film sits beside the card's own words rather than inside it:
+                a link inside a button is two controls in one. */}
             {!on && (
-              <button type="button" className="ap-lan-intro" onClick={() => setGuideOpen(true)}
-                title="Four pictures: what this does, and what to do on each machine">
-                <LanIntroArt />
-                <span className="ap-lan-intro-text">Paired machines repair each other&apos;s expired logins.</span>
-                <span className="ap-lan-intro-go">See how it works</span>
-              </button>
+              <div className="ap-lan-intro-row">
+                <button type="button" className="ap-lan-intro" onClick={() => setGuideOpen(true)}
+                  title="Four pictures: what this does, and what to do on each machine">
+                  <LanIntroArt />
+                  <span className="ap-lan-intro-text">Paired machines repair each other&apos;s expired logins.</span>
+                  <span className="ap-lan-intro-go">See how it works</span>
+                </button>
+                <FilmLink film="localNetwork" />
+              </div>
             )}
 
             {/* WHO IS HERE, IN ONE LINE. Every state this section had was legible only
@@ -414,6 +420,7 @@ export default function LanSyncSection({ accounts, onChanged, onNoCopy, view, on
                     <button type="button" className="ap-lan-word ap-lan-how" onClick={() => setGuideOpen(true)}>
                       How it works
                     </button>
+                    <FilmLink film="localNetwork" />
                   </>
                 )}
 
