@@ -16,7 +16,7 @@ import { pathToFileURL } from "node:url";
 import { isPortValue } from "../../src/server/args.mjs";
 import { sinceLabel } from "../../src/server/term.mjs";
 import { installGlobally, loginItemCommand } from "./login-item.js";
-import { COMMAND, PKG_ROOT } from "./package.js";
+import { COMMAND, PKG_ROOT, PKG_VERSION } from "./package.js";
 import { G, P } from "./screen.js";
 
 /**
@@ -170,7 +170,7 @@ async function defaultShape(deckLogDir) {
 
 /** `--status`: every deck on this machine, and which one a bare start would open. */
 async function printStatus(decks, mine, { say, tone, dash, gOk, bullet, arrow }) {
-  const { sameShape } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
+  const { olderVersion, sameShape, serves } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
   if (!decks.length) {
     say(`\n  ${tone.muted}${dash}  no deck is running ${dash} \`${COMMAND}\` starts one${tone.reset}\n`);
     return 0;
@@ -178,7 +178,13 @@ async function printStatus(decks, mine, { say, tone, dash, gOk, bullet, arrow })
   // The one a bare `ccdeck` would open is marked, because with two decks up
   // that is the only question this command is really being asked. Never a
   // deck between workers: a start typed now finds nothing to open there.
-  const opens = decks.find(d => !d.restarting && sameShape(d, mine)) ?? null;
+  //
+  // By the start's own rule, serves — the shape AND a version no older than
+  // this one. The shape alone marked an older deck, the one still up after an
+  // upgrade, as the deck the next `ccdeck` opens, and that `ccdeck` replaced
+  // it. With nothing to open, an older deck of the start's shape says so.
+  const opens = decks.find(d => !d.restarting && serves(d, { want: mine, ours: PKG_VERSION })) ?? null;
+  const replaced = (d) => !opens && !d.restarting && sameShape(d, mine) && olderVersion(d.version, PKG_VERSION);
   say("");
   for (const d of decks) {
     // The version chunk is dropped rather than printed as "v?" for a deck too
@@ -191,7 +197,11 @@ async function printStatus(decks, mine, { say, tone, dash, gOk, bullet, arrow })
     const head = [d.version ? `v${d.version}` : "", `pid ${pidOf(d)}`, d.restarting ? "restarting after a crash" : `up ${age(d)}`]
       .filter(Boolean).join(`  ${bullet}  `);
     const mark = d === opens ? `${tone.ok}${gOk}${tone.reset}` : `${tone.muted}${bullet}${tone.reset}`;
-    const tail = d === opens ? `${tone.muted}   ${arrow} \`${COMMAND}\` opens this one${tone.reset}` : "";
+    const tail = d === opens
+      ? `${tone.muted}   ${arrow} \`${COMMAND}\` opens this one${tone.reset}`
+      : replaced(d)
+        ? `${tone.muted}   ${arrow} \`${COMMAND}\` replaces this one ${dash} older than v${PKG_VERSION}${tone.reset}`
+        : "";
     say(`  ${mark}  ${tone.muted}${head}${tone.reset}${tail}`);
     say(`     ${tone.accent}${tone.bold}${url(d)}${tone.reset}`);
     say(`     ${tone.muted}${where(d)} ${bullet} ${d.persist ?? "no log (--no-persist)"}${tone.reset}`);
