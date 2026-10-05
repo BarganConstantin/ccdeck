@@ -60,6 +60,16 @@ export function sessionSubagents(sid) {
   return s ? [...s.subagents.entries()] : [];
 }
 
+/** The `limit` sessions heard from most recently, newest first. */
+export function recentSessions(limit) {
+  const out = [];
+  for (const [sid, s] of [...sessions.entries()].reverse()) {
+    if (out.length >= limit) break;
+    if (s.cwd) out.push(sid);
+  }
+  return out;
+}
+
 /** Forget every session, for a Clear. */
 export function clearSessionFolders() {
   sessions.clear();

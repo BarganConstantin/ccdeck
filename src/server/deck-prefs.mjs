@@ -82,6 +82,10 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
+  // The git view: each card's branch, read from the session's own repository,
+  // and the reads behind it. ON — it only helps if people see it — and one
+  // switch turns all of it off, the server's reads included (git-watch.mjs).
+  git: true,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -303,6 +307,7 @@ export function normalise(raw) {
     notifications: flagOr(src.notifications, DEFAULTS.notifications),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
+    git: flagOr(src.git, DEFAULTS.git),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),
@@ -685,7 +690,7 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "tourSeen", "autoUpdate"]),
+  top: Object.freeze(["notifications", "tourSeen", "autoUpdate", "git"]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
@@ -702,6 +707,14 @@ export function pagePatch(body) {
   const patch = pick(body, PAGE_FIELDS.top);
   const lan = pick(body?.lan, PAGE_FIELDS.lan);
   return Object.keys(lan).length ? { ...patch, lan } : patch;
+}
+
+/**
+ * May the deck read repositories for the git view right now? The file's answer;
+ * nothing at launch overrules it.
+ */
+export function gitOn(prefs) {
+  return normalise(prefs).git;
 }
 
 /**

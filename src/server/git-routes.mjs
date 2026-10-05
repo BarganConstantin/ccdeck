@@ -11,6 +11,7 @@
 //
 // Shapes, all JSON:
 //   400 { error }                 a parameter missing or malformed
+//   409 { error }                 the git view is switched off in Settings
 //   404 { error }                 an unknown session, path or commit
 //   200 { ok, state, repo, … }    `state` is "repo" or why there is none —
 //                                 "not-a-repo", "gone", "no-git", "bare",
@@ -20,6 +21,7 @@
 import { send } from "./http-io.mjs";
 import { isShaLike } from "./git-reads.mjs";
 import { sessionFolder } from "./git-sessions.mjs";
+import { gitEnabled } from "./git-watch.mjs";
 import { commitOf, commitFileDiffOf, fileDiffOf, logOf, repoOf, statusOf } from "./git-state.mjs";
 
 const AREAS = new Set(["staged", "unstaged", "untracked", "conflict"]);
@@ -35,6 +37,8 @@ const param = (url, name) => {
  * `{ repo, folder }` with `repo.state === "repo"`, or null after replying.
  */
 async function sessionRepo(url, res) {
+  // Switched off in Settings: the deck reads no repository at all.
+  if (!gitEnabled()) { send(res, 409, { error: "git is switched off in Settings" }); return null; }
   const sid = param(url, "session");
   if (!sid) { send(res, 400, { error: "session required" }); return null; }
   const folder = sessionFolder(sid, param(url, "agent"));

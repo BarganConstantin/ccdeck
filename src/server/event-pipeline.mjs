@@ -224,7 +224,8 @@ export function pushEvent(raw, source, opts = {}) {
   // repository — the deck's own events never do.
   if (raw && typeof raw === "object") {
     noteSessionFolder(raw);
-    if (!opts.replay && (source === "hook" || source === "codex")) noteGitEvent(raw);
+    if (opts.replay) noteGitEvent(raw, { replay: true });
+    else if (source === "hook" || source === "codex") noteGitEvent(raw);
   }
 
   // Note the session so the caches the scanners below fill can expire by
