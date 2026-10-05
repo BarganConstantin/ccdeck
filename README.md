@@ -159,7 +159,7 @@ The machine panel shows a **Thermal** section only where the machine actually an
 
 | | reads | needs |
 | --- | --- | --- |
-| Linux | `/sys/class/hwmon`, then `/sys/class/thermal/thermal_zone*` | nothing |
+| Linux | `/sys/class/hwmon`, then `/sys/class/thermal/thermal_zone*`; on Intel, `thermal_throttle/package_throttle_total_time_ms` for throttling — the share of time the clock was held down | nothing |
 | Windows | the `Thermal Zone Information` performance counter, then `MSAcpi_ThermalZoneTemperature`, then LibreHardwareMonitor's web server if it happens to be running | nothing — where the machine has an ACPI thermal zone. Many do not; see below |
 | macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
 | macOS, Apple Silicon | `macmon`, which the deck fetches for you | nothing |

@@ -6,7 +6,8 @@
 // each can be asked what it says rather than read. Bytes were written here
 // too, in a format of the panel's own, until #1128 gave the deck one:
 // byte-format.ts.
-import type { NetRoute, Snapshot } from "./machine-snapshot";
+import { heldShare } from "./machine-live";
+import type { NetRoute, Snapshot, Throttle } from "./machine-snapshot";
 
 /** How a bar is painted. `calm` is the resting appearance and carries no class
  *  of its own, which is what keeps the memory rows drawing exactly as before. */
@@ -39,9 +40,15 @@ export function thermalTone(celsius: number, warnAt: number, critAt: number): To
  * The note is the sentence somebody actually needs. A speed limit is already
  * the consequence a temperature has to be interpreted into, so it is worth
  * saying in words rather than leaving as a number.
+ *
+ * LINUX SAYS A DIFFERENT THING, and the note says it in its own words. The
+ * kernel counts how long the clock was held down, not how far, so 60 there is
+ * "throttled 60% of the time" — never "held to 40% of full speed", which would
+ * be a speed nobody measured. The bar and the tone are the same on both: either
+ * way it is the share of the machine you are not getting.
  */
 export function throttleRow(
-  speedLimit: number,
+  throttle: Throttle,
   /** What the history says has already happened. A desktop reads 0% forever —
    *  measured: ninety seconds of AES-NI on twelve cores never moved this — and
    *  a row that only ever says 0% reads as a readout that does not work. It was
@@ -50,7 +57,8 @@ export function throttleRow(
   past?: { peak: number; lastMs: number } | null,
   now = Date.now(),
 ): { pct: number; value: string; tone: Tone; note: string } {
-  const held = Math.max(0, Math.min(100, 100 - speedLimit));
+  const held = heldShare(throttle);
+  const byTime = "timeHeld" in throttle;
   return {
     pct: held,
     // A number, never the word "none", and that was a bug report: a healthy
@@ -68,9 +76,13 @@ export function throttleRow(
     // Short enough to sit on one line in a 280px panel: the longer phrasings
     // wrapped and orphaned their last word.
     note: held > 0
-      ? `CPU held to ${speedLimit}% of full speed to cool down`
+      ? byTime
+        ? `CPU throttled ${held}% of the time to cool down`
+        : `CPU held to ${100 - held}% of full speed to cool down`
       : past
-        ? `at full speed · held to ${100 - past.peak}% ${sinceLabel(past.lastMs, now)}`
+        ? byTime
+          ? `at full speed · ${past.peak}% throttled ${sinceLabel(past.lastMs, now)}`
+          : `at full speed · held to ${100 - past.peak}% ${sinceLabel(past.lastMs, now)}`
         : "running at full speed, and never held back",
   };
 }
@@ -108,7 +120,8 @@ export function uptime(sec: number): string {
  * it measures. Three conditions qualify, all of them measured rather than
  * inferred, and each is already a warning colour in the section it comes from:
  *
- *   1. the machine is being held below full speed — `pmset` reports the limit;
+ *   1. the machine is being held below full speed — `pmset` reports the limit,
+ *      the Linux kernel the time;
  *   2. physical memory is at the 90% the memory row already turns amber at;
  *   3. the API host was asked and did not answer.
  *
@@ -116,8 +129,11 @@ export function uptime(sec: number): string {
  * a second panel, and the section each one comes from says it again in place.
  */
 export function attentionFlag(sys: Pick<Snapshot, "thermal" | "memory" | "network">): string | null {
-  const limit = sys.thermal?.throttle?.speedLimit;
-  if (limit != null && limit < 100) return `throttled to ${limit}% of full speed`;
+  const throttle = sys.thermal?.throttle;
+  const held = throttle ? heldShare(throttle) : 0;
+  if (throttle && held > 0) {
+    return "timeHeld" in throttle ? `throttled ${held}% of the time` : `throttled to ${100 - held}% of full speed`;
+  }
   if (sys.memory && sys.memory.usedPct >= 90) return `physical memory ${Math.round(sys.memory.usedPct)}% full`;
   if (sys.network?.api && sys.network.api.ms == null) return "the Claude API is not answering";
   return null;
