@@ -27,11 +27,11 @@ export function versionOrder(a: string, b: string): number | null {
  * One login another deck offers, and what it would do HERE.
  *
  * The engine's rules, said in words. A copy that does not work there moves
- * nothing. One this deck lacks arrives on the next round, whatever this deck
- * shares. One that is expired here is repaired only if this deck shares it
- * too — a heal replaces a slot, so it needs this deck's own tick, and an add
- * does not (see roundWith). The last case is the one worth the warning ink:
- * it is the only one somebody here can fix, and the fix is a tick.
+ * nothing. One this deck lacks arrives on the next round, and one that is
+ * expired here is repaired on it, whatever this deck shares (see roundWith).
+ * This said "share it to repair" over every expired login until the engine
+ * stopped asking a deck somebody chose for the tick — and the person reading
+ * it deleted the account instead, because the add that followed needed none.
  *
  * TWO CELLS, NOT A SENTENCE. This was one string — `works there · works here`,
  * `broken there · not on this deck` — and a reader had to take it left to
@@ -46,10 +46,11 @@ export function versionOrder(a: string, b: string): number | null {
  * and it is the note — not the state — that carries the ink.
  *
  * `takesAdds` is false for a deck the accept switch paired rather than a
- * person: the engine takes a login this deck lacks from such a deck only when
- * it is ticked here, the way a heal is (see roundWith), so "arrives next
- * round" would be a promise the round does not keep. Pairing with it by
- * invite is a person choosing it, and that is what lifts it.
+ * person: the engine takes a login from such a deck — missing here or expired
+ * here — only when it is ticked here (see roundWith), so "arrives next round"
+ * and "repairs next round" would be promises the round does not keep. Pairing
+ * with it by invite is a person choosing it, and that is what lifts it. The
+ * name is from when it governed adds alone.
  */
 export function offerLine(
   theirs: OfferedAccount,
@@ -83,15 +84,16 @@ export function offerLine(
       : { there: "works there", here, note: "paired automatically — pair by invite to take it", tone: "bad" };
   }
   if (mine.alive) return { there: "works there", here, note: null, tone: mine.shareable === false ? "idle" : "ok" };
-  return sharedHere
+  return takesAdds || sharedHere
     ? { there: "works there", here, note: "repairs next round", tone: "wait" }
-    : { there: "works there", here, note: "share it to repair", tone: "bad" };
+    : { there: "works there", here, note: "paired automatically — share it to repair", tone: "bad" };
 }
 
 /** Which way one login can move between this deck and a paired one. `live`
  *  is a copy that can cross; `wait` is one that will, on the next round;
- *  `blocked` works there and stops at this deck until this deck shares it
- *  too; `cut` is a copy with nothing to give. */
+ *  `blocked` works there and stops at this deck, which the accept switch
+ *  paired with that one, until this deck shares it too; `cut` is a copy with
+ *  nothing to give. */
 export type LaneFlow = "live" | "wait" | "blocked" | "cut";
 
 /**

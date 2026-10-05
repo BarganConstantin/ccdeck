@@ -139,10 +139,10 @@ export { anotherMachine };
 /**
  * Whether an account this round just placed is ticked for sharing here (#1188).
  *
- * ONLY AN ADD: a heal needed the tick to happen at all — roundWith asks for a
- * heal only for an account this deck already shares — so there is nothing to
- * add for one, and an account healed after somebody unticked it must not be
- * ticked again behind them.
+ * ONLY AN ADD: a healed slot was already here, so whether it is ticked is
+ * already somebody's decision — ticked, there is nothing to add; unticked,
+ * possibly on purpose, and an account healed after somebody unticked it must
+ * not be ticked again behind them.
  *
  * ONLY FROM THE LOCAL NETWORK: the reasoning for the default is that the login
  * came from the group and the group therefore has it, and a tailnet can reach
@@ -727,23 +727,32 @@ export function createEngine({
       if (!stillPaired()) throw new Error("peer no longer paired");
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
       const list = keepManifest(conn.key, theirs, conn.peerFp);
-      // Only accounts I have also ticked. Sharing is mutual by construction:
-      // a peer cannot push an account at me that I never agreed to hold.
-      // A HEAL NEEDS MY TICK; AN ADD DOES NOT, and the asymmetry is deliberate.
-      // Healing replaces a slot I already have, so it is only reasonable for an
-      // account I said I share. Adding is the case the owner asked for by name:
-      // an account that appears among the decks I paired with appears on all of
-      // them, which is the whole of "I do not want to paste blobs any more".
-      // What can reach this is what a deck somebody here pressed accept on
-      // chose to offer.
+      // FROM A DECK SOMEBODY HERE CHOSE, NEITHER AN ADD NOR A HEAL NEEDS MY
+      // TICK. Adding is the case the owner asked for by name: an account that
+      // appears among the decks I paired with appears on all of them, which is
+      // the whole of "I do not want to paste blobs any more". What can reach
+      // this is what a deck somebody here pressed accept on chose to offer.
+      //
+      // A heal used to need the tick, on the reasoning that it replaces a slot
+      // I already have. It replaces only one claude-swap has quarantined, with
+      // the same account's working copy, through the same plain import an add
+      // uses — strictly less than an add does. And the tick is the owner's
+      // answer to "offer this account" (LanSetupModal), not to "repair it":
+      // gating the repair on it left a login dead here for as long as nobody
+      // ticked it, while deleting the dead slot turned the same transfer into
+      // an add that went straight through. So people deleted accounts to fix
+      // them. A copy dies on its own, too — claude-swap's refresh rotates the
+      // token, and every other deck holding the old one gets invalid_grant —
+      // so this is the ordinary case between one person's machines, not an
+      // edge.
       //
       // WHICH IS ONLY TRUE OF A DECK SOMEBODY CHOSE. The accept switch presses
       // accept for the owner, so "somebody here pressed accept" is not a
       // premise about a deck it paired: nobody here chose that deck, and the
-      // logins this store holds would be whatever it decided to offer. A deck
-      // the switch paired is treated as a heal is — what it offers comes in
-      // only for an account ticked here — and a person's own press or invite
-      // takes the mark off its pin (see addTrusted).
+      // logins this store holds would be whatever it decided to offer. What a
+      // deck the switch paired offers comes in — added or healed — only for an
+      // account ticked here, and a person's own press or invite takes the mark
+      // off its pin (see addTrusted).
       // OVER `list`, NOT THE RAW ARRAY. `offered`, which keepManifest runs the
       // list through above (see lan-manifest.mjs), slices to 50 and type-
       // filters `key` and `email`; this line read `theirs.accounts` and got
@@ -755,12 +764,13 @@ export function createEngine({
       // waited behind it. `step.key` also reached transferChallenge and
       // importAccount untyped, which `offered`'s filter would have caught.
       const chosen = () => trustedPeer(cfg.trusted, conn.peerFp)?.auto !== true;
-      const takes = step => cfg.shared.includes(step.key) || (step.action === "add" && chosen());
+      const takes = step => chosen() || cfg.shared.includes(step.key);
       const wanted = plan(mine, list).filter(takes);
       // TWO CHECKS, BECAUSE THEY END DIFFERENT THINGS. Losing the session —
       // LAN switched off, the peer unpaired (`stillPaired`, above) — ends the
-      // round. A heal unticked mid-round ends only that heal: the adds behind
-      // it need no tick, and the skipped row says why rather than vanishing.
+      // round. From a deck the switch paired, an account unticked mid-round
+      // ends only that step: the next one may still be ticked, and the skipped
+      // row says why rather than vanishing.
       const stillWanted = takes;
       /** One login, asked for and opened: a `want` carrying its own proof that
        *  names the account (see transferChallenge), and the `have` opened under

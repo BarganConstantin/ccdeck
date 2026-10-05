@@ -10,10 +10,10 @@
 // decided to offer.
 //
 // Each pin now records whether a person or a switch made it. A deck paired by
-// the switch is treated like a heal is: what it offers comes in only for an
-// account somebody here ticked, and nothing from it is ticked onward. A deck
-// somebody here chose — pressed accept on, or paired with by invite — is
-// exactly what it was.
+// the switch is held to the tick: what it offers comes in — added or healed —
+// only for an account somebody here ticked, and nothing from it is ticked
+// onward. A deck somebody here chose — pressed accept on, or paired with by
+// invite — needs no tick for either.
 //
 // Two whole engines on loopback, the deck under test on the settings the deck
 // ships with; see lan-engine-rig.ts.
@@ -84,7 +84,7 @@ describe("a deck paired by the switch", () => {
   }, 30_000);
 
   it("still heals an account somebody here ticked, as any paired deck does", async () => {
-    // A heal needed this deck's own tick before; the tick is the decision.
+    // From a deck nobody here chose, the tick is the decision.
     const key = accountKey("mine@example.test", "org-1");
     const here = await rigDeck("Here", {
       rows: [{ num: 1, email: "mine@example.test", orgUuid: "org-1", alive: false }],
@@ -101,6 +101,67 @@ describe("a deck paired by the switch", () => {
     for (let i = 0; i < 4 && !done.length; i++) done = await here.e.round();
     expect(done).toMatchObject([{ action: "heal", ok: true }]);
     expect(here.imported).toEqual(["ccdeck2:slot-3"]);
+  }, 30_000);
+
+  it("heals nothing that is not ticked here, however many rounds run", async () => {
+    // A deck somebody chose heals an unticked login now (lan-engine.test.ts);
+    // this is the half that stays, because nobody here chose this one.
+    const key = accountKey("mine@example.test", "org-1");
+    const here = await rigDeck("Here", {
+      rows: [{ num: 1, email: "mine@example.test", orgUuid: "org-1", alive: false }],
+      shared: [], settings: SHIPPED,
+    });
+    const far = await rigDeck("Offering", {
+      rows: [{ num: 3, email: "mine@example.test", orgUuid: "org-1", alive: true }],
+      shared: [key], settings: { autoAsk: false, autoAccept: true },
+    });
+    announce(here, { fp: far.id.fp, port: far.port, name: "Offering" });
+    for (let i = 0; i < 4; i++) await here.e.round();
+
+    const pin = (here.e.status().trusted as Array<{ fp: string }>).find(t => t.fp === far.id.fp);
+    expect(pin, "the rounds never reached the pairing this case is about").toBeTruthy();
+    expect(far.exported, "the login was even asked for").toEqual([]);
+    expect(here.imported).toEqual([]);
+  }, 30_000);
+
+  it("ends only the step unticked mid-export, and still brings the ticked one behind it", async () => {
+    const A = accountKey("a-heal@example.test", "o");
+    const B = accountKey("b-add@example.test", "o");
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const here = await rigDeck("Here", {
+      rows: [{ num: 1, email: "a-heal@example.test", orgUuid: "o", alive: false }],
+      shared: [A, B], settings: SHIPPED,
+    });
+    const far = await rigDeck("Offering", {
+      rows: [
+        { num: 5, email: "a-heal@example.test", orgUuid: "o", alive: true },
+        { num: 6, email: "b-add@example.test", orgUuid: "o", alive: true },
+      ],
+      shared: [A, B], settings: { autoAsk: false, autoAccept: true },
+      deps: {
+        exportAccount: async (num: number) => {
+          if (num === 5) { started(); await gate; }
+          return `ccdeck2:slot-${num}`;
+        },
+      },
+    });
+    announce(here, { fp: far.id.fp, port: far.port, name: "Offering" });
+    let done: Array<Record<string, unknown>> = [];
+    const rounds = (async () => {
+      for (let i = 0; i < 4 && !done.length; i++) done = await here.e.round();
+    })();
+    await began;
+    await here.e.apply({ shared: [B] });
+    release();
+    await rounds;
+    expect(done).toEqual([
+      { key: A, email: "a-heal@example.test", action: "heal", ok: false, why: "not shared" },
+      { key: B, email: "b-add@example.test", action: "add", ok: true, why: null },
+    ]);
+    expect(here.imported).toEqual(["ccdeck2:slot-6"]);
   }, 30_000);
 });
 
