@@ -225,6 +225,9 @@ describe("what was migrated to the secondary tier", () => {
       ".sd-door-sub",
       // And three lines of it in the session list.
       ".session-list .sl-recap",
+      // And the status line in the same slot — what the session is doing,
+      // asking or got done — which is the same kind of sentence.
+      ".session-list .sl-status",
       // The custom-sound cards' captions, by bed again: --muted on the card's
       // --sm-fill is 4.25:1 in dark (#1788).
       ".sm-custom-card-copy > span",

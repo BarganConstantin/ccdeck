@@ -310,7 +310,9 @@ describe("where it is drawn", () => {
     expect(noteSrc).toContain('<Handle type="source" position={Position.Right}');
     // A note, not a dialog: appearing on its own, it must never take focus.
     expect(noteSrc).not.toContain("useModalDismiss");
-    expect(read("../components/SessionList.tsx")).toContain("recap: recapShown(a),");
+    // Through rowLines, which decides between the recap and the status line
+    // that shares its slot — still the one rule, asked the same way.
+    expect(read("../components/SessionList.tsx")).toContain("rowLines(statusShown(a), recapShown(a))");
     expect(read("../components/SessionList.tsx")).toContain('<span className="sl-recap" title={r.recap.text}><RecapMark />');
     // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
     const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");

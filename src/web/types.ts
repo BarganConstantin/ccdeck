@@ -295,6 +295,13 @@ export interface AgentNodeData {
    *  server last read it. Whether it still describes the session is a question
    *  for session-recap.ts, which every surface that draws it asks. */
   recap?: SessionRecap;
+  /** What the session's newest reply says it is doing, as the server's
+   *  transcript watch last read it. Root only, Claude only. Whether it still
+   *  describes the session is session-status.ts's question. */
+  activity?: SessionActivity;
+  /** Claude Code's own line for this session when it is a background job.
+   *  Root only; absent on every interactive session. */
+  job?: BackgroundJob;
   prompts: PromptEntry[];
   toolCount: number;
   /** How many of the calls `toolCount` counts failed, over the same lifetime
@@ -510,6 +517,38 @@ export interface SessionRecap {
   at: number;
 }
 
+/** What a session's newest reply says it is doing — the sentence the model
+ *  wrote, or the description on the call it made — and when that reply was
+ *  written. The rule is Claude Code's agent view's, with no model call; see
+ *  src/server/session-activity.mjs. */
+export interface SessionActivity {
+  text: string;
+  /** "said" when the model wrote it as text, "tool" when it came off a call. */
+  source: "said" | "tool";
+  /** The transcript line's own timestamp, epoch ms. */
+  at: number;
+}
+
+/** A background session's line as Claude Code's agent view shows it, read off
+ *  `<config dir>/jobs/<id>/state.json` — Claude Code's classifier wrote every
+ *  word of it. See src/server/claude-jobs.mjs, and session-status.ts for which
+ *  of these a surface draws. */
+export interface BackgroundJob {
+  /** The job's short id, the folder name and what `claude agents` prints. */
+  id: string;
+  state: "working" | "blocked" | "done" | "failed" | "stopped";
+  /** The one-line summary: what it is doing, or why it stopped. */
+  detail: string;
+  /** Blocked only: the question it is stuck on. */
+  needs?: string;
+  /** Blocked only: the reply Claude Code would suggest typing. */
+  suggestedReply?: string;
+  /** The headline of what a finished job did. */
+  result?: string;
+  /** When Claude Code last wrote the file, epoch ms; 0 when it did not say. */
+  updatedAt: number;
+}
+
 export interface HookEnvelope {
   seq: number;
   receivedAt: number;
@@ -593,6 +632,14 @@ export interface HookPayload {
   /** Claude-only, on the synthetic `SessionRecapped`: Claude Code's recap as the
    *  transcript last showed it, or null once a later turn has retired it. */
   recap?: SessionRecap | null;
+  /** Claude-only, on the synthetic `ActivityObserved`: what the session's newest
+   *  reply says it is doing (src/server/session-activity.mjs). Never null — the
+   *  next prompt is what retires it, and the client holds that rule. */
+  activity?: SessionActivity | null;
+  /** Claude-only, on the synthetic `JobObserved`: a background session's line,
+   *  read off Claude Code's own job folder (src/server/claude-jobs.mjs), or null
+   *  once the job is gone. */
+  job?: BackgroundJob | null;
   /** Codex-only: per-turn identifier for tool-call attribution. */
   turn_id?: string;
   /** Codex-only: emitted by sessions/<sid>/event_msg/task_started events,

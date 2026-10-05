@@ -3,15 +3,16 @@
 // None of these is hook traffic. The server reads each session's transcript —
 // after the hook events that name it, and between them — and sends what it
 // found back down the same stream as synthetic events: the model, the context
-// breakdown, the session's name and recap, the blocks the model is writing, and
-// the running token totals. Each enriches a root that is already on the board,
+// breakdown, the session's name and recap, the blocks the model is writing, what
+// its newest reply says it is doing, the line a background session's job folder
+// holds, and the running token totals. Each enriches a root that is already on the board,
 // never creates a node and never goes through `resolveOwner`, so `applyEvent`
 // hands them here before it attributes anything. `stampSessionFacts` lives here
 // for the same reason: the facts Codex restates ride on whatever payload it
 // sends, two of them on these scans.
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { usageByModelFromWire, usageFromWire } from "./usage-wire";
-import type { ContextBreakdown, HookPayload } from "./types";
+import type { BackgroundJob, ContextBreakdown, HookPayload } from "./types";
 
 /** A breakdown that asserts nothing, for a root that has not been told anything
  *  about its context yet.
@@ -233,6 +234,47 @@ export function applySessionRecapped(state: GraphState, p: HookPayload, sessionI
       root.recap = { text: r.text.trim(), at: r.at };
     }
   }
+}
+
+/** ActivityObserved carries what the session's newest reply says it is doing —
+ *  the agent view's line, by its rule, off the server's transcript watch.
+ *  Session root only, never a node of its own.
+ *
+ *  NEVER BACKWARDS, for the reason applyOutputObserved gives: ticks are ordered
+ *  by the clock they are polled on, and a reply read late must not replace the
+ *  one written after it. Whether the line still describes the session is not
+ *  decided here; session-status.ts asks that where it is drawn. */
+export function applyActivityObserved(state: GraphState, p: HookPayload, sessionId: string): void {
+  const root = state.agents.get(sessionId);
+  const a = p.activity;
+  if (!root || !a || typeof a.text !== "string" || !a.text.trim() || !Number.isFinite(a.at)) return;
+  if (root.activity && a.at < root.activity.at) return;
+  root.activity = { text: a.text.trim(), source: a.source === "said" ? "said" : "tool", at: a.at };
+}
+
+const JOB_STATES = new Set<BackgroundJob["state"]>(["working", "blocked", "done", "failed", "stopped"]);
+
+/** JobObserved carries a background session's line from Claude Code's own job
+ *  folder. `job: null` is the server saying the job is gone; an absent or
+ *  malformed one says nothing and changes nothing — the file is not a stable
+ *  interface, so every field is checked again here rather than trusted because
+ *  the server already checked it. */
+export function applyJobObserved(state: GraphState, p: HookPayload, sessionId: string): void {
+  const root = state.agents.get(sessionId);
+  if (!root) return;
+  const j = p.job;
+  if (j === null) { root.job = undefined; return; }
+  if (!j || typeof j !== "object" || !JOB_STATES.has(j.state)) return;
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  root.job = {
+    id: str(j.id) ?? "",
+    state: j.state,
+    detail: str(j.detail) ?? "",
+    needs: str(j.needs),
+    suggestedReply: str(j.suggestedReply),
+    result: str(j.result),
+    updatedAt: Number.isFinite(j.updatedAt) ? j.updatedAt : 0,
+  };
 }
 
 /** WHAT THE MODEL IS PRODUCING, from the server's transcript watch. The one
