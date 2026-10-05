@@ -58,10 +58,13 @@
 // that imports two node builtins; index.mjs takes them from the same place and
 // re-exports them, so there is still exactly one spelling in the package.
 import { readdir, readFile, stat } from "node:fs/promises";
+import { uptime } from "node:os";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { challengeDeck, isProcessAlive } from "./deck-probe.mjs";
 import { sameCodexTree } from "./log-election.mjs";
+import { run } from "./metrics-run.mjs";
+import { elapsedSeconds } from "./process-list.mjs";
 import { CRASH_WINDOW_MS } from "./supervisor.mjs";
 
 /**
@@ -264,6 +267,16 @@ export async function liveDecks({
  * recycled pid than a supervisor, and a signal sent there ends a stranger.
  * The window is the supervisor's own, CRASH_WINDOW_MS.
  *
+ * AND FRESH IS NOT ENOUGH ON ITS OWN. A deck that dies without its shutdown —
+ * a power cut, a hard reset, a console closed on Windows — leaves a record
+ * exactly as fresh, and after a quick reboot, or on a system that reuses pids
+ * quickly, its `parent` names whatever holds that number now. So the parent
+ * has to prove it is the supervisor by when it started: no later than the
+ * worker it supervises, whose record carries `startedAt`. A record stamped
+ * before this boot names no process that is running, and is never read. A
+ * parent whose start cannot be read is left alone; the cost is the behaviour
+ * before #1779, a `--stop` that misses a deck about to come back.
+ *
  * One entry per supervisor, and none for a supervisor that already has a live
  * worker registered: that deck is on the ordinary list, and stopping it ends
  * the supervisor too. Never this process or its own supervisor. Marked
@@ -277,6 +290,8 @@ export async function restartingDecks({
   alive = isProcessAlive,
   now = Date.now(),
   windowMs = CRASH_WINDOW_MS,
+  bootedAt = now - uptime() * 1000,
+  startedAt = processStartedAt,
 } = {}) {
   let names;
   try { names = await fs.readdir(dir); } catch { return []; }
@@ -300,11 +315,44 @@ export async function restartingDecks({
     if (up || !Number.isInteger(parent) || parent <= 0) continue;
     if (parent === self || parent === selfParent || serving.has(parent)) continue;
     if (!(Number.isFinite(mtime) && now - mtime >= 0 && now - mtime < windowMs)) continue;
+    if (mtime < bootedAt) continue;
     if (!alive(parent)) continue;
+    const workerSince = Date.parse(d.startedAt ?? "");
+    if (!Number.isFinite(workerSince)) continue;
+    const parentSince = await startedAt(parent);
+    if (!Number.isFinite(parentSince) || parentSince > workerSince + START_SLACK_MS) continue;
     serving.add(parent);
     out.push({ ...d, restarting: true });
   }
   return out.sort((a, b) => a.port - b.port || a.pid - b.pid);
+}
+
+/** How much later than its worker a supervisor may seem to have started. `ps`
+ *  reads elapsed time in whole seconds, so a start read that way can come out
+ *  up to a second late, and the read itself takes a moment. */
+const START_SLACK_MS = 2_000;
+
+/**
+ * When `pid` started, in ms since the epoch, or null when that cannot be read.
+ *
+ * `ps -o etime=` on both Unixes — the POSIX field, `[[DD-]HH:]MM:SS` — and
+ * Get-Process on Windows. Spawned only for a crashed worker's live parent,
+ * which `--stop` and `--status` meet a few times in a deck's life, so the cost
+ * of a child process is paid there and nowhere else. A pid that is gone, or
+ * that this account may not read, answers null.
+ */
+export async function processStartedAt(pid, { platform = process.platform, runFn = run, now = Date.now } = {}) {
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  if (platform === "win32") {
+    const out = await runFn("powershell.exe", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      `([DateTimeOffset](Get-Process -Id ${pid} -ErrorAction Stop).StartTime).ToUnixTimeMilliseconds()`,
+    ], 6_000);
+    const ms = Number(String(out ?? "").trim());
+    return out && Number.isFinite(ms) && ms > 0 ? ms : null;
+  }
+  const secs = elapsedSeconds(await runFn("ps", ["-o", "etime=", "-p", String(pid)], 2_000));
+  return secs == null ? null : now() - secs * 1000;
 }
 
 /**
