@@ -25,6 +25,7 @@ import { clearEnrichmentGates } from "./session-enrichment.mjs";
 import { clearSessionFolders } from "./git-sessions.mjs";
 import { clearGitState } from "./git-state.mjs";
 import { clearGitWatch } from "./git-watch.mjs";
+import { clearCollisions } from "./git-collisions.mjs";
 
 /**
  * GET /api/clear — what a POST to this path would do, and to whose log.
@@ -157,6 +158,7 @@ export async function handleClear(res) {
   clearEnrichmentGates();
   // GitObserved is gated on "has this changed" too, so it goes with them.
   clearGitWatch();
+  clearCollisions();
   clearSessionFolders();
   clearGitState();
   pushEvent({ hook_event_name: "__clear", cwd: "" }, "internal", { persist: false });

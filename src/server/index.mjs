@@ -162,6 +162,7 @@ import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus
 // The git view's reads of a session's repository — see git-routes.mjs.
 import { handleGitCommit, handleGitDiff, handleGitEdits, handleGitLog, handleGitRepo, handleGitStatus } from "./git-routes.mjs";
 import { refreshGit } from "./git-watch.mjs";
+import { refreshCollisions } from "./git-collisions.mjs";
 // Commit recording: the repository's word on each commit an agent's shell
 // output reports — see git-confirm.mjs.
 import { connectCommitRecording } from "./git-confirm.mjs";
@@ -229,6 +230,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // Every card the replay put back gets its branch read now, rather than at
     // its session's next event — and only what changed since the log is sent.
     refreshGit();
+    // And who collides with whom, worked out afresh: it is never logged.
+    refreshCollisions();
     if (replayed > 0) {
       // Don't broadcast replays as live; SSE clients catch up via Last-Event-ID
       // already. Just keep the buffer + seq counter primed.

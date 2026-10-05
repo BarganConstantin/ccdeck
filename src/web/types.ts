@@ -255,6 +255,24 @@ export interface GitFacts {
   stale: number;
 }
 
+/** Another live agent, by session and subagent (null for its main thread). */
+export interface GitCollisionRef {
+  sessionId: string;
+  agentId: string | null;
+}
+
+/** The live agents a session can step on in git, as the server last worked
+ *  it out — the synthetic `GitCollisions` (src/server/git-collisions.mjs).
+ *  Each entry names the agent of THIS session it is about (`agentId`, null for
+ *  the main thread) and the other agent (`with`). Quiet: the two share a
+ *  working tree, or the same branch in two worktrees. Sharp: both edited the
+ *  same files, still uncommitted (`files`, paths in the repository). Clears by
+ *  itself: a session ending, the file committed, the agents diverging. */
+export interface GitCollisions {
+  quiet: Array<{ agentId: string | null; with: GitCollisionRef; reason: "same-worktree" | "same-branch"; branch: string | null }>;
+  sharp: Array<{ agentId: string | null; with: GitCollisionRef; files: string[] }>;
+}
+
 export interface AgentNodeData {
   id: string;                 // session_id or `${session}::${parent_tool_use_id}`
   sessionId: string;          // root session id (same as id for root agents)
@@ -293,6 +311,9 @@ export interface AgentNodeData {
   /** The repository this agent's folder is in, and its branch — see GitFacts.
    *  Absent until the server has said, and for a folder in no repository. */
   git?: GitFacts;
+  /** Session root only: who the session's agents collide with right now —
+   *  see GitCollisions. Absent when there is nobody. */
+  gitCollisions?: GitCollisions;
   firstPrompt?: string;
   /** The name Claude Code gave this session, from the transcript's `agent-name`
    *  records — e.g. "account-management-oauth-flow". Session root only, and
@@ -629,6 +650,8 @@ export interface HookPayload {
   /** On the synthetic `GitObserved`: the agent's repository and branch, with
    *  `subagent` naming the subagent it is about when it is not the root. */
   git?: GitFacts & { subagent?: string };
+  /** On the synthetic `GitCollisions`: the session's collisions as they stand. */
+  collisions?: GitCollisions;
   /** Codex-only: per-turn identifier for tool-call attribution. */
   turn_id?: string;
   /** Codex-only: emitted by sessions/<sid>/event_msg/task_started events,

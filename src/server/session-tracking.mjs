@@ -18,6 +18,8 @@ import { forgetCodexSession } from "./codex-enrichment.mjs";
 // What the page was told about each session's repository — see
 // git-watch.mjs.
 import { forgetGitSession } from "./git-watch.mjs";
+// And who it collided with — see git-collisions.mjs.
+import { forgetCollisionSession } from "./git-collisions.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
@@ -149,6 +151,7 @@ function forgetSession(sid) {
   forgetEnrichment(sid);
   forgetCodexSession(sid);
   forgetGitSession(sid);
+  forgetCollisionSession(sid);
 }
 
 function touchSession(sid) {

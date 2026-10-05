@@ -75,9 +75,11 @@ export const MAX_BUFFER = 2000;     // recent HOOK events kept for late SSE subs
  * twice.
  *
  * `GitObserved` is: a session's repository and branch as last read, which a
- * newer one supersedes entirely (git-watch.mjs).
+ * newer one supersedes entirely (git-watch.mjs). So is `GitCollisions`, the
+ * agents a session currently shares a folder or a dirty file with
+ * (git-collisions.mjs).
  */
-const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed", "GitObserved"]);
+const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed", "GitObserved", "GitCollisions"]);
 
 /**
  * Whether this payload is enrichment MAX_BUFFER does not count — see

@@ -156,6 +156,23 @@ export async function readCommitsBySha(topLevel, shas, head) {
   return { ok: true, commits: withRefs(r.stdout, refs, head).filter((c) => !gone.has(c.sha)) };
 }
 
+/**
+ * When the file at `path` was last committed to on HEAD's history, if that was
+ * after `sinceMs` — the end of that commit's second, in ms — or null when no
+ * commit since then touched it (or git could not say). `--since` keeps the walk
+ * to recent history, however old the file. `path` must be one git reported.
+ */
+export async function readLastCommitTime(topLevel, path, sinceMs) {
+  if (typeof path !== "string" || path === "") return null;
+  const args = ["-1", "--format=%ct"];
+  if (typeof sinceMs === "number" && Number.isFinite(sinceMs)) args.push(`--since=@${Math.max(0, Math.floor(sinceMs / 1000) - 1)}`);
+  const r = await git("log", [...args, "--", path], { cwd: topLevel, maxBytes: 4096 });
+  const seconds = r.ok ? Number(r.stdout.trim()) : NaN;
+  // A commit inside the same second as an edit is taken as after it: a mark
+  // missed by a second is better than a false alarm.
+  return Number.isFinite(seconds) && seconds > 0 ? (seconds + 1) * 1000 - 1 : null;
+}
+
 // ─── status ───────────────────────────────────────────────────────────────
 
 const CHANGE = { M: "modified", T: "typechange", A: "added", D: "deleted", R: "renamed", C: "copied", U: "conflict" };

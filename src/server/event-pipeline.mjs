@@ -52,6 +52,9 @@ import { observeAgentGit } from "./agent-git-tap.mjs";
 // kept fresh by the tool calls that can change them — see git-watch.mjs.
 import { noteSessionFolder } from "./git-sessions.mjs";
 import { noteGitEvent } from "./git-watch.mjs";
+// Which live agents share a folder, a branch or a dirty file — see
+// git-collisions.mjs.
+import { noteCollisionEvent } from "./git-collisions.mjs";
 
 // The modules that emit synthetic events send them here. pushEvent is a
 // function declaration, so it already exists as this line runs, and nothing
@@ -226,6 +229,9 @@ export function pushEvent(raw, source, opts = {}) {
     noteSessionFolder(raw);
     if (opts.replay) noteGitEvent(raw, { replay: true });
     else if (source === "hook" || source === "codex") noteGitEvent(raw);
+    // Who is live, from the replay as from live events, and — live only — a
+    // fresh look at who collides with whom when this call could change it.
+    noteCollisionEvent(raw, { replay: !!opts.replay, at: evt.receivedAt, source });
   }
 
   // Note the session so the caches the scanners below fill can expire by
