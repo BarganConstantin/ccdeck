@@ -171,9 +171,8 @@ export function cooldownFromHeader(raw, fallbackMs, minMs = 30_000, maxMs = 3600
  *   default, and a parameter so a test can name its own.
  */
 export async function hasSubscriptionCredential(env = process.env, files = claudeSettingsFiles()) {
-  const settings = await readSettings(files);
-  const envs = [env, ...settings.map(s => (s.env && typeof s.env === "object" ? s.env : {}))];
-  if (envs.some(e => isOn(e.CLAUDE_CODE_USE_BEDROCK) || isOn(e.CLAUDE_CODE_USE_VERTEX))) return false;
+  const { cloud, apiKey } = await claudeSignIn(env, files);
+  if (cloud) return false;
   try {
     const raw = await readFile(credentialsPath(), "utf8");
     if (JSON.parse(raw)?.claudeAiOauth?.accessToken) return true;
@@ -182,8 +181,26 @@ export async function hasSubscriptionCredential(env = process.env, files = claud
   // it is the API-key install. Without any, this deck simply has not been
   // signed in yet, and "sign in" is the right thing to say — which is the
   // `waiting` branch, not this one.
-  if (settings.some(s => typeof s.apiKeyHelper === "string" && s.apiKeyHelper.trim())) return false;
-  return !envs.some(e => e.ANTHROPIC_API_KEY || e.ANTHROPIC_AUTH_TOKEN);
+  return !apiKey;
+}
+
+/**
+ * What Claude Code's configuration says about how it signs in, from `env` and
+ * the `env` blocks of its settings files, read as hasSubscriptionCredential
+ * explains: `cloud` when Bedrock or Vertex is switched on, `apiKey` when a key
+ * is set or an `apiKeyHelper` supplies one. The OAuth block in the credentials
+ * file is each caller's own question — it outranks a key, and only a cloud
+ * provider outranks it. Exported for the deck's own report of its plan
+ * (depth-facts.mjs), which has to answer the way the quota panel does.
+ */
+export async function claudeSignIn(env = process.env, files = claudeSettingsFiles()) {
+  const settings = await readSettings(files);
+  const envs = [env, ...settings.map(s => (s.env && typeof s.env === "object" ? s.env : {}))];
+  return {
+    cloud: envs.some(e => isOn(e.CLAUDE_CODE_USE_BEDROCK) || isOn(e.CLAUDE_CODE_USE_VERTEX)),
+    apiKey: settings.some(s => typeof s.apiKeyHelper === "string" && s.apiKeyHelper.trim())
+      || envs.some(e => e.ANTHROPIC_API_KEY || e.ANTHROPIC_AUTH_TOKEN),
+  };
 }
 
 /** On, as Claude Code reads a switch in its environment. */
