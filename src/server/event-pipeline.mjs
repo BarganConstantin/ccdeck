@@ -43,8 +43,9 @@ import { isClaudeTranscriptPath, noteRefusedTranscript } from "./transcript-gate
 // How the enrichment reaches pushEvent without importing this file — see
 // event-sink.mjs. Connected below, as this module loads.
 import { connectEventSink } from "./event-sink.mjs";
-// What the git view learns from the stream — each agent's edited files — fed
-// live and by the boot replay alike. See agent-git-tap.mjs.
+// What the git view learns from the stream — each agent's edited files and the
+// commits its shell output reports — fed live and by the boot replay alike.
+// See agent-git-tap.mjs.
 import { observeAgentGit } from "./agent-git-tap.mjs";
 
 // The modules that emit synthetic events send them here. pushEvent is a
@@ -208,7 +209,8 @@ export function pushEvent(raw, source, opts = {}) {
   // Every admitted envelope, the replayed ones included: the boot replay is
   // what rebuilds the git view's picture of who edited what after a restart.
   // `persisting` says whether this deck is the one writing the session down —
-  // the same election that keeps one deck per log line. Never throws.
+  // the same election that keeps one deck per log line, and the one deck that
+  // records the session's commits. Never throws.
   observeAgentGit(evt, { replay: !!opts.replay, persisting: !!persisting });
 
   // Note the session so the caches the scanners below fill can expire by
