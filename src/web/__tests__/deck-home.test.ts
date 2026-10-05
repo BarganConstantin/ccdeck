@@ -291,10 +291,10 @@ describe("the litter an atomic write leaves behind", () => {
   });
 
   it("shrugs at a directory that is not there and a file it may not delete", async () => {
-    const fs = fakeFs({ [join(dir, "x.tmp")]: { mtimeMs: 0 } });
-    fs.fail.add(join(dir, "x.tmp"));
+    const fs = fakeFs({ [join(dir, "x.json.agent-dag-1-0.tmp")]: { mtimeMs: 0 } });
+    fs.fail.add(join(dir, "x.json.agent-dag-1-0.tmp"));
     const errors: string[] = [];
     expect(await sweepTempFiles({ dirs: [dir, "/nowhere"], fs, now: NOW, onError: p => errors.push(p) })).toBe(0);
-    expect(errors).toEqual([join(dir, "x.tmp")]);
+    expect(errors).toEqual([join(dir, "x.json.agent-dag-1-0.tmp")]);
   });
 });
