@@ -26,6 +26,7 @@
 // launched by its full path where one can be found; see shimPath and
 // candidateSpec.
 import { execFile, spawn } from "node:child_process";
+import { statSync } from "node:fs";
 // Which spelling of a command to try, whether it goes through cmd.exe, and the
 // exact file, argv and options spawn is handed for it — all of it decided
 // before anything is spawned, and all of it platform-parameterised so the
@@ -96,9 +97,19 @@ const TIMEOUT_TAIL = 8 << 10;
  * `{...process.env, X: "1"}` to add to it. It exists because the quota probe
  * runs a whole Claude Code and has to mark the run as the deck's own, and that
  * marker is what stops every poll drawing itself onto the canvas.
+ *
+ * `cwd` is the directory the child starts in; absent, it inherits the deck's.
+ * A folder that is not there answers `{ ok: false, code: "ENOCWD" }` without
+ * spawning anything. Left to spawn, a missing working directory fails with the
+ * same ENOENT a missing program does, and the candidate loop below would walk
+ * every spelling and report the tool as not installed — which is the wrong
+ * thing to tell somebody whose project folder was deleted.
  */
-export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = {}) {
+export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env, cwd } = {}) {
   const tries = candidates(cmd);
+  if (cwd !== undefined && !isDirectory(cwd)) {
+    return Promise.resolve({ ok: false, code: "ENOCWD", killed: false, timedOut: false, stdout: "", stderr: "" });
+  }
   return new Promise((resolve) => {
     const attempt = (i) => {
       if (i >= tries.length) {
@@ -166,7 +177,7 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = 
         // process, so a shutdown that does not reap it leaves the child with
         // no deadline at all. See `live` in exec-children.mjs, and #1012.
         const cp = watchChild(execFile(file, argv,
-          { timeout: 0, shell: false, windowsHide: true, maxBuffer, ...(env ? { env } : {}), ...opts }, done));
+          { timeout: 0, shell: false, windowsHide: true, maxBuffer, ...(env ? { env } : {}), ...(cwd !== undefined ? { cwd } : {}), ...opts }, done));
         // Give the child EOF on stdin straight away, which is what this
         // function's contract has always claimed ("run closes stdin", says
         // runInteractive's header) and what execFile does not do: it leaves the
@@ -211,6 +222,12 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = 
     };
     attempt(0);
   });
+}
+
+/** Whether `path` names a directory that exists right now. */
+function isDirectory(path) {
+  try { return typeof path === "string" && path !== "" && statSync(path).isDirectory(); }
+  catch { return false; }
 }
 
 /**
