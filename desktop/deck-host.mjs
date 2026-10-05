@@ -8,10 +8,13 @@
 //
 // Two things an app started from the Dock lacks that a terminal has:
 //
-//   PATH. launchd hands GUI apps /usr/bin:/bin:/usr/sbin:/sbin, where `claude`,
-//   `node`, `uv` and `cswap` are not — so the deck could not find Claude Code.
-//   The login shell's PATH is read once and passed on, the way terminal-born
-//   tools expect to be run.
+//   THE SHELL'S ENVIRONMENT. launchd hands GUI apps /usr/bin:/bin:/usr/sbin:/sbin,
+//   where `claude`, `node`, `uv` and `cswap` are not — so the deck could not
+//   find Claude Code — and none of the user's exports. The login shell's PATH
+//   is read once and passed on, the way terminal-born tools expect to be run,
+//   and so are the variables README's environment table documents: the
+//   opt-outs (AGENTS_DECK_NO_REPORTS above all) and the directories that say
+//   which deck this is. Read by name, never wholesale.
 //
 //   A NODE FOR THE HOOK. Claude Code runs the deck's hook with the command the
 //   deck wrote into its settings, `<runtime> hook.js`. A launcher at a fixed
@@ -34,18 +37,64 @@ export function claudeDir(env = process.env, home = homedir()) {
   return given ? resolve(given) : join(home, ".claude");
 }
 
-/** The login shell's PATH, or the current one when it cannot be read. */
-export function shellPath({ env = process.env, platform = process.platform, run = execFileSync } = {}) {
-  if (platform === "win32") return env.PATH ?? env.Path ?? "";
+/**
+ * The variables a terminal deck would have had from the user's shell: README's
+ * environment table, row for row — restated rather than imported, because
+ * this runs before any deck module is loaded, and held to the deck's own list
+ * (login-service.mjs SCOPE_VARS and SETTING_VARS) by a test.
+ *
+ * BY NAME. The login shell also holds tokens, keys and whatever else a profile
+ * exports, and the deck has no business inheriting any of it.
+ */
+export const SHELL_VARS = Object.freeze([
+  "CLAUDE_CONFIG_DIR", "CCDECK_HOME", "CODEX_HOME", "AGENT_DAG_PORT",
+  "AGENTS_DECK_NO_INSTALL", "AGENTS_DECK_NO_DOWNLOAD", "AGENTS_DECK_NO_UPDATE_CHECK", "AGENTS_DECK_NO_STATUS",
+  "AGENTS_DECK_NO_FRESHEN", "AGENTS_DECK_NO_NOTIFY", "AGENTS_DECK_NO_LAN", "AGENTS_DECK_NO_REPORTS",
+  "AGENTS_DECK_CSWAP", "AGENTS_DECK_CLAUDE", "AGENTS_DECK_CCUSAGE", "CLAUDE_SWAP_BACKUP", "AGENTS_DECK_LHM_PORT",
+]);
+
+const MARK = "__CCDECK_ENV__";
+
+/**
+ * The login shell's PATH and its values of SHELL_VARS — only the ones it sets —
+ * or the current PATH and nothing else when it cannot be read.
+ */
+export function shellEnv({ env = process.env, platform = process.platform, run = execFileSync } = {}) {
+  if (platform === "win32") return { PATH: env.PATH ?? env.Path ?? "" };
   const shell = env.SHELL || (platform === "darwin" ? "/bin/zsh" : "/bin/sh");
+  const names = ["PATH", ...SHELL_VARS];
   try {
-    // -i and -l so the profile files that set PATH are read; the marker keeps
-    // anything a profile prints out of the answer.
-    const out = run(shell, ["-ilc", 'printf "__CCDECK_PATH__%s" "$PATH"'], { encoding: "utf8", timeout: 5000 });
-    const path = String(out).split("__CCDECK_PATH__").pop().trim();
-    if (path) return path;
+    // -i and -l so the profile files that set them are read; one line per
+    // name behind a marker keeps anything a profile prints out of the answer.
+    // The names are this file's constants, so nothing a value holds is ever
+    // part of the command.
+    const script = `printf '${MARK}%s\\n' ${names.map(k => `"${k}=$${k}"`).join(" ")}`;
+    const out = String(run(shell, ["-ilc", script], { encoding: "utf8", timeout: 5000 }));
+    const got = {};
+    for (const chunk of out.split(MARK).slice(1)) {
+      const line = chunk.split("\n")[0];
+      const at = line.indexOf("=");
+      const name = line.slice(0, at);
+      const value = line.slice(at + 1);
+      // Only what was asked for, and only when set: "" written into the
+      // deck's environment would be a setting, not the absent one.
+      if (at > 0 && names.includes(name) && value.trim() !== "") got[name] = value;
+    }
+    return { ...got, PATH: got.PATH?.trim() || env.PATH || "" };
   } catch { /* a profile that fails is not a reason to start without PATH */ }
-  return env.PATH ?? "";
+  return { PATH: env.PATH ?? "" };
+}
+
+/**
+ * Give `env` the shell's value of every SHELL_VARS name it has no value for,
+ * and return it. A value the app already has wins: started from a terminal, it
+ * holds that terminal's settings, which are the more specific of the two.
+ */
+export function withShellSettings(env, shell) {
+  for (const k of SHELL_VARS) {
+    if (!env[k]?.trim() && shell?.[k]) env[k] = shell[k];
+  }
+  return env;
 }
 
 /** The launcher's text for this platform. `app` is the binary to fall back to. */

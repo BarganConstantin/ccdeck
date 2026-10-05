@@ -81,7 +81,8 @@ const LEGACY_DIRS = ["ccgraph", "agent-flow", "agent-dag"];
  * It used to wrap both paths in double quotes, which on POSIX escapes nothing:
  * `$(…)`, a backtick and `\` are all still live inside them. Both paths come
  * from outside — `installedHookPath` is built from $CLAUDE_CONFIG_DIR (resolved,
- * never validated) or homedir(), and `node` is process.execPath — so a config
+ * never validated) or homedir(), and `node` is process.execPath or the PATH
+ * entry that links to it (stable-node.mjs) — so a config
  * dir called `/tmp/a$(id)b` was shell code, written into the user's own settings
  * file and executed on every hook fire for as long as it stayed there. The
  * quieter half of the same bug cost nothing but the feature: an ordinary `$` in

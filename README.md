@@ -129,7 +129,7 @@ Step by step: [Install ccdeck with npx and see your first session](https://ccdec
 
 ### Desktop app
 
-The same deck as an app: it starts the deck itself and puts an icon in the menu bar (the tray on Windows and Linux) that counts the Claude Code sessions stopped on a permission prompt or a question — the number sits beside the icon on macOS, and in the icon's tooltip and menu on Windows and Linux. With **Notifications while closed** ticked in that menu, which starts off, it also sends a notification while the window is closed wherever an open page would have played a sound, with the deck's own tone on macOS. It needs no Node.js. If a deck from `npx ccdeck` is already running, the app uses that one rather than starting a second, and replaces it only when it is older than the one the app carries.
+The same deck as an app: it starts the deck itself and puts an icon in the menu bar (the tray on Windows and Linux) that counts the Claude Code sessions stopped on a permission prompt or a question — the number sits beside the icon on macOS, and in the icon's tooltip and menu on Windows and Linux. With **Notifications while closed** ticked in that menu, which starts off, it also sends a notification while the window is closed wherever an open page would have played a sound, with the deck's own tone on macOS. It needs no Node.js. The deck it starts is given whichever of the variables in the environment table further down your login shell sets — `AGENTS_DECK_NO_REPORTS` and `CLAUDE_CONFIG_DIR` among them — however the app was opened, as a deck started from a terminal would be. If a deck from `npx ccdeck` is already running, the app uses that one rather than starting a second, and replaces it only when it is older than the one the app carries.
 
 | System | Download |
 | --- | --- |
@@ -356,7 +356,9 @@ Scheduler logon task on Windows — none of them carrying a restart policy of it
 own, because the one that decides when a crashed deck stops coming back lives in
 ccdeck and two policies over one process is how a stop becomes a suggestion. An
 `npx` run never installs one: it would name a path inside npm's cache, which npm
-deletes without warning. On Linux, `systemd --user` is torn down at logout unless
+deletes without warning — nor does a `pnpm dlx`, `bunx` or `yarn dlx` run, for the
+same reason. A Linux machine that does not run systemd gets none either, and the
+first start says so. On Linux, `systemd --user` is torn down at logout unless
 `loginctl enable-linger` is on for your account — the install says so rather than
 changing that for you.
 
@@ -383,7 +385,8 @@ so unconditionally. Two starts at the same moment, such as the login item and a
 terminal opened at login, wait for each other instead of both starting. The rule
 holds per Claude config directory: pointing `CLAUDE_CONFIG_DIR` somewhere else
 is a second deck with its own identity, as it always was, and the login item is
-given the same directory as the shell that installed it.
+given the same directory as the shell that installed it, along with every other
+variable in the table below that the shell had set.
 
 ccdeck looks for each CLI before it does anything on that CLI's behalf. Claude
 Code counts as present when its binary is on `PATH` (or in one of the places its
@@ -488,6 +491,7 @@ What the banner offers depends on how this copy was installed:
 |---|---|
 | global npm install | **Update now** — runs `npm install -g` on the package you installed, then restarts once nothing is running |
 | `npx` | **Update & restart** — re-runs the spec through npx, which fetches a fresh copy and takes over the same port |
+| `pnpm dlx`, `bunx` or `yarn dlx` | the command — a one-off copy cannot be upgraded in place, so the global install is what is shown |
 | git checkout | the command, because your working copy leads npm: `git pull && npm run build` |
 | directory not writable | the command — a root-owned prefix is declined up front rather than failing inside npm |
 | `AGENTS_DECK_NO_INSTALL=1` | the command only; you asked for no installs |

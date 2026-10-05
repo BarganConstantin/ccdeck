@@ -67,6 +67,27 @@ export function isNpxInstall(pkgRoot) {
   return typeof pkgRoot === "string" && pkgRoot.split(/[\\/]/).includes("_npx");
 }
 
+/** Any one-off runner's copy: npx's, and the three that are not npm's —
+ *
+ *    pnpm dlx   <cache>/pnpm/dlx/<hash>/…, and dlx-<pid>/ in a temp folder before pnpm cached them
+ *    bunx       <tmp>/bunx-<uid>-<spec>/, cleared at reboot
+ *    yarn dlx   <tmp>/xfs-<id>/dlx-<pid>/
+ *
+ *  Only `_npx` used to be recognised, so the other three looked like a global
+ *  install: the first start wrote a login item naming a file inside the cache,
+ *  and the writable folder made the update an `npm i -g` the away-update ran by
+ *  itself, every thirty minutes, without ever moving the running copy. Neither
+ *  has a path anybody promised to keep. Segment-wise and separator-agnostic,
+ *  for the reasons isNpxInstall gives. */
+export function isOneOffRun(pkgRoot) {
+  if (typeof pkgRoot !== "string") return false;
+  // `dlx` alone only under pnpm's cache directory (pnpm/, pnpm-cache/), so a
+  // project folder that happens to be called that is not taken for one.
+  const parts = pkgRoot.split(/[\\/]/);
+  return isNpxInstall(pkgRoot) || parts.some((p, i) =>
+    (p === "dlx" && /pnpm/i.test(parts[i - 1] ?? "")) || /^dlx-\d+$/.test(p) || /^bunx-\d+-/.test(p));
+}
+
 /** A git checkout is the maintainer's own tree. Its version routinely sits
  *  ahead of npm, and telling someone to `npm i -g` over their working copy is
  *  actively wrong, so the registry side of the check is skipped there.
