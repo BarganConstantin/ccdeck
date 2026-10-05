@@ -249,6 +249,19 @@ jobs:
           npm pack --pack-destination "$RUNNER_TEMP"
           echo "TARBALL=$(ls "$RUNNER_TEMP"/*.tgz)" >> "$GITHUB_ENV"
 
+      # A pull request's package, kept so a branch can be tried on another
+      # machine without publishing it: `gh run download <run> -n ccdeck-npm`,
+      # then `npm i -g ./ccdeck-*.tgz`. Installing from a git URL is not an
+      # alternative — npm skips `prepack` there and the package has no web UI.
+      - name: Keep the package
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ccdeck-npm
+          path: ${{ env.TARBALL }}
+          retention-days: 14
+          if-no-files-found: error
+
       - name: Setup Node (floor)
         uses: actions/setup-node@v7
         with:
