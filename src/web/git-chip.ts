@@ -49,7 +49,7 @@ export function branchChip(a: Pick<AgentNodeData, "kind" | "git" | "cwd">): Bran
  *   …/VCRM-9090-make-the-invoice-builder → VCRM-9090…builder → VCRM-9090…
  *
  * and a last segment with no ticket is cut in its middle, down to six
- * characters.
+ * characters. A last segment that is only a ticket is never cut.
  */
 export function branchCandidates(name: string): string[] {
   const seg = name.split("/");
@@ -62,7 +62,7 @@ export function branchCandidates(name: string): string[] {
     // The ticket stays whole; what follows it is cut from the front.
     for (let tail = last.length - ticket.length - 2; tail >= 3; tail--) out.push(`${ticket}…${last.slice(last.length - tail)}`);
     out.push(`${ticket}…`);
-  } else {
+  } else if (!ticket) {
     for (let keep = last.length - 2; keep >= 6; keep -= 2) {
       const head = Math.ceil(keep * 0.6);
       out.push(`${last.slice(0, head)}…${last.slice(last.length - (keep - head))}`);
@@ -80,4 +80,49 @@ const TICKET = /^[A-Za-z][A-Za-z0-9]*-\d+/;
 export function fitBranch(name: string, fits: (text: string) => boolean): string {
   const all = branchCandidates(name);
   return all.find(fits) ?? name.split("/").pop()!;
+}
+
+/** How many characters of a name with no ticket a chip keeps at the least. */
+const FLOOR_CHARS = 8;
+
+/**
+ * The least a chip may say and still be worth reading: the ticket whole (with
+ * the ellipsis when more of the segment follows it), or else the shortest
+ * spelling that keeps eight characters of the name — the whole last segment
+ * when it is shorter than that. Below it the chip asks its row for room
+ * (`rowYields`), and with none left keeps its glyph alone.
+ */
+export function branchFloor(name: string): string {
+  const last = name.split("/").pop()!;
+  const ticket = TICKET.exec(last)?.[0];
+  if (ticket) return ticket.length < last.length ? `${ticket}…` : ticket;
+  const kept = (s: string) => s.replace(/…\/?/g, "").length;
+  const least = Math.min(FLOOR_CHARS, last.length);
+  const spellings = branchCandidates(name).filter(s => kept(s) >= least);
+  return spellings[spellings.length - 1] ?? last;
+}
+
+/** What on a card's sub row may give way to the branch chip, in the order it
+ *  goes: the word "session", which a root card's look already says, and then
+ *  the model chip's `+N`, whose models its tooltip names. A subagent keeps its
+ *  word — the card's only mark of what it is beside its name. */
+export type RowYield = "kind" | "more";
+export function rowYields(kind: AgentNodeData["kind"], otherModels: number): RowYield[] {
+  const out: RowYield[] = [];
+  if (kind === "root") out.push("kind");
+  if (otherModels > 0) out.push("more");
+  return out;
+}
+
+/** What the chip does with the room its row leaves it, in characters of its
+ *  name: say the longest spelling that fits, or — when not even the floor
+ *  does — ask the row for more room, and only when the row has nothing left
+ *  to give, keep its glyph alone. A detached HEAD's short SHA is never cut. */
+export type ChipFit = { give: true } | { give: false; label: string; bare: boolean };
+export function fitChip(chip: Pick<BranchChip, "kind" | "name">, roomChars: number, canGive: boolean): ChipFit {
+  const floor = chip.kind === "detached" ? chip.name : branchFloor(chip.name);
+  const roomy = floor.length <= roomChars;
+  if (!roomy && canGive) return { give: true };
+  if (chip.kind === "detached") return { give: false, label: chip.name, bare: false };
+  return { give: false, label: fitBranch(chip.name, text => text.length <= roomChars), bare: !roomy };
 }

@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
 import { fmtCost, UNPRICED_LABEL } from "../pricing";
@@ -40,7 +40,7 @@ import { AlertMark, StateMark } from "./StateMark";
 import { RecapMark } from "./RecapMark";
 // The branch this agent's folder is on, from the server's GitObserved — see
 // git-chip.ts for which cards show one.
-import { branchChip } from "../git-chip";
+import { branchChip, rowYields, type RowYield } from "../git-chip";
 import { useGitOn } from "../git-pref";
 import GitChip from "./GitChip";
 
@@ -116,7 +116,20 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // None at all while the git view is switched off in Appearance.
   const gitOn = useGitOn();
   const chip = gitOn ? branchChip(data) : null;
-  const modelSaid = data.model ? `${shortModel(data.model)}${otherModels.length > 0 ? ` +${otherModels.length}` : ""}` : data.provider === "codex" ? "Codex" : "";
+  const modelMore = otherModels.length > 0 ? ` +${otherModels.length}` : "";
+  const modelSaid = data.model ? `${shortModel(data.model)}${modelMore}` : data.provider === "codex" ? "Codex" : "";
+  // A row too tight for the branch's ticket — `session → 1 Opus 5.5 +1` left
+  // three letters — gives the chip room before the chip gives up its name:
+  // the word "session" goes first, then the `+N`, and only then the name
+  // (rowYields, fitChip). GitChip measures and asks for one more each time;
+  // the count is kept against the row it was worked out for, so a row that
+  // says something else starts again from nothing given, in the same render.
+  const yields = chip ? rowYields(data.kind, otherModels.length) : NO_YIELDS;
+  const rowKey = `${data.kind}|${data.childCount}|${modelSaid}|${chip?.name ?? ""}`;
+  const [given, setGiven] = useState({ row: "", count: 0 });
+  const giving = given.row === rowKey ? yields.slice(0, given.count) : NO_YIELDS;
+  const kindShown = !giving.includes("kind");
+  const moreShown = !giving.includes("more");
 
   return (
     // --accent itself is built in styles.css from this hue: the token that
@@ -171,7 +184,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
       </div>
 
       <div className="sub">
-        {data.kind === "root" ? "session" : "subagent"}
+        {kindShown && <span className="sub-kind">{data.kind === "root" ? "session" : "subagent"}</span>}
         {data.childCount > 0 && (
           <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
         )}
@@ -198,12 +211,13 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
              Sonnet to Opus matched two equal-specificity rules and took the
              last one, drawing "Opus 5 +1" in Sonnet blue. */
           ? <span className="model-chip" data-family={modelFamily(data.model)} title={modelChipTitle}>
-              {shortModel(data.model)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
+              {shortModel(data.model)}{moreShown ? modelMore : ""}
             </span>
           : data.provider === "codex"
             ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>
             : null}
-        {chip && <GitChip agentId={data.id} chip={chip} row={`${data.kind}|${data.childCount}|${modelSaid}`} />}
+        {chip && <GitChip agentId={data.id} chip={chip} row={rowKey} given={giving.length} canGive={giving.length < yields.length}
+          onGive={() => setGiven({ row: rowKey, count: giving.length + 1 })} />}
       </div>
 
       {/* What Claude Code calls this session, on a row of its own for the
@@ -309,6 +323,9 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
 }
 
 export default memo(AgentNode);
+
+/** Nothing on the sub row given to the branch chip. */
+const NO_YIELDS: RowYield[] = [];
 
 /**
  * THE CARD AS IT IS DRAWN FROM A DISTANCE — the compact and overview faces.

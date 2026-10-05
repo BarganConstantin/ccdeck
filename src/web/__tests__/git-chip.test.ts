@@ -3,7 +3,7 @@
 // the chip lives on the sub row, a press on it is its own and opens the agent's
 // details, and it moves nothing when it lights up.
 import { describe, expect, it } from "vitest";
-import { branchChip, branchCandidates, fitBranch } from "../git-chip";
+import { branchChip, branchCandidates, branchFloor, fitBranch, fitChip, rowYields } from "../git-chip";
 import { openGitFor, setGitOpener } from "../git-open";
 import type { GitFacts } from "../types";
 import { sourceOf } from "./client-source";
@@ -52,8 +52,9 @@ describe("which cards show a branch", () => {
 
 describe("a long branch, shortened in the middle", () => {
   it("keeps the last segment, the part people scan for", () => {
+    // A segment that is only a ticket is never cut inside it.
     expect(branchCandidates("feature/bargan/VCRM-9090")).toEqual([
-      "feature/bargan/VCRM-9090", "feature/…/VCRM-9090", "…/VCRM-9090", "VCRM-9090", "VCRM-…90",
+      "feature/bargan/VCRM-9090", "feature/…/VCRM-9090", "…/VCRM-9090", "VCRM-9090",
     ]);
     expect(branchCandidates("main")).toEqual(["main"]);
     expect(branchCandidates("fix/retry-backoff")).toEqual(["fix/retry-backoff", "…/retry-backoff", "retry-backoff",
@@ -72,6 +73,68 @@ describe("a long branch, shortened in the middle", () => {
     expect(fitBranch(long, fitsIn(10))).toBe("VCRM-9090…");
     expect(fitBranch(long, () => false)).toBe("VCRM-9090-make-the-invoice-builder-understand-everything");
     expect(fitBranch("feature/auth-login", () => false)).toBe("auth-login");
+  });
+});
+
+describe("the least a chip says before it gives up its name", () => {
+  it("is the ticket whole, or eight characters of a name without one", () => {
+    expect(branchFloor("feature/bargan/VCRM-9090")).toBe("VCRM-9090");
+    expect(branchFloor("feature/bargan/VCRM-9090-make-the-invoice-builder-understand-everything")).toBe("VCRM-9090…");
+    expect(branchFloor("feature/auth-login")).toBe("auth-…gin");
+    expect(branchFloor("fix/retry-backoff")).toBe("retry-…off");
+    expect(branchFloor("develop")).toBe("develop");
+    expect(branchFloor("main")).toBe("main");
+  });
+});
+
+describe("a tight sub row gives the chip room before the chip gives up its name", () => {
+  it("lets the session word go first, then the model chip's +N; a subagent keeps its word", () => {
+    expect(rowYields("root", 1)).toEqual(["kind", "more"]);
+    expect(rowYields("root", 0)).toEqual(["kind"]);
+    expect(rowYields("subagent", 2)).toEqual(["more"]);
+    expect(rowYields("subagent", 0)).toEqual([]);
+  });
+
+  const branch = (name: string) => ({ kind: "branch" as const, name });
+  it("takes the longest spelling that fits when the row has room for at least the floor", () => {
+    expect(fitChip(branch("feature/bargan/VCRM-9090"), 30, true)).toEqual({ give: false, label: "feature/bargan/VCRM-9090", bare: false });
+    expect(fitChip(branch("feature/bargan/VCRM-9090"), 9.5, true)).toEqual({ give: false, label: "VCRM-9090", bare: false });
+    expect(fitChip(branch("feature/auth-login"), 11, false)).toEqual({ give: false, label: "auth-login", bare: false });
+  });
+
+  it("asks the row for room when even the floor does not fit, and is bare only once the row has nothing left to give", () => {
+    // api-fix: `session → 1 Opus 5.5 +1` left three letters' room.
+    expect(fitChip(branch("feature/auth-login"), 3, true)).toEqual({ give: true });
+    expect(fitChip(branch("feature/auth-login"), 3, false)).toMatchObject({ give: false, bare: true });
+    // Never a ticket cut inside: no room for VCRM-9090 is the glyph alone.
+    expect(fitChip(branch("feature/bargan/VCRM-9090"), 8.5, true)).toEqual({ give: true });
+    expect(fitChip(branch("feature/bargan/VCRM-9090"), 8.5, false)).toMatchObject({ give: false, bare: true });
+  });
+
+  it("keeps a detached HEAD's short SHA whole, asking for room first", () => {
+    const detached = { kind: "detached" as const, name: "56aee3d" };
+    expect(fitChip(detached, 5, true)).toEqual({ give: true });
+    expect(fitChip(detached, 5, false)).toEqual({ give: false, label: "56aee3d", bare: false });
+    expect(fitChip(detached, 9, true)).toEqual({ give: false, label: "56aee3d", bare: false });
+  });
+
+  it("draws the row without what it gave, and starts again whenever the row says something else", () => {
+    const node = sourceOf("components/AgentNode.tsx");
+    const sub = node.slice(node.indexOf('<div className="sub">'), node.indexOf("</div>", node.indexOf('<div className="sub">')));
+    expect(sub).toContain('{kindShown && <span className="sub-kind">{data.kind === "root" ? "session" : "subagent"}</span>}');
+    expect(sub).toContain("{shortModel(data.model)}{moreShown ? modelMore : \"\"}");
+    expect(sub).toMatch(/<GitChip agentId=\{data\.id\} chip=\{chip\} row=\{rowKey\} given=\{giving\.length\} canGive=\{giving\.length < yields\.length\}/);
+    // The count of what was given is kept against the row it was worked out
+    // for: a row that changes starts from nothing given, in the same render.
+    expect(node).toContain("const giving = given.row === rowKey ? yields.slice(0, given.count) : NO_YIELDS;");
+    expect(node).toContain('const rowKey = `${data.kind}|${data.childCount}|${modelSaid}|${chip?.name ?? ""}`;');
+    const chip = sourceOf("components/GitChip.tsx");
+    expect(chip).toMatch(/if \(fit\.give\) \{ onGive\(\); return; \}/);
+    expect(chip).toContain("[chip.name, chip.kind, row, given, canGive]");
+  });
+
+  it("keeps the row's first word flush with the card's edge once the session word has gone", () => {
+    expect(sheetText()).toContain(".agent-node .sub:has(.git-chip) > :first-child:not(.git-chip) { margin-left: 0; }");
   });
 });
 
@@ -135,7 +198,15 @@ describe("the chip's look", () => {
     expect(css).toContain(".git-chip[data-bare] .git-chip-name { display: none; }");
   });
 
+  it("keeps the keyboard's ring inside the sub row, which hides its overflow", () => {
+    expect(rule(".agent-node .sub")).toContain("overflow: hidden");
+    expect(css).toContain(".git-chip:focus-visible { outline-offset: -2px; }");
+    expect(css).not.toContain(".git-chip:focus-visible { outline-offset: 1px; }");
+  });
+
   it("makes the sub row a flex row only when a chip is on it", () => {
     expect(css).toContain(".agent-node .sub:has(.git-chip) { display: flex; align-items: center; }");
+    // What is on the row before the chip keeps its width; only the chip shrinks.
+    expect(css).toMatch(/\.agent-node \.sub:has\(\.git-chip\) > \.sub-kind,\s*\.agent-node \.sub:has\(\.git-chip\) > \.spawn-badge,\s*\.agent-node \.sub:has\(\.git-chip\) > \.model-chip \{ flex: none; \}/);
   });
 });
