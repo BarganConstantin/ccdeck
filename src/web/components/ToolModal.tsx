@@ -30,10 +30,21 @@ export default function ToolModal({
     : tool.ok === false  ? "err"
     :                       "done";
 
-  // The full payloads while the reducer still holds them, the previews once it
-  // has released them (see `trimmed` below).
-  const input = tool.input ?? tool.inputPreview;
-  const response = tool.response ?? tool.errorPreview;
+  // The full payloads while they are held, the previews once they are not (see
+  // `released` below). HELD HERE AS WELL AS IN THE REDUCER: trimTools lets go of
+  // a call's payloads once 25 newer calls land, in place, on the very ToolCall
+  // this renders — so a dialog opened on a working agent's newest call read its
+  // Input as the 80-character preview and its Response as "(none)" a minute
+  // later, while it was being read. What this dialog has seen of the call it
+  // keeps until it closes; a call that was already released when it opened has
+  // nothing here to keep, and says so.
+  const held = useRef<{ of: ToolCall | null; input?: unknown; response?: unknown }>({ of: null });
+  if (held.current.of !== tool) held.current = { of: tool };
+  if (tool.input !== undefined) held.current.input = tool.input;
+  if (tool.response !== undefined) held.current.response = tool.response;
+  const input = held.current.input ?? tool.inputPreview;
+  const response = held.current.response ?? tool.errorPreview;
+  const released = tool.trimmed === true && held.current.input === undefined && held.current.response === undefined;
   const view = toolView(tool.name, input, response);
 
   return (
@@ -63,7 +74,7 @@ export default function ToolModal({
         </header>
 
         <section className="modal-body">
-          {tool.trimmed && (
+          {released && (
             <div className="modal-section">
               <p className="modal-note">
                 Full payloads for this call were released to keep memory bounded — only

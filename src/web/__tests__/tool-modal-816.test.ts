@@ -20,8 +20,11 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
   });
 
   it("still falls back to the previews once the payloads were released", () => {
-    expect(code).toMatch(/const input = tool\.input \?\? tool\.inputPreview;/);
-    expect(code).toMatch(/const response = tool\.response \?\? tool\.errorPreview;/);
+    // Through what the dialog holds of the call since it opened, which is the
+    // reducer's copy until trimTools lets go of it:
+    // tool-modal-held-payload.test.ts draws both.
+    expect(code).toMatch(/const input = held\.current\.input \?\? tool\.inputPreview;/);
+    expect(code).toMatch(/const response = held\.current\.response \?\? tool\.errorPreview;/);
     expect(code).toMatch(/<pre>\(waiting…\)<\/pre>/);
   });
 
