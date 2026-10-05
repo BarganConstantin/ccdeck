@@ -45,30 +45,37 @@ export async function handleBrowserWatchSettings(req, res) {
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
 
-  const { readStore, updateStore, normalise } = await import(
+  const { updateStore, normalise } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
   );
   const { invalidateBrowserWatchCache, noteWatchSetting } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
   );
-  const store = await readStore();
-  // normalise() is the one place a value is judged, so a field this route has
-  // never heard of cannot arrive through it and a bad one falls back rather
-  // than reaching classify().
-  const settings = normalise({ ...store.settings, ...body });
   // `dismissed` carried forward, and it has to be spelled: writeStore takes a
   // whole state and writes exactly what it is handed, so a caller that omits
   // this field ERASES it. Measured — changing the reaction wiped every
   // dismissal, so every episode the reader had reviewed came straight back on
   // the next poll, from a settings change that had nothing to do with them.
-  // Only the settings are this route's to change. `updateStore` re-reads inside
-  // the write queue, so a poll that landed between the read above and this line
-  // cannot have its archive thrown away by a settings change — which is what
-  // writing a whole state read seconds earlier used to do.
-  await updateStore(cur => ({ ...cur, settings }));
+  // Only the settings are this route's to change.
+  //
+  // AND THE PATCH IS MERGED INSIDE THE JOB, against the state the queue hands
+  // in. Each control in the panel sends one field, and this used to read the
+  // store before the queue and build the whole settings object from that: a
+  // second change whose read came before the first one's write put the first
+  // field back — the watch switched off, the reaction changed straight after,
+  // and the watch was on again. Merged against `cur`, two one-field patches
+  // cannot lose each other, and neither can a poll's archive.
+  let before;
+  const { settings } = await updateStore(cur => {
+    before = cur.settings;
+    // normalise() is the one place a value is judged, so a field this route
+    // has never heard of cannot arrive through it and a bad one falls back
+    // rather than reaching classify().
+    return { ...cur, settings: normalise({ ...cur.settings, ...body }) };
+  });
   // The one line in the log that is somebody acting rather than the deck
   // reading, which is exactly why it is worth its own entry.
-  if (settings.enabled !== store.settings.enabled) {
+  if (settings.enabled !== before.enabled) {
     noteWatchSetting(settings.enabled ? "watch on — keeping its own copy" : "watch off — reading live only");
   } else {
     noteWatchSetting(`settings: quiet ${settings.quietMinutes}m, gap ${settings.gapMinutes}m`);
@@ -107,10 +114,10 @@ export async function handleBrowserWatchDismiss(req, res) {
   const { invalidateBrowserWatchCache, noteWatchSetting } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
   );
-  // COMPUTED INSIDE THE JOB, like the settings route four lines up, whose
-  // comment says why: "updateStore re-reads inside the write queue, so a poll
-  // that landed between the read above and this line cannot have its archive
-  // thrown away." This read the whole `dismissed` array before the queue, so
+  // COMPUTED INSIDE THE JOB, like the settings route above, and for the same
+  // reason: updateStore re-reads inside the write queue, and only what is
+  // computed from that read can never be stale. This read the whole
+  // `dismissed` array before the queue, so
   // two Dismiss presses in one turn both read before either job ran and the
   // second wrote an array without the first key — both rows left the list,
   // both answered 200, and the first came back on the next ten-second poll.

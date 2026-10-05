@@ -429,7 +429,9 @@ describe("a log a person can read", () => {
     // just finished looking while it was still looking.
     const server = src("../../server/browser-watch.mjs");
     const assign = server.indexOf("_checkedMs = now;");
-    const survey = server.indexOf("const browsers = await surveyBrowsers");
+    // Asked only for a read somebody is looking at, since the badge's poll
+    // stopped surveying (browser-watch-background-poll-dns.test.ts).
+    const survey = server.indexOf("const browsers = readBrowsers ? await surveyBrowsers");
     expect(assign, "_checkedMs is never assigned").toBeGreaterThan(0);
     expect(assign, "the stamp is taken before the work it claims to have finished")
       .toBeLessThan(survey);

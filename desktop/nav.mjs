@@ -22,3 +22,23 @@ export function navigationFor(url, origin) {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "block";
   return parsed.origin === origin ? "stay" : "external";
 }
+
+/** The deck's origin, for the window and for the checks against it. */
+export function deckOrigin(port) {
+  return `http://127.0.0.1:${port}`;
+}
+
+/**
+ * Where an open window showing `windowOrigin` has to go once the app has
+ * attached to `deck`: the new deck's origin when it is on another port, or
+ * null to stay. A deck replaced on another port — `ccdeck --port 4500` from a
+ * terminal, or each restart on a machine where 4317 is taken — left the window
+ * retrying the old port for as long as it stayed open. A deck back on the same
+ * port is one the page reconnects to by itself, and no deck at all is one it
+ * waits for.
+ */
+export function originToFollow(windowOrigin, deck) {
+  if (!windowOrigin || !deck) return null;
+  const next = deckOrigin(deck.port);
+  return next === windowOrigin ? null : next;
+}

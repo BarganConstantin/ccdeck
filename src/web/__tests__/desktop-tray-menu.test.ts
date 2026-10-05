@@ -172,7 +172,7 @@ describe("the app's wiring", () => {
     expect(main).toMatch(/function buildMenu\(\) \{\s*return trayMenuItems\(\{[\s\S]*?\}, TRAY_ACTIONS\);\s*\}/);
     expect(main).toContain("build: buildMenu,");
     expect(main).toContain("const menu = Menu.buildFromTemplate(template);");
-    expect(main).toContain("tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot })}`);");
+    expect(main).toContain("tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot, startFailed })}`);");
     // Nothing of the menu is left written out in main.mjs to drift from it.
     expect(main).not.toMatch(/label: "(?:Restart ccdeck|Quit ccdeck|Start at login|Open in browser)"/);
   });

@@ -5,6 +5,7 @@
 // only the CURRENT one's exit means the app has no deck of its own: a deck
 // replaced earlier that exits afterwards used to clear the reference to the
 // one that replaced it, and Quit then stopped neither.
+import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 
 /** The deck this app started, if it did. */
 export function createOwnDeck() {
@@ -23,6 +24,87 @@ export function createOwnDeck() {
       return child;
     },
   };
+}
+
+/**
+ * Start the app's own deck and wait for it to answer — for as long as there is
+ * a deck to wait for.
+ *
+ * The wait used to be forty seconds whatever the deck did. A deck that cannot
+ * start — a settings.json that does not parse, or one a past `sudo claude`
+ * left owned by root — prints why and exits in its first second, and its
+ * supervisor does not restart a deck that never served. The tray said
+ * "Starting the deck…" for the rest of the forty seconds, then "No deck
+ * running", and why was written only to deck-app.log. So the wait ends when
+ * the deck exits, and what the deck wrote to its log on the way out comes
+ * back as the reason.
+ *
+ * `start(exited)` starts it and calls `exited(code, signal)` when it exits. A
+ * throw from it — a launcher that could not be written, a log that could not
+ * be opened — is a failed start too, rather than a rejection that took the
+ * rest of the app's startup with it. `look()` looks for a running deck, and
+ * `found()` says whether one is attached; one more look follows the exit,
+ * because a deck that finds another already running leaves it to that one.
+ *
+ * -> { ok: true } | { ok: false, reason } — `reason` is null for a deck still
+ *    starting when the wait runs out: it may yet come up, and the app's
+ *    five-second look attaches it then.
+ */
+export async function startOwnDeck({ start, look, found, logFile, tries = 80, everyMs = 500 }) {
+  const from = logSize(logFile);
+  let gone = null;
+  let wake = () => {};
+  const exited = new Promise(resolve => { wake = resolve; });
+  try {
+    start((code, signal) => { gone = { code, signal }; wake(); });
+  } catch (err) {
+    return { ok: false, reason: String(err?.message ?? err) };
+  }
+  for (let i = 0; i < tries && !found(); i++) {
+    await Promise.race([new Promise(resolve => setTimeout(resolve, everyMs)), exited]);
+    await look();
+    if (gone && !found()) return { ok: false, reason: logTail(logFile, from) || exitText(gone) };
+  }
+  return found() ? { ok: true } : { ok: false, reason: null };
+}
+
+/** How many bytes the log holds now, so a start reads only its own lines. */
+function logSize(file) {
+  try {
+    const fd = openSync(file, "r");
+    try { return fstatSync(fd).size; } finally { closeSync(fd); }
+  } catch { return 0; }
+}
+
+/** The last lines that say something, of what the log gained from byte
+ *  `from` on — at most the last 16 KB of it, colour codes and a spinner's
+ *  overwritten frames taken out. Empty when there is nothing to read. */
+export function logTail(file, from, { lines = 4, maxBytes = 16_384 } = {}) {
+  let text = "";
+  try {
+    const fd = openSync(file, "r");
+    try {
+      const size = fstatSync(fd).size;
+      // A log rotated or truncated since is read from its start.
+      const start = Math.max(size < from ? 0 : from, size - maxBytes);
+      const buf = Buffer.alloc(size - start);
+      readSync(fd, buf, 0, buf.length, start);
+      text = buf.toString("utf8");
+    } finally { closeSync(fd); }
+  } catch { return ""; }
+  return text
+    // eslint-disable-next-line no-control-regex
+    .replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "")
+    .split("\n")
+    .map(line => line.slice(line.lastIndexOf("\r") + 1).trim())
+    .filter(Boolean)
+    .slice(-lines)
+    .join("\n");
+}
+
+/** What the exit says, for a deck that wrote nothing on its way out. */
+function exitText({ code, signal }) {
+  return `The deck stopped while it was starting (${signal ? `signal ${signal}` : `exit code ${code}`}).`;
 }
 
 /**
