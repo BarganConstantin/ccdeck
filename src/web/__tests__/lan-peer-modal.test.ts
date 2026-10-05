@@ -169,10 +169,20 @@ describe("what one offered login would do here", () => {
       .toEqual({ there: "works there", here: "not on this deck", note: "arrives next round", tone: "wait" });
   });
 
-  it("repairs an expired one only when this deck shares it too, and says the fix when not", () => {
-    expect(offerLine(theirs(true), mine(false), true).tone).toBe("wait");
-    const unshared = offerLine(theirs(true), mine(false), false);
+  it("repairs an expired one whatever this deck shares, from a deck somebody here chose", () => {
+    expect(offerLine(theirs(true), mine(false), true))
+      .toMatchObject({ here: "expired here", note: "repairs next round", tone: "wait" });
+    // The case that had people deleting accounts: it said "share it to
+    // repair" while an add of the same login needed no tick.
+    expect(offerLine(theirs(true), mine(false), false))
+      .toMatchObject({ here: "expired here", note: "repairs next round", tone: "wait" });
+  });
+
+  it("asks for the tick to repair one only from a deck the switch paired, and says why", () => {
+    expect(offerLine(theirs(true), mine(false), true, false).tone).toBe("wait");
+    const unshared = offerLine(theirs(true), mine(false), false, false);
     expect(unshared.tone).toBe("bad");
+    expect(unshared.note).toContain("paired automatically");
     expect(unshared.note).toContain("share it to repair");
   });
 
@@ -271,9 +281,16 @@ describe("one login between two decks", () => {
       .toMatchObject({ in: "wait", out: "cut", caption: "expired here · repairs next round" });
   });
 
-  it("stops a copy at this deck until this deck shares it too", () => {
+  it("repairs a copy expired here from a deck somebody chose, shared here or not", () => {
     expect(exchangeLanes([acct("a", true)], [acct("a", false)], [])[0])
-      .toMatchObject({ in: "blocked", out: null, tone: "bad", caption: "expired here · share it to repair" });
+      .toMatchObject({ in: "wait", out: null, tone: "wait", caption: "expired here · repairs next round" });
+  });
+
+  it("stops a copy at this deck, from a deck the switch paired, until this deck shares it too", () => {
+    expect(exchangeLanes([acct("a", true)], [acct("a", false)], [], null, false)[0])
+      .toMatchObject({ in: "blocked", out: null, tone: "bad", caption: "expired here · paired automatically — share it to repair" });
+    expect(exchangeLanes([acct("a", true)], [acct("a", false)], ["a"], null, false)[0])
+      .toMatchObject({ in: "wait", out: "cut", tone: "wait", caption: "expired here · repairs next round" });
   });
 
   it("says only the broken end when the other one works", () => {

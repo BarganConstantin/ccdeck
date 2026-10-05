@@ -162,6 +162,28 @@ async function point(
 }
 
 describe("the account that is dead here and alive there", () => {
+  it("heals a login that is dead here and was never ticked here, without it being deleted first", async () => {
+    // The reported case: claude-swap's refresh on one deck rotated the token,
+    // so every other deck's copy got invalid_grant. The deck somebody here
+    // paired with holds the working one, and this deck shares only other
+    // accounts. The heal used to need this deck's tick, so the row said
+    // "login expired" for good — until somebody deleted it, and the add that
+    // followed needed no tick and went straight through.
+    const D = K("dead-here@x", "o");
+    const mine = store([{ num: 9, email: "dead-here@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 4, email: "dead-here@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [K("other@x", "o")]);
+    const b = await deck(theirs, "Deck-B", [D]);
+    await point(a, b, b.port);
+    expect(await a.e.round()).toEqual([
+      { key: D, email: "dead-here@x", action: "heal", ok: true, why: null },
+    ]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-4"]);
+    // Healed, not ticked: the slot was already here, and whether this deck
+    // offers it stays the decision somebody made about it.
+    expect(a.e.status().shared).not.toContain(D);
+  }, 20_000);
+
   it("ends a sync promptly when the remote deck disconnects during a credential request", async () => {
     const email = "offline@example.com";
     const key = K(email, "org-offline");
@@ -1387,7 +1409,10 @@ describe("unpairing", () => {
     expect(last?.done).toMatchObject([{ key: first, ok: true, why: "unreadable_here" }]);
   }, 20_000);
 
-  it("skips only the heal unticked mid-export, and still brings the add behind it", async () => {
+  it("does not stop a heal from a deck somebody chose when the login is unticked mid-export", async () => {
+    // The tick is this deck's answer to "offer it", not to "repair it", so
+    // taking it away mid-round changes nothing about what arrives. From a deck
+    // the switch paired it still does — see lan-switch-pairing.test.ts.
     const A = K("a-heal@x", "o");
     const B = K("b-add@x", "o");
     let release!: () => void;
@@ -1412,10 +1437,10 @@ describe("unpairing", () => {
     await receiver.e.apply({ shared: [] });
     release();
     expect(await transfer).toEqual([
-      { key: A, email: "a-heal@x", action: "heal", ok: false, why: "not shared" },
+      { key: A, email: "a-heal@x", action: "heal", ok: true, why: null },
       { key: B, email: "b-add@x", action: "add", ok: true, why: null },
     ]);
-    expect(receiverStore.imported).toEqual(["ccdeck2:slot-6"]);
+    expect(receiverStore.imported).toEqual(["ccdeck2:slot-5", "ccdeck2:slot-6"]);
   }, 20_000);
 
   it("drops the pin, writes the shorter list through, and says whether there was one", async () => {
@@ -3016,8 +3041,8 @@ describe("an account that arrives over the network", () => {
     // hold a 100.x one. An add from the local network is the whole of it.
     expect(ticksOnArrival({ key: NEW, action: "add" }, "lan")).toBe(true);
     expect(ticksOnArrival({ key: NEW, action: "add" }, "tailscale")).toBe(false);
-    // A heal is an account this deck already shares — there is nothing to tick
-    // — and an unticked one is never healed in the first place.
+    // A healed slot was already here, ticked or not by somebody's choice, and
+    // an arrival does not overrule it.
     expect(ticksOnArrival({ key: NEW, action: "heal" }, "lan")).toBe(false);
     expect(ticksOnArrival({ action: "add" }, "lan")).toBe(false);
   }, 20_000);
