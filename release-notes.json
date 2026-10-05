@@ -71,6 +71,12 @@
     "3.36.9",
     "3.37.0"
   ],
+  "3.37.1": [
+    {
+      "title": "🔁 Expired logins repair from your other machines",
+      "body": "When a login stops working on this machine and a machine you paired with still has it working and ticked, Local network now copies it back on the next round, whether or not the account is ticked here. Before, it stayed marked expired until the account was ticked here as well, or deleted so that it arrived again. A machine that paired on its own, through Say yes to every deck that asks, still repairs only the accounts ticked here."
+    }
+  ],
   "3.36.3": [
     {
       "title": "🔑 An expired login asks to be signed in again",
