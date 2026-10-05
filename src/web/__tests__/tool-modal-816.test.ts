@@ -43,8 +43,12 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
   });
 
   it("puts a copy button on the input and, once there is one, on the response", () => {
-    expect(code).toMatch(/<CopyButton text=\{copyOf\(tool\.name, "input", input\)\} what="input" \/>/);
-    expect(code).toMatch(/\{tool\.endedAt != null && <CopyButton text=\{copyOf\(tool\.name, "response", response\)\} what="response" \/>\}/);
+    // The strings are worked out once per payload beside the view, not on every
+    // render: tool-modal-render-cost.test.ts counts them.
+    expect(code).toMatch(/copyInput: copyOf\(tool\.name, "input", input\),/);
+    expect(code).toMatch(/copyResponse: copyOf\(tool\.name, "response", response\),/);
+    expect(code).toMatch(/<CopyButton text=\{drawn\.copyInput\} what="input" \/>/);
+    expect(code).toMatch(/\{tool\.endedAt != null && <CopyButton text=\{drawn\.copyResponse\} what="response" \/>\}/);
     // Its visible word is inside its accessible name, before and after.
     expect(code).toMatch(/aria-label=\{copied \? `The \$\{what\} was copied` : `Copy the \$\{what\}`\}/);
     expect(code).toMatch(/\{copied \? "copied" : "copy"\}/);

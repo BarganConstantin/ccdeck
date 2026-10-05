@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ToolCall } from "../types";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 // The row that opens this dialog printed the same milliseconds one decimal
@@ -45,7 +45,22 @@ export default function ToolModal({
   const input = held.current.input ?? tool.inputPreview;
   const response = held.current.response ?? tool.errorPreview;
   const released = tool.trimmed === true && held.current.input === undefined && held.current.response === undefined;
-  const view = toolView(tool.name, input, response);
+  // ONCE PER PAYLOAD, NOT ONCE PER RENDER. The board's tick re-renders the deck
+  // four times a second and this dialog with it, and every piece of this walks
+  // the whole payload: toolView reads it all, a generic tool's copy string is
+  // its JSON, and a block splits its full text to show sixty lines of it — tens
+  // of milliseconds a tick on a multi-megabyte Read or WebFetch result. The
+  // blocks are made here too, so a tick hands React the same elements and it
+  // skips them rather than drawing an opened block's thousands of lines again.
+  const drawn = useMemo(() => {
+    const view = toolView(tool.name, input, response);
+    return {
+      input: view.input.map((b, n) => <ToolBlock key={n} block={b} />),
+      response: view.response.map((b, n) => <ToolBlock key={n} block={b} />),
+      copyInput: copyOf(tool.name, "input", input),
+      copyResponse: copyOf(tool.name, "response", response),
+    };
+  }, [tool.name, input, response]);
 
   return (
     // The scrim is the dismiss gesture, not the dialog: with role="dialog" on
@@ -85,18 +100,18 @@ export default function ToolModal({
           <div className="modal-section">
             <div className="tm-head">
               <h4>Input</h4>
-              <CopyButton text={copyOf(tool.name, "input", input)} what="input" />
+              <CopyButton text={drawn.copyInput} what="input" />
             </div>
-            {view.input.map((b, n) => <ToolBlock key={n} block={b} />)}
+            {drawn.input}
           </div>
           <div className="modal-section">
             <div className="tm-head">
               <h4>Response {status === "err" && <span className="err-tag">error</span>}</h4>
-              {tool.endedAt != null && <CopyButton text={copyOf(tool.name, "response", response)} what="response" />}
+              {tool.endedAt != null && <CopyButton text={drawn.copyResponse} what="response" />}
             </div>
             {tool.endedAt == null
               ? <pre>(waiting…)</pre>
-              : view.response.map((b, n) => <ToolBlock key={n} block={b} />)}
+              : drawn.response}
           </div>
         </section>
       </div>
@@ -124,7 +139,9 @@ export function ToolBlock({ block }: { block: Block }) {
       </p>
     );
   }
-  const lines = linesOf(block);
+  // Split once per block: opening it or closing it again is no reason to cut
+  // the whole text into lines a second time.
+  const lines = useMemo(() => linesOf(block), [block]);
   const { shown } = clip(lines, open);
   const more = moreControl(lines, open);
   return (
