@@ -17,6 +17,8 @@ import { createAgentGitTap } from "../../server/agent-git-tap.mjs";
 import { COMMIT_STORE_FILE, createCommitStore } from "../../server/agent-git-store.mjs";
 // @ts-expect-error — .mjs server module, no types
 import { codexObjToPayload } from "../../server/codex-translate.mjs";
+// @ts-expect-error — .mjs server module, no types
+import { attributeCommits } from "../../server/agent-git-rewrite.mjs";
 
 type Payload = Record<string, unknown>;
 type Rec = Record<string, unknown>;
@@ -236,5 +238,28 @@ describe("recording an agent's commit", () => {
       kind: "codex", sessionId: CODEX_SID, agentId: null, subject: "chore: third", model: "gpt-5.6", shaFull: true,
       cost: { usage: codexUsage, usageByModel: null, model: "gpt-5.6", at: T0 + 1_000 },
     });
+  });
+
+  it("keeps an amended commit's attribution through the subject and author-time match", async () => {
+    const amendRepo = join(ROOT, "amend");
+    mkdirSync(amendRepo);
+    git(amendRepo, "init", "-q");
+    const made = commitIn(amendRepo, "m.txt", "feat: to be amended");
+    const tap = freshTap();
+    tap.observe(env(bash("git commit -m 'feat: to be amended'", made, { cwd: amendRepo }), T0), LIVE);
+    await tap.settled();
+    const [stored] = await tap.store.all() as Rec[];
+    // The user (or another tool) amends it later, keeping the message: a new
+    // SHA, the same subject and author time.
+    writeFileSync(join(amendRepo, "m.txt"), "changed\n");
+    git(amendRepo, "add", "m.txt");
+    execFileSync("git", [...CFG, "commit", "--amend", "--no-edit"], { cwd: amendRepo, env: { ...GIT_ENV, GIT_COMMITTER_DATE: "2031-01-01T00:00:00Z" }, stdio: "ignore" });
+    const history = git(amendRepo, "log", "--format=%H%x00%s%x00%at").trim().split("\n").map(l => {
+      const [sha, subject, at] = l.split("\0");
+      return { sha, subject, authorTime: Number(at), branch: "main" };
+    });
+    expect(history.map(c => c.sha)).not.toContain(stored.sha);
+    const got = attributeCommits(await tap.store.all(), history);
+    expect(got.get(history[0].sha)).toMatchObject({ confidence: "matched", record: { sha: stored.sha, sessionId: SID } });
   });
 });
