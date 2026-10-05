@@ -60,6 +60,8 @@ export function createChimePlayer(opts: {
       : null);
 
   let ctx: AudioContext | null = null;
+  /** Imported clips still playing, so turning the sound off can stop them. */
+  const clips = new Set<AudioBufferSourceNode>();
 
   // Read off the context itself, never latched (#1760). Not every press is
   // activation — Escape is not, nor is a touch until it lifts — and a resume()
@@ -172,6 +174,8 @@ export function createChimePlayer(opts: {
       source.buffer = decoded;
       gain.gain.setValueAtTime(clipGain(asset.normalizationGain, tone.level), ctx.currentTime);
       source.connect(gain).connect(ctx.destination);
+      clips.add(source);
+      source.addEventListener?.("ended", () => clips.delete(source));
       source.start(ctx.currentTime);
       return "played";
     } catch {
@@ -216,5 +220,22 @@ export function createChimePlayer(opts: {
     return true;
   }
 
-  return { unlock, play, previewCustom, state, get context() { return ctx; } };
+  /**
+   * Stop what is sounding now: a spoken voice, and any imported clip still
+   * playing. Turning the sound off used to govern only what played NEXT, and a
+   * voice of 180 characters read at half speed went on for half a minute after
+   * the person had muted it. The figures are a fraction of a second, and are
+   * left to finish.
+   */
+  function silence() {
+    try {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    } catch { /* nothing is being said, or nothing can be */ }
+    for (const source of clips) {
+      try { source.stop(); } catch { /* it had already ended */ }
+    }
+    clips.clear();
+  }
+
+  return { unlock, play, previewCustom, silence, state, get context() { return ctx; } };
 }

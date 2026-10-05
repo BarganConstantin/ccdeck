@@ -17,7 +17,8 @@ type ChimePlayer = ReturnType<typeof createChimePlayer>;
 
 /**
  * @param chimesRef The chime player. Turning the sound on unlocks it, because
- *   that press is the gesture the autoplay rules want.
+ *   that press is the gesture the autoplay rules want; turning it off silences
+ *   whatever it is playing.
  */
 export function useSoundSwitch(chimesRef: MutableRefObject<ChimePlayer | null>) {
   // The finish sound. Local to this tab since #704: the deck plays it itself,
@@ -39,8 +40,11 @@ export function useSoundSwitch(chimesRef: MutableRefObject<ChimePlayer | null>) 
       writeStored("agent-dag.sound", next ? "on" : "off");
       // Turning it ON is itself the gesture the autoplay rules want, so take
       // it: otherwise the switch says "on" and the next event is still silent
-      // because nothing has been pressed since the reload.
+      // because nothing has been pressed since the reload. Turning it OFF
+      // silences what is sounding now, not only what would sound next: a
+      // custom voice could go on talking for half a minute after M.
       if (next) chimesRef.current?.unlock();
+      else chimesRef.current?.silence();
       return next;
     });
   }, []);
