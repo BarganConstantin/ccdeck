@@ -38,6 +38,10 @@ import { primaryDisplayFor, toolSubject } from "../tool-skin";
 import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
 import { AlertMark, StateMark } from "./StateMark";
 import { RecapMark } from "./RecapMark";
+// The branch this agent's folder is on, from the server's GitObserved — see
+// git-chip.ts for which cards show one.
+import { branchChip } from "../git-chip";
+import GitChip from "./GitChip";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -106,6 +110,10 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   const noteOpen = recap != null && !noteDismissed;
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
   const cost = costChip(data);
+  // The branch chip, last on the sub row. A subagent's takes the place of its
+  // folder name, which moves into the chip's tooltip.
+  const chip = branchChip(data);
+  const modelSaid = data.model ? `${shortModel(data.model)}${otherModels.length > 0 ? ` +${otherModels.length}` : ""}` : data.provider === "codex" ? "Codex" : "";
 
   return (
     // --accent itself is built in styles.css from this hue: the token that
@@ -164,7 +172,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         {data.childCount > 0 && (
           <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
         )}
-        {data.cwdBasename && data.kind === "subagent" ? ` · ${data.cwdBasename}` : ""}
+        {data.cwdBasename && data.kind === "subagent" && !chip ? ` · ${data.cwdBasename}` : ""}
         {/* The chip README.md names as how the two CLIs are told apart, on the
             nodes that have no model to put in it (#404). `provider` has been
             carried on every node since Codex support landed and read by nothing
@@ -192,6 +200,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           : data.provider === "codex"
             ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>
             : null}
+        {chip && <GitChip agentId={data.id} chip={chip} row={`${data.kind}|${data.childCount}|${modelSaid}`} />}
       </div>
 
       {/* What Claude Code calls this session, on a row of its own for the

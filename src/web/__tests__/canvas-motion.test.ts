@@ -359,6 +359,8 @@ const PRESSES: Press[] = [
   [".aa-tab:active", "0.97", "transform"],
   [".cat-filter:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
+  // The branch chip on a card: a labelled control, so the labelled tier.
+  [".git-chip:active", "0.97", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],

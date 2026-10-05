@@ -78,6 +78,7 @@ import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
+import { useGitOpener } from "./use-git-opener";
 import { createChimePlayer } from "./chime-player";
 
 export default function App() {
@@ -462,6 +463,9 @@ function Inner() {
   const clicks = useCanvasClicks({
     clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef,
   });
+
+  // What a card's branch chip opens — use-git-opener.ts.
+  useGitOpener({ selectAgent, focusAgent });
 
   // What the peek reads, made once — use-peek-readers.ts.
   const peek = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });

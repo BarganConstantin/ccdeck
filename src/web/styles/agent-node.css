@@ -344,3 +344,48 @@
   outline-offset: 2px;
 }
 
+
+/* THE BRANCH CHIP, last on the sub row (git-chip.ts, GitChip.tsx). The row
+   becomes a flex row only when it holds one, so a card without a branch keeps
+   exactly the row it had. Edgeless at rest, like the deck's other controls
+   named by their word, and in the metadata tier the rest of the row reads in;
+   it takes the control edge, the fill and the text colour on hover and focus,
+   colour only, and a press gives back the 0.97 every labelled control does.
+   The name is shortened in the middle by GitChip to the room the row leaves
+   it, and the ellipsis here is only the backstop when even the shortest
+   spelling does not fit. Hidden with the rest of the card at the zoomed-out
+   faces, by the rule above that hides every row. */
+.agent-node .sub:has(.git-chip) { display: flex; align-items: center; }
+.agent-node .sub:has(.git-chip) > .spawn-badge,
+.agent-node .sub:has(.git-chip) > .model-chip { flex: none; }
+/* The chip's own left margin is `auto`, which is nothing once the row is
+   full, so the gap every chip on this row keeps from its neighbour is kept by
+   the neighbour. */
+.agent-node .sub:has(.git-chip) > :nth-last-child(2):not(.git-chip) { margin-right: 6px; }
+.git-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--r-tag);
+  background: none;
+  color: var(--muted);
+  font: 10px/1 var(--font-mono);
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease;
+}
+.git-chip-glyph { flex: none; }
+.git-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A row with no room even for a few letters keeps the glyph alone, and the
+   name in the tooltip and the accessible name, rather than two letters and a
+   dot. */
+.git-chip[data-bare] .git-chip-name { display: none; }
+.git-chip:hover,
+.git-chip:focus-visible { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
+.git-chip:focus-visible { outline-offset: 1px; }
+.git-chip:active { transform: scale(0.97); }
