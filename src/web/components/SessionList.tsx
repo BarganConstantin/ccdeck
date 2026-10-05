@@ -18,6 +18,7 @@ import { shortModel, modelFamily } from "../model-label";
 import { recapShown } from "../session-recap";
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
+import { isAgentVisible } from "../visibility";
 
 export interface Row {
   sessionId: string;
@@ -269,7 +270,16 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
       {(() => {
         // Counted from what is off the board now, not from the stored ids: a
         // removed session the deck has since forgotten is nothing to bring back.
-        const count = removedIds?.size ?? 0;
+        // And only what the press would draw again. A removal hides every agent
+        // of the session, the previous turns' subagents too — a new prompt
+        // retires them with `exitAt` and they stay in the map until the agent
+        // cap — and those were off the canvas before the removal and stay off
+        // it after this button, so counting them named cards nobody would see.
+        let count = 0;
+        for (const id of removedIds ?? []) {
+          const agent = state.agents.get(id);
+          if (agent && isAgentVisible(agent, now)) count++;
+        }
         if (count === 0 || !onBringBackAll) return null;
         return (
           <div className="sl-foot">
