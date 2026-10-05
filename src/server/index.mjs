@@ -160,8 +160,12 @@ import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStat
 // The usage panel's quota and history reads — see usage-routes.mjs.
 import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota } from "./usage-routes.mjs";
 // The git view's reads of a session's repository — see git-routes.mjs.
-import { handleGitCommit, handleGitDiff, handleGitLog, handleGitRepo, handleGitStatus } from "./git-routes.mjs";
+import { handleGitCommit, handleGitDiff, handleGitEdits, handleGitLog, handleGitRepo, handleGitStatus } from "./git-routes.mjs";
 import { refreshGit } from "./git-watch.mjs";
+import { refreshCollisions } from "./git-collisions.mjs";
+// Commit recording: the repository's word on each commit an agent's shell
+// output reports — see git-confirm.mjs.
+import { connectCommitRecording } from "./git-confirm.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -209,6 +213,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // Where the log is and whether it can be written, asked before the first
   // event — see openEventLog.
   await openEventLog(persist);
+  // The commits agents make are recorded from here on, by the deck writing
+  // the log (agent-git-tap.mjs) and only while the git view is switched on.
+  connectCommitRecording();
   if (persist) {
     // `deckWorkspace()`, not `workspace`: setDeckScope has normalised the
     // field above, and the replay has to answer the same question the live
@@ -223,6 +230,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // Every card the replay put back gets its branch read now, rather than at
     // its session's next event — and only what changed since the log is sent.
     refreshGit();
+    // And who collides with whom, worked out afresh: it is never logged.
+    refreshCollisions();
     if (replayed > 0) {
       // Don't broadcast replays as live; SSE clients catch up via Last-Event-ID
       // already. Just keep the buffer + seq counter primed.
@@ -376,6 +385,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/git/status")  return guard(handleGitStatus(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/git/diff")    return guard(handleGitDiff(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/git/commit")  return guard(handleGitCommit(req, res, url), res);
+    if (req.method === "GET"  && url.pathname === "/api/git/edits")   return guard(handleGitEdits(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);

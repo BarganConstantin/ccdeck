@@ -24,7 +24,7 @@ const { startServer, hookToken } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { GUARDED_READS } = await import("../../server/request-gates.mjs");
 
-const ROUTES = ["/api/git/repo", "/api/git/log", "/api/git/status", "/api/git/diff", "/api/git/commit"];
+const ROUTES = ["/api/git/repo", "/api/git/log", "/api/git/status", "/api/git/diff", "/api/git/commit", "/api/git/edits"];
 const made: string[] = [];
 const track = (d: string) => { made.push(d); return d; };
 

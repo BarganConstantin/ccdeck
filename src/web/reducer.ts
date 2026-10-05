@@ -29,7 +29,7 @@ import {
   applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
 import { applyNotification, clearAnsweredWaiting } from "./waiting-block";
-import { applyGitObserved } from "./git-events";
+import { applyGitCollisions, applyGitObserved } from "./git-events";
 import type { HookEnvelope } from "./types";
 
 // The board's state and the keys it is filed under are graph-state.ts's, where
@@ -93,6 +93,9 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // applied before anything below can read it as the session moving. See
   // git-events.ts.
   if (name === "GitObserved") { applyGitObserved(state, p, sessionId); return state; }
+  // Who the session collides with in git: the server's word too, and for the
+  // same reason never read as the session moving.
+  if (name === "GitCollisions") { applyGitCollisions(state, p, sessionId); return state; }
 
   // Clear the waiting block here rather than adding a line to eight cases. A
   // badge that outlives the block is worse than no badge — it teaches the user
