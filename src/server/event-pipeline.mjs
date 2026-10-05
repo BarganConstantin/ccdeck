@@ -48,8 +48,10 @@ import { connectEventSink } from "./event-sink.mjs";
 // See agent-git-tap.mjs.
 import { observeAgentGit } from "./agent-git-tap.mjs";
 // Which folder each session runs in, for the git view's reads — see
-// git-sessions.mjs.
+// git-sessions.mjs — and the repository and branch the page is told about,
+// kept fresh by the tool calls that can change them — see git-watch.mjs.
 import { noteSessionFolder } from "./git-sessions.mjs";
+import { noteGitEvent } from "./git-watch.mjs";
 
 // The modules that emit synthetic events send them here. pushEvent is a
 // function declaration, so it already exists as this line runs, and nothing
@@ -218,7 +220,12 @@ export function pushEvent(raw, source, opts = {}) {
 
   // The folder this session runs in, replays included: a session that ended
   // before this process started still opens its repository in the git view.
-  if (raw && typeof raw === "object") noteSessionFolder(raw);
+  // Then, live and from an agent only, whether this call may have changed that
+  // repository — the deck's own events never do.
+  if (raw && typeof raw === "object") {
+    noteSessionFolder(raw);
+    if (!opts.replay && (source === "hook" || source === "codex")) noteGitEvent(raw);
+  }
 
   // Note the session so the caches the scanners below fill can expire by
   // least-recent use. Replays are excluded: they fill nothing, and a boot

@@ -54,9 +54,10 @@ export function sessionFolder(sid, agent = null) {
   return { cwd: own ?? s.cwd, provider: s.provider, agent: own ? agent : null };
 }
 
-/** Every session with a folder: [sid, { cwd, provider, subagents }]. */
-export function sessionFolders() {
-  return [...sessions.entries()].filter(([, s]) => s.cwd);
+/** The subagents `sid` has been heard with, as [key, folder] pairs. */
+export function sessionSubagents(sid) {
+  const s = typeof sid === "string" ? sessions.get(sid) : undefined;
+  return s ? [...s.subagents.entries()] : [];
 }
 
 /** Forget every session, for a Clear. */

@@ -134,6 +134,19 @@ export function gitArgv(sub, args = [], { filters = [] } = {}) {
   return [...GLOBAL, ...neutral, sub, ...(PER_SUBCOMMAND[sub] ?? []), ...args];
 }
 
+/** How many git processes the deck runs at once. A view opening on a busy
+ *  repository asks for several reads together, and every session's branch is
+ *  read off the same pool; the rest wait their turn rather than all starting. */
+export const MAX_RUNNING = 4;
+let running = 0;
+const waiting = [];
+const slot = () => (running < MAX_RUNNING ? (running++, Promise.resolve()) : new Promise((go) => waiting.push(go)));
+function release() {
+  const next = waiting.shift();
+  if (next) next();
+  else running--;
+}
+
 /**
  * Run one read in `cwd`. Never throws. Answers
  *   { ok, stdout, stderr, code, timedOut, tooLarge, missing, noFolder }
@@ -143,7 +156,13 @@ export function gitArgv(sub, args = [], { filters = [] } = {}) {
  */
 export async function git(sub, args, { cwd, timeout = GIT_TIMEOUT_MS, maxBytes = GIT_MAX_BYTES, filters = [] } = {}) {
   const argv = gitArgv(sub, args, { filters });
-  const r = await run(GIT_BIN, argv, { cwd, timeout, maxBuffer: maxBytes, env: gitEnv() });
+  await slot();
+  let r;
+  try {
+    r = await run(GIT_BIN, argv, { cwd, timeout, maxBuffer: maxBytes, env: gitEnv() });
+  } finally {
+    release();
+  }
   return {
     ok: r.ok,
     stdout: r.stdout ?? "",
