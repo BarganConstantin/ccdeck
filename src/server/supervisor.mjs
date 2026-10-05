@@ -363,26 +363,33 @@ export function withoutPortAndOpen(args) {
   return out;
 }
 
+/** `argv` with `ours` added at the end of its options: before the first bare
+ *  `--`, which parseArgs reads as the end of options and drops everything
+ *  after. Appended after it, the supervisor's own flags were never read. */
+function withOptions(argv, ours) {
+  const end = argv.indexOf("--");
+  return end === -1 ? [...argv, ...ours] : [...argv.slice(0, end), ...ours, ...argv.slice(end)];
+}
+
 /** The worker's command line: the script and the user's own argv, and on a
- *  respawn the port the last worker actually bound. Appended last so it wins:
- *  the worker's parser keeps the final --port. */
+ *  respawn the port the last worker actually bound. Last among the options so
+ *  it wins: the worker's parser keeps the final --port. */
 export function workerArgs(worker, argv, { respawn = false, boundPort = null } = {}) {
-  const args = [worker, ...argv];
-  if (respawn && boundPort != null) args.push("--port", String(boundPort));
-  return args;
+  const ours = respawn && boundPort != null ? ["--port", String(boundPort)] : [];
+  return [worker, ...withOptions(argv, ours)];
 }
 
 /** npx's command line for an upgrade: the spec, then the user's argv with the
- *  two flags this sets itself taken out. Ours are appended, so the originals
- *  are dropped rather than left to be overridden — `--port 4317 --no-open
- *  --port 4317 --no-open` works, but it is what the next person reads in `ps`. */
+ *  two flags this sets itself taken out. Ours are added after the rest of the
+ *  options, so the originals are dropped rather than left to be overridden —
+ *  `--port 4317 --no-open --port 4317 --no-open` works, but it is what the next
+ *  person reads in `ps`. */
 export function npxRelaunchArgs(spec, argv, boundPort = null) {
-  const args = ["-y", spec, ...withoutPortAndOpen(argv)];
-  if (boundPort != null) args.push("--port", String(boundPort));
+  const ours = boundPort != null ? ["--port", String(boundPort)] : [];
   // The tab that asked for this is open and reconnecting; a second one would be
   // the deck talking over itself.
-  args.push("--no-open");
-  return args;
+  ours.push("--no-open");
+  return ["-y", spec, ...withOptions(withoutPortAndOpen(argv), ours)];
 }
 
 /**
