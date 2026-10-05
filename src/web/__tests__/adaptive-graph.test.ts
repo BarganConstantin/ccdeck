@@ -151,7 +151,9 @@ const words = {
 describe("a branch is summarised, never replaced", () => {
   const subs = [
     agent({ id: "s1::a", kind: "subagent", state: "active" }),
-    agent({ id: "s1::b", kind: "subagent", state: "active", tools: [tool({ ok: false }), tool({ ok: true })] }),
+    // The reducer counts a failure into `toolErrorCount` as it lands (#1809),
+    // which is the count the summary reads; the calls are here to match it.
+    agent({ id: "s1::b", kind: "subagent", state: "active", tools: [tool({ ok: false }), tool({ ok: true })], toolErrorCount: 1 }),
     agent({ id: "s1::c", kind: "subagent", state: "done" }),
     agent({ id: "s1::d", kind: "subagent", state: "done", exitAt: 1 }),
     agent({ id: "s2::a", sessionId: "s2", kind: "subagent", state: "done" }),
@@ -179,22 +181,24 @@ describe("a small face says one thing, in the order a reader would want it", () 
   const asked: WaitingBlock = { kind: "asked", message: "paycore needs your input: merge both?", since: 0 };
   const idle: WaitingBlock = { kind: "idle", message: "Claude is waiting for your input", since: 0 };
   const branch: BranchSummary = { total: 4, live: 2, done: 2, err: 0, failed: 0 };
-  const failing = [tool({ ok: false, endedAt: 1 }), tool({ ok: false, endedAt: 1 })];
+  // Two failed calls, and the lifetime count the reducer keeps beside them
+  // (#1809), which is what the face reads.
+  const failing = { tools: [tool({ ok: false, endedAt: 1 }), tool({ ok: false, endedAt: 1 })], toolErrorCount: 2 };
   const open = [tool({ name: "Read", endedAt: 1 }), tool({ name: "Edit" })];
 
   it("puts a session blocked on a human before everything", () => {
-    const s = faceSignal(agent({ waiting: permission, tools: failing }), branch, words)!;
+    const s = faceSignal(agent({ waiting: permission, ...failing }), branch, words)!;
     expect(s).toEqual({ tone: "warn", long: permission.message, short: "Needs you" });
     expect(faceSignal(agent({ waiting: asked }), undefined, words)).toMatchObject({ tone: "warn", short: "Asked you" });
   });
 
   it("gives a finished turn the quiet tone, not the alarm", () => {
-    expect(faceSignal(agent({ state: "done", waiting: idle, tools: failing }), branch, words))
+    expect(faceSignal(agent({ state: "done", waiting: idle, ...failing }), branch, words))
       .toEqual({ tone: "idle", long: "Your turn", short: "Your turn" });
   });
 
   it("then failures, then the branch, then the call still open", () => {
-    expect(faceSignal(agent({ tools: failing }), branch, words)).toMatchObject({ tone: "err", short: "2 failed" });
+    expect(faceSignal(agent({ ...failing }), branch, words)).toMatchObject({ tone: "err", short: "2 failed" });
     expect(faceSignal(agent({ tools: open }), branch, words)).toMatchObject({ tone: "muted", short: "→ 4 · 2 live" });
     expect(faceSignal(agent({ tools: open }), undefined, words)).toEqual({ tone: "muted", long: "Edit · styles.css", short: "Edit" });
   });

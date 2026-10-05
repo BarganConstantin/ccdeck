@@ -23,7 +23,12 @@ interface Props {
 }
 
 export default function SessionSummary({ state, sessionId, onClose }: Props) {
-  const summary = useMemo(() => buildSummary(state, sessionId), [state, sessionId]);
+  // `state.revision` as well as `state`, for the reason SessionList gives: the
+  // prop is `stateRef.current`, which the reducer mutates in place, so its
+  // identity never moves and a memo keyed on it alone froze the recap at the
+  // moment it opened — the turn's usage that lands after its Stop, a background
+  // subagent still working, a session resuming underneath it all stayed out.
+  const summary = useMemo(() => buildSummary(state, sessionId), [state, state.revision, sessionId]);
   // Registered before the early return, so the hook order holds on the render
   // where the session has already been pruned. This is the modal nobody asked
   // for — it opens on a Stop hook — which makes Escape the first thing a user

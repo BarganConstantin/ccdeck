@@ -5,8 +5,8 @@
 // and only fade away when the owning agent retires (exitAt set). Earlier
 // versions hid bubbles a few seconds after the tool finished, which left
 // idle/just-finished sessions looking empty next to a wall of "DONE" cards.
-// They live on a layer above React Flow's nodes and follow the canvas
-// pan/zoom via useViewport().
+// They live on a layer above React Flow's nodes, drawn in world coordinates,
+// and follow the canvas pan/zoom through one transform per layer (BurstCamera).
 import React, { memo } from "react";
 import { useViewport } from "reactflow";
 import type { AgentNodeData } from "../types";
@@ -70,71 +70,91 @@ interface BurstLayerProps {
   onOpenTool?: (agentId: string, toolId: string) => void;
 }
 
-/** The part that genuinely depends on the camera: bursts carry world-space
- *  coordinates, and every bubble/connector is drawn in screen space. Keeping
- *  the useViewport() subscription here — and only here — means a pan/zoom
- *  frame re-renders this and nothing above it. */
+/** Every bubble and connector, in WORLD coordinates — the ones collectBursts
+ *  and React Flow's node positions are in — so nothing drawn here depends on
+ *  the camera. It runs once per data change, like ToolBursts above it; the
+ *  camera is BurstCamera's alone. */
 function BurstLayer({ bursts, spotlight, onOpenTool }: BurstLayerProps) {
-  const { x, y, zoom } = useViewport();
+  const connectors = bursts.map(b => {
+    const sx = b.anchorX;
+    const sy = b.anchorY;
+    const tx = b.worldX + 6;
+    const ty = b.worldY + BUBBLE_HALF_H;
+    // FOUR CURVES THAT LEFT AS ONE. Every connector starts at the same
+    // point — the card's right edge, mid-height — and every one of them
+    // put its control point at that same height, so they ran the
+    // identical horizontal line out of the anchor and only came apart
+    // once their vertical legs did. Four coincident strokes for the first
+    // half of the run, told apart by colour alone.
+    //
+    // The bend now depends on how far the row has to travel: a bubble
+    // level with the card keeps the long flat lead it always had, and one
+    // several rows up or down breaks away sooner. Nothing moves — same
+    // anchor, same targets, same curve family — the strokes simply stop
+    // sharing their first half, so the eye can follow one of them back.
+    // (`lean` is a ratio, so it reads the same in world units as it did in
+    // screen pixels.)
+    const run = Math.max(1, tx - sx);
+    const lean = Math.min(1, Math.abs(ty - sy) / run);
+    const cx = sx + run * (0.55 - 0.22 * lean);
+    const isSpotOut = spotlight != null && !spotlight.has(b.agentId);
+    const opacity = b.fade * (isSpotOut ? 0.14 : 1);
+    // `non-scaling-stroke` keeps the line's width and its dashes in screen
+    // pixels under the camera's scale, which is what they were drawn in
+    // when every path was redrawn in screen space each frame.
+    return (
+      <path
+        key={`l:${b.id}`}
+        d={`M ${sx} ${sy} Q ${cx} ${sy}, ${tx} ${ty}`}
+        className={`tool-conn status-${b.status}${b.fading ? " fading" : ""}`}
+        opacity={opacity}
+        vectorEffect="non-scaling-stroke"
+      />
+    );
+  });
+  const bubbles = bursts.map(b => (
+    <Bubble
+      key={b.id}
+      b={b}
+      dim={spotlight != null && !spotlight.has(b.agentId)}
+      onOpenTool={onOpenTool}
+    />
+  ));
+  return <BurstCamera connectors={connectors} bubbles={bubbles} />;
+}
 
+/** The part that genuinely depends on the camera, and the only part: one
+ *  transform on each of the layer's two halves, the one React Flow writes to
+ *  .react-flow__viewport to carry the cards, built from the same three numbers.
+ *
+ *  It used to be folded into every bubble's left, top and scale and every
+ *  connector's path, so a pan or zoom frame restyled all of them — about 60,000
+ *  DOM writes for 40 wheel steps on a board of 751 bubbles, against 244 with
+ *  the bubbles hidden, and a frame rate that fell from 59 to 34–45. Now a frame
+ *  re-renders this and nothing below it: `connectors` and `bubbles` are the
+ *  elements BurstLayer made, unchanged while only the camera moves, so React
+ *  skips every one of them. The session boxes moved the same way in #353. */
+function BurstCamera({ connectors, bubbles }: { connectors: React.ReactNode; bubbles: React.ReactNode }) {
+  const { x, y, zoom } = useViewport();
   return (
     // aria-hidden on the whole layer, connectors and bubbles alike, and nothing
     // inside it takes focus — see the note on the bubble below for why this is
     // decoration rather than a control surface.
     <div className="tool-bursts-layer" aria-hidden>
       <svg className="tool-bursts-svg">
-        {bursts.map(b => {
-          const sx = b.anchorX * zoom + x;
-          const sy = b.anchorY * zoom + y;
-          const tx = (b.worldX + 6) * zoom + x;
-          const ty = (b.worldY + BUBBLE_HALF_H) * zoom + y;
-          // FOUR CURVES THAT LEFT AS ONE. Every connector starts at the same
-          // point — the card's right edge, mid-height — and every one of them
-          // put its control point at that same height, so they ran the
-          // identical horizontal line out of the anchor and only came apart
-          // once their vertical legs did. Four coincident strokes for the first
-          // half of the run, told apart by colour alone.
-          //
-          // The bend now depends on how far the row has to travel: a bubble
-          // level with the card keeps the long flat lead it always had, and one
-          // several rows up or down breaks away sooner. Nothing moves — same
-          // anchor, same targets, same curve family — the strokes simply stop
-          // sharing their first half, so the eye can follow one of them back.
-          const run = Math.max(1, tx - sx);
-          const lean = Math.min(1, Math.abs(ty - sy) / run);
-          const cx = sx + run * (0.55 - 0.22 * lean);
-          const isSpotOut = spotlight != null && !spotlight.has(b.agentId);
-          const opacity = b.fade * (isSpotOut ? 0.14 : 1);
-          return (
-            <path
-              key={`l:${b.id}`}
-              d={`M ${sx} ${sy} Q ${cx} ${sy}, ${tx} ${ty}`}
-              className={`tool-conn status-${b.status}${b.fading ? " fading" : ""}`}
-              opacity={opacity}
-            />
-          );
-        })}
+        <g transform={`translate(${x} ${y}) scale(${zoom})`}>{connectors}</g>
       </svg>
-      {bursts.map(b => (
-        <Bubble
-          key={b.id}
-          b={b}
-          x={x}
-          y={y}
-          zoom={zoom}
-          dim={spotlight != null && !spotlight.has(b.agentId)}
-          onOpenTool={onOpenTool}
-        />
-      ))}
+      {/* transformOrigin lives in the sheet, with the rest of the layer's
+          geometry, as it does for .session-clusters. */}
+      <div className="tool-bursts-world" style={{ transform: `translate(${x}px, ${y}px) scale(${zoom})` }}>
+        {bubbles}
+      </div>
     </div>
   );
 }
 
 interface BubbleProps {
   b: Burst;
-  x: number;
-  y: number;
-  zoom: number;
   dim: boolean;
   onOpenTool?: (agentId: string, toolId: string) => void;
 }
@@ -145,7 +165,7 @@ interface BubbleProps {
  *  below reads, and a bubble whose fields did not move is not rendered again. */
 function sameBubble(p: BubbleProps, q: BubbleProps): boolean {
   const a = p.b, c = q.b;
-  return p.x === q.x && p.y === q.y && p.zoom === q.zoom && p.dim === q.dim && p.onOpenTool === q.onOpenTool
+  return p.dim === q.dim && p.onOpenTool === q.onOpenTool
     && a.id === c.id && a.toolId === c.toolId && a.worldX === c.worldX && a.worldY === c.worldY
     && a.spawnDx === c.spawnDx && a.spawnDy === c.spawnDy && a.status === c.status && a.fading === c.fading
     && a.category === c.category && a.mcpHue === c.mcpHue && a.isSub === c.isSub && a.emoji === c.emoji
@@ -155,14 +175,12 @@ function sameBubble(p: BubbleProps, q: BubbleProps): boolean {
 /** One bubble, memoised on what it draws (#873). On an idle board the clock
  *  ticks four times a second and every Burst is rebuilt; a bubble none of whose
  *  drawn values changed now stays exactly as it is. */
-const Bubble = memo(function Bubble({ b, x, y, zoom, dim, onOpenTool }: BubbleProps) {
-  const px = b.worldX * zoom + x;
-  const py = b.worldY * zoom + y;
+const Bubble = memo(function Bubble({ b, dim, onOpenTool }: BubbleProps) {
+  // World coordinates: BurstCamera's transform puts them on the screen, and
+  // scales the bubble with the cards as each wrap's own `scale(zoom)` did.
   const wrapStyle: React.CSSProperties & Record<string, string> = {
-    left: `${px}px`,
-    top: `${py}px`,
-    transform: `scale(${zoom})`,
-    transformOrigin: "left top",
+    left: `${b.worldX}px`,
+    top: `${b.worldY}px`,
     "--spawn-dx": `${b.spawnDx}px`,
     "--spawn-dy": `${b.spawnDy}px`,
   };

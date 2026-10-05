@@ -18,6 +18,7 @@ import { shortModel, modelFamily } from "../model-label";
 import { recapShown } from "../session-recap";
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
+import { isAgentVisible } from "../visibility";
 
 export interface Row {
   sessionId: string;
@@ -231,7 +232,13 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       On a blocked row that is the number worth the space: the
                       session's own age says nothing about whether to go look,
                       and "waiting 6m" says all of it. The run time is still on
-                      the tooltip, where it costs nothing. */}
+                      the tooltip, where it costs nothing.
+                      "waiting" only for the blocks the header counts — a
+                      permission prompt or a question, isAlarming's set. A turn
+                      that simply ended reads "your turn", which is what the
+                      card and the peek call it; it said "waiting" too, and the
+                      list then held more "waiting" rows than its own header
+                      counted. */}
                   {r.waiting
                     ? (
                       <span
@@ -239,10 +246,10 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                         title={[
                           waitingSentence(r.waiting),
                           blockedToolTooltip(r.waiting, waitingSentence(r.waiting)),
-                          `Blocked since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`,
+                          `${isAlarming(r.waiting) ? "Blocked" : "Your turn"} since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`,
                         ].filter(Boolean).join("\n")}
                       >
-                        waiting {elapsedShort(r.waiting.since, undefined, now)}
+                        {isAlarming(r.waiting) ? "waiting" : "your turn"} {elapsedShort(r.waiting.since, undefined, now)}
                         {/* The tool NAME only, never the preview: this sits at the
                             end of a row that already carries a model, a tool count
                             and a cost, and the preview is a command line. The
@@ -269,7 +276,16 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
       {(() => {
         // Counted from what is off the board now, not from the stored ids: a
         // removed session the deck has since forgotten is nothing to bring back.
-        const count = removedIds?.size ?? 0;
+        // And only what the press would draw again. A removal hides every agent
+        // of the session, the previous turns' subagents too — a new prompt
+        // retires them with `exitAt` and they stay in the map until the agent
+        // cap — and those were off the canvas before the removal and stay off
+        // it after this button, so counting them named cards nobody would see.
+        let count = 0;
+        for (const id of removedIds ?? []) {
+          const agent = state.agents.get(id);
+          if (agent && isAgentVisible(agent, now)) count++;
+        }
         if (count === 0 || !onBringBackAll) return null;
         return (
           <div className="sl-foot">

@@ -35,7 +35,9 @@ export function branchSummaries(agents: Iterable<AgentNodeData>): Map<string, Br
     if (a.state === "active") b.live += 1;
     else if (a.state === "err") b.err += 1;
     else b.done += 1;
-    for (const t of a.tools) if (t.ok === false) b.failed += 1;
+    // Every failure the subagent ever had, not the ones its 200-call window
+    // still holds — the count its own card prints (#1809).
+    b.failed += a.toolErrorCount ?? 0;
   }
   return out;
 }
@@ -90,7 +92,7 @@ export interface FaceSignal {
  * or the same call, two ways.
  */
 export function faceSignal(
-  data: Pick<AgentNodeData, "kind" | "waiting" | "tools" | "state">,
+  data: Pick<AgentNodeData, "kind" | "waiting" | "tools" | "state" | "toolErrorCount">,
   branch: BranchSummary | undefined,
   words: {
     sayWaiting: (w: WaitingBlock) => string;
@@ -109,7 +111,7 @@ export function faceSignal(
     const said = words.sayWaiting(w);
     return { tone: "idle", long: said, short: said };
   }
-  const failed = data.tools.filter(t => t.ok === false).length;
+  const failed = data.toolErrorCount ?? 0;
   if (failed > 0) {
     return {
       tone: "err",

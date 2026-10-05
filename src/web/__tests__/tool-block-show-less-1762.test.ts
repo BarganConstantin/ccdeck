@@ -22,6 +22,7 @@ vi.mock("react", () => ({
   useState: () => [react.open, (v: unknown) => { react.set.push(v); }],
   useRef: (init: unknown) => ({ current: init }),
   useEffect: () => {},
+  useMemo: (make: () => unknown) => make(),
 }));
 
 const { ToolBlock } = await import("../components/ToolModal");

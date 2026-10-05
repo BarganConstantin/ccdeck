@@ -63,7 +63,8 @@ export function spawnBadgeTitle(count: number): string {
  *  says the things a reader chooses a card by, in the card's own words: name,
  *  kind, the state pill, the waiting sentence, model, tools, failures, cost. */
 export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false): string {
-  const failed = data.tools.filter(t => t.ok === false).length;
+  // Over the agent's whole life, like the card's "err" (#1809).
+  const failed = data.toolErrorCount ?? 0;
   const cost = agentCost(data, now).total;
   return [
     data.label,
