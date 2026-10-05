@@ -29,6 +29,18 @@ const loginJob = (script, deckLogDir) => ({ script, logPath: join(deckLogDir(), 
 const installedRecord = (path) => ({ installed: PKG_VERSION, at: new Date().toISOString(), path });
 export const removedRecord = () => ({ removed: new Date().toISOString(), version: PKG_VERSION });
 
+/**
+ * A Linux unit written and not enabled, said as what it is. systemd starts at
+ * login only an enabled user unit, so a refused `systemctl --user enable` is a
+ * file nothing reads until somebody runs the command the verdict carries —
+ * unlike a refused `launchctl load`, whose plist launchd still loads at the
+ * next login. Two lines, the way every warning here is said.
+ */
+function sayNotEnabled(out, { say, tone, gWarn, dash }) {
+  say(`  ${tone.warn}${gWarn}  the login item is written but not enabled ${dash} ${out.reason}${tone.reset}`);
+  say(`     ${tone.muted}systemd starts only an enabled unit at login ${dash} \`${out.enable}\` turns it on${tone.reset}`);
+}
+
 /** The one place the three platforms genuinely differ in what a login item buys you. */
 function warnWhenLingerOff(svc, { say, tone, gWarn }) {
   if (svc.lingerState() === "off") {
@@ -79,7 +91,8 @@ export async function installGlobally({ say, tone, dash, gOk, gWarn, bullet, gEl
     return 0;
   }
   svc.writeServiceRecord(deckDataDir(), installedRecord(out.path));
-  say(`  ${tone.ok}${gOk}${tone.reset}  and starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
+  if (out.enable) sayNotEnabled(out, { say, tone, gWarn, dash });
+  else say(`  ${tone.ok}${gOk}${tone.reset}  and starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
   warnWhenLingerOff(svc, { say, tone, gWarn });
   say(`     ${tone.muted}\`${pkg} --uninstall-service\` undoes the login part${tone.reset}\n`);
   return 0;
@@ -133,12 +146,17 @@ export async function loginItemCommand(flags, { say, tone, dash, gOk, gWarn, bul
     return 1;
   }
   svc.writeServiceRecord(deckDataDir(), installedRecord(out.path));
-  say(`\n  ${tone.ok}${gOk}${tone.reset}  starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
-  if (out.how === "file-only") {
-    // The file is on disk and both launchd and systemd read their directories
-    // at the next login, so this works from then on. Said rather than hidden:
-    // "it will work tomorrow" is a different promise from "it works now".
-    say(`  ${tone.warn}${gWarn}  not started now ${dash} ${out.reason}. It will come up at your next login.${tone.reset}`);
+  if (out.enable) {
+    say("");
+    sayNotEnabled(out, { say, tone, gWarn, dash });
+  } else {
+    say(`\n  ${tone.ok}${gOk}${tone.reset}  starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
+    if (out.how === "file-only") {
+      // The plist is on disk and launchd loads its directory at the next
+      // login, so this works from then on. Said rather than hidden: "it will
+      // work tomorrow" is a different promise from "it works now".
+      say(`  ${tone.warn}${gWarn}  not started now ${dash} ${out.reason}. It will come up at your next login.${tone.reset}`);
+    }
   }
   warnWhenLingerOff(svc, { say, tone, gWarn });
   say(`     ${tone.muted}\`${COMMAND} --uninstall-service\` undoes it${tone.reset}\n`);
@@ -175,9 +193,11 @@ export async function offerLoginItem({ deckDataDir, deckLogDir }) {
       // Said once, on the one run that does it, and never again. A tool that
       // adds itself to your login items and does not mention it is a tool you
       // find later, in a settings pane, and stop trusting.
-      write(out.ok
-        ? `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${COMMAND} --uninstall-service\` undoes it${P.reset}\n\n`
-        : `  ${P.muted}${G.dash}  could not set ${PRODUCT} to start at login (${out.reason}) ${G.dash} it still starts when you type it${P.reset}\n\n`);
+      write(!out.ok
+        ? `  ${P.muted}${G.dash}  could not set ${PRODUCT} to start at login (${out.reason}) ${G.dash} it still starts when you type it${P.reset}\n\n`
+        : out.enable
+          ? `  ${P.muted}${G.dash}  ${PRODUCT}'s login item is written but systemd did not enable it (${out.reason}) ${G.dash} \`${out.enable}\` turns it on${P.reset}\n\n`
+          : `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${COMMAND} --uninstall-service\` undoes it${P.reset}\n\n`);
     }
   } catch (err) {
     // Never fatal. The deck is up; this is a convenience that did not happen.
