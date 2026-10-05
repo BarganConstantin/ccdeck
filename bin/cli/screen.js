@@ -56,12 +56,17 @@ export const showCursor = () => {
 export function takeCursor() {
   if (MOTION) { cursorHidden = true; write(CURSOR_HIDE); }
   process.on("exit", showCursor);
-  // SIGHUP is the one signal this process does not otherwise handle, so its
-  // default action would end us before 'exit' could run. Handled only to put the
-  // cursor back and then die of it exactly as before — the supervisor reads the
-  // signal, not an exit code.
-  process.on("SIGHUP", () => { showCursor(); dieOfSignal("SIGHUP"); });
+  // SIGHUP's default action would end us before 'exit' could run. Handled to
+  // put the cursor back and then die of it exactly as before — the supervisor
+  // reads the signal, not an exit code — until the boot hands it to its
+  // shutdown with onHangup.
+  process.on("SIGHUP", () => { showCursor(); hangup(); });
 }
+
+let hangup = () => dieOfSignal("SIGHUP");
+/** What a hangup does once the boot can do better than die of it: bin/deck.js
+ *  routes it into the same shutdown SIGINT and SIGTERM run. */
+export const onHangup = (fn) => { hangup = fn; };
 
 // ── rows ──────────────────────────────────────────────────────────────────────
 // The status column is computed from the longest label. It used to be counted

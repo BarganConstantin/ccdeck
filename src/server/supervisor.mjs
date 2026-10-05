@@ -202,9 +202,8 @@ export function signalExitAction(signal, platform = process.platform, numbers = 
  * The re-raise is the obvious half and on its own it does not work, which is
  * the reason this is a function rather than one line at the call site. The
  * supervisor traps SIGINT, SIGTERM and SIGHUP — and those are exactly the
- * signals a worker is most likely to die of, since deck.js does not handle
- * SIGHUP at all and registers the other two only after a boot that takes
- * seconds. For all three the re-raise lands back in our own handler, which
+ * signals a worker is most likely to die of, since deck.js answers all three
+ * with its shutdown only after a boot that takes seconds. For all three the re-raise lands back in our own handler, which
  * finds no child left and exits 0: `kill -HUP` on the deck was reported to the
  * shell as a clean, successful stop. Dropping the handler first restores the
  * default action, which is to die of the signal.

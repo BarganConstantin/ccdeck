@@ -189,6 +189,9 @@ export const GATES = [
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
+  // A real deck sent SIGHUP, to see its shutdown run. Windows cannot send a
+  // process SIGHUP: there a child.kill of any signal is TerminateProcess.
+  { file: "hangup-shuts-down.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // #1002's two mode assertions, the same shape as codex-auth-temp-collision's
   // above and for the same reason: they read POSIX permission bits off a real
   // file — the quarantined prefs.json, and the temp file the private key is
