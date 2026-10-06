@@ -93,6 +93,13 @@ export default function LanReachNote({ reach, where }: {
   // on Arch is worse than saying nothing, because it reads as a dialog meant
   // for a different machine and the rest goes with it.
   const sh = reach.shell === "sh";
+  // NO RESTART AFTER A LINUX FIREWALL'S LINES. ufw applies a rule the moment
+  // it is added and firewalld's own last line reloads it, so the path is open
+  // as soon as they run; a restart only threw away this deck's record of the
+  // connection that got in, which is the one thing that clears this note —
+  // the Linux verdict cannot read the rules, only that. See servedReach in
+  // lan-reach.mjs. Only a Linux verdict names its `tool`.
+  const linux = !!reach.tool;
   return (
     <div className="ap-lan-reach">
       <p className="lan-warn">{reach.text}</p>
@@ -104,7 +111,10 @@ export default function LanReachNote({ reach, where }: {
         <details className="ap-lan-reach-fix">
           <summary>or let them find this deck on their own</summary>
           <p className="lan-note">
-            {sh ? (
+            {linux ? (
+              <>Run this in a terminal on this machine. It applies at once, and this note goes
+              away when another deck connects.</>
+            ) : sh ? (
               <>Run this in a terminal on this machine, then restart the deck.</>
             ) : (
               <>Run this in PowerShell <strong>as Administrator</strong>, then restart the deck.</>

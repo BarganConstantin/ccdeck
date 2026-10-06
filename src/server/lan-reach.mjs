@@ -536,6 +536,27 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
   return windowsReach({ probe, aliases, exePath, inbound });
 }
 
+/**
+ * The verdict as the status route serves it: `said` is the last one taken, and
+ * `inboundAt` is when a connection from another machine last got in, as the
+ * engine knows it NOW.
+ *
+ * A VERDICT IS TAKEN AT MOST EVERY FIVE MINUTES (see refreshReach in
+ * lan-deck.mjs), and a complaint in it was true only of the moment it was
+ * taken. Reported from the Omarchy box this module's Linux block describes:
+ * its owner ran the two `ufw allow` lines, decks connected straight away —
+ * ufw applies a rule the moment it is added — and the panel went on saying
+ * "ufw is running here…" until the cached verdict expired, because it was
+ * taken before anything had connected. The connection that got in is the
+ * same measurement every platform here already puts above whatever it read,
+ * so it outranks a verdict taken before it, too. The answer is the one the
+ * next probe will give; every other answer is served as it was.
+ */
+export function servedReach(said, inboundAt) {
+  if (!said?.blocked || !inboundAt) return said ?? null;
+  return { blocked: false, why: "inbound seen", category: said.category ?? "", alias: said.alias ?? "" };
+}
+
 // ── the machine nothing can be asked about ──────────────────────────────────
 //
 // Every block above depends on the operating system answering a question.

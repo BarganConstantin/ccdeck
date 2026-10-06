@@ -133,8 +133,11 @@ export const DEFAULTS = Object.freeze({
     // WHAT MAKES IT SURVIVABLE IS THE GATE THAT NEVER CHANGED: `shared` is
     // empty, so a deck that pairs is offered NOTHING until somebody ticks a
     // login here. Pairing is a name in a list; a login is the thing worth
-    // having, and it still takes a deliberate tick on this machine. A deck on a
-    // network it does not own turns this off in the dialog, in one press.
+    // having, and it still takes a deliberate tick on this machine. The other
+    // direction is not gated by a tick here, since 3.38.1: a deck the switch
+    // pairs adds and repairs the logins a person ticked on it, as any paired
+    // deck does (see roundWith), and never replaces one that works. So a deck
+    // on a network it does not own turns this off in the dialog, in one press.
     autoAsk: true,
     autoAccept: true,
     pairingMode: "automatic",

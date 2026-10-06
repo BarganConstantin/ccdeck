@@ -464,11 +464,12 @@ export function trustedPeer(trusted, fp) {
  * told nothing changed.
  *
  * `auto` SAYS A SWITCH MADE THE PIN, not a person — the accept switch pressing
- * accept for the owner. A pin that says so may take what this deck shares and
- * may not place logins here: see roundWith in lan-engine.mjs. A person's pin
- * of the same key takes the mark away, because pressing accept, or pairing by
- * invite, is the choice the switch only stood in for; a switch never puts it
- * back on a pin a person made.
+ * accept for the owner. A pin that says so is handed only what a person ticked
+ * here (see sharedWith), and what it brings is not ticked onward here (see
+ * ticksOnArrival in lan-engine.mjs); it places logins here like any paired
+ * deck, since 3.38.1 — see roundWith. A person's pin of the same key takes the
+ * mark away, because pressing accept, or pairing by invite, is the choice the
+ * switch only stood in for; a switch never puts it back on a pin a person made.
  */
 export function addTrusted(trusted, entry) {
   const list = Array.isArray(trusted) ? trusted : [];
