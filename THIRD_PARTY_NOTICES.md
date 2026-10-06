@@ -107,9 +107,9 @@ custom station in a browser without native HLS (#1208) — but that chunk is in
 changed by ccdeck's relicensing, and no copyleft obligation flows back to
 their authors.
 
-### Declared but not emitted (3)
+### Declared but not emitted (15)
 
-Three packages resolve into `node_modules` and do **not** survive the build.
+Fifteen packages resolve into `node_modules` and do **not** survive the build.
 They were in the table above until #962, which is over-attribution rather than
 under-attribution and so harmless legally — but the paragraph at the top of this
 file says everything in the table is *physically present in the published
@@ -122,8 +122,27 @@ not found.
 | `js-tokens` | 4.0.0 | MIT | `[gmiyus]{1,6}` — a fragment of its one exported regex, which a minifier cannot rename | A browserify transform's dependency, reached only through `loose-envify`. Rollup never invokes it. |
 | `loose-envify` | 1.4.0 | MIT | `[_$a-zA-Z][$\w]+` — the body of its `process.env.` matcher, likewise a regex literal | Same: it is a browserify transform, declared by `react` and never part of a Rollup graph. |
 | `@reactflow/node-toolbar` | 1.3.14 | MIT | `react-flow__node-toolbar` | Tree-shaken. The deck renders no node toolbar, and unlike its siblings this one contributes no stylesheet either. |
+| `shiki` | 4.5.0 | MIT | — nothing of its own to search for | Its entry points (`shiki/core`, `shiki/engine/javascript`, `shiki/langs/*`) only re-export the `@shikijs/*` packages in this table, so no code of its own survives the build. Its licence is the one in §15. |
+| `@shikijs/core` | 4.5.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
+| `@shikijs/engine-javascript` | 4.5.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
+| `@shikijs/langs` | 4.5.0 | MIT | `"scopeName":"source.tsx"` — the TSX grammar's scope name | Not loaded by anything yet: see the note under this table. |
+| `@shikijs/primitive` | 4.5.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
+| `@shikijs/types` | 4.5.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
+| `@shikijs/vscode-textmate` | 10.0.2 | MIT | `No grammar provided for <` — its grammar registry's error message | Not loaded by anything yet: see the note under this table. |
+| `oniguruma-parser` | 0.12.2 | MIT | `Unsupported absence function kind` — an error message of its tokenizer | Not loaded by anything yet: see the note under this table. |
+| `oniguruma-to-es` | 4.3.6 | MIT | `Invalid capture transfer to` — an error message of its transpiler | Not loaded by anything yet: see the note under this table. |
+| `regex` | 6.1.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
+| `regex-recursion` | 6.0.2 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
+| `regex-utilities` | 2.3.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
 
-Their licence texts are still reproduced below — §3, §6 and §7 — because dropping
+The eleven after `shiki` are Shiki, the git view's syntax colours (`src/web/git-syntax.ts`). Nothing in
+the page mounts the diff that loads them yet, so the build leaves them out. Once something does, they
+ship the way `hls.js` does: a worker of their own (`dist/web/assets/git-syntax-worker-*.js`) and one
+chunk per grammar, fetched the first time a diff of that language is drawn and in the tarball like
+every other chunk. Each row then moves to the table above; the needles beside four of them are what
+notices-bundle.test.ts looks for, so the move cannot be forgotten.
+
+Their licence texts are still reproduced below — §3, §6, §7 and §15–§17 — because dropping
 a notice is the expensive mistake and keeping one is free.
 
 `@reactflow/node-resizer` is deliberately **not** in this list, and it is the one
@@ -644,4 +663,106 @@ If the Work includes a "NOTICE" text file as part of its distribution, then any 
 9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.
 
 END OF TERMS AND CONDITIONS
+```
+
+### 15. `shiki` 4.5.0, `@shikijs/core` 4.5.0, `@shikijs/engine-javascript` 4.5.0, `@shikijs/langs` 4.5.0, `@shikijs/primitive` 4.5.0, `@shikijs/types` 4.5.0
+
+Reproduced verbatim from `node_modules/@shikijs/core/LICENSE`; the other five carry the same file:
+
+```text
+MIT License
+
+Copyright (c) 2021 Pine Wu
+Copyright (c) 2023 Anthony Fu <https://github.com/antfu>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+The grammars in `@shikijs/langs` that the deck builds into its chunks are other people's work,
+under their own terms. TypeScript, TSX, JavaScript, JSX, JSON, CSS, HTML, Markdown, Python, Go,
+Rust, Java, C#, shell script and SQL are taken from Visual Studio Code (`microsoft/vscode`,
+`extensions/*/syntaxes`), MIT, Copyright (c) 2015 - present Microsoft Corporation — the MIT
+permission notice and disclaimer are those above. YAML is taken from TextMate's `yaml.tmbundle`,
+whose notice reads:
+
+```text
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+```
+
+### 16. `@shikijs/vscode-textmate` 10.0.2
+
+Reproduced verbatim from `node_modules/@shikijs/vscode-textmate/LICENSE.md`:
+
+```text
+The MIT License (MIT)
+
+Copyright (c) Microsoft Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### 17. `oniguruma-to-es` 4.3.6, `oniguruma-parser` 0.12.2, `regex` 6.1.0, `regex-recursion` 6.0.2, `regex-utilities` 2.3.0
+
+Reproduced verbatim from `node_modules/oniguruma-to-es/LICENSE`. The other four carry the same
+text under their own copyright lines: `oniguruma-parser` Copyright (c) 2025-2026 Steven Levithan,
+`regex` and `regex-recursion` Copyright (c) 2025 Steven Levithan, `regex-utilities`
+Copyright (c) 2024 Steven Levithan.
+
+```text
+MIT License
+
+Copyright (c) 2024-2026 Steven Levithan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```

@@ -105,6 +105,22 @@ const FINGERPRINTS: { pkg: string; needle: string; note: string }[] = [
     note: "the manifest-parsed event's name",
   },
   {
+    pkg: "@shikijs/vscode-textmate",
+    // An error message of its grammar registry, in the git view's syntax
+    // worker (git-syntax-worker-*.js), a chunk of its own. Lazily loaded is
+    // still shipped.
+    needle: "No grammar provided for <",
+    note: "its grammar registry's error message",
+  },
+  { pkg: "oniguruma-parser", needle: "Unsupported absence function kind", note: "an error message of its tokenizer" },
+  { pkg: "oniguruma-to-es", needle: "Invalid capture transfer to", note: "an error message of its transpiler" },
+  {
+    pkg: "@shikijs/langs",
+    // The TSX grammar's scope name, in its own chunk (tsx-*.js).
+    needle: '"scopeName":"source.tsx"',
+    note: "the TSX grammar's scope name",
+  },
+  {
     pkg: "js-tokens",
     // The flags character class out of its single exported regex. Inside a
     // regex literal, so it survives minification exactly as written.
@@ -273,7 +289,11 @@ describe.skipIf(!existsSync(dist))("what the build actually emitted", () => {
     // not there.
     const entry = readdirSync(assets).filter((f) => f.startsWith("index-") && f.endsWith(".js"));
     expect(entry, "no index-*.js entry chunk in dist/web/assets").toHaveLength(1);
-    const js = readFileSync(join(assets, entry[0]), "utf8");
+    // A lazily loaded chunk with chunks of its own to preload (the git view's
+    // HTML grammar brings the JavaScript and CSS ones) makes Vite open the
+    // entry with its `__vite__mapDeps` table, one line of Vite's own code,
+    // before the polyfill. Past that line the polyfill still comes first.
+    const js = readFileSync(join(assets, entry[0]), "utf8").replace(/^const __vite__mapDeps=[^\n]*\n/, "");
     expect(js.slice(0, 400), "the entry chunk no longer opens with Vite's modulePreloadPolyfill")
       .toContain('link[rel="modulepreload"]');
     expect(bundled(), "Vite emits code into the tarball and is not attributed").toContain("vite");
