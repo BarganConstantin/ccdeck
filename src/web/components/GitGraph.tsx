@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  layoutGraph, graphTones, rowDrawing, graphColumns, graphWidth, fixedSlot, isSeen, remoteBranch,
+  layoutGraph, graphTones, rowDrawing, onFocusLine, graphColumns, graphWidth, fixedSlot, isSeen, remoteBranch,
   parseSlotMemory, rememberSlots, repoSlots, historyAge, workDuration, conventionalPrefix,
   WIP_ID, ROW_H, type GraphRow, type LogCommit, type NodeShape, type RepoHead, type Tone,
 } from "../git-graph-layout";
@@ -172,7 +172,7 @@ const RowLanes = memo(function RowLanes({ row, shape, focusKey, folded, width, i
 }) {
   const d = useMemo(() => rowDrawing(row, shape, focusKey, folded), [row, shape, focusKey, folded]);
   const strokes = noWip ? d.strokes.filter(s => !s.wip) : d.strokes;
-  const nodeDim = focusKey !== null && row.key !== focusKey;
+  const nodeDim = focusKey !== null && !onFocusLine(row, focusKey);
   const cls = `gv-node${nodeDim ? " is-dim" : ""}`;
   const slot = row.slot + 1;
   let node: React.ReactNode;
@@ -435,7 +435,8 @@ export default function GitGraph(props: GitGraphProps) {
   const focusIds = focus.agentIds === null ? null : focus.agentIds.join("\u0000");
   const tones = useMemo(() => graphTones(commits, stableHead), [commits, stableHead]);
   const byId = useMemo(() => new Map(commits.map(c => [c.sha, c])), [commits]);
-  const focusKey = head && !head.detached ? layout.headKey : null;
+  // HEAD's own line, detached or not: what it cannot reach is dimmed either way.
+  const focusKey = layout.headKey;
   const { drawn, folded } = graphColumns(layout.columns);
   const width = graphWidth(drawn);
   const headSha = head?.sha ?? commits.find(c => c.refs.head)?.sha ?? null;

@@ -9,7 +9,7 @@
 // well as on the columns.
 import { describe, it, expect } from "vitest";
 import {
-  layoutGraph, graphTones, baseTip, rowDrawing, graphColumns, graphWidth, nodeReach,
+  layoutGraph, graphTones, baseTip, rowDrawing, onFocusLine, graphColumns, graphWidth, nodeReach,
   pickSlot, clashes, fixedSlot, mergedBranchName, branchKeyOf, seniority,
   parseSlotMemory, rememberSlots, repoSlots, historyAge, workDuration, conventionalPrefix,
   WIP_ID, VISIBLE_LANES, ROW_H, LANE_W, LANE_X0, SLOT_MEMORY_BRANCHES, SLOT_MEMORY_REPOS,
@@ -162,7 +162,8 @@ function violations(layout: GraphLayout, commits: LogCommit[]): string[] {
     });
     // Every parent is waited for below, by a lane that leaves this row.
     const commit = byId.get(row.id);
-    const parents = row.id === WIP_ID ? (row.edges.some(e => e.kind === "fp") ? [layout.rows[1]?.id] : []) : commit!.parents;
+    // The uncommitted row's one parent is HEAD, wherever HEAD is listed.
+    const parents = row.id === WIP_ID ? row.edges.filter(e => e.kind === "fp").map(e => row.output[e.to]?.id) : commit!.parents;
     for (const p of new Set(parents)) {
       if (!p) continue;
       if (!row.output.some(l => l && l.id === p)) out.push(`${at}: nothing leaves the row towards parent ${p}`);
@@ -554,6 +555,61 @@ describe("drawing a row", () => {
     expect(branch).toMatchObject({ dim: true, focus: false });
     const wip = rowDrawing(layout.rows[0], "wip", "develop", 0);
     expect(wip.strokes.every(s => s.wip && !s.dim)).toBe(true);
+  });
+
+  it("draws an unpulled commit of HEAD's own branch dim, like any line HEAD cannot reach", () => {
+    // origin/develop is one ahead of HEAD (develop): same branch name, but
+    // HEAD does not stand on it.
+    const layout = layoutGraph(shopHistory(40), { head: HEAD, wip: true });
+    const ahead = layout.rows.find(r => r.id === "ab9d31e")!;
+    expect(ahead).toMatchObject({ key: "develop", onHead: false });
+    expect(onFocusLine(ahead, layout.headKey)).toBe(false);
+    const own = rowDrawing(ahead, "commit", layout.headKey, 0).strokes.filter(s => s.kind === "fp");
+    expect(own).toHaveLength(1);
+    expect(own[0]).toMatchObject({ dim: true, focus: false });
+    const base = layout.rows.find(r => r.id === "ebe97fb")!;
+    expect(base.onHead).toBe(true);
+    expect(onFocusLine(base, layout.headKey)).toBe(true);
+    // Its line down into develop leaves from a commit HEAD cannot reach.
+    const below = layout.rows.find(r => r.id === "908be5d")!;
+    const fromAhead = rowDrawing(layout.rows[layout.rows.indexOf(ahead) + 1], "commit", layout.headKey, 0).strokes.filter(s => !s.focus && !s.wip);
+    expect(fromAhead.every(s => s.dim)).toBe(true);
+    expect(below.onHead).toBe(true);
+  });
+
+  it("dims what a detached HEAD cannot reach, though the branch it sits on is newer", () => {
+    // main went on past the commit HEAD is detached at.
+    const list = [c("m3", ["m2"], ["main"]), c("m2", ["m1"]), c("m1", ["h"]), c("h", ["b"]), c("b")];
+    const head = { sha: "h", branch: null, detached: true };
+    const layout = layoutGraph(list, { head, wip: true });
+    const focus = layout.headKey;
+    expect(focus).not.toBeNull();
+    for (const id of ["m3", "m2", "m1"]) {
+      const row = layout.rows.find(r => r.id === id)!;
+      expect(onFocusLine(row, focus), id).toBe(false);
+      for (const s of rowDrawing(row, "commit", focus, 0).strokes) if (!s.wip) expect(s.dim, `${id} ${s.d}`).toBe(true);
+    }
+    for (const id of ["h", "b"]) expect(onFocusLine(layout.rows.find(r => r.id === id)!, focus), id).toBe(true);
+    expect(violations(layout, list)).toEqual([]);
+  });
+
+  it("keeps the dashed line from the uncommitted row dashed where a merge joins it", () => {
+    // main's release merge takes HEAD (develop's tip) as its second parent
+    // while the uncommitted row's line is still on its way down to it.
+    const list = [c("m", ["b", "d"], ["main"]), c("d", ["z"], ["develop"]), c("b", ["z"]), c("z")];
+    const layout = layoutGraph(list, { head: { sha: "d", branch: "develop", detached: false }, wip: true });
+    expect(violations(layout, list)).toEqual([]);
+    const merge = layout.rows.find(r => r.id === "m")!;
+    const join = merge.edges.find(e => e.kind === "merge")!;
+    expect(join).toMatchObject({ joins: true, to: 0 });
+    const d = rowDrawing(merge, "merge", layout.headKey, 0);
+    const solid = d.strokes.find(s => s.kind === "merge")!;
+    // It meets the dashed line and stops there: nothing solid down the rest of the column.
+    expect(solid.d.endsWith(`V${ROW_H}`)).toBe(false);
+    expect(solid.d).toMatch(new RegExp(`Q${LANE_X0} ${ROW_H / 2} ${LANE_X0} [\\d.]+$`));
+    expect(d.strokes.filter(s => s.wip && s.kind === "pass")).toHaveLength(1);
+    // The merge does not stand on HEAD's history: its run is another branch's.
+    expect(solid).toMatchObject({ dim: true, focus: false });
   });
 
   it("stops every edge at its node's outline, so a hollow node shows the row behind it", () => {
