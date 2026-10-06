@@ -174,6 +174,10 @@ export interface Lane {
   slot: number;
   /** The dashed line from the uncommitted row to HEAD. */
   wip?: boolean;
+  /** Opened by a commit HEAD can reach (or by the uncommitted row): part of
+   *  the history HEAD stands on, rather than a line that only shares its
+   *  branch's name, like an unpulled remote-tracking branch. */
+  onHead?: boolean;
 }
 
 /**
@@ -191,6 +195,13 @@ export interface Edge {
   key: string;
   slot: number;
   wip?: boolean;
+  /** The lane's, for a pass or an end; the commit's own, for its parents. */
+  onHead?: boolean;
+  /** A merge into a lane already on its way down to the parent: the run
+   *  meets that lane and leaves the rest of the column to it, so the lane
+   *  keeps its own look there — dashed from the uncommitted row, full for
+   *  HEAD's own line — whatever the merge's is. */
+  joins?: boolean;
 }
 
 export interface GraphRow {
@@ -202,6 +213,8 @@ export interface GraphRow {
   kind: "commit" | "merge" | "wip";
   /** Listed after the window, with no lane through it. */
   outside: boolean;
+  /** HEAD can reach it (the uncommitted row too). */
+  onHead: boolean;
   /** Lanes crossing the row's top edge, by column; null is a hole. */
   input: Array<Lane | null>;
   /** Lanes crossing its bottom edge, by column. */
@@ -247,6 +260,7 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
   const assigned: string[] = [];
   const byId = new Map(commits.map(c => [c.sha, c]));
   const headSha = opts.head?.sha && byId.has(opts.head.sha) ? opts.head.sha : (commits.find(c => c.refs.head && !c.outsideWindow)?.sha ?? null);
+  const fromHead = reach(byId, headSha);
 
   const nodes: Node[] = [];
   if (opts.wip) {
@@ -290,7 +304,7 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
       // its last row, and this one stands alone in the first column.
       const key = n.ownKey ?? n.id;
       const slot = slotOf(key, [], []);
-      rows.push({ id: n.id, col: 0, key, slot, kind: n.parents.length > 1 ? "merge" : "commit", outside: true, input: [], output: [], edges: [] });
+      rows.push({ id: n.id, col: 0, key, slot, kind: n.parents.length > 1 ? "merge" : "commit", outside: true, onHead: fromHead.has(n.id), input: [], output: [], edges: [] });
       lanes = [];
       return;
     }
@@ -320,6 +334,7 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
       slot = slotOf(key, input.filter(Boolean).map(l => l!.slot), neighbourSlots(input, col));
     }
     if (n.id === headSha) headKey = key;
+    const onHead = n.wip || fromHead.has(n.id);
 
     const [first, ...rest] = n.parents;
     // Further parents already awaited by a lane through this row join it;
@@ -354,7 +369,7 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
     for (let j = 0; j < width; j++) {
       if (j === col) {
         if (first !== undefined) {
-          const lane: Lane = { id: first, key, slot, ...(n.wip ? { wip: true } : {}) };
+          const lane: Lane = { id: first, key, slot, onHead, ...(n.wip ? { wip: true } : {}) };
           // The commit's own line may bend left into a hole below it, unless a
           // run leaves the commit to the left on this same row.
           const bend = minH === col && col > 0 && open[col - 1] && output[col - 1] === null;
@@ -373,12 +388,16 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
       if (bend) open[j] = true;
     }
 
-    for (const j of hits) edges.push({ kind: "in", from: j, to: col, key: input[j]!.key, slot: input[j]!.slot, ...(input[j]!.wip ? { wip: true } : {}) });
-    for (const [j, to] of placed) edges.push({ kind: "pass", from: j, to, key: input[j]!.key, slot: input[j]!.slot, ...(input[j]!.wip ? { wip: true } : {}) });
-    if (fpAt >= 0) edges.push({ kind: "fp", from: col, to: fpAt, key, slot, ...(n.wip ? { wip: true } : {}) });
+    const laneEdge = (kind: "in" | "pass", j: number, to: number): Edge => {
+      const l = input[j]!;
+      return { kind, from: j, to, key: l.key, slot: l.slot, onHead: !!l.onHead, ...(l.wip ? { wip: true } : {}) };
+    };
+    for (const j of hits) edges.push(laneEdge("in", j, col));
+    for (const [j, to] of placed) edges.push(laneEdge("pass", j, to));
+    if (fpAt >= 0) edges.push({ kind: "fp", from: col, to: fpAt, key, slot, onHead, ...(n.wip ? { wip: true } : {}) });
     for (const { at } of joins) {
       const target = output[placed.get(at)!]!;
-      edges.push({ kind: "merge", from: col, to: placed.get(at)!, key: target.key, slot: target.slot });
+      edges.push({ kind: "merge", from: col, to: placed.get(at)!, key: target.key, slot: target.slot, onHead, joins: true });
     }
     opens.forEach((p, i) => {
       const at = openFrom + i;
@@ -387,14 +406,14 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
       const left = output.slice(0, at).reverse().find(Boolean) ?? null;
       const ms = slotOf(mk, rowSlots, left ? [left.slot] : []);
       while (output.length < at) output.push(null);
-      output[at] = { id: p, key: mk, slot: ms };
-      edges.push({ kind: "merge", from: col, to: at, key: mk, slot: ms });
+      output[at] = { id: p, key: mk, slot: ms, onHead };
+      edges.push({ kind: "merge", from: col, to: at, key: mk, slot: ms, onHead });
     });
 
     while (output.length && output[output.length - 1] === null) output.pop();
     for (const l of output) if (l) lastUse.set(l.slot, index);
     columns = Math.max(columns, input.length, output.length, col + 1);
-    rows.push({ id: n.id, col, key, slot, kind: n.wip ? "wip" : n.parents.length > 1 ? "merge" : "commit", outside: false, input, output, edges });
+    rows.push({ id: n.id, col, key, slot, kind: n.wip ? "wip" : n.parents.length > 1 ? "merge" : "commit", outside: false, onHead, input, output, edges });
     lanes = output;
   });
 
@@ -521,7 +540,8 @@ export interface Stroke {
   d: string;
   slot: number;
   kind: Edge["kind"];
-  /** Another branch's line: drawn in the slot's pre-mixed dim. */
+  /** Not HEAD's own line — another branch's, or one that only shares its
+   *  branch's name: drawn in the slot's pre-mixed dim. */
   dim: boolean;
   /** HEAD's own line: full colour, 2px. */
   focus: boolean;
@@ -540,6 +560,12 @@ export interface RowDrawing {
   foldX: number;
 }
 
+/** Whether a row's node, or an edge, is HEAD's own line: its branch, on the
+ *  history HEAD stands on. A line of the same name HEAD cannot reach (an
+ *  unpulled remote-tracking branch) is another branch's for the eye. */
+export const onFocusLine = (x: { key: string; onHead?: boolean }, focusKey: string | null): boolean =>
+  focusKey !== null && x.key === focusKey && !!x.onHead;
+
 /**
  * The strokes of one row, in its own 0…ROW_H box. Edges stop at the node's
  * outline so a hollow node shows the row behind it; edges between two folded
@@ -555,8 +581,8 @@ export function rowDrawing(row: GraphRow, shape: NodeShape, focusKey: string | n
   let fold = false;
   const add = (d: string, e: Edge) => strokes.push({
     d, slot: e.slot, kind: e.kind, wip: !!e.wip,
-    dim: !e.wip && focusKey !== null && e.key !== focusKey,
-    focus: !e.wip && focusKey !== null && e.key === focusKey,
+    dim: !e.wip && focusKey !== null && !onFocusLine(e, focusKey),
+    focus: !e.wip && onFocusLine(e, focusKey),
   });
   const nx = x(row.col);
   for (const e of row.edges) {
@@ -567,6 +593,7 @@ export function rowDrawing(row: GraphRow, shape: NodeShape, focusKey: string | n
     if (e.kind === "pass") add(xa === xb ? `M${xa} 0V${ROW_H}` : bendDown(xa, xb), e);
     else if (e.kind === "in") add(xa === xb ? `M${xa} 0V${MID - r}` : intoNode(xa, xb, r), e);
     else if (e.kind === "fp") add(xa === xb ? `M${xa} ${MID + r}V${ROW_H}` : leaveDown(xa, xb, r), e);
+    else if (e.joins && xa !== xb) add(outOfNode(xa, xb, r, false), e);
     else add(xa === xb ? `M${xa} ${MID + r}V${ROW_H}` : outOfNode(xa, xb, r), e);
   }
   if (row.input.some((l, i) => l && hidden(i)) || row.output.some((l, i) => l && hidden(i))) fold = true;
@@ -590,11 +617,12 @@ function intoNode(x1: number, xn: number, r: number): string {
   return `M${x1} 0V${MID - b}Q${x1} ${MID} ${n(x1 + dir * b)} ${MID}H${n(xn - dir * r)}`;
 }
 
-/** A run from a node to a lane to its side that carries on down. */
-function outOfNode(xn: number, x2: number, r: number): string {
+/** A run from a node to a lane to its side that carries on down — or, into
+ *  a lane already drawn down that column, that stops where it meets it. */
+function outOfNode(xn: number, x2: number, r: number, down = true): string {
   const dir = x2 > xn ? 1 : -1;
   const b = Math.min(BEND, Math.abs(x2 - xn) / 2);
-  return `M${n(xn + dir * r)} ${MID}H${n(x2 - dir * b)}Q${x2} ${MID} ${x2} ${MID + b}V${ROW_H}`;
+  return `M${n(xn + dir * r)} ${MID}H${n(x2 - dir * b)}Q${x2} ${MID} ${x2} ${MID + b}${down ? `V${ROW_H}` : ""}`;
 }
 
 /** The node's own line bending one column on its way down. */
