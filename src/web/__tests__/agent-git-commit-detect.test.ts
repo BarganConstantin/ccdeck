@@ -201,6 +201,22 @@ describe("gitCommitInvocations", () => {
     expect(at(cmd)).toEqual([{ cwd: "/repo", subcommand: "commit", amend: false, quiet: false, noCommit: false }]);
   });
 
+  it("reads Git Bash's drive paths against a Windows folder, the way Claude Code's Bash tool prints them there", () => {
+    const win = (c: string) => (gitCommitInvocations(c, "C:\\Users\\me\\code", { home: "C:\\Users\\me" }) as { cwd: string | null }[]).map(i => i.cwd);
+    expect(win("cd /c/Users/me/code/shop && git commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("git -C /c/Users/me/code/shop commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("cd /cygdrive/d/work/../repo && git commit -m x")).toEqual(["D:\\repo"]);
+    expect(win("cd /c && git commit -m x")).toEqual(["C:\\"]);
+    // What already worked keeps working.
+    expect(win("cd C:/Users/me/code/shop && git commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("cd shop && git commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("cd ~/code/shop && git commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("git commit -m x")).toEqual(["C:\\Users\\me\\code"]);
+    // A folder on a POSIX machine named like a drive is just a folder.
+    expect(at("cd /c/work && git commit -m x").map(i => i.cwd)).toEqual(["/c/work"]);
+    expect(commandFolders("git -C /c/Users/me/code/shop status", "C:\\Users\\me")).toEqual(["C:\\Users\\me\\code\\shop"]);
+  });
+
   it("looks inside sh -c and an env prefix", () => {
     expect(at("bash -lc 'cd sub && git commit -m x'")[0].cwd).toBe("/repo/sub");
     expect(at("GIT_AUTHOR_DATE=now env -u FOO git commit -m x")).toHaveLength(1);
@@ -240,6 +256,12 @@ describe("commitCandidates", () => {
       detached: false, subject: "feat: add b [skip ci]", at: T0 + 5, amend: false, subcommand: "commit", model: "claude-opus-5",
     });
     expect(c.shortSha).toMatch(/^[0-9a-f]{7,}$/);
+  });
+
+  it("places a commit made from a Git Bash drive path in that Windows folder", () => {
+    const p = { ...claudeBash('cd /c/Users/me/code/shop && git commit -m "feat: add b [skip ci]"', out.slash), cwd: "C:\\Users\\me\\code" };
+    const [c] = commitCandidates(join1(p), { home: "C:\\Users\\me" });
+    expect(c).toMatchObject({ cwd: "C:\\Users\\me\\code\\shop", cwds: ["C:\\Users\\me\\code\\shop"], subject: "feat: add b [skip ci]" });
   });
 
   it("finds a commit inside a call that failed afterwards", () => {

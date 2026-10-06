@@ -216,15 +216,22 @@ function tokenize(src) {
 
 const WINDOWS_ABS = /^(?:[A-Za-z]:[\\/]|\\\\)/;
 const flavour = (...ps) => (ps.some(p => typeof p === "string" && WINDOWS_ABS.test(p)) ? win32 : posix);
+// A drive as Git Bash (MSYS) spells it, `/c/Users/…`, and as Cygwin does,
+// `/cygdrive/c/Users/…`: the shell Claude Code runs its Bash tool in on Windows
+// prints and takes these.
+const MSYS_DRIVE = /^\/(?:cygdrive\/)?([A-Za-z])(?:\/(.*))?$/;
 
 /** `dir` resolved from `base`, or null when it cannot be known from the text:
- *  a variable, a command substitution, `cd -`, or no base to resolve against. */
+ *  a variable, a command substitution, `cd -`, or no base to resolve against.
+ *  Against a Windows folder, a Git Bash drive path is that drive's folder. */
 function resolveDir(base, dir, home) {
   if (typeof dir !== "string" || dir === "" || /[$`]/.test(dir) || dir === "-") return null;
   if (dir === "~" || dir.startsWith("~/") || dir.startsWith("~\\")) {
     if (!home) return null;
     dir = flavour(home).join(home, dir.slice(2));
   }
+  const drive = typeof base === "string" && WINDOWS_ABS.test(base) ? MSYS_DRIVE.exec(dir) : null;
+  if (drive) return win32.normalize(`${drive[1].toUpperCase()}:\\${drive[2] ?? ""}`);
   const p = flavour(dir, base);
   if (p.isAbsolute(dir) && (p === posix || WINDOWS_ABS.test(dir))) return p.normalize(dir);
   if (typeof base !== "string" || !p.isAbsolute(base)) return null;
