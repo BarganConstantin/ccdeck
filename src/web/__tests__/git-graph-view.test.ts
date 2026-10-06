@@ -83,6 +83,17 @@ describe("the history list, as the markup builds it", () => {
 
   it("draws one small SVG per row, its lanes in butt caps", () => {
     expect(src).toMatch(/<svg className="gv-lanes"/);
+  it("re-renders only the rows a change reached: an arrow key redraws two rows, not the history", () => {
+    // The view hands in a new focus, uncommitted counts and HEAD object on
+    // every render; a row is handed what they say, never the objects.
+    expect(src).toMatch(/\[commits, focus\.sessionId, focusIds, agentName\]\);/);
+    expect(src).not.toMatch(/\[commits, focus, agentName\]/);
+    expect(src).toMatch(/uncommitted=\{c \? NO_UNCOMMITTED : uncommitted\}/);
+    expect(src).toMatch(/const stableHead = useMemo\(\(\) => head, \[headWords\]\);/);
+    expect(src).toMatch(/head=\{stableHead\}/);
+    expect(src).toMatch(/const HistoryRow = memo\(function HistoryRow/);
+  });
+
     expect(sheet).toMatch(/\.gv-e \{[^}]*stroke-linecap: butt;/);
   });
 });

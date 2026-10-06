@@ -334,6 +334,9 @@ const HistoryRow = memo(function HistoryRow(p: RowProps) {
   );
 });
 
+/** What a commit row is handed for the counts only the uncommitted row says. */
+const NO_UNCOMMITTED: GitGraphProps["uncommitted"] = { files: 0, byFocus: 0, label: "" };
+
 // ─── the hover card ───────────────────────────────────────────────────────
 
 interface HoverState { sha: string; anchor: Element; instant: boolean }
@@ -407,13 +410,22 @@ export default function GitGraph(props: GitGraphProps) {
     writeStored(LANE_MEMORY_KEY, JSON.stringify(rememberSlots(parseSlotMemory(readStored(LANE_MEMORY_KEY)), repoKey, layout.slots, touched)));
   }, [layout, repoKey]);
 
-  const tones = useMemo(() => graphTones(commits, head), [commits, head]);
+  // Every answer the view folds in brings a new HEAD object and a new focus
+  // object with the same words in them: the rows are handed what they say,
+  // so a row the answer did not change keeps its render.
+  const headWords = head ? `${head.sha}\u0000${head.branch}\u0000${head.detached}\u0000${head.unborn}` : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableHead = useMemo(() => head, [headWords]);
+  const focusIds = focus.agentIds === null ? null : focus.agentIds.join("\u0000");
+  const tones = useMemo(() => graphTones(commits, stableHead), [commits, stableHead]);
   const byId = useMemo(() => new Map(commits.map(c => [c.sha, c])), [commits]);
   const focusKey = head && !head.detached ? layout.headKey : null;
   const { drawn, folded } = graphColumns(layout.columns);
   const width = graphWidth(drawn);
   const headSha = head?.sha ?? commits.find(c => c.refs.head)?.sha ?? null;
-  const agents = useMemo(() => new Map(commits.map(c => [c.sha, agentView(c, focus, agentName)])), [commits, focus, agentName]);
+  const agents = useMemo(() => new Map(commits.map(c => [c.sha, agentView(c, focus, agentName)])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [commits, focus.sessionId, focusIds, agentName]);
 
   const ids = useMemo(() => layout.rows.map(r => r.id), [layout]);
   const tabStopId = ids.includes(selected) ? selected : ids[0];
@@ -698,14 +710,14 @@ export default function GitGraph(props: GitGraphProps) {
                 folded={folded}
                 width={width}
                 agent={c ? agents.get(c.sha) ?? null : null}
-                head={head}
+                head={stableHead}
                 slots={layout.slots}
                 refRoom={refRoom}
                 charPx={charPx}
                 now={now}
                 fresh={!!c && fresh.has(c.sha)}
                 copied={!!c && copied === c.sha}
-                uncommitted={uncommitted}
+                uncommitted={c ? NO_UNCOMMITTED : uncommitted}
                 focusHue={focusHue}
               />
             );
