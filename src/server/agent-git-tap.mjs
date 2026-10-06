@@ -26,9 +26,11 @@
 // runs — the newest REPLAY_RECORD_MAX of them, with what the session had spent
 // and how long it had worked as the replayed events tell it — and nothing is
 // done with them on the replay's path. `recordReplayed` takes them up later,
-// once the deck knows it is the one writing the log: the ones whose SHA the
-// store does not hold yet are confirmed against their repository like a live
-// one and kept only when it confirms them, marked `source: "replay"`.
+// once the deck knows it is the one writing the log: the ones the store does
+// not hold yet for their repository are confirmed against it like a live one
+// and kept only when it confirms them, marked `source: "replay"`. A commit
+// held for another repository — the same history cloned or moved elsewhere —
+// is recorded for this one too.
 //
 // Nothing here runs git. Recording needs the repository a folder is in and,
 // ideally, the repo's word that the commit exists; both come in through
@@ -117,35 +119,21 @@ export function createAgentGitTap({
 
     /**
      * Record the commits the boot replay set aside — the newest
-     * `replayMax`, oldest first — whose SHA the store does not hold yet, each
-     * kept only when its repository confirms it. Takes them: a second call
-     * finds none. Never rejects. Answers what it did:
-     * `{ found, known, recorded }`.
+     * `replayMax`, oldest first — that the store does not hold yet for the
+     * repository their folder is in, each kept only when that repository
+     * confirms it. Takes them: a second call finds none. Never rejects.
+     * Answers what it did: `{ found, known, recorded }`.
      */
     async recordReplayed() {
       const batch = replayed.slice(-replayMax);
       replayed = [];
       const done = { found: batch.length, known: 0, recorded: 0 };
       if (!batch.length || !recorder.connected) return done;
-      let held = [];
-      try { held = await store.all(); } catch { /* an unreadable store holds nothing */ }
-      // By the first seven hex, the shortest SHA either side can hold.
-      const byPrefix = new Map();
-      for (const r of held) {
-        const k = r.sha.slice(0, 7);
-        if (!byPrefix.has(k)) byPrefix.set(k, []);
-        byPrefix.get(k).push(r.sha);
-      }
-      const known = (sha) => (byPrefix.get(sha.slice(0, 7)) ?? []).some((h) => h.startsWith(sha) || sha.startsWith(h));
       for (const { candidate, facts: snapshot } of batch) {
-        if (known(candidate.shortSha)) { done.known++; continue; }
+        // Held for this repository already: no need to ask git about it.
+        if (await recorder.held(candidate)) { done.known++; continue; }
         const line = await recorder.record(candidate, snapshot, { replay: true });
-        if (line) {
-          done.recorded++;
-          const k = line.sha.slice(0, 7);
-          if (!byPrefix.has(k)) byPrefix.set(k, []);
-          byPrefix.get(k).push(line.sha);
-        }
+        if (line) done.recorded++;
       }
       return done;
     },

@@ -144,6 +144,20 @@ export function createCommitRecorder({ store, resolveRepo = null, confirm = null
       chain = next.then(() => {});
       return next;
     },
+    /** Whether the store already holds this candidate's commit for the
+     *  repository one of its folders is in. Never rejects. */
+    async held(c) {
+      const { resolveRepo: resolve } = hooks;
+      if (!resolve || !c || !Array.isArray(c.cwds) || typeof c.shortSha !== "string") return false;
+      try {
+        for (const cwd of c.cwds) {
+          const repo = await ask(resolve, cwd);
+          if (!repo || typeof repo.commonDir !== "string" || !repo.commonDir) continue;
+          if (await store.holds(await repoKey(repo.commonDir), c.shortSha)) return true;
+        }
+      } catch { /* could not tell: not held */ }
+      return false;
+    },
     /** Swap the git hooks in — the integration connects the real ones. */
     connect({ resolveRepo: r = hooks.resolveRepo, confirm: k = hooks.confirm } = {}) {
       hooks = { resolveRepo: r, confirm: k };

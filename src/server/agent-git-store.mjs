@@ -342,6 +342,16 @@ export function createCommitStore({ path, maxBytes = COMMIT_STORE_MAX_BYTES }) {
       });
     },
 
+    /** Whether a commit of `repo` with this SHA — or one either SHA is the
+     *  start of — is held. */
+    holds(repo, sha) {
+      return enqueue(async () => {
+        await refresh();
+        const p = index.plan({ repo, sha });
+        return p.dup || p.replaces !== null;
+      });
+    },
+
     /** Every held commit, oldest first. */
     all() {
       return enqueue(async () => { await refresh(); return index.values().sort(byAt); });
