@@ -213,6 +213,18 @@ describe("what was migrated to the secondary tier", () => {
       // issue from it, never with the contact or the images. Read once, to
       // decide what to write.
       ".fb-where",
+      // The git view's history. A commit subject is a sentence read to
+      // know what changed, and the three tones are own (--text), the history it
+      // shares with its base (here) and the rest (--muted): the base tone is
+      // prose a step back, not metadata. The empty history's one sentence and
+      // the hover card's explanation of a matched or trailer-only commit are
+      // read once. The rest are held here by their bed, as the Projects
+      // buttons are: --muted is 3.5:1 on a selected row's accent tint in dark,
+      // so on hovered and selected rows the off-branch subject, the agent chip
+      // and the author, SHA, time and count step up; a remote or tag chip's
+      // name sits on a wash or --ctl-fill where --muted is 4.05:1; and an
+      // off-branch chip keeps readable words while its edge and wash go quiet.
+      ".gv-graph-empty",
       // The git view's hand-off row seen from another machine: the sentence
       // that says why its open buttons are gone and which machine they would
       // open apps on — read once, in a row whose other parts are buttons.
@@ -220,6 +232,14 @@ describe("what was migrated to the secondary tier", () => {
       // The git view's one-line states — "No file selected. Pick a file on
       // the left." — a sentence read to understand why a pane is empty.
       ".gv-pane-empty",
+      // The history again, the rest of what its note above names.
+      ".gv-pop-line",
+      ".gv-ref[data-kind=\"remote\"]",
+      ".gv-ref[data-kind=\"tag\"], .gv-ref[data-kind=\"more\"]",
+      ".gv-row.is-sel .gv-cell-author, .gv-row.is-sel .gv-cell-sha, .gv-row.is-sel .gv-cell-time, .gv-row.is-sel .gv-wip-n",
+      ".gv-row.is-sel[data-tone=\"off\"] .gv-subj",
+      ".gv-row:hover[data-tone=\"off\"] .gv-agent-chip, .gv-row.is-sel[data-tone=\"off\"] .gv-agent-chip",
+      ".gv-row[data-tone=\"base\"] .gv-subj",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",
@@ -235,6 +255,7 @@ describe("what was migrated to the secondary tier", () => {
       // The custom-sound cards' captions, by bed again: --muted on the card's
       // --sm-fill is 4.25:1 in dark (#1788).
       ".sm-custom-card-copy > span",
+      ":root[data-theme=\"light\"] .gv-ref[data-tone=\"off\"]",
     ]);
   });
 

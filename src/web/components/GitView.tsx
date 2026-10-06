@@ -43,7 +43,8 @@ import type { AgentNodeData } from "../types";
 import { TOOL_LANE_ALLOWANCE } from "../use-camera";
 import { useMirroredRef } from "../use-mirrored-ref";
 import GitHandoffs from "./GitHandoffs";
-import { GitDiffStandIn, GitFilesStandIn, GitGraphStandIn } from "./GitViewStandIns";
+import { GitDiffStandIn, GitFilesStandIn } from "./GitViewStandIns";
+import GitGraph from "./GitGraph";
 
 export type { GitViewHow, GitViewRequest } from "../git-view-request";
 
@@ -685,15 +686,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
         </header>
         <div className="gv-panes" ref={panesRef}>
           <section className="gv-graph" id="gv-graph" aria-label="History" data-gv-pane="graph" ref={graphRef}>
-            <div className="gv-pane-head">
-              <span className="gv-pane-title">History</span>
-              <span className="gv-legend">
-                <span><GvMark level="seen" /><span className="gv-long">seen by ccdeck</span><span className="gv-short">seen</span></span>
-                <span><GvMark level="trailer" /><span className="gv-long">from the commit message</span><span className="gv-short">message</span></span>
-                <span><GvMark level="round" /><span className="gv-long">no agent seen</span><span className="gv-short">none</span></span>
-              </span>
-            </div>
-            <GitGraphStandIn
+            <GitGraph
               repoKey={facts?.topLevel ?? agent.sessionId} commits={[]} head={null}
               uncommitted={{ files: 0, byFocus: 0, label: who.label }} focus={focus} selected={sel}
               onSelect={id => { setSel(id); setFile(null); }} onOpen={() => focusPane("files")}

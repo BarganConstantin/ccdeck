@@ -1,11 +1,10 @@
-// Stand-ins for the git view's three panes, with the
-// props the real parts take, so the view can be opened, walked from the
-// keyboard and measured before those parts are in. Each is a plain list of
-// what its part will draw. GitView.tsx swaps each one for its part as it lands.
+// Stand-ins for the git view's panes, with the props the real parts take, so
+// the view can be opened, walked from the keyboard and measured before those
+// parts are in. Each is a plain list of what its part will draw. GitView.tsx
+// swaps each one for its part as it lands; the history's (GitGraph) has.
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
-import type { CommitFile, DiffResult, Edit, GitFileRef, GraphFocus, LogCommit, Repo, StatusEntry } from "../git-view-types";
-import { UNCOMMITTED } from "../git-view-types";
+import type { CommitFile, DiffResult, Edit, GitFileRef, GraphFocus, StatusEntry } from "../git-view-types";
 
 /** ↑ ↓ Home End move a listbox's selection; the list answers them itself. */
 function listMove(e: KeyboardEvent, ids: string[], selected: string | null, pick: (id: string) => void): boolean {
@@ -29,45 +28,6 @@ function useFollowFocus(listRef: React.RefObject<HTMLElement>, key: string | nul
     const row = list.querySelector<HTMLElement>('[aria-selected="true"]');
     if (row && row !== document.activeElement) { row.focus({ preventScroll: true }); row.scrollIntoView?.({ block: "nearest" }); }
   }, [key]);
-}
-
-export function GitGraphStandIn({ commits, head, uncommitted, selected, onSelect, onOpen, onAgentCard }: {
-  repoKey: string;
-  commits: LogCommit[];
-  head: Repo["head"] | null;
-  uncommitted: { files: number; byFocus: number; label: string };
-  focus: GraphFocus;
-  selected: string;
-  onSelect: (id: string) => void;
-  onOpen: (id: string) => void;
-  onAgentCard: (sha: string) => void;
-  liveInsert: { newShas: string[] } | null;
-}) {
-  const listRef = useRef<HTMLDivElement>(null);
-  const rows = [
-    ...(head?.detached ? [] : [{ id: UNCOMMITTED, text: uncommitted.files ? `Uncommitted · ${uncommitted.files} file${uncommitted.files === 1 ? "" : "s"}` : "Working tree clean", sha: "" }]),
-    ...commits.filter(c => !c.outsideWindow).map(c => ({ id: c.sha, text: c.subject, sha: c.sha.slice(0, 7) })),
-  ];
-  useFollowFocus(listRef, selected);
-  return (
-    <div
-      ref={listRef} className="gv-pane-list" role="listbox" aria-label="Commits"
-      onKeyDown={e => {
-        if (listMove(e, rows.map(r => r.id), selected, onSelect)) return;
-        if (e.key === "Enter" || e.key === "ArrowRight") { e.preventDefault(); onOpen(selected); }
-        if (e.key === "i" && selected !== UNCOMMITTED) { e.preventDefault(); onAgentCard(selected); }
-      }}
-    >
-      {rows.map(r => (
-        <div
-          key={r.id} className="gv-stand-row" role="option" data-sha={r.id} aria-selected={r.id === selected}
-          tabIndex={r.id === selected ? 0 : -1} onClick={() => onSelect(r.id)}
-        >
-          <span title={r.text}>{r.text}</span>{r.sha && <span className="gv-mono">{r.sha}</span>}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 export function GitFilesStandIn({ entries, selected, onSelect, onOpen }: {

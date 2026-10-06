@@ -1,0 +1,679 @@
+// The history's graph, worked out from the commits alone: which column each
+// commit sits in, which lines run through each row and where they bend, what
+// colour every line is, and how loud each commit's subject reads.
+//
+// Every row is drawn on its own (one small SVG per row, the way VS Code's
+// source-control graph does it), so everything a row needs is computed here
+// up front: the lanes that enter it at the top, the lanes that leave it at the
+// bottom, and the edges between them. Nothing here touches the DOM, so the
+// rules can be held by plain tests.
+//
+// THE RULES, in the order they bind:
+//
+//   A COMMIT WAITED FOR BY SEVERAL LANES takes the leftmost of them and the
+//   most senior branch's identity (main/master, then develop, then release/*,
+//   then the rest): its first parent runs straight down from it, and a branch
+//   lane ends at the commit it forked from.
+//
+//   A LANE THAT ENDS ON A ROW LEAVES A HOLE THERE FOR THAT ROW. Lanes to its
+//   right close the hole one row later, one column per row, so several lanes
+//   moving at once bend as parallel elbows that never touch.
+//
+//   A MERGE'S NEW PARENT LANE GOES RIGHT OF EVERY LANE THAT REACHED THE ROW,
+//   never into a column vacated on the same row, so the line coming into the
+//   merge and the line leaving it never share a column.
+//
+//   NOTHING BENDS ACROSS A ROW'S OWN HORIZONTAL LINES. A lane whose bend would
+//   overlap the run from a commit to a lane it ends or opens waits a row.
+//
+//   THE CHECKED-OUT COMMIT KEEPS THE FIRST COLUMN when the uncommitted row is
+//   above it: that row is laid out as a commit whose parent is HEAD, so the
+//   branch being worked on is the straight line on the left and is never the
+//   lane that folds away in a busy repository.
+//
+// Colour is the branch's identity, not its column: develop and main/master
+// keep fixed slots, any other branch takes a slot when its lane first appears
+// and keeps it, remembered per repository, so a new commit never repaints an
+// existing line.
+
+// ─── what the server sends ────────────────────────────────────────────────
+//
+// The log's shapes are the view's (git-view-types.ts); these are the names
+// this module and the list read them by.
+
+import type { CommitAgent, GitHead, LogCommit } from "./git-view-types";
+
+export type { LogCommit } from "./git-view-types";
+/** The repository's HEAD, as `/api/git/repo` reports it. */
+export type RepoHead = GitHead;
+/** Who made a commit, if anyone the deck knows of. */
+export type LogAgent = CommitAgent | null;
+/** An agent the deck saw make a commit, or matched to it after a rewrite. */
+export type SeenAgent = Extract<CommitAgent, { confidence: "seen" | "matched" }>;
+
+export const isSeen = (a: LogAgent): a is SeenAgent => !!a && a.confidence !== "trailer";
+
+// ─── branch identity ──────────────────────────────────────────────────────
+
+/** The id of the row above the history that stands for the working tree. */
+export const WIP_ID = "uncommitted";
+
+const MAIN = /^(main|master)$/;
+/** How senior a branch is when several lanes meet at one commit. */
+export function seniority(key: string): number {
+  if (MAIN.test(key)) return 4;
+  if (key === "develop") return 3;
+  if (/^release\//.test(key)) return 2;
+  return 1;
+}
+
+/** `origin/feature/x` → `feature/x`: a remote-tracking branch's own name. */
+export const remoteBranch = (ref: string): string => ref.slice(ref.indexOf("/") + 1);
+
+/** The most senior of some branch names, the first listed on a tie. */
+function senior(keys: string[]): string | null {
+  let best: string | null = null;
+  for (const k of keys) if (best === null || seniority(k) > seniority(best)) best = k;
+  return best;
+}
+
+/** The branch a commit is the tip of, if any: its most senior local branch,
+ *  else its most senior remote-tracking branch's own name (origin's first). */
+export function branchKeyOf(c: Pick<LogCommit, "refs">): string | null {
+  const local = senior(c.refs.local);
+  if (local) return local;
+  const remotes = [...c.refs.remote].sort((a, b) => Number(b.startsWith("origin/")) - Number(a.startsWith("origin/")));
+  return senior(remotes.map(remoteBranch));
+}
+
+/** The branch a merge commit's subject names as merged in, or null:
+ *  `Merge branch 'x' [into y]`, `Merge pull request #1 from owner/x`,
+ *  `Merge remote-tracking branch 'origin/x'`. */
+export function mergedBranchName(subject: string): string | null {
+  let m = /^Merge (?:branch|branches) '([^']+)'/.exec(subject);
+  if (m) return m[1];
+  m = /^Merge remote-tracking branch '([^']+)'/.exec(subject);
+  if (m) return remoteBranch(m[1]);
+  m = /^Merge pull request #\d+ from ([^\s]+)/.exec(subject);
+  if (m) return m[1].includes("/") ? m[1].slice(m[1].indexOf("/") + 1) : m[1];
+  return null;
+}
+
+// ─── colour slots ─────────────────────────────────────────────────────────
+
+/** How many lane colours there are (`--gv-lane-1` … `--gv-lane-5`). */
+export const SLOT_COUNT = 5;
+/** develop's slot (teal) and main/master's (orange), always. */
+export const DEVELOP_SLOT = 0;
+export const MAIN_SLOT = 1;
+/** The slots any other branch takes from, in preference order. */
+const BRANCH_SLOTS = [3, 2, 4];
+/**
+ * Slot pairs that must not sit side by side: under deuteranopia or
+ * protanopia, or for normal vision in one theme, they fall under the floors
+ * (OKLab ΔE×100 under 8 simulated or 15 unsimulated). teal/pink, teal/olive and
+ * orange/olive fail outright; pink/olive sits at 7.9 on white.
+ */
+const CLASH = new Set(["0-2", "0-4", "1-4", "2-4"]);
+export const clashes = (a: number, b: number): boolean => CLASH.has(a < b ? `${a}-${b}` : `${b}-${a}`);
+
+/** The slot a branch always has, or null for one that takes a slot. */
+export function fixedSlot(key: string): number | null {
+  if (key === "develop") return DEVELOP_SLOT;
+  if (MAIN.test(key)) return MAIN_SLOT;
+  return null;
+}
+
+function keyHash(key: string): number {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** How many slots one clashes with: the fewer, the easier it sits anywhere. */
+const clashCount = (slot: number) => [0, 1, 2, 3, 4].filter(o => o !== slot && clashes(o, slot)).length;
+
+/**
+ * The slot a new branch takes, in this order of preference:
+ *   1. one no lane in its row uses (lanes ending on the row count, or the new
+ *      line reads as their continuation) that does not clash with its
+ *      neighbours, the one that clashes with fewest slots first;
+ *   2. main's, while main is not in the row, if it does not clash;
+ *   3. the slot used longest ago among those that do not clash with its
+ *      neighbours (a colour shared with a far lane reads better than a clash
+ *      beside it);
+ *   4. a free slot that clashes; then the slot used longest ago.
+ */
+export function pickSlot(key: string, rowSlots: Iterable<number>, neighbours: number[], lastUse: ReadonlyMap<number, number>): number {
+  const fixed = fixedSlot(key);
+  if (fixed !== null) return fixed;
+  const active = new Set(rowSlots);
+  const h = keyHash(key);
+  const order = BRANCH_SLOTS.map((_, i) => BRANCH_SLOTS[(h + i) % BRANCH_SLOTS.length]);
+  const calm = (s: number) => neighbours.every(n => !clashes(n, s) && n !== s);
+  const lru = (list: number[]) => [...list].sort((a, b) => (lastUse.get(a) ?? -1) - (lastUse.get(b) ?? -1))[0];
+  const free = order.filter(s => !active.has(s));
+  const freeCalm = free.filter(calm).sort((a, b) => clashCount(a) - clashCount(b));
+  if (freeCalm.length) return freeCalm[0];
+  if (!active.has(MAIN_SLOT) && calm(MAIN_SLOT)) return MAIN_SLOT;
+  const calmAny = order.filter(calm);
+  if (calmAny.length) return lru(calmAny);
+  if (free.length) return free[0];
+  if (!active.has(MAIN_SLOT)) return MAIN_SLOT;
+  return lru(order);
+}
+
+// ─── the layout ───────────────────────────────────────────────────────────
+
+/** One line through the graph: the commit it is waiting for, and whose it is. */
+export interface Lane {
+  /** The SHA the lane runs down to. */
+  id: string;
+  /** The branch identity it carries. */
+  key: string;
+  slot: number;
+  /** The dashed line from the uncommitted row to HEAD. */
+  wip?: boolean;
+}
+
+/**
+ * One edge of a row, in columns:
+ *   pass   a lane through the row, from its column at the top (`from`) to its
+ *          column at the bottom (`to`), at most one column apart;
+ *   in     a lane ending at the row's commit, from its column at the top;
+ *   fp     the commit's first parent, from the commit to its bottom column;
+ *   merge  a further parent, from the commit to its lane's bottom column.
+ */
+export interface Edge {
+  kind: "pass" | "in" | "fp" | "merge";
+  from: number;
+  to: number;
+  key: string;
+  slot: number;
+  wip?: boolean;
+}
+
+export interface GraphRow {
+  /** The commit's SHA, or WIP_ID. */
+  id: string;
+  col: number;
+  key: string;
+  slot: number;
+  kind: "commit" | "merge" | "wip";
+  /** Listed after the window, with no lane through it. */
+  outside: boolean;
+  /** Lanes crossing the row's top edge, by column; null is a hole. */
+  input: Array<Lane | null>;
+  /** Lanes crossing its bottom edge, by column. */
+  output: Array<Lane | null>;
+  edges: Edge[];
+}
+
+export interface GraphLayout {
+  rows: GraphRow[];
+  /** The most columns any row uses. */
+  columns: number;
+  /** branch → slot, the given memory plus every slot this layout handed out. */
+  slots: Map<string, number>;
+  /** The branches given a slot for the first time by this layout. */
+  assigned: string[];
+  /** HEAD's lane: its branch identity, or null when HEAD is not listed. */
+  headKey: string | null;
+}
+
+export interface LayoutOptions {
+  head?: Pick<RepoHead, "sha" | "detached" | "branch"> | null;
+  /** Lay out the uncommitted row above the history, joined to HEAD. */
+  wip?: boolean;
+  /** What this repository's branches were given before. */
+  slots?: ReadonlyMap<string, number>;
+}
+
+interface Node {
+  id: string;
+  parents: string[];
+  ownKey: string | null;
+  subject: string;
+  outside: boolean;
+  wip: boolean;
+}
+
+/**
+ * The graph of a history listed child-first (`git log --topo-order`), the
+ * session's older commits (`outsideWindow`) after it.
+ */
+export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions = {}): GraphLayout {
+  const slots = new Map(opts.slots ?? []);
+  const assigned: string[] = [];
+  const byId = new Map(commits.map(c => [c.sha, c]));
+  const headSha = opts.head?.sha && byId.has(opts.head.sha) ? opts.head.sha : (commits.find(c => c.refs.head && !c.outsideWindow)?.sha ?? null);
+
+  const nodes: Node[] = [];
+  if (opts.wip) {
+    const headCommit = headSha ? byId.get(headSha) : undefined;
+    nodes.push({
+      id: WIP_ID,
+      parents: headCommit && !headCommit.outsideWindow ? [headCommit.sha] : [],
+      ownKey: headCommit ? (branchKeyOf(headCommit) ?? opts.head?.branch ?? headCommit.sha) : null,
+      subject: "",
+      outside: false,
+      wip: true,
+    });
+  }
+  for (const c of commits) nodes.push({ id: c.sha, parents: dedupe(c.parents), ownKey: branchKeyOf(c), subject: c.subject, outside: !!c.outsideWindow, wip: false });
+
+  const lastUse = new Map<number, number>();
+  const slotOf = (key: string, rowSlots: Iterable<number>, neighbours: number[]): number => {
+    const fixed = fixedSlot(key);
+    if (fixed !== null) return fixed;
+    const known = slots.get(key);
+    if (known !== undefined) return known;
+    const s = pickSlot(key, rowSlots, neighbours, lastUse);
+    slots.set(key, s);
+    assigned.push(key);
+    return s;
+  };
+  /** The identity of a lane opened for a merge's further parent. */
+  const mergeLaneKey = (parent: string, subject: string): string => {
+    const p = byId.get(parent);
+    return (p && branchKeyOf(p)) ?? mergedBranchName(subject) ?? parent;
+  };
+
+  const rows: GraphRow[] = [];
+  let lanes: Array<Lane | null> = [];
+  let columns = 1;
+  let headKey: string | null = null;
+
+  nodes.forEach((n, index) => {
+    if (n.outside) {
+      // No lane runs through an older commit: the window's lanes stopped at
+      // its last row, and this one stands alone in the first column.
+      const key = n.ownKey ?? n.id;
+      const slot = slotOf(key, [], []);
+      rows.push({ id: n.id, col: 0, key, slot, kind: n.parents.length > 1 ? "merge" : "commit", outside: true, input: [], output: [], edges: [] });
+      lanes = [];
+      return;
+    }
+    const input = lanes;
+    const hits: number[] = [];
+    input.forEach((l, j) => { if (l && l.id === n.id) hits.push(j); });
+
+    let col: number;
+    let key: string;
+    let slot: number;
+    if (hits.length) {
+      col = hits[0];
+      const keys = hits.map(j => input[j]!.key);
+      if (n.ownKey) keys.unshift(n.ownKey);
+      key = senior(keys)!;
+      const inLane = hits.map(j => input[j]!).find(l => l.key === key);
+      slot = inLane ? inLane.slot : slotOf(key, input.filter(Boolean).map(l => l!.slot), neighbourSlots(input, col));
+    } else if (n.wip && !n.ownKey) {
+      // The working tree of a repository with nothing to join it to: no
+      // branch to remember a colour for.
+      col = input.length;
+      key = WIP_ID;
+      slot = DEVELOP_SLOT;
+    } else {
+      col = input.length;
+      key = n.ownKey ?? n.id;
+      slot = slotOf(key, input.filter(Boolean).map(l => l!.slot), neighbourSlots(input, col));
+    }
+    if (n.id === headSha) headKey = key;
+
+    const [first, ...rest] = n.parents;
+    // Further parents already awaited by a lane through this row join it;
+    // the others open lanes right of everything.
+    const joins: Array<{ parent: string; at: number }> = [];
+    const opens: string[] = [];
+    for (const p of rest) {
+      if (p === first) continue;
+      const at = input.findIndex((l, j) => !!l && l.id === p && !hits.includes(j));
+      if (at >= 0) joins.push({ parent: p, at });
+      else opens.push(p);
+    }
+    const openFrom = Math.max(input.length, col + 1);
+    // The span of the row's horizontal runs: into the commit from the lanes
+    // it ends, and out of it to the lanes it joins or opens.
+    let minH = col, maxH = col;
+    for (const j of hits) maxH = Math.max(maxH, j);
+    for (const { at } of joins) { minH = Math.min(minH, at); maxH = Math.max(maxH, at); }
+    if (opens.length) maxH = Math.max(maxH, openFrom + opens.length - 1);
+    const crossesSpan = (lo: number, hi: number) => (minH !== maxH) && lo <= maxH && hi >= minH;
+
+    const width = Math.max(input.length, col + 1);
+    const output: Array<Lane | null> = new Array(width).fill(null);
+    // A column a lane may bend into on this row: a hole left by an earlier
+    // row, or one a bending lane has just left. A lane ending here leaves a
+    // hole that is NOT open until the next row.
+    const open = new Array<boolean>(width).fill(false);
+    const edges: Edge[] = [];
+    const placed = new Map<number, number>();
+    let fpAt = -1;
+
+    for (let j = 0; j < width; j++) {
+      if (j === col) {
+        if (first !== undefined) {
+          const lane: Lane = { id: first, key, slot, ...(n.wip ? { wip: true } : {}) };
+          // The commit's own line may bend left into a hole below it, unless a
+          // run leaves the commit to the left on this same row.
+          const bend = minH === col && col > 0 && open[col - 1] && output[col - 1] === null;
+          fpAt = bend ? col - 1 : col;
+          output[fpAt] = lane;
+        }
+        continue;
+      }
+      const l = input[j] ?? null;
+      if (!l) { open[j] = true; continue; }
+      if (hits.includes(j)) continue; // ends here: a hole, closed next row
+      const bend = j > 0 && open[j - 1] && output[j - 1] === null && !crossesSpan(j - 1, j) && j - 1 !== col;
+      const to = bend ? j - 1 : j;
+      output[to] = l;
+      placed.set(j, to);
+      if (bend) open[j] = true;
+    }
+
+    for (const j of hits) edges.push({ kind: "in", from: j, to: col, key: input[j]!.key, slot: input[j]!.slot, ...(input[j]!.wip ? { wip: true } : {}) });
+    for (const [j, to] of placed) edges.push({ kind: "pass", from: j, to, key: input[j]!.key, slot: input[j]!.slot, ...(input[j]!.wip ? { wip: true } : {}) });
+    if (fpAt >= 0) edges.push({ kind: "fp", from: col, to: fpAt, key, slot, ...(n.wip ? { wip: true } : {}) });
+    for (const { at } of joins) {
+      const target = output[placed.get(at)!]!;
+      edges.push({ kind: "merge", from: col, to: placed.get(at)!, key: target.key, slot: target.slot });
+    }
+    opens.forEach((p, i) => {
+      const at = openFrom + i;
+      const mk = mergeLaneKey(p, n.subject);
+      const rowSlots = [...input, ...output].filter(Boolean).map(l => l!.slot);
+      const left = output.slice(0, at).reverse().find(Boolean) ?? null;
+      const ms = slotOf(mk, rowSlots, left ? [left.slot] : []);
+      while (output.length < at) output.push(null);
+      output[at] = { id: p, key: mk, slot: ms };
+      edges.push({ kind: "merge", from: col, to: at, key: mk, slot: ms });
+    });
+
+    while (output.length && output[output.length - 1] === null) output.pop();
+    for (const l of output) if (l) lastUse.set(l.slot, index);
+    columns = Math.max(columns, input.length, output.length, col + 1);
+    rows.push({ id: n.id, col, key, slot, kind: n.wip ? "wip" : n.parents.length > 1 ? "merge" : "commit", outside: false, input, output, edges });
+    lanes = output;
+  });
+
+  return { rows, columns, slots, assigned, headKey };
+}
+
+function dedupe(list: string[]): string[] {
+  return [...new Set(list)];
+}
+
+function neighbourSlots(lanes: Array<Lane | null>, col: number): number[] {
+  const out: number[] = [];
+  const left = lanes[col - 1];
+  const right = lanes[col + 1];
+  if (left) out.push(left.slot);
+  if (right) out.push(right.slot);
+  return out;
+}
+
+// ─── tones ────────────────────────────────────────────────────────────────
+
+export type Tone = "own" | "base" | "off";
+
+const TRUNKS = ["develop", "main", "master"];
+const isTrunk = (name: string) => TRUNKS.includes(name);
+
+/** The commits reachable from `from` within the list. */
+function reach(byId: ReadonlyMap<string, LogCommit>, from: string | null): Set<string> {
+  const seen = new Set<string>();
+  const stack = from ? [from] : [];
+  while (stack.length) {
+    const sha = stack.pop()!;
+    if (seen.has(sha)) continue;
+    const c = byId.get(sha);
+    if (!c) continue;
+    seen.add(sha);
+    for (const p of c.parents) stack.push(p);
+  }
+  return seen;
+}
+
+/**
+ * What HEAD's branch is measured against: for a trunk (develop, main,
+ * master) its own remote-tracking branch, so its own rows are what has not
+ * been pushed; for any other branch, or a detached HEAD, the trunk it most
+ * likely grew from — develop, else main, else master, local before remote.
+ * Null when the repository has none of them listed.
+ */
+export function baseTip(commits: readonly LogCommit[], head: Pick<RepoHead, "branch" | "detached"> | null): string | null {
+  const branch = head && !head.detached ? head.branch : null;
+  const local = (name: string) => commits.find(c => !c.outsideWindow && c.refs.local.includes(name))?.sha ?? null;
+  const remote = (name: string) => {
+    const at = (c: LogCommit, origin: boolean) => c.refs.remote.some(r => remoteBranch(r) === name && (!origin || r.startsWith("origin/")));
+    return (commits.find(c => !c.outsideWindow && at(c, true)) ?? commits.find(c => !c.outsideWindow && at(c, false)))?.sha ?? null;
+  };
+  if (branch && isTrunk(branch)) return remote(branch);
+  for (const name of TRUNKS) {
+    if (name === branch) continue;
+    const at = local(name) ?? remote(name);
+    if (at) return at;
+  }
+  return null;
+}
+
+/**
+ * Each commit's tone: "own" for what HEAD's branch has that its base does
+ * not, "base" for the history the two share, "off" for what HEAD cannot
+ * reach. With no base to measure against, a trunk's history is all "base"
+ * and any other branch's all "own".
+ */
+export function graphTones(commits: readonly LogCommit[], head: Pick<RepoHead, "sha" | "branch" | "detached"> | null): Map<string, Tone> {
+  const byId = new Map(commits.map(c => [c.sha, c]));
+  const headSha = head?.sha && byId.has(head.sha) ? head.sha : (commits.find(c => c.refs.head)?.sha ?? null);
+  const fromHead = reach(byId, headSha);
+  const tip = baseTip(commits, head);
+  const fromBase = reach(byId, tip);
+  const branch = head && !head.detached ? head.branch : null;
+  const noBase: Tone = tip === null && branch !== null && !isTrunk(branch) ? "own" : "base";
+  const out = new Map<string, Tone>();
+  for (const c of commits) {
+    if (!fromHead.has(c.sha)) out.set(c.sha, "off");
+    else if (tip === null) out.set(c.sha, noBase);
+    else out.set(c.sha, fromBase.has(c.sha) ? "base" : "own");
+  }
+  return out;
+}
+
+// ─── drawing ──────────────────────────────────────────────────────────────
+
+/** A row's height, a lane's width, the first lane's centre, the bend radius. */
+export const ROW_H = 24;
+export const LANE_W = 12;
+export const LANE_X0 = 7;
+export const BEND = 5;
+const MID = ROW_H / 2;
+/** Lanes drawn before the rest fold into one dashed column. */
+export const VISIBLE_LANES = 6;
+
+/** How many columns the graph draws, and whether the last is the fold. A
+ *  single extra lane is drawn rather than folded: the fold column would take
+ *  the same room and say less. */
+export function graphColumns(columns: number): { drawn: number; folded: number } {
+  if (columns <= VISIBLE_LANES + 1) return { drawn: Math.max(1, columns), folded: 0 };
+  return { drawn: VISIBLE_LANES + 1, folded: columns - VISIBLE_LANES };
+}
+
+/** The graph cell's width for that many drawn columns. */
+export const graphWidth = (drawn: number): number => LANE_X0 + (drawn - 1) * LANE_W + 8;
+
+export type NodeShape = "seen" | "trailer" | "merge" | "commit" | "wip";
+
+/** How far an edge stops short of a node's centre, along either axis. */
+export function nodeReach(shape: NodeShape): number {
+  switch (shape) {
+    case "seen": return 5.2;
+    case "trailer": return 4.8;
+    case "merge": return 4.2;
+    case "wip": return 3.6;
+    default: return 3.4;
+  }
+}
+
+export interface Stroke {
+  d: string;
+  slot: number;
+  kind: Edge["kind"];
+  /** Another branch's line: drawn in the slot's pre-mixed dim. */
+  dim: boolean;
+  /** HEAD's own line: full colour, 2px. */
+  focus: boolean;
+  wip: boolean;
+}
+
+export interface RowDrawing {
+  strokes: Stroke[];
+  /** The node's centre. */
+  x: number;
+  y: number;
+  /** The node sits in the fold column. */
+  folded: boolean;
+  /** Some lane of this row is in the fold: draw the fold line. */
+  fold: boolean;
+  foldX: number;
+}
+
+/**
+ * The strokes of one row, in its own 0…ROW_H box. Edges stop at the node's
+ * outline so a hollow node shows the row behind it; edges between two folded
+ * columns are not drawn (the fold line stands for them).
+ */
+export function rowDrawing(row: GraphRow, shape: NodeShape, focusKey: string | null, folded: number): RowDrawing {
+  const lastVisible = folded ? VISIBLE_LANES - 1 : Infinity;
+  const hidden = (c: number) => c > lastVisible;
+  const x = (c: number) => LANE_X0 + Math.min(c, folded ? VISIBLE_LANES : c) * LANE_W;
+  const foldX = LANE_X0 + VISIBLE_LANES * LANE_W;
+  const r = nodeReach(shape);
+  const strokes: Stroke[] = [];
+  let fold = false;
+  const add = (d: string, e: Edge) => strokes.push({
+    d, slot: e.slot, kind: e.kind, wip: !!e.wip,
+    dim: !e.wip && focusKey !== null && e.key !== focusKey,
+    focus: !e.wip && focusKey !== null && e.key === focusKey,
+  });
+  const nx = x(row.col);
+  for (const e of row.edges) {
+    const a = e.kind === "pass" || e.kind === "in" ? e.from : row.col;
+    const b = e.kind === "in" ? row.col : e.to;
+    if (hidden(a) && hidden(b)) { fold = true; continue; }
+    const xa = x(a), xb = x(b);
+    if (e.kind === "pass") add(xa === xb ? `M${xa} 0V${ROW_H}` : bendDown(xa, xb), e);
+    else if (e.kind === "in") add(xa === xb ? `M${xa} 0V${MID - r}` : intoNode(xa, xb, r), e);
+    else if (e.kind === "fp") add(xa === xb ? `M${xa} ${MID + r}V${ROW_H}` : leaveDown(xa, xb, r), e);
+    else add(xa === xb ? `M${xa} ${MID + r}V${ROW_H}` : outOfNode(xa, xb, r), e);
+  }
+  if (row.input.some((l, i) => l && hidden(i)) || row.output.some((l, i) => l && hidden(i))) fold = true;
+  return { strokes, x: nx, y: MID, folded: hidden(row.col), fold, foldX };
+}
+
+const n = (v: number) => Math.round(v * 100) / 100;
+
+/** A lane moving one column at the row's middle: down, a quarter turn, a
+ *  short run, a quarter turn, down. */
+function bendDown(x1: number, x2: number): string {
+  const dir = x2 > x1 ? 1 : -1;
+  const r = Math.min(BEND, Math.abs(x2 - x1) / 2);
+  return `M${x1} 0V${MID - r}Q${x1} ${MID} ${n(x1 + dir * r)} ${MID}H${n(x2 - dir * r)}Q${x2} ${MID} ${x2} ${MID + r}V${ROW_H}`;
+}
+
+/** A lane from the top ending at a node to its side. */
+function intoNode(x1: number, xn: number, r: number): string {
+  const dir = xn > x1 ? 1 : -1;
+  const b = Math.min(BEND, Math.abs(xn - x1) / 2);
+  return `M${x1} 0V${MID - b}Q${x1} ${MID} ${n(x1 + dir * b)} ${MID}H${n(xn - dir * r)}`;
+}
+
+/** A run from a node to a lane to its side that carries on down. */
+function outOfNode(xn: number, x2: number, r: number): string {
+  const dir = x2 > xn ? 1 : -1;
+  const b = Math.min(BEND, Math.abs(x2 - xn) / 2);
+  return `M${n(xn + dir * r)} ${MID}H${n(x2 - dir * b)}Q${x2} ${MID} ${x2} ${MID + b}V${ROW_H}`;
+}
+
+/** The node's own line bending one column on its way down. */
+function leaveDown(xn: number, x2: number, r: number): string {
+  const y0 = MID + r;
+  return `M${xn} ${n(y0)}C${xn} ${n(y0 + 4)} ${x2} ${ROW_H - 4} ${x2} ${ROW_H}`;
+}
+
+// ─── slot memory ──────────────────────────────────────────────────────────
+
+/** Branches remembered per repository, newest use last. */
+export const SLOT_MEMORY_BRANCHES = 300;
+/** Repositories remembered. */
+export const SLOT_MEMORY_REPOS = 40;
+
+export type SlotMemory = Record<string, Array<[string, number]>>;
+
+/** A stored memory read back, anything unreadable dropped. */
+export function parseSlotMemory(text: string | null): SlotMemory {
+  if (!text) return {};
+  try {
+    const raw = JSON.parse(text) as unknown;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    const out: SlotMemory = {};
+    for (const [repo, list] of Object.entries(raw as Record<string, unknown>)) {
+      if (!Array.isArray(list)) continue;
+      out[repo] = list.filter((e): e is [string, number] =>
+        Array.isArray(e) && typeof e[0] === "string" && Number.isInteger(e[1]) && e[1] >= 0 && e[1] < SLOT_COUNT);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** One repository's branch → slot map out of the memory. */
+export function repoSlots(memory: SlotMemory, repoKey: string): Map<string, number> {
+  return new Map(memory[repoKey] ?? []);
+}
+
+/**
+ * The memory with one repository's map written back: its branches in use
+ * order with the newest assignments last, each list capped, and the
+ * repository moved to the end so the least recently opened is dropped first.
+ */
+export function rememberSlots(memory: SlotMemory, repoKey: string, slots: ReadonlyMap<string, number>, touched: readonly string[]): SlotMemory {
+  const before = memory[repoKey] ?? [];
+  const recent = new Set(touched);
+  const kept = before.filter(([k]) => !recent.has(k) && slots.has(k)).map(([k]) => [k, slots.get(k)!] as [string, number]);
+  const added = touched.filter(k => slots.has(k)).map(k => [k, slots.get(k)!] as [string, number]);
+  const list = [...kept, ...added].slice(-SLOT_MEMORY_BRANCHES);
+  const others = Object.entries(memory).filter(([k]) => k !== repoKey).slice(-(SLOT_MEMORY_REPOS - 1));
+  return Object.fromEntries([...others, [repoKey, list]]);
+}
+
+// ─── words ────────────────────────────────────────────────────────────────
+
+/** How long ago, in the history's narrow column: now, 12m, 3h, 5d, 6w, 4mo, 2y. */
+export function historyAge(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  if (s < 86400 * 14) return `${Math.floor(s / 86400)}d`;
+  if (s < 86400 * 60) return `${Math.floor(s / (86400 * 7))}w`;
+  if (s < 86400 * 365) return `${Math.floor(s / (86400 * 30))}mo`;
+  return `${Math.floor(s / (86400 * 365))}y`;
+}
+
+/** How long an agent worked before a commit: 42s, 6m 12s, 2h 05m. */
+export function workDuration(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+  return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
+}
+
+/** A conventional-commit subject's prefix and the rest: `feat(api):` + ` add…`. */
+export function conventionalPrefix(subject: string): { prefix: string; rest: string } | null {
+  const m = /^([a-z]+(?:\([^)]*\))?!?:)(\s.*)$/.exec(subject);
+  return m ? { prefix: m[1], rest: m[2] } : null;
+}

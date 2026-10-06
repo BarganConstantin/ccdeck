@@ -1705,3 +1705,123 @@ describe("the placeholder in the deck's shared text field (#1789)", () => {
     }
   });
 });
+
+// ── the git view's history: lanes, tones, ref chips and agent chips ───────
+//
+// The graph draws five lane colours on the panel and words on four beds: the
+// panel, a hovered row, a selected row, and a selected row in the list that
+// holds focus. Another branch's lane is a solid pre-mix, never an opacity, so
+// it is measured as the colour it is. On a tinted row --muted falls under AA,
+// so every grey there steps up to --text-secondary, and the rules that do it
+// are read off the sheet rather than assumed.
+
+describe("the git history's colours, on every bed they are drawn on", () => {
+  const SLOTS = [1, 2, 3, 4, 5];
+  const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
+  const rowBeds = (theme: Theme): Array<[string, Rgba]> => [
+    ["the panel", panel(theme)],
+    ["a hovered row", bedOf(".gv-row:hover", theme, panel(theme))],
+    ["a selected row", bedOf(".gv-row.is-sel", theme, panel(theme))],
+    ["a selected row in the focused list", bedOf(".gv-graph-scroll:focus-within .gv-row.is-sel", theme, panel(theme))],
+  ];
+  /** A rule's value with its chip's lane put in for `--ref`. */
+  const withRef = (value: string, slot: number) => value.replace(/var\(--ref, var\(--muted\)\)/g, `var(--gv-lane-${slot})`);
+  function lab(c: Rgba): [number, number, number] {
+    const lin = (v: number) => { const n = v / 255; return n <= 0.04045 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4); };
+    const [r, g, b] = [c[0], c[1], c[2]].map(lin);
+    const f = (v: number) => (v > 216 / 24389 ? Math.cbrt(v) : (841 / 108) * v + 4 / 29);
+    const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+    const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+    const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+  }
+  const deltaE = (a: Rgba, b: Rgba) => { const p = lab(a), q = lab(b); return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); };
+
+  it("draws every lane at 3:1 on the panel, another branch's edges at 2:1 and its nodes at 3:1", () => {
+    for (const theme of themes) {
+      for (const n of SLOTS) {
+        const at = (v: string) => contrastRatio(resolve(v, theme), panel(theme));
+        expect(at(`var(--gv-lane-${n})`), `${theme} lane ${n}`).toBeGreaterThanOrEqual(NON_TEXT);
+        expect(at(`var(--gv-lane-${n}-dim)`), `${theme} lane ${n} dim edge`).toBeGreaterThanOrEqual(2);
+        expect(at(`var(--gv-lane-${n}-node-dim)`), `${theme} lane ${n} dim node`).toBeGreaterThanOrEqual(NON_TEXT);
+        // A dim is quieter than its lane, or it says nothing.
+        expect(at(`var(--gv-lane-${n}-dim)`)).toBeLessThan(at(`var(--gv-lane-${n})`));
+      }
+    }
+  });
+
+  it("keeps every lane 16 ΔE or more from each state colour, so a branch never reads as a state", () => {
+    for (const theme of themes) {
+      for (const n of SLOTS) {
+        const lane = resolve(`var(--gv-lane-${n})`, theme);
+        for (const state of ["--ok", "--warn", "--err", "--inflight", "--accent"]) {
+          const d = deltaE(lane, resolve(`var(${state})`, theme));
+          expect(d, `${theme} lane ${n} vs ${state}: ${d.toFixed(1)}`).toBeGreaterThanOrEqual(16);
+        }
+      }
+    }
+  });
+
+  it("draws lanes in tokens the sheet owns, never an opacity", () => {
+    for (const n of SLOTS) {
+      expect(declFor(`.gv-lanes [data-slot="${n}"]`, "--lane")).toBe(`var(--gv-lane-${n})`);
+      expect(declFor(`.gv-lanes [data-slot="${n}"]`, "--lane-dim")).toBe(`var(--gv-lane-${n}-dim)`);
+    }
+    for (const sel of [".gv-e", ".gv-e.is-dim", ".gv-node.is-commit", ".gv-node.is-seen"]) expect(declFor(sel, "opacity"), sel).toBeNull();
+  });
+
+  it("reads a commit's subject, author, SHA and time at 4.5:1 in every tone, on every bed", () => {
+    for (const theme of themes) {
+      for (const [bed, colour] of rowBeds(theme)) {
+        const tinted = bed !== "the panel";
+        const lines: Array<[string, Rgba]> = [
+          ["an own subject", inkOf(theme, ".gv-subj")],
+          ["a base subject", inkOf(theme, '.gv-row[data-tone="base"] .gv-subj')],
+          ["an off subject", inkOf(theme, tinted ? (bed === "a hovered row" ? '.gv-row:hover[data-tone="off"] .gv-subj' : '.gv-row.is-sel[data-tone="off"] .gv-subj') : '.gv-row[data-tone="off"] .gv-subj')],
+          ["the author", inkOf(theme, tinted ? (bed === "a hovered row" ? ".gv-row:hover .gv-cell-author" : ".gv-row.is-sel .gv-cell-author") : ".gv-cell-author")],
+          ["the SHA", inkOf(theme, tinted ? (bed === "a hovered row" ? ".gv-row:hover .gv-cell-sha" : ".gv-row.is-sel .gv-cell-sha") : ".gv-cell-sha")],
+          ["the uncommitted count", inkOf(theme, tinted ? (bed === "a hovered row" ? ".gv-row:hover .gv-wip-n" : ".gv-row.is-sel .gv-wip-n") : ".gv-wip-n")],
+        ];
+        for (const [what, ink] of lines) {
+          const r = contrastRatio(ink, colour);
+          expect(r, `${theme} ${what} on ${bed} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
+      }
+    }
+  });
+
+  it("keeps a ref chip's words at 4.5:1 on its own lane's wash, on and off the checked-out branch", () => {
+    for (const theme of themes) {
+      for (const [bed, colour] of rowBeds(theme)) {
+        for (const n of SLOTS) {
+          const wash = over(resolve(withRef(themed(".gv-ref", "background", theme)!, n), theme), colour);
+          const ink = resolve(withRef(themed(".gv-ref", "color", theme)!, n), theme);
+          const r = contrastRatio(ink, wash);
+          expect(r, `${theme} lane ${n} chip on ${bed} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+          const offWash = over(resolve(withRef(themed('.gv-ref[data-tone="off"]', "background", theme)!, n), theme), colour);
+          const off = contrastRatio(resolve(themed('.gv-ref[data-tone="off"]', "color", theme)!, theme), offWash);
+          expect(off, `${theme} lane ${n} off-branch chip on ${bed} — ${off.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
+      }
+    }
+  });
+
+  it("keeps the agent chip readable, quiet or not, and lifts a quiet one on a tinted row", () => {
+    for (const theme of themes) {
+      const chip = bedOf(".gv-agent-chip", theme, panel(theme));
+      const at = (sel: string) => contrastRatio(inkOf(theme, sel), chip);
+      expect(at(".gv-agent-chip"), theme).toBeGreaterThanOrEqual(BODY);
+      expect(at('.gv-agent-chip[data-level="trailer"]'), `${theme} trailer`).toBeGreaterThanOrEqual(BODY);
+      expect(at(".gv-agent-chip.is-quiet"), `${theme} quiet`).toBeGreaterThanOrEqual(BODY);
+      expect(at(".gv-row:hover .gv-agent-chip.is-quiet"), `${theme} quiet, hovered`).toBeGreaterThan(at(".gv-agent-chip.is-quiet"));
+    }
+  });
+
+  it("writes the new-commits pill's words at 4.5:1 on its accent wash", () => {
+    for (const theme of themes) {
+      const wash = over(resolve(declFor(".gv-new-pill", "--gv-pill-wash")!, theme), bedOf(".gv-new-pill", theme, panel(theme)));
+      const r = contrastRatio(inkOf(theme, ".gv-new-pill"), wash);
+      expect(r, `${theme} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+});

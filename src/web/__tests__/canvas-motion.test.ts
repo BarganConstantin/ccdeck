@@ -367,6 +367,11 @@ const PRESSES: Press[] = [
   [".gv-link:active", "0.97", "transform"],
   [".gv-edge-mark:active", "0.97", "transform"],
   [".gv-scope-x:active", "0.94", "transform"],
+  // The git history's agent chip and its new-commits pill: labelled controls,
+  // so the labelled tier. The pill is centred by its transform, so it presses
+  // with the scale property instead.
+  [".gv-agent-chip:active", "0.97", "transform"],
+  [".gv-new-pill:active", "0.97", "scale"],
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],

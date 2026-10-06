@@ -631,6 +631,9 @@ const CONTROLS: Control[] = [
   // measured on its own.
   { at: ".gv-edge-mark", fillFrom: ".gv-edge-mark", beds: ["--bg"] },
   { at: '.gv-edge-mark[data-alarm="failed"]', fillFrom: ".gv-edge-mark", beds: ["--bg"] },
+  // The git history's "n new commits" pill, floating over the list: framed at
+  // rest in the accent, measured on the panel the list is drawn on.
+  { at: ".gv-new-pill", beds: ["--panel"] },
   // The network map's way in, over Local network's row, on the same terms as
   // the two above: no boundary at rest, an edge under the pointer and the
   // keyboard, measured on the column's foot.
@@ -852,8 +855,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // rest, and louder under the pointer. And from 108 to 110 with the branch
     // chip on a card, which gains an edge under the pointer and the keyboard.
     // And from 110 to 113 with the git view's marker for an agent left out of
-    // the canvas beside it, framed at rest in its state's colour.
-    expect(EDGED_CONTROLS.length).toBeLessThan(113);
+    // the canvas beside it, framed at rest in its state's colour, and from 113
+    // to 114 with the git history's new-commits pill, framed at rest.
+    expect(EDGED_CONTROLS.length).toBeLessThan(114);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
