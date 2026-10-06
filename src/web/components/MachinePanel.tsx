@@ -340,7 +340,7 @@ function MemorySection({ memory, swap, platform }: {
  */
 function ThermalSection({ thermal }: { thermal: Thermal | null }) {
   if (!thermal) return null;
-  const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit, thermal.heldBack) : null;
+  const held = thermal.throttle ? throttleRow(thermal.throttle, thermal.heldBack) : null;
   return (
     <div className="sd-section" role="group" aria-label="Thermal">
       <OpensHistory group="thermal" title="Thermal history" action="Show thermal history" label="Thermal">

@@ -27,6 +27,10 @@ describe("the one condition worth saying at the top", () => {
   it("says each of the three measured conditions", () => {
     expect(attentionFlag({ ...calm, thermal: { celsius: [], throttle: { speedLimit: 62 } } }))
       .toBe("throttled to 62% of full speed");
+    // Linux counts time held down, not speed allowed, and says so.
+    expect(attentionFlag({ ...calm, thermal: { celsius: [], throttle: { timeHeld: 57 } } }))
+      .toBe("throttled 57% of the time");
+    expect(attentionFlag({ ...calm, thermal: { celsius: [], throttle: { timeHeld: 0 } } })).toBeNull();
     expect(attentionFlag({ ...calm, memory: { total: 32, available: 2, usedPct: 93.6 } }))
       .toBe("physical memory 94% full");
     expect(attentionFlag({ ...calm, network: { ...calm.network, api: { host: "api.anthropic.com", ms: null } } }))

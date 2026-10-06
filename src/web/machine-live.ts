@@ -1,4 +1,5 @@
 import { figureText, latencyFigure, rateFigure } from "./net-format";
+import type { Throttle } from "./machine-snapshot";
 // What each history series reads RIGHT NOW, keyed the way the ring keys it.
 //
 // The footer strip draws two things per cell from two different sources, and
@@ -33,7 +34,7 @@ export interface LiveSource {
   loadavg: number[] | null;
   thermal: {
     celsius: { label: string; celsius: number }[];
-    throttle: { speedLimit: number } | null;
+    throttle: Throttle | null;
   } | null;
 }
 
@@ -46,6 +47,18 @@ export interface LiveSource {
  *  to keep every one of them inside the `agent-dag.*` namespace. This is a
  *  series name, and it was that test that said so. */
 export const THROTTLE_SERIES = "thermal:Throttling";
+
+/**
+ * The share of the CPU taken away, whichever way the platform measured it: the
+ * speed `pmset` no longer allows, or the time the Linux kernel held the clock
+ * down. MIRRORS `heldShare` in thermal-metrics.mjs, which is what the server
+ * records under THROTTLE_SERIES — the row, the strip and the chart all draw
+ * this one number.
+ */
+export function heldShare(throttle: Throttle): number {
+  const held = "timeHeld" in throttle ? throttle.timeHeld : 100 - throttle.speedLimit;
+  return Math.max(0, Math.min(100, held));
+}
 
 /**
  * Every reading this snapshot can answer for, by series key.
@@ -69,7 +82,7 @@ export function liveReadings(sys: LiveSource): Record<string, number> {
   if (sys.loadavg?.length) out["load:1m"] = sys.loadavg[0];
   for (const r of sys.thermal?.celsius ?? []) out[`thermal:${r.label}`] = r.celsius;
   if (sys.thermal?.throttle) {
-    out[THROTTLE_SERIES] = Math.max(0, 100 - sys.thermal.throttle.speedLimit);
+    out[THROTTLE_SERIES] = heldShare(sys.thermal.throttle);
   }
   return out;
 }
