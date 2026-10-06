@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { sheetText } from "./sheet-source";
+import { sheetParts, sheetText } from "./sheet-source";
 
 const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
@@ -112,5 +112,13 @@ describe("the deck under a Windows Contrast theme (#871)", () => {
   it("names only selectors the sheet already draws, and outranks nothing by force", () => {
     for (const r of rules) for (const sel of r.sels) expect(outside, sel).toContain(sel);
     expect(block).not.toMatch(/!important/);
+  });
+
+  it("is the end of the sheet, so every rule it answers comes before it", () => {
+    // With no !important, a rule spelled as the one it answers wins on order
+    // alone. Claude FM, the Projects report and the rating question were
+    // loaded after it, so an answer to one of their rules would have lost.
+    expect(sheetParts().at(-1)?.[0]).toBe("styles/touch-and-forced-colours.css");
+    expect(css.slice(end + 1).trim()).toBe("");
   });
 });

@@ -18,17 +18,23 @@ import { sheetText } from "./sheet-source";
 const css = sheetText()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** The body of the `@media` block opened by `open`, and the sheet without any
- *  `@media` block in it. */
-function mediaBody(open: string): string {
-  const at = css.indexOf(open);
-  expect(at, open).toBeGreaterThan(-1);
-  let depth = 0;
-  for (let i = at + open.length - 1; i < css.length; i++) {
-    if (css[i] === "{") depth++;
-    else if (css[i] === "}" && --depth === 0) return css.slice(at + open.length, i);
+/** The bodies of every `@media` block opened by `open`, in sheet order, and
+ *  the sheet without any `@media` block in it. Every block, not the first: a
+ *  part that answers a coarse pointer for its own controls has a block of its
+ *  own, and where the list puts that part is not this test's business. */
+function mediaBodies(open: string): string {
+  const bodies: string[] = [];
+  for (let at = css.indexOf(open); at > -1; at = css.indexOf(open, at + open.length)) {
+    let depth = 0, i = at + open.length - 1;
+    for (; i < css.length; i++) {
+      if (css[i] === "{") depth++;
+      else if (css[i] === "}" && --depth === 0) break;
+    }
+    if (i >= css.length) throw new Error("unbalanced");
+    bodies.push(css.slice(at + open.length, i));
   }
-  throw new Error("unbalanced");
+  expect(bodies.length, open).toBeGreaterThan(0);
+  return bodies.join("\n");
 }
 function withoutMedia(src: string): string {
   let out = "", i = 0;
@@ -50,7 +56,7 @@ const rulesOf = (src: string) => [...src.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(
   body: m[2],
 }));
 const top = rulesOf(withoutMedia(css));
-const coarse = rulesOf(mediaBody("@media (pointer: coarse) {"));
+const coarse = rulesOf(mediaBodies("@media (pointer: coarse) {"));
 const bodyIn = (rules: typeof top, sel: string) => rules.filter(r => r.sels.includes(sel)).map(r => r.body).join("\n");
 
 const DRAWN = [".switch::after", ".ap-fix::after", ".ap-issue::after"];
