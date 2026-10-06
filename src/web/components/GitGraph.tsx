@@ -5,7 +5,7 @@ import {
   parseSlotMemory, rememberSlots, repoSlots, historyAge, workDuration, conventionalPrefix,
   WIP_ID, ROW_H, type GraphRow, type LogCommit, type NodeShape, type RepoHead, type Tone,
 } from "../git-graph-layout";
-import { historyKey } from "../git-graph-keys";
+import { dismissesCard, historyKey } from "../git-graph-keys";
 import { fitBranchWidth, monoWidth, type Measure } from "../git-branch-fit";
 import { sessionHue } from "../session-hue";
 import { placePopover } from "../popover-place";
@@ -494,16 +494,32 @@ export default function GitGraph(props: GitGraphProps) {
     clearHoverTimer();
     setHover(h => { if (h) lastClose.current = performance.now(); return null; });
   }, []);
-  const showHoverSoon = useCallback((sha: string, anchor: Element) => {
+  /** The card after the hover delay; one a key brought there appears at
+   *  once, since nothing the keyboard does animates. */
+  const showHoverSoon = useCallback((sha: string, anchor: Element, byKey = false) => {
     clearHoverTimer();
     const warm = performance.now() - lastClose.current < WARM_MS;
     if (warm) { setHover({ sha, anchor, instant: true }); return; }
     hoverTimer.current = window.setTimeout(() => {
       hoverTimer.current = null;
-      if (anchor.isConnected) setHover({ sha, anchor, instant: reducedMotion() });
+      if (anchor.isConnected) setHover({ sha, anchor, instant: byKey || reducedMotion() });
     }, HOVER_MS);
   }, []);
   useEffect(() => () => clearHoverTimer(), []);
+  // Esc takes the card away first, wherever focus is, and leaves the view and
+  // the focus where they were: content shown on hover or focus is dismissed
+  // without moving either.
+  useEffect(() => {
+    if (!hover) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!dismissesCard(e) || e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      hideHover();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [hover, hideHover]);
   // A new history may have taken the row the card hung off.
   useEffect(() => { hideHover(); }, [commits, hideHover]);
 
@@ -652,7 +668,7 @@ export default function GitGraph(props: GitGraphProps) {
     let visible = false;
     try { visible = row.matches(":focus-visible"); } catch { visible = false; }
     if (!visible) return;
-    showHoverSoon(sha, row.querySelector(".gv-agent-chip") ?? row);
+    showHoverSoon(sha, row.querySelector(".gv-agent-chip") ?? row, true);
   }, [byId, showHoverSoon, hideHover]);
 
   const hoverCommit = hover ? byId.get(hover.sha) : undefined;
