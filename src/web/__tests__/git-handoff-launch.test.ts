@@ -39,6 +39,13 @@ describe("macOS", () => {
       .toMatchObject({ file: "/Users/ada/Library/Application Support/JetBrains/Toolbox/scripts/idea", args: [F, P] });
   });
 
+  it("starts a JetBrains bundle as a new instance with the paths as its arguments", () => {
+    expect(spec(app("idea", "editor", "/Applications/IntelliJ IDEA.app", "app"), { file: P }))
+      .toEqual({ file: "/usr/bin/open", args: ["-na", "/Applications/IntelliJ IDEA.app", "--args", F, P], cwd: F, verbatim: false });
+    expect(spec(app("rider", "editor", "/Users/ada/Applications/Rider.app", "app")).args)
+      .toEqual(["-na", "/Users/ada/Applications/Rider.app", "--args", F]);
+  });
+
   it("opens each terminal on the folder", () => {
     expect(spec(app("terminal", "terminal", "/System/Applications/Utilities/Terminal.app", "app")).args)
       .toEqual(["-a", "/System/Applications/Utilities/Terminal.app", F]);

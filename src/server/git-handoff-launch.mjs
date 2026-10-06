@@ -15,6 +15,7 @@
 // lets go; what happens in that app is the person's doing.
 import { posix, win32 } from "node:path";
 import { shellQuoteArg } from "./exec-spec.mjs";
+import { appInfo } from "./git-handoff-apps.mjs";
 
 /** Why a launch cannot be built, from a closed set the route turns into words. */
 export const REFUSALS = Object.freeze({
@@ -51,7 +52,7 @@ const osascript = (lines, args) => ({
   args: [...lines.flatMap((l) => ["-e", l]), ...args],
 });
 
-/** `open -a <bundle> <paths…>`: what GitHub Desktop and the apps' own CLIs do. */
+/** `open -a <bundle> <paths…>`: LaunchServices hands the app the paths, as Finder's Open With does. */
 const openApp = (app, ...paths) => ({ file: "/usr/bin/open", args: ["-a", app, ...paths] });
 
 /** A terminal on Linux opening a shell, or `cmd` when given, in `folder`. */
@@ -131,8 +132,13 @@ export function launchSpec(app, {
       return done(macTerminal(terminal.id, terminal.target.path, folder, path));
     }
     if (app.slot === "terminal") return done(macTerminal(app.id, path, folder, null));
-    // A bundle opens through LaunchServices; a Toolbox script is run as is.
+    // A bundle opens through LaunchServices; a Toolbox script, or a tool from
+    // inside a bundle, is run as is.
     if (app.target.kind !== "app") return done({ file: path, args: withFile });
+    // JetBrains documents a new instance handed the paths as arguments, which
+    // passes them to a running IDE and exits (jetbrains.com/help/idea/
+    // working-with-the-ide-features-from-command-line.html).
+    if (appInfo(app.id)?.jetbrains) return done({ file: "/usr/bin/open", args: ["-na", path, "--args", ...withFile] });
     if (app.id === "gitkraken") return done({ file: "/usr/bin/open", args: ["-na", path, "--args", "-p", folder] });
     if (app.id === "github-desktop") return done({ file: "/usr/bin/open", args: ["-n", path, "--args", `--cli-open=${folder}`] });
     return done(openApp(path, ...withFile));
