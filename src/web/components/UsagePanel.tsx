@@ -19,6 +19,7 @@ import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
 import type { Incident } from "../provider-status";
 import CostBar from "./CostBar";
+import FilmLink from "./FilmLink";
 import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
 import UsageModelTable from "./UsageModelTable";
 import UsagePeriodStrip from "./UsagePeriodStrip";
@@ -481,6 +482,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             : <>No usage data yet.<br />Start a Claude Code or Codex session.</>}
         </div>
       )}
+      {/* The panel's last line, whatever is above it: the header's row is
+          already the title, the burn rate and two acts. */}
+      <div className="film-foot"><FilmLink film="usage" /></div>
     </aside>
   );
 }

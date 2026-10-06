@@ -56,6 +56,10 @@ const WAITING_KEEPERS = new Set([
   // after the badge is up. Nothing the model writes can mean the human answered
   // unless a hook says so first: the tool's result, the next prompt, a Stop.
   "OutputObserved",
+  // The activity line comes off that same watch, for the same reason. And a
+  // background job's line is Claude Code's classifier describing the block —
+  // its "blocked" is the badge's own explanation, written seconds after it.
+  "ActivityObserved", "JobObserved",
 ]);
 
 /**

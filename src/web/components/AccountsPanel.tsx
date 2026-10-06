@@ -16,6 +16,7 @@ import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
 import AccountsUsageReport from "./AccountsUsageReport";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
+import FilmLink from "./FilmLink";
 import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
@@ -651,6 +652,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
               })()}
             </>
           )}
+          {/* Under the roster and the policy over it, in every state the
+              column is in: the header has no room left beside its five acts. */}
+          <div className="film-foot"><FilmLink film="claudeAccounts" /></div>
         </div>
       )}
 

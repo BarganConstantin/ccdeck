@@ -5,8 +5,9 @@
 // decides how often the machine is asked and when one that has never answered
 // stops being asked (sampleThermal). This file is the asking: readThermal
 // answers once per call, per platform, and nothing here keeps state between two
-// calls. WARN_C and CRIT_C are exported because the history's thermal series
-// fall back to them.
+// calls — the one reading that needs the call before it, Linux throttling, is
+// handed that call's answer back by the sampler. WARN_C and CRIT_C are exported
+// because the history's thermal series fall back to them.
 import { readdir, readFile } from "node:fs/promises";
 import { run } from "./metrics-run.mjs";
 
@@ -30,6 +31,17 @@ import { run } from "./metrics-run.mjs";
 //            publishes its own `temp*_max` and `temp*_crit`, so the warning
 //            bands are the hardware's rather than ones invented here.
 //            /sys/class/thermal/thermal_zone*/ is the coarser fallback.
+//
+//            Throttling comes from the kernel's own count of it, and for years
+//            it was not read at all: this branch answered `throttle: null`
+//            unconditionally, so a Linux machine never drew the row however
+//            hard it was being held back. Measured on an i5-12600H mini PC
+//            whose package sat at 90°C under a load of 41 — the panel showed
+//            the 90 and nothing else, while the kernel had logged 59 hours of
+//            package throttling in 17 days of uptime and was adding six seconds
+//            of it every ten. See readThrottleTime: Intel only, since the
+//            counters come from Intel's thermal-interrupt driver, and no row
+//            on a machine without them.
 //
 //   macOS    No CPU degrees without root, verified: `powermetrics --samplers
 //            smc` answers "powermetrics must be invoked as the superuser", and
@@ -261,6 +273,91 @@ export async function readThermalZones(root = "/sys/class/thermal", deps = {}) {
 }
 
 /**
+ * How long each CPU package has spent thermally throttled since boot, in
+ * milliseconds, keyed by package — or null on a machine that does not count it.
+ *
+ * Intel's thermal-interrupt driver publishes, per CPU,
+ * `cpuN/thermal_throttle/package_throttle_total_time_ms`: the time the
+ * package's thermal monitor has held the clock down, summed over every event.
+ * Measured on a live machine, ten seconds apart:
+ *
+ *   cpu0   package_throttle_total_time_ms  212885052 → 212890804
+ *   cpu15  package_throttle_total_time_ms  212885101 → 212891179
+ *
+ * Every CPU of a package carries its own copy of the package's count, and the
+ * copies differ by the few events each one saw late — so the package's figure
+ * is the largest of them, which is also the one that survives a CPU going
+ * offline. The `core_*` files beside them are one core's own throttling and are
+ * not read: the CPU row is the package, and a throttle row about one core of it
+ * would be a different reading under the same label.
+ *
+ * Absent on AMD and on every virtual machine, and on a kernel older than 5.12,
+ * which counts events but not their time. A count of events is not a share of
+ * anything, so those machines draw no row rather than a guess.
+ */
+export async function readThrottleTime(root = "/sys/devices/system/cpu", deps = {}) {
+  const dir = deps.readdir ?? readdir;
+  const file = deps.readFile ?? readFile;
+  const read = async path => { try { return String(await file(path, "utf8")).trim(); } catch { return null; } };
+  let cpus;
+  try { cpus = (await dir(root)).filter(n => /^cpu\d+$/.test(n)); } catch { return null; }
+  const held = {};
+  for (const cpu of cpus) {
+    const ms = Number(await read(`${root}/${cpu}/thermal_throttle/package_throttle_total_time_ms`) ?? NaN);
+    if (!Number.isFinite(ms) || ms < 0) continue;
+    const pkg = (await read(`${root}/${cpu}/topology/physical_package_id`)) ?? "0";
+    if (held[pkg] == null || ms > held[pkg]) held[pkg] = ms;
+  }
+  return Object.keys(held).length ? held : null;
+}
+
+/**
+ * The share of the time between two counts that the CPU spent throttled, as
+ * `{ timeHeld }`, or null when there are not two counts to compare.
+ *
+ * A SHARE OF TIME, NOT OF SPEED, and the shape says so rather than borrowing
+ * macOS's `speedLimit`. `pmset` reports how much of the clock the thermal
+ * manager allows; the kernel reports how long the clock was held down, and by
+ * how much it was held is not in the file. Writing 60% of the time as "held to
+ * 40% of full speed" would be a number this module made up.
+ *
+ * The worst package wins, for the reason the hottest sensor does: the question
+ * is whether this machine is being held back, and one package that is answers
+ * it. Any throttling at all is at least 1%, because a few milliseconds of it
+ * round to zero and the panel paints zero as "never held back".
+ *
+ * The kernel adds an event's time when the event ENDS, so one still running at
+ * a sample lands in the next. Events here run 5ms on average and 119ms at the
+ * longest, measured, so that is a sample's worth of lag at most — and the 100
+ * cap is for the one long event that lands whole in a single sample.
+ */
+export function throttleFromTime(prev, next) {
+  if (!prev || !next) return null;
+  const elapsed = next.atMs - prev.atMs;
+  if (!(elapsed > 0)) return null;
+  let worst = null;
+  for (const [pkg, ms] of Object.entries(next.held)) {
+    const before = prev.held[pkg];
+    if (before == null) continue;
+    const share = (Math.max(0, ms - before) / elapsed) * 100;
+    if (worst == null || share > worst) worst = share;
+  }
+  if (worst == null) return null;
+  return { timeHeld: worst > 0 ? Math.min(100, Math.max(1, Math.round(worst))) : 0 };
+}
+
+/**
+ * The share of the CPU the thermal manager took away, whichever way this
+ * platform measures it: the speed `pmset` says is no longer allowed, or the
+ * time the kernel says the clock was held down. The one number the chart, the
+ * strip and the row's bar all draw — mirrored by `heldShare` in machine-live.ts.
+ */
+export function heldShare(throttle) {
+  const held = "timeHeld" in throttle ? throttle.timeHeld : 100 - throttle.speedLimit;
+  return Math.max(0, Math.min(100, held));
+}
+
+/**
  * GPU degrees out of `ioreg -r -k PerformanceStatistics`.
  *
  * The macOS reading nothing documented: the accelerator publishes
@@ -458,13 +555,25 @@ export function darwinThermal({ gpuC = null, throttle = null, macmon = {} } = {}
  * collapsing them would let a throttle percentage be drawn under a °C heading
  * — the thing the label rule exists to prevent. `swapLabel` earned that rule
  * once already.
+ *
+ * `since` is the reading before this one. Only Linux uses it: its throttle is a
+ * difference between two counts, so the count rides along on the reading as
+ * `throttleCount` and the sampler hands it back on the next call. The first
+ * reading after a start therefore has no throttle yet, the same way `cpu` is
+ * null until two samples exist.
  */
-export async function readThermal(platform = process.platform) {
+export async function readThermal(platform = process.platform, since = null) {
   if (platform === "linux") {
     const sensors = await readHwmon();
     const celsius = pickThermalRows(sensors);
     const rows = celsius.length ? celsius : await readThermalZones();
-    return rows.length ? { celsius: rows, throttle: null } : null;
+    const held = await readThrottleTime();
+    // performance.now rather than Date.now: a clock that NTP steps backwards
+    // between two samples would otherwise divide by a negative ten seconds.
+    const throttleCount = held ? { atMs: performance.now(), held } : null;
+    const throttle = throttleFromTime(since?.throttleCount, throttleCount);
+    if (!rows.length && !throttle) return null;
+    return { celsius: rows, throttle, ...(throttleCount ? { throttleCount } : {}) };
   }
 
   if (platform === "darwin") {

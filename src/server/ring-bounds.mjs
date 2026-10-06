@@ -73,8 +73,16 @@ export const MAX_BUFFER = 2000;     // recent HOOK events kept for late SSE subs
  * `OutputObserved` is deliberately NOT here. It says something landed at a
  * given moment, which is history — two of them are two events, not one value
  * twice.
+ *
+ * `ActivityObserved` and `JobObserved` are: each says what the session is doing
+ * or what its background job says NOW, and the next one replaces it outright.
+ * The activity line moves about once per reply the model writes, which is the
+ * same cadence as the tool calls the budget is there to protect.
  */
-const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed"]);
+const LAST_VALUE_WINS = new Set([
+  "ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed",
+  "ActivityObserved", "JobObserved",
+]);
 
 /**
  * Whether this payload is enrichment MAX_BUFFER does not count — see

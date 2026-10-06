@@ -23,10 +23,12 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  celsiusFromMilli, gpuFromIoreg, pickThermalRows, readHwmon, readThermal,
-  parseWinThermal, readThermalZones, throttleFromPmset,
+  celsiusFromMilli, gpuFromIoreg, heldShare as serverHeldShare, pickThermalRows, readHwmon, readThermal,
+  parseWinThermal, readThermalZones, readThrottleTime, throttleFromPmset, throttleFromTime,
 } from "../../server/thermal-metrics.mjs";
 import { sampleThermal, stopSystemMetrics } from "../../server/system-metrics.mjs";
+import { thermalSnapshot } from "../../server/thermal-sampler.mjs";
+import { heldShare } from "../machine-live";
 import { thermalTone, throttleRow } from "../machine-readings";
 
 describe("millidegrees, which is the unit every Linux sensor speaks", () => {
@@ -258,6 +260,113 @@ describe("the thermal-zone fallback, for a machine with no hwmon driver", () => 
   });
 });
 
+describe("the Linux throttle count, against a real tree on disk", () => {
+  // Linux answered `throttle: null` unconditionally until this, so the row was
+  // never drawn there — on a machine whose kernel had logged 59 hours of
+  // package throttling in 17 days. The walk is checked against a tree on disk
+  // for the reason the hwmon walk is: a walk that looks in the wrong place
+  // returns the same null as a machine that counts nothing.
+  const build = async (cpus: Record<string, { pkg?: string; ms?: string }>, extra: string[] = []) => {
+    const root = await mkdtemp(join(tmpdir(), "cpu-"));
+    for (const [cpu, { pkg, ms }] of Object.entries(cpus)) {
+      await mkdir(join(root, cpu, "topology"), { recursive: true });
+      if (pkg != null) await writeFile(join(root, cpu, "topology", "physical_package_id"), `${pkg}\n`);
+      if (ms != null) {
+        await mkdir(join(root, cpu, "thermal_throttle"), { recursive: true });
+        await writeFile(join(root, cpu, "thermal_throttle", "package_throttle_total_time_ms"), `${ms}\n`);
+      }
+    }
+    // The siblings every real /sys/devices/system/cpu carries, which are not CPUs.
+    for (const d of ["cpufreq", "cpuidle", ...extra]) await mkdir(join(root, d), { recursive: true });
+    return root;
+  };
+
+  it("takes each package's count from the CPU that saw the most of it", async () => {
+    // Every CPU carries its own copy of the package's count, and the copies
+    // differ by the events each saw late. Read off a live i5-12600H.
+    const root = await build({
+      cpu0: { pkg: "0", ms: "212885052" },
+      cpu15: { pkg: "0", ms: "212885101" },
+      cpu16: { pkg: "1", ms: "500" },
+    });
+    try {
+      expect(await readThrottleTime(root)).toEqual({ "0": 212885101, "1": 500 });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("skips a CPU without the counter rather than reading it as zero", async () => {
+    // An offline CPU loses its thermal_throttle directory. Zero would be a
+    // count, and the next difference would be its whole lifetime.
+    const root = await build({ cpu0: { pkg: "0", ms: "1000" }, cpu1: { pkg: "0" } });
+    try {
+      expect(await readThrottleTime(root)).toEqual({ "0": 1000 });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("says nothing on a machine that does not count it — AMD, a VM", async () => {
+    const root = await build({ cpu0: { pkg: "0" }, cpu1: { pkg: "0" } });
+    try {
+      expect(await readThrottleTime(root)).toBeNull();
+    } finally { await rm(root, { recursive: true, force: true }); }
+    expect(await readThrottleTime(join(tmpdir(), "no-such-cpu-tree"))).toBeNull();
+  });
+});
+
+describe("the share of time the Linux kernel held the clock down", () => {
+  const at = (atMs: number, held: Record<string, number>) => ({ atMs, held });
+
+  it("is the count's growth over the time between two reads", () => {
+    // Measured: 5752ms of package throttling in 10095ms of wall time.
+    expect(throttleFromTime(at(0, { "0": 212885052 }), at(10_095, { "0": 212890804 })))
+      .toEqual({ timeHeld: 57 });
+  });
+
+  it("is a share of time, never dressed up as a speed limit", () => {
+    // The kernel says how long, not how far. `speedLimit: 43` would be a speed
+    // nobody measured.
+    const t = throttleFromTime(at(0, { "0": 0 }), at(10_000, { "0": 5_700 }))!;
+    expect(t).not.toHaveProperty("speedLimit");
+    expect(t.timeHeld).toBe(57);
+  });
+
+  it("needs two counts, so the first reading after a start has none", () => {
+    expect(throttleFromTime(null, at(10_000, { "0": 5 }))).toBeNull();
+    expect(throttleFromTime(at(10_000, { "0": 5 }), null)).toBeNull();
+  });
+
+  it("refuses a gap of no time rather than dividing by it", () => {
+    expect(throttleFromTime(at(5_000, { "0": 1 }), at(5_000, { "0": 9 }))).toBeNull();
+    expect(throttleFromTime(at(5_000, { "0": 1 }), at(4_000, { "0": 9 }))).toBeNull();
+  });
+
+  it("reads a few milliseconds as 1%, not as the zero that means 'never'", () => {
+    expect(throttleFromTime(at(0, { "0": 100 }), at(10_000, { "0": 103 }))).toEqual({ timeHeld: 1 });
+    expect(throttleFromTime(at(0, { "0": 100 }), at(10_000, { "0": 100 }))).toEqual({ timeHeld: 0 });
+  });
+
+  it("cannot go below zero when a CPU went offline, nor past 100 when a long event lands whole", () => {
+    expect(throttleFromTime(at(0, { "0": 900 }), at(10_000, { "0": 400 }))).toEqual({ timeHeld: 0 });
+    expect(throttleFromTime(at(0, { "0": 0 }), at(10_000, { "0": 14_000 }))).toEqual({ timeHeld: 100 });
+  });
+
+  it("answers for the worst package, and only for packages it has seen twice", () => {
+    expect(throttleFromTime(at(0, { "0": 0, "1": 0 }), at(10_000, { "0": 1_000, "1": 4_000 })))
+      .toEqual({ timeHeld: 40 });
+    expect(throttleFromTime(at(0, { "0": 0 }), at(10_000, { "0": 1_000, "1": 9_000 })))
+      .toEqual({ timeHeld: 10 });
+    expect(throttleFromTime(at(0, { "1": 0 }), at(10_000, { "0": 1_000 }))).toBeNull();
+  });
+
+  it("is the same share on the server and in the client, for both measures", () => {
+    // The server records it, the strip computes it live: two places, one number.
+    for (const t of [{ timeHeld: 57 }, { timeHeld: 0 }, { speedLimit: 62 }, { speedLimit: 100 }]) {
+      expect(heldShare(t)).toBe(serverHeldShare(t));
+    }
+    expect(heldShare({ timeHeld: 57 })).toBe(57);
+    expect(heldShare({ speedLimit: 62 })).toBe(38);
+  });
+});
+
 describe("the macOS GPU reading, which nothing documented", () => {
   // Trimmed from a real `ioreg -r -k PerformanceStatistics` on an Intel Mac
   // with an AMD card. The key sits in the same dictionary as the clock, the
@@ -408,12 +517,26 @@ describe("the live reader, on whichever machine is running this", () => {
       expect(r.critAt, `${r.label} has a zero-width warn band`).toBeGreaterThan(r.warnAt);
     }
     if (t.throttle) {
-      expect(t.throttle.speedLimit).toBeGreaterThanOrEqual(0);
-      expect(t.throttle.speedLimit).toBeLessThanOrEqual(100);
+      const pct = "timeHeld" in t.throttle ? t.throttle.timeHeld : t.throttle.speedLimit;
+      expect(pct).toBeGreaterThanOrEqual(0);
+      expect(pct).toBeLessThanOrEqual(100);
     }
     // Null is the answer for "nothing to say". An object with nothing in it is
     // what would draw an empty section.
     expect(t.celsius.length > 0 || t.throttle != null).toBe(true);
+  });
+
+  it("answers a throttle on the second read where the kernel counts one", async () => {
+    // Linux's throttle is a difference, so it needs the read before it. On a
+    // machine that counts nothing — every CI runner — there is still nothing,
+    // and that is the answer.
+    const first = await readThermal();
+    const second = await readThermal(process.platform, first);
+    if (second?.throttle) console.log(`[thermal] ${process.platform} throttle: ${JSON.stringify(second.throttle)}`);
+    if (process.platform !== "linux" || !first?.throttleCount) return;
+    expect(second!.throttle).toHaveProperty("timeHeld");
+    expect(second!.throttle.timeHeld).toBeGreaterThanOrEqual(0);
+    expect(second!.throttle.timeHeld).toBeLessThanOrEqual(100);
   });
 
   it("gives an unknown platform nothing rather than guessing", async () => {
@@ -435,15 +558,15 @@ describe("how a reading is drawn", () => {
     // put a full bar meaning "all is well" under a memory bar where a full bar
     // means "nearly out". Two opposite conventions in one panel is a panel that
     // has to be read twice.
-    expect(throttleRow(100).pct).toBe(0);
-    expect(throttleRow(62).pct).toBe(38);
+    expect(throttleRow({ speedLimit: 100 }).pct).toBe(0);
+    expect(throttleRow({ speedLimit: 62 }).pct).toBe(38);
   });
 
   it("reads zero rather than 'none', so a healthy machine looks measured", () => {
     // Reported from the panel: `none` read as though the check had not run.
     // It is the only token in this panel that is a word where a number goes,
     // and 0% sits on the same scale as the 9% that appears under load.
-    expect(throttleRow(100)).toMatchObject({ value: "0%", tone: "calm" });
+    expect(throttleRow({ speedLimit: 100 })).toMatchObject({ value: "0%", tone: "calm" });
   });
 
   it("says outright that it has never happened, on a machine where it has not", () => {
@@ -453,7 +576,7 @@ describe("how a reading is drawn", () => {
     // CPU_Speed_Limit off 100 — so 0% is the truth there, forever, and the note
     // is what tells a reader that the check ran and found nothing rather than
     // that it found nothing to run.
-    expect(throttleRow(100).note).toBe("running at full speed, and never held back");
+    expect(throttleRow({ speedLimit: 100 }).note).toBe("running at full speed, and never held back");
   });
 
   it("says when it last happened, once it has", () => {
@@ -461,7 +584,7 @@ describe("how a reading is drawn", () => {
     // sampled for this. It turns "0%" from a number you distrust into one you
     // can place.
     const now = 1_800_000_000_000;
-    expect(throttleRow(100, { peak: 9, lastMs: now - 25 * 60_000 }, now).note)
+    expect(throttleRow({ speedLimit: 100 }, { peak: 9, lastMs: now - 25 * 60_000 }, now).note)
       .toBe("at full speed · held to 91% 25 minutes ago");
   });
 
@@ -469,7 +592,7 @@ describe("how a reading is drawn", () => {
     // The past never displaces the present: a machine being throttled right now
     // says so, whatever it did at lunchtime.
     const now = 1_800_000_000_000;
-    expect(throttleRow(91, { peak: 40, lastMs: now - 60_000 }, now).note)
+    expect(throttleRow({ speedLimit: 91 }, { peak: 40, lastMs: now - 60_000 }, now).note)
       .toBe("CPU held to 91% of full speed to cool down");
   });
 
@@ -477,7 +600,7 @@ describe("how a reading is drawn", () => {
     // Minute buckets, so "42 seconds ago" would be a precision the reading does
     // not have. The question is "recently or this morning".
     const now = 1_800_000_000_000;
-    const at = (agoMin: number) => throttleRow(100, { peak: 5, lastMs: now - agoMin * 60_000 }, now).note;
+    const at = (agoMin: number) => throttleRow({ speedLimit: 100 }, { peak: 5, lastMs: now - agoMin * 60_000 }, now).note;
     expect(at(0)).toContain("just now");
     expect(at(1)).toContain("just now");
     expect(at(59)).toContain("59 minutes ago");
@@ -486,7 +609,7 @@ describe("how a reading is drawn", () => {
   });
 
   it("says what is happening and what it costs, when it is happening", () => {
-    const held = throttleRow(62);
+    const held = throttleRow({ speedLimit: 62 });
     expect(held.value).toBe("38%");
     expect(held.note).toBe("CPU held to 62% of full speed to cool down");
   });
@@ -494,13 +617,30 @@ describe("how a reading is drawn", () => {
   it("colours any throttling at all, and reddens a third of the clock", () => {
     // Being throttled means the machine is slower than the one you think you
     // are running on, which is worth a colour however slight.
-    expect(throttleRow(99).tone).toBe("warn");
-    expect(throttleRow(70).tone).toBe("hot");
+    expect(throttleRow({ speedLimit: 99 }).tone).toBe("warn");
+    expect(throttleRow({ speedLimit: 70 }).tone).toBe("hot");
   });
 
   it("cannot be pushed outside the track by a reading it did not expect", () => {
-    expect(throttleRow(0).pct).toBe(100);
-    expect(throttleRow(140).pct).toBe(0);
+    expect(throttleRow({ speedLimit: 0 }).pct).toBe(100);
+    expect(throttleRow({ speedLimit: 140 }).pct).toBe(0);
+  });
+
+  it("says a Linux share of time as time, never as a speed", () => {
+    // 57% of the time held down is not "held to 43% of full speed": how far the
+    // clock was held is not in the kernel's file.
+    const row = throttleRow({ timeHeld: 57 });
+    expect(row).toMatchObject({ pct: 57, value: "57%", tone: "hot" });
+    expect(row.note).toBe("CPU throttled 57% of the time to cool down");
+    expect(row.note).not.toContain("speed");
+    expect(throttleRow({ timeHeld: 4 }).tone).toBe("warn");
+  });
+
+  it("says when Linux last throttled, in the same words", () => {
+    const now = 1_800_000_000_000;
+    expect(throttleRow({ timeHeld: 0 }, { peak: 57, lastMs: now - 25 * 60_000 }, now).note)
+      .toBe("at full speed · 57% throttled 25 minutes ago");
+    expect(throttleRow({ timeHeld: 0 }).note).toBe("running at full speed, and never held back");
   });
 });
 
@@ -538,6 +678,29 @@ describe("a machine that cannot answer is not asked forever", () => {
     const read = async () => { asked++; throw new Error("no such namespace"); };
     for (let i = 0; i < 6; i++) await sampleThermal({ read });
     expect(asked).toBe(3);
+  });
+
+  it("hands the last reading back, which is what a Linux throttle is a difference from", async () => {
+    stopSystemMetrics();
+    const seen: unknown[] = [];
+    const first = { celsius: [], throttle: null, throttleCount: { atMs: 0, held: { "0": 0 } } };
+    const read = async (_platform: string, since: unknown) => { seen.push(since); return first; };
+    await sampleThermal({ read });
+    await sampleThermal({ read });
+    expect(seen).toEqual([null, first]);
+  });
+
+  it("keeps the kernel's raw count off the route the panel reads", async () => {
+    stopSystemMetrics();
+    await sampleThermal({ read: async () => ({
+      celsius: [{ label: "CPU", celsius: 90, warnAt: 75, critAt: 100 }],
+      throttle: { timeHeld: 57 },
+      throttleCount: { atMs: 10_000, held: { "0": 5_700 } },
+    }) });
+    const shown = thermalSnapshot()!;
+    expect(shown.throttle).toEqual({ timeHeld: 57 });
+    expect(shown).not.toHaveProperty("throttleCount");
+    expect(shown.heldBack?.peak).toBe(57);
   });
 
   it("asks again after a restart, which is what should happen after a driver is installed", async () => {
