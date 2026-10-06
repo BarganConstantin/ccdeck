@@ -196,6 +196,9 @@
 .gv-bottom { flex: 1; min-height: 220px; display: flex; min-width: 0; }
 .gv-files { flex: 0 0 var(--gv-files-w, 40%); min-width: 220px; max-width: 520px; display: flex; flex-direction: column; min-height: 0; }
 .gv-diffpane { flex: 1; min-width: 220px; display: flex; flex-direction: column; min-height: 0; container: gvdiff / inline-size; }
+/* A pane holds focus itself while its rows are on their way (GitView.tsx
+   focusPane): the deck's ring, drawn inside, since the panes meet edge to edge. */
+.gv-wide [data-gv-pane]:focus-visible { outline-offset: -2px; border-radius: 0; }
 .gv-pane-head { flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px 0 var(--panel-inset); border-bottom: 1px solid var(--line-soft); min-width: 0; }
 .gv-pane-title { flex: none; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
 .gv-pane-title .gv-mono { letter-spacing: 0; text-transform: none; color: var(--text); font-size: 12px; }

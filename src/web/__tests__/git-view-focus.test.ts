@@ -1,0 +1,36 @@
+// Where keyboard focus goes in and around the git view. The view owns its
+// keys only while focus is inside it, so every path that opens it from the
+// keyboard, or moves the reader through it, has to leave focus inside — never
+// on the canvas card behind it, where R would still re-arrange the board and
+// drop every pin — and every way out has to land somewhere visible.
+import { describe, expect, it } from "vitest";
+import { sourceOf } from "./client-source";
+import { sheetParts } from "./sheet-source";
+
+const view = sourceOf("components/GitView.tsx");
+const viewCss = sheetParts().find(([path]) => path === "styles/git-view.css")![1];
+
+describe("a pane asked for focus before its rows are drawn", () => {
+  it("can hold focus itself: each pane is focusable from script, not a Tab stop", () => {
+    expect(view).toMatch(/aria-label="History" data-gv-pane="graph" tabIndex=\{-1\}/);
+    expect(view).toMatch(/aria-label="Files" data-gv-pane="files" tabIndex=\{-1\}/);
+    expect(view).toMatch(/aria-label="Diff" data-gv-pane="diff" tabIndex=\{-1\}/);
+  });
+
+  it("takes focus itself rather than falling back to a control that may be hidden", () => {
+    const at = view.indexOf("const focusPane = useCallback(");
+    const body = view.slice(at, view.indexOf("}, []);", at));
+    // The old fallback was the panel's first button: the sheet-only Back
+    // button, display: none beside the canvas, so focus stayed on the card.
+    expect(body).not.toMatch(/button:not\(\[disabled\]\)/);
+    expect(body).toMatch(/section\.focus\(\{ preventScroll: true \}\);\s*pendingPane\.current = p;/);
+  });
+
+  it("hands focus to the row once it is drawn, only while the pane still holds it", () => {
+    expect(view).toMatch(/if \(document\.activeElement === panelRef\.current\?\.querySelector\(`\[data-gv-pane="\$\{p\}"\]`\)\) focusPane\(p\);\s*else pendingPane\.current = null;/);
+  });
+
+  it("draws the deck's ring inside a focused pane", () => {
+    expect(viewCss).toMatch(/\.gv-wide \[data-gv-pane\]:focus-visible \{ outline-offset: -2px;/);
+  });
+});

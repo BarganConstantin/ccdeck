@@ -549,22 +549,36 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     return () => ro.disconnect();
   }, []);
 
+  // A pane asked for focus before its rows were drawn — a keyboard open with
+  // nothing read yet — holds focus itself, inside the view that owns the keys,
+  // and hands it to its row once the row is there.
+  const pendingPane = useRef<GitViewPane | null>(null);
   const focusPane = useCallback((p: GitViewPane) => {
-    // The files and the diff take the keyboard through their own handles.
-    const handle = p === "files" ? filesHandle.current : p === "diff" ? diffHandle.current : null;
-    if (handle) { handle.focus(); setPane(p); return; }
     const section = panelRef.current?.querySelector<HTMLElement>(`[data-gv-pane="${p}"]`);
     if (!section) return;
-    // The pane's selected row, else its one tab stop, else (an empty pane) the
-    // panel's first control, so focus never falls back to the page.
-    const target = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]')
-      ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]')
-      ?? panelRef.current?.querySelector<HTMLElement>("button:not([disabled])");
-    if (!target) return;
-    target.focus({ preventScroll: true });
-    target.scrollIntoView?.({ block: "nearest" });
     setPane(p);
+    // The files and the diff take the keyboard through their own handles;
+    // the history goes to its selected row, else its one tab stop.
+    const handle = p === "files" ? filesHandle.current : p === "diff" ? diffHandle.current : null;
+    if (handle) handle.focus();
+    else {
+      const row = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]')
+        ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]');
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView?.({ block: "nearest" });
+    }
+    const active = document.activeElement;
+    if (active !== section && section.contains(active)) { pendingPane.current = null; return; }
+    section.focus({ preventScroll: true });
+    pendingPane.current = p;
   }, []);
+  useEffect(() => {
+    const p = pendingPane.current;
+    if (!p) return;
+    // Only while the pane still holds it: the reader may have moved on.
+    if (document.activeElement === panelRef.current?.querySelector(`[data-gv-pane="${p}"]`)) focusPane(p);
+    else pendingPane.current = null;
+  });
   actions.current = { focusPane, newest: view.showLatest };
   // `n` from the deck, with focus outside the view, reaches the same action.
   useEffect(() => { setGitViewNewest(view.showLatest); return () => setGitViewNewest(null); }, [view.showLatest]);
@@ -811,7 +825,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           </p>
         )}
         <div className="gv-panes" ref={panesRef}>
-          <section className="gv-graph" id="gv-graph" aria-label="History" data-gv-pane="graph" ref={graphRef}>
+          <section className="gv-graph" id="gv-graph" aria-label="History" data-gv-pane="graph" tabIndex={-1} ref={graphRef}>
             {reading || !data.commits ? (
               <>
                 <div className="gv-pane-head"><span className="gv-pane-title">History</span></div>
@@ -829,7 +843,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           </section>
           {splitter("graph", "horizontal", "Resize the history and the files", "gv-graph", "gv-split-h")}
           <div className="gv-bottom" ref={bottomRef}>
-            <section className="gv-files" id="gv-files" aria-label="Files" data-gv-pane="files" ref={filesRef}>
+            <section className="gv-files" id="gv-files" aria-label="Files" data-gv-pane="files" tabIndex={-1} ref={filesRef}>
               {reading || !data.entries ? (
                 <div className="gv-pane-head"><span className="gv-pane-title">{sel === UNCOMMITTED ? "Uncommitted" : sel.slice(0, 7)}</span></div>
               ) : (
@@ -845,7 +859,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               )}
             </section>
             {splitter("files", "vertical", "Resize the files and the diff", "gv-files", "gv-split-v")}
-            <section className="gv-diffpane" aria-label="Diff" data-gv-pane="diff">
+            <section className="gv-diffpane" aria-label="Diff" data-gv-pane="diff" tabIndex={-1}>
               {reading || !data.entries ? null : (
                 <GitDiff
                   ref={diffHandle}
