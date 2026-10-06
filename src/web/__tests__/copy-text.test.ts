@@ -150,6 +150,20 @@ describe("copyText", () => {
     expect(ta.steps).toEqual(["appendChild", "select", "execCommand", "remove"]);
   });
 
+  it("gives focus back to what had it once the hidden field is gone", async () => {
+    // The field takes focus to be selected and is then removed, which left
+    // focus on the page: a Copy button in the git view, pressed where the
+    // clipboard cannot be used, handed every deck key back to the canvas.
+    const { textareas } = page();
+    const button = { steps: [] as string[], isConnected: true, focus(o?: { preventScroll?: boolean }) { this.steps.push(`focus:${o?.preventScroll}`); } };
+    (globalThis.document as unknown as { activeElement: unknown }).activeElement = button;
+    const run = start("abc");
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(run.promise).resolves.toBe(true);
+    expect(textareas[0].steps).toEqual(["appendChild", "select", "execCommand", "remove"]);
+    expect(button.steps).toEqual(["focus:true"]);
+  });
+
   it("answers false rather than throwing when the fallback cannot run either", async () => {
     // Every caller leaves the text on screen to select by hand on a false. A
     // rejection would take the button's handler down with it instead.
