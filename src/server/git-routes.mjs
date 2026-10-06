@@ -22,11 +22,17 @@
 // The log's commits each carry `agent` — who made it, and how the deck knows
 // (git-attribution.mjs) — and the session's own agent commits older than the
 // window follow it with `outsideWindow: true`.
+//
+// The repo answer for a session (not narrowed to one subagent) also lists the
+// session's subagents that work in another folder — another worktree, another
+// repository, or no repository — as `subagents`, so the view can say where
+// they are and how much is changed there.
+import { basename } from "node:path";
 import { send } from "./http-io.mjs";
 import { attributeHistory } from "./git-attribution.mjs";
-import { sessionEdits } from "./git-edits.mjs";
+import { agentLabel, sessionEdits } from "./git-edits.mjs";
 import { isShaLike } from "./git-reads.mjs";
-import { sessionFolder } from "./git-sessions.mjs";
+import { sessionFolder, sessionSubagents } from "./git-sessions.mjs";
 import { gitEnabled } from "./git-watch.mjs";
 import { commitOf, commitFileDiffOf, countedStatusOf, fileDiffOf, logOf, repoOf, statusOf } from "./git-state.mjs";
 
@@ -54,10 +60,54 @@ async function sessionRepo(url, res) {
   return { repo, folder };
 }
 
+/** The most subagents one repo answer lists. */
+export const MAX_SUBAGENTS_ELSEWHERE = 32;
+
+/**
+ * The session's subagents whose folder is not the session's own worktree, in
+ * the order the deck heard them:
+ *   [{ agentId, label, folder, folderName, state, topLevel, sameRepo, changed }]
+ * `state` is the folder's ("repo", or why it has none, as the routes say it),
+ * `topLevel` its worktree or null, `sameRepo` whether that worktree shares the
+ * session's repository, `changed` how many files are changed there (each path
+ * once, from the cached status) or null when that is not known. A subagent in
+ * the session's own worktree — its folder or a folder inside it — is not
+ * listed.
+ */
+async function subagentsElsewhere(sid, root, repo) {
+  const away = sessionSubagents(sid).filter(([, cwd]) => cwd !== root);
+  const rows = await Promise.all(away.slice(0, MAX_SUBAGENTS_ELSEWHERE * 2).map(async ([agentId, cwd]) => {
+    // Both reads are the cached ones every route shares, so a view asking
+    // again — and several subagents in one folder — cost nothing more.
+    const r = await repoOf(cwd);
+    if (r.state === "repo" && r.topLevel === repo.topLevel) return null;
+    let changed = null;
+    if (r.state === "repo") {
+      const status = await statusOf(r);
+      if (status?.ok) changed = new Set(status.entries.map((e) => e.path)).size;
+    }
+    return {
+      agentId,
+      label: agentLabel(sid, agentId),
+      folder: r.state === "repo" ? r.folder : cwd,
+      folderName: r.state === "repo" ? r.folderName : basename(cwd),
+      state: r.state,
+      topLevel: r.state === "repo" ? r.topLevel : null,
+      sameRepo: r.state === "repo" && r.commonDir === repo.commonDir,
+      changed,
+    };
+  }));
+  return rows.filter(Boolean).slice(0, MAX_SUBAGENTS_ELSEWHERE);
+}
+
+/** `?session[&agent]` — the repository, and for a session (not one subagent)
+ *  its subagents working in another folder. */
 export async function handleGitRepo(req, res, url) {
   const found = await sessionRepo(url, res);
   if (!found) return;
-  send(res, 200, { ok: true, state: "repo", repo: found.repo });
+  const sid = param(url, "session");
+  const subagents = param(url, "agent") ? [] : await subagentsElsewhere(sid, sessionFolder(sid)?.cwd ?? null, found.repo);
+  send(res, 200, { ok: true, state: "repo", repo: found.repo, subagents });
 }
 
 /** `?session[&agent]` — the history, each commit with the agent that made it
