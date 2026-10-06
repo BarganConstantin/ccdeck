@@ -92,7 +92,7 @@ export const NAME_COLUMNS = 32;
  *  comfortably under it. */
 const WIDE = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
 
-function columns(ch: string): number {
+export function columns(ch: string): number {
   return WIDE.test(ch) ? 2 : 1;
 }
 

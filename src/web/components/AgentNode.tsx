@@ -132,8 +132,11 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // says something else starts again from nothing given, in the same render.
   const yields = chip ? rowYields(data.kind, otherModels.length) : NO_YIELDS;
   const rowKey = `${data.kind}|${data.childCount}|${modelSaid}|${chip?.name ?? ""}`;
-  const [given, setGiven] = useState({ row: "", count: 0 });
+  const [given, setGiven] = useState({ row: "", count: 0, back: false });
   const giving = given.row === rowKey ? yields.slice(0, given.count) : NO_YIELDS;
+  // Even all of it did not make room for the chip's floor: the row keeps its
+  // words, and the chip its glyph alone, until the row says something else.
+  const gaveBack = given.row === rowKey && given.back;
   const kindShown = !giving.includes("kind");
   const moreShown = !giving.includes("more");
 
@@ -222,8 +225,9 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           : data.provider === "codex"
             ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>
             : null}
-        {chip && <GitChip agentId={data.id} chip={chip} row={rowKey} given={giving.length} canGive={giving.length < yields.length}
-          onGive={() => setGiven({ row: rowKey, count: giving.length + 1 })} />}
+        {chip && <GitChip agentId={data.id} chip={chip} row={rowKey} given={giving.length} canGive={!gaveBack && giving.length < yields.length}
+          onGive={() => setGiven({ row: rowKey, count: giving.length + 1, back: false })}
+          onGiveBack={() => setGiven({ row: rowKey, count: 0, back: true })} />}
       </div>
 
       {/* What Claude Code calls this session, on a row of its own for the

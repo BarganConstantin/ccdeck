@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { branchChip, branchCandidates, branchFloor, fitBranch, fitChip, rowYields } from "../git-chip";
+import { branchChip, branchCandidates, branchFloor, fitBranch, fitChip, graphemes, rowYields, textColumns } from "../git-chip";
 import { openGitFor, setGitOpener } from "../git-open";
 import type { GitFacts } from "../types";
 import { sourceOf } from "./client-source";
@@ -85,12 +85,93 @@ describe("a long branch, shortened in the middle", () => {
     expect(fitBranch("feature/bargan/VCRM-9090", fitsIn(30))).toBe("feature/bargan/VCRM-9090");
     expect(fitBranch("feature/bargan/VCRM-9090", fitsIn(20))).toBe("feature/…/VCRM-9090");
     expect(fitBranch("feature/bargan/VCRM-9090", fitsIn(10))).toBe("VCRM-9090");
-    // The ticket leads, whole, then the cut, then the end of the name.
-    expect(fitBranch(long, fitsIn(24))).toBe("VCRM-9090…and-everything");
-    expect(fitBranch(long, fitsIn(13))).toBe("VCRM-9090…ing");
+    // The ticket leads, whole, then the start of what follows it, the cut,
+    // and the end of the name.
+    expect(fitBranch(long, fitsIn(24))).toBe("VCRM-9090-make-th…thing");
+    expect(fitBranch(long, fitsIn(16))).toBe("VCRM-9090-ma…ng");
+    expect(fitBranch(long, fitsIn(13))).toBe("VCRM-9090…");
     expect(fitBranch(long, fitsIn(10))).toBe("VCRM-9090…");
     expect(fitBranch(long, () => false)).toBe("VCRM-9090-make-the-invoice-builder-understand-everything");
     expect(fitBranch("feature/auth-login", () => false)).toBe("auth-login");
+  });
+});
+
+describe("a ticket, by the rule the cards and the git view share", () => {
+  it("is upper-case letters and digits, a hyphen and a number: VCRM-9090, AB2-12", () => {
+    expect(branchFloor("feature/bargan/VCRM-9090-make-the-invoice-builder")).toBe("VCRM-9090…");
+    expect(branchFloor("fix/AB2-12-x")).toBe("AB2-12…");
+    // Not a word that happens to carry a number: those are cut like any name.
+    for (const name of ["chore/deps-2-bump-everything-to-latest", "feature/v2-1-release-candidate-notes", "node-22-upgrade-the-runtime", "bargan/gh-1960-git-view-follow-ups"]) {
+      const floor = branchFloor(name);
+      expect(floor, name).toMatch(/…./);
+      expect(graphemes(floor.replace("…", "")).length, name).toBeGreaterThanOrEqual(8);
+    }
+    expect(branchCandidates("chore/deps-2-bump-everything-to-latest")).not.toContain("deps-2…");
+  });
+
+  it("keeps the start of what follows the ticket, as the mockup cuts it", () => {
+    const cuts = branchCandidates("feature/bargan/VCRM-9090-make-the-invoice-builder-understand-everything");
+    expect(cuts).toContain("VCRM-9090-make-the-invoic…nd-everything");
+    expect(cuts).toContain("VCRM-9090-ma…ng");
+    expect(cuts[cuts.length - 1]).toBe("VCRM-9090…");
+    // Every cut leads with the ticket whole.
+    for (const c of cuts.slice(3)) expect(c.startsWith("VCRM-9090"), c).toBe(true);
+  });
+});
+
+describe("a branch in any script", () => {
+  const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const odd = [
+    "feature/fixx-🐛🐛🐛🐛🐛🐛🐛🐛🐛🐛🐛🐛-crash-in-the-login-flowx",
+    "feat/add-𠮷野家-menu-translation-for-tokyo-shops",
+    "fix/🚀-launch-the-rocket-today",
+    "feature/team-👩‍💻👩‍💻👩‍💻-pairing-🇯🇵🇯🇵-flags-and-more",
+    "feature/données-über-ветка-日本語ブランチ",
+    "VCRM-9090-ünïcödé-🐛🐛🐛🐛-and-日本語-too",
+  ];
+
+  it("is never cut inside a character, an emoji, a flag or a joined emoji", () => {
+    for (const name of odd) {
+      const whole = new Set(graphemes(name));
+      for (const c of [...branchCandidates(name), branchFloor(name)]) {
+        expect(LONE.test(c), `${name} → ${c}`).toBe(false);
+        for (const g of graphemes(c)) if (g !== "…" && g !== "/") expect(whole.has(g), `${name} → ${c}: ${g}`).toBe(true);
+      }
+    }
+  });
+
+  it("counts a wide character as the two columns it draws, and an emoji as two", () => {
+    expect(textColumns("main")).toBe(4);
+    expect(textColumns("日本語")).toBe(6);
+    expect(textColumns("🐛x")).toBe(3);
+    expect(textColumns("👩‍💻")).toBe(2);
+    expect(textColumns("🇯🇵")).toBe(2);
+    expect(textColumns("é…")).toBe(2);
+  });
+
+  it("fits what it draws in the room, whatever the script", () => {
+    for (const name of odd) {
+      for (let room = 6; room < 50; room++) {
+        const fit = fitChip({ kind: "branch", name }, room, false);
+        if (fit.give || fit.bare) continue;
+        expect(textColumns(fit.label), `${name} at ${room}: ${fit.label}`).toBeLessThanOrEqual(room);
+      }
+    }
+    // Measured in pixels by the caller's own measure: the cut keeps to it.
+    const px = (t: string) => textColumns(t) * 6.02;
+    const fit = fitChip({ kind: "branch", name: "feature/données-über-ветка-日本語ブランチ" }, 100, false, px);
+    expect(fit).toMatchObject({ give: false, bare: false });
+    expect(px((fit as { label: string }).label)).toBeLessThanOrEqual(100);
+  });
+
+  it("is measured on the card in the chip's own font, not from one character's width", () => {
+    const chip = sourceOf("components/GitChip.tsx");
+    expect(chip).toMatch(/const measure = monoMeasure\(CHIP_PX\);/);
+    expect(chip).toMatch(/fitChip\(chip, room, canGive, measure\)/);
+    expect(chip).not.toMatch(/textContent\.length/);
+    // The chip's type size as the sheet sets it.
+    expect(chip).toContain("const CHIP_PX = 10;");
+    expect(sheetText()).toMatch(/\.git-chip \{[^}]*font: 10px\/1 var\(--font-mono\);/);
   });
 });
 
@@ -136,12 +217,25 @@ describe("a tight sub row gives the chip room before the chip gives up its name"
     expect(fitChip(detached, 9, true)).toEqual({ give: false, label: "56aee3d", bare: false });
   });
 
+  it("gives nothing away when even everything the row could give would not make room for the floor", () => {
+    // A 41-character ticket on a root card: the word "session" went and the
+    // chip was bare anyway. Now the row takes back what it gave and the chip
+    // stands bare beside the row as it was.
+    const chip = sourceOf("components/GitChip.tsx");
+    expect(chip).toMatch(/if \(fit\.bare && given > 0\) \{ onGiveBack\(\); return; \}/);
+    const node = sourceOf("components/AgentNode.tsx");
+    expect(node).toContain("const [given, setGiven] = useState({ row: \"\", count: 0, back: false });");
+    expect(node).toContain("const gaveBack = given.row === rowKey && given.back;");
+    expect(node).toMatch(/canGive=\{!gaveBack && giving\.length < yields\.length\}/);
+    expect(node).toMatch(/onGiveBack=\{\(\) => setGiven\(\{ row: rowKey, count: 0, back: true \}\)\}/);
+  });
+
   it("draws the row without what it gave, and starts again whenever the row says something else", () => {
     const node = sourceOf("components/AgentNode.tsx");
     const sub = node.slice(node.indexOf('<div className="sub">'), node.indexOf("</div>", node.indexOf('<div className="sub">')));
     expect(sub).toContain('{kindShown && <span className="sub-kind">{data.kind === "root" ? "session" : "subagent"}</span>}');
     expect(sub).toContain("{shortModel(data.model)}{moreShown ? modelMore : \"\"}");
-    expect(sub).toMatch(/<GitChip agentId=\{data\.id\} chip=\{chip\} row=\{rowKey\} given=\{giving\.length\} canGive=\{giving\.length < yields\.length\}/);
+    expect(sub).toMatch(/<GitChip agentId=\{data\.id\} chip=\{chip\} row=\{rowKey\} given=\{giving\.length\}/);
     // The count of what was given is kept against the row it was worked out
     // for: a row that changes starts from nothing given, in the same render.
     expect(node).toContain("const giving = given.row === rowKey ? yields.slice(0, given.count) : NO_YIELDS;");

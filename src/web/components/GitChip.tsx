@@ -2,6 +2,7 @@ import React, { useLayoutEffect, useRef, useState } from "react";
 import { fitChip, type BranchChip } from "../git-chip";
 import { pressHow } from "../agent-goto";
 import { openGitFor } from "../git-open";
+import { monoMeasure } from "../git-path-fit";
 
 /** The card's widest inner width: agent-node.css's `max-width` less its
  *  padding and edge (260 − 16 − 12 − 2). Stated rather than read off the
@@ -13,6 +14,8 @@ export const CARD_INNER_MAX = 230;
 const CHIP_GAP = 6;
 /** The sheet's gap between the glyph and the name (`.git-chip`). */
 const NAME_GAP = 4;
+/** The name's type size (`.git-chip`), in the deck's monospace stack. */
+const CHIP_PX = 10;
 
 /**
  * The branch on a card's sub row, shortened in the middle to the room the row
@@ -21,27 +24,26 @@ const NAME_GAP = 4;
  * The room is worked out from the card's maximum width and what else is on the
  * row — never from the card's current width, which the chip itself widens — so
  * the label settles in one pass and does not grow and shrink the card. `row` is
- * what else the row says, so the label is fitted again when that changes. The
- * name is monospace, so one character's width, read off the rendered label,
- * measures every spelling.
+ * what else the row says, so the label is fitted again when that changes. Each
+ * spelling is measured on a canvas in the chip's own font (git-path-fit.ts), so
+ * a wide character or an emoji counts for the room it really takes.
  *
  * Too little room even for the ticket (branchFloor), and the chip asks the row
  * for more (`onGive`) while the row still has something to give (`canGive`):
  * the card draws the row again without it, before paint, and the chip measures
  * again — `given` is how much it has been given so far. Only with nothing left
- * does the chip keep its glyph alone.
+ * does the chip keep its glyph alone; and when even all of that did not make
+ * room for the floor, the row takes back what it gave (`onGiveBack`), since
+ * giving it away bought nothing.
  */
-export default function GitChip({ agentId, chip, row, given, canGive, onGive }: {
-  agentId: string; chip: BranchChip; row: string; given: number; canGive: boolean; onGive: () => void;
+export default function GitChip({ agentId, chip, row, given, canGive, onGive, onGiveBack }: {
+  agentId: string; chip: BranchChip; row: string; given: number; canGive: boolean; onGive: () => void; onGiveBack: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   const [label, setLabel] = useState(chip.name);
   /** No room for even the floor, and nothing left on the row to give: the
    *  glyph alone. */
   const [bare, setBare] = useState(false);
-  /** One character of the name, measured while the name was showing — the
-   *  chip mounts with it showing, and a bare chip has nothing to measure. */
-  const charRef = useRef(0);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -50,13 +52,12 @@ export default function GitChip({ agentId, chip, row, given, canGive, onGive }: 
     const whole = () => { setLabel(chip.name); setBare(false); };
     if (!el || !name || !sub) { whole(); return; }
     const bareNow = el.hasAttribute("data-bare");
-    if (!bareNow && name.textContent) charRef.current = name.scrollWidth / name.textContent.length;
-    const charWidth = charRef.current;
+    const measure = monoMeasure(CHIP_PX);
     // The canvas is scaled; offsetWidth is not, and a rect is. One ratio
     // turns the rects back into the card's own units.
     const rowBox = sub.getBoundingClientRect();
     const scale = sub.offsetWidth > 0 ? rowBox.width / sub.offsetWidth : 0;
-    if (!(scale > 0) || !(charWidth > 0)) { whole(); return; }
+    if (!(scale > 0)) { whole(); return; }
     let right = rowBox.left;
     for (const n of Array.from(sub.childNodes)) {
       if (n === el) continue;
@@ -75,9 +76,11 @@ export default function GitChip({ agentId, chip, row, given, canGive, onGive }: 
     const chrome = bareNow ? el.offsetWidth + NAME_GAP : el.offsetWidth - name.offsetWidth;
     const room = CARD_INNER_MAX - used - CHIP_GAP - chrome - 1;
     // Under the floor's room the row gives first; with nothing left to give
-    // the glyph stands alone, the name in the tooltip and the accessible name.
-    const fit = fitChip(chip, room / charWidth, canGive);
+    // the glyph stands alone, the name in the tooltip and the accessible name,
+    // and the row has back what it gave for nothing.
+    const fit = fitChip(chip, room, canGive, measure);
     if (fit.give) { onGive(); return; }
+    if (fit.bare && given > 0) { onGiveBack(); return; }
     setLabel(fit.label);
     setBare(fit.bare);
   }, [chip.name, chip.kind, row, given, canGive]);
