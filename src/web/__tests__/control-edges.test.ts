@@ -634,6 +634,10 @@ const CONTROLS: Control[] = [
   // The git history's "n new commits" pill, floating over the list: framed at
   // rest in the accent, measured on the panel the list is drawn on.
   { at: ".gv-new-pill", beds: ["--panel"] },
+  // The git view's Show latest pill, in its diff's header: framed in the
+  // accent at rest, because it is news the reader has to see, and measured on
+  // the panel the header sits on.
+  { at: ".gvd-pill", fillFrom: ".gvd-pill", states: [".gvd-pill:hover"], beds: ["--panel"] },
   // The network map's way in, over Local network's row, on the same terms as
   // the two above: no boundary at rest, an edge under the pointer and the
   // keyboard, measured on the column's foot.
@@ -857,7 +861,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // And from 110 to 113 with the git view's marker for an agent left out of
     // the canvas beside it, framed at rest in its state's colour, and from 113
     // to 114 with the git history's new-commits pill, framed at rest.
-    expect(EDGED_CONTROLS.length).toBeLessThan(114);
+    // And from 114 to 116 with the git view's diff: its Show latest pill,
+    // framed in the accent at rest, and the keycap inside it.
+    expect(EDGED_CONTROLS.length).toBeLessThan(116);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -1131,6 +1137,10 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // The stack's frame and the rules between its buttons. Each button is a
       // glyph; the group's outline is a group's outline.
       ".react-flow__controls-button",
+      // The keycap inside the git view's Show latest pill: a drawn key that
+      // says which key does the same, inside a control whose own edge is
+      // measured above. It is a glyph, not a second control.
+      ".gvd-pill kbd",
       // Rows in the tool list. `border: none` plus a hairline separating one
       // row from the next — the row is identified by the tool's name in it.
       ".detail .tool", "button.tool.clickable", "button.tool.clickable:last-child",

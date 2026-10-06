@@ -240,7 +240,19 @@ describe("what was migrated to the secondary tier", () => {
       ".gv-row.is-sel[data-tone=\"off\"] .gv-subj",
       ".gv-row:hover[data-tone=\"off\"] .gv-agent-chip, .gv-row.is-sel[data-tone=\"off\"] .gv-agent-chip",
       ".gv-row[data-tone=\"base\"] .gv-subj",
-      // The git view's file list: the empty tree's sentence; the heading that says whose
+      // The git view's diff: a hunk's address, read to place the
+      // lines under it; the line numbers on an added or removed line's tinted
+      // gutter, kept here by their bed (--muted on the dark tints is under
+      // 4.5:1); and its sentences — the wait for a diff, the note that
+      // another agent edited the file, and every placeholder that says what a
+      // file is when there is no diff to draw.
+      ".gvd-hunk-range",
+      ".gvd-line[data-kind=\"add\"] .gvd-ln, .gvd-line[data-kind=\"add\"] .gvd-glyph",
+      ".gvd-line[data-kind=\"del\"] .gvd-ln, .gvd-line[data-kind=\"del\"] .gvd-glyph",
+      ".gvd-loading",
+      ".gvd-note",
+      ".gvd-placeholder",
+      // Its file list: the empty tree's sentence; the heading that says whose
       // files come first and that the mark is inferred from edit tools; the
       // names of the folder's other changes, a tier under the agent's own so
       // the two groups read apart and still names a reader reads; and the

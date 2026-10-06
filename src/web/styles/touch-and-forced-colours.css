@@ -207,11 +207,13 @@
   .gv-hist { --gv-forced-ink: CanvasText; --gv-forced-mark: Highlight; }
   .gv-row.is-sel::before { forced-color-adjust: none; }
 
-  /* The git view's file list. The pip and the swatch mark the agent's own
-     files beside the words that say so; the selection bar is a state; the
-     frames that say "badge" stay drawn. */
-  .gvf-pip, .gvf-swatch { forced-color-adjust: none; background: CanvasText; }
+  /* The git view's file list and diff. The pip and the swatch mark the
+     agent's own files beside the words that say so; the selection bar is a
+     state; the changed words keep the system's highlight; the frames that
+     say "badge" and "placeholder" stay drawn. */
+  .gvf-pip, .gvf-swatch, .gvd-pill-dot { forced-color-adjust: none; background: CanvasText; }
   .gvf-pip.is-none { background: transparent; }
   .gvf-row.is-sel::before, .gvf-list:focus-within .gvf-row.is-sel::before { forced-color-adjust: none; background: Highlight; }
-  .gvf-stage, .gvf-who.is-other { border-color: CanvasText; }
+  .gvd-word { forced-color-adjust: none; background: Mark; color: MarkText; }
+  .gvf-stage, .gvf-who.is-other, .gvd-area, .gvd-placeholder, .gvd-pill { border-color: CanvasText; }
 }

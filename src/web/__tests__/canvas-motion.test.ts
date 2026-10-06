@@ -271,6 +271,10 @@ const PRESSES: Press[] = [
   // already used; `.sd-close`'s 0.97 was three percent of a 16px box, which is
   // half a pixel and was never visible.
   [".glyph-btn:active:not(:disabled)", "0.94", "transform"],
+  // The git view's diff: the Show latest pill in its header, and the Load
+  // more / Load all words under a long diff. Labelled controls, so 0.97.
+  [".gvd-pill:active", "0.97", "transform"],
+  [".gvd-link:active", "0.97", "transform"],
   // The machine panel's process-table column headers, which stopped being inert
   // cells in #739. 0.97 like every other labelled control: the ink is a
   // three-letter word, and 0.94 of a 40px cell would read as a jump rather than

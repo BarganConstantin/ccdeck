@@ -43,7 +43,8 @@ import type { AgentNodeData } from "../types";
 import { TOOL_LANE_ALLOWANCE } from "../use-camera";
 import { useMirroredRef } from "../use-mirrored-ref";
 import GitHandoffs from "./GitHandoffs";
-import { GitDiffStandIn, GitFilesStandIn } from "./GitViewStandIns";
+import GitDiff from "./GitDiff";
+import GitFiles from "./GitFiles";
 import GitGraph from "./GitGraph";
 
 export type { GitViewHow, GitViewRequest } from "../git-view-request";
@@ -696,17 +697,15 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           {splitter("graph", "horizontal", "Resize the history and the files", "gv-graph", "gv-split-h")}
           <div className="gv-bottom" ref={bottomRef}>
             <section className="gv-files" id="gv-files" aria-label="Files" data-gv-pane="files" ref={filesRef}>
-              <div className="gv-pane-head">
-                <span className="gv-pane-title">{sel === UNCOMMITTED ? "Uncommitted" : <span className="gv-mono">{sel.slice(0, 7)}</span>}</span>
-              </div>
-              <GitFilesStandIn
+              <GitFiles
                 entries={[]} mode={sel === UNCOMMITTED ? "uncommitted" : "commit"} edits={[]} focus={focus}
                 selected={file} onSelect={setFile} onOpen={() => focusPane("diff")} collisions={[]}
+                name={who.label} sha={sel === UNCOMMITTED ? null : sel}
               />
             </section>
             {splitter("files", "vertical", "Resize the files and the diff", "gv-files", "gv-split-v")}
             <section className="gv-diffpane" aria-label="Diff" data-gv-pane="diff">
-              <GitDiffStandIn
+              <GitDiff
                 file={file} diff={null} loading={false} stale={false} onShowLatest={() => {}}
                 wrap={wrap} onToggleWrap={() => { setWrap(!wrap); savePrefs({ ...prefs, wrap: !wrap }); }} collision={null}
               />

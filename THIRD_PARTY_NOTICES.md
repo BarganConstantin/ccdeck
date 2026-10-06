@@ -61,7 +61,7 @@ arrives with its own licence beside it. They are named for completeness, so that
 "what ccdeck ships" and "what ccdeck can run" are not confused. Every one of them
 is off under `AGENTS_DECK_NO_INSTALL=1`.
 
-## Bundled packages (26)
+## Bundled packages (37)
 
 | Package | Version | Licence | Copyright |
 | --- | --- | --- | --- |
@@ -70,6 +70,12 @@ is off under `AGENTS_DECK_NO_INSTALL=1`.
 | `@reactflow/core` | 11.11.4 | MIT | Copyright (c) 2019-2023 webkid GmbH |
 | `@reactflow/minimap` | 11.7.14 | MIT | Copyright (c) 2019-2023 webkid GmbH |
 | `@reactflow/node-resizer` | 2.2.14 | MIT | Copyright (c) 2019-2023 webkid GmbH |
+| `@shikijs/core` | 4.5.0 | MIT | Copyright (c) 2021 Pine Wu; Copyright (c) 2023 Anthony Fu |
+| `@shikijs/engine-javascript` | 4.5.0 | MIT | Copyright (c) 2021 Pine Wu; Copyright (c) 2023 Anthony Fu |
+| `@shikijs/langs` | 4.5.0 | MIT | Copyright (c) 2021 Pine Wu; Copyright (c) 2023 Anthony Fu (the grammars it carries: see §15) |
+| `@shikijs/primitive` | 4.5.0 | MIT | Copyright (c) 2021 Pine Wu; Copyright (c) 2023 Anthony Fu |
+| `@shikijs/types` | 4.5.0 | MIT | Copyright (c) 2021 Pine Wu; Copyright (c) 2023 Anthony Fu |
+| `@shikijs/vscode-textmate` | 10.0.2 | MIT | Copyright (c) Microsoft Corporation |
 | `classcat` | 5.0.5 | MIT | Copyright © Jorge Bucaran <<https://jorgebucaran.com>> |
 | `d3-color` | 3.1.0 | ISC | Copyright 2010-2022 Mike Bostock |
 | `d3-dispatch` | 3.0.1 | ISC | Copyright 2010-2021 Mike Bostock |
@@ -84,9 +90,14 @@ is off under `AGENTS_DECK_NO_INSTALL=1`.
 | `graphlib` | 2.1.8 | MIT | Copyright (c) 2012-2014 Chris Pettitt |
 | `hls.js` | 1.7.3 | Apache-2.0 | Copyright (c) 2017 Dailymotion (http://www.dailymotion.com) |
 | `lodash` | 4.18.1 | MIT | Copyright OpenJS Foundation and other contributors <https://openjsf.org/> |
+| `oniguruma-parser` | 0.12.2 | MIT | Copyright (c) 2025-2026 Steven Levithan |
+| `oniguruma-to-es` | 4.3.6 | MIT | Copyright (c) 2024-2026 Steven Levithan |
 | `react` | 18.3.1 | MIT | Copyright (c) Facebook, Inc. and its affiliates. |
 | `react-dom` | 18.3.1 | MIT | Copyright (c) Facebook, Inc. and its affiliates. |
 | `reactflow` | 11.11.4 | MIT | Copyright (c) 2019-2023 webkid GmbH |
+| `regex` | 6.1.0 | MIT | Copyright (c) 2025 Steven Levithan |
+| `regex-recursion` | 6.0.2 | MIT | Copyright (c) 2025 Steven Levithan |
+| `regex-utilities` | 2.3.0 | MIT | Copyright (c) 2024 Steven Levithan |
 | `scheduler` | 0.23.2 | MIT | Copyright (c) Facebook, Inc. and its affiliates. |
 | `use-sync-external-store` | 1.6.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | `vite` | 6.4.3 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
@@ -107,9 +118,16 @@ custom station in a browser without native HLS (#1208) — but that chunk is in
 changed by ccdeck's relicensing, and no copyleft obligation flows back to
 their authors.
 
-### Declared but not emitted (15)
+The eleven Shiki entries (`@shikijs/*`, `oniguruma-*` and `regex*`) are the git
+view's syntax colours, and none of them is in the page every visit loads
+either: the tokenizer is a worker of its own, `dist/web/assets/git-syntax-worker-*.js`,
+and each grammar is a chunk of its own (`typescript-*.js`, `python-*.js` and so
+on), all fetched the first time a diff of that language is drawn. Like
+`hls-*.js`, they are in `dist/web` and so in the tarball.
 
-Fifteen packages resolve into `node_modules` and do **not** survive the build.
+### Declared but not emitted (4)
+
+Four packages resolve into `node_modules` and do **not** survive the build.
 They were in the table above until #962, which is over-attribution rather than
 under-attribution and so harmless legally — but the paragraph at the top of this
 file says everything in the table is *physically present in the published
@@ -122,27 +140,9 @@ not found.
 | `js-tokens` | 4.0.0 | MIT | `[gmiyus]{1,6}` — a fragment of its one exported regex, which a minifier cannot rename | A browserify transform's dependency, reached only through `loose-envify`. Rollup never invokes it. |
 | `loose-envify` | 1.4.0 | MIT | `[_$a-zA-Z][$\w]+` — the body of its `process.env.` matcher, likewise a regex literal | Same: it is a browserify transform, declared by `react` and never part of a Rollup graph. |
 | `@reactflow/node-toolbar` | 1.3.14 | MIT | `react-flow__node-toolbar` | Tree-shaken. The deck renders no node toolbar, and unlike its siblings this one contributes no stylesheet either. |
-| `shiki` | 4.5.0 | MIT | — nothing of its own to search for | Its entry points (`shiki/core`, `shiki/engine/javascript`, `shiki/langs/*`) only re-export the `@shikijs/*` packages in this table, so no code of its own survives the build. Its licence is the one in §15. |
-| `@shikijs/core` | 4.5.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
-| `@shikijs/engine-javascript` | 4.5.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
-| `@shikijs/langs` | 4.5.0 | MIT | `"scopeName":"source.tsx"` — the TSX grammar's scope name | Not loaded by anything yet: see the note under this table. |
-| `@shikijs/primitive` | 4.5.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
-| `@shikijs/types` | 4.5.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
-| `@shikijs/vscode-textmate` | 10.0.2 | MIT | `No grammar provided for <` — its grammar registry's error message | Not loaded by anything yet: see the note under this table. |
-| `oniguruma-parser` | 0.12.2 | MIT | `Unsupported absence function kind` — an error message of its tokenizer | Not loaded by anything yet: see the note under this table. |
-| `oniguruma-to-es` | 4.3.6 | MIT | `Invalid capture transfer to` — an error message of its transpiler | Not loaded by anything yet: see the note under this table. |
-| `regex` | 6.1.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
-| `regex-recursion` | 6.0.2 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
-| `regex-utilities` | 2.3.0 | MIT | — no string of its own checked | Not loaded by anything yet: see the note under this table. |
+| `shiki` | 4.5.0 | MIT | — nothing of its own to search for | Its entry points (`shiki/core`, `shiki/engine/javascript`, `shiki/langs/*`) only re-export the `@shikijs/*` packages in the table above, so no code of its own survives the build. Its licence is the one in §15. |
 
-The eleven after `shiki` are Shiki, the git view's syntax colours (`src/web/git-syntax.ts`). Nothing in
-the page mounts the diff that loads them yet, so the build leaves them out. Once something does, they
-ship the way `hls.js` does: a worker of their own (`dist/web/assets/git-syntax-worker-*.js`) and one
-chunk per grammar, fetched the first time a diff of that language is drawn and in the tarball like
-every other chunk. Each row then moves to the table above; the needles beside four of them are what
-notices-bundle.test.ts looks for, so the move cannot be forgotten.
-
-Their licence texts are still reproduced below — §3, §6, §7 and §15–§17 — because dropping
+Their licence texts are still reproduced below — §3, §6, §7 and §15 — because dropping
 a notice is the expensive mistake and keeping one is free.
 
 `@reactflow/node-resizer` is deliberately **not** in this list, and it is the one

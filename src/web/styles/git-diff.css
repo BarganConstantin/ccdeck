@@ -1,0 +1,313 @@
+/* The git view's diff (GitDiff.tsx): one file, unified, wrapped by default.
+
+   A line is a grid — old number, new number, glyph, code — and the three
+   gutter cells are sticky, so they stay put while an unwrapped line scrolls
+   sideways. The meaning of a line rides on its +/− glyph and its tinted gutter,
+   never on the line's tint alone (~1.2:1 against the panel), and a screen
+   reader hears "added:" or "removed:". Every word on every tint clears 4.5:1;
+   contrast-floors.test.ts measures the pairs.
+
+   The view's container (`gv`) merges the two number gutters into one under a
+   560px panel, as the mockup does; this pane's own (`gvd`) does the same when
+   it is very narrow wherever it is mounted. */
+.gvd {
+  /* Fills the pane it is mounted in, as a block child (height) or a flex
+     child (flex) — a pane with only a max-height still bounds it. */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  container: gvd / inline-size;
+}
+.gvd-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  min-width: 0;
+  padding: 0 6px 0 var(--panel-inset);
+  border-bottom: 1px solid var(--line-soft);
+}
+.gvd-title-word {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gvd-title {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+/* Cut by measuring, file name whole (git-path-fit.ts): no ellipsis here. */
+.gvd-path {
+  flex: 0 1 auto;
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  font: 12px/1.4 var(--font-mono);
+  white-space: nowrap;
+}
+.gvd-dir, .gvd-base { flex: none; }
+.gvd-dir { color: var(--muted); }
+.gvd-base { color: var(--text); }
+.gvd-area {
+  flex: none;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-tag);
+  color: var(--muted);
+  font: 10px/1 var(--font-mono);
+}
+.gvd-area[data-area="staged"] { border-color: var(--ctl-edge); }
+.gvd-from {
+  flex: 0 3 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font: 11px/1 var(--font-mono);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.gvd-counts {
+  flex: none;
+  display: inline-flex;
+  gap: 6px;
+  font: 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.gvd-add { color: var(--gv-add-ink); }
+.gvd-del { color: var(--gv-del-ink); }
+.gvd-actions { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.glyph-btn.gvd-icon {
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  border-radius: var(--r-tag);
+  color: var(--muted);
+  font-size: 13px;
+}
+.glyph-btn.gvd-icon:hover { color: var(--text); }
+.glyph-btn.gvd-icon[aria-pressed="true"] { background: var(--ctl-fill); color: var(--text); }
+
+/* The diff never changes under the reader: when the file does, this pill sits
+   in the header (GitHub's place for it) until the reader takes the latest. */
+.gvd-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 4px 0 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  animation: gvd-pill-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  transition: background-color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.gvd-pill:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.gvd-pill:active { transform: scale(0.97); }
+.gvd-pill kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: 600 10px/1 var(--font-mono);
+}
+.gvd-pill-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+@keyframes gvd-pill-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes gvd-fade-in { from { opacity: 0; } }
+
+.gvd-note {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 10px 4px var(--panel-inset);
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+.gvd-note svg { flex: none; color: var(--err); }
+.gvd-note b { color: var(--text); font-weight: 600; }
+
+.gvd-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font: 12px/20px var(--font-mono);
+}
+/* The shared ring, inset: the scroller would clip it at its edges. */
+.gvd-scroll:focus-visible { outline-offset: -2px; }
+.gvd-diff { width: max-content; min-width: 100%; padding-bottom: 12px; }
+/* A hunk's header and the load-more row share the lines' columns, so their
+   words start where the code does. */
+.gvd-hunk {
+  display: grid;
+  grid-template-columns: 44px 44px 18px auto minmax(0, 1fr);
+  align-items: center;
+  min-height: 24px;
+  margin: 10px 0 2px;
+  padding-right: 14px;
+  border-block: 1px solid var(--line-soft);
+  background: var(--gv-hunk-bg);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.gvd-hunk:first-child { margin-top: 0; }
+.gvd-hunk-range { grid-column: 4; padding-left: 4px; color: var(--text-secondary); }
+/* One line, always: the enclosing function git found is cut, whole in its title. */
+.gvd-hunk-ctx { grid-column: 5; min-width: 0; padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }
+.gvd .gvd-line { display: grid; grid-template-columns: 44px 44px 18px auto; min-height: 20px; }
+.gvd-ln, .gvd-glyph { position: sticky; z-index: 1; background: var(--panel); user-select: none; }
+.gvd-ln {
+  padding-right: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.gvd-ln.n1 { left: 0; }
+.gvd-ln.n2 { left: 44px; }
+.gvd-glyph { left: 88px; font-weight: 600; text-align: center; }
+.gvd-code { padding: 0 24px 0 4px; color: var(--text); white-space: pre; tab-size: 4; }
+.gvd-line[data-kind="add"] { background: var(--gv-add-bg); }
+.gvd-line[data-kind="del"] { background: var(--gv-del-bg); }
+.gvd-line[data-kind="add"] .gvd-ln, .gvd-line[data-kind="add"] .gvd-glyph { background: var(--gv-add-gutter); color: var(--text-secondary); }
+.gvd-line[data-kind="del"] .gvd-ln, .gvd-line[data-kind="del"] .gvd-glyph { background: var(--gv-del-gutter); color: var(--text-secondary); }
+.gvd-line[data-kind="add"] .gvd-glyph { color: var(--gv-add-ink); }
+.gvd-line[data-kind="del"] .gvd-glyph { color: var(--gv-del-ink); }
+.gvd-word { padding: 1px 0; border-radius: 2px; color: inherit; }
+.gvd-line[data-kind="add"] .gvd-word { background: var(--gv-add-word); }
+.gvd-line[data-kind="del"] .gvd-word { background: var(--gv-del-word); }
+.syn-kw { color: var(--gv-syn-kw); }
+.syn-str { color: var(--gv-syn-str); }
+.syn-com { color: var(--gv-syn-com); font-style: italic; }
+.gvd-noeol { margin-left: 6px; color: var(--muted); font-size: 11px; }
+/* Show latest: the lines that are new glow once, a colour and nothing that
+   moves, so reduced motion keeps it. */
+.gvd-line[data-fresh] .gvd-code { animation: gvd-glow 1000ms ease-out; }
+@keyframes gvd-glow {
+  0%, 25% { background-color: color-mix(in srgb, var(--accent) 22%, transparent); }
+  100% { background-color: transparent; }
+}
+
+/* Wrap (on by default, remembered): long lines fold instead of scrolling. */
+.gvd[data-wrap="true"] .gvd-diff { width: auto; }
+.gvd[data-wrap="true"] .gvd-line { grid-template-columns: 44px 44px 18px minmax(0, 1fr); }
+.gvd[data-wrap="true"] .gvd-code { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.gvd-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px 0 0;
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font: 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.gvd-link {
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--r-tag);
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.gvd-more::before { content: ""; flex: none; width: 102px; }
+.gvd-link:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.gvd-link:active { transform: scale(0.97); }
+
+/* Every state that is not a diff says what it is, at the top of the pane. */
+.gvd-empty,
+.gvd-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 32px 24px;
+  color: var(--text-secondary);
+  font: 12px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.gvd-placeholder { margin: 16px; padding: 24px; border: 1px dashed var(--line); border-radius: var(--r-panel); }
+.gvd-empty b, .gvd-placeholder b { color: var(--text); font-size: 13px; font-weight: 600; }
+.gvd-placeholder .gvd-mono { font: 11px/18px var(--font-mono); }
+button.btn.gvd-show { margin-top: 4px; }
+
+/* Switching files: the last diff stays for a moment so the pane never flashes
+   empty, and only a wait long enough to notice says so. */
+.gvd-pending { animation: gvd-hold 0s linear 200ms forwards; }
+@keyframes gvd-hold { to { visibility: hidden; } }
+.gvd-loading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 0;
+  overflow: visible;
+  padding: 32px 24px 0;
+  color: var(--text-secondary);
+  font: 12px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  opacity: 0;
+  animation: gvd-appear 150ms ease-out 200ms forwards;
+}
+@keyframes gvd-appear { to { opacity: 1; } }
+
+@container gvd (max-width: 640px) {
+  .gvd-pill-long { display: none; }
+}
+/* One number gutter: the new line's number, or the old one on a removed line. */
+@container gv (max-width: 560px) {
+  .gvd[data-wrap] .gvd-line { grid-template-columns: 40px 16px auto; }
+  .gvd[data-wrap="true"] .gvd-line { grid-template-columns: 40px 16px minmax(0, 1fr); }
+  .gvd-ln.n1 { display: none; }
+  .gvd-ln.n2 { left: 0; }
+  .gvd-glyph { left: 40px; }
+  .gvd-line[data-kind="del"] .gvd-ln.n2::before { content: attr(data-old); }
+  .gvd-hunk { grid-template-columns: 40px 16px auto minmax(0, 1fr); }
+  .gvd-hunk-range { grid-column: 3; }
+  .gvd-hunk-ctx { grid-column: 4; }
+  .gvd-more::before { width: 52px; }
+}
+@container gvd (max-width: 380px) {
+  .gvd[data-wrap] .gvd-line { grid-template-columns: 40px 16px auto; }
+  .gvd[data-wrap="true"] .gvd-line { grid-template-columns: 40px 16px minmax(0, 1fr); }
+  .gvd-ln.n1 { display: none; }
+  .gvd-ln.n2 { left: 0; }
+  .gvd-glyph { left: 40px; }
+  .gvd-line[data-kind="del"] .gvd-ln.n2::before { content: attr(data-old); }
+  .gvd-hunk { grid-template-columns: 40px 16px auto minmax(0, 1fr); }
+  .gvd-hunk-range { grid-column: 3; }
+  .gvd-hunk-ctx { grid-column: 4; }
+  .gvd-more::before { width: 52px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gvd-pill { animation: gvd-fade-in 150ms ease-out both; }
+  .gvd-pill:active { transform: none; }
+  .gvd-link:active { transform: none; }
+}
