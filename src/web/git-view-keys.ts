@@ -77,6 +77,17 @@ export function viewKeyIntent(
   return { kind: "swallow" };
 }
 
+/** Where focus goes back to when what held it inside the view has left the
+ *  page with its data — a file row whose file was committed or put back, a
+ *  commit row amended away, the Uncommitted row of a detached HEAD gone
+ *  clean. Focus would otherwise fall to the page, where every deck key acts
+ *  again. Null when nothing was lost: the holder is still on the page (a
+ *  click on the canvas, another window), or something else has focus. */
+export function paneForLostFocus(lost: { connected: boolean; pane: GitViewPane | null } | null, onPage: boolean): GitViewPane | null {
+  if (!lost || lost.connected || !onPage) return null;
+  return lost.pane ?? "graph";
+}
+
 /** What a key does to a divider (the WAI-ARIA window splitter): a step in
  *  pixels along its axis, a jump to one end, or back to the default. */
 export type SplitterMove = { step: number } | { to: "min" | "max" | "reset" };

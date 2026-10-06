@@ -35,6 +35,21 @@ describe("a pane asked for focus before its rows are drawn", () => {
   });
 });
 
+describe("a row that held focus and is gone", () => {
+  it("remembers what last held focus in the view, and in which pane", () => {
+    expect(view).toMatch(/lostFrom\.current = \{ el: e\.target as HTMLElement, pane: p \};/);
+  });
+
+  it("hands focus back to that pane after the render that removed it, while the view is open", () => {
+    const at = view.indexOf("const lostFrom = useRef");
+    const body = view.slice(at, view.indexOf("actions.current = { focusPane", at));
+    expect(body).toMatch(/useLayoutEffect\(\(\) => \{\s*const was = lostFrom\.current;/);
+    expect(body).toMatch(/if \(!request\.open \|\| !was\) return;/);
+    expect(body).toMatch(/paneForLostFocus\(\{ connected: was\.el\.isConnected, pane: was\.pane \}, !active \|\| active === document\.body\)/);
+    expect(body).toMatch(/if \(p\) \{ lostFrom\.current = null; focusPane\(p\); \}/);
+  });
+});
+
 describe("an edge marker activated", () => {
   it("hands focus to its agent's card once the frame has made it a Tab stop: the marker itself is gone", () => {
     expect(view).toMatch(/onGo=\{id => \{ focusAfterFrame\.current = id; onSelectAgent\(id\); \}\}/);

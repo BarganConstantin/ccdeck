@@ -1,7 +1,7 @@
 // The git view owns its keys: what the view answers itself, what it stops
 // before it reaches the deck, and how its dividers move from the keyboard.
 import { describe, expect, it } from "vitest";
-import { gitKeyAllowed, inKeyScope, splitterMove, viewKeyIntent, type ViewKeyWhere } from "../git-view-keys";
+import { gitKeyAllowed, inKeyScope, paneForLostFocus, splitterMove, viewKeyIntent, type ViewKeyWhere } from "../git-view-keys";
 
 const key = (k: string, mods: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {}) =>
   ({ key: k, ctrlKey: false, metaKey: false, altKey: false, ...mods });
@@ -58,6 +58,30 @@ describe("a keystroke inside the view", () => {
   it("leaves a text field every key but Esc", () => {
     expect(viewKeyIntent(key("g"), at(null, { typing: true }))).toEqual({ kind: "swallow" });
     expect(viewKeyIntent(key("Escape"), at(null, { typing: true }))).toEqual({ kind: "close" });
+  });
+});
+
+describe("focus whose holder left the page with its data", () => {
+  // A file row whose file was committed or put back, a commit row amended
+  // away, the Uncommitted row of a detached HEAD gone clean: the node that
+  // held focus is removed, focus falls to the page, and every deck key acts
+  // again — R re-arranges the board and drops every pin.
+  it("goes back to the pane that held it", () => {
+    expect(paneForLostFocus({ connected: false, pane: "files" }, true)).toBe("files");
+    expect(paneForLostFocus({ connected: false, pane: "graph" }, true)).toBe("graph");
+    expect(paneForLostFocus({ connected: false, pane: "diff" }, true)).toBe("diff");
+  });
+
+  it("goes to the history when what held it sat outside the panes", () => {
+    expect(paneForLostFocus({ connected: false, pane: null }, true)).toBe("graph");
+  });
+
+  it("stays where it is when nothing was lost", () => {
+    // Still on the page: a click on the canvas, another window, a pane that moved focus itself.
+    expect(paneForLostFocus({ connected: true, pane: "files" }, true)).toBeNull();
+    // Something else already has it.
+    expect(paneForLostFocus({ connected: false, pane: "files" }, false)).toBeNull();
+    expect(paneForLostFocus(null, true)).toBeNull();
   });
 });
 

@@ -24,7 +24,7 @@ import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
 import { foldMarkers, gitViewFrame, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
-import { splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
+import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
   GIT_VIEW_DEFAULTS, edgeBounds, filesBounds, graphBounds, clampTo, isSheet, panelWidth, readGitViewPrefs,
@@ -681,6 +681,18 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     if (document.activeElement === panelRef.current?.querySelector(`[data-gv-pane="${p}"]`)) focusPane(p);
     else pendingPane.current = null;
   });
+  // What last held focus in the view can leave the page with its data — a
+  // file committed or put back, a commit amended away, the Uncommitted row of
+  // a detached HEAD gone clean — and focus would fall to the page, where every
+  // deck key acts again. Its pane takes focus back in the same frame.
+  const lostFrom = useRef<{ el: HTMLElement; pane: GitViewPane | null } | null>(null);
+  useLayoutEffect(() => {
+    const was = lostFrom.current;
+    if (!request.open || !was) return;
+    const active = document.activeElement;
+    const p = paneForLostFocus({ connected: was.el.isConnected, pane: was.pane }, !active || active === document.body);
+    if (p) { lostFrom.current = null; focusPane(p); }
+  });
   actions.current = { focusPane, newest: view.showLatest };
   // `n` from the deck, with focus outside the view, reaches the same action.
   useEffect(() => { setGitViewNewest(view.showLatest); return () => setGitViewNewest(null); }, [view.showLatest]);
@@ -868,6 +880,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
       {!sheet && splitter("edge", "vertical", "Resize the git view", "gv-panel", "gv-edge")}
       <div className="gv-inner" id="gv-panel" onFocus={e => {
         const p = (e.target as HTMLElement).closest?.("[data-gv-pane]")?.getAttribute("data-gv-pane") as GitViewPane | null;
+        lostFrom.current = { el: e.target as HTMLElement, pane: p };
         if (p && p !== pane) setPane(p);
       }}>
         <header className="gv-head" ref={headRef}>
