@@ -427,6 +427,11 @@
 :root[data-git-view] .react-flow__minimap,
 :root[data-git-view] .autofit-chip { visibility: hidden; }
 :root[data-git-view="sheet"] .app > main { visibility: hidden; }
+/* A session cluster's name tag the view put under the canvas's filter bar is
+   covered as one under the panel is: out of the Tab order (inert) and, since
+   the bar turns see-through over what it covers, not drawn either. A tag under
+   the panel is inert too, and the panel already hides it. */
+:root[data-git-view] .cluster-label[inert] { visibility: hidden; }
 
 /* An agent waiting on you that the camera could not keep in view beside the
    panel: --warn, because that is the one thing --warn means; one that failed

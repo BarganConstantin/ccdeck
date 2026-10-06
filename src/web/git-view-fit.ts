@@ -103,6 +103,12 @@ export function markerTop(card: FlowBox, viewport: { y: number; zoom: number }, 
 /** A box on the canvas, in px from its top left. */
 export interface PaneBox { left: number; right: number; top: number; bottom: number }
 
+/** Whether two boxes share any area: a tag that reaches a pixel under the
+ *  canvas's own chrome is under it. */
+export function boxesOverlap(a: PaneBox, b: PaneBox): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
 /** An edge marker's height (`.gv-edge-mark`). */
 export const MARKER_H = 24;
 

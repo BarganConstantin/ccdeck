@@ -3,12 +3,13 @@
 // card can keep its full face, and a marker for each one that could not be.
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  boxesOverlap, clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
   MARKER_H,
 } from "../git-view-fit";
 import { LABEL_LIFT } from "../session-chrome";
 import { DETAIL_ENTER_ZOOM } from "../semantic-zoom";
 import { sourceOf } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const card = (id: string, x: number, y: number) => ({ id, x, y, width: 260, height: 120, lane: 0 });
 const pane = { width: 1080, height: 848 };
@@ -148,6 +149,25 @@ describe("the edge markers beside the cluster name tags", () => {
     const edge = view.slice(view.indexOf("function EdgeMarkers("), view.indexOf("// ── the panel"));
     expect(edge).toMatch(/clearOfLabels\(/);
     expect(edge).toMatch(/useLayoutEffect\(/);
+  });
+});
+
+describe("the canvas's filter bar beside the open view", () => {
+  const bar = { left: 0, right: 217, top: 10, bottom: 42 };
+
+  it("covers a name tag that reaches under it, by a pixel or more, and no other", () => {
+    expect(boxesOverlap({ left: 121, right: 271, top: 38, bottom: 56 }, bar)).toBe(true);
+    expect(boxesOverlap({ left: 121, right: 271, top: 42, bottom: 60 }, bar)).toBe(false);
+    expect(boxesOverlap({ left: 217, right: 300, top: 20, bottom: 38 }, bar)).toBe(false);
+  });
+
+  it("is counted as covered when the frame places the tags: a tag under it leaves the Tab order and is not drawn", () => {
+    const view = sourceOf("components/GitView.tsx");
+    expect(view).toMatch(/const underBar = barBox !== null && boxesOverlap\(tag, barBox\);/);
+    expect(view).toMatch(/\(covered \|\| underBar \? under : clear\)\.add\(el\);/);
+    // Neither is a tag an edge marker has to keep off.
+    expect(view).toMatch(/if \(covered \|\| underBar \|\| r\.width <= 0\) continue;/);
+    expect(sheetText()).toMatch(/:root\[data-git-view\] \.cluster-label\[inert\] \{ visibility: hidden; \}/);
   });
 });
 

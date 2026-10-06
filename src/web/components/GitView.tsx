@@ -24,7 +24,7 @@ import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
 import {
-  clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  boxesOverlap, clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
   type FitCard, type PaneBox, type SessionCard,
 } from "../git-view-fit";
 import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
@@ -239,17 +239,22 @@ export default function GitView(props: GitViewProps) {
       (whollyCovered({ left, right: left + (m?.width ?? 0) * zoom }, coverLeft) ? under : clear).add(el);
     }
     // So do the session clusters' name tags, anchored on the same plane
-    // (drawn at one size whatever the zoom): where each one's left edge lands
-    // once the camera has moved.
+    // (drawn at one size whatever the zoom): where each one lands once the
+    // camera has moved. The filter bar's corner counts as covered too: a tag
+    // of a session outside the frame that lands under it leaves the Tab order
+    // and is not drawn (the sheet), rather than reading through the bar.
+    const barBox: PaneBox | null = bar && bar.height > 0 ? { left: bar.left - rect.left, right: bar.right - rect.left, top: bar.top - rect.top, bottom: bar.bottom - rect.top } : null;
     const boxes: PaneBox[] = [];
     for (const el of canvas.querySelectorAll<HTMLElement>(".cluster-label")) {
       const r = el.getBoundingClientRect();
       const left = rect.left + x + ((r.left - rect.left - was.x) / was.zoom) * zoom;
       const covered = whollyCovered({ left, right: left + r.width }, coverLeft);
-      (covered ? under : clear).add(el);
-      if (covered || r.width <= 0) continue;
       const tagTop = labelTopAt(r.top - rect.top, was, plan.viewport);
-      boxes.push({ left: left - rect.left, right: left - rect.left + r.width, top: tagTop, bottom: tagTop + r.height });
+      const tag: PaneBox = { left: left - rect.left, right: left - rect.left + r.width, top: tagTop, bottom: tagTop + r.height };
+      const underBar = barBox !== null && boxesOverlap(tag, barBox);
+      (covered || underBar ? under : clear).add(el);
+      if (covered || underBar || r.width <= 0) continue;
+      boxes.push(tag);
     }
     setLabelBoxes(plan.leftOut.length ? boxes : NO_BOXES);
     setInert(clear, false, inertCards);
