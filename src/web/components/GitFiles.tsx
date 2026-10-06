@@ -394,7 +394,7 @@ function tooltip(row: FileRow): string {
 }
 
 function Counts({ added, removed, binary }: { added: number; removed: number; binary: boolean }) {
-  if (binary) return <span className="gvf-counts"><span className="gvf-bin" title="binary file">bin</span></span>;
+  if (binary) return <span className="gvf-counts"><span className="gvf-bin" title="binary file"><span aria-hidden="true">bin</span><span className="vis-hidden">binary file</span></span></span>;
   return (
     <span className="gvf-counts">
       {added > 0 && <span className="gvf-add">+{groupDigits(added)}<span className="vis-hidden"> added</span></span>}

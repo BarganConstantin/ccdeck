@@ -44,7 +44,7 @@ describe("a subagent working in another folder, from the files pane", () => {
 describe("counts in the glance", () => {
   it("ends a file row with its counts, the file's sides added together", () => {
     expect(glance).toMatch(/const n = pathCounts\(data\.entries \?\? \[\], f\.path\);/);
-    expect(glance).toMatch(/<span className="gv-g-counts"><span className="gv-g-bin" title="binary file">bin<\/span><\/span>/);
+    expect(glance).toMatch(/<span className="gv-g-counts"><span className="gv-g-bin" title="binary file"><span aria-hidden="true">bin<\/span><span className="vis-hidden">binary file<\/span><\/span><\/span>/);
     expect(glance).toContain("groupDigits(n.added)");
   });
 

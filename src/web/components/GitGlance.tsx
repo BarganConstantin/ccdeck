@@ -13,13 +13,13 @@ import { useEffect, useRef, type CSSProperties, type MutableRefObject, type Reac
 import { goToAgentCard, pressHow } from "../agent-goto";
 import { agentNameIn, collisionTarget, otherAgentName } from "../git-agent-name";
 import { groupDigits } from "../git-diff-parse";
-import { pathCounts } from "../git-files-model";
+import { changeMark, pathCounts } from "../git-files-model";
 import { useGitOn } from "../git-pref";
 import { openGitViewFrom } from "../git-view-request";
 import { gitFactsFor, gitFocus, gitViewOpens, subagentKey } from "../git-view-target";
 import { UNCOMMITTED, type GitFileRef } from "../git-view-types";
 import {
-  collisionsFor, commitMark, commitWho, shortAge, subjectParts, upstreamWords,
+  collisionsFor, commitMark, commitWho, endedAt, shortAge, subjectParts, upstreamWords,
 } from "../git-view-words";
 import type { GraphState } from "../reducer";
 import { sessionHue } from "../session-hue";
@@ -27,11 +27,6 @@ import type { AgentNodeData } from "../types";
 import { changedFiles, madeByFocus, useGitData } from "../use-git-view";
 import GitHandoffs from "./GitHandoffs";
 import { CollisionLine, GvIcon, GvMark, ReadStateLine, useFittedName } from "./GitViewParts";
-
-/** The status letter a file row shows, with its word for a screen reader. */
-const STATUS_WORD: Record<string, string> = {
-  M: "modified", A: "added", D: "deleted", R: "renamed", C: "copied", U: "conflict", T: "type changed", "?": "untracked",
-};
 
 /** A path split for drawing: the folder quieter than the file's own name. */
 const splitPath = (p: string): [string, string] => {
@@ -83,9 +78,10 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   // From a pointer the view slides in; from Enter or Space it opens at once.
   const open = (e: { detail: number }, hints: { sel?: string | null; file?: GitFileRef | null } = {}) =>
     openGitViewFrom(pressHow(e), { agentId: agent.id, focusInside: true, ...hints });
+  // The section and its heading are named "Git" alone, not after the button in it.
   const heading = (
-    <h3 id={`gv-glance-${agent.id}`}>
-      Git
+    <h3 aria-labelledby={`gv-glance-${agent.id}`}>
+      <span id={`gv-glance-${agent.id}`}>Git</span>
       {readable && (data.state === "repo" || data.state === "loading") && (
         <button type="button" className="gv-open" title="Open the git view (g)" onClick={e => open(e)}>Open<kbd>g</kbd></button>
       )}
@@ -119,7 +115,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   const shownFiles = mine.slice(0, 2);
   const moreCommits = Math.max(0, own.length - showCommits);
   const moreFiles = Math.max(0, files.length - shownFiles.length);
-  const ended = agent.state === "done" && agent.endedAt != null;
+  const ended = endedAt(agent);
   const hue = sessionHue(agent.sessionId);
 
   return section(
@@ -130,9 +126,9 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         {head?.unborn ? <span className="gv-ahead">no commits yet</span>
           : upstream && <span className="gv-ahead" title={upstream.title}>{upstream.text}</span>}
       </div>
-      {ended && (
+      {ended != null && (
         <p className="gv-note">
-          Ended {shortAge(agent.endedAt!, now) === "now" ? "just now" : `${shortAge(agent.endedAt!, now)} ago`}. Its commits stay marked; the files are the folder as it is now.
+          Ended {shortAge(ended, now) === "now" ? "just now" : `${shortAge(ended, now)} ago`}. Its commits stay marked; the files are the folder as it is now.
         </p>
       )}
       {collision && (
@@ -158,8 +154,8 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         : <div className="gv-g-files-head"><b>{files.length}</b> file{files.length === 1 ? "" : "s"} changed · <b>{mine.length}</b> by this {scopeWord}</div>)}
       {shownFiles.map(f => {
         const [dir, base] = splitPath(f.path);
-        const letter = f.entry.change.slice(0, 1).toUpperCase();
-        const word = STATUS_WORD[letter] ?? f.entry.change;
+        // The letter and word the files pane gives the same change.
+        const { letter, word } = changeMark(f.entry.change);
         // The file's sides added together, as one file changed; nothing when unknown.
         const n = pathCounts(data.entries ?? [], f.path);
         return (
@@ -172,7 +168,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
             <span className="gv-st" title={word}><span aria-hidden="true">{letter}</span><span className="vis-hidden">{word}</span></span>
             <span className="gv-path"><span className="gv-dir">{dir}</span><span className="gv-base">{base}</span></span>
             {n && (n.binary
-              ? <span className="gv-g-counts"><span className="gv-g-bin" title="binary file">bin</span></span>
+              ? <span className="gv-g-counts"><span className="gv-g-bin" title="binary file"><span aria-hidden="true">bin</span><span className="vis-hidden">binary file</span></span></span>
               : (n.added > 0 || n.removed > 0) && (
                 <span className="gv-g-counts">
                   {n.added > 0 && <span className="gv-g-add">+{groupDigits(n.added)}<span className="vis-hidden"> added</span></span>}

@@ -3,7 +3,17 @@
 // the agent in view, who made a commit and how the deck knows, and the one
 // line a pane says when there is no repository to show.
 import type { CommitAgent, GitReadState, GraphFocus, Repo } from "./git-view-types";
-import type { GitCollisionRef, GitCollisions } from "./types";
+import type { AgentNodeData, GitCollisionRef, GitCollisions } from "./types";
+
+/** When the agent's work really ended, or undefined while it may go on. A
+ *  session's root ends only with the session (a SessionEnd, or the deck giving
+ *  up on it): its `endedAt` says just that its last turn finished, which is
+ *  true of an idle terminal about to be typed into. A subagent is done when it
+ *  stopped. */
+export function endedAt(agent: Pick<AgentNodeData, "kind" | "state" | "endedAt" | "closedAt">): number | undefined {
+  if (agent.kind === "root") return agent.closedAt;
+  return agent.state === "done" ? agent.endedAt : undefined;
+}
 
 /** The branch against its upstream, as of the last fetch somebody made. */
 export function upstreamWords(repo: Pick<Repo, "upstream" | "head"> | null): { text: string; title: string; word: boolean } | null {
