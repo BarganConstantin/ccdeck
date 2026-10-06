@@ -2,7 +2,7 @@
 // the whole path cut only when the name alone does not fit — and one file
 // listed twice cut the same way in both rows.
 import { describe, expect, it } from "vitest";
-import { cachedMeasure, fitPath, fitShared, middleCut, nameFits, splitPath } from "../git-path-fit";
+import { cachedMeasure, fitPath, fitShared, middleCut, nameFits, splitPath, units, type Measure } from "../git-path-fit";
 
 /** A monospace font at 7px a character, the ellipsis included. */
 const mono: (text: string) => number = text => [...text].length * 7;
@@ -128,5 +128,37 @@ describe("the width cache", () => {
     const m = cachedMeasure(text => { calls++; return text.length; }, 2);
     m("a"); m("b"); m("c"); m("a");
     expect(calls).toBe(4);
+  });
+});
+
+describe("cutting by what a reader sees as one character", () => {
+  const c = (...cps: number[]) => String.fromCodePoint(...cps);
+  const PARTY = c(0x1f389);
+  const lone = (s: string) => /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(s);
+  // Every character one unit wide: the cut is decided by count alone.
+  const mono: Measure = t => units(t).length;
+
+  it("never cuts a surrogate pair in half", () => {
+    const folder = `edge/${PARTY.repeat(16)}-folder`;
+    for (let room = 4; room < 30; room++) {
+      const cut = middleCut(folder, room, mono);
+      expect(lone(cut), `room ${room}: ${cut}`).toBe(false);
+      expect(units(cut).length).toBeLessThanOrEqual(room);
+    }
+    const fit = fitPath(`${folder}/inner-file.ts`, 20, mono);
+    expect(lone(fit.dir + fit.base)).toBe(false);
+  });
+
+  it("keeps an emoji with its joiners and a letter with its marks whole", () => {
+    const family = c(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467);
+    expect(units(`a${family}b`)).toEqual(["a", family, "b"]);
+    const cut = middleCut(`${family.repeat(6)}`, 3, mono);
+    expect(cut.replace("…", "").split(family).every(p => p === "")).toBe(true);
+  });
+
+  it("keeps a hidden character's drawn code point as one unit", () => {
+    expect(units("a⟨U+202E⟩b")).toEqual(["a", "⟨U+202E⟩", "b"]);
+    const cut = middleCut("x⟨U+202E⟩".repeat(8), 5, mono);
+    expect(cut).not.toMatch(/⟨U\+[0-9A-F]*$|^[0-9A-F]*⟩/);
   });
 });

@@ -73,3 +73,39 @@ describe("a hunk", () => {
     expect(hunkWordMarks(h.lines).size).toBe(0);
   });
 });
+
+describe("a changed emoji or syllable", () => {
+  const c = (...cps: number[]) => String.fromCodePoint(...cps);
+  const family = (kid: number) => c(0x1f468, 0x200d, 0x1f469, 0x200d, kid);
+  // A mark starts and ends on a grapheme boundary of its line.
+  const whole = (text: string, ranges: Array<[number, number]>) => {
+    const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    const edges = new Set([0, text.length]);
+    for (const s of seg.segment(text)) edges.add(s.index);
+    return ranges.every(([s, e]) => edges.has(s) && edges.has(e));
+  };
+
+  it("keeps an emoji with its joiners, modifiers and variation selector as one token", () => {
+    expect(tokenize(`x ${family(0x1f467)} y`)).toEqual(["x", " ", family(0x1f467), " ", "y"]);
+    expect(tokenize(c(0x1f44d, 0x1f3fd))).toEqual([c(0x1f44d, 0x1f3fd)]);
+    expect(tokenize(c(0x1f1f2, 0x1f1e9))).toEqual([c(0x1f1f2, 0x1f1e9)]);
+  });
+
+  it("keeps a letter with its combining marks", () => {
+    const namaste = c(0x928, 0x92e, 0x938, 0x94d, 0x924, 0x947);
+    expect(tokenize(namaste)).toEqual([namaste]);
+  });
+
+  it("marks the whole emoji or word that changed, never a code point inside one", () => {
+    for (const [a, b] of [
+      [`emoji ${family(0x1f467)} family`, `emoji ${family(0x1f466)} family`],
+      [`thumb ${c(0x1f44d)} ok`, `thumb ${c(0x1f44d, 0x1f3fd)} ok`],
+      [`${c(0x928, 0x92e, 0x938, 0x94d, 0x924, 0x947)} world`, `${c(0x928, 0x92e, 0x938, 0x94d, 0x915, 0x93e, 0x930)} world`],
+    ]) {
+      const d = wordDiff(a, b)!;
+      expect(d.a.length + d.b.length).toBeGreaterThan(0);
+      expect(whole(a, d.a), a).toBe(true);
+      expect(whole(b, d.b), b).toBe(true);
+    }
+  });
+});
