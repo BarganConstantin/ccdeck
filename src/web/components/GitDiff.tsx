@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { forwardRef, memo, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fmtBytes } from "../byte-format";
 import { copyText } from "../copy-text";
 import {
@@ -45,6 +45,22 @@ export const HEAD_GAP = 8;
 
 /** Each syntax tone's class, spelled out so the sheet's rules can be found. */
 const SYN_CLASS = { kw: "syn-kw", str: "syn-str", com: "syn-com" } as const;
+
+/** Lines per block: the unit a diff is drawn in, and skipped in once it is
+ *  long. */
+export const BLOCK_LINES = 100;
+/** From this many lines drawn on, only the blocks near the part of the diff
+ *  on screen are rendered, and the others hold their height: a whole large
+ *  diff stays as quick to scroll, wrap and leave as its first 400 lines. */
+export const WINDOW_FROM = 1200;
+/** How far above and below what is on screen blocks stay rendered. */
+const WINDOW_MARGIN = "800px 0px";
+/** A line's height and a hunk header's (24px, its borders and the 10px above
+ *  it), for a block not drawn yet; `.gvd-line` and `.gvd-hunk` in the sheet. */
+const LINE_PX = 20;
+const HUNK_PX = 36;
+/** Blocks drawn on the first frame of a windowed diff, by their estimated top. */
+const FIRST_PX = 1600;
 
 /** Whether diffs wrap long lines: on unless the reader turned it off. */
 export function readDiffWrap(): boolean {
@@ -131,20 +147,35 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   const collapsed = file && parsed && parsed.hunks.length ? collapsedKind(file.path, parsed) : null;
   const showTable = !!parsed && parsed.hunks.length > 0 && (!collapsed || expanded) && !parsed.binary;
   const budgeted = useMemo(() => (showTable && parsed ? budgetHunks(parsed.hunks, steps) : null), [showTable, parsed, steps]);
-  const marks = useMemo(() => budgeted?.hunks.map(h => hunkWordMarks(h.lines)) ?? [], [budgeted]);
 
   // Syntax: each hunk's old side and new side tokenized as runs of lines, so a
   // comment or a string spanning lines reads whole. Plain until they arrive.
   const lang = file ? langOf(file.path) : null;
-  const { docs, sideAt } = useMemo(() => sideDocs(budgeted?.hunks ?? []), [budgeted]);
+  const { docs, sideAt } = useMemo(() => sideDocs(lang ? budgeted?.hunks ?? [] : []), [budgeted, lang]);
   const [colored, setColored] = useState<{ docs: string[]; spans: LineSpans[][] } | null>(null);
-  const spans = (colored && colored.docs === docs ? colored.spans : null) ?? cachedSpans(lang, docs);
+  const known = useMemo(() => cachedSpans(lang, docs), [lang, docs]);
+  const spans = (colored && colored.docs === docs ? colored.spans : null) ?? known;
   useEffect(() => {
     if (!lang || !docs.length || cachedSpans(lang, docs)) return;
     let live = true;
     highlightDocs(lang, docs).then(s => { if (live && s) setColored({ docs, spans: s }); });
     return () => { live = false; };
   }, [lang, docs]);
+
+  // A long diff is drawn in blocks, and past WINDOW_FROM lines only the blocks
+  // near the scroller's view are rendered; each one skipped holds the height
+  // it was last drawn at, or an estimate, so the scrollbar tells the truth.
+  const blocks = useMemo(() => (budgeted ? blocksOf(budgeted.hunks) : []), [budgeted]);
+  const windowed = !!budgeted && budgeted.shown >= WINDOW_FROM && typeof IntersectionObserver !== "undefined";
+  const heights = useRef(new Map<string, number>());
+  useEffect(() => { heights.current = new Map(); }, [fileKey, wrap]);
+  const watch = useWindow(scrollRef, windowed);
+  const rows = useMemo<RowsCtx | null>(
+    () => (budgeted ? { hunks: budgeted.hunks, spans, sideAt, fresh } : null),
+    [budgeted, spans, sideAt, fresh],
+  );
+  // Unwrapped and windowed, the diff is as wide as its longest line, drawn or not.
+  const cols = useMemo(() => (windowed && !wrap && budgeted ? widestLine(budgeted.hunks) : 0), [windowed, wrap, budgeted]);
 
   // The header's path is cut to the room its row leaves it, file name whole.
   useLayoutEffect(() => {
@@ -169,7 +200,9 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   }, [file?.path, headWidth, stale, diff, loading]);
 
   // The body last drawn, kept on screen for a moment while the next file's
-  // diff is on its way, so switching files never flashes an empty pane.
+  // diff is on its way, so switching files never flashes an empty pane. It
+  // stays the very element it was, in the same wrapper, so keeping it costs
+  // nothing: React has nothing to draw again.
   const lastBody = useRef<React.ReactNode>(null);
 
   if (!file) {
@@ -185,15 +218,20 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     );
   }
 
-  let body: React.ReactNode;
+  const pending = !diff && loading && lastBody.current != null;
+  let content: React.ReactNode;
   if (!diff) {
-    body = loading && lastBody.current
-      ? <><div className="gvd-pending" aria-hidden="true">{lastBody.current}</div><Loading /></>
-      : loading ? <Loading /> : <Placeholder title="Nothing to show yet." />;
+    content = pending ? lastBody.current : loading ? null : <Placeholder title="Nothing to show yet." />;
   } else {
-    body = renderBody();
-    lastBody.current = body;
+    content = renderBody();
+    lastBody.current = content;
   }
+  const body = (
+    <>
+      {loading && <Loading />}
+      <div className="gvd-body" data-pending={pending || undefined} aria-hidden={pending || undefined}>{content}</div>
+    </>
+  );
 
   function renderBody(): React.ReactNode {
     const d = diff!;
@@ -236,38 +274,18 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
       );
     }
     const b = budgeted!;
+    const next = b.shown < b.total ? budgetHunks(parsed!.hunks, steps + 1).shown : b.total;
     return (
       <>
-        <div className="gvd-diff">
-          {b.hunks.map((h, hi) => (
-            <React.Fragment key={hi}>
-              <div className="gvd-hunk">
-                <span className="gvd-hunk-range">{h.range}</span>
-                {h.section && <span className="gvd-hunk-ctx" title={h.section}>{h.section}</span>}
-              </div>
-              {h.lines.map((l, li) => {
-                const syn = spans?.[hi * 2 + (l.kind === "del" ? 0 : 1)]?.[sideAt[hi][li]];
-                return (
-                  <div key={li} className="gvd-line" data-kind={l.kind} data-fresh={fresh.has(`${hi}:${li}`) ? "" : undefined}>
-                    <span className="gvd-ln n1" aria-hidden="true">{l.old ?? ""}</span>
-                    <span className="gvd-ln n2" aria-hidden="true" data-old={l.kind === "del" ? l.old ?? undefined : undefined}>{l.new ?? ""}</span>
-                    <span className="gvd-glyph" aria-hidden="true">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : ""}</span>
-                    <span className="gvd-code">
-                      {l.kind === "add" && <span className="vis-hidden">added: </span>}
-                      {l.kind === "del" && <span className="vis-hidden">removed: </span>}
-                      {codeOf(l.text, syn, marks[hi]?.get(li))}
-                      {l.noEol && <span className="gvd-noeol" title="No newline at end of file"><span aria-hidden="true">⊘</span><span className="vis-hidden"> no newline at end of file</span></span>}
-                    </span>
-                  </div>
-                );
-              })}
-            </React.Fragment>
+        <div className="gvd-diff" key={fileKey} style={cols ? { minWidth: `max(100%, calc(${cols}ch + ${GUTTER_PX + CODE_PAD_PX}px))` } : undefined}>
+          {blocks.map(k => (
+            <DiffBlock key={k.key} block={k} rows={rows!} watch={watch} heights={heights.current} />
           ))}
         </div>
         {b.shown < b.total && (
           <div className="gvd-more">
             <span>Showing {groupDigits(b.shown)} of {groupDigits(b.total)} lines</span>
-            <button type="button" className="gvd-link" onClick={() => setSteps(s => s + 1)}>Load {groupDigits(budgetHunks(parsed!.hunks, steps + 1).shown - b.shown)} more</button>
+            <button type="button" className="gvd-link" onClick={() => setSteps(s => s + 1)}>Load {groupDigits(next - b.shown)} more</button>
             <button type="button" className="gvd-link" onClick={() => setSteps(() => Infinity)}>Load all</button>
           </div>
         )}
@@ -388,6 +406,145 @@ function sideDocs(hunks: Hunk[]): { docs: string[]; sideAt: number[][] } {
   }
   return { docs, sideAt };
 }
+
+/** What every block reads its lines from. */
+interface RowsCtx {
+  hunks: Hunk[];
+  /** Syntax spans, two runs per hunk (old side, new side), or null. */
+  spans: LineSpans[][] | null;
+  /** Where each line sits in its side's run, by hunk. */
+  sideAt: number[][];
+  /** Lines new since the version the reader saw, `hunk:line`. */
+  fresh: Set<string>;
+}
+
+/** A run of up to BLOCK_LINES lines of one hunk, its header with the first. */
+interface Block {
+  key: string;
+  hi: number;
+  from: number;
+  to: number;
+  head: boolean;
+  /** Where it starts and how tall it is, estimated before it is drawn. */
+  top: number;
+  est: number;
+}
+
+/** The three gutter cells (`.gvd-line`) and the code cell's padding. */
+const GUTTER_PX = 44 + 44 + 18;
+const CODE_PAD_PX = 4 + 24;
+
+export function blocksOf(hunks: Hunk[]): Block[] {
+  const out: Block[] = [];
+  let top = 0;
+  hunks.forEach((h, hi) => {
+    const n = Math.max(1, h.lines.length);
+    for (let from = 0; from < n; from += BLOCK_LINES) {
+      const to = Math.min(h.lines.length, from + BLOCK_LINES);
+      const head = from === 0;
+      const est = (head ? HUNK_PX : 0) + (to - from) * LINE_PX;
+      out.push({ key: `${hi}.${from / BLOCK_LINES}`, hi, from, to, head, top, est });
+      top += est;
+    }
+  });
+  return out;
+}
+
+/** The longest line, in characters, a tab counted as the sheet's tab-size. */
+function widestLine(hunks: Hunk[]): number {
+  let w = 0;
+  for (const h of hunks) for (const l of h.lines) {
+    if (l.text.length <= w) continue;
+    const tabs = l.text.split("\t").length - 1;
+    w = Math.max(w, l.text.length + tabs * 3);
+  }
+  return w;
+}
+
+type Watch = (el: Element, on: (e: IntersectionObserverEntry) => void) => () => void;
+
+/** One IntersectionObserver on the scroller for every block of a windowed
+ *  diff, or null when the diff is drawn whole. */
+function useWindow(scrollRef: React.RefObject<HTMLDivElement>, on: boolean): Watch | null {
+  const io = useRef<{ io: IntersectionObserver; of: Map<Element, (e: IntersectionObserverEntry) => void> } | null>(null);
+  useEffect(() => () => { io.current?.io.disconnect(); io.current = null; }, [on]);
+  return useMemo<Watch | null>(() => {
+    if (!on) return null;
+    return (el, cb) => {
+      if (!io.current) {
+        const of = new Map<Element, (e: IntersectionObserverEntry) => void>();
+        const obs = new IntersectionObserver(entries => { for (const e of entries) of.get(e.target)?.(e); }, { root: scrollRef.current, rootMargin: WINDOW_MARGIN });
+        io.current = { io: obs, of };
+      }
+      const cur = io.current;
+      cur.of.set(el, cb);
+      cur.io.observe(el);
+      return () => { cur.of.delete(el); cur.io.unobserve(el); };
+    };
+  }, [on]);
+}
+
+/** A hunk's word marks, worked out the first time a block of it is drawn. */
+const marksOf = new WeakMap<Hunk, Map<number, Range[]>>();
+function wordMarks(h: Hunk): Map<number, Range[]> {
+  let m = marksOf.get(h);
+  if (!m) { m = hunkWordMarks(h.lines); marksOf.set(h, m); }
+  return m;
+}
+
+/**
+ * One block of a diff: drawn while it is near the part on screen, or always
+ * when the diff is not windowed; otherwise an empty box at the height it was
+ * last drawn at (or its estimate), so nothing below it moves.
+ */
+const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
+  block: Block; rows: RowsCtx; watch: Watch | null; heights: Map<string, number>;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [near, setNear] = useState(() => !watch || (!heights.has(block.key) && block.top < FIRST_PX));
+  const drawn = useRef(near);
+  useEffect(() => {
+    const el = ref.current;
+    if (!watch || !el) return;
+    return watch(el, e => {
+      if (e.isIntersecting) { drawn.current = true; setNear(true); return; }
+      if (drawn.current) heights.set(block.key, e.boundingClientRect.height);
+      drawn.current = false;
+      setNear(false);
+    });
+  }, [watch, block.key, heights]);
+  if (watch && !near) return <div ref={ref} className="gvd-block" style={{ height: heights.get(block.key) ?? block.est }} />;
+  const { hi } = block;
+  const h = rows.hunks[hi];
+  const marks = wordMarks(h);
+  return (
+    <div ref={ref} className="gvd-block">
+      {block.head && (
+        <div className="gvd-hunk">
+          <span className="gvd-hunk-range">{h.range}</span>
+          {h.section && <span className="gvd-hunk-ctx" title={h.section}>{h.section}</span>}
+        </div>
+      )}
+      {h.lines.slice(block.from, block.to).map((l, i) => {
+        const li = block.from + i;
+        const syn = rows.spans?.[hi * 2 + (l.kind === "del" ? 0 : 1)]?.[rows.sideAt[hi]?.[li]];
+        return (
+          <div key={li} className="gvd-line" data-kind={l.kind} data-fresh={rows.fresh.has(`${hi}:${li}`) ? "" : undefined}>
+            <span className="gvd-ln n1" aria-hidden="true">{l.old ?? ""}</span>
+            <span className="gvd-ln n2" aria-hidden="true" data-old={l.kind === "del" ? l.old ?? undefined : undefined}>{l.new ?? ""}</span>
+            <span className="gvd-glyph" aria-hidden="true">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : ""}</span>
+            <span className="gvd-code">
+              {l.kind === "add" && <span className="vis-hidden">added: </span>}
+              {l.kind === "del" && <span className="vis-hidden">removed: </span>}
+              {codeOf(l.text, syn, marks.get(li))}
+              {l.noEol && <span className="gvd-noeol" title="No newline at end of file"><span aria-hidden="true">⊘</span><span className="vis-hidden"> no newline at end of file</span></span>}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
 
 /** A line's text in segments: syntax tones inside, the changed words marked. */
 function codeOf(text: string, syn: LineSpans | undefined, words: Range[] | undefined): React.ReactNode {

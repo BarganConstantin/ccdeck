@@ -4,8 +4,9 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import GitDiff, { type GitDiffProps } from "../components/GitDiff";
+import GitDiff, { BLOCK_LINES, blocksOf, type GitDiffProps } from "../components/GitDiff";
 import { parsePatch } from "../git-diff-parse";
+import { sourceOf } from "./client-source";
 
 // React 18 says on the server that layout effects do nothing there: true, and beside the point.
 let quiet: ReturnType<typeof vi.spyOn>;
@@ -54,4 +55,49 @@ describe("a file in conflict", () => {
       expect(html).toContain("In conflict");
     }
   });
+});
+
+describe("a long diff", () => {
+  const long = (n: number) => `@@ -1,${n} +1,${n} @@\n${Array.from({ length: n }, (_, i) => `-row ${i}\n+row ${i}!`).join("\n")}\n`;
+
+  it("is drawn in blocks of lines, each hunk's header with its first block", () => {
+    const p = parsePatch(`${long(130)}@@ -400 +400 @@ fn\n-a\n+b\n`);
+    const blocks = blocksOf(p.hunks);
+    expect(blocks.map(b => [b.hi, b.from, b.to, b.head])).toEqual([
+      [0, 0, BLOCK_LINES, true], [0, BLOCK_LINES, 200, false], [0, 200, 260, false], [1, 0, 2, true],
+    ]);
+    // Each starts where the one before it ends, by its estimate.
+    for (let i = 1; i < blocks.length; i++) expect(blocks[i].top).toBe(blocks[i - 1].top + blocks[i - 1].est);
+  });
+
+  it("draws its first budget in full on the first frame, with Load more and Load all", () => {
+    const html = render({ diff: { ok: true, binary: false, patch: long(5000), added: 5000, removed: 5000 } });
+    expect((html.match(/class="gvd-line"/g) ?? []).length).toBe(400);
+    expect((html.match(/class="gvd-block"/g) ?? []).length).toBe(4);
+    expect(words(html)).toContain("Showing 400 of 10,000 lines Load 400 more Load all");
+  });
+
+  it("keeps the last body as it was, in the same wrapper, while the next file's diff is read", () => {
+    const html = render({ diff: null, loading: true });
+    expect(html).toContain('class="gvd-loading"');
+    expect(html).toContain('<div class="gvd-body">');
+  });
+});
+
+describe("what the diff windows", () => {
+  const src = sourceOf("components/GitDiff.tsx");
+
+  it("renders only the blocks near the view once a diff is long, each skipped block holding its height", () => {
+    expect(src).toMatch(/const windowed = !!budgeted && budgeted\.shown >= WINDOW_FROM/);
+    expect(src).toMatch(/new IntersectionObserver\([\s\S]*?\{ root: scrollRef\.current, rootMargin: WINDOW_MARGIN \}/);
+    expect(src).toMatch(/if \(watch && !near\) return <div ref=\{ref\} className="gvd-block" style=\{\{ height: heights\.get\(block\.key\) \?\? block\.est \}\} \/>/);
+    expect(src).toContain("export const WINDOW_FROM = 1200;");
+  });
+
+  it("keeps the body it last drew as the same element while the next one loads, so nothing is drawn twice", () => {
+    expect(src).toMatch(/content = pending \? lastBody\.current/);
+    expect(src).toMatch(/<div className="gvd-body" data-pending=\{pending \|\| undefined\}/);
+    expect(src).not.toContain("gvd-pending");
+  });
+
 });
