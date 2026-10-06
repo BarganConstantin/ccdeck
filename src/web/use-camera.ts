@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useReactFlow, useStoreApi, type ReactFlowState } from "reactflow";
 
+import { frameForGitView } from "./git-view-fit";
 import { fitZoomForDrawnLanes } from "./semantic-zoom";
 import { FIT_FILL, FIT_MARGIN, railCover } from "./use-layout-frame";
 import { shouldAnimateViewport } from "./viewport-motion";
@@ -150,6 +151,9 @@ export function useCamera() {
     // loose — a fit that touches the margins reads as "already too big" and
     // gives the eye nowhere to land when the next session appears.
     const MARGIN = FIT_MARGIN, MAX_ZOOM = 1, MIN_ZOOM = 0.2, FILL = FIT_FILL;
+    // With the git view open the board is framed beside it — the selected
+    // session and whoever is waiting — never under it (git-view-fit.ts).
+    if (frameForGitView(duration)) return;
     try {
       const pane = document.querySelector(".canvas-wrap");
       const drawn = Array.from(document.querySelectorAll(".react-flow__node"))

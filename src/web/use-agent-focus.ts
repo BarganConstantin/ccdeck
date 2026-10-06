@@ -14,6 +14,7 @@ import { stepTarget } from "./canvas-keys";
 import { focusCanvasNode, isCanvasNodeElement } from "./canvas-node-element";
 import { hidePeek } from "./components/SessionPeek";
 import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
+import { gitViewCover } from "./git-view-fit";
 import type { GraphState } from "./reducer";
 import { TOOL_LANE_ALLOWANCE, type useCamera } from "./use-camera";
 import type { useSelection } from "./use-selection";
@@ -84,7 +85,8 @@ export function useAgentFocus({
       pane: { width: rect.width, height: rect.height },
       // Left: the control stack. Top: the tool filter bar. Right: whatever of
       // the rail of floating panels is open, as the rail effect measured it.
-      insets: { top: 56, left: 72, bottom: 32, right: railInsetRef.current + 32 },
+      // The open git view covers more of the right than the rail does.
+      insets: { top: 56, left: 72, bottom: 32, right: Math.max(railInsetRef.current, gitViewCover()) + 32 },
       context: unionBox(members) ?? anchor,
       anchor,
     });
