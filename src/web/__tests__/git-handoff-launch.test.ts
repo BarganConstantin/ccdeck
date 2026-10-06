@@ -46,6 +46,13 @@ describe("macOS", () => {
       .toEqual(["-na", "/Users/ada/Applications/Rider.app", "--args", F]);
   });
 
+  it("runs the command line tool inside Fork's and Tower's bundles with the folder", () => {
+    expect(spec(app("fork", "git", "/Applications/Fork.app/Contents/Resources/fork_cli")))
+      .toEqual({ file: "/Applications/Fork.app/Contents/Resources/fork_cli", args: [F], cwd: F, verbatim: false });
+    expect(spec(app("tower", "git", "/Applications/Tower.app/Contents/MacOS/gittower")))
+      .toEqual({ file: "/Applications/Tower.app/Contents/MacOS/gittower", args: [F], cwd: F, verbatim: false });
+  });
+
   it("opens each terminal on the folder", () => {
     expect(spec(app("terminal", "terminal", "/System/Applications/Utilities/Terminal.app", "app")).args)
       .toEqual(["-a", "/System/Applications/Utilities/Terminal.app", F]);
@@ -122,7 +129,7 @@ describe("Windows", () => {
     expect(spec(app("fork", "git", "C:\\Users\\ada\\AppData\\Local\\Fork\\Fork.exe")))
       .toEqual({ file: "C:\\Users\\ada\\AppData\\Local\\Fork\\Fork.exe", args: [F], cwd: F, verbatim: false });
     expect(spec(app("vscode", "editor", "C:\\Program Files\\Microsoft VS Code\\Code.exe"), { file: P }).args).toEqual([F, P]);
-    expect(spec(app("tower", "git", "C:\\Program Files\\fournova\\Tower\\Tower.exe")).args).toEqual(["-o", F]);
+    expect(spec(app("tower", "git", "C:\\Users\\ada\\AppData\\Local\\Tower\\current\\Tower.exe")).args).toEqual(["-o", F]);
     expect(spec(app("gitkraken", "git", "C:\\Users\\ada\\AppData\\Local\\gitkraken\\gitkraken.exe")).args).toEqual(["-p", F]);
     expect(spec(app("github-desktop", "git", "C:\\Users\\ada\\AppData\\Local\\GitHubDesktop\\GitHubDesktop.exe")).args).toEqual([`--cli-open=${F}`]);
     expect(spec(app("windows-terminal", "terminal", "C:\\Users\\ada\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe")).args).toEqual(["-d", F]);

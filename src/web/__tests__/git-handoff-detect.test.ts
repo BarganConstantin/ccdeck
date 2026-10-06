@@ -64,6 +64,35 @@ describe("macOS", () => {
     expect(pathOf(found, "lazygit")).toBe("/opt/homebrew/bin/lazygit");
   });
 
+  it("opens Fork and Tower through the command line tool inside the bundle, the bundle when it has none", async () => {
+    const withTools: Found[] = await detectApps({
+      platform: "darwin", home, env: { PATH: "/usr/bin" },
+      ...machine([
+        "/Applications/Fork.app",
+        "/Applications/Fork.app/Contents/Resources/fork_cli",
+        `${home}/Applications/Tower.app`,
+        `${home}/Applications/Tower.app/Contents/MacOS/gittower`,
+      ]),
+    });
+    expect(withTools.find(a => a.id === "fork")?.target).toEqual({ kind: "exe", path: "/Applications/Fork.app/Contents/Resources/fork_cli" });
+    expect(withTools.find(a => a.id === "tower")?.target).toEqual({ kind: "exe", path: `${home}/Applications/Tower.app/Contents/MacOS/gittower` });
+    const bare: Found[] = await detectApps({ platform: "darwin", home, env: { PATH: "" }, ...machine(["/Applications/Tower.app"]) });
+    expect(bare.find(a => a.id === "tower")?.target).toEqual({ kind: "app", path: "/Applications/Tower.app" });
+  });
+
+  it("knows the Toolbox's name for the free IntelliJ IDEA, and lazygit from MacPorts", async () => {
+    const found: Found[] = await detectApps({
+      platform: "darwin", home, env: { PATH: "/usr/bin" },
+      ...machine([
+        `${home}/Applications/IntelliJ IDEA Community Edition.app`,
+        "/System/Applications/Utilities/Terminal.app",
+        "/opt/local/bin/lazygit",
+      ]),
+    });
+    expect(pathOf(found, "idea")).toBe(`${home}/Applications/IntelliJ IDEA Community Edition.app`);
+    expect(pathOf(found, "lazygit")).toBe("/opt/local/bin/lazygit");
+  });
+
   it("has no Linux-only terminal and no Windows app", async () => {
     const found: Found[] = await detectApps({
       platform: "darwin", home, env: { PATH: "/usr/bin" },
@@ -95,6 +124,11 @@ describe("Linux", () => {
     expect(pathOf(found, "kitty")).toBe(`${home}/.local/bin/kitty`);
     // Fork, Tower and GitHub Desktop have no Linux build.
     expect(ids(found, "git")).not.toContain("fork");
+  });
+
+  it("finds the single IntelliJ IDEA's snap", async () => {
+    const found: Found[] = await detectApps({ platform: "linux", home, env: { PATH: "" }, ...machine(["/snap/bin/intellij-idea"]) });
+    expect(pathOf(found, "idea")).toBe("/snap/bin/intellij-idea");
   });
 
   it("offers lazygit only when there is a terminal to run it in", async () => {
@@ -164,6 +198,44 @@ describe("Windows", () => {
     expect(ids(found, "editor")).toEqual(["rider"]);
     expect(pathOf(found, "rider")).toMatch(/scripts\\rider\.cmd$/);
     expect(ids(found, "git")).toEqual(["lazygit"]);
+  });
+
+  it("finds Tower where its installer puts it, the stub beside current\\ when that is all there is", async () => {
+    const local = "C:\\Users\\ada\\AppData\\Local";
+    const winEnv = { ...env, "ProgramFiles(x86)": "C:\\Program Files (x86)" };
+    const found: Found[] = await detectApps({
+      platform: "win32", home: "C:\\Users\\ada", env: winEnv,
+      ...machine([`${local}\\Tower\\Tower.exe`, `${local}\\Tower\\current\\Tower.exe`]),
+    });
+    expect(pathOf(found, "tower")).toBe(`${local}\\Tower\\current\\Tower.exe`);
+    const stub: Found[] = await detectApps({ platform: "win32", home: "C:\\Users\\ada", env: winEnv, ...machine([`${local}\\Tower\\Tower.exe`]) });
+    expect(pathOf(stub, "tower")).toBe(`${local}\\Tower\\Tower.exe`);
+    // Folders no Tower installer uses.
+    const guesses: Found[] = await detectApps({
+      platform: "win32", home: "C:\\Users\\ada", env: winEnv,
+      ...machine([`${local}\\Programs\\Tower\\Tower.exe`, "C:\\Program Files\\fournova\\Tower\\Tower.exe", "C:\\Program Files (x86)\\fournova\\Tower\\Tower.exe"]),
+    });
+    expect(ids(guesses, "git")).toEqual([]);
+  });
+
+  it("finds Cursor's system install and 32-bit Sublime Text under the machine's Program Files", async () => {
+    const found: Found[] = await detectApps({
+      platform: "win32", home: "C:\\Users\\ada", env: { ...env, "ProgramFiles(x86)": "C:\\Program Files (x86)" },
+      ...machine(["C:\\Program Files\\cursor\\Cursor.exe", "C:\\Program Files (x86)\\Sublime Text\\subl.exe"]),
+    });
+    expect(pathOf(found, "cursor")).toBe("C:\\Program Files\\cursor\\Cursor.exe");
+    expect(pathOf(found, "sublime-text")).toBe("C:\\Program Files (x86)\\Sublime Text\\subl.exe");
+  });
+
+  it("finds Zed in its per-user folder, or its command line tool on PATH", async () => {
+    const local = "C:\\Users\\ada\\AppData\\Local";
+    const installed: Found[] = await detectApps({ platform: "win32", home: "C:\\Users\\ada", env, ...machine([`${local}\\Programs\\Zed\\Zed.exe`]) });
+    expect(pathOf(installed, "zed")).toBe(`${local}\\Programs\\Zed\\Zed.exe`);
+    const cli: Found[] = await detectApps({
+      platform: "win32", home: "C:\\Users\\ada", env: { ...env, PATH: `${local}\\Programs\\Zed\\bin` },
+      ...machine([`${local}\\Programs\\Zed\\bin\\zed.exe`]),
+    });
+    expect(pathOf(cli, "zed")).toBe(`${local}\\Programs\\Zed\\bin\\zed.exe`);
   });
 
   it("ignores a folder the environment does not name rather than guessing", async () => {
