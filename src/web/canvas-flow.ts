@@ -24,6 +24,7 @@ import { type Edge, type Node } from "reactflow";
 import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
 import { NODE_W } from "./layout-geometry";
+import { cardMarks, type CardMark } from "./git-card-mark";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
@@ -42,8 +43,9 @@ export const RECAP_NOTE_H = 130;
 export const RECAP_NOTE_GAP = 160;
 
 /** `branch` is on a root only, and only while it has subagents on the canvas:
- *  what they add up to, for the faces too small to show them one by one. */
-export type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary };
+ *  what they add up to, for the faces too small to show them one by one.
+ *  `gitMark` is the card's collision mark, when it has one (git-card-mark.ts). */
+export type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark };
 
 /**
  * Node data that keeps its identity while the board has not changed (#873).
@@ -63,20 +65,28 @@ const NODE_DATA = new WeakMap<GraphState, {
   /** The branch summaries, counted once per revision — a pass over the board
    *  that every root's copy reads, rather than one pass per root. */
   branches: Map<string, BranchSummary>;
+  /** Every card's collision mark, worked out once per revision from the
+   *  roots' collisions; a mark that says what it said last revision keeps its
+   *  identity. */
+  marks: Map<string, CardMark>;
 }>();
 
 export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void): (a: AgentNodeData) => FlowNodeData {
   let entry = NODE_DATA.get(state);
   if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
-    entry = { revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()) };
+    entry = {
+      revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()),
+      marks: cardMarks(state.agents.values(), entry?.marks),
+    };
     NODE_DATA.set(state, entry);
   }
-  const { byId, branches } = entry;
+  const { byId, branches, marks } = entry;
   return a => {
     let d = byId.get(a.id);
     if (!d) {
       const branch = a.kind === "root" ? branches.get(a.sessionId) : undefined;
-      d = branch ? { ...a, onOpenContext, branch } : { ...a, onOpenContext };
+      const gitMark = marks.get(a.id);
+      d = { ...a, onOpenContext, ...(branch ? { branch } : null), ...(gitMark ? { gitMark } : null) };
       byId.set(a.id, d);
     }
     return d;

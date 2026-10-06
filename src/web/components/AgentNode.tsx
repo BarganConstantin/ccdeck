@@ -43,13 +43,16 @@ import { RecapMark } from "./RecapMark";
 import { branchChip, rowYields, type RowYield } from "../git-chip";
 import { useGitOn } from "../git-pref";
 import GitChip from "./GitChip";
+// Who this card can step on in git right now — git-card-mark.ts.
+import type { CardMark } from "../git-card-mark";
+import { GitMarkRow } from "./GitCardMark";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
-function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark }>) {
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
@@ -116,6 +119,8 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // None at all while the git view is switched off in Appearance.
   const gitOn = useGitOn();
   const chip = gitOn ? branchChip(data) : null;
+  // The collision mark, with the chip and for the same switch.
+  const gitMark = gitOn ? data.gitMark ?? null : null;
   const modelMore = otherModels.length > 0 ? ` +${otherModels.length}` : "";
   const modelSaid = data.model ? `${shortModel(data.model)}${modelMore}` : data.provider === "codex" ? "Codex" : "";
   // A row too tight for the branch's ticket — `session → 1 Opus 5.5 +1` left
@@ -252,6 +257,12 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           {naming.face}
         </div>
       )}
+
+      {/* Who this card can step on in git: a row of its own, between the
+          session's name and anything waiting on you, as the wide view puts its
+          line under its header. None at all for a card with nothing to say, so
+          that card keeps exactly the rows and the height it had. */}
+      {gitMark && <GitMarkRow mark={gitMark} />}
 
       {/* A row of its own rather than a chip in the title. The card is 260px
           wide and the header already spends it on the state pill, the workspace
