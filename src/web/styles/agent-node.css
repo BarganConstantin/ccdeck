@@ -484,10 +484,15 @@
 .agent-node .git-mark-said {
   flex: 0 1000 auto;
   min-width: 0;
+  /* The row's gap before the sentence is taken back and drawn inside it, so
+     it goes with the words: a sentence shrunk to nothing leaves one 6px gap
+     between the file's name and the tail, not two. */
+  margin-left: -6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.agent-node .git-mark-said::before { content: ""; display: inline-block; width: 6px; }
 .agent-node .git-mark-tail { flex: none; white-space: nowrap; }
 .agent-node .git-mark[data-level="quiet"] {
   margin-top: 5px;

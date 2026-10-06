@@ -149,11 +149,23 @@
   text-overflow: ellipsis;
   max-width: 160px;
 }
+/* A subagent's key's tail beside a teammate of its type, as the collision
+   warnings name it ("general-purpose · f002"): kept whole while the type
+   gives way, so a warning can always be matched to its card. The gap the
+   title row sets is the space before the dot. */
+.agent-node .title .label-tail {
+  flex: none;
+  margin-left: -4px;
+  font-weight: 400;
+  white-space: nowrap;
+}
 .agent-node .time {
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--muted);
   font-family: var(--font-mono);
+  /* One line: a tight title row cuts the name, never the clock. */
+  white-space: nowrap;
 }
 
 .state-pill {

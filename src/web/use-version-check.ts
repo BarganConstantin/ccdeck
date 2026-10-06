@@ -49,6 +49,9 @@ export type VersionInfo = {
    *  would install — `ccdeck` for a deck started with `npx ccdeck`. */
   name: string;
   running: string | null;
+  /** Which build this is when it is not a release — a pull request's test
+   *  package or installer — by its branch and commit; null for a release. */
+  build?: { branch: string; sha: string } | null;
   installed: string | null;
   /** npm's newest version that is confirmed installable under `name`. */
   latest: string | null;

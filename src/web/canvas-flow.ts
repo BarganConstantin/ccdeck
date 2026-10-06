@@ -25,6 +25,7 @@ import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
 import { NODE_W } from "./layout-geometry";
 import { cardMarks, type CardMark } from "./git-card-mark";
+import { subagentTails } from "./git-agent-name";
 import { gitOnNow } from "./git-pref";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
@@ -46,7 +47,12 @@ export const RECAP_NOTE_GAP = 160;
 /** `branch` is on a root only, and only while it has subagents on the canvas:
  *  what they add up to, for the faces too small to show them one by one.
  *  `gitMark` is the card's collision mark, when it has one (git-card-mark.ts). */
-export type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark };
+export type FlowNodeData = AgentNodeData & {
+  onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark;
+  /** A subagent's key's tail after its type, when its session has another of
+   *  that type: what the git surfaces name it by (git-agent-name.ts). */
+  nameTail?: string;
+};
 
 /**
  * Node data that keeps its identity while the board has not changed (#873).
@@ -70,6 +76,8 @@ const NODE_DATA = new WeakMap<GraphState, {
    *  roots' collisions; a mark that says what it said last revision keeps its
    *  identity. */
   marks: Map<string, CardMark>;
+  /** The subagents' title tails, worked out once per revision. */
+  tails: Map<string, string>;
 }>();
 
 export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void): (a: AgentNodeData) => FlowNodeData {
@@ -77,17 +85,18 @@ export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string
   if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
     entry = {
       revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()),
-      marks: cardMarks(state.agents.values(), entry?.marks),
+      marks: cardMarks(state.agents.values(), entry?.marks), tails: subagentTails(state.agents.values()),
     };
     NODE_DATA.set(state, entry);
   }
-  const { byId, branches, marks } = entry;
+  const { byId, branches, marks, tails } = entry;
   return a => {
     let d = byId.get(a.id);
     if (!d) {
       const branch = a.kind === "root" ? branches.get(a.sessionId) : undefined;
       const gitMark = marks.get(a.id);
-      d = { ...a, onOpenContext, ...(branch ? { branch } : null), ...(gitMark ? { gitMark } : null) };
+      const nameTail = tails.get(a.id);
+      d = { ...a, onOpenContext, ...(branch ? { branch } : null), ...(gitMark ? { gitMark } : null), ...(nameTail ? { nameTail } : null) };
       byId.set(a.id, d);
     }
     return d;
@@ -261,7 +270,7 @@ export function snapshotToFlow(
       className: cls,
       // Composed, not read off the card: see agentAriaLabel (#853). The
       // second dataFor is the same object, from this revision's cache.
-      ariaLabel: agentAriaLabel(a, now, selectedIds.has(a.id), gitWords(dataFor(a))),
+      ariaLabel: agentAriaLabel(dataFor(a), now, selectedIds.has(a.id), gitWords(dataFor(a))),
       ...(m ? { width: m.width, height: m.height } : null),
     });
     if (a.parentId && visibleIds.has(a.parentId)) {

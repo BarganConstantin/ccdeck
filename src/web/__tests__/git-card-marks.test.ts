@@ -412,7 +412,7 @@ describe("the sharp mark on the card", () => {
     const a = s.agents.get(UI)!;
     expect(agentAriaLabel(a, T0, false, "src/app.ts also edited by web-bugfix")).toMatch(/^web-app, session, live, src\/app\.ts also edited by web-bugfix, /);
     expect(agentAriaLabel(a, T0, false)).not.toContain("also edited");
-    expect(sourceOf("canvas-flow.ts")).toMatch(/agentAriaLabel\(a, now, selectedIds\.has\(a\.id\), gitWords\(dataFor\(a\)\)\)/);
+    expect(sourceOf("canvas-flow.ts")).toMatch(/agentAriaLabel\(dataFor\(a\), now, selectedIds\.has\(a\.id\), gitWords\(dataFor\(a\)\)\)/);
   });
 });
 
@@ -605,6 +605,16 @@ describe("the mark's look", () => {
     expect(css).toContain(".agent-node .git-mark-tail { flex: none; white-space: nowrap; }");
     // Nothing drawn past the row's own edge, whatever the words.
     expect(rule(".agent-node .git-mark")).toContain("overflow: hidden;");
+  });
+
+  it("keeps one gap between the file's name and the tail when the sentence between them gives way to nothing", () => {
+    // The row's 6px gap sat on both sides of a sentence shrunk to no width:
+    // 12px between the name and "· in this session". The sentence takes the
+    // gap before it back and carries it inside, where it goes with the words.
+    const said = rule(".agent-node .git-mark-said");
+    expect(said).toContain("margin-left: -6px;");
+    expect(rule(".agent-node .git-mark")).toContain("gap: 6px;");
+    expect(css).toMatch(/\.agent-node \.git-mark-said::before \{ content: ""; display: inline-block; width: 6px; \}/);
   });
 
   it("presses like every labelled control, and the press stands still under reduced motion", () => {

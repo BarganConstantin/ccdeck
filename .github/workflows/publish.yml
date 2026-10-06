@@ -243,9 +243,25 @@ jobs:
       # `TARBALL=$(npm pack --silent)` wrote all of it into $GITHUB_ENV and
       # failed with `Invalid format 'transforming...'`. The first run of this
       # job found that; the deck on Node 18 was never reached.
+      #
+      # A pull request's package says which build it is: its branch and commit
+      # go into src/server/build-info.json before packing, and `ccdeck
+      # --version` and the deck's version chip print them after the version
+      # ("3.38.1 (feature/git-view @ abc1234)"). The version itself is left as
+      # it is, so the deck's update check reads the test build as it reads the
+      # release; a push or a tag packs without the file. The values come in
+      # through the environment, never spliced into the script, since a branch
+      # name is anyone's to choose.
       - name: Pack
+        env:
+          EVENT: ${{ github.event_name }}
+          BUILD_BRANCH: ${{ github.head_ref }}
+          BUILD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            node src/server/build-info.mjs --write
+          fi
           npm pack --pack-destination "$RUNNER_TEMP"
           echo "TARBALL=$(ls "$RUNNER_TEMP"/*.tgz)" >> "$GITHUB_ENV"
 
@@ -689,6 +705,18 @@ jobs:
           printf '%s\n' "$KEY" > "$RUNNER_TEMP/ccdeck-signing.key.pem"
           echo "CCDECK_SIGNING_CERT=$RUNNER_TEMP/ccdeck-signing.cert.pem" >> "$GITHUB_ENV"
           echo "CCDECK_SIGNING_KEY=$RUNNER_TEMP/ccdeck-signing.key.pem" >> "$GITHUB_ENV"
+
+      # A pull request's installers say which build they are, as its npm
+      # package does (the floor job's Pack step): the deck they carry reads
+      # src/server/build-info.json and its version chip names the branch and
+      # commit. Never on a tag, whose installers are the release.
+      - name: Mark a pull request's build
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BUILD_BRANCH: ${{ github.head_ref }}
+          BUILD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node src/server/build-info.mjs --write
 
       # --publish never: electron-builder publishes to GitHub on its own when it
       # sees a tag and a token, and the release is desktop-release's to make.

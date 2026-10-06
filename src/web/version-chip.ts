@@ -47,7 +47,17 @@ export type VersionChipCopy = {
   checkDisabled?: boolean;
   /** A forced check started by this chip has not come back yet. */
   checking?: boolean;
+  /** A test build's branch and commit (/api/version's `build`); absent or
+   *  null for a release. */
+  build?: { branch: string; sha: string } | null;
 };
+
+/** The running version as its build says it: "3.38.1 (feature/git-view @
+ *  abc1234)" for a test build, the version alone for a release — the same
+ *  words `ccdeck --version` prints (build-info.mjs). */
+function builtVersion(c: VersionChipCopy): string {
+  return c.build ? `${c.running} (${c.build.branch} @ ${c.build.sha.slice(0, 7)})` : c.running;
+}
 
 const CHECKS_OFF = "Update checks are off (AGENTS_DECK_NO_UPDATE_CHECK=1)";
 
@@ -61,6 +71,13 @@ const NOTES_CLICK = "click for what's new";
 /** The chip's tooltip: what npm last said, when it said it, and what a click
  *  would do about it. */
 export function versionChipTitle(c: VersionChipCopy): string {
+  // A test build says so first: it carries the version of the release it was
+  // branched from, and the chip's number alone reads as that release.
+  const lead = c.build ? `Test build ${builtVersion(c)} · ` : "";
+  return lead + releaseTitle(c);
+}
+
+function releaseTitle(c: VersionChipCopy): string {
   // No lookup will ever run, so the notes are the ONLY thing a click does — and
   // are named rather than left out, which is what turned this branch from "this
   // button is off" into "this button does the other thing".
@@ -94,7 +111,7 @@ export function versionChipTitle(c: VersionChipCopy): string {
 /** The chip's accessible name. The visible text is a version number and both
  *  actions are invisible, so this has to carry all three. */
 export function versionChipLabel(c: VersionChipCopy): string {
-  const v = `Version v${c.running}, show what's new`;
+  const v = `Version v${builtVersion(c)}${c.build ? ", a test build" : ""}, show what's new`;
   // The check is what varies; the notes are what does not. Stated in that order
   // so the constant half is heard first and the caveat second, rather than a
   // reader having to sit through "update checks are off" to find out whether

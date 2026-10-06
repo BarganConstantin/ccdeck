@@ -53,7 +53,7 @@ import { GvIcon } from "./GitViewParts";
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
-function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark }>) {
+function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark; nameTail?: string }>) {
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
@@ -154,7 +154,8 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
       <div className="head">
         <div className="title">
           <StatePill state={data.state} />
-          <span className="label" title={cardTooltip}>{data.label}</span>
+          <span className="label" title={data.nameTail ? [`${data.label} · ${data.nameTail}`, cardTooltip].filter(Boolean).join("\n") : cardTooltip}>{data.label}</span>
+          {data.nameTail && <span className="label-tail">· {data.nameTail}</span>}
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
           {/* Claude Code's ※, in the session's colour, beside the name: the
               card's own mark that a recap is there, and the switch for its
@@ -372,7 +373,7 @@ const NO_YIELDS: RowYield[] = [];
  * hover, as the full card's name does (faceTitle).
  */
 function NodeFace({ data, title, tips, clash }: {
-  data: AgentNodeData & { branch?: BranchSummary };
+  data: AgentNodeData & { branch?: BranchSummary; nameTail?: string };
   title?: string;
   /** The full card's tooltips for the name and the session's line, which the
    *  face's cut lines carry too (faceTitle). */
@@ -383,6 +384,7 @@ function NodeFace({ data, title, tips, clash }: {
   clash: CardMark | null;
 }) {
   const alarm = data.kind === "root" && isAlarming(data.waiting);
+  const shownName = data.nameTail ? `${data.label} · ${data.nameTail}` : data.label;
   const signal = faceSignal(data, data.branch, {
     sayWaiting: waitingLabel,
     describeCall: t => ({ name: primaryDisplayFor(t.name).label, subject: toolSubject(t.name, t.input) }),
@@ -397,7 +399,7 @@ function NodeFace({ data, title, tips, clash }: {
     >
       <div className="lod-id">
         <StateMark kind={stateMarkKind(data.state)} />
-        <span className="lod-name" title={faceTitle(data.label, tips.name)}>{data.label}</span>
+        <span className="lod-name" title={faceTitle(shownName, tips.name)}>{shownName}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
         {alarm && <AlertMark />}
         {clash && <span className="lod-clash" title={clash.words}><GvIcon name="clash" size={12} /><span className="lod-clash-word">same file</span></span>}

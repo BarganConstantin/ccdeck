@@ -5,7 +5,8 @@
 // in the same workspace — and never just the folder the session runs in,
 // which the git view's header already names as the repository.
 import { describe, expect, it } from "vitest";
-import { agentNameIn, agentNamer, cardName, collisionTarget, commitAgentKeys, otherAgentName, type NamedCard } from "../git-agent-name";
+import { agentNameIn, agentNamer, cardName, collisionTarget, commitAgentKeys, otherAgentName, subagentTails, type NamedCard } from "../git-agent-name";
+import { agentAriaLabel } from "../agent-copy";
 import { sourceOf } from "./client-source";
 
 const UI = "cc150ea9-0000-4000-8000-00000000ad61";
@@ -77,6 +78,34 @@ describe("an agent's name on every git surface", () => {
     for (const [sid, key] of [[UI, null], [BUG, null], ["f00d-1", null], [BUG, "ag7"], [BUG, "ag8"], [BUG, "ag9"], [BUG, "gone"]] as const) {
       expect(name(sid, key)).toBe(agentNameIn(agents, sid, key));
     }
+  });
+});
+
+describe("a subagent card's title beside its collision warnings", () => {
+  it("carries the same id tail the warnings name it by, when another subagent of its session shares its type", () => {
+    const a = sub(UI, "5c1e7a90d4b2f001", "general-purpose"), b = sub(UI, "5c1e7a90d4b2f002", "general-purpose");
+    const agents = board(root(UI), a, b, sub(UI, "9aa0", "test-writer"), sub(BUG, "77f001", "general-purpose"), root(BUG));
+    const tails = subagentTails(agents.values());
+    expect(tails.get(a.id)).toBe("f001");
+    expect(tails.get(b.id)).toBe("f002");
+    // One of its type in its session, another session's, or a root: no tail.
+    expect(tails.has(`${UI}::9aa0`)).toBe(false);
+    expect(tails.has(`${BUG}::77f001`)).toBe(false);
+    expect(tails.has(UI)).toBe(false);
+    // Word for word what a warning says after its ↳.
+    const name = agentNamer(agents.values());
+    expect(`${b.label} · ${tails.get(b.id)}`).toBe(name(UI, "5c1e7a90d4b2f002"));
+    expect(otherAgentName(name, { sessionId: UI, agentId: "5c1e7a90d4b2f002" } as never)).toBe(`↳ general-purpose · ${tails.get(b.id)}`);
+  });
+
+  it("is drawn on the card, its tail kept whole beside a cut type, and said in the card's accessible name", () => {
+    expect(sourceOf("canvas-flow.ts")).toMatch(/const nameTail = tails\.get\(a\.id\);/);
+    const node = sourceOf("components/AgentNode.tsx");
+    expect(node).toMatch(/\{data\.nameTail && <span className="label-tail">· \{data\.nameTail\}<\/span>\}/);
+    // A type cut to make room keeps its whole name, tail included, in the tooltip; the clock never wraps.
+    expect(node).toMatch(/title=\{data\.nameTail \? \[`\$\{data\.label\} · \$\{data\.nameTail\}`, cardTooltip\]\.filter\(Boolean\)\.join\("\\n"\) : cardTooltip\}/);
+    const card = { id: `${UI}::5c1e7a90d4b2f002`, sessionId: UI, kind: "subagent", label: "general-purpose", state: "active", toolCount: 1, tools: [], usage: { inputTokens: 0, outputTokens: 0 } } as never;
+    expect(agentAriaLabel({ ...(card as object), nameTail: "f002" } as never, 0)).toMatch(/^general-purpose · f002, subagent/);
   });
 });
 

@@ -232,7 +232,9 @@ describe("a name cut short on a small face has its whole text on hover", () => {
   });
 
   it("puts it on the name and on the session's line, as the full card does", () => {
-    expect(node).toContain('<span className="lod-name" title={faceTitle(data.label, tips.name)}>{data.label}</span>');
+    // A subagent beside a teammate of its type is named with its key's tail there too.
+    expect(node).toContain("const shownName = data.nameTail ? `${data.label} · ${data.nameTail}` : data.label;");
+    expect(node).toContain('<span className="lod-name" title={faceTitle(shownName, tips.name)}>{shownName}</span>');
     expect(node).toContain('{title && <div className="lod-title" title={faceTitle(title, tips.title)}>{title}</div>}');
   });
 });

@@ -28,7 +28,7 @@ import { createPresence } from "./presence.mjs";
 import { presentsDeckToken } from "./request-gates.mjs";
 // The version this process runs, read at boot by a leaf so that the LAN
 // engine's card and /api/version give one answer — see running-version.mjs.
-import { RUNNING_VERSION } from "./running-version.mjs";
+import { RUNNING_BUILD, RUNNING_VERSION } from "./running-version.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -142,8 +142,11 @@ async function handleVersion(req, res) {
   // `dash` argument on purpose: the glyph tier is a terminal concern, and the
   // default em dash is what a browser should get.
   const rename = renameNotice({ invoked, pkgRoot: PKG_ROOT });
+  // Which build this is, beside `running`, which it leaves alone: a test
+  // build's branch and commit for the version chip, null for a release
+  // (build-info.mjs).
   send(res, 200, {
-    ...report, canRestart: canRestartNow(), invokedAs: invoked, renameFix: rename?.fix ?? null,
+    ...report, canRestart: canRestartNow(), invokedAs: invoked, renameFix: rename?.fix ?? null, build: RUNNING_BUILD,
   });
 }
 

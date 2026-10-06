@@ -27,6 +27,7 @@ import { deckRegistryDir } from "../src/server/running-deck.mjs";
 import { takeBootLock } from "../src/server/boot-lock.mjs";
 // The package this worker belongs to — see there.
 import { PKG_ROOT, PKG_VERSION } from "./cli/package.js";
+import { readBuildInfo, versionWithBuild } from "../src/server/build-info.mjs";
 import { printHelp } from "./cli/help.js";
 import { uninstall } from "./cli/uninstall.js";
 import { offerLoginItem } from "./cli/login-item.js";
@@ -67,9 +68,11 @@ if (flags.help) {
 //
 // Bare, unprefixed, one line: `ccdeck --version` is read by scripts as often as
 // by people, and `node --version` style ornamentation is what those scripts
-// then have to strip. PKG_VERSION is the same read the banner uses.
+// then have to strip. PKG_VERSION is the same read the banner uses. A pull
+// request's test build adds its branch and commit after it, in parentheses, so
+// it is told from the release it carries the version of (build-info.mjs).
 if (flags.version) {
-  console.log(PKG_VERSION);
+  console.log(versionWithBuild(PKG_VERSION, readBuildInfo(PKG_ROOT)));
   process.exit(0);
 }
 

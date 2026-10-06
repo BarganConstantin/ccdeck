@@ -20,3 +20,5 @@ vitest-report.json
 # below is what stops the next one, since the file itself is the only thing
 # the deletion fixed.
 *.tgz
+# Written by the CI for a pull request's package and installers only (src/server/build-info.mjs).
+src/server/build-info.json
