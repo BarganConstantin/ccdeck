@@ -101,7 +101,14 @@ describe("the sharp mark: the same file, edited by two live agents since it was 
     // Sharp wins the row; the quiet entry for the same agent says nothing more.
     expect(marks.get(UI)).toMatchObject({ level: "sharp", target: BUG, lead: "app.ts", said: "also edited by web-bugfix", tail: "", session: false });
     expect(marks.get(UI)!.words).toBe("src/app.ts also edited by web-bugfix");
-    expect(marks.get(UI)!.title).toBe("src/app.ts also edited by web-bugfix since it was last committed.\nBoth are running.\nSelect web-bugfix.");
+    // Who still counts is the server's rule, never "running": a card whose
+    // turn ended reads DONE while its session is still open.
+    expect(marks.get(UI)!.title).toBe("src/app.ts also edited by web-bugfix since it was last committed.\nNeither has ended.\nSelect web-bugfix.");
+    expect(marks.get(UI)!.title).not.toMatch(/running/);
+    // The git view's collision line says it the same way.
+    const line = sourceOf("components/GitViewParts.tsx");
+    expect(line).not.toMatch(/are running/);
+    expect(line.match(/Neither has ended\./g)).toHaveLength(3);
     expect(marks.get(BUG)).toMatchObject({ level: "sharp", target: UI, said: "also edited by web-ui" });
   });
 
@@ -122,7 +129,7 @@ describe("the sharp mark: the same file, edited by two live agents since it was 
     ]);
     expect(marks.get(UI)).toMatchObject({ level: "sharp", lead: "app.ts", said: "also edited by web-bugfix", tail: "+1" });
     expect(marks.get(UI)!.title).toContain("src/app.ts also edited by rate-review since it was last committed.");
-    expect(marks.get(UI)!.title).toContain("All of them are running.");
+    expect(marks.get(UI)!.title).toContain("None of them has ended.");
     const quietOnly = cardMarks([
       root(UI, { gitCollisions: { quiet: [quietWith(API, "same-branch")], sharp: [sharpWith(BUG, ["src/app.ts"])] } }),
       root(BUG, { sessionName: "web-bugfix" }), root(API, { sessionName: "rate-review" }),
@@ -266,7 +273,7 @@ describe("the main card speaks for its team without taking a teammate's collisio
     });
     expect(m.title).toBe([
       "src/team-shared.ts edited by both ↳ writer-one and ↳ writer-two since it was last committed.",
-      "Both are running.",
+      "Neither has ended.",
       "Select ↳ writer-one.",
     ].join("\n"));
     expect(m.title).not.toContain("also edited");

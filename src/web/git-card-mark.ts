@@ -7,8 +7,8 @@
 // card speaks for the whole team, a subagent's card for itself. Two levels,
 // never blended. QUIET: the two share a working tree, or the same branch in two
 // worktrees; often meant, so a calm muted row. SHARP: both edited the same file
-// since it was last committed, while both run; a row in the error colour that
-// names the file. Sharp wins the row; the quiet ones it covers go in its
+// since it was last committed, and neither has ended; a row in the error colour
+// that names the file. Sharp wins the row; the quiet ones it covers go in its
 // tooltip.
 //
 // The main card says what is the team's own as its own: its main thread's
@@ -165,7 +165,10 @@ function said(a: MarkAgent, list: Entry[], session: boolean, names: (r: GitColli
       const how = s.who.length ? `edited by ${s.who.length === 1 ? "both " : ""}${parties(s)}` : sharpSaid(s, parties(s));
       lines.push(`${files} ${how} since ${n === 1 ? "it was" : "they were"} last committed${where ? `, in ${where}` : ""}.`);
     }
-    lines.push(sharp.length > 1 ? "All of them are running." : "Both are running.");
+    // Who still counts is the server's rule (git-collisions.mjs): an agent
+    // until its session ends, whether or not its turn is running now — so
+    // never "running", which a card showing DONE would contradict.
+    lines.push(sharp.length > 1 ? "None of them has ended." : "Neither has ended.");
     if (session) lines.push("In this session, not in this subagent's own files.");
     for (const q of quiet) lines.push(`Also ${quietSentence(q, names(q.with), q.who.map(member), folderOf(a, q, byId))}`);
   } else {
