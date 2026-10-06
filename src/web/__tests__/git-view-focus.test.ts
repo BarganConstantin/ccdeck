@@ -61,3 +61,20 @@ describe("closing", () => {
     expect(close).toMatch(/if \(target !== card && document\.activeElement !== target\) card\?\.focus\(\{ preventScroll: true \}\);/);
   });
 });
+
+describe("a button pressed with Enter or Space", () => {
+  // Nothing the keyboard sets off animates: a click with detail 0 opens and
+  // closes the view at once, as g and Esc do.
+  it("opens the view at once from the glance's Open, its rows and its more line", () => {
+    const glance = sourceOf("components/GitGlance.tsx");
+    expect(glance).toMatch(/openGitViewFrom\(pressHow\(e\), \{ agentId: agent\.id, focusInside: true, \.\.\.hints \}\)/);
+    expect(glance).not.toMatch(/openGitViewFrom\("pointer"/);
+    expect(glance.match(/onClick=\{e => open\(e/g)).toHaveLength(4);
+  });
+
+  it("closes the view at once from its Close and Back buttons, and from Show on canvas over a sheet", () => {
+    expect(view).toMatch(/className="btn gv-back" aria-label="Back to the canvas" onClick=\{e => onClose\(pressHow\(e\)\)\}/);
+    expect(view).toMatch(/aria-label="Close the git view" onClick=\{e => onClose\(pressHow\(e\)\)\}/);
+    expect(view).toMatch(/if \(sheet\) onClose\(how\);/);
+  });
+});

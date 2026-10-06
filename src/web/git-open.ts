@@ -5,7 +5,9 @@
 // the opener selects the agent and opens its detail panel, the way a
 // double-click does. The git view will register its own opener here and open
 // on that agent instead — the chip does not change.
-type Opener = (agentId: string) => void;
+/** How the chip was pressed: a pointer opens the view with its slide, a key
+ *  (Enter or Space on the focused chip) opens it at once. */
+type Opener = (agentId: string, how: "pointer" | "key") => void;
 
 let opener: Opener | null = null;
 
@@ -15,6 +17,6 @@ export function setGitOpener(fn: Opener | null): void {
 }
 
 /** The chip was pressed on this agent's card. */
-export function openGitFor(agentId: string): void {
-  opener?.(agentId);
+export function openGitFor(agentId: string, how: "pointer" | "key" = "pointer"): void {
+  opener?.(agentId, how);
 }

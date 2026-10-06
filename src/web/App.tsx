@@ -521,7 +521,7 @@ function Inner() {
     focusAgent(id);
     window.requestAnimationFrame(() => focusCanvasNode(id));
   }, [focusAgent]);
-  const openGitViewFromChip = useCallback((agentId: string) => openGitView("pointer", { agentId }), [openGitView]);
+  const openGitViewFromChip = useCallback((agentId: string, how: GitViewHow) => openGitView(how, { agentId }), [openGitView]);
   // Settings › Appearance › Git switched off, or nothing selected any more:
   // the view has nothing to be about.
   const gitOn = useGitOn();

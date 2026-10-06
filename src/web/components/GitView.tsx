@@ -31,6 +31,7 @@ import {
   splitterTarget, writeGitViewPrefs, type GitViewPrefs, type SplitterKind,
 } from "../git-view-sizes";
 import { agentNameIn, cardName as cardNameIn, collisionTarget, otherAgentName } from "../git-agent-name";
+import { pressHow } from "../agent-goto";
 import { flashCard } from "../card-flash";
 import { elsewhereRows } from "../git-files-model";
 import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
@@ -803,7 +804,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
         if (p && p !== pane) setPane(p);
       }}>
         <header className="gv-head" ref={headRef}>
-          <button type="button" className="btn gv-back" aria-label="Back to the canvas" onClick={() => onClose("pointer")}>
+          <button type="button" className="btn gv-back" aria-label="Back to the canvas" onClick={e => onClose(pressHow(e))}>
             <GvIcon name="back" /><span>Canvas</span>
           </button>
           <div className="gv-crumbs">
@@ -844,7 +845,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               path={folder} compact
             />
             <span className="gv-head-rule" aria-hidden="true" />
-            <button type="button" className="glyph-btn gv-close" title="Close the git view (Esc)" aria-label="Close the git view" onClick={() => onClose("pointer")}>
+            <button type="button" className="glyph-btn gv-close" title="Close the git view (Esc)" aria-label="Close the git view" onClick={e => onClose(pressHow(e))}>
               <GvIcon name="close" />
             </button>
           </div>
@@ -918,7 +919,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
         <CommitCard facts={shownCard} anchor={card!.anchor} onClose={closeCard}
           onShow={(id, how) => {
             closeCard(false);
-            if (sheet) onClose("pointer");
+            if (sheet) onClose(how);
             onShowCard(id);
             // As a collision mark does: lit once from a pointer; from a key the ring on the card answers.
             if (how === "pointer") requestAnimationFrame(() => flashCard(id));

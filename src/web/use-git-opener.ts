@@ -7,13 +7,14 @@ import type { useSelection } from "./use-selection";
 
 export function useGitOpener({ selectAgent, openGitView }: {
   selectAgent: ReturnType<typeof useSelection>["selectAgent"];
-  /** Opens the git view on the selected agent, by pointer. */
-  openGitView: (agentId: string) => void;
+  /** Opens the git view on the selected agent: sliding in from a pointer,
+   *  at once from a key. */
+  openGitView: (agentId: string, how: "pointer" | "key") => void;
 }): void {
   useEffect(() => {
-    setGitOpener(id => {
+    setGitOpener((id, how) => {
       selectAgent(id, false);
-      openGitView(id);
+      openGitView(id, how);
     });
     return () => setGitOpener(null);
   }, [selectAgent, openGitView]);
