@@ -313,6 +313,32 @@ describe("recording the commits a boot replay found", () => {
     expect(readFileSync(path, "utf8")).toBe(before);
   });
 
+  it("records a replayed commit the store holds only for another repository", async () => {
+    // The same history at another path (a repository moved, or cloned again),
+    // and an unrelated commit whose SHA starts with the same seven hex: neither
+    // is this repository's line.
+    const second = git(repo, "rev-parse", "HEAD~1").trim();
+    const elsewhere = (path: string, sha: string): Rec => ({
+      v: 1, repo: `${path}/.git`, top: path, sha, shaFull: true, subject: "fix: second", authorTime: null, branch: "agent/work",
+      detached: false, sessionId: "an-earlier-session", agentId: null, label: null, agentType: null, model: null, kind: "claude",
+      at: T0 - 60_000, cwd: path, cost: null, durationMs: null, durationFrom: null, confidence: "seen", amend: false, subcommand: "commit",
+    });
+    const tap = freshTap();
+    expect((await tap.store.append(elsewhere("/elsewhere/moved-from", second))).added).toBe(true);
+    expect((await tap.store.append(elsewhere("/elsewhere/unrelated", second.slice(0, 7) + "f".repeat(33)))).added).toBe(true);
+    replaySession(tap);
+    tap.observe(env(bash("git commit -m 'fix: second'", out.second, { tool_use_id: "toolu_m2" }), T0 + 60_000), REPLAY);
+    expect(await tap.recordReplayed()).toEqual({ found: 1, known: 0, recorded: 1 });
+    const mine = (await lines(tap)).filter(r => r.sessionId === SID);
+    expect(mine).toEqual([expect.objectContaining({ sha: second, cwd: repo, source: "replay" })]);
+    // The recorder's key is the native real path (on Windows the long one, not 8.3).
+    expect(mine[0].repo).toBe(realpathSync.native(join(repo, ".git")));
+
+    // Held for this repository now: the next boot adds nothing.
+    tap.observe(env(bash("git commit -m 'fix: second'", out.second, { tool_use_id: "toolu_m2" }), T0 + 60_000), REPLAY);
+    expect(await tap.recordReplayed()).toEqual({ found: 1, known: 1, recorded: 0 });
+  });
+
   it("never records from the replay what the repo cannot vouch for, nor a line recorded live", async () => {
     const unsure = freshTap({ resolveRepo, confirm: () => null });
     unsure.observe(env(bash("git commit -m 'fix: second'", out.second), T0), REPLAY);

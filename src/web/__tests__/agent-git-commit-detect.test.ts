@@ -196,9 +196,32 @@ describe("gitCommitInvocations", () => {
     expect(at("git revert --no-edit HEAD")[0]).toMatchObject({ subcommand: "revert", noCommit: false });
   });
 
+  it("counts a merge finished after a conflict, which prints the same summary line", () => {
+    expect(at("git merge --continue")).toEqual([{ cwd: "/repo", subcommand: "merge", amend: false, quiet: false, noCommit: false }]);
+    expect(at("git merge --no-commit side")[0]).toMatchObject({ noCommit: true });
+    // To merge, -n is --no-stat; to cherry-pick, --no-commit.
+    expect(at("git merge -n side")[0]).toMatchObject({ noCommit: false });
+  });
+
   it("survives the heredoc message Claude writes, apostrophes and all", () => {
     const cmd = "git add -A && git commit -m \"$(cat <<'EOF'\nfix: don't drop the (last) line\n\nBody with \"quotes\" && ; | chars.\nEOF\n)\" && git log --oneline -1";
     expect(at(cmd)).toEqual([{ cwd: "/repo", subcommand: "commit", amend: false, quiet: false, noCommit: false }]);
+  });
+
+  it("reads Git Bash's drive paths against a Windows folder, the way Claude Code's Bash tool prints them there", () => {
+    const win = (c: string) => (gitCommitInvocations(c, "C:\\Users\\me\\code", { home: "C:\\Users\\me" }) as { cwd: string | null }[]).map(i => i.cwd);
+    expect(win("cd /c/Users/me/code/shop && git commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("git -C /c/Users/me/code/shop commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("cd /cygdrive/d/work/../repo && git commit -m x")).toEqual(["D:\\repo"]);
+    expect(win("cd /c && git commit -m x")).toEqual(["C:\\"]);
+    // What already worked keeps working.
+    expect(win("cd C:/Users/me/code/shop && git commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("cd shop && git commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("cd ~/code/shop && git commit -m x")).toEqual(["C:\\Users\\me\\code\\shop"]);
+    expect(win("git commit -m x")).toEqual(["C:\\Users\\me\\code"]);
+    // A folder on a POSIX machine named like a drive is just a folder.
+    expect(at("cd /c/work && git commit -m x").map(i => i.cwd)).toEqual(["/c/work"]);
+    expect(commandFolders("git -C /c/Users/me/code/shop status", "C:\\Users\\me")).toEqual(["C:\\Users\\me\\code\\shop"]);
   });
 
   it("looks inside sh -c and an env prefix", () => {
@@ -242,6 +265,12 @@ describe("commitCandidates", () => {
     expect(c.shortSha).toMatch(/^[0-9a-f]{7,}$/);
   });
 
+  it("places a commit made from a Git Bash drive path in that Windows folder", () => {
+    const p = { ...claudeBash('cd /c/Users/me/code/shop && git commit -m "feat: add b [skip ci]"', out.slash), cwd: "C:\\Users\\me\\code" };
+    const [c] = commitCandidates(join1(p), { home: "C:\\Users\\me" });
+    expect(c).toMatchObject({ cwd: "C:\\Users\\me\\code\\shop", cwds: ["C:\\Users\\me\\code\\shop"], subject: "feat: add b [skip ci]" });
+  });
+
   it("finds a commit inside a call that failed afterwards", () => {
     // `git commit && npm test` with failing tests is a failed call that still
     // made a commit. The summary line is the proof; confirming it is later.
@@ -260,6 +289,14 @@ describe("commitCandidates", () => {
     const cmd = `git -C ${JSON.stringify(repo)} commit -m a; git -C ${JSON.stringify(other)} commit -m 'in the other repo'`;
     const [c] = commitCandidates(join1(claudeBash(cmd, out.other)));
     expect(c).toMatchObject({ cwd: null, cwds: [repo, other], subject: "in the other repo" });
+  });
+
+  it("records a merge finished with --continue, and names one that completes on its own as a blind spot", () => {
+    const done = commitCandidates(join1(claudeBash("git add src/app.ts && GIT_EDITOR=true git merge --continue", "[main 5a1c42a] Merge branch 'side'\n")));
+    expect(done).toEqual([expect.objectContaining({ subcommand: "merge", shortSha: "5a1c42a", subject: "Merge branch 'side'", cwd: repo })]);
+    const clean = "Merge made by the 'ort' strategy.\n b | 1 +\n 1 file changed, 1 insertion(+)\n";
+    expect(commitCandidates(join1(claudeBash("git merge --no-ff -m 'merge side' side", clean)))).toEqual([]);
+    expect(commitCandidates(join1(claudeBash("git pull --no-rebase origin main", clean)))).toEqual([]);
   });
 
   it("finds nothing for a quiet or redirected commit — a known blind spot", () => {

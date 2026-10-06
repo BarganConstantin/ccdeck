@@ -7,11 +7,12 @@
 //   [detached HEAD 1a2b3c4] subject         no branch checked out
 //   [feature/x/y 1a2b3c4] subject           a branch name may hold slashes
 //
-// cherry-pick and revert print the same line. So a candidate needs two things
-// from one finished call: a command that runs `git … commit` (or cherry-pick
-// / revert) — through `-C <dir>`, `-c k=v`, `cd x &&`, `env`, `sh -c` and the
-// rest of what a real command line holds — and that summary line in what the
-// call printed. The command alone is not enough (it may have failed, or had
+// cherry-pick and revert print the same line, and so does `merge --continue`,
+// which finishes a merge that stopped on a conflict. So a candidate needs two
+// things from one finished call: a command that runs `git … commit` (or
+// cherry-pick / revert / merge) — through `-C <dir>`, `-c k=v`, `cd x &&`,
+// `env`, `sh -c` and the rest of what a real command line holds — and that
+// summary line in what the call printed. The command alone is not enough (it may have failed, or had
 // nothing to commit) and the line alone is not enough (a `cat` or a `git log`
 // can print one), so both are required, and the candidate is still only a
 // candidate: `confirm`, injected where it is recorded, checks it against the
@@ -21,7 +22,10 @@
 // nothing here: `git commit -q`, output redirected away (`> /dev/null`, a
 // pipe into `tail -0`), a commit made by a script or a tool the agent ran
 // (`make release`, a hook, an IDE), plumbing (`commit-tree` + `update-ref`).
-// Those commits get no "seen" mark. The trailer reader
+// Nor does a merge that completes on its own: `git merge`, or a `git pull`
+// that merges, prints "Merge made by …" and no SHA; only a merge finished with
+// `git commit` or `git merge --continue` after a conflict prints one. Those
+// commits get no "seen" mark. The trailer reader
 // (agent-git-trailers.mjs) is the weaker fallback for some of them; the rest
 // stay unattributed, which the view says rather than guessing.
 //
@@ -216,22 +220,29 @@ function tokenize(src) {
 
 const WINDOWS_ABS = /^(?:[A-Za-z]:[\\/]|\\\\)/;
 const flavour = (...ps) => (ps.some(p => typeof p === "string" && WINDOWS_ABS.test(p)) ? win32 : posix);
+// A drive as Git Bash (MSYS) spells it, `/c/Users/…`, and as Cygwin does,
+// `/cygdrive/c/Users/…`: the shell Claude Code runs its Bash tool in on Windows
+// prints and takes these.
+const MSYS_DRIVE = /^\/(?:cygdrive\/)?([A-Za-z])(?:\/(.*))?$/;
 
 /** `dir` resolved from `base`, or null when it cannot be known from the text:
- *  a variable, a command substitution, `cd -`, or no base to resolve against. */
+ *  a variable, a command substitution, `cd -`, or no base to resolve against.
+ *  Against a Windows folder, a Git Bash drive path is that drive's folder. */
 function resolveDir(base, dir, home) {
   if (typeof dir !== "string" || dir === "" || /[$`]/.test(dir) || dir === "-") return null;
   if (dir === "~" || dir.startsWith("~/") || dir.startsWith("~\\")) {
     if (!home) return null;
     dir = flavour(home).join(home, dir.slice(2));
   }
+  const drive = typeof base === "string" && WINDOWS_ABS.test(base) ? MSYS_DRIVE.exec(dir) : null;
+  if (drive) return win32.normalize(`${drive[1].toUpperCase()}:\\${drive[2] ?? ""}`);
   const p = flavour(dir, base);
   if (p.isAbsolute(dir) && (p === posix || WINDOWS_ABS.test(dir))) return p.normalize(dir);
   if (typeof base !== "string" || !p.isAbsolute(base)) return null;
   return p.resolve(base, dir);
 }
 
-const COMMIT_SUBCOMMANDS = new Set(["commit", "cherry-pick", "revert"]);
+const COMMIT_SUBCOMMANDS = new Set(["commit", "cherry-pick", "revert", "merge"]);
 // git's global options that take the next word as their value.
 const GIT_VALUE_OPTS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds", "--exec-path"]);
 // commit's short options whose value is the rest of their cluster, or the next word.
@@ -245,10 +256,10 @@ const isGit = w => typeof w === "string" && /^git(?:\.exe)?$/.test(baseName(w));
 /**
  * @typedef {object} CommitInvocation
  * @property {string | null} cwd     the folder git ran in, when the text says
- * @property {"commit" | "cherry-pick" | "revert"} subcommand
+ * @property {"commit" | "cherry-pick" | "revert" | "merge"} subcommand
  * @property {boolean} amend
  * @property {boolean} quiet         `-q`: it will print no summary line
- * @property {boolean} noCommit      `--dry-run`, `cherry-pick -n`: makes none
+ * @property {boolean} noCommit      `--dry-run`, `cherry-pick -n`, `merge --no-commit`: makes none
  */
 
 /**
@@ -279,7 +290,8 @@ export function gitCommitInvocations(command, cwd, { home = homedir(), depth = 0
           for (let n = 1; n < a.length; n++) {
             const ch = a[n];
             if (ch === "q") quiet = true;
-            if (ch === "n" && sub !== "commit") noCommit = true;
+            // `-n` is --no-commit to cherry-pick and revert, --no-stat to merge.
+            if (ch === "n" && (sub === "cherry-pick" || sub === "revert")) noCommit = true;
             if (sub === "commit" && COMMIT_VALUE_SHORTS.includes(ch)) {
               if (n === a.length - 1) j++;
               break;
@@ -411,7 +423,7 @@ function walkCommands(command, cwd, { home, depth }, visit) {
  * @property {string} subject
  * @property {number} at             when the call's outcome was received (ms)
  * @property {boolean} amend
- * @property {"commit" | "cherry-pick" | "revert"} subcommand
+ * @property {"commit" | "cherry-pick" | "revert" | "merge"} subcommand
  * @property {string | null} toolUseId
  * @property {string | null} model
  */

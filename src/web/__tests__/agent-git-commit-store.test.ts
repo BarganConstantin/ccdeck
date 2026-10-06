@@ -158,6 +158,66 @@ describe("the commit store", () => {
     expect((await a.all()).map((r: Rec) => r.sha)).toContain(sha(100));
   });
 
+  it("sees what another deck appends to the same file, without a restart", async () => {
+    // Two decks share one data directory, and only the one writing the events
+    // log records live commits.
+    const path = fresh();
+    const writer = createCommitStore({ path });
+    const viewer = createCommitStore({ path });
+    await writer.append(rec(1));
+    expect((await viewer.all()).map((r: Rec) => r.sha)).toEqual([sha(1)]);
+    await writer.append(rec(2));
+    await writer.append(rec(3, { sessionId: "s-2" }));
+    expect((await viewer.forRepo(REPO)).map((r: Rec) => r.sha)).toEqual([sha(1), sha(2), sha(3)]);
+    expect((await viewer.lastForSession("s-2"))?.sha).toBe(sha(3));
+    // And what it appends itself is held once, the other deck's lines too.
+    await viewer.append(rec(4));
+    expect((await viewer.all()).map((r: Rec) => r.sha)).toEqual([sha(1), sha(2), sha(3), sha(4)]);
+    expect((await writer.all()).map((r: Rec) => r.sha)).toEqual([sha(1), sha(2), sha(3), sha(4)]);
+  });
+
+  it("leaves a line another deck is still writing for the next read", async () => {
+    const path = fresh();
+    const viewer = createCommitStore({ path });
+    await viewer.append(rec(1));
+    const line = JSON.stringify(rec(2)) + "\n";
+    appendFileSync(path, line.slice(0, 30));
+    expect((await viewer.all()).map((r: Rec) => r.sha)).toEqual([sha(1)]);
+    appendFileSync(path, line.slice(30));
+    expect((await viewer.all()).map((r: Rec) => r.sha)).toEqual([sha(1), sha(2)]);
+  });
+
+  it("reads the whole file again once another deck has rewritten it", async () => {
+    const path = fresh();
+    const maxBytes = 6 * 1024;
+    const writer = createCommitStore({ path, maxBytes });
+    const viewer = createCommitStore({ path, maxBytes });
+    await writer.append(rec(1));
+    expect(await viewer.all()).toHaveLength(1);
+    for (let i = 2; i <= 30; i++) await writer.append(rec(i));
+    expect(writer.stats().compactions).toBeGreaterThan(0);
+    const onDisk = (await createCommitStore({ path, maxBytes }).all()).map((r: Rec) => r.sha);
+    expect(onDisk).not.toContain(sha(1));
+    expect((await viewer.all()).map((r: Rec) => r.sha)).toEqual(onDisk);
+  });
+
+  it("keeps a deck's memory-only lines off the disk, and through another deck's rewrite", async () => {
+    const path = fresh();
+    const maxBytes = 6 * 1024;
+    const ramOnly = createCommitStore({ path, maxBytes });
+    expect((await ramOnly.append(rec(500, { sessionId: "ram" }), { memoryOnly: true })).added).toBe(true);
+    expect((await ramOnly.append(rec(500, { sessionId: "ram" }), { memoryOnly: true })).added).toBe(false);
+    expect(() => statSync(path)).toThrow();
+    const writer = createCommitStore({ path, maxBytes });
+    for (let i = 1; i <= 30; i++) await writer.append(rec(i));
+    expect(writer.stats().compactions).toBeGreaterThan(0);
+    const held = (await ramOnly.all()).map((r: Rec) => r.sha);
+    expect(held).toContain(sha(500));
+    expect(held).toContain(sha(30));
+    expect((await createCommitStore({ path }).all()).map((r: Rec) => r.sha)).not.toContain(sha(500));
+    expect(readFileSync(path, "utf8")).not.toContain("\"ram\"");
+  });
+
   it("answers an unreadable or missing file as empty, without throwing", async () => {
     const store = createCommitStore({ path: join(DIR, "no", "such", "dir", COMMIT_STORE_FILE) });
     expect(await store.all()).toEqual([]);

@@ -5,7 +5,7 @@
 // Nothing here decides WHICH repository: the caller hands in a top level it
 // resolved from a session's folder (git-repo.mjs), and for the diffs an entry
 // git itself reported. A path never comes from a request on its own.
-import { lstat, readFile, readlink, realpath } from "node:fs/promises";
+import { access, lstat, readFile, readlink, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { classifyFailure, git } from "./git-run.mjs";
 
@@ -99,23 +99,97 @@ async function refsByCommit(topLevel) {
   return map;
 }
 
+/** How long `--topo-order` may take on a repository with no commit-graph
+ *  before the history is read the streaming way instead (readLog). */
+export const TOPO_BUDGET_MS = 2_000;
+/** The repositories (by common git directory) whose history took longer than
+ *  that, so it is not tried again while the deck runs. */
+const slowTopo = new Set();
+const MAX_SLOW_TOPO = 256;
+
 /**
  * The last LOG_LIMIT commits across every branch, remote-tracking branch, tag
  * and HEAD, in topological order — parents are what the graph's lanes are
  * drawn from, so a child always comes before its parents. Stashes and notes
  * are refs too and are left out: neither is history anybody committed to.
  *
+ * WHY TWO WAYS. `--topo-order` is cheap with a commit-graph file, whose
+ * generation numbers let git stop walking early, and on any repository of
+ * modest size; on a large one with no commit-graph (a fresh clone has none
+ * until gc writes it) git walks the whole history first — seven to ten seconds
+ * on a million commits, past the read's timeout. Its default order streams
+ * and stops at the limit. So `--topo-order` is used with a commit-graph, and
+ * without one for as long as it answers within TOPO_BUDGET_MS; a repository
+ * that takes longer is read in the default order from then on, the window put
+ * in graph order here the way git's own topological sort does it
+ * (graphOrder). That window is the newest commits by date rather than the
+ * first of git's topological walk; both are the recent history, and every
+ * commit still comes before its parents. `commonDir` is where to look for the
+ * commit-graph, and what the slow repository is remembered by.
+ *
  * `{ ok: true, commits }`, or `{ ok: false, reason }` for a read that failed.
  */
-export async function readLog(topLevel, head, { limit = LOG_LIMIT } = {}) {
+export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = null, topoBudgetMs = TOPO_BUDGET_MS } = {}) {
   const refs = await refsByCommit(topLevel);
   const starts = ["--branches", "--remotes", "--tags"];
   if (head?.sha) starts.push("HEAD");
   if (!head?.sha && refs.size === 0) return { ok: true, commits: [] };
-  const args = ["-z", "--topo-order", `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"];
-  const r = await git("log", args, { cwd: topLevel });
+  const read = (topo, timeout) =>
+    git("log", ["-z", ...(topo ? ["--topo-order"] : []), `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"], { cwd: topLevel, ...(timeout ? { timeout } : {}) });
+  const key = commonDir || topLevel;
+  const graph = await hasCommitGraph(commonDir);
+  if (graph || !slowTopo.has(key)) {
+    const r = await read(true, graph ? null : topoBudgetMs);
+    if (r.ok) return { ok: true, commits: withRefs(r.stdout, refs, head) };
+    if (graph || !r.timedOut) return { ok: false, reason: readFailure(r) };
+    slowTopo.add(key);
+    while (slowTopo.size > MAX_SLOW_TOPO) slowTopo.delete(slowTopo.values().next().value);
+  }
+  const r = await read(false, null);
   if (!r.ok) return { ok: false, reason: readFailure(r) };
-  return { ok: true, commits: withRefs(r.stdout, refs, head) };
+  return { ok: true, commits: graphOrder(withRefs(r.stdout, refs, head)) };
+}
+
+/** Whether the repository whose common git directory is `commonDir` has a
+ *  commit-graph — a single file or a chain of them. False when not known. */
+export async function hasCommitGraph(commonDir) {
+  if (typeof commonDir !== "string" || !commonDir) return false;
+  for (const rel of [["objects", "info", "commit-graph"], ["objects", "info", "commit-graphs", "commit-graph-chain"]]) {
+    try { await access(join(commonDir, ...rel)); return true; } catch { /* not this one */ }
+  }
+  return false;
+}
+
+/**
+ * `commits` — in the order git's walk gave them, newest first — put in graph
+ * order, the way `git log --topo-order` sorts what it walked: the tips first,
+ * in walk order, then each commit once every one of its children here is
+ * shown, following one line of history as far as it goes before taking up
+ * another, so lines are not interleaved. Parents outside `commits` are
+ * ignored. A pure function of its input.
+ */
+export function graphOrder(commits) {
+  const bySha = new Map();
+  const waiting = new Map(); // sha -> children here not shown yet
+  for (const c of commits) { bySha.set(c.sha, c); waiting.set(c.sha, 0); }
+  for (const c of commits) for (const p of c.parents) if (waiting.has(p)) waiting.set(p, waiting.get(p) + 1);
+  // A stack: the first tip on top, and a commit's last parent pushed last, so
+  // it is shown next — git's own LIFO for this sort.
+  const stack = commits.filter((c) => waiting.get(c.sha) === 0).reverse();
+  const out = [];
+  while (stack.length) {
+    const c = stack.pop();
+    out.push(c);
+    for (const p of c.parents) {
+      if (!waiting.has(p)) continue;
+      const left = waiting.get(p) - 1;
+      waiting.set(p, left);
+      if (left === 0) stack.push(bySha.get(p));
+    }
+  }
+  // A cycle cannot happen in git; should the input ever hold one, nothing is lost.
+  if (out.length < commits.length) for (const c of commits) if (!out.includes(c)) out.push(c);
+  return out;
 }
 
 /** Every record of a `log -z --format=LOG_FORMAT` answer, with the refs that
