@@ -226,11 +226,13 @@ export const appInfo = (id) => KNOWN.get(id);
 
 // ── looking ─────────────────────────────────────────────────────────────────
 
-/** Whether anything is at `p`. lstat rather than stat: Windows Terminal's
- *  `wt.exe` is an app execution alias, a reparse point that stat cannot follow
- *  but CreateProcess can, and a broken symlink is still something to report
- *  and let the launch fail on with its own message. */
-async function defaultExists(p) {
+/** Whether anything is at `p`, for detection and for the route's look before a
+ *  launch alike. lstat rather than stat: Windows Terminal's `wt.exe` is an app
+ *  execution alias, a reparse point that stat refuses with EACCES
+ *  (github.com/nodejs/node/issues/36790) but CreateProcess runs, and a broken
+ *  symlink is still something to report and let the launch fail on with its
+ *  own message. */
+export async function pathExists(p) {
   try { await lstat(p); return true; } catch { return false; }
 }
 
@@ -299,7 +301,7 @@ export async function detectApps({
   platform = process.platform,
   env = process.env,
   home = homedir(),
-  exists = defaultExists,
+  exists = pathExists,
   readdir = (p) => readDirectory(p),
 } = {}) {
   const ctx = { platform, env: env ?? {}, home: String(home ?? ""), exists, readdir };

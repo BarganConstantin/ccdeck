@@ -35,7 +35,7 @@ import { isLoopbackHost } from "./request-gates.mjs";
 import { sessionFolder } from "./git-sessions.mjs";
 import { repoOf } from "./git-state.mjs";
 import { gitEnabled } from "./git-watch.mjs";
-import { SLOTS, chooseApp, detectApps } from "./git-handoff-apps.mjs";
+import { SLOTS, chooseApp, detectApps, pathExists } from "./git-handoff-apps.mjs";
 import { REFUSALS, launchEnv, launchSpec, viewerIsLocal } from "./git-handoff-launch.mjs";
 
 /** How long one look at the machine is believed. Detection is a few dozen
@@ -189,8 +189,9 @@ export async function handleGitOpen(req, res) {
   if (spec.refused) return send(res, 409, { error: REFUSAL_WORDS[spec.refused] ?? "this folder cannot be opened here" });
 
   // Still there? Uninstalled since the last look means a button that does
-  // nothing, so the look is thrown away and the answer says why.
-  try { await stat(app.target.path); } catch {
+  // nothing, so the look is thrown away and the answer says why. Asked the way
+  // detection asks: a plain stat would call Windows Terminal's alias gone.
+  if (!(await pathExists(app.target.path))) {
     forgetHandoffApps();
     return send(res, 409, { error: `${app.name} is no longer on this machine` });
   }
