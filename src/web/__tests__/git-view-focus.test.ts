@@ -127,3 +127,15 @@ describe("an opener the pointer pressed, given focus back on close", () => {
     expect(close).toMatch(/if \(target && document\.activeElement === target\) onFocusBack\?\.\(target\);/);
   });
 });
+
+describe("the history's new-commits pill, pressed", () => {
+  // It goes away as it is pressed; with focus on it, focus fell to the page
+  // and the next R re-arranged the board.
+  it("hands focus to the history's tab stop before it goes", () => {
+    const graph = sourceOf("components/GitGraph.tsx");
+    const at = graph.indexOf("const toTop = useCallback(");
+    const body = graph.slice(at, graph.indexOf("}, []);", at));
+    expect(body).toMatch(/if \(pillRef\.current\?\.contains\(document\.activeElement\)\) sc\.querySelector<HTMLElement>\('\[role="option"\]\[tabindex="0"\]'\)\?\.focus\(\{ preventScroll: true \}\);\s*setNewAbove\(0\);/);
+    expect(graph).toMatch(/<button type="button" className="gv-new-pill" ref=\{pillRef\} onClick=\{toTop\}>/);
+  });
+});
