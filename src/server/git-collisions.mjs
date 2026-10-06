@@ -44,7 +44,9 @@
 // NEVER LOGGED. This is live state: a restarted deck works it out afresh after
 // its boot replay rather than replaying an old one, so every GitCollisions is
 // sent with persist: false and only the page and the ring hold it. Like
-// GitObserved it is LAST_VALUE_WINS in ring-bounds.mjs.
+// GitObserved it is LAST_VALUE_WINS in ring-bounds.mjs — and like it, sent
+// again to a page that connects after the ring dropped the event that carried
+// it (reannounceCollisions), since an unchanged answer is never sent twice.
 import { join } from "node:path";
 import { collisionFacts } from "./agent-git-collisions.mjs";
 import { agentGit, editsFor } from "./agent-git-tap.mjs";
@@ -82,6 +84,8 @@ const FOLDS_CASE = process.platform === "win32" || process.platform === "darwin"
 const sessions = new Map();
 // sid -> the collisions last sent for it, serialized; absent once they are empty
 const sent = new Map();
+// sid -> the seq of the event that carried its last answer, empty ones included
+const sentSeq = new Map();
 let timer = null;
 let due = Infinity;
 let deadline = null;
@@ -315,9 +319,35 @@ async function compute() {
 
 function send(sid, collisions) {
   const c = collisions ?? { quiet: [], sharp: [] };
-  pushEvent({ hook_event_name: "GitCollisions", session_id: sid, collisions: c }, "internal", { persist: false });
+  const evt = pushEvent({ hook_event_name: "GitCollisions", session_id: sid, collisions: c }, "internal", { persist: false });
   if (collisions) sent.set(sid, JSON.stringify(collisions));
   else sent.delete(sid);
+  sentSeq.set(sid, evt?.seq ?? null);
+}
+
+/**
+ * Send again the last collisions of every session a connecting page cannot be
+ * replayed them for: each whose event is newer than the page's last one
+ * (`after`) and has already left the ring (older than `before`, its oldest).
+ * Only for the `sessions` the page will draw a card for, and, for a page that
+ * has seen nothing yet, only a collision that holds — it has none to clear.
+ * Answers how many.
+ *
+ * @param {{ after: number, before: number, sessions: Set<string> }} range
+ */
+export function reannounceCollisions({ after, before, sessions }) {
+  let n = 0;
+  if (!enabled()) return n;
+  for (const [sid, seq] of sentSeq) {
+    if (!sessions.has(sid) || seq === null || seq <= after || seq >= before) continue;
+    const json = sent.get(sid);
+    if (!json && after === 0) continue;
+    const c = json ? JSON.parse(json) : { quiet: [], sharp: [] };
+    const evt = pushEvent({ hook_event_name: "GitCollisions", session_id: sid, collisions: c }, "internal", { persist: false });
+    sentSeq.set(sid, evt?.seq ?? null);
+    n++;
+  }
+  return n;
 }
 
 /** Work everything out again soon — after the boot replay, and when the git
@@ -345,6 +375,7 @@ export function collisionsSwitched(on) {
 export function forgetCollisionSession(sid) {
   const had = sessions.delete(sid);
   sent.delete(sid);
+  sentSeq.delete(sid);
   if (had && enabled()) schedule(RECOMPUTE_MS);
 }
 
@@ -353,6 +384,7 @@ export function clearCollisions() {
   generation++;
   sessions.clear();
   sent.clear();
+  sentSeq.clear();
   if (timer) { clearTimeout(timer); timer = null; due = Infinity; }
   if (deadline) { clearTimeout(deadline); deadline = null; }
 }

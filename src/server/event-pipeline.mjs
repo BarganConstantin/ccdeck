@@ -227,7 +227,7 @@ export function pushEvent(raw, source, opts = {}) {
   // repository — the deck's own events never do.
   if (raw && typeof raw === "object") {
     noteSessionFolder(raw);
-    if (opts.replay) noteGitEvent(raw, { replay: true });
+    if (opts.replay) noteGitEvent(raw, { replay: true, seq });
     else if (source === "hook" || source === "codex") noteGitEvent(raw);
     // Who is live, from the replay as from live events, and — live only — a
     // fresh look at who collides with whom when this call could change it.

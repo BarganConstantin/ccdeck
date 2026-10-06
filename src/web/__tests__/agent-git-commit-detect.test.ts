@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 // @ts-expect-error — .mjs server module, no types
-import { commitCandidates, gitCommitInvocations, parseCommitSummaries } from "../../server/agent-git-detect.mjs";
+import { commandFolders, commitCandidates, gitCommitInvocations, parseCommitSummaries } from "../../server/agent-git-detect.mjs";
 // @ts-expect-error — .mjs server module, no types
 import { createCallJoiner } from "../../server/agent-git-calls.mjs";
 // @ts-expect-error — .mjs server module, no types
@@ -208,6 +208,26 @@ describe("gitCommitInvocations", () => {
 
   it("is empty for junk", () => {
     for (const c of ["", "   ", null, 7, "'unterminated", "git"]) expect(at(c as string)).toEqual([]);
+  });
+});
+
+describe("commandFolders", () => {
+  const dirs = (command: string, cwd = "/repo") => commandFolders(command, cwd, { home: "/home/me" }) as string[];
+
+  it("names every folder a command moves into or points git at, whatever git does there", () => {
+    expect(dirs("git status")).toEqual(["/repo"]);
+    expect(dirs("git -C ../other log -1 && git -C /abs checkout main")).toEqual(["/other", "/abs"]);
+    expect(dirs("cd sub && npm test && git add -A")).toEqual(["/repo/sub"]);
+    expect(dirs("git --git-dir=../wt/.git --work-tree ../wt status")).toEqual(["/wt", "/wt/.git"]);
+    expect(dirs("bash -c 'cd ~/elsewhere && git commit -m x'")).toEqual(["/home/me/elsewhere"]);
+    expect(dirs("(cd a && make) ; git -C b fetch")).toEqual(["/repo/a", "/repo/b"]);
+  });
+
+  it("names nothing it cannot read off the text", () => {
+    expect(dirs("ls -la && npm test")).toEqual([]);
+    expect(dirs("cd $DIR && git status")).toEqual([]);
+    expect(dirs("'unterminated")).toEqual([]);
+    expect(dirs("")).toEqual([]);
   });
 });
 

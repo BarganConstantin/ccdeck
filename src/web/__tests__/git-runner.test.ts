@@ -4,8 +4,9 @@
 // is shown happening with plain git first, so the case cannot pass merely
 // because the trap was never armed.
 import { afterAll, describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import { rmTempDir } from "./rm-temp-dir";
 import { commitAll, markerProgram, repoWith, sh, tempDir, watchNames, write } from "./git-fixture";
@@ -19,9 +20,11 @@ process.env.USERPROFILE = HOME;
 process.env.XDG_CONFIG_HOME = join(HOME, ".config");
 
 // @ts-expect-error — plain .mjs server module, no types
-const { git, gitArgv, gitEnv, classifyFailure } = await import("../../server/git-run.mjs");
+const { git, gitArgv, gitEnv, classifyFailure, filterConfigEnv, filtersCanBeEmptied, parseGitVersion } = await import("../../server/git-run.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { filterNames } = await import("../../server/git-repo.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { readCommit, readCommitFileDiff, readLastCommitTime } = await import("../../server/git-reads.mjs");
 
 const made: string[] = [HOME];
 const track = (dir: string) => { made.push(dir); return dir; };
@@ -55,12 +58,43 @@ describe("the argument vector", () => {
   });
 
   it("empties every filter driver it is told about", () => {
-    const argv = gitArgv("status", [], { filters: ["lfs", "a.b"] }).join(" ");
+    const argv = gitArgv("status", [], { filters: ["lfs", "a.b", "a=b"] }).join(" ");
     for (const d of ["lfs", "a.b"]) {
       expect(argv).toContain(`-c filter.${d}.clean= `);
       expect(argv).toContain(`-c filter.${d}.process= `);
       expect(argv).toContain(`-c filter.${d}.required=false`);
     }
+    // `-c` splits at the first "=", so that name goes through the environment.
+    expect(argv).not.toContain("filter.a=b");
+    const env = filterConfigEnv(["lfs", "a=b"]);
+    expect(env.GIT_CONFIG_COUNT).toBe("8");
+    const pairs = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [env[`GIT_CONFIG_KEY_${i}`], env[`GIT_CONFIG_VALUE_${i}`]]));
+    expect(pairs).toEqual({
+      "filter.lfs.clean": "", "filter.lfs.smudge": "", "filter.lfs.process": "", "filter.lfs.required": "false",
+      "filter.a=b.clean": "", "filter.a=b.smudge": "", "filter.a=b.process": "", "filter.a=b.required": "false",
+    });
+    expect(filterConfigEnv([])).toEqual({});
+  });
+
+  it("refuses a read whose filter driver this git could not empty", () => {
+    expect(parseGitVersion("git version 2.53.0\n")).toEqual([2, 53]);
+    expect(parseGitVersion("git version 2.30.2.windows.1")).toEqual([2, 30]);
+    expect(parseGitVersion("nonsense")).toBeNull();
+    expect(filtersCanBeEmptied(["lfs", "x y"], null)).toBe(true);
+    expect(filtersCanBeEmptied(["a=b"], [2, 31])).toBe(true);
+    expect(filtersCanBeEmptied(["a=b"], [3, 0])).toBe(true);
+    expect(filtersCanBeEmptied(["a=b"], [2, 30])).toBe(false);
+    expect(filtersCanBeEmptied(["a=b"], null)).toBe(false);
+    expect(classifyFailure({ refused: true, stderr: "" })).toBe("unsafe");
+  });
+
+  it("never fetches, and never connects anywhere", () => {
+    for (const sub of ["status", "diff", "diff-tree", "log", "cat-file", "rev-list"]) {
+      expect(gitArgv(sub, []).join(" "), sub).toContain("-c protocol.allow=never");
+    }
+    expect(gitEnv({}, "linux").GIT_NO_LAZY_FETCH).toBe("1");
+    expect(classifyFailure({ stderr: "warning: lazy fetching disabled; some objects may not be available\nfatal: could not fetch 6b7a from promisor remote" })).toBe("not-downloaded");
+    expect(classifyFailure({ stderr: "fatal: transport 'file' not allowed\nfatal: could not fetch 6b7a from promisor remote" })).toBe("not-downloaded");
   });
 
   it("refuses to start anything that writes", () => {
@@ -71,8 +105,9 @@ describe("the argument vector", () => {
   });
 
   it("hands the child none of the deck's GIT_* variables, and pins locks off", () => {
-    const env = gitEnv({ PATH: "/bin", GIT_DIR: "/elsewhere", GIT_EXTERNAL_DIFF: "x", HOME: "/h" }, "linux");
-    expect(env).toMatchObject({ PATH: "/bin", HOME: "/h", GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" });
+    const env = gitEnv({ PATH: "/bin", GIT_DIR: "/elsewhere", GIT_EXTERNAL_DIFF: "x", GIT_CONFIG_COUNT: "1", HOME: "/h" }, "linux");
+    expect(env).toMatchObject({ PATH: "/bin", HOME: "/h", GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0", GIT_NO_LAZY_FETCH: "1" });
+    expect(env.GIT_CONFIG_COUNT).toBeUndefined();
     expect(env.GIT_DIR).toBeUndefined();
     expect(env.GIT_EXTERNAL_DIFF).toBeUndefined();
     // One variable on Windows, whatever its case.
@@ -210,6 +245,86 @@ describe("a read never runs the repository's programs", () => {
 
     sh(dir, ["diff"]);
     expect(existsSync(marker), "plain git diff should have run the filter").toBe(true);
+  });
+
+  it("never runs a clean filter whose driver name holds an equals sign", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    const t = traps();
+    const marker = join(t, "clean-eq.ran");
+    const program = markerProgram(t, "clean-eq", marker);
+    sh(dir, ["config", "filter.a=b.clean", program]);
+    write(dir, { ".gitattributes": "*.txt filter=a=b\n" });
+    write(dir, { "a.txt": "one, changed\n" });
+
+    const filters = await filterNames(dir);
+    expect(filters).toContain("a=b");
+    const st = await git("status", ["--porcelain=v2", "-z"], { cwd: dir, filters });
+    const d = await git("diff", ["--", "a.txt"], { cwd: dir, filters });
+    // Emptied on a git that reads GIT_CONFIG_COUNT; refused on one that does not.
+    for (const r of [st, d]) expect(r.ok || classifyFailure(r) === "unsafe").toBe(true);
+    if (d.ok) expect(d.stdout).toContain("+one, changed");
+    expect(existsSync(marker)).toBe(false);
+
+    sh(dir, ["-c", "filter.a=b.clean=", "diff"]);
+    expect(existsSync(marker), "plain git diff should have run the filter, even with -c naming it").toBe(true);
+  });
+});
+
+describe("a partial clone", () => {
+  /** A program the clone's config names as its upload-pack: it leaves
+   *  `marker` and then serves the fetch, the way a real remote would. */
+  const uploadPack = (dir: string, marker: string) => {
+    const path = join(dir, "upload-pack");
+    writeFileSync(path, `#!/bin/sh\necho ran >> '${marker.replace(/\\/g, "/")}'\nexec git-upload-pack "$@"\n`);
+    chmodSync(path, 0o755);
+    return path.replace(/\\/g, "/");
+  };
+  /** A three-commit repository a filtered clone may be made from, and the clone. */
+  const cloned = (filter: string) => {
+    const src = track(repoWith({ "src/app.ts": "one\n", "f.txt": "one\n".repeat(40) }));
+    sh(src, ["config", "uploadpack.allowFilter", "true"]);
+    sh(src, ["config", "uploadpack.allowAnySHA1InWant", "true"]);
+    write(src, { "src/app.ts": "two\n", "f.txt": "two\n".repeat(40) });
+    const two = commitAll(src, "two");
+    write(src, { "f.txt": "three\n".repeat(40) });
+    commitAll(src, "three");
+    const dst = join(track(tempDir("ccdeck-git-partial-")), "clone");
+    sh(src, ["clone", "-q", `--filter=${filter}`, pathToFileURL(src).href, dst]);
+    const t = traps();
+    const marker = join(t, "upload-pack.ran");
+    sh(dst, ["config", "remote.origin.uploadpack", uploadPack(t, marker)]);
+    const packs = () => readdirSync(join(dst, ".git", "objects", "pack")).filter(n => n.endsWith(".pack")).length;
+    return { dst, two, marker, packs };
+  };
+
+  it("lists an older commit's files without fetching their content, and says its diffs are not there", async () => {
+    const { dst, two, marker, packs } = cloned("blob:none");
+    const before = packs();
+    const c = await readCommit(dst, two);
+    expect(c.ok).toBe(true);
+    expect(c.notDownloaded).toBe(true);
+    expect(c.files.map((f: any) => f.path).sort()).toEqual(["f.txt", "src/app.ts"]);
+    const d = await readCommitFileDiff(dst, c.commit, c.files[0]);
+    expect(d).toEqual({ ok: false, reason: "not-downloaded" });
+    expect(packs()).toBe(before);
+    expect(existsSync(marker)).toBe(false);
+
+    // Plain git, asked for the same counts, goes to the remote for them.
+    try { sh(dst, ["diff-tree", "-r", "--numstat", `${two}~1`, two]); } catch { /* the fetch may fail; it was tried */ }
+    expect(existsSync(marker), "plain git should have fetched").toBe(true);
+  });
+
+  it("never fetches old trees to tell when a file was last committed", async () => {
+    const { dst, marker, packs } = cloned("tree:0");
+    const before = packs();
+    // Answers "could not tell" rather than fetching the trees it needs. The
+    // fixture's commits are made on 2026-01-02.
+    expect(await readLastCommitTime(dst, "src/app.ts", Date.parse("2026-01-01T00:00:00Z"))).toBeNull();
+    expect(packs()).toBe(before);
+    expect(existsSync(marker)).toBe(false);
+
+    try { sh(dst, ["log", "-1", "--format=%ct", "--", "src/app.ts"]); } catch { /* tried */ }
+    expect(existsSync(marker), "plain git should have fetched").toBe(true);
   });
 });
 

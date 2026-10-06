@@ -79,6 +79,7 @@ const REASON: Record<string, string> = {
   outside: "The file is outside this repository.",
   error: "git could not read it.",
   "too-large": "The answer was too large.",
+  "not-downloaded": "This partial clone has not downloaded it, and the deck never fetches.",
 };
 
 /**

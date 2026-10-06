@@ -29,7 +29,24 @@
 //                             There is no switch that turns filters off, so
 //                             the caller passes the driver names the
 //                             repository's config defines and each is emptied
-//                             (see filterNames in git-repo.mjs).
+//                             (see filterNames in git-repo.mjs) — through the
+//                             child's GIT_CONFIG_COUNT/KEY/VALUE, which takes
+//                             a name holding `=` as it is, and through `-c`
+//                             as well for a git older than 2.31, which reads
+//                             no GIT_CONFIG_COUNT. `-c` splits at the first
+//                             `=`, so on such a git a name holding one cannot
+//                             be emptied, and the read is refused instead.
+//   GIT_NO_LAZY_FETCH=1       a partial clone (`--filter=blob:none`, the
+//   protocol.allow=never      treeless `--filter=tree:0`) fetches a missing
+//                             object from its promisor remote the moment a
+//                             read needs it: a network call that runs the
+//                             credential helper, the ssh command or the
+//                             remote's configured upload-pack, and writes a
+//                             pack into .git. The variable stops it on git
+//                             2.44 and later; the protocol switch refuses
+//                             every transport on any git before a connection
+//                             or a helper is started. The read then fails, and
+//                             says "not-downloaded" (classifyFailure).
 //   --ignore-submodules=dirty status and diff otherwise start a second git
 //                             inside every submodule, under that submodule's
 //                             own configuration.
@@ -44,7 +61,8 @@
 // Hooks are not disabled because nothing here can fire one: no read runs a
 // hook, and the commands that do (commit, merge, checkout, push) are never
 // spawned. Neither are credential helpers, the ssh command or the askpass —
-// nothing here talks to a remote.
+// nothing here talks to a remote, and the lazy fetch above, the one way a
+// read could, is switched off.
 //
 // The binary is `git.exe` on Windows, spelled with its extension so exec-spec
 // offers that one candidate and never a `git.cmd` routed through cmd.exe, and
@@ -74,6 +92,7 @@ const GLOBAL = [
   "-c", "status.submoduleSummary=false",
   "-c", "diff.ignoreSubmodules=dirty",
   "-c", "diff.autoRefreshIndex=false",
+  "-c", "protocol.allow=never",
 ];
 
 const DIFFS = ["--no-ext-diff", "--no-textconv", "--no-color"];
@@ -94,8 +113,14 @@ const READS = new Set([
 ]);
 
 /** A driver name as git's config keys spell it: anything but a newline, and
- *  never empty. Checked because each one becomes part of a `-c` argument. */
-const DRIVER = /^[^\n\r=]+$/;
+ *  never empty. Checked because each one becomes part of a config key. */
+const DRIVER = /^[^\n\r\0]+$/;
+/** One `-c` can carry it too: git splits a `-c` at its first `=`. */
+const DASH_C_DRIVER = /^[^\n\r\0=]+$/;
+/** The first git that reads GIT_CONFIG_COUNT. */
+const CONFIG_ENV_SINCE = [2, 31];
+
+const driverNames = (filters) => [...new Set((Array.isArray(filters) ? filters : []).filter((n) => typeof n === "string" && DRIVER.test(n)))];
 
 /** The child's environment: the deck's own, minus every GIT_* variable, plus
  *  the few that pin a read down. Case-insensitive on Windows, where
@@ -107,6 +132,8 @@ export function gitEnv(base = process.env, platform = process.platform) {
     env[k] = v;
   }
   env.GIT_OPTIONAL_LOCKS = "0";
+  // A partial clone's missing objects stay missing (see the header).
+  env.GIT_NO_LAZY_FETCH = "1";
   env.GIT_TERMINAL_PROMPT = "0";
   env.GIT_PAGER = "cat";
   env.PAGER = "cat";
@@ -124,14 +151,58 @@ export function gitEnv(base = process.env, platform = process.platform) {
 export function gitArgv(sub, args = [], { filters = [] } = {}) {
   if (!READS.has(sub)) throw new Error(`git ${sub} is not a read`);
   const neutral = [];
-  for (const name of filters) {
-    if (typeof name !== "string" || !DRIVER.test(name)) continue;
+  for (const name of driverNames(filters)) {
+    if (!DASH_C_DRIVER.test(name)) continue;
     neutral.push(
       "-c", `filter.${name}.clean=`, "-c", `filter.${name}.smudge=`,
       "-c", `filter.${name}.process=`, "-c", `filter.${name}.required=false`,
     );
   }
   return [...GLOBAL, ...neutral, sub, ...(PER_SUBCOMMAND[sub] ?? []), ...args];
+}
+
+/**
+ * The same emptying as gitArgv's `-c`s, as the child's GIT_CONFIG_COUNT,
+ * GIT_CONFIG_KEY_<n> and GIT_CONFIG_VALUE_<n> — the only spelling that keeps a
+ * driver name holding `=` whole. Exported so the tests can pin it.
+ */
+export function filterConfigEnv(filters = []) {
+  const env = {};
+  let n = 0;
+  for (const name of driverNames(filters)) {
+    for (const [field, value] of [["clean", ""], ["smudge", ""], ["process", ""], ["required", "false"]]) {
+      env[`GIT_CONFIG_KEY_${n}`] = `filter.${name}.${field}`;
+      env[`GIT_CONFIG_VALUE_${n}`] = value;
+      n++;
+    }
+  }
+  if (n) env.GIT_CONFIG_COUNT = String(n);
+  return env;
+}
+
+/** Whether every filter driver named can be emptied by a git of `version`
+ *  ([major, minor], or null when unknown): a name holding `=` needs a git that
+ *  reads GIT_CONFIG_COUNT. */
+export function filtersCanBeEmptied(filters, version) {
+  const names = driverNames(filters);
+  if (names.every((n) => DASH_C_DRIVER.test(n))) return true;
+  if (!Array.isArray(version)) return false;
+  const [major, minor] = version;
+  return major > CONFIG_ENV_SINCE[0] || (major === CONFIG_ENV_SINCE[0] && minor >= CONFIG_ENV_SINCE[1]);
+}
+
+/** `git version`'s answer as [major, minor], or null. */
+export function parseGitVersion(text) {
+  const m = /git version (\d+)\.(\d+)/.exec(String(text ?? ""));
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
+let versionAsked = null;
+/** The installed git's version, asked once — and only when a read needs it. */
+function installedVersion() {
+  versionAsked ??= run(GIT_BIN, ["version"], { timeout: GIT_TIMEOUT_MS, maxBuffer: 4096, env: gitEnv() })
+    .then((r) => (r.ok ? parseGitVersion(r.stdout) : null), () => null);
+  return versionAsked;
 }
 
 /** How many git processes the deck runs at once. A view opening on a busy
@@ -149,17 +220,23 @@ function release() {
 
 /**
  * Run one read in `cwd`. Never throws. Answers
- *   { ok, stdout, stderr, code, timedOut, tooLarge, missing, noFolder }
+ *   { ok, stdout, stderr, code, timedOut, tooLarge, missing, noFolder, refused? }
  * where `missing` is git not being installed, `noFolder` is the folder having
- * gone, and `tooLarge` is the output passing `maxBytes` — the child is stopped
- * there rather than read to the end.
+ * gone, `tooLarge` is the output passing `maxBytes` — the child is stopped
+ * there rather than read to the end — and `refused` is a read never started
+ * because a filter driver it would run cannot be emptied on this git.
  */
 export async function git(sub, args, { cwd, timeout = GIT_TIMEOUT_MS, maxBytes = GIT_MAX_BYTES, filters = [] } = {}) {
   const argv = gitArgv(sub, args, { filters });
+  // A driver this git cannot empty would run on this read: refused instead.
+  if (!filtersCanBeEmptied(filters, null) && !filtersCanBeEmptied(filters, await installedVersion())) {
+    return { ok: false, stdout: "", stderr: "a filter driver name holds '=' and this git cannot empty it", code: null,
+      timedOut: false, tooLarge: false, missing: false, noFolder: false, refused: true };
+  }
   await slot();
   let r;
   try {
-    r = await run(GIT_BIN, argv, { cwd, timeout, maxBuffer: maxBytes, env: gitEnv() });
+    r = await run(GIT_BIN, argv, { cwd, timeout, maxBuffer: maxBytes, env: { ...gitEnv(), ...filterConfigEnv(filters) } });
   } finally {
     release();
   }
@@ -178,14 +255,17 @@ export async function git(sub, args, { cwd, timeout = GIT_TIMEOUT_MS, maxBytes =
 /**
  * What a failed read was, in the few words the routes answer with:
  * "no-git", "gone", "not-a-repo", "bare", "unsafe", "timeout", "too-large",
- * or "error".
+ * "not-downloaded" (a partial clone without the objects the read needs — the
+ * deck never fetches them), or "error".
  */
 export function classifyFailure(r) {
   if (r.missing) return "no-git";
   if (r.noFolder) return "gone";
   if (r.timedOut) return "timeout";
   if (r.tooLarge) return "too-large";
+  if (r.refused) return "unsafe";
   const said = r.stderr ?? "";
+  if (/lazy fetching disabled|from promisor remote|transport '[^']*' not allowed/i.test(said)) return "not-downloaded";
   if (/dubious ownership|unsafe repository/i.test(said)) return "unsafe";
   if (/not a git repository/i.test(said)) return "not-a-repo";
   if (/must be run in a work tree|this operation must be run in a work ?tree/i.test(said)) return "bare";

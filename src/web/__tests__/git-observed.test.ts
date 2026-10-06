@@ -26,6 +26,8 @@ const { startServer, hookToken } = await import("../../server/index.mjs");
 const { isEnrichment } = await import("../../server/ring-bounds.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { changesRepo } = await import("../../server/git-watch.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { staleCount } = await import("../../server/git-state.mjs");
 
 const made: string[] = [];
 const track = (d: string) => { made.push(d); return d; };
@@ -92,7 +94,7 @@ afterAll(async () => {
 
 describe("which calls can change a repository", () => {
   it("counts finished edits and commands, and every finished Codex call", () => {
-    for (const tool of ["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"]) {
+    for (const tool of ["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash", "PowerShell"]) {
       expect(changesRepo({ hook_event_name: "PostToolUse", tool_name: tool }), tool).toBe(true);
       expect(changesRepo({ hook_event_name: "PostToolUseFailure", tool_name: tool }), tool).toBe(true);
       expect(changesRepo({ hook_event_name: "PreToolUse", tool_name: tool }), tool).toBe(false);
@@ -219,6 +221,76 @@ describe("GitObserved", () => {
     await event({ hook_event_name: "PostToolUse", session_id: "G8", cwd: dir, tool_name: "Bash" });
     await next("G8", since, g => g.branch === "shared-move");
     await next("G9", since, g => g.branch === "shared-move");
+  });
+
+  it("tells a session sharing the worktree that another session's edit changed it", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }, "ccdeck-git-observed-pair-"));
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "G12", cwd: dir });
+    await event({ hook_event_name: "SessionStart", session_id: "G13", cwd: dir });
+    await next("G12", since);
+    await next("G13", since);
+    since = await lastSeq();
+    write(dir, { "a.txt": "two\n" });
+    await event({ hook_event_name: "PostToolUse", session_id: "G12", cwd: dir, tool_name: "Edit", tool_input: { file_path: join(dir, "a.txt") } });
+    expect((await next("G13", since, g => g.stale === 1)).payload.git.branch).toBe("main");
+  });
+
+  it("tells a session in a sibling worktree that a commit in another changed the history", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }, "ccdeck-git-observed-sib-"));
+    const wt = join(track(tempDir("ccdeck-git-observed-sibwt-")), "side");
+    sh(dir, ["worktree", "add", "-q", "-b", "side", wt]);
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "G14", cwd: dir });
+    await event({ hook_event_name: "SessionStart", session_id: "G15", cwd: wt });
+    await next("G14", since);
+    await next("G15", since);
+    since = await lastSeq();
+    write(wt, { "b.txt": "side\n" });
+    commitAll(wt, "on the side");
+    await event({ hook_event_name: "PostToolUse", session_id: "G15", cwd: wt, tool_name: "Bash", tool_input: { command: "git commit -am 'on the side'" } });
+    const seen = await next("G14", since, g => g.stale >= 1);
+    expect(seen.payload.git).toMatchObject({ topLevel: dir, branch: "main" });
+  });
+
+  it("marks only the worktree an edit was made in, so a subagent working elsewhere is not told again", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }, "ccdeck-git-observed-narrow-"));
+    const wt = join(track(tempDir("ccdeck-git-observed-narrowwt-")), "sub");
+    sh(dir, ["worktree", "add", "-q", "-b", "sub/narrow", wt]);
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "G16", cwd: dir });
+    await event({ hook_event_name: "PreToolUse", session_id: "G16", cwd: wt, agent_id: "ag-16", tool_name: "Read" });
+    await next("G16", since, g => !g.subagent);
+    await next("G16", since, g => g.subagent === "ag-16");
+    since = await lastSeq();
+    write(dir, { "a.txt": "two\n" });
+    await event({ hook_event_name: "PostToolUse", session_id: "G16", cwd: dir, tool_name: "Write", tool_input: { file_path: join(dir, "a.txt") } });
+    expect(staleCount(dir)).toBe(1);
+    expect(staleCount(wt)).toBe(0);
+    await next("G16", since, g => !g.subagent && g.stale === 1);
+    expect((await observed("G16", since)).filter(e => e.payload.git.subagent === "ag-16")).toEqual([]);
+  });
+
+  it("marks the repository a command names, and tells the sessions working there", async () => {
+    const here = track(repoWith({ "a.txt": "one\n" }, "ccdeck-git-observed-here-"));
+    const there = track(repoWith({ "b.txt": "one\n" }, "ccdeck-git-observed-there-"));
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "G17", cwd: here });
+    await event({ hook_event_name: "SessionStart", session_id: "G18", cwd: there });
+    await next("G17", since);
+    await next("G18", since);
+    since = await lastSeq();
+    write(there, { "b.txt": "two\n" });
+    commitAll(there, "from elsewhere");
+    await event({ hook_event_name: "PostToolUse", session_id: "G17", cwd: here, tool_name: "Bash", tool_input: { command: `git -C '${there}' commit -am 'from elsewhere'` } });
+    expect(staleCount(there)).toBe(1);
+    await next("G18", since, g => g.stale === 1);
+    // And an edit through an absolute path into it.
+    since = await lastSeq();
+    write(there, { "b.txt": "three\n" });
+    await event({ hook_event_name: "PostToolUse", session_id: "G17", cwd: here, tool_name: "Edit", tool_input: { file_path: join(there, "b.txt") } });
+    expect(staleCount(there)).toBe(2);
+    await next("G18", since, g => g.stale === 2);
   });
 
   it("is marked as Codex's for a Codex session, whose every finished call counts", async () => {

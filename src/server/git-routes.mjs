@@ -153,7 +153,9 @@ export async function handleGitDiff(req, res, url) {
     : { ok: false, state: "repo", repo: found.repo, file: entry, reason: diff.reason });
 }
 
-/** `?session&sha[&path]` — a commit's files, or one file's diff within it. */
+/** `?session&sha[&path]` — a commit's files, or one file's diff within it.
+ *  A diff a partial clone holds no content for answers `reason:
+ *  "not-downloaded"`: the deck never fetches. */
 export async function handleGitCommit(req, res, url) {
   const sha = param(url, "sha");
   const path = param(url, "path");
@@ -166,7 +168,9 @@ export async function handleGitCommit(req, res, url) {
     if (c.reason === "unknown") return send(res, 404, { error: "no such commit in this repository" });
     return send(res, 200, { ok: false, state: "repo", repo: found.repo, reason: c.reason });
   }
-  if (!path) return send(res, 200, { ok: true, state: "repo", repo: found.repo, commit: c.commit, files: c.files });
+  // `notDownloaded`: a partial clone without this commit's file contents —
+  // its files are listed without line counts, and their diffs are not there.
+  if (!path) return send(res, 200, { ok: true, state: "repo", repo: found.repo, commit: c.commit, files: c.files, ...(c.notDownloaded ? { notDownloaded: true } : {}) });
   const file = c.files.find((f) => f.path === path);
   if (!file) return send(res, 404, { error: "no such file in this commit" });
   const diff = await commitFileDiffOf(found.repo, c.commit, file);
