@@ -57,7 +57,7 @@ function rng(seed: number) {
 
 /** A random history: branches forking off, committing, merging back, being
  *  merged into each other, octopus merges, back-merges. Newest first. */
-function randomHistory(seed: number, size: number): LogCommit[] {
+function randomHistory(seed: number, size: number, maxTips = 14): LogCommit[] {
   const r = rng(seed);
   const made: LogCommit[] = [];
   const tips: Array<{ name: string; sha: string }> = [{ name: "main", sha: "r0" }];
@@ -66,7 +66,7 @@ function randomHistory(seed: number, size: number): LogCommit[] {
   while (made.length < size) {
     const roll = r();
     const sha = `c${n++}`;
-    if (roll < 0.15 && tips.length < 14) {
+    if (roll < 0.15 && tips.length < maxTips) {
       const from = made[Math.floor(r() * made.length)];
       tips.push({ name: `b${n}`, sha: from.sha });
       continue;
@@ -248,6 +248,59 @@ function geometry(layout: GraphLayout): string[] {
       }
       if (run > 6) out.push(`row ${r} (${row.id}): two strokes overlap (${sa.d} / ${sb.d})`);
     }
+  });
+  return out;
+}
+
+/** Twelve branches off one commit, three commits each; the first six merged
+ *  back in turn (m0…m5, develop at m5), the rest left as feature branches. */
+function fanHistory(branches: number): LogCommit[] {
+  const list: LogCommit[] = [c("t0")];
+  const tips: string[] = [];
+  for (let b = 0; b < branches; b++) {
+    let p = "t0";
+    for (let k = 0; k < 3; k++) { const s = `b${b}c${k}`; list.push(c(s, [p])); p = s; }
+    tips.push(p);
+  }
+  let trunk = "t0";
+  for (let b = 0; b < branches / 2; b++) { const s = `m${b}`; list.push(c(s, [trunk, tips[b]])); trunk = s; }
+  for (let b = branches / 2; b < branches; b++) list.find(x => x.sha === tips[b])!.refs.local.push(`feature/${b}`);
+  list.find(x => x.sha === trunk)!.refs.local.push("develop");
+  return topo(list.reverse());
+}
+
+/** The x of every point where a path touches the line y = `at`: where it
+ *  starts, and where each of its segments ends. */
+function touches(d: string, at: number): number[] {
+  const t = d.match(/[MVHQC]|-?\d+(?:\.\d+)?/g)!;
+  const out: number[] = [];
+  let i = 0, x = 0, y = 0;
+  const num = () => Number(t[i++]);
+  while (i < t.length) {
+    const k = t[i++];
+    if (k === "M") { x = num(); y = num(); } else if (k === "V") y = num(); else if (k === "H") x = num();
+    else if (k === "Q") { i += 2; x = num(); y = num(); } else if (k === "C") { i += 4; x = num(); y = num(); }
+    if (Math.abs(y - at) < 0.01) out.push(Math.round(x * 100) / 100);
+  }
+  return out;
+}
+
+/** Each seam where the strokes leaving a row's bottom edge are not the ones
+ *  entering the next row's top edge, the fold column's line counted. */
+function seamBreaks(layout: GraphLayout): string[] {
+  const { folded } = graphColumns(layout.columns);
+  const edgeXs = (row: GraphRow, at: number) => {
+    const shape: NodeShape = row.kind === "wip" ? "wip" : row.kind === "merge" ? "merge" : "commit";
+    const d = rowDrawing(row, shape, layout.headKey, folded);
+    const xs = [...d.strokes.map(s => s.d), ...(d.fold ? [d.fold] : [])].flatMap(p => touches(p, at));
+    return [...new Set(xs)].sort((a, b) => a - b).join(",");
+  };
+  const out: string[] = [];
+  layout.rows.forEach((row, r) => {
+    const below = layout.rows[r + 1];
+    if (!below || row.outside || below.outside) return;
+    const bottom = edgeXs(row, ROW_H), top = edgeXs(below, 0);
+    if (bottom !== top) out.push(`${row.id} → ${below.id}: leaves at [${bottom}], enters at [${top}]`);
   });
   return out;
 }
@@ -736,6 +789,36 @@ describe("drawing a row", () => {
     expect(d.strokes.filter(s => s.wip && s.kind === "pass")).toHaveLength(1);
     // The merge does not stand on HEAD's history: its run is another branch's.
     expect(solid).toMatchObject({ dim: true, focus: false });
+  });
+
+  it("meets the rows above and below exactly, the fold column's line too", () => {
+    // Wherever a row's strokes touch its bottom edge, the next row's touch its
+    // top edge at the same x, and nowhere else: no stub sticks out of the
+    // fold column where lanes start folding into it or leave it.
+    const tip = (list: LogCommit[]) => list.find(x => x.refs.local.length)!;
+    const cases: Array<[string, GraphLayout]> = [["twelve branches off one commit", layoutGraph(fanHistory(12), { head: { sha: "m5", branch: "develop", detached: false }, wip: true })]];
+    for (const wip of [true, false]) cases.push([`the 150-commit history, wip=${wip}`, layoutGraph(shopHistory(), { head: HEAD, wip })]);
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const tips of [14, 30]) {
+        const list = randomHistory(seed, 150, tips);
+        cases.push([`seed ${seed}, up to ${tips} branches`, layoutGraph(list, { head: { sha: tip(list).sha, branch: tip(list).refs.local[0], detached: false }, wip: seed % 2 === 0 })]);
+      }
+    }
+    // The cases fold, or this would hold for nothing.
+    expect(cases.filter(([, l]) => graphColumns(l.columns).folded > 0).length).toBeGreaterThan(20);
+    for (const [what, layout] of cases) expect(seamBreaks(layout), what).toEqual([]);
+  });
+
+  it("draws the fold column's line over the half of a row its lanes are in", () => {
+    // m0 opens a lane in the fold: the line runs from the commit down only.
+    const layout = layoutGraph(fanHistory(12), { head: { sha: "m5", branch: "develop", detached: false }, wip: true });
+    const { folded } = graphColumns(layout.columns);
+    const foldX = LANE_X0 + VISIBLE_LANES * LANE_W;
+    const fold = (id: string) => rowDrawing(layout.rows.find(r => r.id === id)!, "merge", layout.headKey, folded).fold;
+    expect(fold("m0")).toBe(`M${foldX} ${ROW_H / 2}V${ROW_H}`);
+    const through = layout.rows.find(r => r.input.some((l, i) => l && i > VISIBLE_LANES - 1) && r.output.some((l, i) => l && i > VISIBLE_LANES - 1))!;
+    expect(rowDrawing(through, "commit", layout.headKey, folded).fold).toBe(`M${foldX} 0V${ROW_H}`);
+    expect(rowDrawing(layout.rows[0], "wip", layout.headKey, folded).fold).toBeNull();
   });
 
   it("stops every edge at its node's outline, so a hollow node shows the row behind it", () => {

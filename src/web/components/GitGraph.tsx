@@ -194,7 +194,7 @@ const RowLanes = memo(function RowLanes({ row, shape, focusKey, folded, width, i
   else node = <circle className={`${cls} is-commit`} data-slot={slot} cx={d.x} cy={d.y} r="3.4" />;
   return (
     <svg className="gv-lanes" width={width} height={ROW_H} viewBox={`0 0 ${width} ${ROW_H}`} aria-hidden="true" focusable="false">
-      {d.fold && <path className="gv-fold-line" d={`M${d.foldX} 0V${ROW_H}`} />}
+      {d.fold && <path className="gv-fold-line" d={d.fold} />}
       {strokes.map((s, i) => (
         <path key={i} className={`gv-e${s.dim ? " is-dim" : ""}${s.focus ? " is-focus" : ""}${s.wip ? " is-wip" : ""}`} data-slot={s.slot + 1} d={s.d} />
       ))}
