@@ -19,7 +19,7 @@ vi.mock("../use-git-view", async () => {
 vi.mock("../git-pref", async () => ({ ...(await vi.importActual<object>("../git-pref")), useGitOn: () => true }));
 
 import GitGlance from "../components/GitGlance";
-import { EMPTY_GIT_DATA } from "../use-git-view";
+import { EMPTY_GIT_DATA, keyOf } from "../use-git-view";
 
 let quiet: ReturnType<typeof vi.spyOn>;
 beforeAll(() => { quiet = vi.spyOn(console, "error").mockImplementation(() => {}); });
@@ -105,5 +105,20 @@ describe("the room the section holds", () => {
   it("keeps rows at their height when the content passes that room", () => {
     const css = sheetParts().find(([path]) => path === "styles/git-view.css")![1];
     expect(css).toMatch(/\.gv-glance \{ gap: 0; flex-shrink: 0; \}/);
+  });
+});
+
+describe("the read the glance shares with the view", () => {
+  it("reads a subagent in a folder of its own with its own edits, as the view does", () => {
+    render(root({ id: "s1::ab12", kind: "subagent", parentId: "s1", state: "running" as AgentNodeData["state"] }));
+    expect(read.calls.at(-1)).toMatchObject({ agent: "ab12", ownFolder: true });
+    render(root({ id: "s1::ab12", kind: "subagent", parentId: "s1", state: "running" as AgentNodeData["state"], git: undefined }));
+    expect(read.calls.at(-1)).toMatchObject({ agent: "ab12", ownFolder: false });
+  });
+
+  it("keeps the two scopes of edits apart in the cache", () => {
+    expect(keyOf("s1", "ab12", true)).not.toBe(keyOf("s1", "ab12", false));
+    // A session's own read has one scope only.
+    expect(keyOf("s1", null, true)).toBe(keyOf("s1", null, false));
   });
 });

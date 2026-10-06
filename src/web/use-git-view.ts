@@ -115,7 +115,11 @@ const cache = new Map<string, Entry>();
 /** How many repositories' reads are kept once nobody is looking at them. */
 const KEEP_UNREAD = 8;
 
-const keyOf = (sessionId: string, agent: string | null) => `${sessionId}|${agent ?? ""}`;
+/** One read per session or subagent, and per scope of its edits: a subagent
+ *  in a folder of its own has them read there, otherwise they are the whole
+ *  team's — two answers that must never stand in for one another. */
+export const keyOf = (sessionId: string, agent: string | null, ownFolder = false) =>
+  `${sessionId}|${agent ?? ""}|${ownFolder && agent ? "own" : "team"}`;
 
 function entryFor(key: string): Entry {
   let e = cache.get(key);
@@ -176,7 +180,7 @@ export function useGitData({ sessionId, agent, stale, enabled, fresh = false, ow
    *  narrows them where they are drawn, so another agent's edit can be named. */
   ownFolder?: boolean;
 }): GitData {
-  const key = sessionId && enabled ? keyOf(sessionId, agent) : null;
+  const key = sessionId && enabled ? keyOf(sessionId, agent, ownFolder) : null;
   const subscribe = useCallback((l: () => void) => {
     if (!key) return () => {};
     const e = entryFor(key);
@@ -444,8 +448,12 @@ export function useFocusCounts(data: GitData, focus: GraphFocus) {
 /** What the shared read last said about a repository, or null before any
  *  read: lets `g` know a folder git cannot read before asking again. */
 export function cachedGitState(sessionId: string, agent: string | null): GitData["state"] | null {
-  const e = cache.get(keyOf(sessionId, agent));
-  return e && e.data.at > 0 ? e.data.state : null;
+  // Whether the folder holds a repository does not depend on whose edits were read.
+  for (const own of [false, true]) {
+    const e = cache.get(keyOf(sessionId, agent, own));
+    if (e && e.data.at > 0) return e.data.state;
+  }
+  return null;
 }
 
 /** The states in which a folder has no repository to open a view on. */
