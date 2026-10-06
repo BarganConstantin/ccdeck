@@ -5,6 +5,7 @@ import {
   commitRows, fileKey, rowOrder, uncommittedList,
   type CardNamer, type CommitFile, type ElsewhereRow, type FileRef, type FileRow, type GitEdit, type GraphFocus, type StatusEntry,
 } from "../git-files-model";
+import { shownPath } from "../git-hidden-chars";
 import { fitShared, monoMeasure, nameFits, type Measure, type PathCut } from "../git-path-fit";
 import { sessionHue } from "../session-hue";
 import { CheckGlyph, ChevronGlyph, ClashGlyph, CopyGlyph, InfoGlyph } from "./GitDiffIcons";
@@ -142,10 +143,10 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
       if (nameEl && (folded.has(row.key) || nameEl.offsetWidth > 0)) {
         const nameW = Math.min(whoMeasure(` ${row.sub}`), WHO_MAX - whoMeasure("↳"));
         const withName = folded.has(row.key) ? room - nameW : room;
-        if (!nameFits(row.path, withName, measure)) { nextFolded.add(row.key); room = withName + nameW; }
+        if (!nameFits(shownPath(row.path), withName, measure)) { nextFolded.add(row.key); room = withName + nameW; }
         else room = withName;
       }
-      rooms.push({ key: row.key, path: row.path, room });
+      rooms.push({ key: row.key, path: shownPath(row.path), room });
     }
     const next = fitShared(rooms, measure);
     setCuts(prev => (sameCuts(prev, next) ? prev : next));
@@ -209,8 +210,10 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
   const renderRow = (row: FileRow) => {
     const sel = row.key === selectedKey;
     const cut = cuts.get(row.key);
-    const dir = cut ? cut.dir : row.path.slice(0, row.path.lastIndexOf("/") + 1);
-    const base = cut ? cut.base : row.path.slice(row.path.lastIndexOf("/") + 1);
+    // Drawn with any hidden character as its code point; read and copied as it is.
+    const shown = shownPath(row.path);
+    const dir = cut ? cut.dir : shown.slice(0, shown.lastIndexOf("/") + 1);
+    const base = cut ? cut.base : shown.slice(shown.lastIndexOf("/") + 1);
     return (
       <div
         key={row.key}

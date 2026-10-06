@@ -5,6 +5,7 @@ import {
   budgetHunks, collapsedKind, diffState, failureLine, freshLines, groupDigits, lockOwner, parsePatch,
   type DiffLine, type DiffResult, type Hunk, type ParsedDiff,
 } from "../git-diff-parse";
+import { codePoint, hasHidden, hiddenIn, hiddenName, shownPath, splitHidden } from "../git-hidden-chars";
 import { fitPath, monoMeasure, splitPath, type PathParts } from "../git-path-fit";
 import { cachedSpans, highlightDocs, langOf, type LineSpans } from "../git-syntax";
 import { hunkWordMarks, type Range } from "../git-word-diff";
@@ -168,6 +169,8 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   }, [diff, fileKey]);
 
   const collapsed = file && parsed && parsed.hunks.length ? collapsedKind(file.path, parsed) : null;
+  // Hidden characters anywhere in the diff, drawn or not yet.
+  const hidden = useMemo(() => (parsed ? hiddenIn(linesOf(parsed)) : []), [parsed]);
   const showTable = !!parsed && parsed.hunks.length > 0 && (!collapsed || expanded) && !parsed.binary;
   const budgeted = useMemo(() => (showTable && parsed ? budgetHunks(parsed.hunks, steps) : null), [showTable, parsed, steps]);
 
@@ -218,7 +221,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
       others++;
     }
     const room = t.clientWidth - used - HEAD_GAP * others - 2;
-    const cut = fitPath(file.path, room, monoMeasure(HEAD_PATH_PX));
+    const cut = fitPath(shownPath(file.path), room, monoMeasure(HEAD_PATH_PX));
     setPathCut(prev => (prev && prev.dir === cut.dir && prev.base === cut.base ? prev : { dir: cut.dir, base: cut.base }));
   }, [file?.path, headWidth, stale, diff, loading]);
 
@@ -292,9 +295,9 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     const p = parsed!;
     if (!p.hunks.length) {
       if (p.renamed || p.copied) {
-        const from = splitPath(p.from ?? file!.from ?? "").base;
+        const from = splitPath(shownPath(p.from ?? file!.from ?? "")).base;
         return <Placeholder title={p.copied ? "Copied, content unchanged." : "Renamed, content unchanged."}
-          line={`${from} → ${splitPath(file!.path).base}${p.similarity !== undefined ? ` · ${p.similarity}% similar` : ""}`} />;
+          line={`${from} → ${splitPath(shownPath(file!.path)).base}${p.similarity !== undefined ? ` · ${p.similarity}% similar` : ""}`} />;
       }
       if (file!.area === "conflict" || p.unmerged) {
         return <Placeholder title="In conflict, and the same as HEAD here." line="The other side of the merge changed or deleted this file. Resolve the conflict in your editor or git client." />;
@@ -338,7 +341,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     );
   }
 
-  const parts = pathCut ?? splitPath(file.path);
+  const parts = pathCut ?? splitPath(shownPath(file.path));
   const counts = diff && diffState(diff) === "text" && !parsed?.binary ? { added: diff.added ?? 0, removed: diff.removed ?? 0 } : null;
   const renameFrom = parsed?.from ?? file.from;
   const copy = async () => {
@@ -359,7 +362,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
           {AREA_WORD[file.area] && <span className="gvd-area" data-area={file.area}>{AREA_WORD[file.area]}</span>}
           {renameFrom && (
             <span className="gvd-from" title={`renamed from ${renameFrom}${parsed?.similarity !== undefined ? `, ${parsed.similarity}% similar` : ""}`}>
-              ← {splitPath(renameFrom).base}{parsed?.similarity !== undefined ? ` · ${parsed.similarity}%` : ""}
+              ← {splitPath(shownPath(renameFrom)).base}{parsed?.similarity !== undefined ? ` · ${parsed.similarity}%` : ""}
             </span>
           )}
           {counts && (
@@ -392,6 +395,15 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
         <div className="gvd-note">
           <ClashGlyph />
           <span><b>{collision.with}</b> edited this file too since it was last committed. This diff is the folder as it is now.</span>
+        </div>
+      )}
+      {hidden.length > 0 && (
+        <div className="gvd-note">
+          <InfoGlyph />
+          <span>
+            <b>Hidden or bidirectional characters.</b> This diff holds {hidden.join(", ")}{hidden.length > 4 ? " and more" : ""}, drawn
+            as their code points: they can make code read differently from how it runs.
+          </span>
         </div>
       )}
       {file.area === "conflict" && (
@@ -462,6 +474,10 @@ function keepPlace(s: HTMLElement | null, at: { k: string; off: number } | null)
   if (!line) return;
   const off = line.getBoundingClientRect().top - s.getBoundingClientRect().top;
   if (Math.abs(off - at.off) >= 1) s.scrollTop += off - at.off;
+}
+
+function* linesOf(p: ParsedDiff): Generator<string> {
+  for (const h of p.hunks) for (const l of h.lines) yield l.text;
 }
 
 /** What every block reads its lines from. */
@@ -633,11 +649,27 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
   );
 });
 
+/**
+ * Plain text with each hidden or bidirectional control character drawn as its
+ * code point (git-hidden-chars.ts). The character itself stays, isolated so it
+ * reorders nothing, and is what a copy takes.
+ */
+function visible(text: string, key: string | number): React.ReactNode {
+  if (!hasHidden(text)) return text;
+  return splitHidden(text).map((p, i) => (p.hidden
+    ? (
+      <span key={`${key}h${i}`} className="gvd-ctl" title={hiddenName(p.text)}>
+        <span className="gvd-ctl-raw">{p.text}</span><span className="gvd-ctl-mark">{codePoint(p.text)}</span>
+      </span>
+    )
+    : <React.Fragment key={`${key}t${i}`}>{p.text}</React.Fragment>));
+}
+
 /** A line's text in segments: syntax tones inside, the changed words marked. */
 function codeOf(text: string, syn: LineSpans | undefined, words: Range[] | undefined): React.ReactNode {
   // An empty line copies as an empty line, not as a space.
   if (!text) return <br />;
-  if (!syn?.length && !words?.length) return text;
+  if (!syn?.length && !words?.length) return visible(text, "t");
   const cuts = new Set<number>([0, text.length]);
   for (const [s, e] of syn ?? []) { cuts.add(s); cuts.add(e); }
   for (const [s, e] of words ?? []) { cuts.add(s); cuts.add(e); }
@@ -650,13 +682,14 @@ function codeOf(text: string, syn: LineSpans | undefined, words: Range[] | undef
     const s = at[i], e = at[i + 1];
     if (s === e) continue;
     const kind = kindAt(s);
-    const piece = kind ? <span key={s} className={SYN_CLASS[kind]}>{text.slice(s, e)}</span> : text.slice(s, e);
+    const seg = visible(text.slice(s, e), s);
+    const piece = kind ? <span key={s} className={SYN_CLASS[kind]}>{seg}</span> : <React.Fragment key={s}>{seg}</React.Fragment>;
     if (inWord(s)) {
       if (!mark) mark = [];
       mark.push(piece);
     } else {
       if (mark) { out.push(<mark key={`m${s}`} className="gvd-word">{mark}</mark>); mark = null; }
-      out.push(typeof piece === "string" ? <React.Fragment key={s}>{piece}</React.Fragment> : piece);
+      out.push(piece);
     }
   }
   if (mark) out.push(<mark key="m-end" className="gvd-word">{mark}</mark>);

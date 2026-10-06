@@ -209,6 +209,25 @@
 .syn-str { color: var(--gv-syn-str); }
 .syn-com { color: var(--gv-syn-com); font-style: italic; }
 .gvd-noeol { margin-left: 6px; color: var(--muted); font-size: 11px; }
+/* A hidden or bidirectional control character, drawn as its code point in a
+   box ringed in the error colour (git-hidden-chars.ts). The character itself
+   is kept, isolated so it reorders nothing, for a copy; the code point is
+   not copied. */
+.gvd-ctl {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 3px;
+  border: 1px solid var(--err);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 10px;
+  line-height: 14px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.gvd-ctl-raw { unicode-bidi: isolate; }
+.gvd-ctl-mark { -webkit-user-select: none; user-select: none; }
 /* What a line says to a screen reader ("added:", "no newline at end of
    file") is not part of its code: selecting and copying lines copies the
    code alone. */
