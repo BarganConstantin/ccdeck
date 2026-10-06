@@ -7,7 +7,7 @@
 // git itself reported. A path never comes from a request on its own.
 import { lstat, readFile, readlink, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { git } from "./git-run.mjs";
+import { classifyFailure, git } from "./git-run.mjs";
 
 /** How many commits the history holds. */
 export const LOG_LIMIT = 100;
@@ -20,6 +20,16 @@ const US = "\x1f";
 // SHA, parents, author name, author email, author date (strict ISO), subject,
 // body. The body is last so a unit separator inside one cannot shift a field.
 const LOG_FORMAT = ["%H", "%P", "%an", "%ae", "%aI", "%s", "%b"].join("%x1f");
+
+/** The reasons a read inside a repository answers with; anything else that
+ *  went wrong is "error". "not-downloaded" is a partial clone that does not
+ *  hold the objects the read needs (the deck never fetches them), "unsafe" a
+ *  filter driver that could not be emptied (git-run.mjs). */
+const READ_FAILURES = new Set(["timeout", "too-large", "not-downloaded", "unsafe"]);
+export function readFailure(r) {
+  const kind = classifyFailure(r);
+  return READ_FAILURES.has(kind) ? kind : "error";
+}
 
 /** Whether a string can only be a commit id: hex, 4 to 64 characters. Checked
  *  before it reaches git, so a request cannot pass an option or a revision
@@ -104,7 +114,7 @@ export async function readLog(topLevel, head, { limit = LOG_LIMIT } = {}) {
   if (!head?.sha && refs.size === 0) return { ok: true, commits: [] };
   const args = ["-z", "--topo-order", `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"];
   const r = await git("log", args, { cwd: topLevel });
-  if (!r.ok) return { ok: false, reason: r.timedOut ? "timeout" : r.tooLarge ? "too-large" : "error" };
+  if (!r.ok) return { ok: false, reason: readFailure(r) };
   return { ok: true, commits: withRefs(r.stdout, refs, head) };
 }
 
@@ -148,11 +158,11 @@ export async function readCommitsBySha(topLevel, shas, head) {
   // What no ref reaches: the named commits that left the history, with their
   // own ancestors that left with them.
   const lost = await git("rev-list", ["--ignore-missing", ...list, "--not", ...ends, "--"], { cwd: topLevel });
-  if (!lost.ok) return { ok: false, reason: lost.timedOut ? "timeout" : lost.tooLarge ? "too-large" : "error" };
+  if (!lost.ok) return { ok: false, reason: readFailure(lost) };
   const gone = new Set(lost.stdout.split("\n").map((l) => l.trim()).filter(Boolean));
   const refs = await refsByCommit(topLevel);
   const r = await git("log", ["-z", "--no-walk", "--ignore-missing", `--format=${LOG_FORMAT}`, ...list, "--"], { cwd: topLevel });
-  if (!r.ok) return { ok: false, reason: r.timedOut ? "timeout" : r.tooLarge ? "too-large" : "error" };
+  if (!r.ok) return { ok: false, reason: readFailure(r) };
   return { ok: true, commits: withRefs(r.stdout, refs, head).filter((c) => !gone.has(c.sha)) };
 }
 
@@ -227,7 +237,7 @@ export function parseStatus(out) {
 /** The working tree as git reports it: `{ ok: true, entries, counts }`. */
 export async function readStatus(topLevel, { filters = [] } = {}) {
   const r = await git("status", ["--porcelain=v2", "-z", "--find-renames"], { cwd: topLevel, filters });
-  if (!r.ok) return { ok: false, reason: r.timedOut ? "timeout" : r.tooLarge ? "too-large" : "error" };
+  if (!r.ok) return { ok: false, reason: readFailure(r) };
   const entries = parseStatus(r.stdout);
   const counts = { staged: 0, unstaged: 0, untracked: 0, conflict: 0 };
   for (const e of entries) counts[e.area] += 1;
@@ -384,7 +394,7 @@ function countLines(patch) {
 /** What a diff read answers, from git's output. */
 function diffAnswer(r, sizes) {
   if (r.tooLarge) return { ok: true, tooLarge: true, limit: DIFF_CAP, ...sizes };
-  if (!r.ok) return { ok: false, reason: r.timedOut ? "timeout" : "error" };
+  if (!r.ok) return { ok: false, reason: readFailure(r) };
   const patch = r.stdout;
   if (/^Binary files .* differ$/m.test(patch) || /^GIT binary patch$/m.test(patch)) {
     return { ok: true, binary: true, ...sizes };
@@ -523,18 +533,32 @@ export function parseCommitFiles(out) {
  * branch, a root commit as everything added. `sha` must already look like one
  * (isShaLike); a commit the repository does not have answers `{ ok: false,
  * reason: "unknown" }`.
+ *
+ * A partial clone holds a commit's trees but not every file's content, and the
+ * line counts and rename detection need the content. There the files are
+ * listed without counts (each `added` and `removed` 0) — renames as renames
+ * while git can tell them by the trees alone, else as a delete and an add —
+ * and the answer says `notDownloaded: true`.
  */
 export async function readCommit(topLevel, sha) {
   if (!isShaLike(sha)) return { ok: false, reason: "unknown" };
   const full = await resolveCommit(topLevel, sha);
   if (!full) return { ok: false, reason: "unknown" };
   const head = await git("log", ["-z", "--max-count=1", `--format=${LOG_FORMAT}`, full, "--"], { cwd: topLevel });
-  if (!head.ok) return { ok: false, reason: head.timedOut ? "timeout" : "error" };
+  if (!head.ok) return { ok: false, reason: readFailure(head) };
   const commit = parseLogRecord(head.stdout.split("\0")[0] ?? "");
   if (!commit) return { ok: false, reason: "error" };
   const range = commit.parents.length ? [commit.parents[0], full] : ["--root", full];
-  const r = await git("diff-tree", ["-r", "-z", "--find-renames", "--raw", "--numstat", "--no-commit-id", ...range], { cwd: topLevel });
-  if (!r.ok) return { ok: false, reason: r.timedOut ? "timeout" : r.tooLarge ? "too-large" : "error" };
+  const tree = (how) => git("diff-tree", ["-r", "-z", ...how, "--no-commit-id", ...range], { cwd: topLevel });
+  let r = await tree(["--find-renames", "--raw", "--numstat"]);
+  if (!r.ok && readFailure(r) === "not-downloaded") {
+    for (const how of [["--find-renames", "--raw"], ["--no-renames", "--raw"]]) {
+      const bare = await tree(how);
+      if (bare.ok) return { ok: true, commit, files: parseCommitFiles(bare.stdout), notDownloaded: true };
+      if (readFailure(bare) !== "not-downloaded") { r = bare; break; }
+    }
+  }
+  if (!r.ok) return { ok: false, reason: readFailure(r) };
   return { ok: true, commit, files: parseCommitFiles(r.stdout) };
 }
 
