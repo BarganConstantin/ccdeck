@@ -87,24 +87,50 @@ export function gitViewFrame({ pane, cover, top = 0, session, alarms, anchor }: 
   return { viewport, leftOut: legible ? [] : alarms.map(a => a.id) };
 }
 
+/** Where edge markers may sit, in px from the canvas top: below the canvas's
+ *  own controls, and clear of its foot. */
+const MARKER_FLOOR = 72;
+const MARKER_FOOT = 40;
+
 /** The vertical place of an edge marker, in px from the canvas top: level with
  *  its card where the card is above or below the frame, kept inside the pane. */
 export function markerTop(card: FlowBox, viewport: { y: number; zoom: number }, paneHeight: number): number {
   const mid = viewport.y + (card.y + card.height / 2) * viewport.zoom;
-  return Math.round(Math.min(Math.max(mid - 12, 72), paneHeight - 40));
+  return Math.round(Math.min(Math.max(mid - 12, MARKER_FLOOR), paneHeight - MARKER_FOOT));
 }
 
-/** Markers that would land on top of one another move down a row. */
+/** Markers that would land on top of one another move a row apart: down
+ *  first, then back up from the pane's foot, so the markers of several cards
+ *  below the frame stand one above another instead of on one spot. */
 export function stackMarkers(tops: number[], paneHeight: number, row = 30): number[] {
   const order = tops.map((t, i) => [t, i] as const).sort((a, b) => a[0] - b[0]);
   const out = new Array<number>(tops.length);
   let floor = -Infinity;
   for (const [t, i] of order) {
-    const at = Math.min(Math.max(t, floor + row), paneHeight - 40);
-    out[i] = at;
-    floor = at;
+    out[i] = Math.max(t, floor + row);
+    floor = out[i];
+  }
+  let ceiling = paneHeight - MARKER_FOOT;
+  for (const [, i] of [...order].reverse()) {
+    out[i] = Math.min(out[i], ceiling);
+    ceiling = out[i] - row;
   }
   return out;
+}
+
+/** How many markers fit down the canvas's edge, a row apart. */
+export function markerRoom(paneHeight: number, row = 30): number {
+  return Math.max(1, Math.floor((paneHeight - MARKER_FOOT - MARKER_FLOOR) / row) + 1);
+}
+
+/** The markers that get a row of their own when there are more than fit: the
+ *  waiting ones first, then the failed, each top to bottom; the rest fold into
+ *  one last marker that counts them, so none goes unmentioned. */
+export function foldMarkers<T extends { alarm: Alarm; top: number }>(markers: T[], room: number): { kept: T[]; folded: T[] } {
+  if (markers.length <= room) return { kept: markers, folded: [] };
+  const ranked = [...markers].sort((a, b) => (a.alarm === b.alarm ? a.top - b.top : a.alarm === "waiting" ? -1 : 1));
+  const keep = new Set(ranked.slice(0, Math.max(0, room - 1)));
+  return { kept: markers.filter(m => keep.has(m)), folded: ranked.slice(Math.max(0, room - 1)) };
 }
 
 /** Whether a card on screen sits wholly under the panel, whose left edge is

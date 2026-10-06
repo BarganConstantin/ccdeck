@@ -23,7 +23,7 @@ import { useReactFlow, type Node } from "reactflow";
 import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
-import { gitViewFrame, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
+import { foldMarkers, gitViewFrame, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
 import { splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
@@ -94,8 +94,10 @@ const FIRST_ROWS = 24;
 interface BodyActions { focusPane: (p: GitViewPane) => void; newest: () => void }
 const NO_ACTIONS: BodyActions = { focusPane: () => {}, newest: () => {} };
 
-/** What a waiting or failed agent left out of the frame is marked with. */
-interface EdgeMarker { id: string; label: string; alarm: "waiting" | "failed"; since: number; top: number }
+/** What a waiting or failed agent left out of the frame is marked with. The
+ *  last marker of a column too long for the canvas counts the agents it
+ *  folds (`more`), and goes to the first of them. */
+interface EdgeMarker { id: string; label: string; alarm: "waiting" | "failed"; since: number; top: number; more?: { waiting: number; failed: number } }
 
 export interface GitViewProps {
   /** The primary selection, which the view is about. */
@@ -159,6 +161,7 @@ export default function GitView(props: GitViewProps) {
   const inertCards = useState(() => new Set<Element>())[0];
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
+  const focusAfterFrame = useRef<string | null>(null);
 
   const frame = useCallback((duration: number) => {
     const { agent: a, width: w, sheet: sh } = live.current;
@@ -211,13 +214,26 @@ export default function GitView(props: GitViewProps) {
     }
     setInert(clear, false, inertCards);
     setInert(under, true, inertCards);
-    const tops = plan.leftOut.map(id => markerTop(alarms.find(c => c.id === id)!, plan.viewport, rect.height));
-    const stacked = stackMarkers(tops, rect.height);
-    setMarkers(plan.leftOut.map((id, i) => {
+    const out = plan.leftOut.map((id): EdgeMarker => {
       const ag = agents.get(id);
       const alarm = alarmOf.get(id)!;
-      return { id, label: ag ? cardNameIn(agents, ag) : id, alarm, since: alarm === "waiting" ? ag?.waiting?.since ?? 0 : 0, top: stacked[i] };
-    }));
+      const top = markerTop(alarms.find(c => c.id === id)!, plan.viewport, rect.height);
+      return { id, label: ag ? cardNameIn(agents, ag) : id, alarm, since: alarm === "waiting" ? ag?.waiting?.since ?? 0 : 0, top };
+    });
+    // More than the edge has rows for: the last row counts the rest.
+    const { kept, folded } = foldMarkers(out, markerRoom(rect.height));
+    const column = folded.length ? [...kept, {
+      ...folded[0], top: rect.height,
+      more: { waiting: folded.filter(m => m.alarm === "waiting").length, failed: folded.filter(m => m.alarm === "failed").length },
+    }] : kept;
+    const stacked = stackMarkers(column.map(m => m.top), rect.height);
+    setMarkers(column.map((m, i) => ({ ...m, top: stacked[i] })));
+    // A marker the keyboard activated is gone once its agent is selected:
+    // focus goes on to that agent's card, now framed and a Tab stop again.
+    if (focusAfterFrame.current === a.id) {
+      focusAfterFrame.current = null;
+      document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(a.id)}"]`)?.focus({ preventScroll: true });
+    }
   }, [moveCamera]);
 
   const reframeNow = useCallback(() => frame(0), [frame]);
@@ -396,7 +412,7 @@ export default function GitView(props: GitViewProps) {
         />
       </section>, document.body)}
       {markers.length > 0 && canvasRef.current && createPortal(
-        <EdgeMarkers markers={markers} right={cover + 12} now={now} onGo={onSelectAgent} />,
+        <EdgeMarkers markers={markers} right={cover + 12} now={now} onGo={id => { focusAfterFrame.current = id; onSelectAgent(id); }} />,
         canvasRef.current,
       )}
     </>
@@ -407,6 +423,20 @@ function EdgeMarkers({ markers, right, now, onGo }: { markers: EdgeMarker[]; rig
   return (
     <>
       {markers.map(m => {
+        if (m.more) {
+          const { waiting, failed } = m.more;
+          const said = !failed ? "waiting" : !waiting ? "failed" : `${waiting} waiting · ${failed} failed`;
+          return (
+            <button
+              key="more" type="button" className="gv-edge-mark" data-alarm={waiting ? "waiting" : "failed"}
+              style={{ top: m.top, right }}
+              title={`${waiting + failed} more agents ${waiting ? "waiting for you" : "stopped on an error"} outside this view. Select ${m.label}.`}
+              onClick={() => onGo(m.id)}
+            >
+              <span className="gv-edge-dot" aria-hidden="true" /><b>+{waiting + failed} more</b><span>{said}</span><GvIcon name="chev" />
+            </button>
+          );
+        }
         const said = m.alarm === "waiting" ? `waiting ${elapsed(m.since, undefined, now)}` : "failed";
         return (
           <button

@@ -84,6 +84,12 @@ describe("the marker for an agent the camera could not keep in view", () => {
     expect(view).toMatch(/`waiting \$\{elapsed\(m\.since, undefined, now\)\}` : "failed"/);
   });
 
+  it("never hides one under another: past the rows the edge has, the last one counts the rest", () => {
+    expect(view).toMatch(/const \{ kept, folded \} = foldMarkers\(out, markerRoom\(rect\.height\)\);/);
+    expect(view).toMatch(/const stacked = stackMarkers\(column\.map\(m => m\.top\), rect\.height\);/);
+    expect(view).toMatch(/<b>\+\{waiting \+ failed\} more<\/b>/);
+  });
+
   it("writes no colour literal in the view's markup", () => {
     expect(view).not.toMatch(/#[0-9a-fA-F]{3,8}\b(?![\w-])/);
   });

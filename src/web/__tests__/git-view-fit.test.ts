@@ -3,7 +3,7 @@
 // card can keep its full face, and a marker for each one that could not be.
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  frameForGitView, gitViewCover, gitViewFrame, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  foldMarkers, frameForGitView, gitViewCover, gitViewFrame, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
 } from "../git-view-fit";
 import { DETAIL_ENTER_ZOOM } from "../semantic-zoom";
 import { sourceOf } from "./client-source";
@@ -74,6 +74,33 @@ describe("the edge markers", () => {
 
   it("never land on one another", () => {
     expect(stackMarkers([200, 205, 400], 848)).toEqual([200, 230, 400]);
+  });
+
+  it("stand one above another when several cards are below the frame", () => {
+    // Every card below the frame is pinned to the pane's foot: they used to
+    // collapse onto that one spot, one marker hiding the rest.
+    expect(stackMarkers([808, 808, 808], 848)).toEqual([748, 778, 808]);
+    expect(stackMarkers([700, 760, 800, 808, 808], 848)).toEqual([688, 718, 748, 778, 808]);
+    const tops = stackMarkers([72, 72, 808, 808, 808, 808], 848);
+    expect(new Set(tops).size).toBe(6);
+    expect(Math.min(...tops)).toBeGreaterThanOrEqual(72);
+    expect(Math.max(...tops)).toBeLessThanOrEqual(808);
+  });
+
+  it("fold the ones that cannot get a row into one that counts them, waiting before failed", () => {
+    const room = markerRoom(848);
+    expect(room).toBe(25);
+    // As many as fit: nothing folds, and every one gets its own place.
+    const fit = Array.from({ length: room }, (_, i) => ({ id: `w${i}`, alarm: "waiting" as const, top: 808 }));
+    expect(foldMarkers(fit, room).folded).toEqual([]);
+    expect(new Set(stackMarkers(fit.map(m => m.top), 848)).size).toBe(room);
+    expect(Math.min(...stackMarkers(fit.map(m => m.top), 848))).toBeGreaterThanOrEqual(72);
+    // One more: the last row counts what is left, and a failed agent folds before a waiting one.
+    const many = [{ id: "f0", alarm: "failed" as const, top: 100 }, ...fit];
+    const { kept, folded } = foldMarkers(many, room);
+    expect(kept).toHaveLength(room - 1);
+    expect(kept.every(m => m.alarm === "waiting")).toBe(true);
+    expect(folded.map(m => m.id)).toEqual(["w24", "f0"]);
   });
 });
 
