@@ -356,7 +356,11 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // App.tsx is off this list now: the one getComputedStyle it held was cssVar,
     // which moved to use-appearance.ts. The render-heavy component no longer
     // touches it at all, which is the confinement this case exists for.
-    expect(callers).toEqual(["components/use-modal-dismiss.ts", "use-appearance.ts"]);
+    // git-path-fit.ts reads the deck's monospace stack once for the life of
+    // the page, so the git view's path cutting can measure on a canvas in the
+    // same font; the components that cut paths state their type sizes instead
+    // of asking (git-files-view.test.ts, git-diff-view.test.ts).
+    expect(callers).toEqual(["components/use-modal-dismiss.ts", "git-path-fit.ts", "use-appearance.ts"]);
   });
 
   it("never calls cssVar — it only ever hands it to readPalette", () => {

@@ -77,6 +77,27 @@
      and the plan category sat on it too. Nothing else in either palette comes
      within 16 ΔE of it now, which contrast-floors.test.ts sweeps for. */
   --inflight: #f0abfc;
+  /* The git view's diff. A tinted line alone is ~1.2:1 against the panel, so
+     it never carries the meaning by itself: the +/− glyph and its tinted
+     gutter do, with "added"/"removed" in words for a screen reader. Every
+     word on these beds clears 4.5:1 — the text, the three syntax tones on the
+     word highlights too, the glyph on its gutter, the line numbers —
+     measured in contrast-floors.test.ts. Green and red are a choice for now;
+     the glyph is what a colour-blind reader goes by. */
+  --gv-add-bg: #182921;
+  --gv-del-bg: #2f1d21;
+  --gv-add-gutter: #1b3626;
+  --gv-del-gutter: #3d2124;
+  --gv-add-word: #1f4a2d;
+  --gv-del-word: #5b2a2c;
+  --gv-add-ink: #5fd38a;
+  --gv-del-ink: #f58b84;
+  --gv-hunk-bg: #0f1116;
+  /* Quiet syntax: two hues and a grey — keywords, strings, comments. Names,
+     types and numbers stay --text, so a diff never outshouts a state. */
+  --gv-syn-kw: #b6bdf2;
+  --gv-syn-str: #8ed8c6;
+  --gv-syn-com: #adb2ba;
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   /* THE THIRD ELEVATION, and the line that seats a surface ON something
@@ -272,6 +293,20 @@
   --warn: #ad4e08;
   --err: #b91c1c;
   --inflight: #7e22ce;
+  /* The git view's diff, tuned for white rather than inverted; see the dark
+     block for what each one is for. */
+  --gv-add-bg: #e3f7e8;
+  --gv-del-bg: #fdecea;
+  --gv-add-gutter: #cdf0d6;
+  --gv-del-gutter: #fadad6;
+  --gv-add-word: #b9ecc6;
+  --gv-del-word: #f7c4bf;
+  --gv-add-ink: #136b2f;
+  --gv-del-ink: #b42323;
+  --gv-hunk-bg: #f2f4f8;
+  --gv-syn-kw: #3d34a0;
+  --gv-syn-str: #0b5f58;
+  --gv-syn-com: #4b5260;
   --shadow-1: 0 4px 14px rgba(15,23,42,0.10);
   --shadow-2: 0 10px 28px rgba(15,23,42,0.16);
   /* The same two layers on white, in the light theme's slate and at its own

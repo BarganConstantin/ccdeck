@@ -1825,3 +1825,133 @@ describe("the git history's colours, on every bed they are drawn on", () => {
     }
   });
 });
+
+// ── The git view's diff and file list ───────────────────────────────────────
+//
+// A diff paints words on five beds — the panel (context lines), the added and
+// removed line tints, and the stronger tints of the words that changed inside
+// a line — and three syntax tones go on every one of them. The tints are
+// ~1.2:1 against the panel, so they never carry the meaning alone: the +/−
+// glyph on its tinted gutter does, and that pair is held here too, with the
+// line numbers beside it. The file list's counts and grey words land on a
+// hovered or selected row's wash as well as on the panel. Every pair is read
+// out of the sheet, so a rule that moves a colour onto another bed is measured
+// where it lands.
+
+describe("the git view's diff and file list", () => {
+  const bed = (theme: Theme, value: string, under?: Rgba) => {
+    const base = under ?? parseColor(TOK[theme]["--panel"]);
+    const c = resolve(value, theme);
+    return c[3] < 1 ? over(c, base) : c;
+  };
+  const sheet = (selector: string, prop: string) => {
+    const v = declFor(selector, prop);
+    if (!v) throw new Error(`nothing sets ${prop} on ${selector}`);
+    return v;
+  };
+  const ratio = (theme: Theme, ink: string, on: Rgba) => contrastRatio(over(resolve(ink, theme), on), on);
+
+  it("declares every diff token in both theme blocks", () => {
+    for (const theme of themes) {
+      for (const t of ["add-bg", "del-bg", "add-gutter", "del-gutter", "add-word", "del-word", "add-ink", "del-ink", "hunk-bg", "syn-kw", "syn-str", "syn-com"]) {
+        expect(TOK[theme][`--gv-${t}`], `${theme} --gv-${t}`).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+    }
+  });
+
+  it("reads the code and its three syntax tones at 4.5:1 on every line bed, word highlights included", () => {
+    for (const theme of themes) {
+      const lineAdd = bed(theme, sheet('.gvd-line[data-kind="add"]', "background"));
+      const lineDel = bed(theme, sheet('.gvd-line[data-kind="del"]', "background"));
+      const beds: Array<[string, Rgba]> = [
+        ["context line", bed(theme, "var(--panel)")],
+        ["added line", lineAdd],
+        ["removed line", lineDel],
+        ["added word", bed(theme, sheet('.gvd-line[data-kind="add"] .gvd-word', "background"), lineAdd)],
+        ["removed word", bed(theme, sheet('.gvd-line[data-kind="del"] .gvd-word', "background"), lineDel)],
+      ];
+      const inks: Array<[string, string]> = [
+        ["code", sheet(".gvd-code", "color")],
+        ["keyword", sheet(".syn-kw", "color")],
+        ["string", sheet(".syn-str", "color")],
+        ["comment", sheet(".syn-com", "color")],
+      ];
+      for (const [where, b] of beds) for (const [what, ink] of inks) {
+        const r = ratio(theme, ink, b);
+        expect(r, `${theme} ${what} on the ${where} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    }
+  });
+
+  it("draws the +/− glyph and the line numbers at 4.5:1 on their tinted gutters", () => {
+    for (const theme of themes) {
+      for (const kind of ["add", "del"]) {
+        const gutter = bed(theme, sheet(`.gvd-line[data-kind="${kind}"] .gvd-glyph`, "background"));
+        const glyph = ratio(theme, sheet(`.gvd-line[data-kind="${kind}"] .gvd-glyph`, "color"), gutter);
+        expect(glyph, `${theme} ${kind} glyph — ${glyph.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        const ln = ratio(theme, sheet(`.gvd-line[data-kind="${kind}"] .gvd-ln`, "color"), bed(theme, sheet(`.gvd-line[data-kind="${kind}"] .gvd-ln`, "background")));
+        expect(ln, `${theme} ${kind} line number — ${ln.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+      const ctx = ratio(theme, sheet(".gvd-ln", "color"), bed(theme, sheet(".gvd-ln", "background")));
+      expect(ctx, `${theme} context line number — ${ctx.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+
+  it("keeps the tints from being the signal: a glyph cell is drawn on every changed line", () => {
+    expect(sheet(".gvd-glyph", "position")).toBe("sticky");
+    for (const theme of themes) {
+      const panel = bed(theme, "var(--panel)");
+      for (const kind of ["add", "del"]) {
+        const tint = contrastRatio(bed(theme, sheet(`.gvd-line[data-kind="${kind}"]`, "background")), panel);
+        expect(tint, `${theme} ${kind} tint against the panel`).toBeLessThan(NON_TEXT);
+      }
+    }
+  });
+
+  it("reads a hunk's header on its own bed", () => {
+    for (const theme of themes) {
+      const hunk = bed(theme, sheet(".gvd-hunk", "background"));
+      for (const sel of [".gvd-hunk", ".gvd-hunk-range"]) {
+        const r = ratio(theme, sheet(sel, "color"), hunk);
+        expect(r, `${theme} ${sel} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    }
+  });
+
+  it("reads the counts and the stepped-up greys on a file row at rest, hovered and selected", () => {
+    for (const theme of themes) {
+      const panel = bed(theme, "var(--panel)");
+      const washes: Array<[string, Rgba]> = [
+        ["at rest", panel],
+        ["hovered", bed(theme, sheet(".gvf-row:hover", "background"))],
+        ["selected", bed(theme, sheet(".gvf-row.is-sel", "background"))],
+        ["selected, list focused", bed(theme, sheet(".gvf-list:focus-within .gvf-row.is-sel", "background"))],
+      ];
+      for (const [state, b] of washes) {
+        for (const sel of [".gvf-add", ".gvf-del"]) {
+          const r = ratio(theme, sheet(sel, "color"), b);
+          expect(r, `${theme} ${sel} ${state} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
+        const grey = state === "at rest" ? sheet(".gvf-dir", "color") : sheet(".gvf-row.is-sel .gvf-dir", "color");
+        const r = ratio(theme, grey, b);
+        expect(r, `${theme} folder and stage words ${state} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+      // What the step-up is for: --muted on the dark accent wash is not enough.
+      if (theme === "dark") {
+        expect(ratio(theme, "var(--muted)", washes[3][1])).toBeLessThan(BODY);
+      }
+    }
+  });
+
+  it("reads the diff header's counts and the Show latest pill", () => {
+    for (const theme of themes) {
+      const panel = bed(theme, "var(--panel)");
+      for (const sel of [".gvd-add", ".gvd-del"]) {
+        const r = ratio(theme, sheet(sel, "color"), panel);
+        expect(r, `${theme} ${sel} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+      const pill = ratio(theme, sheet(".gvd-pill", "color"), bed(theme, sheet(".gvd-pill", "background")));
+      expect(pill, `${theme} pill — ${pill.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+});
