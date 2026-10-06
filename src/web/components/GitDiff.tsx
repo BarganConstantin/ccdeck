@@ -9,7 +9,7 @@ import { fitPath, monoMeasure, splitPath, type PathParts } from "../git-path-fit
 import { cachedSpans, highlightDocs, langOf, type LineSpans } from "../git-syntax";
 import { hunkWordMarks, type Range } from "../git-word-diff";
 import { readStored, writeStored } from "../storage";
-import { CheckGlyph, ClashGlyph, CopyGlyph, WrapGlyph } from "./GitDiffIcons";
+import { CheckGlyph, ClashGlyph, CopyGlyph, InfoGlyph, WrapGlyph } from "./GitDiffIcons";
 
 export type { DiffResult } from "../git-diff-parse";
 
@@ -213,6 +213,9 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
         return <Placeholder title={p.copied ? "Copied, content unchanged." : "Renamed, content unchanged."}
           line={`${from} → ${splitPath(file!.path).base}${p.similarity !== undefined ? ` · ${p.similarity}% similar` : ""}`} />;
       }
+      if (file!.area === "conflict" || p.unmerged) {
+        return <Placeholder title="In conflict, and the same as HEAD here." line="The other side of the merge changed or deleted this file. Resolve the conflict in your editor or git client." />;
+      }
       if (p.oldMode && p.newMode) return <Placeholder title="Only the file mode changed." line={`${p.oldMode} → ${p.newMode}`} mono />;
       if (p.created) return <Placeholder title="An empty new file." />;
       if (p.deleted) return <Placeholder title="An empty file, deleted." />;
@@ -325,6 +328,12 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
         <div className="gvd-note">
           <ClashGlyph />
           <span><b>{collision.with}</b> edited this file too since it was last committed. This diff is the folder as it is now.</span>
+        </div>
+      )}
+      {file.area === "conflict" && (
+        <div className="gvd-note">
+          <InfoGlyph />
+          <span><b>Unresolved merge conflict.</b> This is the file as it is now against HEAD, its conflict markers included.</span>
         </div>
       )}
       <div ref={scrollRef} className="gvd-scroll" tabIndex={0} role="region" aria-label={`Diff of ${file.path}`} aria-busy={loading || undefined}>

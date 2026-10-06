@@ -283,6 +283,31 @@ describe("readFileDiff", () => {
     expect(await readFileDiff(dir, entry(entries, "empty.txt", "untracked"))).toMatchObject({ ok: true, added: 0 });
   });
 
+  it("shows a conflicted file against HEAD, its markers as added lines, whichever way it conflicts", async () => {
+    const dir = track(repoWith({ "a.txt": "base\nshared\n", "gone.txt": "one\n" }));
+    sh(dir, ["checkout", "-q", "-b", "other"]);
+    write(dir, { "a.txt": "theirs\nshared\n", "both.txt": "theirs\n", "gone.txt": "one\ntheir edit\n" });
+    commitAll(dir, "theirs");
+    sh(dir, ["checkout", "-q", "main"]);
+    write(dir, { "a.txt": "ours\nshared\n", "both.txt": "ours\n" });
+    sh(dir, ["rm", "-q", "gone.txt"]);
+    commitAll(dir, "ours");
+    try { sh(dir, ["merge", "-q", "other"]); } catch { /* the conflict is the point */ }
+    const { entries } = await readStatus(dir);
+    const uu = await readFileDiff(dir, entry(entries, "a.txt", "conflict"));
+    expect(uu.patch).not.toMatch(/^diff --cc|^@@@/m);
+    expect(uu.patch).toMatch(/^@@ -1,2 \+1,6 @@/m);
+    expect(uu.patch).toContain("+<<<<<<< HEAD\n ours\n+=======\n+theirs\n+>>>>>>> other\n");
+    expect(uu).toMatchObject({ ok: true, binary: false, added: 4, removed: 0 });
+    // Added on both sides: HEAD holds ours.
+    const aa = await readFileDiff(dir, entry(entries, "both.txt", "conflict"));
+    expect(aa.patch).toContain("@@ -1 +1,5 @@\n+<<<<<<< HEAD\n ours\n+=======\n+theirs\n+>>>>>>> other\n");
+    // Deleted on this side, changed on the other: the folder holds theirs.
+    const du = await readFileDiff(dir, entry(entries, "gone.txt", "conflict"));
+    expect(du.patch).not.toContain("Unmerged path");
+    expect(du.patch).toContain("+one\n+their edit\n");
+  });
+
   it("counts a changed line that starts with -- or ++ as a changed line", async () => {
     const dir = track(repoWith({ "q.sql": "-- comment one\nSELECT 1;\n-- comment two\n", "f.md": "---\ntitle: x\n---\nbody\n" }));
     write(dir, { "q.sql": "SELECT 1;\n++i;\n", "f.md": "title: x\nbody\n" });

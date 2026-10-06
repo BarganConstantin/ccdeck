@@ -406,7 +406,7 @@ const DIFF_ARGS = ["--find-renames", "--unified=3", "--src-prefix=a/", "--dst-pr
 
 /**
  * The diff of one status entry — staged against HEAD, unstaged against the
- * index, an untracked file as an added one. `entry` must be one readStatus
+ * index, a conflicted one against HEAD, an untracked file as an added one. `entry` must be one readStatus
  * returned for this repository; that is the only way a path reaches here.
  *
  * `{ ok: true, binary: false, patch, added, removed }`, `{ ok: true, binary:
@@ -423,9 +423,13 @@ export async function readFileDiff(topLevel, entry, { filters = [], hasHead = tr
       newSize: await blobSize(topLevel, `:${entry.path}`),
     } : {});
   }
-  const r = await git("diff", [...DIFF_ARGS, "--", ...paths], { cwd: topLevel, maxBytes: DIFF_CAP, filters });
+  // A conflicted file against HEAD: git's own diff of an unmerged path is a
+  // combined diff of both sides (or only "Unmerged path"), where this one is
+  // an ordinary patch whose conflict markers are added lines.
+  const against = entry.area === "conflict" && hasHead ? ["HEAD"] : [];
+  const r = await git("diff", [...DIFF_ARGS, ...against, "--", ...paths], { cwd: topLevel, maxBytes: DIFF_CAP, filters });
   return diffAnswer(r, r.tooLarge ? {
-    oldSize: await blobSize(topLevel, `:${entry.from ?? entry.path}`),
+    oldSize: await blobSize(topLevel, `${against.length ? "HEAD" : ""}:${entry.from ?? entry.path}`),
     newSize: await fileSize(topLevel, entry.path),
   } : {});
 }
