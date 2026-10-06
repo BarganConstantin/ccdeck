@@ -398,7 +398,7 @@ describe("the canvas wiring the pure halves depend on", () => {
     expect(app).toContain("recapFor={peekRecap}");
     const peek = read("../components/SessionPeek.tsx");
     expect(peek).toContain('if (r) return <RecapPeek key={t.id} r={r} anchor={t.anchor} bounds={bounds} />;');
-    expect(peek).toContain('<p className="recap-peek-text">{r.recap.text}</p>');
+    expect(peek).toContain('<p className="recap-peek-text">{note.text}</p>');
   });
 
   it("marks a blocked session on the one label that is 1× at every zoom", () => {

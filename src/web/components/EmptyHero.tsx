@@ -8,6 +8,7 @@ import { PRODUCT } from "../brand";
 import { captureHints } from "../provider-copy";
 import type { Providers } from "../providers";
 import { emptyScope } from "../scope";
+import FilmLink from "./FilmLink";
 
 /** The hero for a tab whose stream is queued behind other deck tabs' streams
  *  (#830). Not the server: the server is fine, and the other deck tabs in this
@@ -68,6 +69,7 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour }:
       {!offline && (
         <button type="button" className="btn empty-tour" onClick={onTour}>Take the tour</button>
       )}
+      {!offline && <FilmLink film="tour" />}
     </div>
   );
 }

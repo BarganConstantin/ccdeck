@@ -74,12 +74,21 @@ export const MAX_BUFFER = 2000;     // recent HOOK events kept for late SSE subs
  * given moment, which is history — two of them are two events, not one value
  * twice.
  *
+ * `ActivityObserved` and `JobObserved` are: each says what the session is doing
+ * or what its background job says NOW, and the next one replaces it outright.
+ * The activity line moves about once per reply the model writes, which is the
+ * same cadence as the tool calls the budget is there to protect.
+ *
  * `GitObserved` is: a session's repository and branch as last read, which a
  * newer one supersedes entirely (git-watch.mjs). So is `GitCollisions`, the
  * agents a session currently shares a folder or a dirty file with
  * (git-collisions.mjs).
  */
-const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed", "GitObserved", "GitCollisions"]);
+const LAST_VALUE_WINS = new Set([
+  "ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed",
+  "ActivityObserved", "JobObserved",
+  "GitObserved", "GitCollisions",
+]);
 
 /**
  * Whether this payload is enrichment MAX_BUFFER does not count — see

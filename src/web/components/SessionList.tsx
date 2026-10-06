@@ -15,7 +15,7 @@ import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { SessionRecap, WaitingBlock } from "../types";
 import { shortModel, modelFamily } from "../model-label";
-import { recapShown } from "../session-recap";
+import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../session-note";
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
 import { isAgentVisible } from "../visibility";
@@ -26,10 +26,14 @@ export interface Row {
   cwdBasename?: string;
   state: "active" | "done" | "err";
   waiting?: WaitingBlock | null;
-  /** Claude Code's recap while it still describes the session — the rule is
-   *  session-recap.ts's, the same one the card asks. Null on every other row,
-   *  which keeps exactly the shape it had. */
+  /** Claude Code's recap when it is what the session's note says — the rule is
+   *  session-note.ts's, the same one the card and its note ask. Null on every
+   *  other row, which keeps exactly the shape it had. */
   recap?: SessionRecap | null;
+  /** The note when it says anything else: what the session is doing or did
+   *  last, or a background job's question, headline or failure. Same rule;
+   *  null whenever the recap speaks instead, or nothing has been said. */
+  status?: SessionNote | null;
   modelId?: string;
   toolCount: number;
   cost: number;
@@ -75,13 +79,19 @@ export function buildRows(state: GraphState, now: number): Row[] {
       const t = sub.endedAt ?? sub.startedAt;
       if (t > lastActivity) lastActivity = t;
     }
+    // The session's note, the one its card ties to it on the canvas: a recap
+    // draws as one, anything else as a tagged line.
+    const note = sessionNoteShown(a);
+    const recap = note?.kind === "recap" ? { text: note.text, at: note.at } : null;
+    const status = note && note.kind !== "recap" ? note : null;
     rows.push({
       sessionId: a.sessionId,
       label: a.label || a.cwdBasename || "session",
       cwdBasename: a.cwdBasename,
       state: a.state,
       waiting: a.waiting,
-      recap: recapShown(a),
+      recap,
+      status,
       modelId: a.model,
       toolCount,
       cost,
@@ -100,6 +110,13 @@ export function buildRows(state: GraphState, now: number): Row[] {
     return y.lastActivity - x.lastActivity;
   });
   return rows;
+}
+
+/** The whole line, uncut, and who wrote it: three lines of a sidebar cut most
+ *  questions short, and how far to trust a line depends on whether Claude
+ *  Code's classifier wrote it or the deck read it off the newest reply. */
+function statusTooltip(s: SessionNote): string {
+  return [s.text, s.reply ? `Suggested reply: ${s.reply}` : "", noteSource(s)].filter(Boolean).join("\n");
 }
 
 function elapsedShort(start: number, end: number | undefined, now: number): string {
@@ -267,6 +284,24 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     and it is wider than a card. All of it is the title, and all
                     of it is in the detail panel. */}
                 {r.recap && <span className="sl-recap" title={r.recap.text}><RecapMark />{r.recap.text}</span>}
+                {/* What it is doing, asking or got done, in the recap's slot and
+                    its three lines. The tag is a word in the row's name, not a
+                    colour: "needs you" is heard as well as seen. */}
+                {r.status && (
+                  <span className={`sl-status status-${r.status.kind}`} title={statusTooltip(r.status)}>
+                    {/* A real space after the tag, not only its margin: the row's
+                        name is its text, and "doneShipped" is one word to a
+                        screen reader. */}
+                    <span className="sl-status-tag">{noteTag(r.status.kind)}</span>{" "}
+                    {r.status.text}
+                  </span>
+                )}
+                {/* A line of its own, under the question: inside the three-line
+                    clamp, a long question cut it off, and the short answer is
+                    the part a person can act on from here. It is Claude Code's
+                    guess, so it is shown as one — muted, quoted — and never
+                    typed for anybody. */}
+                {r.status?.reply && <span className="sl-status-reply">suggested reply “{r.status.reply}”</span>}
               </div>
               </button>
             </li>

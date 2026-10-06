@@ -25,8 +25,8 @@ import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, noteSessionHear
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
 import { applyPreToolUse, applyToolOutcome, returnLentCalls } from "./tool-calls";
 import {
-  applyContextObserved, applyModelObserved, applyOutputObserved, applySessionNamed, applySessionRecapped,
-  applyUsageObserved, stampSessionFacts,
+  applyActivityObserved, applyContextObserved, applyJobObserved, applyModelObserved, applyOutputObserved,
+  applySessionNamed, applySessionRecapped, applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
 import { applyNotification, clearAnsweredWaiting } from "./waiting-block";
 import { applyGitCollisions, applyGitObserved } from "./git-events";
@@ -118,7 +118,12 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // every one of them is still the session's id arriving from a process that is
   // running. Attribution is irrelevant for the same reason — a subagent's
   // PreToolUse proves the session is there as surely as the root's.
-  noteSessionHeard(state, sessionId, now);
+  //
+  // Except a background job's file, which is not always the session talking:
+  // Claude Code's supervisor writes `stopped` into it when it finds the process
+  // gone, and hearing THAT would bring a session the stale sweep had rightly
+  // settled back to life. A job that is really working fires hooks of its own.
+  if (name !== "JobObserved") noteSessionHeard(state, sessionId, now);
 
   // Facts about the session that ride on whatever payload carries them. Above
   // the transcript scans on purpose: every one of those returns early, and two
@@ -133,6 +138,8 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     case "ContextObserved": applyContextObserved(state, p, sessionId); return state;
     case "SessionNamed": applySessionNamed(state, p, sessionId); return state;
     case "SessionRecapped": applySessionRecapped(state, p, sessionId); return state;
+    case "ActivityObserved": applyActivityObserved(state, p, sessionId); return state;
+    case "JobObserved": applyJobObserved(state, p, sessionId); return state;
     case "OutputObserved": applyOutputObserved(state, p, sessionId, now); return state;
     case "UsageObserved": applyUsageObserved(state, p, sessionId); return state;
   }

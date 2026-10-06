@@ -294,6 +294,12 @@
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
+/* Claude Code's suggested reply under a background job's question: its guess,
+   so the metadata tier, a line below the question it answers. */
+.detail-recap.detail-note-reply {
+  margin-top: 4px;
+  color: var(--muted);
+}
 /* A background task's notice, which Claude Code submits through the same hook
    as a human's typing (#834). It keeps its place in time but reads as an event,
    not as words the reader wrote: no fill, a dashed edge, one line until opened. */

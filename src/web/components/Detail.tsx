@@ -17,7 +17,7 @@ import { injectedPrompt, typedPrompts } from "../injected-prompt";
 import { shortModel, modelFamily } from "../model-label";
 import { fmtCost } from "../pricing";
 import { promptTime } from "../relative-time";
-import { recapShown } from "../session-recap";
+import { noteSource, noteTag, sessionNoteShown } from "../session-note";
 import { fmtTokens } from "../token-format";
 import type { MutableRefObject } from "react";
 import type { GraphState } from "../reducer";
@@ -159,23 +159,28 @@ export default function Detail({
         </div>
       </header>
 
-      {/* The Git section, right under the header and above the recap: what
-          the agent changed is the first question when it waits on you. */}
+      {/* The Git section, right under the header and above the session's
+          note: what the agent changed is the first question when it waits on
+          you. */}
       {stateRef && (
         <GitGlance agent={agent} root={stateRef.current.agents.get(agent.sessionId) ?? null} now={now} stateRef={stateRef} />
       )}
 
-      {/* Claude Code's recap, whole — the one surface with the room for all of
-          it. The card clamps it to two lines and the session list to three;
-          this is where it is read. Same rule as both, from session-recap.ts. */}
+      {/* The session's note, whole — the one surface with the room for all of
+          it. The note on the canvas clamps it and the session list cuts it to
+          three lines; this is where it is read. Same rule as both, from
+          session-note.ts: what the session is doing or what came of it, and
+          Claude Code's recap once that arrives. The heading says which. */}
       {(() => {
-        const recap = recapShown(agent);
-        if (!recap) return null;
-        const written = promptTime(recap.at, now);
+        const note = sessionNoteShown(agent);
+        if (!note) return null;
+        const written = promptTime(note.at, now);
+        const heading = note.kind === "recap" ? "Recap" : noteTag(note.kind).replace(/^./, c => c.toUpperCase());
         return (
           <section className="detail-section">
-            <h3>Recap <span className="section-count" title={written.title}>{written.label}</span></h3>
-            <p className="detail-recap">{recap.text}</p>
+            <h3>{heading} <span className="section-count" title={written.title}>{written.label}</span></h3>
+            <p className="detail-recap" title={noteSource(note)}>{note.text}</p>
+            {note.reply && <p className="detail-recap detail-note-reply">Suggested reply: “{note.reply}”</p>}
           </section>
         );
       })()}

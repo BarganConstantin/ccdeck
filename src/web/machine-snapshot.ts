@@ -13,9 +13,15 @@ export interface ThermalReading { label: string; celsius: number; warnAt: number
 /** Two fields, not one list: degrees and a throttle percentage are different
  *  readings, and a shape that could hold either under one label is how a
  *  percentage ends up printed under a °C heading. */
+/** How much of the CPU the thermal manager is taking away, in the measure the
+ *  platform publishes. macOS's `pmset` gives the share of full speed still
+ *  ALLOWED; Linux's kernel gives the share of the last ten seconds the clock was
+ *  HELD DOWN. Two keys rather than one number, because the two say different
+ *  things and the sentence under the row has to know which it is saying. */
+export type Throttle = { speedLimit: number } | { timeHeld: number };
 export interface Thermal {
   celsius: ThermalReading[];
-  throttle: { speedLimit: number } | null;
+  throttle: Throttle | null;
   /** Whether the machine has been held back at all since the deck started, and
    *  when it last was. Null on one that never has. */
   heldBack?: { peak: number; lastMs: number } | null;

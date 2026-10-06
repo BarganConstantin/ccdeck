@@ -56,10 +56,6 @@ export interface Peer {
   /** When somebody here accepted it. Null for a pairing made before this was
    *  kept, and for a row that is not paired. */
   pairedAt?: number | null;
-  /** The accept switch paired it rather than a person. Such a deck may take
-   *  what this one shares and places no login here that is not ticked here;
-   *  pairing with it by invite makes it a person's choice. Absent otherwise. */
-  autoPaired?: boolean;
   /** How it is reached: the local network, or this person's tailnet. Absent
    *  from a deck older than Tailscale discovery, and absent means local. */
   via?: LanRoute;
