@@ -453,7 +453,17 @@
   text-align: left;
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
+  animation: git-mark-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
+/* Live: a mark arrives and leaves as the server's collisions change — a
+   session ends, the file is committed, the agents part — with a fade and no
+   travel. One that is leaving is no longer a control. */
+.agent-node .git-mark[data-leaving] {
+  pointer-events: none;
+  animation: git-mark-out 150ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+@keyframes git-mark-in { from { opacity: 0; } }
+@keyframes git-mark-out { to { opacity: 0; } }
 .agent-node .git-mark-glyph { flex: none; display: inline-flex; }
 .agent-node .git-mark-glyph svg { width: 12px; height: 12px; }
 .agent-node .git-mark-lead {
@@ -492,6 +502,29 @@
 .agent-node .git-mark[data-level="sharp"]:hover { background: color-mix(in srgb, var(--err) 9%, transparent); }
 .agent-node .git-mark[data-session] { border-style: dashed; }
 .agent-node .git-mark:active { transform: scale(0.97); }
+/* A CARD THE READER WAS TAKEN TO (card-flash.ts): a halo in the session's
+   colour outside the selection's ring, held while the camera arrives and then
+   let go. On the full card at the detail tier, on the face below it — the
+   card's own chrome is not drawn out there. */
+.react-flow__node[data-flash] .agent-node { animation: card-flash 1.4s cubic-bezier(0.23, 1, 0.32, 1); }
+.canvas-wrap[data-lod="compact"] .react-flow__node[data-flash] .agent-node,
+.canvas-wrap[data-lod="overview"] .react-flow__node[data-flash] .agent-node { animation: none; }
+.react-flow__node[data-flash] .lod-face { animation: card-flash-face 1.4s cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes card-flash {
+  0%, 40% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent), var(--shadow-2); }
+  100% { box-shadow: 0 0 0 8px transparent, var(--shadow-2); }
+}
+@keyframes card-flash-face {
+  0%, 40% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 40%, transparent); }
+  100% { box-shadow: 0 0 0 6px transparent; }
+}
+
+/* Reduced motion: the marks are there and then gone, with no fade, and the
+   halo is on and then off. The leave keeps a 1ms animation so its end is
+   still the signal that takes the row away. */
 @media (prefers-reduced-motion: reduce) {
-  .agent-node .git-mark { transition: background-color 120ms ease, color 120ms ease; }
+  .agent-node .git-mark { transition: background-color 120ms ease, color 120ms ease; animation: none; }
+  .agent-node .git-mark[data-leaving] { animation: git-mark-out 1ms linear forwards; }
+  .react-flow__node[data-flash] .agent-node { animation: card-flash 1.4s step-end; }
+  .react-flow__node[data-flash] .lod-face { animation: card-flash-face 1.4s step-end; }
 }

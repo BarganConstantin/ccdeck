@@ -262,8 +262,9 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
       {/* Who this card can step on in git: a row of its own, between the
           session's name and anything waiting on you, as the wide view puts its
           line under its header. None at all for a card with nothing to say, so
-          that card keeps exactly the rows and the height it had. */}
-      {gitMark && <GitMarkRow mark={gitMark} />}
+          that card keeps exactly the rows and the height it had; a mark that
+          stops being true fades out first (GitCardMark.tsx). */}
+      <GitMarkRow mark={gitMark} agentId={data.id} />
 
       {/* A row of its own rather than a chip in the title. The card is 260px
           wide and the header already spends it on the state pill, the workspace

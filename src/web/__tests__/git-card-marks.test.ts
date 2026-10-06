@@ -2,12 +2,13 @@
 // which file another live agent also edited, how the other agent is named, and
 // the row as the card draws it — absent, and the card unchanged, when there is
 // nothing to say.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReactFlowProvider } from "reactflow";
 import AgentNode from "../components/AgentNode";
 import { nodeDataFor } from "../canvas-flow";
+import { FLASH_ATTR, flashCard } from "../card-flash";
 import { cardMarks, type MarkAgent } from "../git-card-mark";
 import { loadGitPrefs } from "../git-pref";
 import { applyEvent, initialState, type GraphState } from "../reducer";
@@ -295,6 +296,115 @@ describe("the zoomed-out faces", () => {
     expect(css).toMatch(/@container lod \(min-width: 130px\) \{\s*\.lod-clash-word \{ display: inline; \}\s*\}/);
     const narrow = /@container lod \(max-width: 72px\) \{[^@]*\}/.exec(css)![0];
     expect(narrow).toMatch(/\.alert-mark,\s*\.lod-clash \{ margin-left: 0; \}/);
+  });
+});
+
+describe("a press on the mark", () => {
+  const row = sourceOf("components/GitCardMark.tsx");
+  const press = row.slice(row.indexOf("onClick={e => {"), row.indexOf("onDoubleClick"));
+
+  it("is the mark's own: it selects the other agent and brings it into the uncovered pane, not this card", () => {
+    expect(press).toMatch(/e\.stopPropagation\(\);/);
+    expect(press).toMatch(/focusAgentFrom\(target\);/);
+    // The page's focuser selects, then frames the card with focus-camera.ts
+    // against the panels and the open git view.
+    expect(sourceOf("App.tsx")).toMatch(/setGitAgentFocuser\(id => \{ selectAgent\(id, false\); window\.requestAnimationFrame\(\(\) => focusAgent\(id\)\); \}\)/);
+    expect(sourceOf("use-agent-focus.ts")).toMatch(/right: Math\.max\(railInsetRef\.current, gitViewCover\(\)\) \+ 32/);
+  });
+
+  it("lights the other card once after a pointer press, and moves the keyboard onto it after a key press", () => {
+    expect(press).toMatch(/if \(e\.detail === 0\) requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => focusCanvasNode\(target\)\)\);\s*else requestAnimationFrame\(\(\) => flashCard\(target\)\);/);
+    expect(row).not.toMatch(/Notification|notify|chime|sound|Audio/i);
+  });
+
+  it("is a real button in the card's tab order, with the deck's ring", () => {
+    expect(row).toMatch(/<button[\s\S]*?type="button"[\s\S]*?className="git-mark"/);
+    const css = sheetText();
+    // No rule takes the ring away or recolours it.
+    expect(css).not.toMatch(/\.git-mark:focus-visible \{[^}]*outline: none/);
+    expect(css).not.toMatch(/\.git-mark[^{]*:focus[^{]*\{[^}]*outline-color/);
+  });
+});
+
+describe("the flash", () => {
+  type Listener = (e: { animationName: string }) => void;
+  const g = globalThis as unknown as { document?: unknown; CSS?: unknown };
+  const saved = { document: g.document, CSS: g.CSS };
+  afterEach(() => { g.document = saved.document; g.CSS = saved.CSS; });
+
+  function fakeNode() {
+    const attrs = new Map<string, string>();
+    const listeners = new Set<Listener>();
+    let reads = 0;
+    const node = {
+      setAttribute: (k: string, v: string) => { attrs.set(k, v); },
+      removeAttribute: (k: string) => { attrs.delete(k); },
+      get offsetWidth() { reads++; return 260; },
+      addEventListener: (_: string, l: Listener) => { listeners.add(l); },
+      removeEventListener: (_: string, l: Listener) => { listeners.delete(l); },
+    };
+    return { node, attrs, listeners, reads: () => reads, end: (animationName: string) => { for (const l of [...listeners]) l({ animationName }); } };
+  }
+
+  it("marks the card's wrapper and lets go when the halo's animation ends", () => {
+    const f = fakeNode();
+    let asked = "";
+    g.CSS = { escape: (s: string) => s };
+    g.document = { querySelector: (sel: string) => { asked = sel; return f.node; } };
+    flashCard("s1::ag1");
+    expect(asked).toBe('.react-flow__node[data-id="s1::ag1"]');
+    expect(f.attrs.has(FLASH_ATTR)).toBe(true);
+    expect(f.reads()).toBe(1);
+    f.end("git-mark-in");
+    expect(f.attrs.has(FLASH_ATTR)).toBe(true);
+    f.end("card-flash-face");
+    expect(f.attrs.has(FLASH_ATTR)).toBe(false);
+    expect(f.listeners.size).toBe(0);
+  });
+
+  it("does nothing for a card that is not on the canvas", () => {
+    g.CSS = { escape: (s: string) => s };
+    g.document = { querySelector: () => null };
+    expect(() => flashCard("gone")).not.toThrow();
+  });
+
+  it("is a halo in the session's colour, held while the camera arrives, on the face when zoomed out, and on-then-off under reduced motion", () => {
+    const css = sheetText();
+    expect(css).toContain(".react-flow__node[data-flash] .agent-node { animation: card-flash 1.4s cubic-bezier(0.23, 1, 0.32, 1); }");
+    expect(css).toContain(".react-flow__node[data-flash] .lod-face { animation: card-flash-face 1.4s cubic-bezier(0.23, 1, 0.32, 1); }");
+    expect(css).toMatch(/@keyframes card-flash \{\s*0%, 40% \{ box-shadow: 0 0 0 8px color-mix\(in srgb, var\(--accent\) 40%, transparent\)/);
+    expect(css).toMatch(/\.canvas-wrap\[data-lod="compact"\] \.react-flow__node\[data-flash\] \.agent-node,\s*\.canvas-wrap\[data-lod="overview"\] \.react-flow__node\[data-flash\] \.agent-node \{ animation: none; \}/);
+    expect(css).toContain(".react-flow__node[data-flash] .agent-node { animation: card-flash 1.4s step-end; }");
+    expect(css).toContain(".react-flow__node[data-flash] .lod-face { animation: card-flash-face 1.4s step-end; }");
+  });
+});
+
+describe("marks that come and go", () => {
+  const row = sourceOf("components/GitCardMark.tsx");
+  const css = sheetText();
+
+  it("are always asked for, so a mark that stops being true can fade before its row goes", () => {
+    expect(sourceOf("components/AgentNode.tsx")).toContain("<GitMarkRow mark={gitMark} agentId={data.id} />");
+    expect(row).toContain("const shown = mark ?? last;");
+    expect(row).toContain("const leaving = mark == null && last != null;");
+    expect(row).toMatch(/onAnimationEnd=\{e => \{ if \(leaving && e\.animationName === "git-mark-out"\) setLast\(null\); \}\}/);
+  });
+
+  it("take a leaving row out of the tab order and the accessibility tree, and give the keyboard to the card", () => {
+    expect(row).toMatch(/tabIndex=\{leaving \? -1 : undefined\}/);
+    expect(row).toMatch(/aria-hidden=\{leaving \? true : undefined\}/);
+    expect(row).toMatch(/if \(leaving && ref\.current != null && ref\.current === document\.activeElement\) focusCanvasNode\(agentId\);/);
+    expect(css).toMatch(/\.agent-node \.git-mark\[data-leaving\] \{\s*pointer-events: none;/);
+  });
+
+  it("fade in and out in 150ms with no travel, and are simply there and gone under reduced motion", () => {
+    expect(/\n\.agent-node \.git-mark \{[^}]*animation: git-mark-in 150ms cubic-bezier\(0\.23, 1, 0\.32, 1\) both;/.test(css)).toBe(true);
+    expect(css).toMatch(/\.agent-node \.git-mark\[data-leaving\] \{[^}]*animation: git-mark-out 150ms cubic-bezier\(0\.23, 1, 0\.32, 1\) forwards;/);
+    expect(css).toContain("@keyframes git-mark-in { from { opacity: 0; } }");
+    expect(css).toContain("@keyframes git-mark-out { to { opacity: 0; } }");
+    const reduced = /@media \(prefers-reduced-motion: reduce\) \{\s*\.agent-node \.git-mark \{[^}]*\}[^}]*\}/.exec(css)![0];
+    expect(reduced).toMatch(/\.agent-node \.git-mark \{[^}]*animation: none;/);
+    expect(reduced).toContain(".agent-node .git-mark[data-leaving] { animation: git-mark-out 1ms linear forwards; }");
   });
 });
 
