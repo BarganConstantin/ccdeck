@@ -8,6 +8,7 @@
 // name on the row, the folder moving into the tooltip. A detached HEAD shows
 // its short SHA; a folder in no repository shows nothing. A deleted folder may
 // still show the branch its session's own log recorded, and says so.
+import { columns } from "./cluster-header";
 import type { AgentNodeData, GitFacts } from "./types";
 
 export interface BranchChip {
@@ -48,6 +49,33 @@ export function branchChip(a: Pick<AgentNodeData, "kind" | "git" | "cwd">): Bran
   return { kind, name, title: lines.join("\n"), label: `${said}. Open its git view` };
 }
 
+/** The width of a spelling, in whatever unit the caller's room is in. */
+export type Measure = (text: string) => number;
+
+const segmenter = typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+
+/** A name as the characters a reader sees: a letter with its accents, an
+ *  emoji, a flag or a joined emoji is one, so a cut never splits it — half a
+ *  surrogate pair draws a replacement box. Code points where the browser has
+ *  no segmenter. */
+export function graphemes(text: string): string[] {
+  return segmenter ? Array.from(segmenter.segment(text), s => s.segment) : Array.from(text);
+}
+
+/** An emoji drawn as one, which takes two columns of a monospace font. */
+const EMOJI = /\p{Emoji_Presentation}|\uFE0F|\p{Regional_Indicator}/u;
+
+/** How many monospace columns a spelling draws: two for a wide character
+ *  (CJK, kana, Hangul, the fullwidth forms, as cluster-header.ts counts them)
+ *  and for an emoji, one for anything else. The chip measures on a canvas in
+ *  its own font; this is the count where nothing can be measured. */
+export function textColumns(text: string): number {
+  let n = 0;
+  for (const g of graphemes(text)) n += EMOJI.test(g) || columns(g) === 2 ? 2 : 1;
+  return n;
+}
+
 /**
  * The spellings to try for a branch name, longest first, keeping the part
  * people scan for — the last segment, and in it the ticket when it starts with
@@ -57,7 +85,8 @@ export function branchChip(a: Pick<AgentNodeData, "kind" | "git" | "cwd">): Bran
  *   …/VCRM-9090-make-the-invoice-builder → VCRM-9090…builder → VCRM-9090…
  *
  * and a last segment with no ticket is cut in its middle, down to six
- * characters. A last segment that is only a ticket is never cut.
+ * characters. A last segment that is only a ticket is never cut. Cuts fall
+ * between the characters a reader sees (`graphemes`), never inside one.
  */
 export function branchCandidates(name: string): string[] {
   const seg = name.split("/");
@@ -66,17 +95,22 @@ export function branchCandidates(name: string): string[] {
   if (seg.length > 2) out.push(`${seg[0]}/…/${last}`);
   if (seg.length > 1) out.push(`…/${last}`, last);
   const ticket = TICKET.exec(last)?.[0];
-  if (ticket && ticket.length < last.length) {
+  if (ticket) {
     // The ticket stays whole; what follows it is cut from the front.
-    for (let tail = last.length - ticket.length - 2; tail >= 3; tail--) out.push(`${ticket}…${last.slice(last.length - tail)}`);
-    out.push(`${ticket}…`);
-  } else if (!ticket) {
-    for (let keep = last.length - 2; keep >= 6; keep -= 2) {
-      const head = Math.ceil(keep * 0.6);
-      out.push(`${last.slice(0, head)}…${last.slice(last.length - (keep - head))}`);
-    }
+    const rest = graphemes(last.slice(ticket.length));
+    for (let tail = rest.length - 2; tail >= 3; tail--) out.push(`${ticket}…${rest.slice(rest.length - tail).join("")}`);
+    if (rest.length) out.push(`${ticket}…`);
+  } else {
+    const all = graphemes(last);
+    for (let keep = all.length - 2; keep >= 6; keep -= 2) out.push(middleCut(all, keep, 0.6));
   }
   return [...new Set(out)];
+}
+
+/** `keep` of the characters, `share` of them in front of the ellipsis. */
+function middleCut(chars: string[], keep: number, share: number): string {
+  const head = Math.ceil(keep * share);
+  return `${chars.slice(0, head).join("")}…${chars.slice(chars.length - (keep - head)).join("")}`;
 }
 
 /** A ticket key at the start of a segment: `VCRM-9090`, `ABC-12`, `gh-1960`. */
@@ -104,8 +138,8 @@ export function branchFloor(name: string): string {
   const last = name.split("/").pop()!;
   const ticket = TICKET.exec(last)?.[0];
   if (ticket) return ticket.length < last.length ? `${ticket}…` : ticket;
-  const kept = (s: string) => s.replace(/…\/?/g, "").length;
-  const least = Math.min(FLOOR_CHARS, last.length);
+  const kept = (s: string) => graphemes(s.replace(/…\/?/g, "")).length;
+  const least = Math.min(FLOOR_CHARS, graphemes(last).length);
   const spellings = branchCandidates(name).filter(s => kept(s) >= least);
   return spellings[spellings.length - 1] ?? last;
 }
@@ -122,15 +156,16 @@ export function rowYields(kind: AgentNodeData["kind"], otherModels: number): Row
   return out;
 }
 
-/** What the chip does with the room its row leaves it, in characters of its
- *  name: say the longest spelling that fits, or — when not even the floor
- *  does — ask the row for more room, and only when the row has nothing left
- *  to give, keep its glyph alone. A detached HEAD's short SHA is never cut. */
+/** What the chip does with the room its row leaves it, in the unit of
+ *  `measure` (the card's pixels; monospace columns by default): say the
+ *  longest spelling that fits, or — when not even the floor does — ask the
+ *  row for more room, and only when the row has nothing left to give, keep its
+ *  glyph alone. A detached HEAD's short SHA is never cut. */
 export type ChipFit = { give: true } | { give: false; label: string; bare: boolean };
-export function fitChip(chip: Pick<BranchChip, "kind" | "name">, roomChars: number, canGive: boolean): ChipFit {
+export function fitChip(chip: Pick<BranchChip, "kind" | "name">, room: number, canGive: boolean, measure: Measure = textColumns): ChipFit {
   const floor = chip.kind === "detached" ? chip.name : branchFloor(chip.name);
-  const roomy = floor.length <= roomChars;
+  const roomy = measure(floor) <= room;
   if (!roomy && canGive) return { give: true };
   if (chip.kind === "detached") return { give: false, label: chip.name, bare: false };
-  return { give: false, label: fitBranch(chip.name, text => text.length <= roomChars), bare: !roomy };
+  return { give: false, label: fitBranch(chip.name, text => measure(text) <= room), bare: !roomy };
 }

@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { branchChip, branchCandidates, branchFloor, fitBranch, fitChip, rowYields } from "../git-chip";
+import { branchChip, branchCandidates, branchFloor, fitBranch, fitChip, graphemes, rowYields, textColumns } from "../git-chip";
 import { openGitFor, setGitOpener } from "../git-open";
 import type { GitFacts } from "../types";
 import { sourceOf } from "./client-source";
@@ -91,6 +91,62 @@ describe("a long branch, shortened in the middle", () => {
     expect(fitBranch(long, fitsIn(10))).toBe("VCRM-9090…");
     expect(fitBranch(long, () => false)).toBe("VCRM-9090-make-the-invoice-builder-understand-everything");
     expect(fitBranch("feature/auth-login", () => false)).toBe("auth-login");
+  });
+});
+
+describe("a branch in any script", () => {
+  const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const odd = [
+    "feature/fixx-🐛🐛🐛🐛🐛🐛🐛🐛🐛🐛🐛🐛-crash-in-the-login-flowx",
+    "feat/add-𠮷野家-menu-translation-for-tokyo-shops",
+    "fix/🚀-launch-the-rocket-today",
+    "feature/team-👩‍💻👩‍💻👩‍💻-pairing-🇯🇵🇯🇵-flags-and-more",
+    "feature/données-über-ветка-日本語ブランチ",
+    "VCRM-9090-ünïcödé-🐛🐛🐛🐛-and-日本語-too",
+  ];
+
+  it("is never cut inside a character, an emoji, a flag or a joined emoji", () => {
+    for (const name of odd) {
+      const whole = new Set(graphemes(name));
+      for (const c of [...branchCandidates(name), branchFloor(name)]) {
+        expect(LONE.test(c), `${name} → ${c}`).toBe(false);
+        for (const g of graphemes(c)) if (g !== "…" && g !== "/") expect(whole.has(g), `${name} → ${c}: ${g}`).toBe(true);
+      }
+    }
+  });
+
+  it("counts a wide character as the two columns it draws, and an emoji as two", () => {
+    expect(textColumns("main")).toBe(4);
+    expect(textColumns("日本語")).toBe(6);
+    expect(textColumns("🐛x")).toBe(3);
+    expect(textColumns("👩‍💻")).toBe(2);
+    expect(textColumns("🇯🇵")).toBe(2);
+    expect(textColumns("é…")).toBe(2);
+  });
+
+  it("fits what it draws in the room, whatever the script", () => {
+    for (const name of odd) {
+      for (let room = 6; room < 50; room++) {
+        const fit = fitChip({ kind: "branch", name }, room, false);
+        if (fit.give || fit.bare) continue;
+        expect(textColumns(fit.label), `${name} at ${room}: ${fit.label}`).toBeLessThanOrEqual(room);
+      }
+    }
+    // Measured in pixels by the caller's own measure: the cut keeps to it.
+    const px = (t: string) => textColumns(t) * 6.02;
+    const fit = fitChip({ kind: "branch", name: "feature/données-über-ветка-日本語ブランチ" }, 100, false, px);
+    expect(fit).toMatchObject({ give: false, bare: false });
+    expect(px((fit as { label: string }).label)).toBeLessThanOrEqual(100);
+  });
+
+  it("is measured on the card in the chip's own font, not from one character's width", () => {
+    const chip = sourceOf("components/GitChip.tsx");
+    expect(chip).toMatch(/const measure = monoMeasure\(CHIP_PX\);/);
+    expect(chip).toMatch(/fitChip\(chip, room, canGive, measure\)/);
+    expect(chip).not.toMatch(/textContent\.length/);
+    // The chip's type size as the sheet sets it.
+    expect(chip).toContain("const CHIP_PX = 10;");
+    expect(sheetText()).toMatch(/\.git-chip \{[^}]*font: 10px\/1 var\(--font-mono\);/);
   });
 });
 
