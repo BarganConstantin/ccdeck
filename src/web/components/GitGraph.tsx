@@ -36,6 +36,11 @@ export interface GitGraphProps {
   /** The name a canvas card goes by, for an agent the history knows only by
    *  its session; optional, the label the server sent is the fallback. */
   agentName?: (sessionId: string, agentId: string | null) => string | null;
+  /** Draw only the first this many commits (the uncommitted row aside), for
+   *  a first frame: the graph is still laid out on every commit, so its
+   *  width, its fold and every row drawn are the ones the whole history
+   *  gets. Omitted, every row is drawn. */
+  rowLimit?: number;
 }
 
 /** Where the colours each repository's branches were given are kept. */
@@ -382,7 +387,7 @@ function HoverCard({ state, commit, agent, id }: { state: HoverState; commit: Lo
 let instance = 0;
 
 export default function GitGraph(props: GitGraphProps) {
-  const { repoKey, commits, head, uncommitted, focus, selected, onSelect, onOpen, onAgentCard, liveInsert, agentName } = props;
+  const { repoKey, commits, head, uncommitted, focus, selected, onSelect, onOpen, onAgentCard, liveInsert, agentName, rowLimit } = props;
   const uid = useMemo(() => `gvh${++instance}`, []);
   const listRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
@@ -427,9 +432,16 @@ export default function GitGraph(props: GitGraphProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [commits, focus.sessionId, focusIds, agentName]);
 
-  const ids = useMemo(() => layout.rows.map(r => r.id), [layout]);
+  // The rows drawn: the first `rowLimit` commits (and the uncommitted row)
+  // when a first frame asks for fewer.
+  const drawnRows = useMemo(() => {
+    let rows = layout.rows;
+    if (rowLimit !== undefined) rows = rows.slice(0, rowLimit + (rows[0]?.id === WIP_ID ? 1 : 0));
+    return rows;
+  }, [layout, rowLimit]);
+  const ids = useMemo(() => drawnRows.map(r => r.id), [drawnRows]);
   const tabStopId = ids.includes(selected) ? selected : ids[0];
-  const firstOutside = layout.rows.findIndex(r => r.outside);
+  const firstOutside = drawnRows.findIndex(r => r.outside);
 
   // The minute the ages are counted from, kept for a minute.
   const [now, setNow] = useState(() => Date.now());
@@ -710,7 +722,7 @@ export default function GitGraph(props: GitGraphProps) {
           onBlur={hideHover}
           onScroll={onScroll}
         >
-          {layout.rows.map((row, i) => {
+          {drawnRows.map((row, i) => {
             const c = row.id === WIP_ID ? null : byId.get(row.id) ?? null;
             const el = (
               <HistoryRow

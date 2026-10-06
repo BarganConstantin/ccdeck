@@ -615,12 +615,13 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     const raf = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => setAllRows(true)); });
     return () => { cancelAnimationFrame(raf); cancelAnimationFrame(raf2); };
   }, [request.seq, agent.id]);
-  const firstRows = useMemo(() => {
+  // The history is laid out on every commit from the first frame (one graph
+  // width, its fold and its lanes final at once); only the rows drawn wait.
+  const rowLimit = useMemo(() => {
     const all = data.commits;
-    if (!all || allRows) return all;
-    const head = all.slice(0, FIRST_ROWS);
+    if (!all || allRows) return undefined;
     // A row asked for further down is drawn with everything from the start.
-    return sel === UNCOMMITTED || head.some(c => c.sha === sel) ? head : all;
+    return sel === UNCOMMITTED || all.slice(0, FIRST_ROWS).some(c => c.sha === sel) ? FIRST_ROWS : undefined;
   }, [data.commits, allRows, sel]);
   const counts = useFocusCounts(data, focus);
   // The commits the last history read brought, one object per read: the
@@ -934,7 +935,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               </>
             ) : (
               <GitGraph
-                repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={firstRows ?? data.commits} head={head ?? null}
+                repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={data.commits} rowLimit={rowLimit} head={head ?? null}
                 uncommitted={{ files: counts.changed, byFocus: counts.files, label: focusName }} focus={focus} selected={sel}
                 onSelect={view.setSel} onOpen={() => focusPane("files")}
                 onAgentCard={openCard} liveInsert={liveInsert}
