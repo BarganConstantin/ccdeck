@@ -974,6 +974,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                   emptyReason={sel === UNCOMMITTED && !data.entries.length ? "clean" : "unselected"}
                   error={view.diff.error} gone={view.diff.gone} onRetry={view.showLatest}
                   diffKey={view.diff.file && view.diff.sel ? `${view.diff.sel}:${view.diff.file.area}:${view.diff.file.path}` : undefined}
+                  onReload={view.showLatest} editorFor={{ sessionId: agent.sessionId, agentId: agentParam }}
                 />
               )}
             </section>

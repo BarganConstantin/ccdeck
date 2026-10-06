@@ -5,12 +5,13 @@ import {
   budgetHunks, collapsedKind, diffState, endingOnly, endingsChange, failureLasts, failureLine, freshLines, groupDigits, lockOwner, parsePatch,
   type DiffLine, type DiffResult, type Hunk, type ParsedDiff,
 } from "../git-diff-parse";
+import { openHandoff, useHandoffs } from "../git-handoffs";
 import { codePoint, hasHidden, hiddenIn, hiddenName, shownPath, splitHidden } from "../git-hidden-chars";
-import { fitPath, monoMeasure, splitPath, type PathParts } from "../git-path-fit";
+import { fitPath, monoMeasure, nameFits, splitPath, type PathParts } from "../git-path-fit";
 import { cachedSpans, highlightDocs, langOf, type LineSpans } from "../git-syntax";
 import { hunkWordMarks, type Range } from "../git-word-diff";
 import { readStored, writeStored } from "../storage";
-import { CheckGlyph, ClashGlyph, CopyGlyph, InfoGlyph, WrapGlyph } from "./GitDiffIcons";
+import { CheckGlyph, ClashGlyph, CopyGlyph, EditorGlyph, InfoGlyph, ReloadGlyph, WrapGlyph } from "./GitDiffIcons";
 
 export type { DiffResult } from "../git-diff-parse";
 
@@ -39,6 +40,13 @@ export interface GitDiffProps {
    *  commits is two diffs, each opened on its own first budget, collapsed if
    *  it collapses. Defaults to the file's area and path. */
   diffKey?: string;
+  /** The header's reload: what `n` does — the latest diff when one waits,
+   *  else the open diff read again. Not drawn for a commit's diff. */
+  onReload?: () => void;
+  /** The session (and subagent) the file belongs to, for the header's Open in
+   *  editor; drawn only when the deck found an editor on this machine and the
+   *  page is on it. */
+  editorFor?: { sessionId: string; agentId: string | null } | null;
 }
 
 /** What the view does to the diff from outside: give it the keyboard. */
@@ -54,6 +62,8 @@ const WRAP_KEY = "agent-dag.gitDiffWrap";
  *  both to the sheet. */
 export const HEAD_PATH_PX = 12;
 export const HEAD_GAP = 8;
+/** The least the rename chip keeps (`← k…`) beside a whole file name. */
+const FROM_MIN_PX = 56;
 
 /** Each syntax tone's class, spelled out so the sheet's rules can be found. */
 const SYN_CLASS = { kw: "syn-kw", str: "syn-str", com: "syn-com" } as const;
@@ -103,7 +113,7 @@ const UNLISTED = new Set(["unlisted", "no such change in this repository"]);
  * once when it comes.
  */
 const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, ref) {
-  const { file, diff, loading, stale, onShowLatest, wrap, onToggleWrap, collision, emptyReason = "unselected", error = null, gone = false, onRetry } = props;
+  const { file, diff, loading, stale, onShowLatest, wrap, onToggleWrap, collision, emptyReason = "unselected", error = null, gone = false, onRetry, onReload, editorFor } = props;
   const fileKey = props.diffKey ?? (file ? `${file.area}\0${file.path}` : "");
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -117,13 +127,20 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   const setSteps = (next: (n: number) => number) => setShown({ key: fileKey, steps: next(steps), expanded });
   const setExpanded = (open: boolean) => setShown({ key: fileKey, steps, expanded: open });
   const [copied, setCopied] = useState(false);
+  // Why the editor did not open a file, said under the header while that
+  // file is the one shown.
+  const [openFailed, setOpenFailedFor] = useState<{ key: string; app: string; error: string } | null>(null);
+  const fileKeyRef = useRef("");
+  const setOpenFailed = useCallback((f: { app: string; error: string } | null) => setOpenFailedFor(f ? { ...f, key: fileKeyRef.current } : null), []);
   const [fresh, setFresh] = useState<Set<string>>(() => new Set());
   const [pathCut, setPathCut] = useState<PathParts | null>(null);
   const [headWidth, setHeadWidth] = useState(0);
+  const [fromDropped, setFromDropped] = useState(false);
 
   useImperativeHandle(ref, () => ({ focus: () => scrollRef.current?.focus() }), []);
 
   useEffect(() => { setCopied(false); }, [fileKey]);
+  fileKeyRef.current = fileKey;
 
   const parsed = useMemo<ParsedDiff | null>(
     () => (diff && diffState(diff) === "text" ? parsePatch(diff.patch ?? "") : null),
@@ -222,14 +239,29 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   useLayoutEffect(() => {
     const t = titleRef.current, p = pathRef.current;
     if (!file || !t || !p) return;
-    let used = 0, others = 0;
+    let used = 0, others = 0, from = false;
     for (const c of Array.from(t.children)) {
-      if (c === p || (c as HTMLElement).classList.contains("vis-hidden")) continue;
+      if (c === p) continue;
+      // The rename chip is decided apart, whether it is showing or not.
+      if ((c as HTMLElement).classList.contains("gvd-from")) { from = true; continue; }
+      if ((c as HTMLElement).classList.contains("vis-hidden")) continue;
       used += c.getBoundingClientRect().width;
       others++;
     }
-    const room = t.clientWidth - used - HEAD_GAP * others - 2;
-    const cut = fitPath(shownPath(file.path), room, monoMeasure(HEAD_PATH_PX));
+    const measure = monoMeasure(HEAD_PATH_PX);
+    const shown = shownPath(file.path);
+    let room = t.clientWidth - used - HEAD_GAP * others - 2;
+    // The rename chip gives way to the file name: it keeps at least `← k…`
+    // beside a whole name, or steps out of sight (a screen reader still
+    // hears it, and the path's tooltip says it).
+    let drop = false;
+    if (from) {
+      const withChip = room - FROM_MIN_PX - HEAD_GAP;
+      if (nameFits(shown, withChip, measure)) room = withChip;
+      else drop = true;
+    }
+    setFromDropped(drop);
+    const cut = fitPath(shown, room, measure);
     setPathCut(prev => (prev && prev.dir === cut.dir && prev.base === cut.base ? prev : { dir: cut.dir, base: cut.base }));
   }, [file?.path, headWidth, stale, diff, loading]);
 
@@ -384,12 +416,12 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
       <div className="gvd-head">
         <div className="gvd-title" ref={titleRef}>
           <span className="vis-hidden">{file.path}</span>
-          <span className="gvd-path" ref={pathRef} title={file.path} aria-hidden="true">
+          <span className="gvd-path" ref={pathRef} title={renameFrom ? `${file.path}\nrenamed from ${renameFrom}` : file.path} aria-hidden="true">
             <span className="gvd-dir">{parts.dir}</span><span className="gvd-base">{parts.base}</span>
           </span>
           {AREA_WORD[file.area] && <span className="gvd-area" data-area={file.area}>{AREA_WORD[file.area]}</span>}
           {renameFrom && (
-            <span className="gvd-from"
+            <span className={`gvd-from${fromDropped ? " vis-hidden" : ""}`}
               title={`← ${splitPath(shownPath(renameFrom)).base}${parsed?.similarity !== undefined ? ` · ${parsed.similarity}%` : ""}\nrenamed from ${renameFrom}${parsed?.similarity !== undefined ? `, ${parsed.similarity}% similar` : ""}`}>
               ← {splitPath(shownPath(renameFrom)).base}{parsed?.similarity !== undefined ? ` · ${parsed.similarity}%` : ""}
             </span>
@@ -415,11 +447,25 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
           <button type="button" className="glyph-btn gvd-icon" onClick={copy} title={copied ? "Copied" : "Copy path"} aria-label="Copy path">
             {copied ? <CheckGlyph /> : <CopyGlyph />}
           </button>
+          {editorFor && !parsed?.deleted && !(diff && diffState(diff) === "directory") && (
+            <EditorButton key={fileKey} to={editorFor} path={file.path} onFailed={setOpenFailed} />
+          )}
+          {onReload && file.area !== "commit" && (
+            <button type="button" className="glyph-btn gvd-icon" onClick={onReload} title="Reload the diff (n)" aria-label="Reload the diff">
+              <ReloadGlyph />
+            </button>
+          )}
         </span>
         <span className="vis-hidden" aria-live="polite">
           {stale ? (gone ? "git no longer lists this change. Show the latest with n." : "This file changed since the diff was read. Show the latest with n.") : copied ? "Path copied" : ""}
         </span>
       </div>
+      {openFailed && openFailed.key === fileKey && (
+        <div className="gvd-note" role="status">
+          <InfoGlyph />
+          <span><b>Couldn't open it in {openFailed.app}.</b> {openFailed.error}</span>
+        </div>
+      )}
       {collision && (
         <div className="gvd-note">
           <ClashGlyph />
@@ -456,6 +502,36 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
 });
 
 export default GitDiff;
+
+/**
+ * Open in editor: the file being read, in the editor the deck found (Settings
+ * picks one when there are several). Only drawn while this page is on the
+ * deck's machine with an editor found, as the hand-off row's buttons are.
+ */
+function EditorButton({ to, path, onFailed }: {
+  to: { sessionId: string; agentId: string | null }; path: string; onFailed: (f: { app: string; error: string } | null) => void;
+}) {
+  const handoffs = useHandoffs();
+  const [busy, setBusy] = useState(false);
+  const slot = handoffs.slots.editor;
+  const app = slot.apps.find(a => a.id === slot.chosen) ?? slot.apps[0];
+  if (handoffs.state !== "ready" || !handoffs.local || !app) return null;
+  const open = () => {
+    if (busy) return;
+    setBusy(true);
+    onFailed(null);
+    void openHandoff({ sessionId: to.sessionId, agentId: to.agentId, slot: "editor", file: path }).then(r => {
+      setBusy(false);
+      if (!r.ok) onFailed({ app: app.name, error: r.error ?? "The deck could not open it." });
+    });
+  };
+  return (
+    <button type="button" className="glyph-btn gvd-icon" onClick={open} aria-busy={busy || undefined}
+      title={`Open in ${app.name}`} aria-label={`Open ${path} in ${app.name}`}>
+      <EditorGlyph />
+    </button>
+  );
+}
 
 function Placeholder({ title, line, mono, children }: { title: string; line?: string | null; mono?: boolean; children?: React.ReactNode }) {
   return (

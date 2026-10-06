@@ -88,6 +88,10 @@ describe("the header and the rows that stay put", () => {
     expect(from).toMatch(/flex: 0 1 auto;/);
     expect(from).toMatch(/max-width: 40%;/);
     expect(from).toMatch(/text-overflow: ellipsis;/);
+    // The chip, not the file name, gives way when the header is tight: it
+    // keeps its smallest beside a whole name, or steps out of sight.
+    expect(diff).toMatch(/const withChip = room - FROM_MIN_PX - HEAD_GAP;\n      if \(nameFits\(shown, withChip, measure\)\) room = withChip;\n      else drop = true;/);
+    expect(diff).toContain('className={`gvd-from${fromDropped ? " vis-hidden" : ""}`}');
   });
 
   it("keeps a hunk's range and the load-more row in view when unwrapped code scrolls sideways", () => {
