@@ -106,3 +106,18 @@ describe("the motion lives in the sheet, on the house curve", () => {
   });
 
 });
+
+describe("the Git section in the detail panel", () => {
+  it("keeps one height while its read arrives, so the panel under it never jumps", () => {
+    expect(rule(".gv-glance[data-reserve]")).toMatch(/min-height: \d+px/);
+    expect(css).toMatch(/\.gv-glance\[data-reserve\] > \.gv-handoffs-wrap:not\(\[data-compact\]\) \{ margin-top: auto;/);
+    const glance = sourceOf("components/GitGlance.tsx");
+    // A folder with no repository is one line and reserves nothing.
+    expect(glance).toMatch(/return section\(<ReadStateLine [^\n]*\/>\);/);
+    expect(glance).toMatch(/<\/>,\s*true,\s*\);/);
+  });
+
+  it("never says an ended session ended \"now ago\"", () => {
+    expect(sourceOf("components/GitGlance.tsx")).toMatch(/=== "now" \? "just now" :/);
+  });
+});

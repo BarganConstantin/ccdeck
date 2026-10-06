@@ -86,8 +86,11 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
       )}
     </h3>
   );
-  const section = (body: ReactNode) => (
-    <section className="detail-section gv-glance" aria-labelledby={`gv-glance-${agent.id}`}>{heading}{body}</section>
+  // A repository's section keeps one height while its read arrives and as it
+  // changes, so the panel under it never jumps; a folder with no repository is
+  // one line and keeps none.
+  const section = (body: ReactNode, reserve = false) => (
+    <section className="detail-section gv-glance" data-reserve={reserve ? "" : undefined} aria-labelledby={`gv-glance-${agent.id}`}>{heading}{body}</section>
   );
 
   // A folder with no repository to show: one line, the one `g` makes glow.
@@ -120,7 +123,11 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         {head?.unborn ? <span className="gv-ahead">no commits yet</span>
           : upstream && <span className="gv-ahead" title={upstream.title}>{upstream.text}</span>}
       </div>
-      {ended && <p className="gv-note">Ended {shortAge(agent.endedAt!, now)} ago. Its commits stay marked; the files are the folder as it is now.</p>}
+      {ended && (
+        <p className="gv-note">
+          Ended {shortAge(agent.endedAt!, now) === "now" ? "just now" : `${shortAge(agent.endedAt!, now)} ago`}. Its commits stay marked; the files are the folder as it is now.
+        </p>
+      )}
       {collision && (
         <CollisionLine c={collision} other={other} otherCli={null} where="glance"
           onFocus={() => focusAgentFrom(collisionCardId(collision.with))} />
@@ -167,5 +174,6 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
       <GitHandoffs sessionId={agent.sessionId} agentId={agent.git ? subagentKey(agent) : null}
         branch={detached ? null : branch} sha={detached ? head?.sha ?? null : own[0]?.sha ?? null} path={agent.cwd ?? null} compact={false} />
     </>,
+    true,
   );
 }
