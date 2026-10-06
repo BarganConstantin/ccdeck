@@ -21,7 +21,9 @@ describe("the file list", () => {
 
   it("walks with the arrows, Home and End, and opens the diff on Enter or →", () => {
     for (const key of ["ArrowDown", "ArrowUp", "Home", "End"]) expect(files).toContain(`case "${key}"`);
-    expect(files).toMatch(/case "Enter":\s*case "ArrowRight": onOpen\(/);
+    expect(files).toMatch(/case "Enter":\s*case "ArrowRight": activate\(walk\[i\]\); break;/);
+    // On a file row that is the diff; the line naming a subagent elsewhere narrows instead.
+    expect(files).toMatch(/onOpen\(refOf\(item\.row\)\);/);
     // A handled key goes no further: the deck's shortcuts never see it.
     expect(files).toMatch(/if \(handled\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); \}/);
   });
@@ -53,6 +55,19 @@ describe("the file list", () => {
     expect(/\.gvf-path \{[^}]*font: 11px\/1\.4 var\(--font-mono\);/.test(css)).toBe(true);
     expect(/\.gvf-who \{[^}]*font: 10px\/1 var\(--font-mono\);/.test(css)).toBe(true);
     expect(files).not.toMatch(/getComputedStyle/);
+  });
+
+  it("draws the line naming a subagent elsewhere as a dashed row, ringed when focused", () => {
+    const line = /\.gvf-elsewhere \{([^}]*)\}/.exec(css)![1];
+    expect(line).toMatch(/border: 1px dashed var\(--line\)/);
+    expect(line).toMatch(/height: 24px/);
+    expect(line).toMatch(/font: 11px\/22px var\(--font-mono\)/);
+    expect(css).toMatch(/\.gvf-elsewhere:focus-visible \{[^}]*outline-offset: -2px/);
+    // Its words never spill: the lead gives way with an ellipsis, the full sentence is the title.
+    expect(css).toMatch(/\.gvf-elsewhere-lead \{[^}]*text-overflow: ellipsis/);
+    expect(files).toMatch(/title=\{away\.title\}/);
+    // In a narrow pane the verb folds before the folder's name is cut.
+    expect(css).toMatch(/@container gvf \(max-width: 300px\) \{\s*\.gvf-elsewhere \{ padding-left: 10px; \}\s*\.gvf-elsewhere-verb \{ display: none; \}/);
   });
 
   it("keeps the counts in a 64px right-aligned column, thousands grouped", () => {

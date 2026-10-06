@@ -71,6 +71,21 @@ export interface StatusEntry {
   binary?: boolean;
 }
 
+/** A subagent of the session that works in a folder of its own — another
+ *  worktree, another repository, or no repository — as /api/git/repo lists
+ *  it for a whole session. `changed` counts the files changed there (each
+ *  path once), null when that is not known. */
+export interface SubagentElsewhere {
+  agentId: string;
+  label: string | null;
+  folder: string;
+  folderName: string;
+  state: GitReadState;
+  topLevel: string | null;
+  sameRepo: boolean;
+  changed: number | null;
+}
+
 export interface StatusCounts {
   staged: number;
   unstaged: number;

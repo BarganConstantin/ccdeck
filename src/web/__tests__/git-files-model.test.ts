@@ -2,7 +2,9 @@
 // first under its name, the rest quieter below — from the fixture worktree
 // where api-fix and its subagent test-writer left every kind of change.
 import { describe, expect, it } from "vitest";
-import { changeMark, commitRows, fileKey, pathCounts, rowOrder, uncommittedList, type GitEdit, type StatusEntry } from "../git-files-model";
+import {
+  changeMark, commitRows, elsewhereRows, fileKey, pathCounts, rowOrder, uncommittedList, type GitEdit, type StatusEntry, type SubagentElsewhere,
+} from "../git-files-model";
 
 const ENTRIES: StatusEntry[] = [
   { path: "data/products.csv", area: "unstaged", change: "modified" },
@@ -122,6 +124,47 @@ describe("one file's counts, as the glance says them", () => {
     expect(pathCounts([e("staged", { added: 0, removed: 0, binary: true }), e("unstaged", { added: 2, removed: 0 })], "src/a.ts")).toEqual({ added: 0, removed: 0, binary: true });
     expect(pathCounts([e("staged", { added: 1, removed: 0 }), e("unstaged", {})], "src/a.ts")).toBeNull();
     expect(pathCounts([], "src/a.ts")).toBeNull();
+  });
+});
+
+describe("a subagent working in another folder", () => {
+  const away = (extra: Partial<SubagentElsewhere>): SubagentElsewhere => ({
+    agentId: "b7", label: "docs-sync", folder: "/code/shop-api-docs", folderName: "shop-api-docs",
+    state: "repo", topLevel: "/code/shop-api-docs", sameRepo: true, changed: 1, ...extra,
+  });
+  const name = (agentId: string) => (agentId === "b7" ? "docs-sync" : null);
+
+  it("says who works where and how many files changed there, and opens", () => {
+    const [row] = elsewhereRows([away({})], name);
+    expect(row).toMatchObject({ key: "elsewhere:b7", agentId: "b7", name: "docs-sync", lead: "docs-sync works in shop-api-docs", tail: "1 file", opens: true });
+    // The title opens with the line's own words, so a line cut short keeps them.
+    expect(row.title).toBe("docs-sync works in shop-api-docs: /code/shop-api-docs, another worktree of this repository. Show its changes.");
+    expect(row.said).toBe("docs-sync works in shop-api-docs, 1 file. Enter shows its changes.");
+    expect(elsewhereRows([away({ changed: 3 })], name)[0].tail).toBe("3 files");
+    expect(elsewhereRows([away({ changed: 1234 })], name)[0].tail).toBe("1,234 files");
+    expect(elsewhereRows([away({ changed: 0 })], name)[0].tail).toBe("no changes");
+    expect(elsewhereRows([away({ changed: null })], name)[0].tail).toBe("");
+    expect(elsewhereRows([away({ sameRepo: false })], name)[0].title).toMatch(/, another repository\. Show its changes\.$/);
+  });
+
+  it("says in a short word why a folder has nothing to open, with no count", () => {
+    const notRepo = elsewhereRows([away({ state: "not-a-repo", topLevel: null, sameRepo: false, changed: null, folder: "/code/notes", folderName: "notes" })], name)[0];
+    expect(notRepo).toMatchObject({ lead: "docs-sync works in notes", tail: "not a repo", opens: false });
+    expect(notRepo.title).toBe("docs-sync works in notes: /code/notes, which is not a git repository.");
+    expect(notRepo.said).toBe("docs-sync works in notes, which is not a git repository.");
+    const gone = elsewhereRows([away({ state: "gone", topLevel: null, changed: null })], name)[0];
+    expect(gone).toMatchObject({ tail: "folder gone", opens: false });
+    for (const state of ["no-git", "bare", "unsafe", "timeout", "error"] as const) {
+      const r = elsewhereRows([away({ state, changed: null })], name)[0];
+      expect(r.opens, state).toBe(false);
+      expect(r.tail, state).toBeTruthy();
+    }
+  });
+
+  it("names the subagent by its card, else the server's label, else as a subagent", () => {
+    expect(elsewhereRows([away({ label: "general-purpose" })], name)[0].name).toBe("docs-sync");
+    expect(elsewhereRows([away({ agentId: "c9", label: "general-purpose" })], name)[0].name).toBe("general-purpose");
+    expect(elsewhereRows([away({ agentId: "c9", label: null })], name)[0].name).toBe("subagent");
   });
 });
 

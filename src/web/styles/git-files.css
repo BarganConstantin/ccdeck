@@ -210,6 +210,41 @@
 .gvf-del { color: var(--gv-del-ink); }
 .gvf-bin { color: var(--muted); }
 
+/* A subagent of the session that works in another folder, named under the
+   session's own files: a dashed line (it is a way somewhere else, not a file
+   here) that narrows the view to that folder. Its words give way from the
+   end of the lead; the count and the chevron keep their place. */
+.gvf-elsewhere {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  margin: 2px 10px 0;
+  padding: 0 8px 0 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-tag);
+  color: var(--text-secondary);
+  font: 11px/22px var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.gvf-elsewhere:not([aria-disabled="true"]):hover {
+  border-color: var(--ctl-edge);
+  color: var(--text);
+  transition: border-color 120ms ease, color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.gvf-elsewhere:not([aria-disabled="true"]):hover .gvf-elsewhere-tail { color: var(--text-secondary); }
+.gvf-elsewhere:active { transform: scale(0.97); }
+.gvf-elsewhere[aria-disabled="true"] { cursor: default; }
+.gvf-elsewhere[aria-disabled="true"]:active { transform: none; }
+.gvf-elsewhere:focus-visible { outline-offset: -2px; }
+.gvf-elsewhere-arrow { flex: none; margin-right: -2px; }
+.gvf-elsewhere-lead { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gvf-elsewhere-tail { flex: none; display: inline-flex; gap: 6px; margin-left: auto; color: var(--muted); }
+.gvf-elsewhere-go { color: inherit; }
+.gvf-list.is-elsewhere { flex: none; padding-top: 0; }
+
 .gvf-empty {
   display: flex;
   flex-direction: column;
@@ -230,8 +265,14 @@
   .gvf-stage { padding: 2px 4px; }
 }
 @container gvf (max-width: 300px) {
+  .gvf-elsewhere { padding-left: 10px; }
+  .gvf-elsewhere-verb { display: none; }
   .gvf-stage-long, .gvf-who-name, .gvf-who.is-other { display: none; }
   .gvf-stage-short { display: inline; }
   .gvf-stage { padding: 2px 4px; }
   .gvf-hint span { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gvf-elsewhere:active { transform: none; }
 }

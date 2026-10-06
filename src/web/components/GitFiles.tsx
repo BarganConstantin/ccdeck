@@ -3,13 +3,13 @@ import { copyText } from "../copy-text";
 import { groupDigits } from "../git-diff-parse";
 import {
   commitRows, fileKey, rowOrder, uncommittedList,
-  type CommitFile, type FileRef, type FileRow, type GitEdit, type GraphFocus, type StatusEntry,
+  type CommitFile, type ElsewhereRow, type FileRef, type FileRow, type GitEdit, type GraphFocus, type StatusEntry,
 } from "../git-files-model";
 import { fitShared, monoMeasure, nameFits, type Measure, type PathCut } from "../git-path-fit";
 import { sessionHue } from "../session-hue";
 import { CheckGlyph, ChevronGlyph, ClashGlyph, CopyGlyph, InfoGlyph } from "./GitDiffIcons";
 
-export type { CommitFile, FileRef, GitEdit, GraphFocus, StatusEntry } from "../git-files-model";
+export type { CommitFile, ElsewhereRow, FileRef, GitEdit, GraphFocus, StatusEntry } from "../git-files-model";
 
 export interface GitFilesProps {
   entries: StatusEntry[] | CommitFile[];
@@ -32,7 +32,18 @@ export interface GitFilesProps {
   commitBy?: string;
   /** A clean working tree: the line under "Working tree clean." */
   cleanNote?: string;
+  /** Uncommitted mode: the session's subagents that work in another folder,
+   *  named under its own files. */
+  elsewhere?: ElsewhereRow[];
+  /** One of them activated (click, Enter, →): narrow the view to it. */
+  onElsewhere?: (agentId: string) => void;
 }
+
+/** A stop in the list's keyboard walk: a file, or a line naming a subagent
+ *  that works in another folder. */
+type WalkItem = { key: string; row: FileRow; away?: undefined } | { key: string; away: ElsewhereRow; row?: undefined };
+
+const NO_ELSEWHERE: ElsewhereRow[] = [];
 
 /** What the view does to the list from outside: give it the keyboard. */
 export interface GitFilesHandle {
@@ -63,7 +74,8 @@ const SHELL_NOTE = "Marked from the agent's edit tools (Edit, Write, MultiEdit, 
  * `↳` before a file name is cut; a file listed twice is cut the same in both.
  */
 const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(props, ref) {
-  const { entries, mode, edits, focus, selected, onSelect, onOpen, collisions, name, sha, commitBy, cleanNote } = props;
+  const { entries, mode, edits, focus, selected, onSelect, onOpen, collisions, name, sha, commitBy, cleanNote, onElsewhere } = props;
+  const elsewhere = mode === "uncommitted" ? props.elsewhere ?? NO_ELSEWHERE : NO_ELSEWHERE;
   const listRef = useRef<HTMLDivElement>(null);
   const rowEls = useRef(new Map<string, HTMLDivElement>());
   const groupId = useId();
@@ -78,9 +90,16 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
     [entries, mode, edits, focusKey, clashKey, name],
   );
   const rows = useMemo(() => rowOrder(list), [list]);
+  // The keyboard walks the files and, between the agent's own and the rest,
+  // the lines naming its subagents elsewhere.
+  const walk = useMemo<WalkItem[]>(() => {
+    const item = (row: FileRow): WalkItem => ({ key: row.key, row });
+    if (Array.isArray(list)) return list.map(item);
+    return [...list.mine.map(item), ...elsewhere.map(away => ({ key: away.key, away })), ...list.other.map(item)];
+  }, [list, elsewhere]);
   const counted = !Array.isArray(list) && list.counted;
   const selectedKey = selected ? fileKey(selected) : null;
-  const tabKey = rows.some(r => r.key === selectedKey) ? selectedKey : rows[0]?.key ?? null;
+  const tabKey = rows.some(r => r.key === selectedKey) ? selectedKey : (rows[0] ?? walk[0])?.key ?? null;
 
   const [cuts, setCuts] = useState<Map<string, PathCut>>(new Map());
   const [folded, setFolded] = useState<Set<string>>(new Set());
@@ -144,24 +163,35 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
     },
   }), [tabKey]);
 
-  const move = useCallback((to: FileRow | undefined) => {
+  const move = useCallback((to: WalkItem | undefined) => {
     if (!to) return;
-    onSelect(refOf(to));
+    // A line naming a subagent elsewhere takes the keyboard and leaves the
+    // selected file — and its diff — as they are.
+    if (to.away) { rowEls.current.get(to.key)?.focus(); return; }
+    onSelect(refOf(to.row));
     rowEls.current.get(to.key)?.focus();
   }, [onSelect]);
 
+  /** Enter, → or a click: a file opens its diff, a subagent's line narrows
+   *  the view to it when its folder has a repository to show. */
+  const activate = (item: WalkItem | undefined) => {
+    if (!item) return;
+    if (item.away) { if (item.away.opens) onElsewhere?.(item.away.agentId); return; }
+    onOpen(refOf(item.row));
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const at = (e.target as HTMLElement).closest<HTMLElement>("[data-file]")?.dataset.file;
-    const i = rows.findIndex(r => r.key === at);
+    const i = walk.findIndex(r => r.key === at);
     if (i < 0) return;
     let handled = true;
     switch (e.key) {
-      case "ArrowDown": move(rows[i + 1]); break;
-      case "ArrowUp": move(rows[i - 1]); break;
-      case "Home": move(rows[0]); break;
-      case "End": move(rows[rows.length - 1]); break;
+      case "ArrowDown": move(walk[i + 1]); break;
+      case "ArrowUp": move(walk[i - 1]); break;
+      case "Home": move(walk[0]); break;
+      case "End": move(walk[walk.length - 1]); break;
       case "Enter":
-      case "ArrowRight": onOpen(refOf(rows[i])); break;
+      case "ArrowRight": activate(walk[i]); break;
       default: handled = false;
     }
     if (handled) { e.preventDefault(); e.stopPropagation(); }
@@ -230,6 +260,35 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
     );
   };
 
+  const renderAway = (away: ElsewhereRow) => {
+    const item: WalkItem = { key: away.key, away };
+    return (
+      <div
+        key={away.key}
+        ref={el => { if (el) rowEls.current.set(away.key, el); else rowEls.current.delete(away.key); }}
+        role="option"
+        aria-selected={false}
+        aria-disabled={away.opens ? undefined : true}
+        aria-label={away.said}
+        tabIndex={away.key === tabKey ? 0 : -1}
+        data-file={away.key}
+        className="gvf-elsewhere"
+        title={away.title}
+        onClick={() => activate(item)}
+      >
+        <span className="gvf-elsewhere-arrow" aria-hidden="true">↳</span>
+        {/* "works" folds away in a narrow pane before the folder's name is cut. */}
+        <span className="gvf-elsewhere-lead">{away.name}<span className="gvf-elsewhere-verb"> works</span> in {away.folderName}</span>
+        {(away.tail || away.opens) && (
+          <span className="gvf-elsewhere-tail">
+            {away.tail && <span>{away.tail}</span>}
+            {away.opens && <span className="gvf-elsewhere-go" aria-hidden="true">›</span>}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const head = mode === "commit" ? (
     <CommitHead sha={sha ?? null} count={rows.length} by={commitBy} />
   ) : (
@@ -248,6 +307,12 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
             ? <><b>No files in this commit.</b><span>It changes nothing in the tree, like an empty or merge-only commit.</span></>
             : <><b>Working tree clean.</b><span>{cleanNote ?? "Nothing to commit."}</span></>}
         </div>
+        {/* A teammate in another folder is named even when this one is clean. */}
+        {elsewhere.length > 0 && (
+          <div ref={listRef} className="gvf-list is-elsewhere" role="listbox" aria-label="Subagents working in another folder" data-pane="files" onKeyDown={onKeyDown}>
+            {elsewhere.map(renderAway)}
+          </div>
+        )}
       </div>
     );
   }
@@ -272,6 +337,7 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
             {mine.map(renderRow)}
           </div>
         )}
+        {elsewhere.map(renderAway)}
         {other.length > 0 && (
           <div role="group" aria-labelledby={`${groupId}-other`}>
             <div role="presentation" id={`${groupId}-other`} className="gvf-group is-quiet">

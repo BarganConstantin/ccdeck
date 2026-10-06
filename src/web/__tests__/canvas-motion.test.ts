@@ -385,6 +385,9 @@ const PRESSES: Press[] = [
   [".gv-g-more:active", "0.97", "transform"],
   [".gv-g-collide:active", "0.97", "transform"],
   [".gv-g-quiet:active", "0.97", "transform"],
+  // The files pane's line naming a subagent that works in another folder: a
+  // labelled way into that folder, the labelled tier.
+  [".gvf-elsewhere:active", "0.97", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],

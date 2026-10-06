@@ -30,13 +30,14 @@ import {
   GIT_VIEW_DEFAULTS, edgeBounds, filesBounds, graphBounds, clampTo, isSheet, panelWidth, readGitViewPrefs,
   splitterTarget, writeGitViewPrefs, type GitViewPrefs, type SplitterKind,
 } from "../git-view-sizes";
+import { elsewhereRows } from "../git-files-model";
 import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
 import { madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
 import { collisionCardId, collisionsFor, commitWho, upstreamWords } from "../git-view-words";
 import { setGitViewNewest } from "../git-view-request";
 import { shortAgo } from "../relative-time";
 import { shortModel } from "../model-label";
-import type { GitFileRef } from "../git-view-types";
+import type { GitFileRef, GraphFocus, SubagentElsewhere } from "../git-view-types";
 import { UNCOMMITTED } from "../git-view-types";
 import { useGitViewRequest, type GitViewHow, type GitViewRequest } from "../git-view-request";
 import type { FlowBox } from "../focus-camera";
@@ -127,6 +128,15 @@ export default function GitView(props: GitViewProps) {
   const shownRef = useRef<AgentNodeData | null>(null);
   if (agent && opens) shownRef.current = agent;
   const shown = shownRef.current;
+  // A subagent of the session working in another folder, which the files
+  // pane's "works in" line narrowed the view to; the scope chip widens back.
+  // It belongs to the agent it was chosen from, and a new open starts over.
+  const [narrowed, setNarrowed] = useState<{ from: string; row: SubagentElsewhere } | null>(null);
+  useEffect(() => setNarrowed(null), [request.seq]);
+  const away = narrowed && shown && narrowed.from === shown.id ? narrowed.row : null;
+  const shownId = shown?.id ?? null;
+  const setAway = useCallback((row: SubagentElsewhere | null) => setNarrowed(row && shownId ? { from: shownId, row } : null), [shownId]);
+  const awayCard = away && shown ? stateRef.current.agents.get(`${shown.sessionId}::${away.agentId}`) ?? null : null;
 
   const win = useWindowWidth();
   const sheet = isSheet(win);
@@ -376,7 +386,8 @@ export default function GitView(props: GitViewProps) {
         onTransitionEnd={onTransitionEnd}
       >
         <GitViewBody
-          agent={shown} root={root} agentKey={bodyKey(shown, root)} rootKey={null} request={request} sheet={sheet} prefs={prefs} savePrefs={savePrefs}
+          agent={shown} root={root} agentKey={bodyKey(shown, root, awayCard)} rootKey={null} request={request} sheet={sheet} prefs={prefs} savePrefs={savePrefs}
+          away={away} setAway={setAway} awayCard={awayCard}
           width={width} room={room} win={win} panelRef={panelRef as MutableRefObject<HTMLElement | null>}
           pane={pane} setPane={setPane} actions={bodyActions} onClose={onClose}
           onResized={reframeNow} stateRef={stateRef} onSelectAgent={onSelectAgent} onShowCard={onShowCard}
@@ -423,9 +434,10 @@ const serialOf = (o: object | undefined | null): number => {
   if (n === undefined) { n = ++serialNext; serials.set(o, n); }
   return n;
 };
-function bodyKey(agent: AgentNodeData, root: AgentNodeData | null): string {
+function bodyKey(agent: AgentNodeData, root: AgentNodeData | null, away: AgentNodeData | null): string {
   return [agent.id, agent.label, agent.kind, agent.cwd ?? "", root?.label ?? "",
-    serialOf(agent.git), serialOf(root?.git), serialOf(root?.gitCollisions)].join("\u0000");
+    serialOf(agent.git), serialOf(root?.git), serialOf(root?.gitCollisions),
+    away?.label ?? "", serialOf(away?.git)].join("\u0000");
 }
 
 interface BodyProps {
@@ -452,6 +464,11 @@ interface BodyProps {
   onSelectAgent: (id: string) => void;
   /** Show an agent's card on the canvas; the view stays where it is. */
   onShowCard: (id: string) => void;
+  /** The subagent working in another folder the view is narrowed to, or null. */
+  away: SubagentElsewhere | null;
+  setAway: (away: SubagentElsewhere | null) => void;
+  /** Its card, while it is on the board: its git facts and its name. */
+  awayCard: AgentNodeData | null;
 }
 
 /** The panel redraws for what it shows, not for the deck's 250ms clock: the
@@ -467,21 +484,25 @@ function bodyPropsEqual(a: BodyProps, b: BodyProps): boolean {
 
 const GitViewBody = memo(GitViewBodyRaw, bodyPropsEqual);
 
-function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, room, win, panelRef, pane, setPane, actions, onClose, onResized, stateRef, onSelectAgent, onShowCard }: BodyProps) {
+function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, room, win, panelRef, pane, setPane, actions, onClose, onResized, stateRef, onSelectAgent, onShowCard, away, setAway, awayCard }: BodyProps) {
   const [widened, setWidened] = useState(false);
   useEffect(() => setWidened(false), [agent.id]);
-  const focus = gitFocus(agent, widened);
+  // Narrowed from the files pane to a subagent in another folder, the view is
+  // that subagent's alone, read in its own folder.
+  const focus: GraphFocus = away ? { sessionId: agent.sessionId, agentIds: [away.agentId] } : gitFocus(agent, widened);
   const narrow = focus.agentIds != null;
-  const agentParam = narrow ? focus.agentIds![0] : null;
+  const agentParam = away ? away.agentId : narrow ? focus.agentIds![0] : null;
   // From a subagent widened to its session, the session's repository is read.
-  const facts = narrow ? gitFactsFor(agent, root) : root?.git ?? gitFactsFor(agent, root);
+  const facts = away ? awayCard?.git : narrow ? gitFactsFor(agent, root) : root?.git ?? gitFactsFor(agent, root);
   const data = useGitData({
     sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, enabled: true, fresh: true,
-    ownFolder: narrow && agent.git != null,
+    ownFolder: away != null || (narrow && agent.git != null),
   });
   const view = useGitSelection({
     data, sessionId: agent.sessionId, agent: agentParam, focus, active: request.open,
-    initial: { sel: request.sel, file: request.file }, seq: request.seq,
+    // The row and file a request named are in the session's folder, not in
+    // the one a subagent was narrowed to.
+    initial: away ? {} : { sel: request.sel, file: request.file }, seq: request.seq,
   });
   const { sel, file } = view;
   // The panel's first frame draws the history's first rows — what fits in its
@@ -545,6 +566,29 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   actions.current = { focusPane, newest: view.showLatest };
   // `n` from the deck, with focus outside the view, reaches the same action.
   useEffect(() => { setGitViewNewest(view.showLatest); return () => setGitViewNewest(null); }, [view.showLatest]);
+
+  // ── narrowing to a subagent in another folder ─────────────────────────
+  // The files pane's "works in" line narrows the view; focus never falls to
+  // the page while that folder is read: it waits on the scope chip's way back,
+  // and goes to the narrowed files once they are drawn — unless the reader
+  // has moved it meanwhile.
+  const wantFiles = useRef(false);
+  const narrowTo = useCallback((agentId: string) => {
+    const row = data.subagents?.find(s => s.agentId === agentId && s.state === "repo");
+    if (!row) return;
+    wantFiles.current = true;
+    setAway(row);
+  }, [data.subagents]);
+  useLayoutEffect(() => {
+    if (!away) return;
+    headRef.current?.querySelector<HTMLElement>(".gv-scope-x")?.focus({ preventScroll: true });
+  }, [away?.agentId]);
+  useEffect(() => {
+    if (!wantFiles.current || !filesHandle.current) return;
+    wantFiles.current = false;
+    const active = document.activeElement as HTMLElement | null;
+    if (!active || active === document.body || active.classList.contains("gv-scope-x")) focusPane("files");
+  });
 
   // ── dividers ──────────────────────────────────────────────────────────
   const boundsFor = (kind: SplitterKind) => {
@@ -635,7 +679,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const scopeCounts = data.state === "repo" && data.commits && data.entries
     ? `${counts.commits ? nWord(counts.commits, "commit") : "no commits"} · ${nWord(counts.files, "file")}` : null;
   const nameRef = useFittedName(branchName, headRef, `${upstream?.text}|${scopeCounts}|${unborn}`);
-  const repoName = repo?.name ?? facts?.name ?? agent.cwdBasename ?? "";
+  const folder = away ? away.folder : agent.cwd ?? null;
+  const repoName = repo?.name ?? facts?.name ?? (away ? away.folderName : agent.cwdBasename) ?? "";
   const linked = repo ? repo.linkedWorktree && repo.mainName !== repo.name : facts?.linkedWorktree && facts.mainName && facts.mainName !== facts.name;
   const repoTitle = linked ? `worktree ${repoName} of ${repo?.mainName ?? facts?.mainName}` : repo?.topLevel ?? facts?.topLevel ?? repoName;
   const who = narrow ? agent : root ?? agent;
@@ -645,6 +690,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // session (Codex, an unnamed agent).
   const agentName = useCallback((sessionId: string, agentId: string | null) =>
     labelOf(agentId ? `${sessionId}::${agentId}` : sessionId), [labelOf]);
+  // A subagent narrowed to from the files pane goes by its card's label, else the server's.
+  const whoLabel = away ? awayCard?.label ?? away.label ?? "subagent" : who.label;
   const collisions = collisionsFor(root?.gitCollisions, focus);
   const collision = collisions[0] ?? null;
   const otherOf = (c: { with: { sessionId: string; agentId: string | null } }) => labelOf(collisionCardId(c.with)) ?? labelOf(c.with.sessionId) ?? "another agent";
@@ -659,6 +706,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const diffCollision = sel === UNCOMMITTED && file ? fileCollisions.find(c => c.path === file.path) ?? null : null;
   const selectedCommit = sel === UNCOMMITTED ? null : data.commits?.find(c => c.sha === sel) ?? null;
   const commitBy = selectedCommit ? commitWho(selectedCommit.agent, labelOf) : null;
+  // The session's subagents in other folders, named under its own files.
+  const elsewhere = !narrow && sel === UNCOMMITTED ? elsewhereRows(data.subagents ?? [], id => labelOf(`${agent.sessionId}::${id}`)) : [];
   const lastOwn = (data.commits ?? []).find(c => madeByFocus(c, focus));
 
   // ── the commit card ───────────────────────────────────────────────────
@@ -716,14 +765,18 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           <span
             className={`gv-scope${narrow ? " is-narrow" : ""}`}
             style={{ "--session-hue": hue } as CSSProperties}
-            title={narrow ? `Narrowed to ${agent.label}` : `${who.label}${who.kind === "root" ? " and its subagents" : ""}`}
+            title={narrow ? `Narrowed to ${whoLabel}${away ? `, working in ${away.folder}` : ""}` : `${who.label}${who.kind === "root" ? " and its subagents" : ""}`}
           >
             <i className="gv-swatch" aria-hidden="true" />
-            <span className="gv-scope-who">{narrow ? `↳ ${agent.label}` : who.label}</span>
+            <span className="gv-scope-who">{narrow ? `↳ ${whoLabel}` : who.label}</span>
             {scopeCounts && <span className="gv-scope-n">{scopeCounts}</span>}
             {narrow && (
               <button type="button" className="gv-scope-x" aria-label={`Show the whole session, ${root?.label ?? "its main agent"} and its subagents`}
-                title="Show the whole session" onClick={() => { setWidened(true); requestAnimationFrame(() => focusPane("graph")); }}>
+                title="Show the whole session" onClick={() => {
+                  wantFiles.current = false;
+                  if (away) setAway(null); else setWidened(true);
+                  requestAnimationFrame(() => focusPane("graph"));
+                }}>
                 <GvIcon name="close" />
               </button>
             )}
@@ -732,7 +785,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             <GitHandoffs
               sessionId={agent.sessionId} agentId={agentParam}
               branch={detached ? null : branch} sha={selectedCommit?.sha ?? (detached ? head?.sha ?? null : null)}
-              path={agent.cwd ?? null} compact
+              path={folder} compact
             />
             <span className="gv-head-rule" aria-hidden="true" />
             <button type="button" className="glyph-btn gv-close" title="Close the git view (Esc)" aria-label="Close the git view" onClick={() => onClose("pointer")}>
@@ -755,12 +808,12 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             {reading || !data.commits ? (
               <>
                 <div className="gv-pane-head"><span className="gv-pane-title">History</span></div>
-                {reading && <ReadStateLine state={data.state} folder={agent.cwd ?? null} />}
+                {reading && <ReadStateLine state={data.state} folder={folder} />}
               </>
             ) : (
               <GitGraph
                 repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={firstRows ?? data.commits} head={head ?? null}
-                uncommitted={{ files: counts.changed, byFocus: counts.files, label: who.label }} focus={focus} selected={sel}
+                uncommitted={{ files: counts.changed, byFocus: counts.files, label: whoLabel }} focus={focus} selected={sel}
                 onSelect={view.setSel} onOpen={() => focusPane("files")}
                 onAgentCard={openCard} liveInsert={data.newShas.length ? { newShas: data.newShas } : null}
                 agentName={agentName}
@@ -778,8 +831,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                   entries={sel === UNCOMMITTED ? data.entries : Array.isArray(view.commitFiles) ? view.commitFiles : []}
                   mode={sel === UNCOMMITTED ? "uncommitted" : "commit"} edits={data.edits ?? []} focus={focus}
                   selected={file} onSelect={view.pickFile} onOpen={() => focusPane("diff")} collisions={fileCollisions}
-                  name={who.label} sha={sel === UNCOMMITTED ? null : sel} commitBy={commitBy ?? undefined}
-                  cleanNote={lastOwn ? `Last commit ${shortAgo(Date.now() - Date.parse(lastOwn.date))} by ${commitWho(lastOwn.agent, labelOf) ?? who.label}.` : undefined}
+                  name={whoLabel} sha={sel === UNCOMMITTED ? null : sel} commitBy={commitBy ?? undefined}
+                  cleanNote={lastOwn ? `Last commit ${shortAgo(Date.now() - Date.parse(lastOwn.date))} by ${commitWho(lastOwn.agent, labelOf) ?? whoLabel}.` : undefined}
+                  elsewhere={elsewhere} onElsewhere={narrowTo}
                 />
               )}
             </section>

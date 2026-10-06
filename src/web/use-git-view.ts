@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type {
-  CommitFile, DiffResult, Edit, GitFileRef, GitReadState, GraphFocus, LogCommit, Repo, StatusCounts, StatusEntry,
+  CommitFile, DiffResult, Edit, GitFileRef, GitReadState, GraphFocus, LogCommit, Repo, StatusCounts, StatusEntry, SubagentElsewhere,
 } from "./git-view-types";
 import { UNCOMMITTED } from "./git-view-types";
 
@@ -27,6 +27,9 @@ export interface GitData {
   counts: StatusCounts | null;
   commits: LogCommit[] | null;
   edits: Edit[] | null;
+  /** The session's subagents that work in another folder (a whole session's
+   *  read only; a read narrowed to one subagent lists none). */
+  subagents: SubagentElsewhere[] | null;
   /** Why a read inside a repository failed, when one did. */
   reason: string | null;
   /** Commits that appeared at the top of the history since the read before. */
@@ -39,7 +42,7 @@ export interface GitData {
 }
 
 export const EMPTY_GIT_DATA: GitData = {
-  state: "loading", repo: null, entries: null, counts: null, commits: null, edits: null, reason: null,
+  state: "loading", repo: null, entries: null, counts: null, commits: null, edits: null, subagents: null, reason: null,
   newShas: [], treeSeq: 0, at: 0,
 };
 
@@ -54,6 +57,7 @@ interface Answer {
   counts?: StatusCounts;
   commits?: LogCommit[];
   edits?: Edit[];
+  subagents?: SubagentElsewhere[];
 }
 
 /** The query a read names its session by: never a folder (git-routes.mjs). */
@@ -76,7 +80,7 @@ export function newAtTop(prev: LogCommit[] | null, next: LogCommit[]): string[] 
 
 /** Fold one route's answer into the data. A route answering "not a repo",
  *  "gone" and the like answers for the whole read. */
-export function foldAnswer(data: GitData, kind: "status" | "log" | "edits", a: Answer, status: number): GitData {
+export function foldAnswer(data: GitData, kind: "status" | "log" | "edits" | "repo", a: Answer, status: number): GitData {
   if (status === 409) return { ...data, state: "off" };
   if (status >= 400 || a.error) return { ...data, state: data.state === "loading" ? "error" : data.state, reason: a.error ?? `HTTP ${status}` };
   if (a.state && a.state !== "repo") return { ...data, state: a.state, repo: null };
@@ -84,6 +88,7 @@ export function foldAnswer(data: GitData, kind: "status" | "log" | "edits", a: A
   if (a.ok === false) return { ...next, reason: a.reason ?? "error" };
   if (kind === "status") return { ...next, entries: a.entries ?? [], counts: a.counts ?? null, treeSeq: data.treeSeq + 1, reason: null };
   if (kind === "edits") return { ...next, edits: a.edits ?? [] };
+  if (kind === "repo") return { ...next, subagents: a.subagents ?? [] };
   const commits = a.commits ?? [];
   return { ...next, commits, newShas: newAtTop(data.commits, commits) };
 }
@@ -124,14 +129,19 @@ function trim() {
   for (const [k] of idle.slice(0, Math.max(0, idle.length - KEEP_UNREAD))) cache.delete(k);
 }
 
-/** Ask the three reads of one repository; each answer lands as it arrives,
- *  the working tree first, and an older read's late answers are dropped. */
+/** The reads every view of a repository asks for. */
+const READS = ["status", "edits", "log"] as const;
+
+/** Ask the reads of one repository; each answer lands as it arrives, the
+ *  working tree first, and an older read's late answers are dropped. A whole
+ *  session's read also asks the repository route where its subagents work. */
 function read(key: string, sessionId: string, agent: string | null, stale: number, editsAgent: string | null): void {
   const e = entryFor(key);
   const generation = ++e.generation;
   e.seen = stale;
   e.data = { ...e.data, at: Date.now() };
-  for (const kind of ["status", "edits", "log"] as const) {
+  const kinds = agent ? READS : [...READS, "repo"] as const;
+  for (const kind of kinds) {
     fetch(`/api/git/${kind}?${gitQuery(sessionId, kind === "edits" ? editsAgent : agent)}`)
       .then(async r => ({ status: r.status, body: (await r.json().catch(() => ({}))) as Answer }))
       .catch(() => ({ status: 0, body: { error: "the deck did not answer" } as Answer }))
@@ -329,12 +339,17 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
   }, [active, fileKey]);
 
   // The working tree moved: read the open file's diff again, and keep a
-  // changed one aside.
-  const treeSeen = useRef(data.treeSeq);
+  // changed one aside. A read of another folder (the view narrowed or
+  // widened) is not the tree moving: its selection starts over instead, and
+  // the file still selected here belongs to the folder before.
+  const treeSeen = useRef<{ seq: number; of: string } | null>(null);
   useEffect(() => {
-    if (data.treeSeq === treeSeen.current) return;
-    treeSeen.current = data.treeSeq;
-    if (!active || !file || sel !== UNCOMMITTED || diff.loading) return;
+    const of = `${sessionId}|${agent ?? ""}`;
+    const was = treeSeen.current;
+    treeSeen.current = { seq: data.treeSeq, of };
+    if (!was || (data.treeSeq === was.seq && of === was.of)) return;
+    const sameRead = of === was.of;
+    if (!sameRead || !active || !file || sel !== UNCOMMITTED || diff.loading) return;
     let gone = false;
     fetch(urlFor(file))
       .then(r => r.json() as Promise<DiffAnswer>)
@@ -346,7 +361,7 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
       })
       .catch(() => {});
     return () => { gone = true; };
-  }, [data.treeSeq]);
+  }, [data.treeSeq, sessionId, agent]);
 
   const showLatest = useCallback(() => {
     const next = latest.current;

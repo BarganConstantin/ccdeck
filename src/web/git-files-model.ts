@@ -7,7 +7,10 @@
 // under "Other changes in this folder". The mark is inferred from edit-tool
 // calls (Edit, Write, MultiEdit, NotebookEdit, Codex's apply_patch), so a file
 // changed from a shell stays unmarked, and the list says so beside the mark.
-import { collapsedKind, type Collapsed } from "./git-diff-parse";
+import { collapsedKind, groupDigits, type Collapsed } from "./git-diff-parse";
+import type { SubagentElsewhere } from "./git-view-types";
+
+export type { SubagentElsewhere } from "./git-view-types";
 
 /** One change in `git status`, as /api/git/status lists it. A file staged
  *  and changed again is two entries. The counts are there only when the
@@ -187,6 +190,64 @@ export function pathCounts(entries: readonly StatusEntry[], path: string): { add
     removed += e.removed;
   }
   return binary ? { added: 0, removed: 0, binary: true } : { added, removed, binary: false };
+}
+
+/** A subagent of the session working in another folder, as the files pane
+ *  names it under the session's own files: "↳ docs-sync works in
+ *  shop-api-docs · 1 file ›". */
+export interface ElsewhereRow {
+  /** Its `data-file`, beside the file rows' keys; no area is "elsewhere". */
+  key: string;
+  agentId: string;
+  name: string;
+  folderName: string;
+  /** "docs-sync works in shop-api-docs"; the line draws `↳` before it. */
+  lead: string;
+  /** How much is changed there, or why there is nothing to show; "" when
+   *  nothing is known. */
+  tail: string;
+  /** There is a repository to narrow the view to. */
+  opens: boolean;
+  /** The whole sentence, with the full folder. */
+  title: string;
+  /** What a screen reader hears for the line. */
+  said: string;
+}
+
+/** Why a folder has nothing to open, in the fewest words. */
+const ELSEWHERE_STATE: Record<string, { tail: string; why: string }> = {
+  "not-a-repo": { tail: "not a repo", why: "which is not a git repository" },
+  gone: { tail: "folder gone", why: "which no longer exists" },
+  "no-git": { tail: "no git", why: "but git was not found on this machine" },
+  bare: { tail: "bare repo", why: "a bare repository with no working tree" },
+  unsafe: { tail: "other owner", why: "which belongs to another user, so git will not read it" },
+  timeout: { tail: "git timed out", why: "but git took too long to answer" },
+  error: { tail: "unreadable", why: "but git could not read it" },
+};
+
+/** The lines naming the session's subagents that work in another folder,
+ *  each by its card's name (`cardName`, by its key), else the label the
+ *  server sent, else as a subagent. */
+export function elsewhereRows(subagents: readonly SubagentElsewhere[], cardName: (agentId: string) => string | null): ElsewhereRow[] {
+  return subagents.map(s => {
+    const name = cardName(s.agentId) ?? s.label ?? "subagent";
+    // The words on the line, which the title opens with so a cut line keeps them.
+    const lead = `${name} works in ${s.folderName}`;
+    if (s.state !== "repo") {
+      const words = ELSEWHERE_STATE[s.state] ?? ELSEWHERE_STATE.error;
+      return {
+        key: `elsewhere:${s.agentId}`, agentId: s.agentId, name, folderName: s.folderName, lead, tail: words.tail, opens: false,
+        title: `${lead}: ${s.folder}, ${words.why}.`, said: `${lead}, ${words.why}.`,
+      };
+    }
+    const tail = s.changed == null ? "" : s.changed === 0 ? "no changes" : `${groupDigits(s.changed)} file${s.changed === 1 ? "" : "s"}`;
+    const where = s.sameRepo ? "another worktree of this repository" : "another repository";
+    return {
+      key: `elsewhere:${s.agentId}`, agentId: s.agentId, name, folderName: s.folderName, lead, tail, opens: true,
+      title: `${lead}: ${s.folder}, ${where}. Show its changes.`,
+      said: `${lead}${tail ? `, ${tail}` : ""}. Enter shows its changes.`,
+    };
+  });
 }
 
 /** A commit's files as rows, in the order git listed them. */
