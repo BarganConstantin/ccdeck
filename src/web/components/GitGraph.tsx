@@ -721,13 +721,28 @@ export default function GitGraph(props: GitGraphProps) {
     if (!chip || chip.contains(e.relatedTarget as Node | null)) return;
     hideHover();
   }, [hideHover]);
+  // A row's card comes on keyboard focus only once the user has moved focus
+  // there: a key pressed inside the view, in the task it moves focus in. The
+  // focus the view places on its own (opening, a selection that follows HEAD
+  // once the folder is read) brings no card nobody asked for.
+  const keyed = useRef(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const scope = listRef.current?.closest("[data-key-scope]");
+      if (!scope || !(e.target instanceof Node) || !scope.contains(e.target)) return;
+      keyed.current = true;
+      window.setTimeout(() => { keyed.current = false; }, 0);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, []);
   const onFocus = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
     const row = e.target as HTMLElement;
     const sha = row.dataset?.id;
     if (!sha || sha === WIP_ID || !byId.get(sha)?.agent) { hideHover(); return; }
     let visible = false;
     try { visible = row.matches(":focus-visible"); } catch { visible = false; }
-    if (!visible) return;
+    if (!visible || !keyed.current) return;
     showHoverSoon(sha, row.querySelector(".gv-agent-chip") ?? row, true);
   }, [byId, showHoverSoon, hideHover]);
 
