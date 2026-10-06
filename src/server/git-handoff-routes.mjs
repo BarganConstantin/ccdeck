@@ -85,9 +85,11 @@ const picks = () => heldPrefs.current()?.gitApps ?? {};
 
 const str = (v) => (typeof v === "string" && v !== "" && v.length <= MAX_FIELD ? v : null);
 
-/** GET — the apps, the picks, and whether the page is on this machine. */
-export async function handleGitHandoffs(req, res) {
+/** GET — the apps, the picks, and whether the page is on this machine.
+ *  `?fresh=1` looks at the machine again first: Appearance asks that way. */
+export async function handleGitHandoffs(req, res, url) {
   if (!gitEnabled()) return send(res, 409, { error: "git is switched off in Settings" });
+  if (url?.searchParams?.get("fresh") === "1") forgetHandoffApps();
   const apps = await detected();
   const chosen = picks();
   const slots = {};

@@ -135,3 +135,20 @@ button.btn.gv-hand[data-failed] { color: var(--err); }
 }
 
 
+/* Appearance › Git: which app each hand-off button opens, under the switch,
+   for the slots that have more than one. The station picker's label column,
+   widened for "Git client", and the sound menu's select. */
+.appearance-git-picks {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.appearance-git-pick {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.appearance-git-pick > label { color: var(--muted); font-size: 12px; font-weight: 500; line-height: 18px; }
+.appearance-git-pick .sm-select { min-height: var(--ctl-h); }

@@ -158,3 +158,28 @@ describe("the row", () => {
     expect(row).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
 });
+
+describe("Appearance", () => {
+  const menu = sourceOf("components/AppearanceMenu.tsx");
+  const picks = sourceOf("components/GitHandoffPicks.tsx");
+
+  it("draws the picks under the Git switch, before the next section", () => {
+    const at = menu.indexOf("<GitHandoffPicks />");
+    expect(at).toBeGreaterThan(menu.indexOf('id="appearance-git-note"'));
+    expect(at).toBeLessThan(menu.indexOf('id="appearance-fm-caption"'));
+  });
+
+  it("asks for a pick only for a slot with more than one app, with the sound menu's select", () => {
+    expect(picks).toContain("HANDOFF_SLOTS.filter(slot => handoffs.slots[slot].apps.length > 1)");
+    expect(picks).toContain('className="sm-select"\n            value={handoffs.slots[slot].chosen ?? ""}');
+    expect(picks).toContain("onChange={e => pickHandoff(slot, e.target.value)}");
+    expect(picks).toContain('{ git: "Git client", editor: "Editor", terminal: "Terminal" }');
+    expect(picks).toContain("Only apps found on this machine are listed.");
+    expect(picks).toContain('<label htmlFor={`appearance-git-pick-${slot}`}>');
+  });
+
+  it("looks at the machine afresh each time it opens, and shows nothing while Git is off", () => {
+    expect(picks).toContain("useEffect(() => { if (gitOn) void loadHandoffs(true, true); }, [gitOn]);");
+    expect(picks).toContain('const slots = gitOn && handoffs.state === "ready"');
+  });
+});
