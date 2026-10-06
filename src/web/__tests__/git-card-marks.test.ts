@@ -269,6 +269,35 @@ describe("the sharp mark on the card", () => {
   });
 });
 
+describe("the zoomed-out faces", () => {
+  const sharp = (other: string): GitCollisions => ({ quiet: [quietWith(other)], sharp: [sharpWith(other, ["src/app.ts"])] });
+  const face = (html: string) => html.slice(html.indexOf('class="lod-face"'));
+
+  it("keep a small error mark for a card's own sharp collision, with its words on hover", () => {
+    const f = face(card(webApp(sharp(BUG)), UI));
+    expect(f).toMatch(/<span class="lod-clash" title="src\/app\.ts also edited by web-bugfix"><svg[^>]*aria-hidden="true"/);
+    expect(f).toContain('<span class="lod-clash-word">same file</span>');
+    // On the name's line, after it.
+    expect(f.indexOf("lod-clash")).toBeGreaterThan(f.indexOf('class="lod-name"'));
+    expect(f.indexOf("lod-clash")).toBeLessThan(f.indexOf("</div>"));
+  });
+
+  it("keep nothing for a quiet one, nor for a subagent that only shares its session's", () => {
+    expect(face(card(webApp({ quiet: [quietWith(BUG)], sharp: [] }), UI))).not.toContain("lod-clash");
+    expect(face(card(webApp(sharp(BUG)), `${UI}::ag1`))).not.toContain("lod-clash");
+    expect(face(card(webApp(), UI))).not.toContain("lod-clash");
+  });
+
+  it("say \"same file\" only where the face has room, and centre the mark alone on the narrowest", () => {
+    const css = sheetText();
+    expect(css).toMatch(/\.lod-clash \{[^}]*color: var\(--err\);[^}]*margin-left: auto;/);
+    expect(css).toContain(".lod-clash-word { display: none; }");
+    expect(css).toMatch(/@container lod \(min-width: 130px\) \{\s*\.lod-clash-word \{ display: inline; \}\s*\}/);
+    const narrow = /@container lod \(max-width: 72px\) \{[^@]*\}/.exec(css)![0];
+    expect(narrow).toMatch(/\.alert-mark,\s*\.lod-clash \{ margin-left: 0; \}/);
+  });
+});
+
 describe("the mark's look", () => {
   const css = sheetText();
   const rule = (sel: string) => {

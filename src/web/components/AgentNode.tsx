@@ -46,6 +46,7 @@ import GitChip from "./GitChip";
 // Who this card can step on in git right now — git-card-mark.ts.
 import type { CardMark } from "../git-card-mark";
 import { GitMarkRow } from "./GitCardMark";
+import { GvIcon } from "./GitViewParts";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -326,7 +327,8 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         )}
       </div>
 
-      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }} />
+      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }}
+        clash={gitMark?.level === "sharp" && !gitMark.session ? gitMark : null} />
 
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
@@ -359,12 +361,16 @@ const NO_YIELDS: RowYield[] = [];
  * this at every zoom. A line the face cuts short carries its whole text on
  * hover, as the full card's name does (faceTitle).
  */
-function NodeFace({ data, title, tips }: {
+function NodeFace({ data, title, tips, clash }: {
   data: AgentNodeData & { branch?: BranchSummary };
   title?: string;
   /** The full card's tooltips for the name and the session's line, which the
    *  face's cut lines carry too (faceTitle). */
   tips: { name?: string; title?: string };
+  /** The card's own sharp collision, which the face keeps as a small error
+   *  mark on the name's line — "same file" beside it where the face has the
+   *  room. A quiet one is not worth a mark at this distance. */
+  clash: CardMark | null;
 }) {
   const alarm = data.kind === "root" && isAlarming(data.waiting);
   const signal = faceSignal(data, data.branch, {
@@ -384,6 +390,7 @@ function NodeFace({ data, title, tips }: {
         <span className="lod-name" title={faceTitle(data.label, tips.name)}>{data.label}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
         {alarm && <AlertMark />}
+        {clash && <span className="lod-clash" title={clash.words}><GvIcon name="clash" size={12} /><span className="lod-clash-word">same file</span></span>}
       </div>
       {title && <div className="lod-title" title={faceTitle(title, tips.title)}>{title}</div>}
       {signal && (

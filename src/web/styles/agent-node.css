@@ -243,6 +243,27 @@
 .state-mark[data-kind="done"] { color: var(--ok); }
 .state-mark[data-kind="err"] { color: var(--err); }
 .alert-mark { flex: none; margin-left: auto; color: var(--warn); }
+/* A file two live agents both edited (git-card-mark.ts): the clash glyph in
+   the error colour, at the line's end like the alarm's mark, and the words
+   "same file" beside it where the face has the room — a face about 150px
+   wide, whose content box (what the query reads) is 130. A root's name gives
+   way to them first, as it gives way to the signal: it is on the cluster's
+   label just above. The whole sentence is the mark's tooltip. */
+.lod-clash {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--err);
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: auto;
+}
+.lod-clash svg { width: 12px; height: 12px; }
+.lod-clash-word { display: none; }
+@container lod (min-width: 130px) {
+  .lod-clash-word { display: inline; }
+}
 
 /* OVERVIEW is a smaller face with less in it: one line of 11px, a second only
    where the card is tall enough, no title, and the short form of the signal. */
@@ -278,7 +299,8 @@
   .lod-signal { display: none; }
   .lod-face[data-kind="root"][data-signal] .lod-inline { display: none; }
   .lod-id { justify-content: center; }
-  .alert-mark { margin-left: 0; }
+  .alert-mark,
+  .lod-clash { margin-left: 0; }
 }
 
 /* Parent-to-child edges hold a readable stroke at a distance. Each edge's own
