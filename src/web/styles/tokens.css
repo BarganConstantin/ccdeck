@@ -176,6 +176,30 @@
   --usage-orange: #fdba74;   /* codex */
   --usage-zinc: #94a3b8;     /* everything neither function recognises */
   --usage-cyan: #67e8f9;     /* fable and mythos (#1285) */
+  /* The history graph's lanes (git-graph.css). Five hues, none of them a
+     state's: each stays 16 ΔE or more from --ok, --warn, --err, --inflight
+     and --accent. Slot 1 is develop's and slot 2 main's, always; every other
+     branch takes 3–5 (git-graph-layout.ts). Measured on the panel, every
+     full lane is 3:1 or more, adjacent slots 8 or more apart under deuteranopia and
+     protanopia and 15 or more apart unsimulated; the pairs that fail
+     (teal/pink, teal/olive, orange/olive) are never put side by side. Another
+     branch's lane is drawn in a solid pre-mix, never an opacity, so rows meet
+     without beads: edges at 55% (2:1 or more), nodes at 82% (3:1 or more). */
+  --gv-lane-1: #29a895; /* teal: develop */
+  --gv-lane-2: #c2661a; /* orange: main, master */
+  --gv-lane-3: #cc4793; /* pink */
+  --gv-lane-4: #6f63e6; /* indigo */
+  --gv-lane-5: #9b980b; /* olive */
+  --gv-lane-1-dim: color-mix(in srgb, var(--gv-lane-1) 55%, var(--panel));
+  --gv-lane-2-dim: color-mix(in srgb, var(--gv-lane-2) 55%, var(--panel));
+  --gv-lane-3-dim: color-mix(in srgb, var(--gv-lane-3) 55%, var(--panel));
+  --gv-lane-4-dim: color-mix(in srgb, var(--gv-lane-4) 55%, var(--panel));
+  --gv-lane-5-dim: color-mix(in srgb, var(--gv-lane-5) 55%, var(--panel));
+  --gv-lane-1-node-dim: color-mix(in srgb, var(--gv-lane-1) 82%, var(--panel));
+  --gv-lane-2-node-dim: color-mix(in srgb, var(--gv-lane-2) 82%, var(--panel));
+  --gv-lane-3-node-dim: color-mix(in srgb, var(--gv-lane-3) 82%, var(--panel));
+  --gv-lane-4-node-dim: color-mix(in srgb, var(--gv-lane-4) 82%, var(--panel));
+  --gv-lane-5-node-dim: color-mix(in srgb, var(--gv-lane-5) 82%, var(--panel));
   color-scheme: dark;
 }
 
@@ -328,6 +352,24 @@
   --usage-orange: #7c2d12;
   --usage-zinc: #4a5260;
   --usage-cyan: #0e7490;
+  /* The history graph's lanes on white: the same five slots a step darker,
+     main's an ochre because this theme's --warn is an orange. Dims at 52% for
+     edges and 75% for nodes hold the same 2:1 and 3:1. */
+  --gv-lane-1: #0a846b;
+  --gv-lane-2: #9a6a10;
+  --gv-lane-3: #a8145e;
+  --gv-lane-4: #4949ce;
+  --gv-lane-5: #4f6a12;
+  --gv-lane-1-dim: color-mix(in srgb, var(--gv-lane-1) 52%, var(--panel));
+  --gv-lane-2-dim: color-mix(in srgb, var(--gv-lane-2) 52%, var(--panel));
+  --gv-lane-3-dim: color-mix(in srgb, var(--gv-lane-3) 52%, var(--panel));
+  --gv-lane-4-dim: color-mix(in srgb, var(--gv-lane-4) 52%, var(--panel));
+  --gv-lane-5-dim: color-mix(in srgb, var(--gv-lane-5) 52%, var(--panel));
+  --gv-lane-1-node-dim: color-mix(in srgb, var(--gv-lane-1) 75%, var(--panel));
+  --gv-lane-2-node-dim: color-mix(in srgb, var(--gv-lane-2) 75%, var(--panel));
+  --gv-lane-3-node-dim: color-mix(in srgb, var(--gv-lane-3) 75%, var(--panel));
+  --gv-lane-4-node-dim: color-mix(in srgb, var(--gv-lane-4) 75%, var(--panel));
+  --gv-lane-5-node-dim: color-mix(in srgb, var(--gv-lane-5) 75%, var(--panel));
   color-scheme: light;
 }
 

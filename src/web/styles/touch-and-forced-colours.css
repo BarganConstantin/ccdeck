@@ -196,5 +196,15 @@
      takes Highlight, the way an on switch fills with it. */
   .appearance-preview svg { forced-color-adjust: none; }
   .appearance-theme[aria-checked="true"] .appearance-preview { forced-color-adjust: none; border-color: Highlight; box-shadow: 0 0 0 1px Highlight; }
+
+  /* The git history's lanes and nodes are SVG paint, which a Contrast theme
+     does not repaint: lane colours would stay on a ground chosen for other
+     colours. The graph reads these two before its own colours
+     (git-graph.css), so it draws in the theme's text colour, HEAD's line
+     still the wider one, and the selected row keeps its bar in the
+     highlight. Which branch is which is still said by position and the ref
+     chips' names. */
+  .gv-hist { --gv-forced-ink: CanvasText; --gv-forced-mark: Highlight; }
+  .gv-row.is-sel::before { forced-color-adjust: none; }
 }
 

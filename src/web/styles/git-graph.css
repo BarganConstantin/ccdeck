@@ -1,0 +1,241 @@
+/* The git view's history: the graph, its rows, ref chips, agent marks and the
+   hover card (components/GitGraph.tsx). Colours come from the --gv-lane-*
+   tokens; the pane answers to its own width, not the window's. */
+
+.gv-hist { position: relative; container: gvhist / inline-size; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+
+/* The pane's head: its title, the fold, the marks in words. The head, the
+   title, the legend, the marks and the swatch are the view's shared pieces
+   (git-view.css); the fold note is the history's own. */
+.gv-fold-chip { flex: none; padding: 2px 6px; border: 1px dashed var(--ctl-edge); border-radius: var(--r-tag); color: var(--muted); font: 10px/1 var(--font-mono); cursor: help; }
+
+/* The list. Rows are 24px and the scroller never anchors on its own: a live
+   insert decides where a reader stays. */
+.gv-graph-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.gv-graph-scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; padding: 0 0 6px; }
+.gv-new-pill {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px 0 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  border-radius: 999px;
+  /* The panel under an accent wash, so the rows it floats over never show
+     through it. */
+  background: var(--panel);
+  background-image: linear-gradient(var(--gv-pill-wash), var(--gv-pill-wash));
+  --gv-pill-wash: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: background-color 120ms ease, scale 120ms ease;
+  animation: gv-new-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.gv-new-pill:hover { --gv-pill-wash: color-mix(in srgb, var(--accent) 22%, transparent); }
+/* The pill is centred by its transform, so its press takes the scale property. */
+.gv-new-pill:active { scale: 0.97; }
+@keyframes gv-new-in { from { opacity: 0; transform: translateX(-50%) translateY(-6px); } }
+@keyframes gv-new-fade { from { opacity: 0; } }
+
+.gv-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px 0 6px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 24px;
+  transition: background-color 120ms ease;
+  cursor: default;
+}
+.gv-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.gv-row.is-sel { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.gv-row.is-sel::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--gv-forced-mark, var(--muted)); }
+/* The list holding focus shows its selection in the accent. */
+.gv-graph-scroll:focus-within .gv-row.is-sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.gv-graph-scroll:focus-within .gv-row.is-sel::before { background: var(--gv-forced-mark, var(--accent)); }
+/* The shared ring, pulled inside the row so the scroller does not clip it. */
+.gv-row:focus-visible { outline-offset: -2px; border-radius: 4px; }
+.gv-row.is-new { animation: gv-new-fade 150ms ease-out, gv-glow 1000ms ease-out; }
+@keyframes gv-glow {
+  0%, 25% { background-color: color-mix(in srgb, var(--accent) 22%, transparent); }
+  100% { background-color: transparent; }
+}
+.gv-older { display: flex; align-items: center; height: 24px; padding: 0 10px 0 var(--panel-inset); border-top: 1px dashed var(--line); color: var(--muted); font-size: 11px; }
+.gv-graph-empty { margin: 12px var(--panel-inset); padding: 12px 14px; border: 1px dashed var(--line); border-radius: var(--r-panel); color: var(--text-secondary); font-size: 12px; line-height: 18px; }
+.gv-graph-empty b { color: var(--text); font-weight: 600; }
+
+/* The graph cell: one SVG a row, the lanes in their slot's colour. Butt caps,
+   so a lane's two rows meet at the seam without a bead; rounded joins only
+   where a lane bends. Every paint here reads --gv-forced-ink first, which only
+   a Contrast theme sets (touch-and-forced-colours.css): SVG paint is not
+   repainted by the theme, so the graph is told to use its text colour. */
+.gv-cell-graph { flex: none; display: flex; align-self: stretch; align-items: center; }
+.gv-lanes { display: block; overflow: visible; }
+.gv-lanes [data-slot="1"] { --lane: var(--gv-lane-1); --lane-dim: var(--gv-lane-1-dim); --lane-node-dim: var(--gv-lane-1-node-dim); }
+.gv-lanes [data-slot="2"] { --lane: var(--gv-lane-2); --lane-dim: var(--gv-lane-2-dim); --lane-node-dim: var(--gv-lane-2-node-dim); }
+.gv-lanes [data-slot="3"] { --lane: var(--gv-lane-3); --lane-dim: var(--gv-lane-3-dim); --lane-node-dim: var(--gv-lane-3-node-dim); }
+.gv-lanes [data-slot="4"] { --lane: var(--gv-lane-4); --lane-dim: var(--gv-lane-4-dim); --lane-node-dim: var(--gv-lane-4-node-dim); }
+.gv-lanes [data-slot="5"] { --lane: var(--gv-lane-5); --lane-dim: var(--gv-lane-5-dim); --lane-node-dim: var(--gv-lane-5-node-dim); }
+.gv-e { fill: none; stroke: var(--gv-forced-ink, var(--lane)); stroke-width: 1.5; stroke-linecap: butt; stroke-linejoin: round; }
+.gv-e.is-dim { stroke: var(--gv-forced-ink, var(--lane-dim)); }
+.gv-e.is-focus { stroke-width: 2; }
+.gv-e.is-wip { stroke: var(--gv-forced-ink, var(--muted)); stroke-dasharray: 3 3; }
+.gv-node.is-seen, .gv-node.is-merge { fill: var(--gv-forced-ink, var(--lane)); }
+.gv-node.is-commit, .gv-node.is-trailer { fill: none; stroke: var(--gv-forced-ink, var(--lane)); stroke-width: 1.5; }
+.gv-node.is-dim.is-seen, .gv-node.is-dim.is-merge { fill: var(--gv-forced-ink, var(--lane-node-dim)); }
+.gv-node.is-dim.is-commit, .gv-node.is-dim.is-trailer { stroke: var(--gv-forced-ink, var(--lane-node-dim)); }
+.gv-head-ring { fill: none; stroke: var(--gv-forced-ink, var(--text)); stroke-width: 1.2; }
+.gv-wip-node { fill: none; stroke: var(--gv-forced-ink, var(--text-secondary)); stroke-width: 1.5; stroke-dasharray: 2.4 1.8; }
+.gv-fold-line { fill: none; stroke: var(--gv-forced-ink, var(--muted-dim)); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.gv-fold-node { fill: var(--gv-forced-ink, var(--muted)); }
+
+/* The subject column, aligned on every row: the graph cell is one width for
+   the whole history. */
+.gv-cell-subj { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding-left: 4px; overflow: hidden; }
+.gv-subj { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 12px; }
+.gv-row[data-tone="base"] .gv-subj { color: var(--text-secondary); }
+.gv-row[data-tone="off"] .gv-subj { color: var(--muted); }
+.gv-cc { font-weight: 600; }
+/* --muted falls under 4.5:1 on a tinted row: there the words step up. */
+.gv-row:hover[data-tone="off"] .gv-subj,
+.gv-row.is-sel[data-tone="off"] .gv-subj { color: var(--text-secondary); }
+.gv-row:hover .gv-cell-author, .gv-row:hover .gv-cell-sha, .gv-row:hover .gv-cell-time, .gv-row:hover .gv-wip-n,
+.gv-row.is-sel .gv-cell-author, .gv-row.is-sel .gv-cell-sha, .gv-row.is-sel .gv-cell-time, .gv-row.is-sel .gv-wip-n { color: var(--text-secondary); }
+.gv-cell-author { flex: 0 0 120px; min-width: 0; padding-left: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+.gv-cell-sha { flex: 0 0 64px; padding-left: 10px; color: var(--muted); font: 11px/1 var(--font-mono); white-space: nowrap; }
+.gv-cell-sha[data-copy] { cursor: copy; }
+.gv-cell-sha[data-copy]:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.gv-cell-time { flex: 0 0 36px; text-align: right; color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gv-wip-label { color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.gv-wip-n { color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gv-wip-mine { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font: 11px/1 var(--font-mono); white-space: nowrap; }
+
+/* Ref chips, tinted with their branch's lane (Fork's grammar). */
+.gv-ref {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+  max-width: 230px;
+  padding: 0 5px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ref, var(--muted)) 55%, transparent);
+  border-radius: var(--r-tag);
+  background: color-mix(in srgb, var(--ref, var(--muted)) 14%, transparent);
+  color: color-mix(in srgb, var(--ref, var(--muted)) 42%, var(--text));
+  font: 600 10px/1 var(--font-mono);
+  white-space: nowrap;
+}
+:root[data-theme="light"] .gv-ref { color: color-mix(in srgb, var(--ref, var(--muted)) 72%, var(--text)); }
+.gv-ref[data-slot="1"] { --ref: var(--gv-lane-1); }
+.gv-ref[data-slot="2"] { --ref: var(--gv-lane-2); }
+.gv-ref[data-slot="3"] { --ref: var(--gv-lane-3); }
+.gv-ref[data-slot="4"] { --ref: var(--gv-lane-4); }
+.gv-ref[data-slot="5"] { --ref: var(--gv-lane-5); }
+.gv-ref svg { flex: none; width: 11px; height: 11px; }
+.gv-ref-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* One character of the chips' words, measured once (GitGraph.tsx). */
+.gv-ref-probe { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; font: 600 10px/1 var(--font-mono); white-space: pre; }
+.gv-ref-head { align-self: stretch; display: inline-flex; align-items: center; margin-left: -5px; padding: 0 4px; background: var(--text); color: var(--panel); font-size: 9px; letter-spacing: 0.04em; }
+.gv-ref-cloud { display: inline-flex; }
+.gv-ref[data-kind="remote"] { border-style: dashed; background: transparent; color: var(--text-secondary); }
+.gv-ref[data-kind="tag"], .gv-ref[data-kind="more"] { border-color: var(--line); background: var(--ctl-fill); color: var(--text-secondary); }
+.gv-ref[data-kind="more"] { cursor: help; }
+.gv-ref[data-kind="head"] { border-color: var(--text); background: transparent; color: var(--text); }
+/* Off the checked-out branch, a chip keeps its words readable; the quiet
+   look is carried by its edge and wash. */
+.gv-ref[data-tone="off"],
+:root[data-theme="light"] .gv-ref[data-tone="off"] {
+  border-color: color-mix(in srgb, var(--ref, var(--muted)) 30%, transparent);
+  background: color-mix(in srgb, var(--ref, var(--muted)) 6%, transparent);
+  color: var(--text-secondary);
+}
+.gv-ref[data-tone="off"] .gv-ref-head { background: var(--text-secondary); }
+
+/* The agent chip: who made the commit, with its card's colour. Pointer only:
+   the row is the one stop, and `i` opens the same card. */
+.gv-agent-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 180px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: 600 10px/1 var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+.gv-agent-chip:active { transform: scale(0.97); }
+.gv-agent-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gv-agent-chip:hover { border-color: var(--ctl-edge); background: var(--ctl-fill); }
+.gv-agent-chip[data-level="trailer"] { border-style: dashed; border-color: var(--ctl-edge); color: var(--muted); padding-left: 8px; }
+.gv-agent-chip.is-quiet, .gv-row[data-tone="off"] .gv-agent-chip { border-color: var(--line-soft); color: var(--muted); }
+.gv-agent-chip.is-quiet .gv-swatch, .gv-row[data-tone="off"] .gv-agent-chip .gv-swatch { opacity: 0.5; }
+.gv-row:hover .gv-agent-chip.is-quiet, .gv-row.is-sel .gv-agent-chip.is-quiet,
+.gv-row:hover[data-tone="off"] .gv-agent-chip, .gv-row.is-sel[data-tone="off"] .gv-agent-chip { color: var(--text-secondary); }
+
+/* The hover card: who, how sure, the model and how long; the actions live in
+   the card `i` opens. */
+.gv-pop {
+  position: fixed;
+  z-index: 200;
+  width: 268px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.96);
+  transform-origin: top center;
+  transition: opacity 150ms ease-out, transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.gv-pop.is-in { opacity: 1; transform: none; }
+.gv-pop.is-instant { transition: none; }
+.gv-pop-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--text); font-size: 13px; }
+.gv-pop-head b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.gv-pop-level { display: inline-flex; flex: none; align-items: center; gap: 4px; margin-left: auto; color: var(--muted); font-size: 11px; }
+.gv-pop-dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.gv-pop-dl dt { color: var(--muted); font-size: 11px; }
+.gv-pop-dl dd { margin: 0; color: var(--text); font: 11px/1.4 var(--font-mono); }
+.gv-pop-line { margin: 0 0 8px; color: var(--text-secondary); font-size: 12px; line-height: 17px; }
+.gv-pop-line code { color: var(--text); font: 11px var(--font-mono); }
+.gv-pop-foot { display: flex; align-items: baseline; gap: 6px; margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 11px; line-height: 16px; }
+.gv-pop-foot kbd { flex: none; display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--bg-soft); color: var(--text); font: 600 10px/1 var(--font-mono); }
+
+/* The pane's own widths. */
+@container gvhist (max-width: 760px) {
+  .gv-cell-author { display: none; }
+}
+@container gvhist (max-width: 560px) {
+  .gv-cell-sha { display: none; }
+  .gv-ref { max-width: 120px; }
+  .gv-agent-chip { max-width: 96px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gv-new-pill { animation: gv-new-fade 150ms ease-out both; }
+  .gv-new-pill:active { scale: none; }
+  .gv-agent-chip:active { transform: none; }
+  .gv-row.is-new { animation: gv-glow 1000ms ease-out; }
+  .gv-pop { transform: none; transition: opacity 120ms ease-out; }
+}
