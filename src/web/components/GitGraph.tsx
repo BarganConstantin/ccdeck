@@ -57,6 +57,27 @@ const PROBE = "0123456789abcdefghij";
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+// ─── live insert ──────────────────────────────────────────────────────────
+
+/** What one arrival of commits is known by: the commits themselves, so the
+ *  same arrival handed in again is the same arrival; "" for none. */
+export function liveInsertKey(live: GitGraphProps["liveInsert"]): string {
+  return live && live.newShas.length ? live.newShas.join(" ") : "";
+}
+
+/**
+ * Where a scrolled reader's list goes when commits arrive: the first row they
+ * could see before stays where it was on screen, and the arrivals listed
+ * above it are what the pill counts. `before` and `tops` are each row's top,
+ * in pixels, before and after; `arrived` the new commits that are listed.
+ */
+export function keepReaderPlace(before: ReadonlyMap<string, number>, tops: ReadonlyMap<string, number>, arrived: readonly string[], scrollTop: number): { scrollTop: number; above: number } {
+  const anchor = [...before].filter(([id]) => tops.has(id)).sort((a, b) => a[1] - b[1]).find(([, top]) => top + ROW_H > scrollTop);
+  if (!anchor) return { scrollTop, above: arrived.length };
+  const now = tops.get(anchor[0])!;
+  return { scrollTop: scrollTop + (now - anchor[1]), above: arrived.filter(s => tops.get(s)! < now).length };
+}
+
 // ─── agent words ──────────────────────────────────────────────────────────
 
 interface AgentView {
@@ -490,25 +511,30 @@ export default function GitGraph(props: GitGraphProps) {
     return m;
   }, [ids, firstOutside]);
   const prevTops = useRef<Map<string, number> | null>(null);
-  const handled = useRef<GitGraphProps["liveInsert"]>(null);
+  // An arrival is told apart by the commits it brought, never by the object
+  // that carries them: the view around the list rebuilds that object on every
+  // render, and each rebuild must not count the same commits again or replay
+  // their glow. What had already arrived when the list mounted is not news.
+  const liveKey = liveInsertKey(liveInsert);
+  const handled = useRef(liveKey);
   const [newAbove, setNewAbove] = useState(0);
-  const [settled, setSettled] = useState<GitGraphProps["liveInsert"]>(null);
-  const fresh = useMemo(() => new Set(liveInsert && liveInsert !== settled ? liveInsert.newShas : []), [liveInsert, settled]);
+  const [settled, setSettled] = useState(liveKey);
+  const fresh = useMemo(() => new Set(liveKey && liveKey !== settled ? liveInsert!.newShas : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveKey, settled]);
   useLayoutEffect(() => {
     const sc = listRef.current;
     const before = prevTops.current;
     prevTops.current = tops;
-    if (!sc || !before || !liveInsert || handled.current === liveInsert || !liveInsert.newShas.length) return;
-    handled.current = liveInsert;
-    const arrived = liveInsert.newShas.filter(s => tops.has(s));
+    if (!sc || !before || !liveKey || handled.current === liveKey) return;
+    handled.current = liveKey;
+    const arrived = liveInsert!.newShas.filter(s => tops.has(s));
     if (!arrived.length) return;
     if (sc.scrollTop > 0) {
       // A reader down the list stays on the row they were reading: nothing
       // moves, the list grows above them, and a pill says how much.
-      const at = sc.scrollTop;
-      const anchor = [...before].filter(([id]) => tops.has(id)).sort((a, b) => a[1] - b[1]).find(([, top]) => top + ROW_H > at);
-      if (anchor) sc.scrollTop = at + (tops.get(anchor[0])! - anchor[1]);
-      const above = anchor ? arrived.filter(s => tops.get(s)! < tops.get(anchor[0])!).length : arrived.length;
+      const { scrollTop, above } = keepReaderPlace(before, tops, arrived, sc.scrollTop);
+      sc.scrollTop = scrollTop;
       if (above) setNewAbove(n => n + above);
       return;
     }
@@ -525,12 +551,13 @@ export default function GitGraph(props: GitGraphProps) {
     }
     if (moved.length > FLIP_MAX) return;
     for (const [el, dy] of moved) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "translateY(0)" }], { duration: 200, easing: EASE });
-  }, [tops, liveInsert, rowEl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tops, liveKey, rowEl]);
   useEffect(() => {
-    if (!liveInsert || liveInsert === settled) return;
-    const t = window.setTimeout(() => setSettled(liveInsert), 1100);
+    if (!liveKey || liveKey === settled) return;
+    const t = window.setTimeout(() => setSettled(liveKey), 1100);
     return () => window.clearTimeout(t);
-  }, [liveInsert, settled]);
+  }, [liveKey, settled]);
 
   const onScroll = useCallback(() => {
     hideHover();

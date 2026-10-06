@@ -48,7 +48,8 @@ describe("the history list, as the markup builds it", () => {
   it("keeps a scrolled reader where they are when commits arrive, and slides at most twenty rows at the top", () => {
     expect(src).toMatch(/const FLIP_MAX = 20;/);
     expect(src).toMatch(/if \(sc\.scrollTop > 0\) \{/);
-    expect(src).toMatch(/sc\.scrollTop = at \+ \(tops\.get\(anchor\[0\]\)! - anchor\[1\]\)/);
+    expect(src).toMatch(/const \{ scrollTop, above \} = keepReaderPlace\(before, tops, arrived, sc\.scrollTop\);/);
+    expect(src).toMatch(/return \{ scrollTop: scrollTop \+ \(now - anchor\[1\]\), above:/);
     expect(src).toMatch(/if \(reducedMotion\(\)\) return;/);
     expect(src).toMatch(/duration: 200, easing: EASE/);
     expect(src).toMatch(/const EASE = "cubic-bezier\(0\.23, 1, 0\.32, 1\)";/);

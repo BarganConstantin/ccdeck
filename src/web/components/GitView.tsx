@@ -525,6 +525,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     return sel === UNCOMMITTED || head.some(c => c.sha === sel) ? head : all;
   }, [data.commits, allRows, sel]);
   const counts = useFocusCounts(data, focus);
+  // The commits the last history read brought, one object per read: the
+  // history counts an arrival once and glows it once.
+  const liveInsert = useMemo(() => (data.newShas.length ? { newShas: data.newShas } : null), [data.newShas]);
   const [wrap, setWrap] = useState(readDiffWrap);
   const filesHandle = useRef<GitFilesHandle>(null);
   const diffHandle = useRef<GitDiffHandle>(null);
@@ -822,7 +825,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                 repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={firstRows ?? data.commits} head={head ?? null}
                 uncommitted={{ files: counts.changed, byFocus: counts.files, label: focusName }} focus={focus} selected={sel}
                 onSelect={view.setSel} onOpen={() => focusPane("files")}
-                onAgentCard={openCard} liveInsert={data.newShas.length ? { newShas: data.newShas } : null}
+                onAgentCard={openCard} liveInsert={liveInsert}
                 agentName={nameOf}
               />
             )}
