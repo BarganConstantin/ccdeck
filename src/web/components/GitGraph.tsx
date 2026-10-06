@@ -165,15 +165,22 @@ function UpGlyph() {
 
 const diamond = (x: number, y: number, r: number) => `M${x} ${y - r}L${x + r} ${y}L${x} ${y + r}L${x - r} ${y}Z`;
 
-const RowLanes = memo(function RowLanes({ row, shape, focusKey, folded, width, isHead }: {
+const RowLanes = memo(function RowLanes({ row, shape, focusKey, folded, width, isHead, noWip }: {
   row: GraphRow; shape: NodeShape; focusKey: string | null; folded: number; width: number; isHead: boolean;
+  /** The uncommitted row is not drawn: neither is its dashed line to HEAD. */
+  noWip: boolean;
 }) {
   const d = useMemo(() => rowDrawing(row, shape, focusKey, folded), [row, shape, focusKey, folded]);
+  const strokes = noWip ? d.strokes.filter(s => !s.wip) : d.strokes;
   const nodeDim = focusKey !== null && row.key !== focusKey;
   const cls = `gv-node${nodeDim ? " is-dim" : ""}`;
   const slot = row.slot + 1;
   let node: React.ReactNode;
   if (shape === "wip") node = <circle className="gv-wip-node" cx={d.x} cy={d.y} r="3.6" />;
+  // A folded agent commit keeps its diamond, in the fold's grey: a round dot
+  // there would read as "no agent seen".
+  else if (d.folded && shape === "seen") node = <path className="gv-fold-node is-seen" d={diamond(d.foldX, d.y, 4.2)} />;
+  else if (d.folded && shape === "trailer") node = <path className="gv-fold-node is-trailer" d={diamond(d.foldX, d.y, 4.2)} />;
   else if (d.folded) node = <circle className="gv-fold-node" cx={d.foldX} cy={d.y} r="2.6" />;
   else if (shape === "seen") node = <path className={`${cls} is-seen`} data-slot={slot} d={diamond(d.x, d.y, 5.2)} />;
   else if (shape === "trailer") node = <path className={`${cls} is-trailer`} data-slot={slot} d={diamond(d.x, d.y, 4.8)} />;
@@ -182,7 +189,7 @@ const RowLanes = memo(function RowLanes({ row, shape, focusKey, folded, width, i
   return (
     <svg className="gv-lanes" width={width} height={ROW_H} viewBox={`0 0 ${width} ${ROW_H}`} aria-hidden="true" focusable="false">
       {d.fold && <path className="gv-fold-line" d={`M${d.foldX} 0V${ROW_H}`} />}
-      {d.strokes.map((s, i) => (
+      {strokes.map((s, i) => (
         <path key={i} className={`gv-e${s.dim ? " is-dim" : ""}${s.focus ? " is-focus" : ""}${s.wip ? " is-wip" : ""}`} data-slot={s.slot + 1} d={s.d} />
       ))}
       {node}
@@ -249,6 +256,8 @@ interface RowProps {
   focusKey: string | null;
   folded: number;
   width: number;
+  /** The uncommitted row is not drawn (a clean detached HEAD). */
+  noWip: boolean;
   agent: AgentView | null;
   head: RepoHead | null;
   slots: ReadonlyMap<string, number>;
@@ -270,7 +279,7 @@ const HistoryRow = memo(function HistoryRow(p: RowProps) {
     return (
       <div role="option" id={p.rowId} className={`gv-row is-wip${p.selected ? " is-sel" : ""}`} data-id={WIP_ID} data-tone="own"
         aria-selected={p.selected} tabIndex={p.tabStop ? 0 : -1} aria-label={name}>
-        <span className="gv-cell-graph"><RowLanes row={row} shape="wip" focusKey={p.focusKey} folded={p.folded} width={p.width} isHead={false} /></span>
+        <span className="gv-cell-graph"><RowLanes row={row} shape="wip" focusKey={p.focusKey} folded={p.folded} width={p.width} isHead={false} noWip={false} /></span>
         <span className="gv-cell-subj">
           {files ? (
             <>
@@ -306,7 +315,7 @@ const HistoryRow = memo(function HistoryRow(p: RowProps) {
       data-id={c.sha} data-tone={p.tone} data-head={p.isHead ? "" : undefined}
       aria-selected={p.selected} tabIndex={p.tabStop ? 0 : -1} aria-label={label} aria-describedby={descId}>
       <span className="gv-cell-graph">
-        <RowLanes row={row} shape={shape} focusKey={p.focusKey} folded={p.folded} width={p.width} isHead={p.isHead} />
+        <RowLanes row={row} shape={shape} focusKey={p.focusKey} folded={p.folded} width={p.width} isHead={p.isHead} noWip={p.noWip} />
       </span>
       <span className="gv-cell-subj">
         {chips.map(x => (
@@ -393,7 +402,9 @@ export default function GitGraph(props: GitGraphProps) {
   const paneRef = useRef<HTMLDivElement>(null);
 
   // A detached HEAD with nothing changed has no working-tree row; anything
-  // else does, clean or not.
+  // else does, clean or not. The graph is laid out with it either way, so
+  // HEAD keeps the first column and never folds away in a busy repository;
+  // without it, the column above HEAD is left blank.
   const showWip = !(head?.detached && uncommitted.files === 0);
 
   // The colours this repository's branches were given before, read once per
@@ -403,9 +414,9 @@ export default function GitGraph(props: GitGraphProps) {
     slotsRef.current = { repo: repoKey, slots: repoSlots(parseSlotMemory(readStored(LANE_MEMORY_KEY)), repoKey) };
   }
   const layout = useMemo(
-    () => layoutGraph(commits, { head, wip: showWip, slots: slotsRef.current!.slots }),
+    () => layoutGraph(commits, { head, wip: true, slots: slotsRef.current!.slots }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [commits, head?.sha, head?.branch, head?.detached, showWip, repoKey],
+    [commits, head?.sha, head?.branch, head?.detached, repoKey],
   );
   useEffect(() => {
     slotsRef.current = { repo: repoKey, slots: layout.slots };
@@ -432,13 +443,13 @@ export default function GitGraph(props: GitGraphProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [commits, focus.sessionId, focusIds, agentName]);
 
-  // The rows drawn: the first `rowLimit` commits (and the uncommitted row)
-  // when a first frame asks for fewer.
+  // The rows drawn: the uncommitted row when there is one, and the first
+  // `rowLimit` commits when a first frame asks for fewer.
   const drawnRows = useMemo(() => {
-    let rows = layout.rows;
+    let rows = showWip ? layout.rows : layout.rows.filter(r => r.id !== WIP_ID);
     if (rowLimit !== undefined) rows = rows.slice(0, rowLimit + (rows[0]?.id === WIP_ID ? 1 : 0));
     return rows;
-  }, [layout, rowLimit]);
+  }, [layout, showWip, rowLimit]);
   const ids = useMemo(() => drawnRows.map(r => r.id), [drawnRows]);
   const tabStopId = ids.includes(selected) ? selected : ids[0];
   const firstOutside = drawnRows.findIndex(r => r.outside);
@@ -492,10 +503,18 @@ export default function GitGraph(props: GitGraphProps) {
   }, [repoKey]);
   // A selection made outside the list (the glance, a card) comes into view.
   const lastSelected = useRef(selected);
+  // Focus already on another of the list's rows moves with it, so the row
+  // focused is always the list's one tab stop (a clean detached HEAD opens
+  // the view on the top row, then selects HEAD once the folder is read).
   useLayoutEffect(() => {
-    if (lastSelected.current !== selected) reveal(selected);
+    if (lastSelected.current !== selected) {
+      reveal(selected);
+      const active = document.activeElement as HTMLElement | null;
+      const row = active && listRef.current?.contains(active) ? active.closest<HTMLElement>("[data-id]") : null;
+      if (row && row.dataset.id !== selected) rowEl(selected)?.focus({ preventScroll: true });
+    }
     lastSelected.current = selected;
-  }, [selected, reveal]);
+  }, [selected, reveal, rowEl]);
 
   // ── hover card ──
   const [hover, setHover] = useState<HoverState | null>(null);
@@ -737,6 +756,7 @@ export default function GitGraph(props: GitGraphProps) {
                 focusKey={focusKey}
                 folded={folded}
                 width={width}
+                noWip={!showWip}
                 agent={c ? agents.get(c.sha) ?? null : null}
                 head={stableHead}
                 slots={layout.slots}

@@ -111,6 +111,7 @@
 .gv-wip-node { fill: none; stroke: var(--gv-forced-ink, var(--text-secondary)); stroke-width: 1.5; stroke-dasharray: 2.4 1.8; }
 .gv-fold-line { fill: none; stroke: var(--gv-forced-ink, var(--muted-dim)); stroke-width: 1.5; stroke-dasharray: 3 3; }
 .gv-fold-node { fill: var(--gv-forced-ink, var(--muted)); }
+.gv-fold-node.is-trailer { fill: none; stroke: var(--gv-forced-ink, var(--muted)); stroke-width: 1.5; }
 
 /* The subject column, aligned on every row: the graph cell is one width for
    the whole history. */

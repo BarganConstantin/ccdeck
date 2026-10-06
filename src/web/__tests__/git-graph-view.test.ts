@@ -76,6 +76,12 @@ describe("the history list, as the markup builds it", () => {
     expect(reduced).toMatch(/\.gv-pop \{ transform: none; transition: opacity 120ms ease-out; \}/);
   });
 
+  it("moves focus with a selection made outside the list when focus is on another of its rows", () => {
+    const effect = src.slice(src.indexOf("const lastSelected = useRef(selected);"), src.indexOf("}, [selected, reveal, rowEl]);"));
+    expect(effect).toMatch(/listRef\.current\?\.contains\(active\)/);
+    expect(effect).toMatch(/if \(row && row\.dataset\.id !== selected\) rowEl\(selected\)\?\.focus\(\{ preventScroll: true \}\);/);
+  });
+
   it("moves nothing from the keyboard: a key reveals its row at once", () => {
     expect(src).toMatch(/const reveal = useCallback\(/);
     const reveal = src.slice(src.indexOf("const reveal = useCallback("), src.indexOf("reveal(selected, true)"));

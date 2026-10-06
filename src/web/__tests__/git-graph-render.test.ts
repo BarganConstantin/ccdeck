@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import GitGraph, { type GitGraphProps } from "../components/GitGraph";
+import { type LogCommit } from "../git-graph-layout";
 import { shopHistory, HISTORY_HEAD } from "./git-graph-history";
 
 function render(props: Partial<GitGraphProps> & Pick<GitGraphProps, "commits" | "head">): string {
@@ -35,6 +36,14 @@ function rows(html: string): Map<string, string> {
 }
 const laneWidths = (html: string) => new Set([...html.matchAll(/<svg class="gv-lanes" width="(\d+(?:\.\d+)?)"/g)].map(m => m[1]));
 
+const at = (iso: number) => new Date(Date.UTC(2026, 9, 6, 12) - iso * 60_000).toISOString();
+function commit(sha: string, parents: string[], minutesAgo: number, extra: Partial<LogCommit> = {}): LogCommit {
+  return {
+    sha, parents, author: { name: "A", email: "a@example.com" }, date: at(minutesAgo), subject: `work on ${sha}`, trailers: [],
+    refs: { local: [], remote: [], tags: [], head: false }, agent: null, ...extra,
+  };
+}
+
 describe("a first frame", () => {
   it("draws its first rows at the width, fold and lanes the whole history gets", () => {
     const commits = shopHistory(100);
@@ -47,6 +56,44 @@ describe("a first frame", () => {
     // Each row drawn is drawn as it is in the whole history.
     const whole = rows(all);
     for (const [id, markup] of rows(first)) expect(markup, id).toBe(whole.get(id));
+  });
+});
+
+describe("a busy repository with a clean detached HEAD", () => {
+  // Nine branches dated after the commit HEAD is detached at, each a lane of
+  // its own; the newest carries an agent's commit.
+  const seen = { sessionId: "s", agentId: null, label: "infra-bump", agentType: null, kind: "claude" as const, model: "claude-haiku-4-5", durationMs: 60_000, confidence: "seen" as const };
+  const topics = Array.from({ length: 9 }, (_, i) => commit(`t${i + 1}`, ["b0"], i + 1, { refs: { local: [`topic/t${i + 1}`], remote: [], tags: [], head: false } }));
+  const commits = [
+    ...topics.slice(0, 8),
+    commit("t9", ["b0"], 9, { refs: { local: ["topic/t9"], remote: [], tags: [], head: false }, agent: seen }),
+    commit("h", ["b0"], 30, { refs: { local: [], remote: [], tags: ["v0.3.0"], head: true }, agent: seen }),
+    commit("b0", [], 600),
+  ].filter((c, i, list) => list.findIndex(x => x.sha === c.sha) === i);
+  const head = { branch: null, detached: true, sha: "h", short: "h", unborn: false };
+  const html = render({ commits, head, selected: "h" });
+  const drawn = rows(html);
+
+  it("keeps HEAD in the first column with its ring and its diamond", () => {
+    const h = drawn.get("h")!;
+    expect(h).toContain('class="gv-head-ring"');
+    expect(h).toMatch(/class="gv-node is-seen"/);
+    expect(h).not.toContain("gv-fold-node");
+    expect(html).toMatch(/\+\d+ lanes/);
+  });
+
+  it("draws no uncommitted row and none of its dashed line", () => {
+    expect(drawn.has("uncommitted")).toBe(false);
+    expect(html).not.toMatch(/gv-e[^"]*is-wip/);
+  });
+
+  it("keeps an agent's diamond on a commit whose lane folded, in the fold's grey", () => {
+    const folded = [...drawn.values()].filter(m => m.includes("gv-fold-node"));
+    expect(folded.length).toBeGreaterThan(0);
+    expect(drawn.get("t9")).toMatch(/<path class="gv-fold-node is-seen" d="M/);
+    // A folded commit nobody was seen making keeps the plain dot.
+    const plain = [...drawn.entries()].filter(([id, m]) => id !== "t9" && m.includes("gv-fold-node"));
+    for (const [id, m] of plain) expect(m, id).toMatch(/<circle class="gv-fold-node"/);
   });
 });
 
