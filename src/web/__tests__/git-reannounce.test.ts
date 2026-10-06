@@ -1,10 +1,12 @@
 // A card's branch and its collisions are sent once, when they change, and the
 // ring drops its oldest events as new ones arrive. A page that connects after
 // the event that carried them has left the ring — a reload or a second tab on
-// a busy deck — is sent them again before its replay ends, through the real
-// server. Real repositories; the agents are the test posting their events.
+// a busy deck — is handed them ahead of its replay, under their own seq and
+// time, through the real server: nothing goes back into the ring or the log,
+// and the pages already connected are sent nothing. Real repositories; the
+// agents are the test posting their events.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { request, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -88,6 +90,30 @@ function freshPage(): Promise<Env[]> {
   });
 }
 
+/** A page already connected and caught up to `lastId`: what it is sent while open. */
+function openPage(lastId: number): { got: Env[]; close: () => void } {
+  const got: Env[] = [];
+  let buffer = "";
+  const req = request({ host: "127.0.0.1", port, path: "/events", method: "GET", headers: { accept: "text/event-stream", "x-ccdeck-token": hookToken(), "last-event-id": String(lastId) } }, res => {
+    streams.push(res);
+    res.setEncoding("utf8");
+    res.on("data", chunk => {
+      buffer += chunk;
+      for (;;) {
+        const end = buffer.indexOf("\n\n");
+        if (end === -1) break;
+        const block = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        const field = (name: string) => block.split("\n").find(l => l.startsWith(`${name}: `))?.slice(name.length + 2) ?? null;
+        if (field("event") === "hook") got.push(JSON.parse(field("data") ?? "null"));
+      }
+    });
+  });
+  req.on("error", () => {});
+  req.end();
+  return { got, close: () => req.destroy() };
+}
+
 /** Push `count` hook events of a session nobody looks at through the real ring. */
 async function noise(count: number): Promise<void> {
   const path = join(DIR, `noise-${Date.now()}.jsonl`);
@@ -143,6 +169,15 @@ describe("a page that connects behind the ring's head", () => {
     expect(gitIn(before, "GitObserved", "R-ui")).toEqual([]);
     expect(gitIn(before, "GitCollisions", "R-ui")).toEqual([]);
     expect(eventBufferStats().oldestSeq).toBeGreaterThan(1);
+    // The git lines the log holds, once the writer has flushed what came before.
+    const logged = () => readFileSync(LOG, "utf8").split("\n").filter(l => /"hook_event_name":"Git(Observed|Collisions)"/.test(l)).length;
+    await sleep(300);
+    const linesBefore = logged();
+    const lastBefore = before[before.length - 1].seq;
+    // A page already open, caught up: another page connecting is none of its business.
+    const other = openPage(lastBefore);
+    await sleep(300);
+    const connectedAt = Date.now();
 
     const page = await freshPage();
     for (const sid of ["R-ui", "R-fix"]) {
@@ -155,6 +190,23 @@ describe("a page that connects behind the ring's head", () => {
     }
     // Nothing for the session the ring holds no event of, and nothing logged.
     expect(gitIn(page, "GitObserved", "noise")).toEqual([]);
+    // Handed over as they were sent, ahead of the replay: their own seq, older
+    // than everything the ring still holds, and their own time — so none of
+    // them reads as the session being heard from just now.
+    const oldest = before[0].seq;
+    for (const e of page.filter(x => /^Git(Observed|Collisions)$/.test(x.payload?.hook_event_name ?? "") && /^R-/.test(x.payload.session_id))) {
+      expect(e.seq).toBeLessThan(oldest);
+      expect((e as Env & { receivedAt: number }).receivedAt).toBeLessThan(connectedAt);
+    }
+    const seqs = page.map(e => e.seq);
+    expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
+    // The ring, the log and the page already open are untouched.
+    const after = await ring();
+    expect(after[after.length - 1].seq).toBe(lastBefore);
+    expect(logged()).toBe(linesBefore);
+    await sleep(300);
+    other.close();
+    expect(other.got.filter(e => /^Git(Observed|Collisions)$/.test(e.payload?.hook_event_name ?? ""))).toEqual([]);
 
     // A second page finds them in the ring now, so nothing more is pushed.
     const count = (events: Env[]) => events.filter(e => /^Git(Observed|Collisions)$/.test(e.payload?.hook_event_name ?? "")).length;
