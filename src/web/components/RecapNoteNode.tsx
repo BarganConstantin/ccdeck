@@ -19,6 +19,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { dismissRecap } from "../recap-note";
 import { noteSource, noteTag, type SessionNote } from "../session-note";
+import { faceTitle } from "../node-face";
 import { promptTime } from "../relative-time";
 import { useNow } from "../use-now";
 import { NoteMark } from "./RecapMark";
@@ -46,12 +47,15 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
   // list's line already uses, so a question, a failure and a finished job read
   // in the same colours in both places.
   const cls = isRecap ? "recap-note" : `recap-note is-status status-${note.kind}`;
+  // Who wrote a status note; a recap says so in its mark. The face's cut line
+  // carries it too, under the text (faceTitle).
+  const tip = isRecap ? undefined : noteSource(note);
   return (
     <div
       className={cls}
       role="note"
       aria-label={isRecap ? "Claude Code's recap" : `Session note: ${noteTag(note.kind)}`}
-      title={isRecap ? undefined : noteSource(note)}
+      title={tip}
       style={{ "--session-hue": data.hue } as React.CSSProperties}
     >
       <div className="recap-note-head">
@@ -75,14 +79,15 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
           way a card's face is (AgentNode's NodeFace): its mark and age, and as
           many lines of the note as the box has room for at 1:1. Without it the
           note below the full card was an empty box around a 3px "recap". The
-          whole text is the peek's, beside the pointer. Hidden from assistive
-          technology, which has the note itself. */}
+          whole text is the peek's, beside the pointer, and the cut line carries
+          it on hover too (faceTitle). Hidden from assistive technology, which
+          has the note itself. */}
       <div className="lod-face recap-face" aria-hidden>
         <div className="lod-id">
           <span className="recap-note-mark"><NoteMark recap={isRecap} />{noteTag(note.kind)}</span>
           <span className="recap-face-age">{written.label}</span>
         </div>
-        <p className="recap-face-text">{note.text}</p>
+        <p className="recap-face-text" title={faceTitle(note.text, tip)}>{note.text}</p>
       </div>
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>

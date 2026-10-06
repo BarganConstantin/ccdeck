@@ -326,6 +326,9 @@
 .canvas-wrap[data-lod="overview"] .lod-face.recap-face {
   display: flex;
   justify-content: flex-start;
+  /* The overview's 1px under the mark row at both distances: at the first
+     compact step of most windows it is what lets a second line in whole. */
+  gap: 1px;
   padding: 5px 8px;
   background: var(--panel);
   --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
@@ -342,8 +345,13 @@
   font-weight: 400;
   color: var(--muted);
 }
-/* As many lines of the recap as the face has room for, read off its content
-   box: the mark row is 15px and a line of the text 14px after a 2px gap. */
+/* As many lines of the note as the face has room for, read off its content
+   box: the mark row is 15px and a line of the text 14px after the face's 1px
+   gap, so N lines take 16 + 14N px and each tier starts at exactly that
+   height. Tiers that started early clamped two lines into a box short of
+   them, and the flex column took the difference off the second line's
+   letters. The overview's mark row is a pixel shorter, so a tier that fits
+   here fits there. */
 .recap-face-text {
   margin: 0;
   overflow-wrap: anywhere;
@@ -353,10 +361,10 @@
   line-clamp: 4;
   overflow: hidden;
 }
-@container lod (max-height: 72px) { .recap-face-text { -webkit-line-clamp: 3; line-clamp: 3; } }
-@container lod (max-height: 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
-@container lod (max-height: 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
-@container lod (max-height: 30px) { .recap-face-text { display: none; } }
+@container lod (height < 72px) { .recap-face-text { -webkit-line-clamp: 3; line-clamp: 3; } }
+@container lod (height < 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
+@container lod (height < 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
+@container lod (height < 30px) { .recap-face-text { display: none; } }
 .recap-note-head {
   display: flex;
   align-items: center;
