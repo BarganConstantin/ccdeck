@@ -26,3 +26,15 @@ describe("the canvas changing size under the open view", () => {
     expect(effect).toMatch(/return \(\) => \{ ro\.disconnect\(\); cancelAnimationFrame\(raf\); \};/);
   });
 });
+
+describe("the camera given back on close", () => {
+  it("is taken on every open, a sheet's too, so widening past 1100px and closing still gives it back", () => {
+    expect(view).not.toMatch(/if \(opening && !sheet\) savedViewport\.current/);
+    expect(view).toMatch(/savedViewport\.current = back \?\? rf\.getViewport\(\);/);
+  });
+
+  it("is the one a close was taking it back to when the view reopens on the way, not the camera mid-flight", () => {
+    expect(view).toMatch(/const back = restoring\.current && performance\.now\(\) < restoring\.current\.until \? restoring\.current\.to : null;/);
+    expect(view).toMatch(/restoring\.current = \{ to: savedViewport\.current, until: performance\.now\(\) \+ duration \+ 50 \};/);
+  });
+});

@@ -163,6 +163,9 @@ export default function GitView(props: GitViewProps) {
 
   // ── the camera beside the view ────────────────────────────────────────
   const savedViewport = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  // Where a close is taking the camera back to, until it gets there: a reopen
+  // on the way keeps that as the camera to give back, not the one mid-flight.
+  const restoring = useRef<{ to: { x: number; y: number; zoom: number }; until: number } | null>(null);
   const inertCards = useState(() => new Set<Element>())[0];
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
@@ -304,7 +307,13 @@ export default function GitView(props: GitViewProps) {
     const animate = request.how === "pointer";
     if (want) {
       const opening = !wasWanted.current;
-      if (opening && !sheet) savedViewport.current = rf.getViewport();
+      // The reader's camera, to give back on close — taken on a sheet too,
+      // which leaves the camera alone until a wider window puts the view beside it.
+      if (opening) {
+        const back = restoring.current && performance.now() < restoring.current.until ? restoring.current.to : null;
+        savedViewport.current = back ?? rf.getViewport();
+        restoring.current = null;
+      }
       wasWanted.current = true;
       setGitViewFrame(frame, cover);
       let raf2 = 0, raf3 = 0;
@@ -325,7 +334,11 @@ export default function GitView(props: GitViewProps) {
     setMarkers([]);
     coverBehind(false);
     setInert([...inertCards], false, inertCards);
-    if (savedViewport.current) moveCamera(savedViewport.current, animate ? 150 : 0);
+    if (savedViewport.current) {
+      const duration = animate ? 150 : 0;
+      moveCamera(savedViewport.current, duration);
+      restoring.current = { to: savedViewport.current, until: performance.now() + duration + 50 };
+    }
     savedViewport.current = null;
   }, [want, agent?.id, width, sheet, detailShown]);
 
