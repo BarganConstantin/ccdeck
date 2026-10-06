@@ -15,7 +15,10 @@
 //
 // A commit is recorded from a LIVE event only by the deck that is writing that
 // session to the events log — the same election that keeps one deck per log
-// line, so two decks on one machine do not both record it.
+// line, so two decks on one machine do not both record it. A deck with no log
+// at all (`--no-persist`, RAM-only) is in no election: it keeps the commits it
+// sees in its own memory, never in the file, so its view marks them for as
+// long as it runs.
 //
 // A commit found in the BOOT REPLAY was live once, but possibly in front of no
 // recording deck at all (one from before recording existed, or one that had
@@ -76,9 +79,10 @@ export function createAgentGitTap({
      * One envelope, as pushEvent admitted it.
      *
      * @param {{ payload?: unknown, receivedAt?: number, source?: string }} envelope
-     * @param {{ replay?: boolean, persisting?: boolean }} [opts] `replay`: read
-     *   back from the log at boot; `persisting`: this deck is the one writing
-     *   the event's session to the log.
+     * @param {{ replay?: boolean, persisting?: boolean, ramOnly?: boolean }} [opts]
+     *   `replay`: read back from the log at boot; `persisting`: this deck is
+     *   the one writing the event's session to the log; `ramOnly`: this deck
+     *   writes no log at all.
      */
     observe(envelope, opts = {}) {
       const p = envelope && typeof envelope === "object" ? envelope.payload : null;
@@ -104,10 +108,10 @@ export function createAgentGitTap({
         if (replayed.length > replayMax * 2) replayed = replayed.slice(-replayMax);
         return;
       }
-      if (!opts.persisting) return;
+      if (!opts.persisting && !opts.ramOnly) return;
       for (const candidate of commitCandidates(call)) {
         // The spend and names as they stand now, not after the async lookups.
-        void recorder.record(candidate, facts.snapshot(candidate.sessionId, candidate.agentId));
+        void recorder.record(candidate, facts.snapshot(candidate.sessionId, candidate.agentId), { memoryOnly: !opts.persisting });
       }
     },
 
@@ -164,7 +168,7 @@ export const agentGit = createAgentGitTap();
  * pushEvent's door into the tap. Never throws.
  *
  * @param {{ payload?: unknown, receivedAt?: number, source?: string }} envelope
- * @param {{ replay?: boolean, persisting?: boolean }} [opts]
+ * @param {{ replay?: boolean, persisting?: boolean, ramOnly?: boolean }} [opts]
  */
 export function observeAgentGit(envelope, opts) {
   try {

@@ -43,7 +43,17 @@
 //     dropped until it is three quarters of the cap. The window that remains —
 //     another deck appending between that read and the rename — is a few
 //     milliseconds, once per many thousand commits.
-import { mkdir, open, readFile } from "node:fs/promises";
+//
+// TWO DECKS, ONE FILE. Two decks on one machine share the data directory (the
+// desktop app and a deck started in a terminal), and only the one writing the
+// events log records live commits. So every read first takes in what the file
+// gained since the last one: the whole lines past what was read, or the whole
+// file again when it was rewritten (another deck compacted it) — told by the
+// file's identity and size, one stat a read.
+//
+// A DECK WITH NO LOG (`--no-persist`) records what it sees in memory only:
+// those lines are held beside the file's and never written.
+import { mkdir, open } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { deckDataDir } from "./deck-home.mjs";
@@ -123,24 +133,36 @@ function createIndex() {
   };
 }
 
-/** A whole file's text, read tolerantly. */
-function parseText(text) {
-  const index = createIndex();
+/** Admit every whole line of `text` into `index`; answers how many it could
+ *  not read. */
+function admitLines(index, text) {
   let skipped = 0;
-  const parts = text.split("\n");
-  // The text after the last newline is a torn line when it is not empty.
-  const tail = parts.pop();
-  const needsNewline = tail !== "";
-  if (needsNewline) skipped++;
-  for (const line of parts) {
+  for (const line of text.split("\n")) {
     if (!line.trim()) continue;
     let r;
     try { r = JSON.parse(line); } catch { skipped++; continue; }
     if (!isCommitRecord(r)) { skipped++; continue; }
     index.admit(r);
   }
+  return skipped;
+}
+
+/** A whole file's text, read tolerantly. */
+function parseText(text) {
+  const index = createIndex();
+  const parts = text.split("\n");
+  // The text after the last newline is a torn line when it is not empty.
+  const tail = parts.pop();
+  const needsNewline = tail !== "";
+  const skipped = admitLines(index, parts.join("\n")) + (needsNewline ? 1 : 0);
   return { index, skipped, needsNewline, bytes: Buffer.byteLength(text) };
 }
+
+/** Where the whole lines of `buf` end: just past its last newline, or 0. */
+const wholeLinesEnd = (buf) => buf.lastIndexOf(10) + 1;
+
+/** The most lines a deck with no log keeps in memory; the oldest go first. */
+const MEMORY_MAX = 5000;
 
 /** One whole line onto the end of the file, in one write(2) on an O_APPEND
  *  descriptor (log-writer.mjs explains what each platform promises for that),
@@ -171,7 +193,12 @@ export function createCommitStore({ path, maxBytes = COMMIT_STORE_MAX_BYTES }) {
   let needsNewline = false;
   let skipped = 0;
   let compactions = 0;
-  let loaded = false;
+  // What has been read of the file: which file (a rewrite is another one) and
+  // how far, in whole lines. `file` null: read it all next time.
+  let file = null;
+  let offset = 0;
+  // The lines a deck with no log keeps (`memoryOnly`), held through a reread.
+  let memory = [];
   let chain = Promise.resolve();
 
   /** Run `fn` after everything queued before it, and never break the queue. */
@@ -182,17 +209,72 @@ export function createCommitStore({ path, maxBytes = COMMIT_STORE_MAX_BYTES }) {
   }
 
   async function readText() {
-    try { return await readFile(path, "utf8"); } catch { return null; }
+    let fh;
+    try {
+      fh = await open(path, "r");
+      return await fh.readFile("utf8");
+    } catch {
+      return null;
+    } finally {
+      await fh?.close().catch(() => {});
+    }
   }
 
-  async function load() {
-    if (loaded) return;
-    loaded = true;
-    const text = await readText();
-    if (text === null) return;
-    const parsed = parseText(text);
-    ({ index, needsNewline, skipped, bytes } = parsed);
-    if (bytes > maxBytes) await compact();
+  /**
+   * Take in what the file gained since the last read: the whole lines past
+   * `offset` when it is the same file and has grown, all of it when it is
+   * another file (rewritten) or shorter. A line still being written by
+   * another deck is left for the next read.
+   */
+  async function refresh() {
+    let fh;
+    try {
+      fh = await open(path, "r");
+    } catch {
+      // No file (yet, or any more): what is held is what this deck kept.
+      if (file !== null || offset > 0) reset(createIndex(), 0, 0, false, 0);
+      return;
+    }
+    let whole = false;
+    try {
+      const st = await fh.stat({ bigint: true });
+      const size = Number(st.size);
+      const same = file !== null && file.ino === st.ino && file.dev === st.dev && size >= offset;
+      if (!same) {
+        const buf = await fh.readFile();
+        const parsed = parseText(buf.toString("utf8"));
+        reset(parsed.index, wholeLinesEnd(buf), parsed.bytes, parsed.needsNewline, parsed.skipped);
+        file = { ino: st.ino, dev: st.dev };
+        whole = true;
+        return;
+      }
+      if (size > offset) {
+        const buf = Buffer.alloc(size - offset);
+        const { bytesRead } = await fh.read(buf, 0, buf.length, offset);
+        const got = buf.subarray(0, bytesRead);
+        const end = wholeLinesEnd(got);
+        skipped += admitLines(index, got.subarray(0, end).toString("utf8"));
+        offset += end;
+      }
+      bytes = size;
+      needsNewline = size > offset;
+    } catch {
+      /* unreadable now: what is held stands, and the next read tries again */
+    } finally {
+      await fh.close().catch(() => {});
+      // Rewritten only once this read's handle is closed.
+      if (whole && bytes > maxBytes) await compact();
+    }
+  }
+
+  function reset(next, readTo, size, torn, junk) {
+    index = next;
+    for (const r of memory) index.admit(r);
+    offset = readTo;
+    bytes = size;
+    needsNewline = torn;
+    skipped = junk;
+    file = null;
   }
 
   /** Rewrite the file from a fresh read: duplicates and junk out, the oldest
@@ -213,10 +295,11 @@ export function createCommitStore({ path, maxBytes = COMMIT_STORE_MAX_BYTES }) {
     } catch {
       return; // the file stays as it was; the next append tries again
     }
-    index = createIndex();
-    for (const r of kept) index.admit(r);
-    bytes = total;
-    needsNewline = false;
+    const next = createIndex();
+    for (const r of kept) next.admit(r);
+    // Another file now: the next read takes it in whole, with anything
+    // appended to it in the meantime.
+    reset(next, 0, total, false, skipped);
     compactions++;
   }
 
@@ -226,15 +309,24 @@ export function createCommitStore({ path, maxBytes = COMMIT_STORE_MAX_BYTES }) {
     /**
      * Add one commit. Answers `{ added: true, record }`, or `{ added: false }`
      * for a duplicate, a malformed record, or a write that failed.
+     * `memoryOnly`: held by this store alone and never written — a deck with
+     * no events log.
      *
      * @param {object} record a version-1 line (see the header)
+     * @param {{ memoryOnly?: boolean }} [opts]
      */
-    append(record) {
+    append(record, { memoryOnly = false } = {}) {
       if (!isCommitRecord(record)) return Promise.resolve({ added: false, record: null });
       return enqueue(async () => {
-        await load();
+        await refresh();
         const p = index.plan(record);
         if (p.dup) return { added: false, record: p.existing };
+        if (memoryOnly) {
+          index.apply(record, p);
+          memory.push(record);
+          if (memory.length > MEMORY_MAX) memory = memory.slice(-MEMORY_MAX);
+          return { added: true, record };
+        }
         const line = (needsNewline ? "\n" : "") + JSON.stringify(record) + "\n";
         try {
           await mkdir(dirname(path), { recursive: true, mode: 0o700 });
@@ -252,19 +344,19 @@ export function createCommitStore({ path, maxBytes = COMMIT_STORE_MAX_BYTES }) {
 
     /** Every held commit, oldest first. */
     all() {
-      return enqueue(async () => { await load(); return index.values().sort(byAt); });
+      return enqueue(async () => { await refresh(); return index.values().sort(byAt); });
     },
 
     /** The commits of one repository (by its common git directory), oldest first. */
     forRepo(repo) {
-      return enqueue(async () => { await load(); return index.values().filter(r => r.repo === repo).sort(byAt); });
+      return enqueue(async () => { await refresh(); return index.values().filter(r => r.repo === repo).sort(byAt); });
     },
 
     /** The newest commit a session made — no later than `before` (ms), when
      *  given — or null. */
     lastForSession(sessionId, before = Infinity) {
       return enqueue(async () => {
-        await load();
+        await refresh();
         let last = null;
         for (const r of index.values()) if (r.sessionId === sessionId && r.at <= before && (!last || r.at >= last.at)) last = r;
         return last;

@@ -107,7 +107,7 @@ export function createCommitRecorder({ store, resolveRepo = null, confirm = null
     try { return await realpath(commonDir); } catch { return commonDir; }
   }
 
-  async function recordOne(c, facts, replay) {
+  async function recordOne(c, facts, replay, memoryOnly) {
     const { resolveRepo: resolve, confirm: check } = hooks;
     if (!resolve || !c || !Array.isArray(c.cwds) || !c.cwds.length) return null;
     // A commit found in the replayed log is kept only on the repo's word: the
@@ -130,16 +130,17 @@ export function createCommitRecorder({ store, resolveRepo = null, confirm = null
     // newest stored commit before it, not from one recorded after it.
     const previous = await store.lastForSession(c.sessionId, replay ? c.at : Infinity);
     const record = buildCommitRecord(c, { repo, top: chosen.repo.top ?? null, cwd: chosen.cwd, confirmed: chosen.confirmed }, facts, previous, { source: replay ? "replay" : null });
-    const { added } = await store.append(record);
+    const { added } = await store.append(record, { memoryOnly });
     return added ? record : null;
   }
 
   return {
     /** Record one candidate; answers the stored line, or null. Never rejects.
      *  `replay`: found in the replayed events log — recorded only when the
-     *  repo confirms it, and marked `source: "replay"`. */
-    record(candidate, facts, { replay = false } = {}) {
-      const next = chain.then(() => recordOne(candidate, facts, replay)).catch(() => null);
+     *  repo confirms it, and marked `source: "replay"`. `memoryOnly`: held by
+     *  the store in memory and never written (a deck with no events log). */
+    record(candidate, facts, { replay = false, memoryOnly = false } = {}) {
+      const next = chain.then(() => recordOne(candidate, facts, replay, memoryOnly)).catch(() => null);
       chain = next.then(() => {});
       return next;
     },

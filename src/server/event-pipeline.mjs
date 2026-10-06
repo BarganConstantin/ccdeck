@@ -218,8 +218,10 @@ export function pushEvent(raw, source, opts = {}) {
   // what rebuilds the git view's picture of who edited what after a restart.
   // `persisting` says whether this deck is the one writing the session down —
   // the same election that keeps one deck per log line, and the one deck that
-  // records the session's commits. Never throws.
-  observeAgentGit(evt, { replay: !!opts.replay, persisting: !!persisting });
+  // records the session's commits. `ramOnly`: a deck with no log at all
+  // (`--no-persist`), which keeps the commits it sees in memory instead.
+  // Never throws.
+  observeAgentGit(evt, { replay: !!opts.replay, persisting: !!persisting, ramOnly: !eventLogPath() });
 
   // The folder this session runs in, replays included: a session that ended
   // before this process started still opens its repository in the git view.
