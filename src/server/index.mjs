@@ -162,6 +162,9 @@ import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus
 // The git view's reads of a session's repository — see git-routes.mjs.
 import { handleGitCommit, handleGitDiff, handleGitEdits, handleGitLog, handleGitRepo, handleGitStatus } from "./git-routes.mjs";
 import { refreshGit } from "./git-watch.mjs";
+// The git view's hand-offs: which apps this machine has, and opening one on a
+// session's folder — only from a browser on this machine. See git-handoff-routes.mjs.
+import { handleGitHandoffs, handleGitOpen } from "./git-handoff-routes.mjs";
 import { refreshCollisions } from "./git-collisions.mjs";
 // Commit recording: the repository's word on each commit an agent's shell
 // output reports — see git-confirm.mjs.
@@ -386,6 +389,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/git/diff")    return guard(handleGitDiff(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/git/commit")  return guard(handleGitCommit(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/git/edits")   return guard(handleGitEdits(req, res, url), res);
+    if (req.method === "GET"  && url.pathname === "/api/git/handoffs") return guard(handleGitHandoffs(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/git/open")    return guard(handleGitOpen(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);

@@ -163,7 +163,10 @@ export function isTrustedMutation({ origin, host, secFetchSite } = {}) {
 // share envelope, with the OAuth token in it. A loopback literal has no DNS
 // record to re-point, and `localhost` is reserved to loopback, so requiring one
 // of them is what separates the deck's own UI from the rebound page.
-function isLoopbackHost(host) {
+//
+// Exported for the git view's hand-offs, which ask it of every launch as one of
+// the tests that a request came from this machine (git-handoff-launch.mjs).
+export function isLoopbackHost(host) {
   if (typeof host !== "string") return false;
   const authority = host.trim().toLowerCase();
   // A real Host header is bare authority. Userinfo or a path would let
@@ -471,6 +474,8 @@ export const GUARDED_READS = new Set([
   "/api/git/commit",
   // Which files each of a session's agents edited, by path in its repository.
   "/api/git/edits",
+  // Which git client, editor and terminal this machine has, and the picks.
+  "/api/git/handoffs",
 ]);
 
 export function isAuthorizedMutation(req) {
