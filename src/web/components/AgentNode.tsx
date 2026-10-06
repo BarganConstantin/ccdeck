@@ -30,14 +30,14 @@ import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
-import { recapShown } from "../session-recap";
-import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note";
+import { noteTag, sessionNoteShown } from "../session-note";
+import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
 // The activity chart's counting and its scale. See tool-spark.ts.
 import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
 import { AlertMark, StateMark } from "./StateMark";
-import { RecapMark } from "./RecapMark";
+import { NoteMark } from "./RecapMark";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -95,15 +95,18 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // carry an agent-name and 4.1% carry an ai-title, and not one of them
   // carries a name without a title. See session-display.ts for the sweep.
   const naming = sessionDisplay(data.sessionName, data.sessionTitle);
-  // Null unless the session is resting on a turn Claude Code has summarised —
-  // see session-recap.ts for the whole rule.
-  const recap = recapShown(data);
-  // The note opens by itself the moment there is a recap, and stays shut once
-  // it has been closed — for THAT recap; the next one opens again. Asked of
-  // every card, because a hook cannot wait for the recap (recap-note.ts).
-  const noteKey = recap ? recapKey(data.sessionId, recap.at) : null;
+  // What the session's note says — what it is doing, what came of it, or
+  // Claude Code's recap once that arrives — or null when it says nothing. See
+  // session-note.ts for the whole rule.
+  const note = sessionNoteShown(data);
+  // The note opens by itself the moment there is one, and stays shut once it
+  // has been closed — for THAT note: a recap, or one turn's line of one kind;
+  // the next one opens again. Asked of every card, because a hook cannot wait
+  // for the note (recap-note.ts).
+  const noteKey = note ? note.key : null;
   const noteDismissed = useRecapDismissed(noteKey);
-  const noteOpen = recap != null && !noteDismissed;
+  const noteOpen = note != null && !noteDismissed;
+  const isRecap = note?.kind === "recap";
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
   const cost = costChip(data);
 
@@ -125,15 +128,17 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
               note. The note opens by itself, so this is how it is put away
               and brought back. The click stops here, so it does not also
               select the card. */}
-          {recap && noteKey && (
+          {note && noteKey && (
             <button
               type="button"
               className="glyph-btn recap-pin"
-              aria-label="Claude Code's recap"
+              aria-label={isRecap ? "Claude Code's recap" : `Session note: ${noteTag(note.kind)}`}
               aria-expanded={noteOpen}
-              title={noteOpen ? "Hide the recap" : "Show Claude Code's recap"}
+              title={isRecap
+                ? (noteOpen ? "Hide the recap" : "Show Claude Code's recap")
+                : (noteOpen ? "Hide this note" : "Show what this session is doing")}
               onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
-            ><RecapMark /></button>
+            ><NoteMark recap={isRecap} /></button>
           )}
         </div>
         <div className="head-right">

@@ -1,15 +1,16 @@
-// The line under a session's figures: what it is doing, asking or got done.
+// The session's note: what it is doing, asking or got done, until Claude Code's
+// recap takes its place.
 //
-// Two sources. A background session's job folder holds Claude Code's own line —
-// its classifier's words, the ones `claude agents` prints — and every other
-// session gets the agent view's free rule, read off its newest reply: the
-// sentence the model wrote, or the description on its call.
+// Two sources besides the recap. A background session's job folder holds Claude
+// Code's own line — its classifier's words, the ones `claude agents` prints —
+// and every other session gets the agent view's free rule, read off its newest
+// reply: the sentence the model wrote, or the description on its call.
 //
 // These pin the reply rule (src/server/session-activity.mjs), the job reader
-// (src/server/claude-jobs.mjs) against a real folder, the client's rule for when
-// either line is still true (session-status.ts), what the reducer does with the
-// two events, and the row. session-status-server.test.ts drives the same thing
-// through a real server.
+// (src/server/claude-jobs.mjs) against a real folder, the client's rule for what
+// the note says and when (session-note.ts), what the reducer does with the two
+// events, and the row. session-status-server.test.ts drives the server half
+// through a real server; canvas-flow.test.ts pins the note on the canvas.
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,9 +21,10 @@ import {
 } from "../../server/session-activity.mjs";
 import { createJobWatch, jobStatusOf } from "../../server/claude-jobs.mjs";
 import { applyEvent, initialState } from "../reducer";
-import { jobLine, rowLines, statusShown, statusTag } from "../session-status";
+import { jobLine, noteTag, promptLine, sessionNoteShown } from "../session-note";
+import { recapKey } from "../recap-note";
 import { buildRows } from "../components/SessionList";
-import type { BackgroundJob, HookEnvelope, HookPayload } from "../types";
+import type { BackgroundJob, HookEnvelope, HookPayload, SessionRecap } from "../types";
 
 const T0 = Date.parse("2026-10-05T16:00:00.000Z");
 const MIN = 60_000;
@@ -202,13 +204,16 @@ describe("the job watch, over a real folder", () => {
   });
 });
 
-describe("which line a session shows", () => {
+describe("what a session's note says", () => {
+  const SID = "s1";
   const JOB: BackgroundJob = { id: "j", state: "working", detail: "checking Linux setup", updatedAt: T0 };
   const root = (over: Record<string, unknown> = {}) => ({
-    kind: "root" as const, state: "active" as const, closedAt: undefined as number | undefined,
+    kind: "root" as const, sessionId: SID, state: "active" as const, closedAt: undefined as number | undefined,
+    startedAt: T0 - 2 * MIN,
     prompts: [{ at: T0 - MIN, text: "go" }],
-    activity: { text: "Run the API tests", source: "tool" as const, at: T0 },
+    activity: { text: "Run the API tests", source: "tool" as const, at: T0 } as { text: string; source: "said" | "tool"; at: number } | undefined,
     job: undefined as BackgroundJob | undefined,
+    recap: undefined as SessionRecap | undefined,
     ...over,
   });
 
@@ -220,31 +225,58 @@ describe("which line a session shows", () => {
     expect(jobLine({ ...JOB, state: "failed", detail: "API down" })).toMatchObject({ kind: "failed", text: "API down" });
     expect(jobLine({ ...JOB, state: "stopped" })).toBeNull();
     expect(jobLine({ ...JOB, detail: "" })).toBeNull();
-    expect(["now", "needs", "done", "failed"].map(k => statusTag(k as never))).toEqual(["now", "needs you", "done", "failed"]);
+    expect((["recap", "now", "last", "needs", "done", "failed"] as const).map(noteTag)).toEqual(
+      ["recap", "now", "last", "needs you", "done", "failed"]);
+  });
+
+  it("says what the session is doing while a turn runs", () => {
+    expect(sessionNoteShown(root())).toMatchObject({ kind: "now", text: "Run the API tests", source: "activity" });
+  });
+
+  it("keeps the last thing a finished turn did, marked as past, until something replaces it", () => {
+    expect(sessionNoteShown(root({ state: "done" }))).toMatchObject({ kind: "last", text: "Run the API tests" });
+  });
+
+  it("gives its place to Claude Code's recap when that arrives", () => {
+    const recap = { text: "Tests pass; the PR is ready for review.", at: T0 + 3 * MIN };
+    expect(sessionNoteShown(root({ state: "done", recap }))).toMatchObject({
+      kind: "recap", text: recap.text, source: "recap", key: recapKey(SID, recap.at) });
+    // An older recap does not take the place of a newer line.
+    expect(sessionNoteShown(root({ state: "done", recap: { text: "old", at: T0 - 30 * MIN } }))).toMatchObject({ kind: "last" });
+  });
+
+  it("says the prompt until the model has answered it, as the agent view does", () => {
+    const next = { prompts: [{ at: T0 - MIN, text: "go" }, { at: T0 + MIN, text: "now open the PR\nand link it" }] };
+    expect(sessionNoteShown(root(next))).toMatchObject({ kind: "now", text: "now open the PR", source: "prompt" });
+    // Not the XML a background task's notice arrives wrapped in.
+    const notice = "<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>Background command \"Watch CI\" completed</summary>\n</task-notification>";
+    expect(promptLine(notice)).toBe('background task finished: Background command "Watch CI" completed');
+    // A finished turn the model never answered says nothing rather than an old line.
+    expect(sessionNoteShown(root({ ...next, state: "done" }))).toBeNull();
   });
 
   it("prefers the job's own line to the deck's reading of the reply", () => {
-    expect(statusShown(root({ job: JOB }))).toMatchObject({ text: "checking Linux setup", source: "job" });
-    // And falls back to the reply when the job has nothing to say.
-    expect(statusShown(root({ job: { ...JOB, state: "stopped" } }))).toMatchObject({ text: "Run the API tests" });
-  });
-
-  it("shows the reply's line only while a turn runs and no prompt is newer", () => {
-    expect(statusShown(root())).toMatchObject({ kind: "now", text: "Run the API tests", source: "activity" });
-    expect(statusShown(root({ state: "done" }))).toBeNull();
-    expect(statusShown(root({ prompts: [{ at: T0 + 1, text: "next" }] }))).toBeNull();
+    expect(sessionNoteShown(root({ job: JOB }))).toMatchObject({ text: "checking Linux setup", source: "job" });
+    expect(sessionNoteShown(root({ job: { ...JOB, state: "stopped" } }))).toMatchObject({ text: "Run the API tests" });
   });
 
   it("shows nothing on a closed session, or anywhere but the root", () => {
-    expect(statusShown(root({ closedAt: T0 + MIN, job: JOB }))).toBeNull();
-    expect(statusShown(root({ kind: "subagent" }))).toBeNull();
+    expect(sessionNoteShown(root({ closedAt: T0 + MIN, job: JOB }))).toBeNull();
+    expect(sessionNoteShown(root({ kind: "subagent" }))).toBeNull();
+    expect(sessionNoteShown(root({ activity: undefined, state: "done" }))).toBeNull();
   });
 
-  it("puts one line under a row, the newer of the job's and the recap", () => {
-    const status = jobLine({ ...JOB, state: "done", result: "Shipped.", updatedAt: T0 })!;
-    expect(rowLines(status, { text: "Later recap.", at: T0 + MIN })).toEqual({ status: null, recap: { text: "Later recap.", at: T0 + MIN } });
-    expect(rowLines(status, { text: "Older recap.", at: T0 - MIN })).toEqual({ status, recap: null });
-    expect(rowLines(null, null)).toEqual({ status: null, recap: null });
+  it("keys a note by its turn and kind, so a closed one stays closed until there is news", () => {
+    const now = sessionNoteShown(root())!;
+    // The same turn, a new sentence: the same note.
+    expect(sessionNoteShown(root({ activity: { text: "Reading reducer.ts", source: "tool", at: T0 + 5000 } }))!.key).toBe(now.key);
+    // The turn ending: still the same note, now in the past tense.
+    expect(sessionNoteShown(root({ state: "done" }))!.key).toBe(now.key);
+    // A job stopping to ask a question: news, so a different key.
+    expect(sessionNoteShown(root({ job: { ...JOB, state: "blocked", needs: "Merge?" } }))!.key).not.toBe(now.key);
+    // The next turn: a different note.
+    expect(sessionNoteShown(root({ prompts: [{ at: T0 + MIN, text: "again" }], activity: { text: "x y z w v", source: "said", at: T0 + 2 * MIN } }))!.key)
+      .not.toBe(now.key);
   });
 });
 
@@ -262,12 +294,20 @@ describe("the two events on the client", () => {
   const jobbed = (s: ReturnType<typeof working>, j: unknown, receivedAt = T0 + 1000) =>
     applyEvent(s, env(receivedAt, { hook_event_name: "JobObserved", session_id: SESSION, job: j } as HookPayload));
 
-  it("puts the activity line on the root, and on the row while the turn runs", () => {
+  it("puts the activity line on the root and the row, until the recap takes its place", () => {
     const s = activity(working(), { text: "Run the API tests", source: "tool", at: T0 });
     expect(s.agents.get(SESSION)!.activity).toEqual({ text: "Run the API tests", source: "tool", at: T0 });
     expect(buildRows(s, T0 + 2000)[0].status).toMatchObject({ kind: "now", text: "Run the API tests" });
+    // Once the turn ends the note keeps it, marked as what the session did last.
     const ended = applyEvent(s, env(T0 + 3000, { hook_event_name: "Stop", session_id: SESSION, cwd: "/repo/ccdeck" }));
-    expect(buildRows(ended, T0 + 4000)[0].status).toBeNull();
+    expect(buildRows(ended, T0 + 4000)[0].status).toMatchObject({ kind: "last", text: "Run the API tests" });
+    // And Claude Code's recap takes its place when it lands.
+    const recapped = applyEvent(ended, env(T0 + 4 * MIN, {
+      hook_event_name: "SessionRecapped", session_id: SESSION, recap: { text: "Tests pass.", at: T0 + 4 * MIN },
+    } as HookPayload));
+    const row = buildRows(recapped, T0 + 5 * MIN)[0];
+    expect(row.status).toBeNull();
+    expect(row.recap).toEqual({ text: "Tests pass.", at: T0 + 4 * MIN });
   });
 
   it("never moves the activity line backwards, and ignores one it cannot use", () => {

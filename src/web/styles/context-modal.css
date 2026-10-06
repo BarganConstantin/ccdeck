@@ -392,6 +392,39 @@
   overflow: hidden;
 }
 
+/* The same note while it says something other than the recap (session-note.ts):
+   what the session is doing, or what came of a background job. That text is
+   rewritten every few seconds of a running turn, so it holds exactly three
+   lines — the reply line's cap fits in them — and the note keeps one height
+   from the first sentence to the last. A note that grew and shrank with each
+   sentence would push its neighbours on the canvas about as it did. */
+.recap-note.is-status .recap-note-text {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  min-height: calc(3 * 1.5em);
+}
+/* A question, a failure and a finished job wear the hue the session list's line
+   gives them, toned toward the panel in dark the same way. "now" and "last"
+   keep the session's own colour, as the recap does. */
+.recap-note.status-needs .recap-note-mark { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
+.recap-note.status-failed .recap-note-mark { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
+.recap-note.status-done .recap-note-mark { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
+:root[data-theme="light"] .recap-note.status-needs .recap-note-mark { color: var(--warn); }
+:root[data-theme="light"] .recap-note.status-failed .recap-note-mark { color: var(--err); }
+:root[data-theme="light"] .recap-note.status-done .recap-note-mark { color: var(--ok); }
+/* The dot in front of a status note's word: a little smaller than the ※, which
+   is drawn to the same box with nothing at its centre. */
+.note-glyph { transform: scale(0.85); }
+/* Claude Code's guess at the answer, under the question: metadata tier, one line. */
+.recap-note-reply {
+  margin: 6px 0 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 /* The "this deck cannot see approval prompts on this session" row (#398).
    Same geometry as .waiting-row so the two occupy the slot identically, and
    deliberately the QUIETEST styling of the three: --muted, no border, a hollow
