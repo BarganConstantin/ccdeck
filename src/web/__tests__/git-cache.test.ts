@@ -185,6 +185,30 @@ describe("status and history", () => {
     }
   });
 
+  it("re-reads only the working tree after an edit, which cannot move a branch", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    const wt = join(track(tempDir("ccdeck-git-cache-editwt-")), "side");
+    sh(dir, ["worktree", "add", "-q", "-b", "side", wt]);
+    const repo = await repoOf(dir);
+    await repoOf(wt);
+    expect((await logOf(repo)).commits).toHaveLength(1);
+    expect(paths(await statusOf(repo))).toEqual([]);
+    // Behind the cache's back: a commit, and then an edit.
+    write(dir, { "a.txt": "two\n" });
+    sh(dir, ["commit", "-q", "-am", "second"]);
+    write(dir, { "b.txt": "new\n" });
+    expect(markStale(join(dir, "b.txt"), [], { tree: true })).toEqual([dir]);
+    expect(staleCount(dir)).toBe(1);
+    expect(staleCount(wt)).toBe(0);
+    expect(paths(await statusOf(repo))).toEqual(["untracked:b.txt"]);
+    expect((await logOf(repo)).commits).toHaveLength(1);
+    expect((await repoOf(dir)).head.sha).toBe(repo.head.sha);
+    // A command's mark reaches all of it.
+    markStale(dir);
+    expect((await logOf(repo)).commits).toHaveLength(2);
+    expect(staleCount(wt)).toBe(1);
+  });
+
   it("can be told the session's own worktree when the folder it names is spelled differently", async () => {
     const dir = track(repoWith({ "a.txt": "one\n" }));
     await repoOf(dir);

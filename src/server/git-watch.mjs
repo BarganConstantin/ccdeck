@@ -2,10 +2,16 @@
 //
 // Every live event with a folder lets the deck notice a session's repository
 // once; after that, the events that can change a repository — an agent's
-// finished Edit, Write, MultiEdit, NotebookEdit or Bash call, and any finished
-// Codex tool call (its patches and its commands) — mark it stale
-// (git-state.mjs) and schedule a fresh look. The look reads the folder's
-// repository and HEAD, and sends
+// finished Edit, Write, MultiEdit, NotebookEdit, Bash or PowerShell call, and
+// any finished Codex tool call (its patches and its commands) — mark it stale
+// (git-state.mjs) and schedule a fresh look. How far a mark reaches follows
+// what the call could have changed: an edit marks the working tree of the
+// worktree holding the file it edited, wherever that is; a command marks the
+// repository it ran in and every folder its text names (a `cd`, a `git -C`),
+// with every worktree of each. Every session watching a marked worktree is
+// looked at again, not only the one that made the call, so a view open on
+// a session that shares a folder or a repository with it refetches too. The
+// look reads the folder's repository and HEAD, and sends
 //
 //   { hook_event_name: "GitObserved", session_id, provider?: "codex",
 //     git: { subagent?, state, stale, topLevel?, name?, mainName?, folderName?,
@@ -48,12 +54,17 @@ import { gitOn } from "./deck-prefs.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { recentSessions, sessionFolder, sessionSubagents, sessionTranscript } from "./git-sessions.mjs";
 import { markStale, repoOf } from "./git-state.mjs";
+// What a call edited and the folders its commands name.
+import { digestToolCall } from "./agent-git-digest.mjs";
+import { commandFolders } from "./agent-git-detect.mjs";
 // The two records of a branch that outlive a deleted folder.
 import { scanTranscript } from "./transcript-scan.mjs";
 import { codexRolloutBranch } from "./codex-watch.mjs";
 
 /** The tools whose finished call can change a repository. */
-const CHANGING_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"]);
+const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
+const CHANGING_TOOLS = new Set([...EDIT_TOOLS, ...SHELL_TOOLS]);
 const FINISHED = new Set(["PostToolUse", "PostToolUseFailure"]);
 /** The states worth telling the page; the rest are a read that went wrong. */
 const DEFINITE = new Set(["repo", "not-a-repo", "gone", "no-git", "bare", "unsafe"]);
@@ -80,7 +91,7 @@ export function changesRepo(raw) {
 
 /** Whether it may have moved HEAD: a command can check out or commit; an edit
  *  cannot. Codex's tool calls carry no name on their outcome, so all count. */
-const mayMoveHead = (raw) => raw.provider === "codex" || raw.tool_name === "Bash";
+const mayMoveHead = (raw) => raw.provider === "codex" || SHELL_TOOLS.has(raw.tool_name);
 
 /** Whether the deck may read repositories at all. */
 export const gitEnabled = () => enabled();
@@ -114,9 +125,16 @@ export function noteGitEvent(raw, { replay = false } = {}) {
     if (typeof sid !== "string" || sid === "" || typeof raw.cwd !== "string" || raw.cwd === "") return;
     const w = watching(sid);
     if (changesRepo(raw)) {
-      const tops = [...new Set([...w.sent.values()].map((s) => s.top).filter(Boolean))];
-      markStale(raw.cwd, tops);
+      const marked = mark(raw, w);
       schedule(sid, w, mayMoveHead(raw) ? AFTER_COMMAND_MS : AFTER_EDIT_MS);
+      // Every other session on a worktree this call marked: a view open on it
+      // refetches when its stale count moves. Spaced like a look after edits,
+      // so a burst of calls costs each of them one look.
+      if (marked.size) {
+        for (const [other, ow] of watched) {
+          if (other !== sid && [...ow.sent.values()].some((s) => s.top && marked.has(s.top))) schedule(other, ow, AFTER_EDIT_MS);
+        }
+      }
     }
     // The session, or one of its subagents, not looked at yet.
     if (!w.seen.has(subagentKeyOf(raw) ?? "")) schedule(sid, w, FIRST_LOOK_MS);
@@ -124,6 +142,41 @@ export function noteGitEvent(raw, { replay = false } = {}) {
 }
 
 const subagentKeyOf = (p) => [p.agent_id, p.parent_tool_use_id].find((k) => typeof k === "string" && k) ?? null;
+
+/**
+ * Mark what one finished call may have changed, and answer the worktrees
+ * marked.
+ *
+ * An edit marks the working tree of the worktree holding the file — another
+ * repository's, when the path leads there — and nothing else, since an edit
+ * moves no branch. When no worktree the deck has read holds the path (a
+ * spelling through a symlink, a file outside every repository), the agent's
+ * own worktree is marked instead, as it always was.
+ *
+ * A command — or any Codex call — marks the repository it ran in, every
+ * folder its text names, and with each every worktree of its repository.
+ * `tops` (the session's own worktrees) are marked whatever the folder's
+ * spelling says.
+ */
+function mark(raw, w) {
+  const marked = new Set();
+  const add = (tops) => { for (const t of tops) marked.add(t); };
+  if (raw.provider !== "codex" && EDIT_TOOLS.has(raw.tool_name)) {
+    for (const file of digestToolCall(raw.tool_name, raw.tool_input, raw.cwd).edits) add(markStale(file, [], { tree: true }));
+    if (!marked.size) {
+      const own = w.sent.get(subagentKeyOf(raw) ?? "")?.top ?? w.sent.get("")?.top;
+      add(markStale(raw.cwd, own ? [own] : [], { tree: true }));
+    }
+    return marked;
+  }
+  add(markStale(raw.cwd, [...new Set([...w.sent.values()].map((s) => s.top).filter(Boolean))]));
+  if (raw.provider !== "codex" && SHELL_TOOLS.has(raw.tool_name)) {
+    for (const { command, cwd } of digestToolCall(raw.tool_name, raw.tool_input, raw.cwd).commands) {
+      for (const dir of commandFolders(command, cwd)) if (dir !== raw.cwd) add(markStale(dir));
+    }
+  }
+  return marked;
+}
 
 function schedule(sid, w, delay) {
   const due = Date.now() + delay;

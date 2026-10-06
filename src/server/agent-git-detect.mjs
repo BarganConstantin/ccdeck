@@ -260,10 +260,74 @@ const isGit = w => typeof w === "string" && /^git(?:\.exe)?$/.test(baseName(w));
  * @returns {CommitInvocation[]}
  */
 export function gitCommitInvocations(command, cwd, { home = homedir(), depth = 0 } = {}) {
-  if (typeof command !== "string" || !command.trim() || depth > 3) return [];
-  const toks = tokenize(stripHeredocs(command));
-  if (!toks) return [];
   const out = [];
+  walkCommands(command, cwd, { home, depth }, {
+    git(ws, i, dir) {
+      const sub = ws[i];
+      if (!COMMIT_SUBCOMMANDS.has(sub)) return;
+      let amend = false;
+      let quiet = false;
+      let noCommit = false;
+      for (let j = i + 1; j < ws.length; j++) {
+        const a = ws[j];
+        if (a === "--") break;
+        if (a === "--amend") amend = true;
+        else if (a === "--quiet") quiet = true;
+        else if (a === "--dry-run" || a === "--no-commit") noCommit = true;
+        else if (/^--(?:message|file|reuse-message|reedit-message|template|fixup|squash|author|date|cleanup|trailer)$/.test(a)) j++;
+        else if (/^-[A-Za-z]+$/.test(a)) {
+          for (let n = 1; n < a.length; n++) {
+            const ch = a[n];
+            if (ch === "q") quiet = true;
+            if (ch === "n" && sub !== "commit") noCommit = true;
+            if (sub === "commit" && COMMIT_VALUE_SHORTS.includes(ch)) {
+              if (n === a.length - 1) j++;
+              break;
+            }
+            if (sub !== "commit" && ch === "m") { if (n === a.length - 1) j++; break; }
+          }
+        }
+      }
+      out.push({ cwd: dir, subcommand: sub, amend, quiet, noCommit });
+    },
+  });
+  return out;
+}
+
+/**
+ * Every folder one shell command names for git to work in or moves into, in
+ * order, each once: the target of a `cd` (`pushd`, `Set-Location`), and the
+ * folder each git invocation runs in after its `-C`, `--work-tree` and
+ * `--git-dir` — whatever the subcommand. What a command can change beyond the
+ * folder it was started in, as far as its text says.
+ *
+ * @param {unknown} command the command line
+ * @param {string | null | undefined} cwd the folder it was started in
+ * @param {{ home?: string }} [opts]
+ * @returns {string[]}
+ */
+export function commandFolders(command, cwd, { home = homedir() } = {}) {
+  const dirs = new Set();
+  walkCommands(command, cwd, { home, depth: 0 }, {
+    cd(dir) { if (dir) dirs.add(dir); },
+    git(_ws, _i, dir, gitDir) {
+      if (dir) dirs.add(dir);
+      if (gitDir) dirs.add(gitDir);
+    },
+  });
+  return [...dirs];
+}
+
+/**
+ * Walk the simple commands of one shell command line, keeping track of the
+ * folder each runs in, and hand each `cd` and each git invocation to `visit`:
+ * `cd(folder | null)`, and `git(words, i, folder | null, gitDir | null)` with
+ * `words[i]` the subcommand. `sh -c '…'` is walked into.
+ */
+function walkCommands(command, cwd, { home, depth }, visit) {
+  if (typeof command !== "string" || !command.trim() || depth > 3) return;
+  const toks = tokenize(stripHeredocs(command));
+  if (!toks) return;
   const stack = [];
   let cur = typeof cwd === "string" && cwd ? cwd : null;
   let words = [];
@@ -288,52 +352,35 @@ export function gitCommitInvocations(command, cwd, { home = homedir(), depth = 0
     if (w0 === "cd" || w0 === "pushd" || w0 === "Set-Location") {
       const arg = ws.slice(k + 1).find(a => !a.startsWith("-") || a === "-");
       cur = arg === undefined ? (home || null) : resolveDir(cur, arg, home);
+      visit.cd?.(cur);
       return;
     }
     if (SHELLS.test(baseName(w0))) {
       const flag = ws.findIndex((a, i) => i > k && /^-[a-z]*c$/.test(a));
-      if (flag > 0 && flag + 1 < ws.length) out.push(...gitCommitInvocations(ws[flag + 1], cur, { home, depth: depth + 1 }));
+      if (flag > 0 && flag + 1 < ws.length) walkCommands(ws[flag + 1], cur, { home, depth: depth + 1 }, visit);
       return;
     }
     if (!isGit(w0)) return;
     let dir = cur;
     let workTree = null;
+    let gitDir = null;
     let i = k + 1;
     while (i < ws.length) {
       const a = ws[i];
       if (a === "-C") { dir = resolveDir(dir, ws[i + 1], home); i += 2; continue; }
-      if (GIT_VALUE_OPTS.has(a)) { if (a === "--work-tree") workTree = ws[i + 1]; i += 2; continue; }
+      if (GIT_VALUE_OPTS.has(a)) {
+        if (a === "--work-tree") workTree = ws[i + 1];
+        if (a === "--git-dir") gitDir = ws[i + 1];
+        i += 2;
+        continue;
+      }
       if (a.startsWith("--work-tree=")) { workTree = a.slice("--work-tree=".length); i++; continue; }
+      if (a.startsWith("--git-dir=")) { gitDir = a.slice("--git-dir=".length); i++; continue; }
       if (a.startsWith("-")) { i++; continue; }
       break;
     }
-    const sub = ws[i];
-    if (!COMMIT_SUBCOMMANDS.has(sub)) return;
     if (workTree !== null) dir = resolveDir(dir, workTree, home);
-    let amend = false;
-    let quiet = false;
-    let noCommit = false;
-    for (let j = i + 1; j < ws.length; j++) {
-      const a = ws[j];
-      if (a === "--") break;
-      if (a === "--amend") amend = true;
-      else if (a === "--quiet") quiet = true;
-      else if (a === "--dry-run" || a === "--no-commit") noCommit = true;
-      else if (/^--(?:message|file|reuse-message|reedit-message|template|fixup|squash|author|date|cleanup|trailer)$/.test(a)) j++;
-      else if (/^-[A-Za-z]+$/.test(a)) {
-        for (let n = 1; n < a.length; n++) {
-          const ch = a[n];
-          if (ch === "q") quiet = true;
-          if (ch === "n" && sub !== "commit") noCommit = true;
-          if (sub === "commit" && COMMIT_VALUE_SHORTS.includes(ch)) {
-            if (n === a.length - 1) j++;
-            break;
-          }
-          if (sub !== "commit" && ch === "m") { if (n === a.length - 1) j++; break; }
-        }
-      }
-    }
-    out.push({ cwd: dir, subcommand: sub, amend, quiet, noCommit });
+    visit.git?.(ws, i, dir, gitDir !== null ? resolveDir(cur, gitDir, home) : null);
   };
 
   for (const t of toks) {
@@ -344,7 +391,6 @@ export function gitCommitInvocations(command, cwd, { home = homedir(), depth = 0
     else if (t.op === ")" && stack.length) cur = stack.pop();
   }
   if (words.length) simple(words);
-  return out;
 }
 
 // ─── candidates ─────────────────────────────────────────────────────────────
