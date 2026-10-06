@@ -411,6 +411,9 @@ const PRESSES: Press[] = [
   // picture named by its label, pressed as the labelled controls are. Each
   // image's remove is a .glyph-btn and presses as one.
   [".fb-shot-pick:active", "0.97", "transform"],
+  // The way to a panel's 30-second video on ccdeck.dev: two words and a
+  // number, so 0.97 like every other labelled control.
+  [".film-link:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
