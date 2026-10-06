@@ -3,6 +3,8 @@
 // the row as the card draws it — absent, and the card unchanged, when there is
 // nothing to say.
 import { afterEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReactFlowProvider } from "reactflow";
@@ -451,3 +453,26 @@ describe("the mark's look", () => {
   });
 });
 
+
+describe("DESIGN.md's States table", () => {
+  const design = readFileSync(fileURLToPath(new URL("../../../DESIGN.md", import.meta.url)), "utf8");
+  const states = design.slice(design.indexOf("## States"), design.indexOf("## Motion"));
+  const row = (state: string) => states.split("\n").find(l => l.startsWith(`| ${state} |`)) ?? "";
+
+  it("gives every git state a row with a token, a mark and a word", () => {
+    for (const [state, token, mark, word] of [
+      ["Quiet collision", "`--muted`", "folder glyph", "`shares folder with web-bugfix`"],
+      ["Sharp collision", "`--err`, never `--warn`", "clash glyph", "`same file`"],
+      ["Detached HEAD", "`--muted`", "commit glyph", "`detached at 4e1b9c0`"],
+      ["Commit seen by ccdeck", "lane's colour", "◆", "`seen by ccdeck`"],
+      ["Commit known from its message", "lane's colour", "◇", "`from the commit message`"],
+      ["No agent seen", "lane's colour", "○", "`no agent seen`"],
+    ]) {
+      const r = row(state);
+      expect(r, state).not.toBe("");
+      expect(r.split(" | ")).toHaveLength(5);
+      for (const part of [token, mark, word]) expect(r, `${state}: ${part}`).toContain(part);
+    }
+    expect(row("No agent seen")).toContain('never "made by a human"');
+  });
+});

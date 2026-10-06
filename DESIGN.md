@@ -587,6 +587,12 @@ rather than scattered through the sections above.
 | Provider incident | `--err` (outage and degraded), `--muted` (maintenance) | `.pi-dot`: a filled dot for an outage, an `--err` ring for degraded, a grey square for maintenance; a `--r-tag` chip, never the alarm's pill; dashed edge when stale | `Claude · partial outage`, `· as of 14:05` when stale | none |
 | Update ready | `--accent` | `.ver-banner` row | — | none |
 | Empty canvas | `--muted` | — | the tour offer | none |
+| Quiet collision | `--muted`, no edge or wash | two live agents in one working tree, or on one branch in two: a row under the session's name on both cards, the folder glyph (two opposed arrows); a muted line in the glance and the git view; nothing on a zoomed-out face | `shares folder with web-bugfix`, `same branch as web-bugfix` | 150ms fade in and out; none under reduced motion |
+| Sharp collision | `--err`, never `--warn` | one file two live agents edited since it was last committed: the clash glyph (two arrows meeting at a bar, never a close ×) on a bordered row on both cards, dashed when it is only the session's; the glyph alone, at the name's end, on a zoomed-out face; the glyph on that file in the git view | `app.ts also edited by web-bugfix`, `· in this session`, `same file` | 150ms fade in and out; a press lights the other card once (1.4s halo); on and off under reduced motion |
+| Detached HEAD | `--muted` on the card, `--text` in the history | the commit glyph on the branch chip; a bare `HEAD` ref chip in the history | the short SHA on the chip, `detached at 4e1b9c0`, "HEAD is detached at 4e1b9c0, not on a branch." | none |
+| Commit seen by ccdeck | its lane's colour; `--muted` in the legend | ◆ a filled diamond in the lane, and the agent's chip with its swatch | `seen by ccdeck`; `matched` after an amend or a rebase | none |
+| Commit known from its message | its lane's colour; `--muted` in the legend | ◇ a hollow diamond, and a dashed chip naming the CLI | `from the commit message` | none |
+| No agent seen | its lane's colour; `--muted` in the legend | ○ a hollow ring | `no agent seen` — never "made by a human" | none |
 
 A new state adds a row here, and it needs a **mark and a word** — never colour
 alone.
