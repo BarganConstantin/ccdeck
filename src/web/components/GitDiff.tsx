@@ -3,7 +3,7 @@ import { fmtBytes } from "../byte-format";
 import { copyText } from "../copy-text";
 import {
   budgetHunks, collapsedKind, diffState, freshLines, groupDigits, lockOwner, parsePatch,
-  type DiffResult, type Hunk, type ParsedDiff,
+  type DiffLine, type DiffResult, type Hunk, type ParsedDiff,
 } from "../git-diff-parse";
 import { fitPath, monoMeasure, splitPath, type PathParts } from "../git-path-fit";
 import { cachedSpans, highlightDocs, langOf, type LineSpans } from "../git-syntax";
@@ -122,11 +122,32 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     [diff],
   );
 
+  // Where the reader is: the first line on screen and how far below the
+  // scroller's top it sits, kept as they scroll, so a newer version of the
+  // same diff can be put back under them however the lines above it changed.
+  const place = useRef<{ k: string; off: number } | null>(null);
+  const placeRaf = useRef(0);
+  const notePlace = useCallback(() => {
+    if (placeRaf.current) return;
+    placeRaf.current = requestAnimationFrame(() => {
+      placeRaf.current = 0;
+      const s = scrollRef.current;
+      if (!s) return;
+      if (s.scrollTop <= 0) { place.current = null; return; }
+      const top = s.getBoundingClientRect().top;
+      const line = Array.from(s.querySelectorAll<HTMLElement>(".gvd-line[data-k]")).find(l => l.getBoundingClientRect().bottom > top + 1);
+      place.current = line ? { k: line.dataset.k!, off: line.getBoundingClientRect().top - top } : null;
+    });
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(placeRaf.current), []);
+  useEffect(() => { place.current = null; }, [fileKey]);
+
   // The lines that are new since the version the reader saw: computed when
   // the same file's diff changes after the header said it was out of date.
   const seen = useRef<{ key: string; parsed: ParsedDiff | null; wasStale: boolean }>({ key: "", parsed: null, wasStale: false });
   useLayoutEffect(() => {
     const prev = seen.current;
+    if (prev.key === fileKey && prev.parsed && parsed && prev.parsed !== parsed) keepPlace(scrollRef.current, place.current);
     if (prev.key === fileKey && prev.parsed && parsed && prev.parsed !== parsed && prev.wasStale) {
       setFresh(freshLines(prev.parsed, parsed));
       seen.current = { key: fileKey, parsed, wasStale: stale };
@@ -364,7 +385,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
           <span><b>Unresolved merge conflict.</b> This is the file as it is now against HEAD, its conflict markers included.</span>
         </div>
       )}
-      <div ref={scrollRef} className="gvd-scroll" tabIndex={0} role="region" aria-label={`Diff of ${file.path}`} aria-busy={loading || undefined}>
+      <div ref={scrollRef} className="gvd-scroll" tabIndex={0} role="region" aria-label={`Diff of ${file.path}`} aria-busy={loading || undefined} onScroll={notePlace}>
         {body}
       </div>
     </div>
@@ -417,6 +438,16 @@ function sideDocs(hunks: Hunk[]): { docs: string[]; sideAt: number[][] } {
   return { docs, sideAt };
 }
 
+/** Put the line the reader was on back where it was on screen, if the new
+ *  version still has it. */
+function keepPlace(s: HTMLElement | null, at: { k: string; off: number } | null): void {
+  if (!s || !at) return;
+  const line = s.querySelector<HTMLElement>(`.gvd-line[data-k="${CSS.escape(at.k)}"]`);
+  if (!line) return;
+  const off = line.getBoundingClientRect().top - s.getBoundingClientRect().top;
+  if (Math.abs(off - at.off) >= 1) s.scrollTop += off - at.off;
+}
+
 /** What every block reads its lines from. */
 interface RowsCtx {
   hunks: Hunk[];
@@ -444,20 +475,48 @@ interface Block {
 const GUTTER_PX = 44 + 44 + 18;
 const CODE_PAD_PX = 4 + 24;
 
+/**
+ * Blocks keyed by what they hold rather than where they sit: a hunk by where
+ * it starts in the old file, which an edit elsewhere in the working tree does
+ * not move (the old side of an unstaged diff is the index). So when the
+ * reader takes the latest and a hunk above them is gone, only its block goes,
+ * and the lines they were reading stay the same nodes.
+ */
 export function blocksOf(hunks: Hunk[]): Block[] {
   const out: Block[] = [];
+  const used = new Map<number, number>();
   let top = 0;
   hunks.forEach((h, hi) => {
+    const twice = used.get(h.oldStart) ?? 0;
+    used.set(h.oldStart, twice + 1);
+    const hk = `o${h.oldStart}${twice ? `~${twice}` : ""}`;
     const n = Math.max(1, h.lines.length);
     for (let from = 0; from < n; from += BLOCK_LINES) {
       const to = Math.min(h.lines.length, from + BLOCK_LINES);
       const head = from === 0;
       const est = (head ? HUNK_PX : 0) + (to - from) * LINE_PX;
-      out.push({ key: `${hi}.${from / BLOCK_LINES}`, hi, from, to, head, top, est });
+      out.push({ key: `${hk}.${from / BLOCK_LINES}`, hi, from, to, head, top, est });
       top += est;
     }
   });
   return out;
+}
+
+/** Each line's key in its hunk, by what it is rather than where it sits: a
+ *  removed or unchanged line by its number in the old file, an added one by
+ *  the old line it follows and its place in the run of added lines there. */
+const keysOf = new WeakMap<DiffLine[], string[]>();
+export function lineKeys(lines: DiffLine[], oldStart: number): string[] {
+  let k = keysOf.get(lines);
+  if (k) return k;
+  k = [];
+  let after = oldStart - 1, run = 0;
+  for (const l of lines) {
+    if (l.kind === "add") k.push(`a${after}.${run++}`);
+    else { after = l.old ?? after; run = 0; k.push(`o${after}`); }
+  }
+  keysOf.set(lines, k);
+  return k;
 }
 
 /** The longest line, in characters, a tab counted as the sheet's tab-size. */
@@ -527,6 +586,8 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
   const { hi } = block;
   const h = rows.hunks[hi];
   const marks = wordMarks(h);
+  const keys = lineKeys(h.lines, h.oldStart);
+  const at = block.key.slice(0, block.key.lastIndexOf("."));
   return (
     <div ref={ref} className="gvd-block">
       {block.head && (
@@ -539,7 +600,7 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
         const li = block.from + i;
         const syn = rows.spans?.[hi * 2 + (l.kind === "del" ? 0 : 1)]?.[rows.sideAt[hi]?.[li]];
         return (
-          <div key={li} className="gvd-line" data-kind={l.kind} data-fresh={rows.fresh.has(`${hi}:${li}`) ? "" : undefined}>
+          <div key={keys[li]} className="gvd-line" data-k={`${at}:${keys[li]}`} data-kind={l.kind} data-fresh={rows.fresh.has(`${hi}:${li}`) ? "" : undefined}>
             <span className="gvd-ln n1" aria-hidden="true">{l.old ?? ""}</span>
             <span className="gvd-ln n2" aria-hidden="true" data-old={l.kind === "del" ? l.old ?? undefined : undefined}>{l.new ?? ""}</span>
             <span className="gvd-glyph" aria-hidden="true">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : ""}</span>

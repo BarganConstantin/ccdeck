@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import GitDiff, { BLOCK_LINES, blocksOf, type GitDiffProps } from "../components/GitDiff";
+import GitDiff, { BLOCK_LINES, blocksOf, lineKeys, type GitDiffProps } from "../components/GitDiff";
 import { parsePatch } from "../git-diff-parse";
 import { sourceOf } from "./client-source";
 
@@ -41,7 +41,7 @@ describe("a file in conflict", () => {
     const html = render({ file: { path: "CHANGELOG.md", area: "conflict" }, diff: { ok: true, binary: false, patch: CONFLICT, added: 4, removed: 0 } });
     expect(html).toContain("Unresolved merge conflict.");
     expect(html).not.toContain("No changes in the text.");
-    expect((html.match(/class="gvd-line" data-kind="add"/g) ?? []).length).toBe(4);
+    expect((html.match(/class="gvd-line"[^>]*data-kind="add"/g) ?? []).length).toBe(4);
     expect(words(html)).toContain("added: &lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD");
   });
 
@@ -105,5 +105,35 @@ describe("what the diff windows and how it keeps the keyboard", () => {
     expect(src).toContain("onClick={() => { holdFocus(); setSteps(() => Infinity); }}>Load all</button>");
     expect(src).toContain("onClick={() => { if (next >= b.total) holdFocus(); setSteps(s => s + 1); }}");
     expect(src).toMatch(/const holdFocus = useCallback\(\(\) => \{[\s\S]*?s\.focus\(\{ preventScroll: true \}\)/);
+  });
+});
+
+describe("the reader's place when the latest version comes", () => {
+  const v1 = "@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n@@ -40,4 +40,5 @@ fn\n x\n-y\n+Y\n+Y2\n z\n w\n";
+  // The first hunk is gone (the file was put back there) and the second has
+  // one more line; the second is still the same block, its lines the same.
+  const v2 = "@@ -40,4 +40,6 @@ fn\n x\n-y\n+Y\n+Y2\n+Y3\n z\n w\n";
+
+  it("keys each hunk's blocks by where the hunk starts in the old file, not by its place in the list", () => {
+    const a = blocksOf(parsePatch(v1).hunks), b = blocksOf(parsePatch(v2).hunks);
+    expect(a.map(k => k.key)).toEqual(["o1.0", "o40.0"]);
+    expect(b.map(k => k.key)).toEqual(["o40.0"]);
+  });
+
+  it("keys a line by its old number, or by the old line an added one follows", () => {
+    const h1 = parsePatch(v1).hunks[1], h2 = parsePatch(v2).hunks[0];
+    expect(lineKeys(h1.lines, h1.oldStart)).toEqual(["o40", "o41", "a41.0", "a41.1", "o42", "o43"]);
+    // The same lines keep their keys, whatever their new numbers became.
+    expect(lineKeys(h2.lines, h2.oldStart)).toEqual(["o40", "o41", "a41.0", "a41.1", "a41.2", "o42", "o43"]);
+    // A hunk that only adds, at the top of a file, still has keys of its own.
+    const add = parsePatch("@@ -0,0 +1,2 @@\n+p\n+q\n").hunks[0];
+    expect(lineKeys(add.lines, add.oldStart)).toEqual(["a-1.0", "a-1.1"]);
+  });
+
+  it("puts the line the reader was on back where it was on screen", () => {
+    const src = sourceOf("components/GitDiff.tsx");
+    expect(src).toMatch(/if \(prev\.key === fileKey && prev\.parsed && parsed && prev\.parsed !== parsed\) keepPlace\(scrollRef\.current, place\.current\);/);
+    expect(src).toContain("onScroll={notePlace}");
+    expect(src).toMatch(/<div key=\{keys\[li\]\} className="gvd-line" data-k=/);
   });
 });
