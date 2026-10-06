@@ -483,6 +483,10 @@ function Inner() {
   // The request itself lives outside React (git-view-request.ts), so a press
   // re-renders the view and nothing else.
   const gitOpenerRef = useRef<HTMLElement | null>(null);
+  // An opener the pointer pressed stays the pointer's when the view hands it
+  // focus back on close, so its letters still reach the deck — g above all,
+  // which a button reached by keyboard would keep for itself (#851).
+  const gitOpenerPressed = useRef<HTMLElement | null>(null);
   const openGitView = useCallback((how: GitViewHow, opts: { agentId?: string; focusInside?: boolean; sel?: string | null; file?: GitFileRef | null } = {}) => {
     const id = opts.agentId ?? primarySelectedIdRef.current;
     const agent = id ? stateRef.current.agents.get(id) : undefined;
@@ -496,10 +500,15 @@ function Inner() {
     const active = document.activeElement as HTMLElement | null;
     if (!gitViewRequest().open && active && active !== document.body && !active.closest("[data-key-scope]")) {
       gitOpenerRef.current = active;
+      gitOpenerPressed.current = pointerFocusRef.current === active ? active : null;
     }
     openGitViewRequest(how, opts);
   }, []);
   const closeGitView = useCallback((how: GitViewHow) => closeGitViewRequest(how), []);
+  const gitFocusBack = useCallback((el: HTMLElement) => {
+    if (el === gitOpenerPressed.current) pointerFocusRef.current = el;
+    gitOpenerPressed.current = null;
+  }, []);
   useEffect(() => { setGitViewOpener(openGitView); return () => setGitViewOpener(null); }, [openGitView]);
   useEffect(() => {
     setGitAgentFocuser(id => { selectAgent(id, false); window.requestAnimationFrame(() => focusAgent(id)); });
@@ -827,7 +836,7 @@ function Inner() {
         agent={selected ?? null} stateRef={stateRef} now={now} detailShown={detailShown}
         canvasRef={canvasRef} nodesRef={nodesRef} measuredRef={measuredRef} moveCamera={moveCamera}
         openerRef={gitOpenerRef} onClose={closeGitView} onSelectAgent={selectGitAgent}
-        onShowCard={showGitAgentCard}
+        onShowCard={showGitAgentCard} onFocusBack={gitFocusBack}
       />
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}

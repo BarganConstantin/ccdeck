@@ -108,3 +108,22 @@ describe("a button pressed with Enter or Space", () => {
     expect(view).toMatch(/if \(sheet\) onClose\(how\);/);
   });
 });
+
+describe("an opener the pointer pressed, given focus back on close", () => {
+  // Click the card's branch chip or a glance row, Esc, then g: focus was back
+  // on the button, but handed back by script, which made it a button reached
+  // by keyboard — and such a button keeps every letter (#851). g, j, r and the
+  // rest did nothing until a second Esc, which also dropped the selection.
+  const app = sourceOf("App.tsx");
+  it("remembers whether the pointer put focus on the opener", () => {
+    expect(app).toMatch(/gitOpenerPressed\.current = pointerFocusRef\.current === active \? active : null;/);
+  });
+
+  it("marks it the pointer's again once it has focus back, so its letters reach the deck", () => {
+    expect(app).toMatch(/const gitFocusBack = useCallback\(\(el: HTMLElement\) => \{\s*if \(el === gitOpenerPressed\.current\) pointerFocusRef\.current = el;\s*gitOpenerPressed\.current = null;\s*\}, \[\]\);/);
+    expect(app).toMatch(/onFocusBack=\{gitFocusBack\}/);
+    const at = view.indexOf("const lastSeq = useRef(request.seq);");
+    const close = view.slice(at, view.indexOf("}, [request.seq]);", at));
+    expect(close).toMatch(/if \(target && document\.activeElement === target\) onFocusBack\?\.\(target\);/);
+  });
+});

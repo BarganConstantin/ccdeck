@@ -122,11 +122,13 @@ export interface GitViewProps {
   onSelectAgent: (id: string) => void;
   /** Show an agent's card on the canvas, keeping the view on what it shows. */
   onShowCard: (id: string) => void;
+  /** Focus is back on what opened the view, after a close. */
+  onFocusBack?: (el: HTMLElement) => void;
 }
 
 export default function GitView(props: GitViewProps) {
   const request = useGitViewRequest();
-  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, openerRef, onClose, onSelectAgent, onShowCard } = props;
+  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, openerRef, onClose, onSelectAgent, onShowCard, onFocusBack } = props;
   const rf = useReactFlow();
   const root = agent ? stateRef.current.agents.get(agent.sessionId) ?? null : null;
   const opens = agent != null && gitViewOpens(gitFactsFor(agent, root));
@@ -413,6 +415,7 @@ export default function GitView(props: GitViewProps) {
       const target = usable ? opener : card;
       target?.focus({ preventScroll: true });
       if (target !== card && document.activeElement !== target) card?.focus({ preventScroll: true });
+      if (target && document.activeElement === target) onFocusBack?.(target);
     });
     return () => cancelAnimationFrame(raf);
   }, [request.seq]);
