@@ -55,6 +55,10 @@ export interface LogCommit {
   refs: { local: string[]; remote: string[]; tags: string[]; head: boolean };
   agent: CommitAgent | null;
   outsideWindow?: boolean;
+  /** On HEAD's line past the window: whether the branch HEAD is measured
+   *  against already has the commit — git's answer, since the commits that
+   *  join that line to the window are not listed. */
+  base?: boolean;
 }
 
 export type StatusArea = "staged" | "unstaged" | "untracked" | "conflict";

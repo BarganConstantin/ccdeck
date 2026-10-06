@@ -129,7 +129,7 @@ async function cached(repo, slot, compute) {
 
 const filtersOf = (repo) => cached(repo, "filters", () => filterNames(repo.topLevel));
 
-export const logOf = (repo) => cached(repo, "log", () => readLog(repo.topLevel, repo.head, { commonDir: repo.commonDir }));
+export const logOf = (repo) => cached(repo, "log", () => readLog(repo.topLevel, repo.head, { commonDir: repo.commonDir, defaultBranch: repo.defaultBranch ?? null }));
 
 export const statusOf = (repo) => cached(repo, "status", async () => readStatus(repo.topLevel, { filters: await filtersOf(repo) }));
 

@@ -457,7 +457,18 @@ export default function GitGraph(props: GitGraphProps) {
   }, [layout, showWip, rowLimit]);
   const ids = useMemo(() => drawnRows.map(r => r.id), [drawnRows]);
   const tabStopId = ids.includes(selected) ? selected : ids[0];
-  const firstOutside = drawnRows.findIndex(r => r.outside);
+  // A line across the list where commits older than the window begin: HEAD's
+  // own line when HEAD is older than the window, then the session's older
+  // commits, each under its own words.
+  const dividers = useMemo(() => {
+    const at = new Map<number, string>();
+    drawnRows.forEach((r, i) => {
+      const prev = drawnRows[i - 1];
+      if (!r.outside || (prev?.outside && !!prev.headLine === !!r.headLine)) return;
+      at.set(i, r.headLine ? "HEAD is older than the history above" : "Older commits from this session");
+    });
+    return at;
+  }, [drawnRows]);
 
   // The minute the ages are counted from, kept for a minute.
   const [now, setNow] = useState(() => Date.now());
@@ -571,9 +582,10 @@ export default function GitGraph(props: GitGraphProps) {
   // ── live insert ──
   const tops = useMemo(() => {
     const m = new Map<string, number>();
-    ids.forEach((id, i) => m.set(id, i * ROW_H + (firstOutside >= 0 && i >= firstOutside ? ROW_H : 0)));
+    let lines = 0;
+    ids.forEach((id, i) => { if (dividers.has(i)) lines++; m.set(id, (i + lines) * ROW_H); });
     return m;
-  }, [ids, firstOutside]);
+  }, [ids, dividers]);
   const prevTops = useRef<Map<string, number> | null>(null);
   // An arrival is told apart by the commits it brought, never by the object
   // that carries them: the view around the list rebuilds that object on every
@@ -774,10 +786,11 @@ export default function GitGraph(props: GitGraphProps) {
                 focusHue={focusHue}
               />
             );
-            if (i !== firstOutside) return el;
+            const divider = dividers.get(i);
+            if (divider === undefined) return el;
             return (
               <React.Fragment key={`older:${row.id}`}>
-                <div className="gv-older" role="presentation">Older commits from this session</div>
+                <div className="gv-older" role="presentation">{divider}</div>
                 {el}
               </React.Fragment>
             );

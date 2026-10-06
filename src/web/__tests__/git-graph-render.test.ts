@@ -97,6 +97,30 @@ describe("a busy repository with a clean detached HEAD", () => {
   });
 });
 
+describe("HEAD older than the window", () => {
+  it("lists HEAD under its own words, ringed, its dashed line coming in, the session's older commits apart", () => {
+    const window = Array.from({ length: 6 }, (_, i) => commit(`n${6 - i}`, [i === 5 ? "b0" : `n${5 - i}`], i + 1, i === 0 ? { refs: { local: ["other"], remote: [], tags: [], head: false } } : {}));
+    const commits = [
+      ...window,
+      commit("h", ["h1"], 900, { outsideWindow: true, base: false, refs: { local: ["topic"], remote: [], tags: [], head: true } }),
+      commit("h1", ["b0"], 901, { outsideWindow: true, base: true }),
+      commit("old", ["zz"], 1000, { outsideWindow: true }),
+    ];
+    const head = { branch: "topic", detached: false, sha: "h", short: "h", unborn: false };
+    const html = render({ commits, head, uncommitted: { files: 2, byFocus: 1, label: "api-fix" } });
+    const words = [...html.matchAll(/<div class="gv-older" role="presentation">([^<]+)<\/div>/g)].map(m => m[1]);
+    expect(words).toEqual(["HEAD is older than the history above", "Older commits from this session"]);
+    const drawn = rows(html);
+    expect(drawn.get("h")).toContain('class="gv-head-ring"');
+    expect(drawn.get("h")).toMatch(/data-head=""/);
+    expect(drawn.get("h")).toMatch(/class="gv-e is-wip"[^>]*d="M7 0V/);
+    expect(drawn.get("h")).toMatch(/data-tone="own"/);
+    expect(drawn.get("h1")).toMatch(/data-tone="base"/);
+    // The uncommitted row's dashed line runs down to the window's foot.
+    expect(drawn.get("n1")).toMatch(/class="gv-e is-wip"[^>]*d="M7 0V24"/);
+  });
+});
+
 describe("the view's first frame", () => {
   it("hands the history every commit and only limits the rows it draws", async () => {
     const { sourceOf } = await import("./client-source");

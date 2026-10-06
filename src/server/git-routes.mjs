@@ -20,8 +20,9 @@
 //                                 read that failed inside a repository.
 //
 // The log's commits each carry `agent` — who made it, and how the deck knows
-// (git-attribution.mjs) — and the session's own agent commits older than the
-// window follow it with `outsideWindow: true`. The repository carries
+// (git-attribution.mjs) — and after the window, with `outsideWindow: true`,
+// come HEAD's own line when HEAD is older than the window (git-reads.mjs),
+// then the session's own agent commits older than it. The repository carries
 // `defaultBranch`, the branch its remote calls its default.
 //
 // The repo answer for a session (not narrowed to one subagent) also lists the
@@ -112,8 +113,9 @@ export async function handleGitRepo(req, res, url) {
 }
 
 /** `?session[&agent]` — the history, each commit with the agent that made it
- *  (git-attribution.mjs), and after it the session's own agent commits older
- *  than the window, flagged `outsideWindow`. `agent` narrows those to one
+ *  (git-attribution.mjs), and after it HEAD's own line when HEAD is older than
+ *  the window, then the session's own agent commits older than the window,
+ *  all flagged `outsideWindow`. `agent` narrows the session's to one
  *  subagent's. */
 export async function handleGitLog(req, res, url) {
   const found = await sessionRepo(url, res);

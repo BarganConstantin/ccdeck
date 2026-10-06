@@ -9,7 +9,7 @@
 // well as on the columns.
 import { describe, it, expect } from "vitest";
 import {
-  layoutGraph, graphTones, baseTips, trunkNames, TRUNK_NAMES, rowDrawing, onFocusLine, graphColumns, graphWidth, nodeReach,
+  layoutGraph, graphTones, baseTips, headLine, trunkNames, TRUNK_NAMES, rowDrawing, onFocusLine, graphColumns, graphWidth, nodeReach,
   pickSlot, clashes, fixedSlot, mergedBranchName, branchKeyOf, seniority,
   parseSlotMemory, rememberSlots, repoSlots, historyAge, workDuration, conventionalPrefix,
   WIP_ID, VISIBLE_LANES, ROW_H, LANE_W, LANE_X0, SLOT_MEMORY_BRANCHES, SLOT_MEMORY_REPOS,
@@ -385,6 +385,55 @@ describe("the trunk a branch is measured against", () => {
     // And a trunk HEAD is measured against its own remote-tracking branch.
     const onStable = list.map(x => ({ ...x, refs: x.sha === "s2" ? at(["stable"], ["origin/stable"], true) : at([]) }));
     expect(baseTips(onStable, { branch: "stable", detached: false }, "stable")).toEqual(["s2"]);
+  });
+});
+
+describe("HEAD older than the window", () => {
+  // Ten newer commits on another branch fill the window; HEAD's branch and
+  // its line follow it, then one of the session's older commits.
+  const window = [c("n10", ["n9"], ["other"]), ...Array.from({ length: 9 }, (_, i) => c(`n${9 - i}`, [i === 8 ? "base0" : `n${8 - i}`]))];
+  const list: LogCommit[] = [
+    ...window,
+    c("h", ["h1"], ["topic"], { outsideWindow: true, refs: at(["topic"], [], true), base: false }),
+    c("h1", ["base0"], [], { outsideWindow: true, base: false }),
+    c("base0", ["root"], [], { outsideWindow: true, base: true }),
+    c("old", ["zzz"], [], { outsideWindow: true }),
+  ];
+  const head = { sha: "h", branch: "topic", detached: false };
+
+  it("knows HEAD's line among the commits past the window", () => {
+    expect([...headLine(list, "h")]).toEqual(["h", "h1", "base0"]);
+    expect(headLine(list, "n10").size).toBe(0);
+  });
+
+  it("joins the uncommitted row to HEAD down the first column, and HEAD's line under it", () => {
+    const layout = layoutGraph(list, { head, wip: true });
+    const wip = layout.rows[0];
+    expect(wip.output[0]).toMatchObject({ id: "h", wip: true });
+    // The dashed line holds column 0 through the window: no commit there takes it.
+    for (const r of layout.rows.slice(1, 11)) {
+      expect(r.col, r.id).toBeGreaterThan(0);
+      expect(r.output[0], r.id).toMatchObject({ id: "h", wip: true });
+    }
+    const h = layout.rows.find(r => r.id === "h")!;
+    expect(h).toMatchObject({ col: 0, outside: true, headLine: true, onHead: true });
+    expect(h.edges.map(e => `${e.kind}${e.wip ? ":wip" : ""}`)).toEqual(["in:wip", "fp"]);
+    expect(layout.rows.find(r => r.id === "h1")!.edges.map(e => e.kind)).toEqual(["in", "fp"]);
+    // The line ends with what is listed of it; the session's older commit stands alone.
+    expect(layout.rows.find(r => r.id === "base0")!.edges.map(e => e.kind)).toEqual(["in"]);
+    const older = layout.rows.find(r => r.id === "old")!;
+    expect(older).toMatchObject({ outside: true, input: [], output: [], edges: [] });
+    expect(older.headLine).toBeFalsy();
+    expect(layout.headKey).toBe("topic");
+    expect(onFocusLine(h, layout.headKey)).toBe(true);
+  });
+
+  it("reads the line's tones from git, and the window as what HEAD cannot reach", () => {
+    const tones = graphTones(list, head);
+    expect(tones.get("h")).toBe("own");
+    expect(tones.get("h1")).toBe("own");
+    expect(tones.get("base0")).toBe("base");
+    for (const r of window) expect(tones.get(r.sha), r.sha).toBe("off");
   });
 });
 
