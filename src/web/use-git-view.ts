@@ -32,7 +32,7 @@ export interface GitData {
   subagents: SubagentElsewhere[] | null;
   /** Why a read inside a repository failed, when one did. */
   reason: string | null;
-  /** Commits that appeared at the top of the history since the read before. */
+  /** Commits that appeared in the history since the read before. */
   newShas: string[];
   /** Bumped by each answer about the working tree, so a reader can tell the
    *  folder moved. */
@@ -66,14 +66,21 @@ export function gitQuery(sessionId: string, agent: string | null, extra: Record<
   return q.toString();
 }
 
-/** The commits new at the top of `next` that `prev` did not hold. */
-export function newAtTop(prev: LogCommit[] | null, next: LogCommit[]): string[] {
+/**
+ * The commits `next` lists that `prev` did not, wherever they landed: at the
+ * top, or further down under branches dated later (a fetch, another machine's
+ * clock). What fills the window's foot because commits left it is not new:
+ * only the commits above the last one both reads list count.
+ */
+export function newInHistory(prev: LogCommit[] | null, next: LogCommit[]): string[] {
   if (!prev || prev.length === 0) return [];
   const known = new Set(prev.map(c => c.sha));
+  let last = -1;
+  next.forEach((c, i) => { if (!c.outsideWindow && known.has(c.sha)) last = i; });
   const out: string[] = [];
-  for (const c of next) {
-    if (known.has(c.sha)) break;
-    if (!c.outsideWindow) out.push(c.sha);
+  for (let i = 0; i < last; i++) {
+    const c = next[i];
+    if (!c.outsideWindow && !known.has(c.sha)) out.push(c.sha);
   }
   return out;
 }
@@ -90,7 +97,7 @@ export function foldAnswer(data: GitData, kind: "status" | "log" | "edits" | "re
   if (kind === "edits") return { ...next, edits: a.edits ?? [] };
   if (kind === "repo") return { ...next, subagents: a.subagents ?? [] };
   const commits = a.commits ?? [];
-  return { ...next, commits, newShas: newAtTop(data.commits, commits) };
+  return { ...next, commits, newShas: newInHistory(data.commits, commits) };
 }
 
 // ── the shared cache ─────────────────────────────────────────────────────

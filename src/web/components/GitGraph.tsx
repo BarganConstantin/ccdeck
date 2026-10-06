@@ -5,7 +5,7 @@ import {
   parseSlotMemory, rememberSlots, repoSlots, historyAge, workDuration, conventionalPrefix,
   WIP_ID, ROW_H, type GraphRow, type LogCommit, type NodeShape, type RepoHead, type Tone,
 } from "../git-graph-layout";
-import { historyKey } from "../git-graph-keys";
+import { dismissesCard, historyKey } from "../git-graph-keys";
 import { fitBranchWidth, monoWidth, type Measure } from "../git-branch-fit";
 import { sessionHue } from "../session-hue";
 import { placePopover } from "../popover-place";
@@ -56,6 +56,27 @@ const REF_ROOM_NARROW = 120;
 const PROBE = "0123456789abcdefghij";
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// ─── live insert ──────────────────────────────────────────────────────────
+
+/** What one arrival of commits is known by: the commits themselves, so the
+ *  same arrival handed in again is the same arrival; "" for none. */
+export function liveInsertKey(live: GitGraphProps["liveInsert"]): string {
+  return live && live.newShas.length ? live.newShas.join(" ") : "";
+}
+
+/**
+ * Where a scrolled reader's list goes when commits arrive: the first row they
+ * could see before stays where it was on screen, and the arrivals listed
+ * above it are what the pill counts. `before` and `tops` are each row's top,
+ * in pixels, before and after; `arrived` the new commits that are listed.
+ */
+export function keepReaderPlace(before: ReadonlyMap<string, number>, tops: ReadonlyMap<string, number>, arrived: readonly string[], scrollTop: number): { scrollTop: number; above: number } {
+  const anchor = [...before].filter(([id]) => tops.has(id)).sort((a, b) => a[1] - b[1]).find(([, top]) => top + ROW_H > scrollTop);
+  if (!anchor) return { scrollTop, above: arrived.length };
+  const now = tops.get(anchor[0])!;
+  return { scrollTop: scrollTop + (now - anchor[1]), above: arrived.filter(s => tops.get(s)! < now).length };
+}
 
 // ─── agent words ──────────────────────────────────────────────────────────
 
@@ -313,6 +334,9 @@ const HistoryRow = memo(function HistoryRow(p: RowProps) {
   );
 });
 
+/** What a commit row is handed for the counts only the uncommitted row says. */
+const NO_UNCOMMITTED: GitGraphProps["uncommitted"] = { files: 0, byFocus: 0, label: "" };
+
 // ─── the hover card ───────────────────────────────────────────────────────
 
 interface HoverState { sha: string; anchor: Element; instant: boolean }
@@ -386,13 +410,22 @@ export default function GitGraph(props: GitGraphProps) {
     writeStored(LANE_MEMORY_KEY, JSON.stringify(rememberSlots(parseSlotMemory(readStored(LANE_MEMORY_KEY)), repoKey, layout.slots, touched)));
   }, [layout, repoKey]);
 
-  const tones = useMemo(() => graphTones(commits, head), [commits, head]);
+  // Every answer the view folds in brings a new HEAD object and a new focus
+  // object with the same words in them: the rows are handed what they say,
+  // so a row the answer did not change keeps its render.
+  const headWords = head ? `${head.sha}\u0000${head.branch}\u0000${head.detached}\u0000${head.unborn}` : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableHead = useMemo(() => head, [headWords]);
+  const focusIds = focus.agentIds === null ? null : focus.agentIds.join("\u0000");
+  const tones = useMemo(() => graphTones(commits, stableHead), [commits, stableHead]);
   const byId = useMemo(() => new Map(commits.map(c => [c.sha, c])), [commits]);
   const focusKey = head && !head.detached ? layout.headKey : null;
   const { drawn, folded } = graphColumns(layout.columns);
   const width = graphWidth(drawn);
   const headSha = head?.sha ?? commits.find(c => c.refs.head)?.sha ?? null;
-  const agents = useMemo(() => new Map(commits.map(c => [c.sha, agentView(c, focus, agentName)])), [commits, focus, agentName]);
+  const agents = useMemo(() => new Map(commits.map(c => [c.sha, agentView(c, focus, agentName)])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [commits, focus.sessionId, focusIds, agentName]);
 
   const ids = useMemo(() => layout.rows.map(r => r.id), [layout]);
   const tabStopId = ids.includes(selected) ? selected : ids[0];
@@ -410,7 +443,7 @@ export default function GitGraph(props: GitGraphProps) {
   useLayoutEffect(() => {
     const el = paneRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(([e]) => setRefRoom(e.contentRect.width < 560 ? REF_ROOM_NARROW : REF_ROOM));
+    const ro = new ResizeObserver(([e]) => setRefRoom(e.contentRect.width <= 560 ? REF_ROOM_NARROW : REF_ROOM));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -461,16 +494,32 @@ export default function GitGraph(props: GitGraphProps) {
     clearHoverTimer();
     setHover(h => { if (h) lastClose.current = performance.now(); return null; });
   }, []);
-  const showHoverSoon = useCallback((sha: string, anchor: Element) => {
+  /** The card after the hover delay; one a key brought there appears at
+   *  once, since nothing the keyboard does animates. */
+  const showHoverSoon = useCallback((sha: string, anchor: Element, byKey = false) => {
     clearHoverTimer();
     const warm = performance.now() - lastClose.current < WARM_MS;
     if (warm) { setHover({ sha, anchor, instant: true }); return; }
     hoverTimer.current = window.setTimeout(() => {
       hoverTimer.current = null;
-      if (anchor.isConnected) setHover({ sha, anchor, instant: reducedMotion() });
+      if (anchor.isConnected) setHover({ sha, anchor, instant: byKey || reducedMotion() });
     }, HOVER_MS);
   }, []);
   useEffect(() => () => clearHoverTimer(), []);
+  // Esc takes the card away first, wherever focus is, and leaves the view and
+  // the focus where they were: content shown on hover or focus is dismissed
+  // without moving either.
+  useEffect(() => {
+    if (!hover) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!dismissesCard(e) || e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      hideHover();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [hover, hideHover]);
   // A new history may have taken the row the card hung off.
   useEffect(() => { hideHover(); }, [commits, hideHover]);
 
@@ -490,25 +539,30 @@ export default function GitGraph(props: GitGraphProps) {
     return m;
   }, [ids, firstOutside]);
   const prevTops = useRef<Map<string, number> | null>(null);
-  const handled = useRef<GitGraphProps["liveInsert"]>(null);
+  // An arrival is told apart by the commits it brought, never by the object
+  // that carries them: the view around the list rebuilds that object on every
+  // render, and each rebuild must not count the same commits again or replay
+  // their glow. What had already arrived when the list mounted is not news.
+  const liveKey = liveInsertKey(liveInsert);
+  const handled = useRef(liveKey);
   const [newAbove, setNewAbove] = useState(0);
-  const [settled, setSettled] = useState<GitGraphProps["liveInsert"]>(null);
-  const fresh = useMemo(() => new Set(liveInsert && liveInsert !== settled ? liveInsert.newShas : []), [liveInsert, settled]);
+  const [settled, setSettled] = useState(liveKey);
+  const fresh = useMemo(() => new Set(liveKey && liveKey !== settled ? liveInsert!.newShas : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveKey, settled]);
   useLayoutEffect(() => {
     const sc = listRef.current;
     const before = prevTops.current;
     prevTops.current = tops;
-    if (!sc || !before || !liveInsert || handled.current === liveInsert || !liveInsert.newShas.length) return;
-    handled.current = liveInsert;
-    const arrived = liveInsert.newShas.filter(s => tops.has(s));
+    if (!sc || !before || !liveKey || handled.current === liveKey) return;
+    handled.current = liveKey;
+    const arrived = liveInsert!.newShas.filter(s => tops.has(s));
     if (!arrived.length) return;
     if (sc.scrollTop > 0) {
       // A reader down the list stays on the row they were reading: nothing
       // moves, the list grows above them, and a pill says how much.
-      const at = sc.scrollTop;
-      const anchor = [...before].filter(([id]) => tops.has(id)).sort((a, b) => a[1] - b[1]).find(([, top]) => top + ROW_H > at);
-      if (anchor) sc.scrollTop = at + (tops.get(anchor[0])! - anchor[1]);
-      const above = anchor ? arrived.filter(s => tops.get(s)! < tops.get(anchor[0])!).length : arrived.length;
+      const { scrollTop, above } = keepReaderPlace(before, tops, arrived, sc.scrollTop);
+      sc.scrollTop = scrollTop;
       if (above) setNewAbove(n => n + above);
       return;
     }
@@ -525,12 +579,13 @@ export default function GitGraph(props: GitGraphProps) {
     }
     if (moved.length > FLIP_MAX) return;
     for (const [el, dy] of moved) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "translateY(0)" }], { duration: 200, easing: EASE });
-  }, [tops, liveInsert, rowEl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tops, liveKey, rowEl]);
   useEffect(() => {
-    if (!liveInsert || liveInsert === settled) return;
-    const t = window.setTimeout(() => setSettled(liveInsert), 1100);
+    if (!liveKey || liveKey === settled) return;
+    const t = window.setTimeout(() => setSettled(liveKey), 1100);
     return () => window.clearTimeout(t);
-  }, [liveInsert, settled]);
+  }, [liveKey, settled]);
 
   const onScroll = useCallback(() => {
     hideHover();
@@ -613,7 +668,7 @@ export default function GitGraph(props: GitGraphProps) {
     let visible = false;
     try { visible = row.matches(":focus-visible"); } catch { visible = false; }
     if (!visible) return;
-    showHoverSoon(sha, row.querySelector(".gv-agent-chip") ?? row);
+    showHoverSoon(sha, row.querySelector(".gv-agent-chip") ?? row, true);
   }, [byId, showHoverSoon, hideHover]);
 
   const hoverCommit = hover ? byId.get(hover.sha) : undefined;
@@ -671,14 +726,14 @@ export default function GitGraph(props: GitGraphProps) {
                 folded={folded}
                 width={width}
                 agent={c ? agents.get(c.sha) ?? null : null}
-                head={head}
+                head={stableHead}
                 slots={layout.slots}
                 refRoom={refRoom}
                 charPx={charPx}
                 now={now}
                 fresh={!!c && fresh.has(c.sha)}
                 copied={!!c && copied === c.sha}
-                uncommitted={uncommitted}
+                uncommitted={c ? NO_UNCOMMITTED : uncommitted}
                 focusHue={focusHue}
               />
             );

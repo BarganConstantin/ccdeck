@@ -41,3 +41,10 @@ export function historyKey(e: HistoryKey, at: number, count: number, page: numbe
     default: return { kind: "pass" };
   }
 }
+
+/** Whether a key takes a showing hover card away before anything else hears
+ *  it: Escape, as content shown on hover or focus must be dismissible without
+ *  moving the pointer or the focus. */
+export function dismissesCard(e: HistoryKey): boolean {
+  return e.key === "Escape" && !isBrowserChord(e);
+}

@@ -246,7 +246,7 @@ describe("what was migrated to the secondary tier", () => {
       ".gv-pop-line",
       ".gv-ref[data-kind=\"remote\"]",
       ".gv-ref[data-kind=\"tag\"], .gv-ref[data-kind=\"more\"]",
-      ".gv-row.is-sel .gv-cell-author, .gv-row.is-sel .gv-cell-sha, .gv-row.is-sel .gv-cell-time, .gv-row.is-sel .gv-wip-n",
+      ".gv-row.is-sel .gv-cell-author, .gv-row.is-sel .gv-cell-sha, .gv-row.is-sel .gv-cell-time, .gv-row.is-sel .gv-wip-n, .gv-row.is-sel .gv-wip-mine",
       ".gv-row.is-sel[data-tone=\"off\"] .gv-subj",
       ".gv-row:hover[data-tone=\"off\"] .gv-agent-chip, .gv-row.is-sel[data-tone=\"off\"] .gv-agent-chip",
       ".gv-row[data-tone=\"base\"] .gv-subj",

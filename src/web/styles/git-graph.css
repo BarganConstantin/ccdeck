@@ -54,10 +54,11 @@
   padding: 0 10px 0 6px;
   content-visibility: auto;
   contain-intrinsic-size: auto 24px;
-  transition: background-color 120ms ease;
   cursor: default;
 }
-.gv-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+/* Colour under the pointer eases in 120ms; a selection moved from the
+   keyboard changes at once, because nothing the keyboard does animates. */
+.gv-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); transition: background-color 120ms ease; }
 .gv-row.is-sel { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .gv-row.is-sel::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--gv-forced-mark, var(--muted)); }
 /* The list holding focus shows its selection in the accent. */
@@ -94,6 +95,18 @@
 .gv-node.is-commit, .gv-node.is-trailer { fill: none; stroke: var(--gv-forced-ink, var(--lane)); stroke-width: 1.5; }
 .gv-node.is-dim.is-seen, .gv-node.is-dim.is-merge { fill: var(--gv-forced-ink, var(--lane-node-dim)); }
 .gv-node.is-dim.is-commit, .gv-node.is-dim.is-trailer { stroke: var(--gv-forced-ink, var(--lane-node-dim)); }
+/* A hovered or selected row's bed is lighter (dark theme) or darker (light)
+   than the panel the dims were mixed on, so there they step up to stay at
+   their floors: another branch's edges at 2:1, every node at 3:1. A node
+   leans 5% toward the text colour, which is the one way past the lane's own
+   contrast on the focused selection. */
+.gv-row:hover .gv-e.is-dim, .gv-row.is-sel .gv-e.is-dim { stroke: var(--gv-forced-ink, color-mix(in srgb, var(--lane) 76%, var(--panel))); }
+.gv-row:hover .gv-e:not(.is-dim):not(.is-wip), .gv-row.is-sel .gv-e:not(.is-dim):not(.is-wip) { stroke: var(--gv-forced-ink, color-mix(in srgb, var(--lane) 95%, var(--text))); }
+.gv-row:hover .gv-node.is-seen, .gv-row:hover .gv-node.is-merge,
+.gv-row.is-sel .gv-node.is-seen, .gv-row.is-sel .gv-node.is-merge { fill: var(--gv-forced-ink, color-mix(in srgb, var(--lane) 95%, var(--text))); }
+.gv-row:hover .gv-node.is-commit, .gv-row:hover .gv-node.is-trailer,
+.gv-row.is-sel .gv-node.is-commit, .gv-row.is-sel .gv-node.is-trailer { stroke: var(--gv-forced-ink, color-mix(in srgb, var(--lane) 95%, var(--text))); }
+.gv-row:hover .gv-fold-line, .gv-row.is-sel .gv-fold-line { stroke: var(--gv-forced-ink, var(--muted)); }
 .gv-head-ring { fill: none; stroke: var(--gv-forced-ink, var(--text)); stroke-width: 1.2; }
 .gv-wip-node { fill: none; stroke: var(--gv-forced-ink, var(--text-secondary)); stroke-width: 1.5; stroke-dasharray: 2.4 1.8; }
 .gv-fold-line { fill: none; stroke: var(--gv-forced-ink, var(--muted-dim)); stroke-width: 1.5; stroke-dasharray: 3 3; }
@@ -109,8 +122,8 @@
 /* --muted falls under 4.5:1 on a tinted row: there the words step up. */
 .gv-row:hover[data-tone="off"] .gv-subj,
 .gv-row.is-sel[data-tone="off"] .gv-subj { color: var(--text-secondary); }
-.gv-row:hover .gv-cell-author, .gv-row:hover .gv-cell-sha, .gv-row:hover .gv-cell-time, .gv-row:hover .gv-wip-n,
-.gv-row.is-sel .gv-cell-author, .gv-row.is-sel .gv-cell-sha, .gv-row.is-sel .gv-cell-time, .gv-row.is-sel .gv-wip-n { color: var(--text-secondary); }
+.gv-row:hover .gv-cell-author, .gv-row:hover .gv-cell-sha, .gv-row:hover .gv-cell-time, .gv-row:hover .gv-wip-n, .gv-row:hover .gv-wip-mine,
+.gv-row.is-sel .gv-cell-author, .gv-row.is-sel .gv-cell-sha, .gv-row.is-sel .gv-cell-time, .gv-row.is-sel .gv-wip-n, .gv-row.is-sel .gv-wip-mine { color: var(--text-secondary); }
 .gv-cell-author { flex: 0 0 120px; min-width: 0; padding-left: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
 .gv-cell-sha { flex: 0 0 64px; padding-left: 10px; color: var(--muted); font: 11px/1 var(--font-mono); white-space: nowrap; }
 .gv-cell-sha[data-copy] { cursor: copy; }

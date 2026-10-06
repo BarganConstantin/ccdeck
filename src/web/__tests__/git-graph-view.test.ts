@@ -45,10 +45,24 @@ describe("the history list, as the markup builds it", () => {
     expect(src).toMatch(/role="tooltip"/);
   });
 
+  it("shows a card a key brought at once, and takes it away on the first Esc without closing the view", () => {
+    // Nothing the keyboard does animates: the focus path asks for the card instantly.
+    expect(src).toMatch(/instant: byKey \|\| reducedMotion\(\)/);
+    expect(src).toMatch(/showHoverSoon\(sha, row\.querySelector\("\.gv-agent-chip"\) \?\? row, true\);/);
+    // WCAG 1.4.13: dismissible without moving the pointer or the focus. The
+    // listener runs before the view's own Esc (capture, on the window) and
+    // only while a card is up.
+    const esc = src.slice(src.indexOf("if (!hover) return;"), src.indexOf("}, [hover, hideHover]);"));
+    expect(esc).toMatch(/!dismissesCard\(e\)/);
+    expect(esc).toMatch(/e\.stopPropagation\(\);\s*hideHover\(\);/);
+    expect(esc).toMatch(/window\.addEventListener\("keydown", onKey, true\)/);
+  });
+
   it("keeps a scrolled reader where they are when commits arrive, and slides at most twenty rows at the top", () => {
     expect(src).toMatch(/const FLIP_MAX = 20;/);
     expect(src).toMatch(/if \(sc\.scrollTop > 0\) \{/);
-    expect(src).toMatch(/sc\.scrollTop = at \+ \(tops\.get\(anchor\[0\]\)! - anchor\[1\]\)/);
+    expect(src).toMatch(/const \{ scrollTop, above \} = keepReaderPlace\(before, tops, arrived, sc\.scrollTop\);/);
+    expect(src).toMatch(/return \{ scrollTop: scrollTop \+ \(now - anchor\[1\]\), above:/);
     expect(src).toMatch(/if \(reducedMotion\(\)\) return;/);
     expect(src).toMatch(/duration: 200, easing: EASE/);
     expect(src).toMatch(/const EASE = "cubic-bezier\(0\.23, 1, 0\.32, 1\)";/);
@@ -67,6 +81,17 @@ describe("the history list, as the markup builds it", () => {
     const reveal = src.slice(src.indexOf("const reveal = useCallback("), src.indexOf("reveal(selected, true)"));
     expect(reveal.length).toBeGreaterThan(100);
     expect(reveal).not.toMatch(/smooth|animate/);
+  });
+
+  it("re-renders only the rows a change reached: an arrow key redraws two rows, not the history", () => {
+    // The view hands in a new focus, uncommitted counts and HEAD object on
+    // every render; a row is handed what they say, never the objects.
+    expect(src).toMatch(/\[commits, focus\.sessionId, focusIds, agentName\]\);/);
+    expect(src).not.toMatch(/\[commits, focus, agentName\]/);
+    expect(src).toMatch(/uncommitted=\{c \? NO_UNCOMMITTED : uncommitted\}/);
+    expect(src).toMatch(/const stableHead = useMemo\(\(\) => head, \[headWords\]\);/);
+    expect(src).toMatch(/head=\{stableHead\}/);
+    expect(src).toMatch(/const HistoryRow = memo\(function HistoryRow/);
   });
 
   it("remembers lane colours through the deck's safe storage helpers", () => {

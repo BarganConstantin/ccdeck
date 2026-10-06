@@ -2,13 +2,21 @@
 // its ref chips is cut to the chip's room: the card chip's spellings, measured
 // from one character of the chip's own font.
 import { describe, expect, it } from "vitest";
-import { historyKey } from "../git-graph-keys";
+import { dismissesCard, historyKey } from "../git-graph-keys";
 import { fitBranchWidth, monoWidth } from "../git-branch-fit";
 import { branchCandidates } from "../git-chip";
 import { sourceOf } from "./client-source";
 
 const key = (k: string, mods: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {}) =>
   ({ key: k, ctrlKey: false, metaKey: false, altKey: false, ...mods });
+
+describe("a showing hover card", () => {
+  it("goes on Escape before the view hears it, and on nothing else", () => {
+    expect(dismissesCard(key("Escape"))).toBe(true);
+    expect(dismissesCard(key("Escape", { ctrlKey: true }))).toBe(false);
+    for (const k of ["ArrowDown", "Enter", "i", "g", "n"]) expect(dismissesCard(key(k)), k).toBe(false);
+  });
+});
 
 describe("the keys the history list owns", () => {
   it("moves with the arrows, Home and End and the page keys, never past either end", () => {
