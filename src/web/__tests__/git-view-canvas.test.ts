@@ -47,3 +47,9 @@ describe("what the panel covers", () => {
     expect(view).toMatch(/const was = rf\.getViewport\(\);\s*moveCamera\(plan\.viewport, duration\);/);
   });
 });
+
+describe("following the selection to a folder git cannot read", () => {
+  it("steps back when the view's own read finds no repository, before the server said so on the card", () => {
+    expect(view).toMatch(/if \(!request\.open \|\| away \|\| !UNREADABLE\.has\(data\.state\)\) return;\s*onClose\("pointer"\);\s*window\.dispatchEvent\(new CustomEvent\("gitview:unreadable", \{ detail: agent\.id \}\)\);/);
+  });
+});

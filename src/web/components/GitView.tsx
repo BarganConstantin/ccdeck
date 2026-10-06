@@ -35,7 +35,7 @@ import { pressHow } from "../agent-goto";
 import { flashCard } from "../card-flash";
 import { elsewhereRows } from "../git-files-model";
 import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
-import { madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
+import { UNREADABLE, madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
 import { collisionsFor, commitWho, upstreamWords } from "../git-view-words";
 import { setGitViewNewest } from "../git-view-request";
 import { shortAgo } from "../relative-time";
@@ -597,6 +597,14 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     initial: away ? {} : { sel: request.sel, file: request.file }, seq: request.seq,
   });
   const { sel, file } = view;
+  // The view followed the selection to a folder git cannot read before the
+  // server had said so on the card: its own read says it, and the view steps
+  // back to the glance's one line, which answers as it does for `g` there.
+  useEffect(() => {
+    if (!request.open || away || !UNREADABLE.has(data.state)) return;
+    onClose("pointer");
+    window.dispatchEvent(new CustomEvent("gitview:unreadable", { detail: agent.id }));
+  }, [data.state, request.open, agent.id, away]);
   // The panel's first frame draws the history's first rows — what fits in its
   // pane — and the rest a frame later, so a press shows the view at once
   // rather than after a hundred rows have rendered.
