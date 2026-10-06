@@ -60,13 +60,14 @@ export function commitMark(agent: CommitAgent | null): { level: MarkLevel; words
   return { level: "seen", words: "seen by ccdeck" };
 }
 
-/** Who made a commit, in words: the agent's card name (a Codex session and an
- *  unnamed agent carry no label of their own), or the CLI a trailer names. */
-export function commitWho(agent: CommitAgent | null, cardLabel: (id: string) => string | null): string | null {
+/** Who made a commit, in words: the name its card goes by on the board
+ *  (git-agent-name.ts), else the label the server recorded, else its
+ *  session's card (a Codex session and an unnamed agent carry no label of
+ *  their own) — or the CLI a trailer names. */
+export function commitWho(agent: CommitAgent | null, cardName: (sessionId: string, agentId: string | null) => string | null): string | null {
   if (!agent) return null;
   if (agent.confidence === "trailer") return agent.agent === "codex" ? "Codex" : "Claude";
-  const id = agent.agentId ? `${agent.sessionId}::${agent.agentId}` : agent.sessionId;
-  return agent.label ?? cardLabel(id) ?? cardLabel(agent.sessionId);
+  return cardName(agent.sessionId, agent.agentId) ?? agent.label ?? cardName(agent.sessionId, null);
 }
 
 /** The one line a pane says when the folder has no repository to show; the

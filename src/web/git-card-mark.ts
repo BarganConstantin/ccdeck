@@ -19,8 +19,8 @@
 // Pure. Built once per board revision for every card (canvas-flow.ts), and a
 // mark that says the same thing as before keeps its identity, so a card with a
 // mark re-renders for it only when the mark changes.
+import { agentNamer, otherAgentName } from "./git-agent-name";
 import { collisionCardId, collisionsFor, type Collision } from "./git-view-words";
-import { distinctIdTail } from "./session-id-tail";
 import type { AgentNodeData, GitCollisionRef } from "./types";
 
 export interface CardMark {
@@ -55,7 +55,9 @@ export type MarkAgent = Pick<AgentNodeData, "id" | "sessionId" | "kind" | "label
 export function cardMarks(agents: Iterable<MarkAgent>, prev?: ReadonlyMap<string, CardMark>): Map<string, CardMark> {
   const byId = new Map<string, MarkAgent>();
   for (const a of agents) byId.set(a.id, a);
-  const names = agentNames(byId);
+  // The other agent is named as every git surface names it (git-agent-name.ts).
+  const namer = agentNamer(byId.values());
+  const names = (r: GitCollisionRef) => otherAgentName(namer, r);
   const out = new Map<string, CardMark>();
   for (const a of byId.values()) {
     const root = a.kind === "root" ? a : byId.get(a.sessionId);
@@ -140,34 +142,6 @@ function quietSentence(q: Collision, name: string, a: MarkAgent): string {
 function cardOf(r: GitCollisionRef, byId: ReadonlyMap<string, MarkAgent>): string {
   const id = collisionCardId(r);
   return byId.has(id) || !byId.has(r.sessionId) ? id : r.sessionId;
-}
-
-/**
- * How a mark names the other agent. A subagent by its own label, `↳` before
- * it as the git view writes one. A session by the name Claude Code gave it when
- * it has one — short, and the cluster header shows it — and otherwise by its
- * workspace; a collision is between agents in one repository, so that is
- * usually this card's own workspace too, and the last characters of the id the
- * cluster header shows tell the two apart.
- */
-function agentNames(byId: ReadonlyMap<string, MarkAgent>): (r: GitCollisionRef) => string {
-  const base = (a: MarkAgent) => a.sessionName?.trim() || a.label;
-  const peers = new Map<string, string[]>();
-  for (const a of byId.values()) {
-    if (a.kind !== "root") continue;
-    const b = base(a);
-    peers.set(b, [...(peers.get(b) ?? []), a.sessionId]);
-  }
-  return r => {
-    const card = byId.get(collisionCardId(r));
-    if (card?.kind === "subagent") return `↳ ${card.label}`;
-    const root = byId.get(r.sessionId);
-    if (!root) return "another agent";
-    if (r.agentId) return `a subagent of ${base(root)}`;
-    const b = base(root);
-    const same = peers.get(b) ?? [];
-    return same.length > 1 ? `${b} · ${distinctIdTail(root.sessionId, same)}` : b;
-  };
 }
 
 const subKey = (a: MarkAgent) => (a.id.startsWith(`${a.sessionId}::`) ? a.id.slice(a.sessionId.length + 2) : null);

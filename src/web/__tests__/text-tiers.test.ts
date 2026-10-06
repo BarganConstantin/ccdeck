@@ -268,6 +268,10 @@ describe("what was migrated to the secondary tier", () => {
       // the two groups read apart and still names a reader reads; and the
       // grey words on a hovered or selected row, by bed (--muted is 3.5:1 on
       // the accent wash in dark).
+      // The line naming a subagent that works in another folder: who works
+      // where, read as a sentence; its count steps up under the pointer.
+      ".gvf-elsewhere",
+      ".gvf-elsewhere:not([aria-disabled=\"true\"]):hover .gvf-elsewhere-tail",
       ".gvf-empty",
       ".gvf-group",
       ".gvf-row.is-quiet .gvf-base",

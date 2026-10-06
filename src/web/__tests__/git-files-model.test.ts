@@ -2,7 +2,9 @@
 // first under its name, the rest quieter below — from the fixture worktree
 // where api-fix and its subagent test-writer left every kind of change.
 import { describe, expect, it } from "vitest";
-import { changeMark, commitRows, fileKey, rowOrder, uncommittedList, type GitEdit, type StatusEntry } from "../git-files-model";
+import {
+  changeMark, commitRows, elsewhereRows, fileKey, pathCounts, rowOrder, uncommittedList, type GitEdit, type StatusEntry, type SubagentElsewhere,
+} from "../git-files-model";
 
 const ENTRIES: StatusEntry[] = [
   { path: "data/products.csv", area: "unstaged", change: "modified" },
@@ -87,8 +89,106 @@ describe("the uncommitted list, for the whole session", () => {
 
   it("has no counts for a status entry the server sent none for", () => {
     expect(list.mine[0].counts).toBeNull();
+    expect(list.counted).toBe(false);
     const withCounts = uncommittedList([{ path: "a.ts", area: "unstaged", change: "modified", added: 3, removed: 1 }], [], TEAM, []);
     expect(withCounts.other[0].counts).toEqual({ added: 3, removed: 1, binary: false });
+  });
+
+  it("carries the counts the status sent, like a commit's files: per side, binary marked", () => {
+    const counted = uncommittedList([
+      { path: "src/auth/session.ts", area: "staged", change: "modified", added: 12, removed: 3, binary: false },
+      { path: "src/auth/session.ts", area: "unstaged", change: "modified", added: 1204, removed: 0, binary: false },
+      { path: "public/logo.png", area: "unstaged", change: "modified", added: 0, removed: 0, binary: true },
+      { path: "scratch", area: "untracked", change: "untracked", directory: true },
+    ], [], TEAM, []);
+    expect(counted.other.map(r => r.counts)).toEqual([
+      { added: 12, removed: 3, binary: false },
+      { added: 1204, removed: 0, binary: false },
+      { added: 0, removed: 0, binary: true },
+      null,
+    ]);
+    // A row with nothing known keeps the column, so the stage tags line up.
+    expect(counted.counted).toBe(true);
+  });
+});
+
+describe("one file's counts, as the glance says them", () => {
+  const e = (area: string, extra: Partial<StatusEntry>): StatusEntry => ({ path: "src/a.ts", area, change: "modified", ...extra });
+
+  it("adds a file's staged and unstaged counts together, as one file changed", () => {
+    expect(pathCounts([e("staged", { added: 12, removed: 3 }), e("unstaged", { added: 4, removed: 1 }), { path: "b.ts", area: "unstaged", change: "modified", added: 9, removed: 9 }], "src/a.ts"))
+      .toEqual({ added: 16, removed: 4, binary: false });
+  });
+
+  it("calls a file binary when either side is, and knows nothing when a side is unknown", () => {
+    expect(pathCounts([e("staged", { added: 0, removed: 0, binary: true }), e("unstaged", { added: 2, removed: 0 })], "src/a.ts")).toEqual({ added: 0, removed: 0, binary: true });
+    expect(pathCounts([e("staged", { added: 1, removed: 0 }), e("unstaged", {})], "src/a.ts")).toBeNull();
+    expect(pathCounts([], "src/a.ts")).toBeNull();
+  });
+});
+
+describe("names on the rows, the way the canvas says them", () => {
+  // The card's name for an agent of the session: the session's name for its
+  // main thread, the subagent's own for a subagent.
+  const cards = (agentId: string | null) => (agentId === null ? "api-fix" : agentId === TW ? "test-writer" : null);
+  const unnamed: GitEdit[] = EDITS.map(e => ({ ...e, label: e.agentId === null ? "Add a login endpoint" : "subagent" }));
+
+  it("prefers the card's name over the label the server sent with the edit", () => {
+    const list = uncommittedList(ENTRIES, unnamed, TEAM, [], "api-fix", cards);
+    expect(list.label).toBe("Edited by api-fix and its subagents");
+    expect(list.mine.find(r => r.path === "test/auth/session.test.ts")?.sub).toBe("test-writer");
+    expect(list.mine.find(r => r.path === "src/auth/password.ts")?.editors).toEqual(["api-fix"]);
+  });
+
+  it("names another agent's file by its card too, from a subagent", () => {
+    const list = uncommittedList(ENTRIES, unnamed, { sessionId: "e3200d5a", agentIds: [TW] }, [], "test-writer", cards);
+    expect(list.other.find(r => r.path === "src/auth/password.ts")?.other).toBe("api-fix");
+  });
+
+  it("falls back to the server's label for an agent whose card left the board", () => {
+    const list = uncommittedList(ENTRIES, EDITS, TEAM, [], "api-fix", () => null);
+    expect(list.mine.find(r => r.path === "test/auth/session.test.ts")?.sub).toBe("test-writer");
+  });
+});
+
+describe("a subagent working in another folder", () => {
+  const away = (extra: Partial<SubagentElsewhere>): SubagentElsewhere => ({
+    agentId: "b7", label: "docs-sync", folder: "/code/shop-api-docs", folderName: "shop-api-docs",
+    state: "repo", topLevel: "/code/shop-api-docs", sameRepo: true, changed: 1, ...extra,
+  });
+  const name = (agentId: string) => (agentId === "b7" ? "docs-sync" : null);
+
+  it("says who works where and how many files changed there, and opens", () => {
+    const [row] = elsewhereRows([away({})], name);
+    expect(row).toMatchObject({ key: "elsewhere:b7", agentId: "b7", name: "docs-sync", lead: "docs-sync works in shop-api-docs", tail: "1 file", opens: true });
+    // The title opens with the line's own words, so a line cut short keeps them.
+    expect(row.title).toBe("docs-sync works in shop-api-docs: /code/shop-api-docs, another worktree of this repository. Show its changes.");
+    expect(row.said).toBe("docs-sync works in shop-api-docs, 1 file. Enter shows its changes.");
+    expect(elsewhereRows([away({ changed: 3 })], name)[0].tail).toBe("3 files");
+    expect(elsewhereRows([away({ changed: 1234 })], name)[0].tail).toBe("1,234 files");
+    expect(elsewhereRows([away({ changed: 0 })], name)[0].tail).toBe("no changes");
+    expect(elsewhereRows([away({ changed: null })], name)[0].tail).toBe("");
+    expect(elsewhereRows([away({ sameRepo: false })], name)[0].title).toMatch(/, another repository\. Show its changes\.$/);
+  });
+
+  it("says in a short word why a folder has nothing to open, with no count", () => {
+    const notRepo = elsewhereRows([away({ state: "not-a-repo", topLevel: null, sameRepo: false, changed: null, folder: "/code/notes", folderName: "notes" })], name)[0];
+    expect(notRepo).toMatchObject({ lead: "docs-sync works in notes", tail: "not a repo", opens: false });
+    expect(notRepo.title).toBe("docs-sync works in notes: /code/notes, which is not a git repository.");
+    expect(notRepo.said).toBe("docs-sync works in notes, which is not a git repository.");
+    const gone = elsewhereRows([away({ state: "gone", topLevel: null, changed: null })], name)[0];
+    expect(gone).toMatchObject({ tail: "folder gone", opens: false });
+    for (const state of ["no-git", "bare", "unsafe", "timeout", "error"] as const) {
+      const r = elsewhereRows([away({ state, changed: null })], name)[0];
+      expect(r.opens, state).toBe(false);
+      expect(r.tail, state).toBeTruthy();
+    }
+  });
+
+  it("names the subagent by its card, else the server's label, else as a subagent", () => {
+    expect(elsewhereRows([away({ label: "general-purpose" })], name)[0].name).toBe("docs-sync");
+    expect(elsewhereRows([away({ agentId: "c9", label: "general-purpose" })], name)[0].name).toBe("general-purpose");
+    expect(elsewhereRows([away({ agentId: "c9", label: null })], name)[0].name).toBe("subagent");
   });
 });
 

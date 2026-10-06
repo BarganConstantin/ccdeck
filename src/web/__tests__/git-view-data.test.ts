@@ -47,6 +47,15 @@ describe("an answer folded into what the page holds", () => {
     expect(foldAnswer(EMPTY_GIT_DATA, "edits", { error: "unknown session" }, 404)).toMatchObject({ state: "error", reason: "unknown session" });
   });
 
+  it("takes the session's subagents that work in another folder from the repository's answer", () => {
+    const away = { agentId: "b7", label: "docs-sync", folder: "/c/docs", folderName: "docs", state: "repo" as const, topLevel: "/c/docs", sameRepo: true, changed: 1 };
+    const d = foldAnswer(EMPTY_GIT_DATA, "repo", { ok: true, state: "repo", repo: null, subagents: [away] }, 200);
+    expect(d.subagents).toEqual([away]);
+    expect(EMPTY_GIT_DATA.subagents).toBeNull();
+    // An answer without the list (an older deck) says there are none.
+    expect(foldAnswer(EMPTY_GIT_DATA, "repo", { ok: true, state: "repo", repo: null }, 200).subagents).toEqual([]);
+  });
+
   it("names the commits that arrived at the top since the last read", () => {
     const first = foldAnswer(EMPTY_GIT_DATA, "log", { ok: true, state: "repo", commits: [commit("b"), commit("a")] }, 200);
     expect(first.newShas).toEqual([]);
@@ -100,6 +109,10 @@ describe("the reads' rhythm", () => {
     expect(sourceOf("use-git-view.ts")).toMatch(/gitQuery\(sessionId, kind === "edits" \? editsAgent : agent\)/);
   });
 
+  it("asks where the subagents work only for a whole session: a narrowed read lists none", () => {
+    expect(sourceOf("use-git-view.ts")).toMatch(/const kinds = agent \? READS : \[\.\.\.READS, "repo"\] as const;/);
+  });
+
   const src = sourceOf("use-git-view.ts");
 
   it("never polls: no timer drives a read", () => {
@@ -108,6 +121,11 @@ describe("the reads' rhythm", () => {
 
   it("reads again when the repository's stale counter moves past what was read", () => {
     expect(src).toMatch(/if \(e\.seen < stale \|\| e\.data\.at === 0 \|\| \(fresh && old\)\) read\(key, sessionId, agent, stale, ownFolder \? agent : null\);/);
+  });
+
+  it("never reads the old folder's file in the new one when the view narrows or widens", () => {
+    expect(src).toMatch(/const sameRead = of === was\.of;/);
+    expect(src).toMatch(/if \(!sameRead \|\| !active \|\| !file \|\| sel !== UNCOMMITTED \|\| diff\.loading\) return;/);
   });
 
   it("reads the diff a frame after it is asked for, and keeps a newer one aside", () => {

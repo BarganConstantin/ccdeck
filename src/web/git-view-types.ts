@@ -63,6 +63,27 @@ export interface StatusEntry {
   from?: string;
   submodule?: boolean;
   directory?: boolean;
+  /** The lines this side's diff adds and removes, and whether it is binary:
+   *  absent when the deck does not know (a conflict, a submodule, a folder, a
+   *  file past a size cap). */
+  added?: number;
+  removed?: number;
+  binary?: boolean;
+}
+
+/** A subagent of the session that works in a folder of its own — another
+ *  worktree, another repository, or no repository — as /api/git/repo lists
+ *  it for a whole session. `changed` counts the files changed there (each
+ *  path once), null when that is not known. */
+export interface SubagentElsewhere {
+  agentId: string;
+  label: string | null;
+  folder: string;
+  folderName: string;
+  state: GitReadState;
+  topLevel: string | null;
+  sameRepo: boolean;
+  changed: number | null;
 }
 
 export interface StatusCounts {

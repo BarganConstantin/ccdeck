@@ -1,6 +1,7 @@
 // The small parts the git view and the glance share: their glyphs, the three
 // commit marks, the collision line, the one-line state of a folder with no
 // repository to show, and the card a commit row opens with `i`.
+import { pressHow, type PressHow } from "../agent-goto";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject, type Ref } from "react";
 
 import { fitBranch } from "../git-chip";
@@ -50,31 +51,35 @@ export function CollisionLine({ c, other, otherCli, where, onFocus }: {
   /** Its CLI, said in the wide view's sentence ("Codex"), when known. */
   otherCli: string | null;
   where: "wide" | "glance";
-  onFocus: () => void;
+  /** A press on it: the way to the other agent, told how it was made. */
+  onFocus: (how: PressHow) => void;
 }) {
+  const press = (e: { detail: number }) => onFocus(pressHow(e));
   if (c.level === "sharp") {
     const file = c.files[0] ?? "";
     const more = c.files.length > 1 ? ` and ${c.files.length - 1} more` : "";
     const title = `${other} also edited ${c.files.join(", ")} since it was last committed. Both are running.`;
     if (where === "glance") {
       return (
-        <button type="button" className="gv-g-collide" title={`${title} Select ${other}.`} onClick={onFocus}>
+        <button type="button" className="gv-g-collide" title={`${title} Select ${other}.`} onClick={press}>
           <GvIcon name="clash" />
           <span><b>{file}</b>{more} also edited by {other}</span>
         </button>
       );
     }
+    // The tooltip opens with the line's own words, so a line cut short is whole there.
+    const said = `${other}${otherCli ? ` (${otherCli})` : ""} also edited ${c.files.join(", ")} since ${c.files.length === 1 ? "it was" : "they were"} last committed. Both are running.`;
     return (
-      <div className="gv-collide-line" role="note" title={title}>
+      <div className="gv-collide-line" role="note" title={said}>
         <GvIcon name="clash" />
         <span><b>{other}</b>{otherCli ? ` (${otherCli})` : ""} also edited <b>{file}</b>{more} since it was last committed. Both are running.</span>
-        <button type="button" className="gv-link" onClick={onFocus}>Focus {other}</button>
+        <button type="button" className="gv-link" onClick={press}>Focus {other}</button>
       </div>
     );
   }
   const what = c.reason === "same-branch" ? "Works on this branch in another folder:" : "Shares this folder with";
   const button = (
-    <button type="button" className="gv-g-quiet" title={`${other} ${c.reason === "same-branch" ? "works on the same branch" : "works in the same folder"}. Select it.`} onClick={onFocus}>
+    <button type="button" className="gv-g-quiet" title={`${other} ${c.reason === "same-branch" ? "works on the same branch" : "works in the same folder"}. Select it.`} onClick={press}>
       <GvIcon name="share" /><span>{what} {other}</span>
     </button>
   );
@@ -122,7 +127,7 @@ export interface CommitCardFacts {
 export function CommitCard({ facts, anchor, onShow, onClose }: {
   facts: CommitCardFacts;
   anchor: DOMRect | null;
-  onShow: (cardId: string) => void;
+  onShow: (cardId: string, how: PressHow) => void;
   onClose: (refocus: boolean) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -176,7 +181,7 @@ export function CommitCard({ facts, anchor, onShow, onClose }: {
       <div className="gv-pop-foot gv-card-actions">
         <span className="gv-card-sha" title={commit.sha}>{short}</span>
         {facts.cardId && (
-          <button type="button" className="btn gv-card-btn" onClick={() => onShow(facts.cardId!)}>
+          <button type="button" className="btn gv-card-btn" onClick={e => onShow(facts.cardId!, pressHow(e))}>
             <GvIcon name="focus" /><span>Show on canvas</span>
           </button>
         )}

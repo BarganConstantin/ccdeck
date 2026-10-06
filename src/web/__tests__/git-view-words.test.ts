@@ -62,10 +62,15 @@ describe("who made a commit, and how the deck knows", () => {
     expect(commitMark(null)).toEqual({ level: "round", words: "no agent seen" });
   });
 
-  it("names the agent by its label, its card's name when it has none, or the CLI a trailer names", () => {
-    const card = (id: string) => (id === "s1" ? "rate-review" : null);
+  it("names the agent the way its card does, else by the label the server sent, or the CLI a trailer names", () => {
+    const card = (sessionId: string, agentId: string | null) => (sessionId === "s1" && agentId === null ? "rate-review" : null);
     expect(commitWho({ sessionId: "s1", agentId: null, label: null, confidence: "seen" }, card)).toBe("rate-review");
-    expect(commitWho({ sessionId: "s1", agentId: null, label: "api-fix", confidence: "seen" }, card)).toBe("api-fix");
+    // The card on the board wins: the server's label is what it knew when it recorded.
+    expect(commitWho({ sessionId: "s1", agentId: null, label: "Review the rate limiter", confidence: "seen" }, card)).toBe("rate-review");
+    // A card that left the board: the server's label, then its session's card.
+    expect(commitWho({ sessionId: "s2", agentId: null, label: "api-fix", confidence: "seen" }, card)).toBe("api-fix");
+    expect(commitWho({ sessionId: "s1", agentId: "a4f1", label: "test-writer", confidence: "seen" }, card)).toBe("test-writer");
+    expect(commitWho({ sessionId: "s1", agentId: "a4f1", label: null, confidence: "seen" }, card)).toBe("rate-review");
     expect(commitWho({ agent: "codex", confidence: "trailer" }, card)).toBe("Codex");
     expect(commitWho(null, card)).toBeNull();
   });
