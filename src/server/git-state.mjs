@@ -20,7 +20,7 @@
 // since then is stale for it, whichever finished first.
 import { codexCwdInWorkspace } from "./log-election.mjs";
 import { filterNames, readUpstream, resolveRepo } from "./git-repo.mjs";
-import { readCommit, readCommitFileDiff, readFileDiff, readLog, readStatus } from "./git-reads.mjs";
+import { countEntries, readCommit, readCommitFileDiff, readFileDiff, readLog, readStatus } from "./git-reads.mjs";
 
 /** How long an answer is trusted with no mark at all — the bound on how late a
  *  change made outside any agent is noticed by a read. */
@@ -31,7 +31,7 @@ const MAX_WORKTREES = 256;
 let epoch = 0;
 let now = () => Date.now();
 const folders = new Map();   // folder -> { at, start, result } | { pending }
-const worktrees = new Map(); // topLevel -> { commonDir, marked, stale, status, log, filters }
+const worktrees = new Map(); // topLevel -> { commonDir, marked, stale, status, counted, log, filters }
 
 /** Whether `path` is `root` or inside it, by the platform's own rules. */
 const inside = (path, root) => typeof root === "string" && root !== "" && codexCwdInWorkspace(path, root);
@@ -39,7 +39,7 @@ const inside = (path, root) => typeof root === "string" && root !== "" && codexC
 function worktree(repo) {
   let wt = worktrees.get(repo.topLevel);
   if (!wt) {
-    wt = { commonDir: repo.commonDir, marked: 0, stale: 0, status: null, log: null, filters: null };
+    wt = { commonDir: repo.commonDir, marked: 0, stale: 0, status: null, counted: null, log: null, filters: null };
     worktrees.set(repo.topLevel, wt);
     while (worktrees.size > MAX_WORKTREES) worktrees.delete(worktrees.keys().next().value);
   }
@@ -111,6 +111,15 @@ const filtersOf = (repo) => cached(repo, "filters", () => filterNames(repo.topLe
 export const logOf = (repo) => cached(repo, "log", () => readLog(repo.topLevel, repo.head));
 
 export const statusOf = (repo) => cached(repo, "status", async () => readStatus(repo.topLevel, { filters: await filtersOf(repo) }));
+
+/** The status with each entry's line counts (git-reads.mjs countEntries) —
+ *  what the status route answers. Cached apart from the plain status, which
+ *  the diff lookups and the collision check read without paying for counts. */
+export const countedStatusOf = (repo) => cached(repo, "counted", async () => {
+  const status = await statusOf(repo);
+  if (!status?.ok) return status;
+  return { ...status, entries: await countEntries(repo.topLevel, status.entries, { filters: await filtersOf(repo) }) };
+});
 
 /** One file's diff. Not cached: it is asked for one file at a time, and the
  *  status it is checked against already is. */

@@ -467,7 +467,8 @@ which commit: the repository folder, the commit's SHA, subject and author time,
 the session, its model, how long it had worked and the tokens it had used by
 then. It stays on this machine — no report, error report or feedback ever
 carries it — and deleting it only takes the agent marks off the commits the
-deck saw being made.
+deck saw being made, until the next start finds again the ones its events log
+still shows.
 
 `uv tool uninstall claude-swap` (or `pipx uninstall claude-swap`) removes the
 account switcher.

@@ -145,8 +145,8 @@ describe("the reads", () => {
     expect(log.body.commits.map((c: any) => c.sha)).toEqual([secondSha, firstSha]);
     const status = await read(q("/api/git/status", { session: "S-repo" }));
     expect(status.body.entries).toEqual([
-      { path: "a.txt", area: "unstaged", change: "modified" },
-      { path: "new.txt", area: "untracked", change: "untracked" },
+      { path: "a.txt", area: "unstaged", change: "modified", added: 1, removed: 1, binary: false },
+      { path: "new.txt", area: "untracked", change: "untracked", added: 1, removed: 0, binary: false },
     ]);
     expect(status.body.counts).toEqual({ staged: 0, unstaged: 1, untracked: 1, conflict: 0 });
   });
@@ -179,5 +179,49 @@ describe("the reads", () => {
     for (const sha of ["HEAD", "main", "--output=x", "HEAD~1"]) {
       expect((await read(q("/api/git/commit", { session: "S-repo", sha }))).status, sha).toBe(400);
     }
+  });
+});
+
+describe("subagents working in another folder", () => {
+  it("lists the session's subagents outside its worktree, with where they work and how much is changed there", async () => {
+    const docs = join(track(tempDir("ccdeck-git-routes-docs-")), "shop-api-docs");
+    sh(repo, ["worktree", "add", "-q", "-b", "docs/sync", docs]);
+    write(docs, { "docs/a.md": "a\n", "README.md": "readme\n" });
+    sh(docs, ["add", "docs/a.md"]);
+    write(docs, { "docs/a.md": "a, changed again\n" });
+    const elsewhere = track(repoWith({ "x.txt": "x\n" }, "ccdeck-git-routes-other-"));
+    const plain = track(tempDir("ccdeck-git-routes-notes-"));
+    mkdirSync(join(repo, "sub"), { recursive: true });
+    await event({ hook_event_name: "SessionStart", session_id: "S-team", cwd: repo });
+    await event({ hook_event_name: "SubagentStart", session_id: "S-team", cwd: docs, agent_id: "ag-docs", agent_type: "docs-sync" });
+    await event({ hook_event_name: "SubagentStart", session_id: "S-team", cwd: elsewhere, agent_id: "ag-other", agent_type: "porter" });
+    await event({ hook_event_name: "SubagentStart", session_id: "S-team", cwd: plain, agent_id: "ag-notes" });
+    // In the session's own worktree — its folder, or a folder inside it — a subagent is not elsewhere.
+    await event({ hook_event_name: "SubagentStart", session_id: "S-team", cwd: repo, agent_id: "ag-here", agent_type: "test-writer" });
+    await event({ hook_event_name: "SubagentStart", session_id: "S-team", cwd: join(repo, "sub"), agent_id: "ag-sub", agent_type: "linter" });
+
+    const r = await read(q("/api/git/repo", { session: "S-team" }));
+    expect(r.body.repo.topLevel).toBe(repo);
+    expect(r.body.subagents).toEqual([
+      // A file staged and changed again is one file changed.
+      { agentId: "ag-docs", label: "docs-sync", folder: docs, folderName: "shop-api-docs", state: "repo", topLevel: docs, sameRepo: true, changed: 2 },
+      { agentId: "ag-other", label: "porter", folder: elsewhere, folderName: basename(elsewhere), state: "repo", topLevel: elsewhere, sameRepo: false, changed: 0 },
+      { agentId: "ag-notes", label: null, folder: plain, folderName: basename(plain), state: "not-a-repo", topLevel: null, sameRepo: false, changed: null },
+    ]);
+  });
+
+  it("lists none for a view narrowed to one subagent, and none for a session without any", async () => {
+    expect((await read(q("/api/git/repo", { session: "S-team", agent: "ag-docs" }))).body).toMatchObject({ repo: { folderName: "shop-api-docs" }, subagents: [] });
+    expect((await read(q("/api/git/repo", { session: "S-team", agent: "nobody" }))).body.subagents).toEqual([]);
+    const sid = "S-alone";
+    await event({ hook_event_name: "SessionStart", session_id: sid, cwd: repo });
+    expect((await read(q("/api/git/repo", { session: sid }))).body.subagents).toEqual([]);
+  });
+
+  it("says a subagent in a linked worktree of the session's repository works in the same repository", async () => {
+    const r = await read(q("/api/git/repo", { session: "S-repo" }));
+    expect(r.body.subagents).toEqual([
+      { agentId: "ag-1", label: null, folder: worktree, folderName: "agent-wt", state: "repo", topLevel: worktree, sameRepo: true, changed: 0 },
+    ]);
   });
 });
