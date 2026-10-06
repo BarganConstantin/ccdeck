@@ -147,6 +147,7 @@
   line-height: 16px;
 }
 .gvd-note svg { flex: none; color: var(--err); }
+.gvd-note[data-tone="info"] svg { color: var(--muted); }
 .gvd-note b { color: var(--text); font-weight: 600; }
 
 .gvd-scroll {
@@ -228,10 +229,12 @@
 }
 .gvd-ctl-raw { unicode-bidi: isolate; }
 .gvd-ctl-mark { -webkit-user-select: none; user-select: none; }
+/* A line whose only change is its ending: the carriage return it ends in. */
+.gvd-cr { margin-left: 2px; color: var(--text-secondary); font-size: 11px; }
 /* What a line says to a screen reader ("added:", "no newline at end of
    file") is not part of its code: selecting and copying lines copies the
    code alone. */
-.gvd-code .vis-hidden, .gvd-noeol { -webkit-user-select: none; user-select: none; }
+.gvd-code .vis-hidden, .gvd-noeol, .gvd-cr { -webkit-user-select: none; user-select: none; }
 /* Show latest: the lines that are new glow once, a colour and nothing that
    moves, so reduced motion keeps it. */
 .gvd-line[data-fresh] .gvd-code { animation: gvd-glow 1000ms ease-out; }

@@ -2,7 +2,7 @@ import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, u
 import { fmtBytes } from "../byte-format";
 import { copyText } from "../copy-text";
 import {
-  budgetHunks, collapsedKind, diffState, failureLine, freshLines, groupDigits, lockOwner, parsePatch,
+  budgetHunks, collapsedKind, diffState, endingOnly, endingsChange, failureLine, freshLines, groupDigits, lockOwner, parsePatch,
   type DiffLine, type DiffResult, type Hunk, type ParsedDiff,
 } from "../git-diff-parse";
 import { codePoint, hasHidden, hiddenIn, hiddenName, shownPath, splitHidden } from "../git-hidden-chars";
@@ -171,6 +171,8 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   const collapsed = file && parsed && parsed.hunks.length ? collapsedKind(file.path, parsed) : null;
   // Hidden characters anywhere in the diff, drawn or not yet.
   const hidden = useMemo(() => (parsed ? hiddenIn(linesOf(parsed)) : []), [parsed]);
+  // A diff whose every changed line only changed its line ending.
+  const endings = useMemo(() => (parsed ? endingsChange(parsed) : null), [parsed]);
   const showTable = !!parsed && parsed.hunks.length > 0 && (!collapsed || expanded) && !parsed.binary;
   const budgeted = useMemo(() => (showTable && parsed ? budgetHunks(parsed.hunks, steps) : null), [showTable, parsed, steps]);
 
@@ -295,7 +297,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     const p = parsed!;
     if (!p.hunks.length) {
       if (p.renamed || p.copied) {
-        const from = splitPath(shownPath(p.from ?? file!.from ?? "")).base;
+        const from = splitPath(shownPath(file!.from ?? p.from ?? "")).base;
         return <Placeholder title={p.copied ? "Copied, content unchanged." : "Renamed, content unchanged."}
           line={`${from} → ${splitPath(shownPath(file!.path)).base}${p.similarity !== undefined ? ` · ${p.similarity}% similar` : ""}`} />;
       }
@@ -343,7 +345,9 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
 
   const parts = pathCut ?? splitPath(shownPath(file.path));
   const counts = diff && diffState(diff) === "text" && !parsed?.binary ? { added: diff.added ?? 0, removed: diff.removed ?? 0 } : null;
-  const renameFrom = parsed?.from ?? file.from;
+  // The list's own name for it, from git's -z output, before the patch
+  // header's, which git may have quoted.
+  const renameFrom = file.from ?? parsed?.from;
   const copy = async () => {
     if (await copyText(file.path)) {
       setCopied(true);
@@ -404,6 +408,12 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
             <b>Hidden or bidirectional characters.</b> This diff holds {hidden.join(", ")}{hidden.length > 4 ? " and more" : ""}, drawn
             as their code points: they can make code read differently from how it runs.
           </span>
+        </div>
+      )}
+      {endings && (
+        <div className="gvd-note" data-tone="info">
+          <InfoGlyph />
+          <span><b>Only the line endings changed</b> ({endings}). The text of every line is the same; ␍ marks a carriage return.</span>
         </div>
       )}
       {file.area === "conflict" && (
@@ -585,6 +595,14 @@ function useWindow(scrollRef: React.RefObject<HTMLDivElement>, on: boolean): Wat
   }, [on]);
 }
 
+/** A hunk's lines whose only change is their ending, worked out once. */
+const endsOf = new WeakMap<Hunk, Set<number>>();
+function endingsOf(h: Hunk): Set<number> {
+  let m = endsOf.get(h);
+  if (!m) { m = endingOnly(h.lines); endsOf.set(h, m); }
+  return m;
+}
+
 /** A hunk's word marks, worked out the first time a block of it is drawn. */
 const marksOf = new WeakMap<Hunk, Map<number, Range[]>>();
 function wordMarks(h: Hunk): Map<number, Range[]> {
@@ -619,6 +637,7 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
   const h = rows.hunks[hi];
   const marks = wordMarks(h);
   const keys = lineKeys(h.lines, h.oldStart);
+  const ends = endingsOf(h);
   const at = block.key.slice(0, block.key.lastIndexOf("."));
   return (
     <div ref={ref} className="gvd-block">
@@ -640,6 +659,7 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
               {l.kind === "add" && <span className="vis-hidden">added: </span>}
               {l.kind === "del" && <span className="vis-hidden">removed: </span>}
               {codeOf(l.text, syn, marks.get(li))}
+              {l.cr && ends.has(li) && <span className="gvd-cr" title="Ends in a carriage return (CRLF)"><span aria-hidden="true">␍</span><span className="vis-hidden"> carriage return</span></span>}
               {l.noEol && <span className="gvd-noeol" title="No newline at end of file"><span aria-hidden="true">⊘</span><span className="vis-hidden"> no newline at end of file</span></span>}
             </span>
           </div>

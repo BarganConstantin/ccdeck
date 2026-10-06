@@ -72,7 +72,7 @@ describe("the diff's sources", () => {
 
 describe("copying from the diff", () => {
   it("copies the code alone: what a line says to a screen reader cannot be selected", () => {
-    expect(css).toMatch(/\.gvd-code \.vis-hidden, \.gvd-noeol \{ -webkit-user-select: none; user-select: none; \}/);
+    expect(css).toMatch(/\.gvd-code \.vis-hidden, \.gvd-noeol, \.gvd-cr \{ -webkit-user-select: none; user-select: none; \}/);
     // The words are still there for a screen reader.
     expect(diff).toContain('<span className="vis-hidden">added: </span>');
     expect(diff).toContain('<span className="vis-hidden"> no newline at end of file</span>');
