@@ -346,7 +346,9 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("draws the face in every card and hides it from assistive technology", () => {
-    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }} />');
+    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }}');
+    // The card's own sharp git collision is the one git mark the face keeps.
+    expect(node).toContain('clash={gitMark?.level === "sharp" && !gitMark.session ? gitMark : null} />');
     expect(node).toMatch(/className="lod-face"[\s\S]{0,200}aria-hidden/);
     expect(css).toMatch(/\.lod-face \{ display: none; \}/);
   });

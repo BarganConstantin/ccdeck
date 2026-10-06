@@ -43,13 +43,17 @@ import { RecapMark } from "./RecapMark";
 import { branchChip, rowYields, type RowYield } from "../git-chip";
 import { useGitOn } from "../git-pref";
 import GitChip from "./GitChip";
+// Who this card can step on in git right now — git-card-mark.ts.
+import type { CardMark } from "../git-card-mark";
+import { GitMarkRow } from "./GitCardMark";
+import { GvIcon } from "./GitViewParts";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
-function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark }>) {
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
@@ -116,6 +120,8 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // None at all while the git view is switched off in Appearance.
   const gitOn = useGitOn();
   const chip = gitOn ? branchChip(data) : null;
+  // The collision mark, with the chip and for the same switch.
+  const gitMark = gitOn ? data.gitMark ?? null : null;
   const modelMore = otherModels.length > 0 ? ` +${otherModels.length}` : "";
   const modelSaid = data.model ? `${shortModel(data.model)}${modelMore}` : data.provider === "codex" ? "Codex" : "";
   // A row too tight for the branch's ticket — `session → 1 Opus 5.5 +1` left
@@ -253,6 +259,13 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         </div>
       )}
 
+      {/* Who this card can step on in git: a row of its own, between the
+          session's name and anything waiting on you, as the wide view puts its
+          line under its header. None at all for a card with nothing to say, so
+          that card keeps exactly the rows and the height it had; a mark that
+          stops being true fades out first (GitCardMark.tsx). */}
+      <GitMarkRow mark={gitMark} agentId={data.id} />
+
       {/* A row of its own rather than a chip in the title. The card is 260px
           wide and the header already spends it on the state pill, the workspace
           name and the elapsed clock; a fourth item there pushed the label to an
@@ -315,7 +328,8 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         )}
       </div>
 
-      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }} />
+      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }}
+        clash={gitMark?.level === "sharp" && !gitMark.session ? gitMark : null} />
 
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
@@ -348,12 +362,16 @@ const NO_YIELDS: RowYield[] = [];
  * this at every zoom. A line the face cuts short carries its whole text on
  * hover, as the full card's name does (faceTitle).
  */
-function NodeFace({ data, title, tips }: {
+function NodeFace({ data, title, tips, clash }: {
   data: AgentNodeData & { branch?: BranchSummary };
   title?: string;
   /** The full card's tooltips for the name and the session's line, which the
    *  face's cut lines carry too (faceTitle). */
   tips: { name?: string; title?: string };
+  /** The card's own sharp collision, which the face keeps as a small error
+   *  mark on the name's line — "same file" beside it where the face has the
+   *  room. A quiet one is not worth a mark at this distance. */
+  clash: CardMark | null;
 }) {
   const alarm = data.kind === "root" && isAlarming(data.waiting);
   const signal = faceSignal(data, data.branch, {
@@ -373,6 +391,7 @@ function NodeFace({ data, title, tips }: {
         <span className="lod-name" title={faceTitle(data.label, tips.name)}>{data.label}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
         {alarm && <AlertMark />}
+        {clash && <span className="lod-clash" title={clash.words}><GvIcon name="clash" size={12} /><span className="lod-clash-word">same file</span></span>}
       </div>
       {title && <div className="lod-title" title={faceTitle(title, tips.title)}>{title}</div>}
       {signal && (

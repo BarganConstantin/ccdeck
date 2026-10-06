@@ -62,7 +62,7 @@ export function spawnBadgeTitle(count: number): string {
  *  is composed from the data instead, so it does not change with zoom, and it
  *  says the things a reader chooses a card by, in the card's own words: name,
  *  kind, the state pill, the waiting sentence, model, tools, failures, cost. */
-export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false): string {
+export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false, git: string | null = null): string {
   // Over the agent's whole life, like the card's "err" (#1809).
   const failed = data.toolErrorCount ?? 0;
   const cost = agentCost(data, now).total;
@@ -71,6 +71,9 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
     data.kind === "root" ? "session" : "subagent",
     stateLabel(data.state),
     isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
+    // A file another live agent also edited, as the card's mark says it — the
+    // one git fact the zoomed-out face keeps (git-card-mark.ts).
+    git,
     data.model ? shortModel(data.model) : null,
     `${data.toolCount} ${data.toolCount === 1 ? "tool" : "tools"}`,
     failed > 0 ? `${failed} failed` : null,

@@ -1955,3 +1955,33 @@ describe("the git view's diff and file list", () => {
     }
   });
 });
+
+// The collision mark on a card and its zoomed-out face (git-card-mark.ts): the
+// sharp words in the error colour, at rest and under the pointer's 9% wash; the
+// quiet words in the metadata tier; and the face's "same file", on the face at
+// rest and hovered. Each on both stops of the card's gradient, both themes.
+describe("the card's collision mark", () => {
+  const ratioOn = (fg: string, bed: Rgba, theme: Theme) => contrastRatio(resolve(fg, theme), bed);
+
+  it("reads its words at 4.5:1 wherever they land", () => {
+    expect(declFor('.agent-node .git-mark[data-level="sharp"]', "color")).toBe("var(--err)");
+    expect(declFor('.agent-node .git-mark[data-level="quiet"]', "color")).toBe("var(--muted)");
+    expect(declFor(".lod-clash", "color")).toBe("var(--err)");
+    const wash = declFor('.agent-node .git-mark[data-level="sharp"]:hover', "background")!;
+    const faceHover = declFor(".react-flow__node:hover .lod-face", "background")!;
+    for (const theme of themes) {
+      for (const [name, bed] of nodeBeds(theme)) {
+        const washed = over(resolve(wash, theme), bed);
+        for (const [what, fg, on] of [
+          ["sharp", "var(--err)", bed], ["sharp under the pointer", "var(--err)", washed], ["quiet", "var(--muted)", bed],
+        ] as const) {
+          const r = ratioOn(fg, on, theme);
+          expect(r, `${theme} ${what} on ${name} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
+      }
+      const hovered = resolve(faceHover, theme);
+      const r = ratioOn("var(--err)", hovered, theme);
+      expect(r, `${theme} face's same file, hovered — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+});

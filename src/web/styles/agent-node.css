@@ -243,6 +243,27 @@
 .state-mark[data-kind="done"] { color: var(--ok); }
 .state-mark[data-kind="err"] { color: var(--err); }
 .alert-mark { flex: none; margin-left: auto; color: var(--warn); }
+/* A file two live agents both edited (git-card-mark.ts): the clash glyph in
+   the error colour, at the line's end like the alarm's mark, and the words
+   "same file" beside it where the face has the room — a face about 150px
+   wide, whose content box (what the query reads) is 130. A root's name gives
+   way to them first, as it gives way to the signal: it is on the cluster's
+   label just above. The whole sentence is the mark's tooltip. */
+.lod-clash {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--err);
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: auto;
+}
+.lod-clash svg { width: 12px; height: 12px; }
+.lod-clash-word { display: none; }
+@container lod (min-width: 130px) {
+  .lod-clash-word { display: inline; }
+}
 
 /* OVERVIEW is a smaller face with less in it: one line of 11px, a second only
    where the card is tall enough, no title, and the short form of the signal. */
@@ -278,7 +299,8 @@
   .lod-signal { display: none; }
   .lod-face[data-kind="root"][data-signal] .lod-inline { display: none; }
   .lod-id { justify-content: center; }
-  .alert-mark { margin-left: 0; }
+  .alert-mark,
+  .lod-clash { margin-left: 0; }
 }
 
 /* Parent-to-child edges hold a readable stroke at a distance. Each edge's own
@@ -397,3 +419,112 @@
    lost its top and bottom and read as two bars. */
 .git-chip:focus-visible { outline-offset: -2px; }
 .git-chip:active { transform: scale(0.97); }
+
+/* THE COLLISION MARK (git-card-mark.ts, GitCardMark.tsx): who this card can
+   step on in git, as one row under the session's name and a way to the other
+   agent. A card with nothing to say has no row at all, so it keeps the rows
+   and the height it had.
+
+   The row never widens the card: `contain: inline-size` keeps its sentence out
+   of the card's own width, so a card is as wide as its other rows make it and
+   the sentence gives way inside that. What gives way first is the sentence —
+   the file's name leads and keeps up to half the row, the tail (`+1`,
+   `· in this session`) never goes, and the tooltip holds every agent and
+   file.
+
+   QUIET is two agents in one folder or on one branch, which is often meant: a
+   line in the metadata tier with no edge and no wash, on the card's own text
+   column. Colour only on hover, as the deck's other edgeless controls. */
+.agent-node .git-mark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  contain: inline-size;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
+  animation: git-mark-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+/* Live: a mark arrives and leaves as the server's collisions change — a
+   session ends, the file is committed, the agents part — with a fade and no
+   travel. One that is leaving is no longer a control. */
+.agent-node .git-mark[data-leaving] {
+  pointer-events: none;
+  animation: git-mark-out 150ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+@keyframes git-mark-in { from { opacity: 0; } }
+@keyframes git-mark-out { to { opacity: 0; } }
+.agent-node .git-mark-glyph { flex: none; display: inline-flex; }
+.agent-node .git-mark-glyph svg { width: 12px; height: 12px; }
+.agent-node .git-mark-lead {
+  flex: 0 0 auto;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.agent-node .git-mark-said {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-node .git-mark-tail { flex: none; white-space: nowrap; }
+.agent-node .git-mark[data-level="quiet"] {
+  margin-top: 5px;
+  padding: 2px 0;
+  color: var(--muted);
+}
+.agent-node .git-mark[data-level="quiet"]:hover { color: var(--text); }
+/* SHARP is the same file edited by two live agents since it was last
+   committed — where one agent's work quietly undoes the other's. The error
+   colour, never amber (that is waiting on you), on an edge, in the waiting
+   row's geometry: the deck's one shape for "this card has something to say".
+   The clash glyph carries the word "same file" for a screen reader. A dashed
+   edge is a subagent sharing the danger with its session, not its own file. */
+.agent-node .git-mark[data-level="sharp"] {
+  color: var(--err);
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--err) 70%, transparent);
+}
+.agent-node .git-mark[data-level="sharp"]:hover { background: color-mix(in srgb, var(--err) 9%, transparent); }
+.agent-node .git-mark[data-session] { border-style: dashed; }
+.agent-node .git-mark:active { transform: scale(0.97); }
+/* A CARD THE READER WAS TAKEN TO (card-flash.ts): a halo in the session's
+   colour outside the selection's ring, held while the camera arrives and then
+   let go. On the full card at the detail tier, on the face below it — the
+   card's own chrome is not drawn out there. */
+.react-flow__node[data-flash] .agent-node { animation: card-flash 1.4s cubic-bezier(0.23, 1, 0.32, 1); }
+.canvas-wrap[data-lod="compact"] .react-flow__node[data-flash] .agent-node,
+.canvas-wrap[data-lod="overview"] .react-flow__node[data-flash] .agent-node { animation: none; }
+.react-flow__node[data-flash] .lod-face { animation: card-flash-face 1.4s cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes card-flash {
+  0%, 40% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent), var(--shadow-2); }
+  100% { box-shadow: 0 0 0 8px transparent, var(--shadow-2); }
+}
+@keyframes card-flash-face {
+  0%, 40% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 40%, transparent); }
+  100% { box-shadow: 0 0 0 6px transparent; }
+}
+
+/* Reduced motion: the marks are there and then gone, with no fade, and the
+   halo is on and then off. The leave keeps a 1ms animation so its end is
+   still the signal that takes the row away. */
+@media (prefers-reduced-motion: reduce) {
+  .agent-node .git-mark { transition: background-color 120ms ease, color 120ms ease; animation: none; }
+  .agent-node .git-mark[data-leaving] { animation: git-mark-out 1ms linear forwards; }
+  .react-flow__node[data-flash] .agent-node { animation: card-flash 1.4s step-end; }
+  .react-flow__node[data-flash] .lod-face { animation: card-flash-face 1.4s step-end; }
+}
