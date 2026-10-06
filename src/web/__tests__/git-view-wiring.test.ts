@@ -4,6 +4,7 @@
 // view to it — its own worktree's history, files and diffs — until the scope
 // chip widens it back.
 import { describe, expect, it } from "vitest";
+import { fitBranch, textColumns } from "../git-chip";
 import { sourceOf } from "./client-source";
 import { sheetParts } from "./sheet-source";
 
@@ -65,5 +66,36 @@ describe("a detached HEAD's name where it does not fit", () => {
     expect(parts).toMatch(/if \(full <= room \+ 1 \|\| !name\.length\) return;\s*if \(short\) \{ text\.nodeValue = short; return; \}/);
     expect(view).toMatch(/useFittedName\(branchName, headRef, `[^`]*`, detached \? shortSha : null\)/);
     expect(glance).toMatch(/useFittedName\(branchName, branchRowRef, `[^`]*`, detached \? shortSha : null\)/);
+  });
+});
+
+describe("the header's branch name, cut to its box", () => {
+  it("measures each spelling in the label's own font, as the card's chip does, never by counting characters", () => {
+    const parts = sourceOf("components/GitViewParts.tsx");
+    expect(parts).toMatch(/const measure = monoMeasure\(BRANCH_PX\);\s*text\.nodeValue = fitBranch\(name, t => measure\(t\) <= room\);/);
+    expect(parts).not.toMatch(/t\.length \* cell/);
+    // The size it states is the one the sheet sets both names in.
+    expect(parts).toMatch(/export const BRANCH_PX = 12;/);
+    expect(viewCss).toMatch(/\.gv-crumb-branch \{[^}]*font: 12px\/1 var\(--font-mono\);/);
+    expect(viewCss).toMatch(/\.gv-g-branch \{[^}]*font: 12px\/1 var\(--font-mono\);/);
+  });
+
+  it("gives a name in wide characters the room it really draws in, cut between characters, ticket first", () => {
+    // A mono font draws CJK and an emoji two cells wide: measure in cells.
+    const measure = (t: string) => textColumns(t) * 7;
+    const room = 20 * 7;
+    const name = "feature/integration-team-shared-work/請求書ビルダーの改善と見直し";
+    const got = fitBranch(name, t => measure(t) <= room);
+    expect(got).toBe("請求書ビル…見直し");
+    expect(measure(got)).toBeLessThanOrEqual(room);
+    // One cell per character, from the whole name's average, took the whole
+    // last segment: wider than the box.
+    const cell = measure(name) / name.length;
+    expect(measure(fitBranch(name, t => t.length * cell <= room))).toBeGreaterThan(room);
+    // A ticket leads and stays whole, and no emoji is split at a cut.
+    const ticketed = fitBranch("feature/VCRM-9090-修正🚀ログイン画面の表示崩れ", t => measure(t) <= room);
+    expect(ticketed.startsWith("VCRM-9090")).toBe(true);
+    expect(measure(ticketed)).toBeLessThanOrEqual(room);
+    expect(ticketed).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
   });
 });

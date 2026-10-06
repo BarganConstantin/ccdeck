@@ -5,6 +5,7 @@ import { pressHow, type PressHow } from "../agent-goto";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject, type Ref } from "react";
 
 import { fitBranch } from "../git-chip";
+import { monoMeasure } from "../git-path-fit";
 
 import { copyText } from "../copy-text";
 import type { LogCommit } from "../git-view-types";
@@ -215,22 +216,28 @@ export function CommitCard({ facts, anchor, onShow, onClose }: {
  *  form of its own — a detached HEAD's bare SHA, whose glyph already says
  *  detached — shows that instead of being cut. React's own text node is
  *  rewritten, so React keeps owning it. */
+/** The size the header's and the glance's branch names are set in
+ *  (git-view.css), stated rather than asked of the element on every fit. */
+export const BRANCH_PX = 12;
+
 export function useFittedName(name: string, watch: MutableRefObject<HTMLElement | null>, room: unknown = null, short: string | null = null) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const el = ref.current;
     const text = el?.firstChild;
     if (!el || !text || text.nodeType !== 3) return;
-    // The name is set in the mono stack, where every character takes one
-    // cell, so the full name's own width says what a cell is.
+    // Each spelling is measured in the label's own font, as the card's chip
+    // measures its own: a wide character (CJK, an emoji) takes two cells of
+    // the mono stack, and a count of characters would miss it. The spellings
+    // cut between the characters a reader sees, never inside one.
     const fit = () => {
       text.nodeValue = name;
       const room = el.clientWidth;
       const full = el.scrollWidth;
       if (full <= room + 1 || !name.length) return;
       if (short) { text.nodeValue = short; return; }
-      const cell = full / name.length;
-      text.nodeValue = fitBranch(name, t => t.length * cell <= room);
+      const measure = monoMeasure(BRANCH_PX);
+      text.nodeValue = fitBranch(name, t => measure(t) <= room);
     };
     // The first fit waits for the first frame, which paints the CSS ellipsis;
     // the observer then answers every width the box is given, and `room`
