@@ -558,7 +558,8 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
 
 /** A line's text in segments: syntax tones inside, the changed words marked. */
 function codeOf(text: string, syn: LineSpans | undefined, words: Range[] | undefined): React.ReactNode {
-  if (!text) return " ";
+  // An empty line copies as an empty line, not as a space.
+  if (!text) return <br />;
   if (!syn?.length && !words?.length) return text;
   const cuts = new Set<number>([0, text.length]);
   for (const [s, e] of syn ?? []) { cuts.add(s); cuts.add(e); }
