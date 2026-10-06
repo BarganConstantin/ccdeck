@@ -615,8 +615,12 @@ export interface RowDrawing {
   y: number;
   /** The node sits in the fold column. */
   folded: boolean;
-  /** Some lane of this row is in the fold: draw the fold line. */
-  fold: boolean;
+  /** The fold column's line over the part of the row its lanes are in: the
+   *  top half for lanes folded where the row starts, the bottom half for
+   *  lanes folded where it ends, so it meets the rows above and below and
+   *  never sticks out of a row where the fold opens or closes. Null when no
+   *  lane of the row is in the fold. */
+  fold: string | null;
   foldX: number;
 }
 
@@ -638,7 +642,6 @@ export function rowDrawing(row: GraphRow, shape: NodeShape, focusKey: string | n
   const foldX = LANE_X0 + VISIBLE_LANES * LANE_W;
   const r = nodeReach(shape);
   const strokes: Stroke[] = [];
-  let fold = false;
   const add = (d: string, e: Edge) => strokes.push({
     d, slot: e.slot, kind: e.kind, wip: !!e.wip,
     dim: !e.wip && focusKey !== null && !onFocusLine(e, focusKey),
@@ -648,7 +651,7 @@ export function rowDrawing(row: GraphRow, shape: NodeShape, focusKey: string | n
   for (const e of row.edges) {
     const a = e.kind === "pass" || e.kind === "in" ? e.from : row.col;
     const b = e.kind === "in" ? row.col : e.to;
-    if (hidden(a) && hidden(b)) { fold = true; continue; }
+    if (hidden(a) && hidden(b)) continue;
     const xa = x(a), xb = x(b);
     if (e.kind === "pass") add(xa === xb ? `M${xa} 0V${ROW_H}` : bendDown(xa, xb), e);
     else if (e.kind === "in") add(xa === xb ? `M${xa} 0V${MID - r}` : intoNode(xa, xb, r), e);
@@ -656,7 +659,11 @@ export function rowDrawing(row: GraphRow, shape: NodeShape, focusKey: string | n
     else if (e.joins && xa !== xb) add(outOfNode(xa, xb, r, false), e);
     else add(xa === xb ? `M${xa} ${MID + r}V${ROW_H}` : outOfNode(xa, xb, r), e);
   }
-  if (row.input.some((l, i) => l && hidden(i)) || row.output.some((l, i) => l && hidden(i))) fold = true;
+  // An edge between two folded columns is not drawn: its lane is folded at
+  // the row's top, its bottom, or both, and the line stands for it there.
+  const top = row.input.some((l, i) => l && hidden(i));
+  const bottom = row.output.some((l, i) => l && hidden(i));
+  const fold = top || bottom ? `M${foldX} ${top ? 0 : MID}V${bottom ? ROW_H : MID}` : null;
   return { strokes, x: nx, y: MID, folded: hidden(row.col), fold, foldX };
 }
 

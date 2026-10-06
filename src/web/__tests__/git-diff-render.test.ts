@@ -155,6 +155,15 @@ describe("the reader's place when the latest version comes", () => {
     expect(src).toMatch(/if \(!s \|\| s\.scrollTop !== st \|\| performance\.now\(\) > until \|\| keepPlace\(s, at\)\) return;/);
   });
 
+  it("notes the reader's line again once the blocks at the top of the view are drawn, after one jump of the scroller", () => {
+    // A jump (a scrollbar drag, End) lands on blocks not drawn yet: the scroll
+    // event is noted before they are, and nothing else scrolls. Each block
+    // drawn by the window notes the place again, so `n` finds the line.
+    const src = sourceOf("components/GitDiff.tsx");
+    expect(src).toMatch(/<DiffBlock key=\{k\.key\} block=\{k\} rows=\{rows!\} watch=\{watch\} heights=\{heights\.current\} onDrawn=\{notePlace\} \/>/);
+    expect(src).toMatch(/useLayoutEffect\(\(\) => \{ if \(watch && near\) onDrawn\(\); \}, \[watch, near, onDrawn\]\);/);
+  });
+
   it("puts the line the reader was on back where it was on screen", () => {
     const src = sourceOf("components/GitDiff.tsx");
     expect(src).toMatch(/if \(prev\.key === fileKey && prev\.parsed && parsed && prev\.parsed !== parsed\) holdPlace\(\);/);

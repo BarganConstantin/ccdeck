@@ -45,6 +45,20 @@ describe("the history list, as the markup builds it", () => {
     expect(src).toMatch(/role="tooltip"/);
   });
 
+  it("shows a row's card on keyboard focus only once the user moved it there, never on the focus the view places itself", () => {
+    // A keyboard open lands focus on a row (a clean detached HEAD then
+    // selects HEAD once the folder is read): no key was pressed inside the
+    // view, so no card comes 700ms later. A key pressed inside it (Tab, an
+    // arrow, Esc back from the files) is the user moving focus, for that task.
+    const keyed = src.slice(src.indexOf("const keyed = useRef(false);"), src.indexOf("const onFocus = useCallback("));
+    expect(keyed).toMatch(/const scope = listRef\.current\?\.closest\("\[data-key-scope\]"\);/);
+    expect(keyed).toMatch(/if \(!scope \|\| !\(e\.target instanceof Node\) \|\| !scope\.contains\(e\.target\)\) return;/);
+    expect(keyed).toMatch(/keyed\.current = true;\s*window\.setTimeout\(\(\) => \{ keyed\.current = false; \}, 0\);/);
+    expect(keyed).toMatch(/document\.addEventListener\("keydown", onKey, true\);/);
+    const onFocus = src.slice(src.indexOf("const onFocus = useCallback("), src.indexOf("const hoverCommit ="));
+    expect(onFocus).toMatch(/if \(!visible \|\| !keyed\.current\) return;/);
+  });
+
   it("shows a card a key brought at once, and takes it away on the first Esc without closing the view", () => {
     // Nothing the keyboard does animates: the focus path asks for the card instantly.
     expect(src).toMatch(/instant: byKey \|\| reducedMotion\(\)/);
