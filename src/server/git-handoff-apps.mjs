@@ -32,6 +32,11 @@ const macApp = (...names) => (ctx) => names.flatMap((n) => [
   { kind: "app", path: posix.join(ctx.home, "Applications", `${n}.app`) },
 ]);
 
+/** A command-line tool inside a macOS bundle, in either Applications folder:
+ *  the launcher a vendor ships for its app, found where the app is. */
+const macTool = (name, rel) => (ctx) => ["/Applications", posix.join(ctx.home, "Applications")]
+  .map((dir) => ({ kind: "exe", path: posix.join(dir, `${name}.app`, rel) }));
+
 /** A command on PATH. */
 const onPath = (...names) => () => names.map((name) => ({ kind: "path", name }));
 
@@ -56,7 +61,10 @@ const both = (...gens) => async (ctx) => (await Promise.all(gens.map((g) => g(ct
 // bundle; on Windows the Toolbox's `.cmd` scripts or a standalone install under
 // Program Files\JetBrains\<product and version>\bin.
 const JETBRAINS = [
-  { id: "idea", name: "IntelliJ IDEA", launchers: ["idea", "intellij-idea-ultimate", "intellij-idea-community"], apps: ["IntelliJ IDEA", "IntelliJ IDEA Ultimate", "IntelliJ IDEA CE"], dir: "IntelliJ IDEA", exe: "idea64.exe" },
+  // `intellij-idea` is the snap of the single IntelliJ IDEA that replaced the
+  // two editions in 2025.3; "Community Edition" is the Toolbox's bundle name
+  // for the free edition, "CE" the download's.
+  { id: "idea", name: "IntelliJ IDEA", launchers: ["idea", "intellij-idea", "intellij-idea-ultimate", "intellij-idea-community"], apps: ["IntelliJ IDEA", "IntelliJ IDEA Ultimate", "IntelliJ IDEA CE", "IntelliJ IDEA Community Edition"], dir: "IntelliJ IDEA", exe: "idea64.exe" },
   { id: "webstorm", name: "WebStorm", launchers: ["webstorm"], apps: ["WebStorm"], dir: "WebStorm", exe: "webstorm64.exe" },
   { id: "pycharm", name: "PyCharm", launchers: ["pycharm", "pycharm-professional", "pycharm-community"], apps: ["PyCharm", "PyCharm Professional Edition", "PyCharm CE", "PyCharm Community Edition"], dir: "PyCharm", exe: "pycharm64.exe" },
   { id: "goland", name: "GoLand", launchers: ["goland"], apps: ["GoLand"], dir: "GoLand", exe: "goland64.exe" },
@@ -126,17 +134,20 @@ function jetbrainsProbes(p) {
  */
 export const CATALOGUE = Object.freeze([
   // git clients
+  // On macOS through the command line tool each app installs (`fork`,
+  // `gittower`), which is a link to the file inside its bundle; the bundle is
+  // only the fallback. Fork opened by `open -a` with a folder crashes when it is
+  // not already running (github.com/fork-dev/Tracker/issues/2468), and Tower's
+  // bundle claims no folders at all. On Windows both are Velopack installs,
+  // per user: %LOCALAPPDATA%\<app>\current\<app>.exe with a stub of the same
+  // name beside current\ (docs.velopack.io/packaging/installer).
   { id: "fork", slot: "git", name: "Fork", probes: {
-    darwin: macApp("Fork"),
+    darwin: both(macTool("Fork", "Contents/Resources/fork_cli"), macApp("Fork")),
     win32: winUnder("LOCALAPPDATA", "Fork\\Fork.exe", "Fork\\current\\Fork.exe"),
   } },
   { id: "tower", slot: "git", name: "Tower", probes: {
-    darwin: macApp("Tower"),
-    win32: both(
-      winUnder("LOCALAPPDATA", "Programs\\Tower\\Tower.exe"),
-      winUnder("ProgramFiles", "fournova\\Tower\\Tower.exe"),
-      winUnder("ProgramFiles(x86)", "fournova\\Tower\\Tower.exe"),
-    ),
+    darwin: both(macTool("Tower", "Contents/MacOS/gittower"), macApp("Tower")),
+    win32: winUnder("LOCALAPPDATA", "Tower\\current\\Tower.exe", "Tower\\Tower.exe"),
   } },
   { id: "sublime-merge", slot: "git", name: "Sublime Merge", probes: {
     darwin: macApp("Sublime Merge"),
@@ -153,7 +164,7 @@ export const CATALOGUE = Object.freeze([
     win32: winUnder("LOCALAPPDATA", "GitHubDesktop\\GitHubDesktop.exe"),
   } },
   { id: "lazygit", slot: "git", name: "lazygit", needsTerminal: true, probes: {
-    darwin: both(onPath("lazygit"), fixed("/opt/homebrew/bin/lazygit", "/usr/local/bin/lazygit", "~/go/bin/lazygit")),
+    darwin: both(onPath("lazygit"), fixed("/opt/homebrew/bin/lazygit", "/usr/local/bin/lazygit", "/opt/local/bin/lazygit", "~/go/bin/lazygit")),
     linux: both(onPath("lazygit"), fixed("~/.local/bin/lazygit", "~/go/bin/lazygit", "/snap/bin/lazygit")),
     win32: both(onPath("lazygit"), winUnder("LOCALAPPDATA", "Microsoft\\WinGet\\Links\\lazygit.exe")),
   } },
@@ -170,18 +181,29 @@ export const CATALOGUE = Object.freeze([
   { id: "cursor", slot: "editor", name: "Cursor", probes: {
     darwin: macApp("Cursor"),
     linux: both(onPath("cursor"), fixed("/usr/share/cursor/bin/cursor", "/opt/cursor/cursor")),
-    win32: winUnder("LOCALAPPDATA", "Programs\\cursor\\Cursor.exe"),
+    // The user installer, then the system one, which puts it under Program
+    // Files by the same folder name, as VS Code's installer does.
+    win32: both(
+      winUnder("LOCALAPPDATA", "Programs\\cursor\\Cursor.exe"),
+      winUnder("ProgramFiles", "cursor\\Cursor.exe"),
+    ),
   } },
   { id: "zed", slot: "editor", name: "Zed", probes: {
     darwin: macApp("Zed"),
     linux: both(onPath("zed", "zeditor", "zedit", "zed-editor"), fixed("~/.local/bin/zed")),
+    // Zed's installer is per user only (PrivilegesRequired=lowest,
+    // {autopf}\Zed in crates/zed/resources/windows/zed.iss), its command line
+    // tool in bin\ beside Zed.exe.
     win32: both(onPath("zed"), winUnder("LOCALAPPDATA", "Programs\\Zed\\Zed.exe")),
   } },
   ...JETBRAINS.map((p) => ({ id: p.id, slot: "editor", name: p.name, jetbrains: true, probes: jetbrainsProbes(p) })),
   { id: "sublime-text", slot: "editor", name: "Sublime Text", probes: {
     darwin: macApp("Sublime Text"),
     linux: both(onPath("subl"), fixed("/opt/sublime_text/sublime_text", "/snap/bin/subl")),
-    win32: winUnder("ProgramFiles", "Sublime Text\\subl.exe", "Sublime Text 3\\subl.exe"),
+    win32: both(
+      winUnder("ProgramFiles", "Sublime Text\\subl.exe", "Sublime Text 3\\subl.exe"),
+      winUnder("ProgramFiles(x86)", "Sublime Text\\subl.exe"),
+    ),
   } },
 
   // terminals: the system's own first on each OS
@@ -226,11 +248,13 @@ export const appInfo = (id) => KNOWN.get(id);
 
 // ── looking ─────────────────────────────────────────────────────────────────
 
-/** Whether anything is at `p`. lstat rather than stat: Windows Terminal's
- *  `wt.exe` is an app execution alias, a reparse point that stat cannot follow
- *  but CreateProcess can, and a broken symlink is still something to report
- *  and let the launch fail on with its own message. */
-async function defaultExists(p) {
+/** Whether anything is at `p`, for detection and for the route's look before a
+ *  launch alike. lstat rather than stat: Windows Terminal's `wt.exe` is an app
+ *  execution alias, a reparse point that stat refuses with EACCES
+ *  (github.com/nodejs/node/issues/36790) but CreateProcess runs, and a broken
+ *  symlink is still something to report and let the launch fail on with its
+ *  own message. */
+export async function pathExists(p) {
   try { await lstat(p); return true; } catch { return false; }
 }
 
@@ -299,7 +323,7 @@ export async function detectApps({
   platform = process.platform,
   env = process.env,
   home = homedir(),
-  exists = defaultExists,
+  exists = pathExists,
   readdir = (p) => readDirectory(p),
 } = {}) {
   const ctx = { platform, env: env ?? {}, home: String(home ?? ""), exists, readdir };

@@ -297,6 +297,26 @@ describe("POST /api/git/open", () => {
     }
   });
 
+  // Windows Terminal's wt.exe is an app execution alias, which stat refuses but
+  // a launch runs; a link stat cannot follow stands in for it here — a dangling
+  // symlink, or on Windows a junction, which needs no privilege to make.
+  it("takes an app that is a link stat cannot follow as still there, as detection does", async () => {
+    const saved = apps;
+    try {
+      const alias = join(bin, "alias-terminal");
+      symlinkSync(join(bin, "no-such-target"), alias, "junction");
+      apps = [TERMINAL.app(alias)];
+      routes.forgetHandoffApps();
+      const r = await open({ session: "H-plain", slot: "terminal" });
+      expect(r.status).toBe(200);
+      expect(launched).toHaveLength(1);
+      expect(launched[0].args).toEqual(TERMINAL.args(plain, alias));
+    } finally {
+      apps = saved;
+      routes.forgetHandoffApps();
+    }
+  });
+
   it("writes nothing into the repository", async () => {
     // The fixture's own `git status` refreshes the index, so it runs outside
     // the two snapshots that bracket the deck's work.
