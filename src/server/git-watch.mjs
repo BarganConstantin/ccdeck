@@ -42,7 +42,14 @@
 //
 // AFTER A BOOT, the sessions the replay put back are looked at once
 // (refreshGit), and the GitObserved lines the replay found are taken as sent,
-// so only what changed while the deck was down goes out. The Settings switch
+// so only what changed while the deck was down goes out.
+//
+// A PAGE BEHIND THE RING. What was sent is sent once, and the ring drops its
+// oldest events as new ones come; a page that connects after the event that
+// told a card its branch has fallen off the head — a reload, a second tab, on
+// a busy deck — would never be told again. reannounceGit sends that page the
+// last GitObserved of each card whose own event it can no longer be replayed
+// (event-routes.mjs asks, as the page connects). The Settings switch
 // (`git` in prefs.json) stops all of it: off, nothing is looked at and the
 // routes refuse; on again, the recent sessions are looked at straight away.
 //
@@ -73,7 +80,7 @@ export const FIRST_LOOK_MS = 250;
 export const AFTER_COMMAND_MS = 600;
 export const AFTER_EDIT_MS = 2_000;
 
-const watched = new Map(); // sid -> { timer, due, seen: Set<key>, sent: Map<key, { sig, stale, top, state }> }
+const watched = new Map(); // sid -> { timer, due, seen: Set<key>, sent: Map<key, { sig, stale, top, state, drawn, payload, seq }> }
 /** The Settings switch: off, the deck runs no git at all. */
 let enabled = () => gitOn(heldPrefs.current());
 /** How many of the most recently heard sessions a refresh looks at — every
@@ -113,11 +120,11 @@ function watching(sid) {
  * so it is taken as already sent: a refresh after the boot says only what has
  * changed since. Nothing else from a replay is looked at.
  */
-export function noteGitEvent(raw, { replay = false } = {}) {
+export function noteGitEvent(raw, { replay = false, seq = null } = {}) {
   try {
     if (!raw || typeof raw !== "object") return;
     if (replay) {
-      if (raw.hook_event_name === "GitObserved") seedFromLog(raw);
+      if (raw.hook_event_name === "GitObserved") seedFromLog(raw, seq);
       return;
     }
     if (!enabled()) return;
@@ -262,17 +269,19 @@ async function look(sid) {
     if (prev && prev.sig === sig && prev.stale === git.stale) continue;
     const identity = !prev || prev.sig !== sig;
     if (identity && prev && git.topLevel) moved.add(git.topLevel);
-    w.sent.set(key, { sig, stale: git.stale, top: git.topLevel ?? null, state: git.state, drawn: drawable(git) });
+    const entry = { sig, stale: git.stale, top: git.topLevel ?? null, state: git.state, drawn: drawable(git), payload: null, seq: null };
+    w.sent.set(key, entry);
     // A folder that is not a repository is the common case, and a card with no
     // branch needs no event to say so; only a branch the page was shown is
     // taken back.
     if (!drawable(git) && !prev?.drawn) continue;
-    pushEvent({
+    entry.payload = {
       hook_event_name: "GitObserved",
       session_id: sid,
       ...(root.provider === "codex" ? { provider: "codex" } : {}),
       git: key ? { subagent: key, ...git } : git,
-    }, "internal", identity ? {} : { persist: false });
+    };
+    entry.seq = pushEvent(entry.payload, "internal", identity ? {} : { persist: false })?.seq ?? null;
   }
   // A checkout in a folder other sessions share moves their HEAD too.
   if (moved.size) {
@@ -283,13 +292,42 @@ async function look(sid) {
   }
 }
 
-function seedFromLog(raw) {
+function seedFromLog(raw, seq) {
   const sid = raw.session_id;
   const git = raw.git;
   if (typeof sid !== "string" || sid === "" || !git || typeof git !== "object" || typeof git.state !== "string") return;
   const key = typeof git.subagent === "string" ? git.subagent : "";
   // The counter is this process's own and starts at nought.
-  watching(sid).sent.set(key, { sig: signature(git), stale: 0, top: git.topLevel ?? null, state: git.state, drawn: drawable(git) });
+  watching(sid).sent.set(key, {
+    sig: signature(git), stale: 0, top: git.topLevel ?? null, state: git.state, drawn: drawable(git),
+    payload: { ...raw, git: { ...git, stale: 0 } }, seq: typeof seq === "number" ? seq : null,
+  });
+}
+
+/**
+ * Send again the last GitObserved of every card a connecting page cannot be
+ * replayed it for: each whose event is newer than the page's last one
+ * (`after`) and has already left the ring (older than `before`, its oldest).
+ * Only for the `sessions` the page will draw a card for — the ones the ring
+ * still holds an event of — and, for a page that has seen nothing yet, only a
+ * branch: it has none to take back. Sent like a stale mark (persist: false);
+ * the page takes it as the last value, as it takes any. Answers how many.
+ *
+ * @param {{ after: number, before: number, sessions: Set<string> }} range
+ */
+export function reannounceGit({ after, before, sessions }) {
+  let sent = 0;
+  if (!enabled()) return sent;
+  for (const [sid, w] of watched) {
+    if (!sessions.has(sid)) continue;
+    for (const entry of w.sent.values()) {
+      if (!entry.payload || entry.seq === null || entry.seq <= after || entry.seq >= before) continue;
+      if (after === 0 && !entry.drawn) continue;
+      entry.seq = pushEvent(entry.payload, "internal", { persist: false })?.seq ?? null;
+      sent++;
+    }
+  }
+  return sent;
 }
 
 /**

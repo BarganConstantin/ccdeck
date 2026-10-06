@@ -14,7 +14,11 @@ import { PRODUCT } from "./brand.mjs";
 import { OVERSIZE_DRAIN_MS, send, sendInternalError } from "./http-io.mjs";
 import { presentsDeckToken } from "./request-gates.mjs";
 // The ring the readers walk — see event-ring.mjs.
-import { SEQ_EPOCH, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
+import { SEQ_EPOCH, eventBufferStats, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
+// The git state a page connecting behind the ring's head is told again — see
+// reannounceGit and reannounceCollisions.
+import { reannounceGit } from "./git-watch.mjs";
+import { reannounceCollisions } from "./git-collisions.mjs";
 // The one door every event comes through — see event-pipeline.mjs.
 import { pushEvent } from "./event-pipeline.mjs";
 import { noteLogWriter } from "./event-log.mjs";
@@ -275,6 +279,34 @@ function isTrayRequest(req) {
 }
 
 /**
+ * The git state a page connecting behind the ring's head would otherwise
+ * never be told again: a card's branch (GitObserved) and its collisions
+ * (GitCollisions) are sent once, when they change, and an unchanged one is
+ * not sent twice — so once the event that carried one has left the ring, a
+ * reload or a second tab on a busy deck drew every card without them, and a
+ * collision stayed unmarked for as long as it lasted. When events newer than
+ * the page's last id have been evicted, each such value is pushed again
+ * (persist: false), for the sessions the ring still holds an event of — the
+ * cards the page will draw. The new events land at the ring's tail, so the
+ * replay below hands them over before `replay-end`; the pages already
+ * connected take them as the last value they already hold.
+ */
+function reannounceBehind(lastId) {
+  const { oldestSeq } = eventBufferStats();
+  if (!(oldestSeq > lastId + 1)) return;
+  try {
+    const sessions = new Set();
+    for (const e of ringSnapshot()) {
+      const sid = e.payload?.session_id;
+      if (typeof sid === "string" && sid) sessions.add(sid);
+    }
+    const range = { after: lastId, before: oldestSeq, sessions };
+    reannounceGit(range);
+    reannounceCollisions(range);
+  } catch { /* a page is never refused for this */ }
+}
+
+/**
  * Drain the ring buffer into a newly connected client, then subscribe it.
  *
  * Two things had to change when this stopped being one synchronous burst.
@@ -295,6 +327,8 @@ async function resumeSse(req, res, lastId, { tray = false } = {}) {
     sseClients.delete(res);
     trayClients.delete(res);
   });
+
+  reannounceBehind(lastId);
 
   for (;;) {
     // A snapshot per pass, because a wait lets pushEvent splice the head of
