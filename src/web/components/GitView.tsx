@@ -79,6 +79,10 @@ function canvasBox(canvas: HTMLElement | null): { top: number; left: number; rig
   return { top: r.top, left: r.left, right: r.right, width: r.width, height: r.height };
 }
 
+type CanvasBox = NonNullable<ReturnType<typeof canvasBox>>;
+const sameBox = (a: CanvasBox | null, b: CanvasBox | null) =>
+  a === b || (a != null && b != null && a.top === b.top && a.left === b.left && a.right === b.right && a.width === b.width && a.height === b.height);
+
 /** Elements made inert while the view is open, and what to give back. */
 function setInert(els: Iterable<Element>, on: boolean, held: Set<Element>) {
   for (const el of els) {
@@ -307,7 +311,7 @@ export default function GitView(props: GitViewProps) {
       // Two frames: the first paints the panel, the second does the rest.
       const raf = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => {
         const measured = canvasBox(canvasRef.current);
-        setBox(prev => (prev && measured && Object.keys(measured).every(k => prev[k as keyof typeof prev] === measured[k as keyof typeof measured]) ? prev : measured));
+        setBox(prev => (sameBox(prev, measured) ? prev : measured));
         coverBehind(true);
         frame(animate ? 200 : 0);
         // A glance file row hands focus to that file, a commit row to its row.
@@ -324,6 +328,28 @@ export default function GitView(props: GitViewProps) {
     if (savedViewport.current) moveCamera(savedViewport.current, animate ? 150 : 0);
     savedViewport.current = null;
   }, [want, agent?.id, width, sheet, detailShown]);
+
+  // The canvas changes size under the open view on its own — the session list
+  // or another side column opening beside it: the box is measured again, which
+  // keeps the canvas beside the panel at its least width, and the camera, the
+  // inert cards and the edge markers follow.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!want || !canvas || typeof ResizeObserver === "undefined") return;
+    let raf = 0, seen = false;
+    const ro = new ResizeObserver(() => {
+      // The first call only reports the size the view opened on.
+      if (!seen) { seen = true; return; }
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const measured = canvasBox(canvas);
+        setBox(prev => (sameBox(prev, measured) ? prev : measured));
+        frame(0);
+      });
+    });
+    ro.observe(canvas);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+  }, [want]);
   useEffect(() => () => {
     setGitViewFrame(null);
     setInert([...inertCards], false, inertCards);

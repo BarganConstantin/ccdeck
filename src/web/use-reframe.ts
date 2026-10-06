@@ -7,6 +7,7 @@
 import { useEffect, type MutableRefObject } from "react";
 import type { Edge, Node, ReactFlowInstance } from "reactflow";
 import { laneMap } from "./canvas-flow";
+import { frameForGitView } from "./git-view-fit";
 import { columnsWouldChange, type Frame } from "./layout";
 import { saveLayout, saveLayoutFrame } from "./layout-storage";
 import type { GraphState } from "./reducer";
@@ -103,6 +104,10 @@ export function useReframe({
       // arrangement this pass just replaced, beside a frame record saying it
       // was packed for the new window.
       saveLayout(positionsRef.current, pinnedRef.current);
+      // An open git view frames the selected session beside it, from the new
+      // arrangement, whatever the auto-fit says: its own frame on the new
+      // width ran before the re-pack moved the cards.
+      if (frameForGitView(0)) return;
       if (autoFitDisabledRef.current) {
         // A focus this recent is framed again, from the new arrangement.
         if (focused) { focusAgentRef.current(focused); return; }
