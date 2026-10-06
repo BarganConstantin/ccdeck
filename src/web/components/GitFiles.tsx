@@ -1,6 +1,6 @@
 import React, { forwardRef, useCallback, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { copyText } from "../copy-text";
-import { failureLine, groupDigits } from "../git-diff-parse";
+import { failureLasts, failureLine, groupDigits } from "../git-diff-parse";
 import {
   commitRows, fileKey, rowOrder, uncommittedList,
   type CardNamer, type CommitFile, type ElsewhereRow, type FileRef, type FileRow, type GitEdit, type GraphFocus, type StatusEntry,
@@ -320,7 +320,7 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
               <>
                 <b>Couldn't read this commit's files.</b>
                 <span>{failureLine(reading.error)}</span>
-                {onRetry && <button type="button" className="btn gvf-retry" onClick={onRetry}>Try again</button>}
+                {onRetry && !failureLasts(reading.error) && <button type="button" className="btn gvf-retry" onClick={onRetry}>Try again</button>}
               </>
             )
             : mode === "commit"

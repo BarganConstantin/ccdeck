@@ -149,6 +149,16 @@ describe("a read that failed, or a change git no longer lists", () => {
     expect(words(render({ diff: { ok: false, reason: "timeout" }, onRetry: () => {} }))).toContain("Couldn't read this diff. git took too long to answer. Try again");
   });
 
+  it("offers no Try again where reading again cannot help: a partial clone's missing content, a filter it will not run", () => {
+    for (const html of [render({ error: "not-downloaded", onRetry: () => {} }), render({ diff: { ok: false, reason: "not-downloaded" }, onRetry: () => {} })]) {
+      expect(words(html)).toContain("Not downloaded in this partial clone. The deck never fetches");
+      expect(html).not.toContain("Try again");
+    }
+    const unsafe = render({ error: "unsafe", onRetry: () => {} });
+    expect(words(unsafe)).toContain("Couldn't read this diff. git would run a filter program");
+    expect(unsafe).not.toContain("Try again");
+  });
+
   it("says a change git no longer lists is no longer there, rather than an error", () => {
     for (const error of ["unlisted", "no such change in this repository"]) {
       const html = render({ error });

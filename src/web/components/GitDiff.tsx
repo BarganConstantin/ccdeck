@@ -2,7 +2,7 @@ import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, u
 import { fmtBytes } from "../byte-format";
 import { copyText } from "../copy-text";
 import {
-  budgetHunks, collapsedKind, diffState, endingOnly, endingsChange, failureLine, freshLines, groupDigits, lockOwner, parsePatch,
+  budgetHunks, collapsedKind, diffState, endingOnly, endingsChange, failureLasts, failureLine, freshLines, groupDigits, lockOwner, parsePatch,
   type DiffLine, type DiffResult, type Hunk, type ParsedDiff,
 } from "../git-diff-parse";
 import { codePoint, hasHidden, hiddenIn, hiddenName, shownPath, splitHidden } from "../git-hidden-chars";
@@ -273,7 +273,13 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   /** A read that failed says so, and why, and offers it again; a change git
    *  no longer lists says that instead. Never an empty pane. */
   function failed(why: string): React.ReactNode {
-    const retry = onRetry && <button type="button" className="btn gvd-show" onClick={() => { holdFocus(); onRetry(); }}>Try again</button>;
+    if (why === "not-downloaded") {
+      return (
+        <Placeholder title="Not downloaded in this partial clone."
+          line="The deck never fetches, so this diff shows once git has the file's content here, after a fetch of your own." />
+      );
+    }
+    const retry = onRetry && !failureLasts(why) && <button type="button" className="btn gvd-show" onClick={() => { holdFocus(); onRetry(); }}>Try again</button>;
     if (UNLISTED.has(why)) {
       return (
         <Placeholder title={`No longer ${AREA_WORD[file!.area] ?? "changed"}.`}

@@ -43,9 +43,16 @@ const REASON: Record<string, string> = {
   error: "git could not read it.",
   "too-large": "The answer was too large.",
   "not-downloaded": "This partial clone has not downloaded it, and the deck never fetches.",
+  unsafe: "git would run a filter program from this repository's settings to read it, and the deck never runs one.",
   off: "Git is switched off in Settings.",
   "the deck did not answer": "The deck did not answer.",
 };
+
+/** The failures reading again cannot mend: the deck will not fetch, run a
+ *  filter, or read past its cap, and a file outside the repository or gone
+ *  stays so. Only the others get a Try again. */
+const LASTING = new Set(["not-downloaded", "unsafe", "too-large", "outside", "gone", "off"]);
+export const failureLasts = (error: string) => LASTING.has(error);
 
 /** A failed read's words: the known reasons in a sentence, anything else as
  *  the route said it. */

@@ -130,6 +130,12 @@ describe("a commit's files before they are read, or when they could not be", () 
     expect(commit({ reading: "loading" })).not.toContain('class="gvf-count"');
   });
 
+  it("offers no Try again when reading again cannot help", () => {
+    const html = commit({ reading: { error: "not-downloaded" }, onRetry: () => {} });
+    expect(html).toContain("This partial clone has not downloaded it, and the deck never fetches.");
+    expect(html).not.toContain("Try again");
+  });
+
   it("still calls a commit that changes nothing empty", () => {
     expect(commit({ reading: null })).toContain("No files in this commit.");
   });
