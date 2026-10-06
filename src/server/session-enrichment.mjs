@@ -1,7 +1,9 @@
 // What the deck learns about a session that its hooks never say: the model,
-// the token spend, the session's name and recap, and the context it is
-// carrying — each read off the session's transcript (or, for a Codex session's
-// memory files, off its working tree) and sent on as a synthetic event.
+// the token spend, the session's name and recap, what it is doing now, and the
+// context it is carrying — each read off the session's transcript (or, for a
+// Codex session's memory files, off its working tree) and sent on as a
+// synthetic event. And, for a background session, the line Claude Code's own
+// agent view shows, read off its job folder (see claude-jobs.mjs).
 //
 // This lived in src/server/index.mjs, between the log rotation and the Codex
 // rollout reader. pushEvent asks it to look at every live hook event, and it
@@ -18,6 +20,9 @@ import { join } from "node:path";
 import { scanAgentsMdFiles, scanClaudeMdFiles } from "./memory-files.mjs";
 // Claude Code's "※ recap:" line — see session-recap.mjs.
 import { RECAP_MARK } from "./session-recap.mjs";
+// What the session is doing now, folded off the same tail — see
+// session-activity.mjs.
+import { foldActivityLine, newActivityState } from "./session-activity.mjs";
 // The shared transcript cursor every pass below reads through — see
 // transcript-scan.mjs.
 import { copyUsageBucket, hasSpend, mergeUsageByModel, newUsageTotals, scanTranscript } from "./transcript-scan.mjs";
@@ -495,6 +500,60 @@ function onRecapTail(sid, text, path) {
     .catch(() => {});
 }
 
+// ─── Session activity ────────────────────────────────────────────────────
+// What the session is doing now — the line Claude Code's agent view prints
+// beside a working session, by the same rule and with no model call (see
+// session-activity.mjs). Folded off the output watch's tail rather than the
+// transcript cursor: the watch is what reads a file BETWEEN hook events, and
+// between hook events is the whole of when this line changes. The cursor runs
+// off hooks and would hold a sentence the model wrote until the next tool call.
+//
+// The fold is per session and survives across ticks, because one reply's blocks
+// can land on either side of a tick and the sentence has to outrank the call it
+// introduced whichever tick read it. The emit is gated on the text changing, so
+// a reply that is still thinking says nothing.
+const activityBySession = new Map();    // sid -> the fold, see newActivityState
+
+function onActivityTail(sid, text) {
+  if (!sid || !text) return;
+  let st = activityBySession.get(sid);
+  if (!st) { st = newActivityState(); activityBySession.set(sid, st); }
+  const before = st.shown;
+  for (const line of text.split("\n")) foldActivityLine(st, line);
+  if (!st.shown || st.shown === before) return;
+  pushEvent({
+    hook_event_name: "ActivityObserved",
+    session_id: sid,
+    activity: { text: st.shown.text, source: st.shown.source, at: st.shown.at },
+  }, "internal");
+}
+
+/** Everything the output watch's tail feeds, in one tap: the recap and the
+ *  activity line read the same bytes for different questions. */
+function onTranscriptTail(sid, text, path) {
+  onRecapTail(sid, text, path);
+  onActivityTail(sid, text);
+}
+
+// ─── Background job ──────────────────────────────────────────────────────
+// Claude Code's own line for a background session — its state, what it is
+// doing or asking, and what it got done — read from the job folder its agent
+// view reads (see claude-jobs.mjs). Gated on a CHANGE like the recap, and on
+// the words rather than the file's clock: the classifier rewrites `updatedAt`
+// every fifteen seconds of a working turn, mostly to say the same thing. A
+// session with no job emits nothing at all, and a job that goes away (deleted
+// in the agent view) is said once, as null.
+const jobBySession = new Map();         // sid -> signature last sent, "" once gone
+
+function noteJob(sid, job) {
+  const sig = job ? JSON.stringify([job.state, job.detail, job.needs, job.suggestedReply, job.result]) : "";
+  const prev = jobBySession.get(sid);
+  if (prev === sig) return;
+  if (prev === undefined && !job) return;
+  jobBySession.set(sid, sig);
+  pushEvent({ hook_event_name: "JobObserved", session_id: sid, job: job ?? null }, "internal");
+}
+
 // ─── Context enrichment ──────────────────────────────────────────────────
 // Approximation of `/context` since CC doesn't expose its breakdown via
 // hooks. We scan the transcript JSONL for message counts (user / assistant
@@ -626,6 +685,10 @@ function forgetEnrichment(sid) {
   nameBySession.delete(sid);
   // The recap's gate, for the same reason — see noteRecap.
   recapBySession.delete(sid);
+  // And the activity fold and the job's gate: a session heard from again
+  // after this says what it is doing and what its job says afresh.
+  activityBySession.delete(sid);
+  jobBySession.delete(sid);
   nameReads.forget(sid);
   modelReads.forget(sid);
   usageReads.forget(sid);
@@ -641,6 +704,8 @@ function forgetEnrichment(sid) {
 function clearEnrichmentGates() {
   nameBySession.clear();
   recapBySession.clear();
+  activityBySession.clear();
+  jobBySession.clear();
   modelBySession.clear();
   // The read stamps go with them. Clearing only the signatures would leave
   // the next hook event inside MODEL_READ_THROTTLE_MS, so the transcript
@@ -658,5 +723,5 @@ function clearEnrichmentGates() {
 export {
   clearEnrichmentGates, forgetEnrichment, knownModelId, maybeResolveCodexMemory,
   maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage,
-  onRecapTail,
+  noteJob, onRecapTail, onTranscriptTail,
 };
