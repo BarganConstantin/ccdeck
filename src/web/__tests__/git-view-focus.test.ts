@@ -50,6 +50,21 @@ describe("a row that held focus and is gone", () => {
   });
 });
 
+describe("a history asked for focus before its selected row is drawn", () => {
+  // A detached HEAD's Uncommitted row waits on the status read: until then
+  // the history's one tab stop is HEAD's row, and focus taken there stayed
+  // there once the selected Uncommitted row came, on a row not selected.
+  it("lets a stand-in row hold focus and hands it to the selected row once that is drawn", () => {
+    const at = view.indexOf("const focusPane = useCallback(");
+    const body = view.slice(at, view.indexOf("}, []);", at));
+    expect(body).toMatch(/const chosen = section\.querySelector<HTMLElement>\('\[aria-selected="true"\]\[tabindex\]'\);/);
+    expect(body).toMatch(/standIn\.current = chosen \? null : row \?\? null;/);
+    const effect = view.slice(view.indexOf("const s = standIn.current;"), view.indexOf("const p = pendingPane.current;"));
+    expect(effect).toMatch(/if \(document\.activeElement !== s\) standIn\.current = null;/);
+    expect(effect).toMatch(/if \(chosen && chosen !== s\) \{ standIn\.current = null; chosen\.focus\(\{ preventScroll: true \}\);/);
+  });
+});
+
 describe("an edge marker activated", () => {
   it("hands focus to its agent's card once the frame has made it a Tab stop: the marker itself is gone", () => {
     expect(view).toMatch(/onGo=\{id => \{ focusAfterFrame\.current = id; onSelectAgent\(id\); \}\}/);

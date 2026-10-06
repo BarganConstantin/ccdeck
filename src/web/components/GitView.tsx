@@ -655,6 +655,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // nothing read yet — holds focus itself, inside the view that owns the keys,
   // and hands it to its row once the row is there.
   const pendingPane = useRef<GitViewPane | null>(null);
+  // The history's selected row not drawn yet — a detached HEAD's Uncommitted
+  // row waits on the status read — so its one tab stop holds focus for it.
+  const standIn = useRef<HTMLElement | null>(null);
   const focusPane = useCallback((p: GitViewPane) => {
     const section = panelRef.current?.querySelector<HTMLElement>(`[data-gv-pane="${p}"]`);
     if (!section) return;
@@ -664,10 +667,11 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     const handle = p === "files" ? filesHandle.current : p === "diff" ? diffHandle.current : null;
     if (handle) handle.focus();
     else {
-      const row = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]')
-        ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]');
+      const chosen = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]');
+      const row = chosen ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]');
       row?.focus({ preventScroll: true });
       row?.scrollIntoView?.({ block: "nearest" });
+      standIn.current = chosen ? null : row ?? null;
     }
     const active = document.activeElement;
     if (active !== section && section.contains(active)) { pendingPane.current = null; return; }
@@ -675,6 +679,15 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     pendingPane.current = p;
   }, []);
   useEffect(() => {
+    // Only while the stand-in still has focus: the reader may have moved on.
+    const s = standIn.current;
+    if (s) {
+      if (document.activeElement !== s) standIn.current = null;
+      else {
+        const chosen = panelRef.current?.querySelector<HTMLElement>('[data-gv-pane="graph"] [aria-selected="true"][tabindex]');
+        if (chosen && chosen !== s) { standIn.current = null; chosen.focus({ preventScroll: true }); chosen.scrollIntoView?.({ block: "nearest" }); }
+      }
+    }
     const p = pendingPane.current;
     if (!p) return;
     // Only while the pane still holds it: the reader may have moved on.
