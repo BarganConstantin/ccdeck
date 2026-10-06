@@ -412,6 +412,10 @@
    can, keeps the glyph alone, and the name in the tooltip and the accessible
    name, rather than a ticket cut in two. */
 .git-chip[data-bare] .git-chip-name { display: none; }
+/* A folder that no longer exists: the name is what its session's log last
+   recorded, not what git reads now, so it is set in italic, the tooltip and
+   the accessible name saying why. */
+.git-chip[data-gone] .git-chip-name { font-style: italic; }
 .git-chip:hover,
 .git-chip:focus-visible { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
 /* The ring inset, as .canvas-wrap's and the usage bars' are: the sub row hides
@@ -427,10 +431,11 @@
 
    The row never widens the card: `contain: inline-size` keeps its sentence out
    of the card's own width, so a card is as wide as its other rows make it and
-   the sentence gives way inside that. What gives way first is the sentence —
-   the file's name leads and keeps up to half the row, the tail (`+1`,
-   `· in this session`) never goes, and the tooltip holds every agent and
-   file.
+   the sentence gives way inside that. What gives way first is the sentence,
+   then the file's name, which leads and keeps up to half the row, down to a
+   stub; the tail (`+1`, `· in this session`) never goes, and the tooltip
+   holds every agent and file. On the narrowest card, a subagent's 220px, the
+   name has to give way too, or the tail runs past the card's edge.
 
    QUIET is two agents in one folder or on one branch, which is often meant: a
    line in the metadata tier with no edge and no wash, on the card's own text
@@ -441,6 +446,7 @@
   gap: 6px;
   width: 100%;
   min-width: 0;
+  overflow: hidden;
   contain: inline-size;
   margin-top: 7px;
   padding: 3px 8px;
@@ -467,7 +473,8 @@
 .agent-node .git-mark-glyph { flex: none; display: inline-flex; }
 .agent-node .git-mark-glyph svg { width: 12px; height: 12px; }
 .agent-node .git-mark-lead {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 4ch;
   max-width: 50%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -475,7 +482,7 @@
   font-weight: 700;
 }
 .agent-node .git-mark-said {
-  flex: 0 1 auto;
+  flex: 0 1000 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

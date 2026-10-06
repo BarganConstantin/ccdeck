@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { goToAgentCard, pressHow } from "../agent-goto";
 import { focusCanvasNode } from "../canvas-node-element";
 import type { CardMark } from "../git-card-mark";
@@ -21,7 +21,9 @@ import { GvIcon } from "./GitViewParts";
  * Live, as the server's collisions change: a mark fades in, and one that has
  * stopped being true fades out before its row goes (agent-node.css). The row
  * that is going is out of the tab order and out of the accessibility tree, and
- * if the keyboard was on it, it moves to the card.
+ * if the keyboard was on it, it moves to the card. A mark that turns from sharp
+ * to quiet or back is the same button with new words, faded in again, so a
+ * keyboard on it stays on it.
  */
 export function GitMarkRow({ mark, agentId }: { mark: CardMark | null; agentId: string }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -35,13 +37,25 @@ export function GitMarkRow({ mark, agentId }: { mark: CardMark | null; agentId: 
     if (leaving && ref.current != null && ref.current === document.activeElement) focusCanvasNode(agentId);
   }, [leaving, agentId]);
 
+  // A new level fades in again, on the node that is there: replacing it
+  // would drop the keyboard on the page. Reduced motion runs no animation, so
+  // there is nothing to restart.
+  const level = shown?.level ?? null;
+  const levelRef = useRef(level);
+  useLayoutEffect(() => {
+    const was = levelRef.current;
+    levelRef.current = level;
+    if (was == null || was === level) return;
+    for (const an of ref.current?.getAnimations() ?? []) {
+      if ((an as CSSAnimation).animationName === "git-mark-in") { an.cancel(); an.play(); }
+    }
+  }, [level]);
+
   if (!shown) return null;
   const target = shown.target;
   return (
     <button
       ref={ref}
-      // A new level is a new mark, and fades in again.
-      key={shown.level}
       type="button"
       className="git-mark"
       data-level={shown.level}

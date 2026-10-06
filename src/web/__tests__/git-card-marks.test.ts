@@ -545,6 +545,17 @@ describe("marks that come and go", () => {
     expect(css).toMatch(/\.agent-node \.git-mark\[data-leaving\] \{\s*pointer-events: none;/);
   });
 
+  it("keep the same button when sharp turns quiet or back, so a keyboard on it stays there, and fade the new words in", () => {
+    // Remounting the button on a new level threw away the focused node and
+    // left the keyboard on the page's body.
+    expect(row).not.toMatch(/key=\{shown\.level\}/);
+    expect(row).not.toMatch(/\bkey=/);
+    const effect = row.slice(row.indexOf("useLayoutEffect(() => {"), row.indexOf("}, [level]);"));
+    expect(effect).toMatch(/if \(was == null \|\| was === level\) return;/);
+    expect(effect).toMatch(/\.getAnimations\(\)/);
+    expect(effect).toMatch(/animationName === "git-mark-in"\) \{ an\.cancel\(\); an\.play\(\); \}/);
+  });
+
   it("fade in and out in 150ms with no travel, and are simply there and gone under reduced motion", () => {
     expect(/\n\.agent-node \.git-mark \{[^}]*animation: git-mark-in 150ms cubic-bezier\(0\.23, 1, 0\.32, 1\) both;/.test(css)).toBe(true);
     expect(css).toMatch(/\.agent-node \.git-mark\[data-leaving\] \{[^}]*animation: git-mark-out 150ms cubic-bezier\(0\.23, 1, 0\.32, 1\) forwards;/);
@@ -577,6 +588,21 @@ describe("the mark's look", () => {
     expect(base).toContain("contain: inline-size");
     expect(base).toContain("width: 100%");
     expect(rule(".agent-node .git-mark-said")).toMatch(/text-overflow: ellipsis/);
+  });
+
+  it("lets the file's name give way after the sentence, so the tail never spills out of a narrow card", () => {
+    // A 220px subagent card: glyph, three gaps, the name at up to half the
+    // row and "+1 · in this session" did not fit, and the tail ran past the
+    // card's edge. The sentence goes first, then the name down to a stub;
+    // the tail never.
+    const lead = rule(".agent-node .git-mark-lead");
+    expect(lead).toContain("flex: 0 1 auto;");
+    expect(lead).toContain("min-width: 4ch;");
+    expect(lead).toMatch(/text-overflow: ellipsis/);
+    expect(rule(".agent-node .git-mark-said")).toContain("flex: 0 1000 auto;");
+    expect(css).toContain(".agent-node .git-mark-tail { flex: none; white-space: nowrap; }");
+    // Nothing drawn past the row's own edge, whatever the words.
+    expect(rule(".agent-node .git-mark")).toContain("overflow: hidden;");
   });
 
   it("presses like every labelled control, and the press stands still under reduced motion", () => {

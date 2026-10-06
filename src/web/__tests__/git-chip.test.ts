@@ -3,6 +3,8 @@
 // the chip lives on the sub row, a press on it is its own and opens the agent's
 // details, and it moves nothing when it lights up.
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { branchChip, branchCandidates, branchFloor, fitBranch, fitChip, rowYields } from "../git-chip";
 import { openGitFor, setGitOpener } from "../git-open";
 import type { GitFacts } from "../types";
@@ -39,6 +41,22 @@ describe("which cards show a branch", () => {
     const c = branchChip({ kind: "root", git: { state: "gone", branch: "feature/merged", fromLog: true, stale: 0 } });
     expect(c?.name).toBe("feature/merged");
     expect(c?.title).toContain("as the session's log last recorded it: its folder no longer exists");
+    // A press shows why in the Git section rather than opening a view, so the
+    // name promises no view, and the chip is marked as a value from the log.
+    expect(c?.label).toBe("Branch feature/merged, as its session's log last recorded it. Its folder no longer exists");
+    expect(c?.label).not.toContain("Open its git view");
+    expect(c?.gone).toBe(true);
+    expect(branchChip({ kind: "root", git: repo() })?.gone).toBeUndefined();
+  });
+
+  it("draws a branch from the log apart from a live one", () => {
+    expect(sourceOf("components/GitChip.tsx")).toContain('data-gone={chip.gone ? "" : undefined}');
+    expect(sheetText()).toContain(".git-chip[data-gone] .git-chip-name { font-style: italic; }");
+    const design = readFileSync(fileURLToPath(new URL("../../../DESIGN.md", import.meta.url)), "utf8");
+    const row = design.split("\n").find(l => l.startsWith("| Branch from the log |")) ?? "";
+    expect(row.split(" | ")).toHaveLength(5);
+    expect(row).toContain("italic");
+    expect(row).toContain("as the session's log last recorded it");
   });
 
   it("puts a subagent's folder in its tooltip, and says which worktree and repository", () => {
