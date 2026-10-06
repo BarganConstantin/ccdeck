@@ -159,6 +159,11 @@
 /* The shared ring, inset: the scroller would clip it at its edges. */
 .gvd-scroll:focus-visible { outline-offset: -2px; }
 .gvd-diff { width: max-content; min-width: 100%; padding-bottom: 12px; }
+/* A diff is drawn in blocks of lines (GitDiff.tsx); a long one renders only
+   the blocks near the view, the rest holding their height. Each block keeps
+   its hunk header's margin inside it, so the height it is measured at is the
+   room it takes. */
+.gvd-block { display: flow-root; }
 /* A hunk's header and the load-more row share the lines' columns, so their
    words start where the code does. */
 .gvd-hunk {
@@ -174,7 +179,7 @@
   font-size: 11px;
   white-space: nowrap;
 }
-.gvd-hunk:first-child { margin-top: 0; }
+.gvd-block:first-child > .gvd-hunk { margin-top: 0; }
 .gvd-hunk-range { grid-column: 4; padding-left: 4px; color: var(--text-secondary); }
 /* One line, always: the enclosing function git found is cut, whole in its title. */
 .gvd-hunk-ctx { grid-column: 5; min-width: 0; padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }
@@ -261,7 +266,7 @@ button.btn.gvd-show { margin-top: 4px; }
 
 /* Switching files: the last diff stays for a moment so the pane never flashes
    empty, and only a wait long enough to notice says so. */
-.gvd-pending { animation: gvd-hold 0s linear 200ms forwards; }
+.gvd-body[data-pending] { animation: gvd-hold 0s linear 200ms forwards; }
 @keyframes gvd-hold { to { visibility: hidden; } }
 .gvd-loading {
   position: sticky;

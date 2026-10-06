@@ -30,7 +30,7 @@ describe("the diff", () => {
 
   it("puts Show latest in the header, with its key, and announces it", () => {
     const head = diff.slice(diff.indexOf('<div className="gvd-head">'), diff.indexOf('{collision && ('));
-    expect(head).toContain('className="gvd-pill" onClick={onShowLatest}');
+    expect(head).toContain('className="gvd-pill" onClick={() => { holdFocus(); onShowLatest(); }}');
     expect(head).toContain("Show latest <kbd>n</kbd>");
     expect(head).toMatch(/aria-live="polite"/);
   });

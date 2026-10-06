@@ -72,6 +72,9 @@ export interface ParsedDiff {
   oldMode?: string;
   newMode?: string;
   binary: boolean;
+  /** git printed an unmerged path its own way — a combined diff of both sides
+   *  of a merge, or only "Unmerged path" — rather than a patch. */
+  unmerged: boolean;
   /** Every added, removed and context line in the patch. */
   lineCount: number;
 }
@@ -81,7 +84,7 @@ const HUNK = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@ ?(.*)$/;
 /** A unified diff of one file as hunks of numbered lines, plus what its
  *  header said: rename, copy, new, deleted, mode change, binary. */
 export function parsePatch(patch: string): ParsedDiff {
-  const out: ParsedDiff = { hunks: [], renamed: false, copied: false, created: false, deleted: false, binary: false, lineCount: 0 };
+  const out: ParsedDiff = { hunks: [], renamed: false, copied: false, created: false, deleted: false, binary: false, unmerged: false, lineCount: 0 };
   const rows = patch.split("\n");
   let hunk: Hunk | null = null;
   let oldLeft = 0, newLeft = 0, oldNo = 0, newNo = 0;
@@ -125,6 +128,7 @@ export function parsePatch(patch: string): ParsedDiff {
     else if ((m = /^old mode (\d+)$/.exec(row))) out.oldMode = m[1];
     else if ((m = /^new mode (\d+)$/.exec(row))) out.newMode = m[1];
     else if (/^Binary files .* differ$/.test(row) || row === "GIT binary patch") out.binary = true;
+    else if (/^diff --(?:cc|combined) /.test(row) || row.startsWith("* Unmerged path ")) out.unmerged = true;
   }
   out.lineCount = out.hunks.reduce((n, x) => n + x.lines.length, 0);
   return out;
