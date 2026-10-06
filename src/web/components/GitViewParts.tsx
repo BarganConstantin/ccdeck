@@ -195,9 +195,11 @@ export function CommitCard({ facts, anchor, onShow, onClose }: {
 }
 
 /** The branch name, cut by measuring its box: the ticket first and never cut
- *  inside it (git-chip.ts), the whole name in the tooltip. React's own text
- *  node is rewritten, so React keeps owning it. */
-export function useFittedName(name: string, watch: MutableRefObject<HTMLElement | null>, room: unknown = null) {
+ *  inside it (git-chip.ts), the whole name in the tooltip. A name with a short
+ *  form of its own — a detached HEAD's bare SHA, whose glyph already says
+ *  detached — shows that instead of being cut. React's own text node is
+ *  rewritten, so React keeps owning it. */
+export function useFittedName(name: string, watch: MutableRefObject<HTMLElement | null>, room: unknown = null, short: string | null = null) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -210,6 +212,7 @@ export function useFittedName(name: string, watch: MutableRefObject<HTMLElement 
       const room = el.clientWidth;
       const full = el.scrollWidth;
       if (full <= room + 1 || !name.length) return;
+      if (short) { text.nodeValue = short; return; }
       const cell = full / name.length;
       text.nodeValue = fitBranch(name, t => t.length * cell <= room);
     };
@@ -221,7 +224,7 @@ export function useFittedName(name: string, watch: MutableRefObject<HTMLElement 
     const ro = host && typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
     if (ro && host) ro.observe(host);
     return () => { cancelAnimationFrame(raf); ro?.disconnect(); };
-  }, [name, room]);
+  }, [name, room, short]);
   return ref;
 }
 

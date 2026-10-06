@@ -77,7 +77,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   const shortSha = head?.short ?? facts?.sha ?? "";
   const branch = head ? head.branch : facts?.branch ?? null;
   const branchName = detached ? `detached at ${shortSha}` : branch ?? "";
-  const nameRef = useFittedName(branchName, branchRowRef, `${upstreamWords(data.repo)?.text}|${data.state}`);
+  const nameRef = useFittedName(branchName, branchRowRef, `${upstreamWords(data.repo)?.text}|${data.state}`, detached ? shortSha : null);
   if (!gitOn) return null;
 
   // From a pointer the view slides in; from Enter or Space it opens at once.
