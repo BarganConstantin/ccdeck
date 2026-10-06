@@ -10,6 +10,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readBuildInfo } from "./build-info.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory.
@@ -22,3 +23,8 @@ export const RUNNING_VERSION = (() => {
   try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8"))?.version ?? null; }
   catch { return null; }
 })();
+
+// Which build this is, when it is not a release (a pull request's CI package
+// or installer): its branch and commit, read at boot like the version. Null
+// for a release. See build-info.mjs.
+export const RUNNING_BUILD = readBuildInfo(PKG_ROOT);

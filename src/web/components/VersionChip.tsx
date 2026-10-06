@@ -116,6 +116,8 @@ export default function VersionChip({
               ? shortAgo(now - version.checkFailedAt) : null,
             checkDisabled: version?.checkDisabled,
             checking: versionChecking,
+            // A pull request's test build: its branch and commit, said first.
+            build: version?.build ?? null,
           };
           return (
             <button
