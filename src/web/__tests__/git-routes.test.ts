@@ -145,8 +145,8 @@ describe("the reads", () => {
     expect(log.body.commits.map((c: any) => c.sha)).toEqual([secondSha, firstSha]);
     const status = await read(q("/api/git/status", { session: "S-repo" }));
     expect(status.body.entries).toEqual([
-      { path: "a.txt", area: "unstaged", change: "modified" },
-      { path: "new.txt", area: "untracked", change: "untracked" },
+      { path: "a.txt", area: "unstaged", change: "modified", added: 1, removed: 1, binary: false },
+      { path: "new.txt", area: "untracked", change: "untracked", added: 1, removed: 0, binary: false },
     ]);
     expect(status.body.counts).toEqual({ staged: 0, unstaged: 1, untracked: 1, conflict: 0 });
   });

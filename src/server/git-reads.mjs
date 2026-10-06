@@ -234,6 +234,140 @@ export async function readStatus(topLevel, { filters = [] } = {}) {
   return { ok: true, entries, counts };
 }
 
+// ─── line counts for the working tree's entries ───────────────────────────
+
+/** The most untracked files read to count their lines, per status read; the
+ *  rest are left without counts rather than read. */
+export const UNTRACKED_COUNT_MAX_FILES = 200;
+/** And the most bytes read for that in all. */
+export const UNTRACKED_COUNT_MAX_BYTES = 8 << 20;
+/** How many untracked files are read at once. */
+const UNTRACKED_COUNT_PARALLEL = 8;
+
+/**
+ * `diff --numstat -z` as a list: [{ path, from?, added, removed, binary }].
+ * A record is `added\tremoved\tpath`, or for a rename `added\tremoved\t`
+ * followed by the two paths as records of their own; a binary file counts as
+ * `-\t-`.
+ */
+export function parseNumstat(out) {
+  const t = String(out ?? "").split("\0");
+  const rows = [];
+  for (let i = 0; i < t.length; i++) {
+    const rec = t[i];
+    if (!rec) continue;
+    const a = rec.indexOf("\t");
+    const b = a < 0 ? -1 : rec.indexOf("\t", a + 1);
+    if (b < 0) continue;
+    const added = rec.slice(0, a);
+    const removed = rec.slice(a + 1, b);
+    let path = rec.slice(b + 1);
+    let from;
+    if (path === "") {
+      from = t[i + 1];
+      path = t[i + 2];
+      i += 2;
+      if (!from || !path) continue;
+    }
+    const binary = added === "-" && removed === "-";
+    rows.push({
+      path,
+      ...(from !== undefined ? { from } : {}),
+      added: binary ? 0 : Number(added) || 0,
+      removed: binary ? 0 : Number(removed) || 0,
+      binary,
+    });
+  }
+  return rows;
+}
+
+/** One side's numstat, keyed by the path an entry carries (and the `from` of a
+ *  rename, so a rename is matched only to the entry that names both ends), or
+ *  null when git could not answer. */
+async function numstatSide(topLevel, cached, filters) {
+  const r = await git("diff", [...(cached ? ["--cached"] : []), "--numstat", "-z", "--find-renames"], { cwd: topLevel, filters });
+  if (!r.ok) return null;
+  const map = new Map();
+  for (const row of parseNumstat(r.stdout)) {
+    const key = `${row.from ?? ""}\0${row.path}`;
+    const held = map.get(key);
+    // One path twice (a change of type shown as a delete and an add) is what
+    // its diff shows: both halves.
+    if (held) map.set(key, { added: held.added + row.added, removed: held.removed + row.removed, binary: held.binary || row.binary });
+    else map.set(key, { added: row.added, removed: row.removed, binary: row.binary });
+  }
+  return map;
+}
+
+/** What countEntries sets on an entry: the three fields a commit's files carry. */
+const countFields = (c) => (c.binary ? { added: 0, removed: 0, binary: true } : { added: c.added, removed: c.removed, binary: false });
+
+/**
+ * An untracked file's lines, counted the way its diff (untrackedDiff) shows
+ * them, or null when it is not counted: a folder, a file past DIFF_CAP or past
+ * the read budget, one that is gone, or one whose path leaves the repository.
+ * A link is the one line its diff shows, and is never followed.
+ */
+async function untrackedCounts(topLevel, realTop, entry, budget) {
+  if (entry.directory || entry.submodule) return null;
+  const full = await insideRepo(topLevel, entry.path);
+  if (!full) return null;
+  let st;
+  try { st = await lstat(full); } catch { return null; }
+  if (st.isSymbolicLink()) return { added: 1, removed: 0, binary: false };
+  if (!st.isFile() || st.size > DIFF_CAP) return null;
+  if (budget.files <= 0 || budget.bytes < st.size) return null;
+  budget.files -= 1;
+  budget.bytes -= st.size;
+  const real = await realpath(full).catch(() => null);
+  if (!realTop || !real || !real.startsWith(realTop.endsWith(sep) ? realTop : realTop + sep)) return null;
+  const buf = await readFile(full).catch(() => null);
+  if (!buf || buf.length > DIFF_CAP) return null;
+  // git's own test: a NUL in the first 8000 bytes.
+  if (buf.subarray(0, 8000).includes(0)) return { added: 0, removed: 0, binary: true };
+  let lines = 0;
+  for (let i = buf.indexOf(10); i !== -1; i = buf.indexOf(10, i + 1)) lines++;
+  if (buf.length && buf[buf.length - 1] !== 10) lines++;
+  return { added: lines, removed: 0, binary: false };
+}
+
+/**
+ * `entries` (readStatus's, for this repository) with the line counts their
+ * diffs would show — `added`, `removed` and `binary`, as a commit's files
+ * carry them. Staged entries are counted from `diff --cached --numstat`,
+ * unstaged ones from `diff --numstat`, untracked files by reading them (no
+ * more than UNTRACKED_COUNT_MAX_FILES and UNTRACKED_COUNT_MAX_BYTES of them,
+ * each no larger than DIFF_CAP). An entry left without the three fields is
+ * one whose counts are not known: a conflict, a submodule, an untracked
+ * folder, a file past a cap, or a side git could not answer for. The entries
+ * given are not changed; new ones are answered.
+ */
+export async function countEntries(topLevel, entries, { filters = [] } = {}) {
+  const list = Array.isArray(entries) ? entries : [];
+  const wants = (area) => list.some((e) => e.area === area && !e.submodule);
+  const [staged, unstaged, realTop] = await Promise.all([
+    wants("staged") ? numstatSide(topLevel, true, filters) : null,
+    wants("unstaged") ? numstatSide(topLevel, false, filters) : null,
+    wants("untracked") ? realpath(topLevel).catch(() => null) : null,
+  ]);
+  const out = list.map((e) => ({ ...e }));
+  const budget = { files: UNTRACKED_COUNT_MAX_FILES, bytes: UNTRACKED_COUNT_MAX_BYTES };
+  const untracked = [];
+  for (const e of out) {
+    if (e.submodule || e.area === "conflict") continue;
+    if (e.area === "untracked") { untracked.push(e); continue; }
+    const side = e.area === "staged" ? staged : unstaged;
+    const c = side?.get(`${e.from ?? ""}\0${e.path}`);
+    if (c) Object.assign(e, countFields(c));
+  }
+  for (let i = 0; i < untracked.length; i += UNTRACKED_COUNT_PARALLEL) {
+    const batch = untracked.slice(i, i + UNTRACKED_COUNT_PARALLEL);
+    const counted = await Promise.all(batch.map((e) => untrackedCounts(topLevel, realTop, e, budget)));
+    batch.forEach((e, k) => { if (counted[k]) Object.assign(e, countFields(counted[k])); });
+  }
+  return out;
+}
+
 // ─── diffs ────────────────────────────────────────────────────────────────
 
 /** A unified diff's added and removed line counts. */

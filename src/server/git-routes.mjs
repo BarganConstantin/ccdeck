@@ -28,7 +28,7 @@ import { sessionEdits } from "./git-edits.mjs";
 import { isShaLike } from "./git-reads.mjs";
 import { sessionFolder } from "./git-sessions.mjs";
 import { gitEnabled } from "./git-watch.mjs";
-import { commitOf, commitFileDiffOf, fileDiffOf, logOf, repoOf, statusOf } from "./git-state.mjs";
+import { commitOf, commitFileDiffOf, countedStatusOf, fileDiffOf, logOf, repoOf, statusOf } from "./git-state.mjs";
 
 const AREAS = new Set(["staged", "unstaged", "untracked", "conflict"]);
 const MAX_PARAM = 4096;
@@ -73,10 +73,12 @@ export async function handleGitLog(req, res, url) {
   send(res, 200, { ok: true, state: "repo", repo: found.repo, commits });
 }
 
+/** `?session[&agent]` — the working tree's entries, each with the line counts
+ *  its diff would show (`added`, `removed`, `binary`) when they are known. */
 export async function handleGitStatus(req, res, url) {
   const found = await sessionRepo(url, res);
   if (!found) return;
-  const status = await statusOf(found.repo);
+  const status = await countedStatusOf(found.repo);
   send(res, 200, status.ok
     ? { ok: true, state: "repo", repo: found.repo, entries: status.entries, counts: status.counts }
     : { ok: false, state: "repo", repo: found.repo, reason: status.reason });

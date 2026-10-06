@@ -21,7 +21,7 @@ process.env.XDG_CONFIG_HOME = join(HOME, ".config");
 const reads = await import("../../server/git-reads.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { resolveRepo } = await import("../../server/git-repo.mjs");
-const { readLog, readStatus, readFileDiff, readCommit, readCommitFileDiff, parseTrailers, DIFF_CAP, LOG_LIMIT } = reads;
+const { readLog, readStatus, readFileDiff, readCommit, readCommitFileDiff, parseTrailers, countEntries, parseNumstat, DIFF_CAP, LOG_LIMIT, UNTRACKED_COUNT_MAX_FILES } = reads;
 
 const made: string[] = [HOME];
 const track = (dir: string) => { made.push(dir); return dir; };
@@ -144,6 +144,105 @@ describe("readStatus", () => {
   });
 });
 
+describe("countEntries", () => {
+  const counted = async (dir: string) => countEntries(dir, (await readStatus(dir)).entries);
+
+  it("counts the staged and the unstaged half of one file apart, as their diffs show them", async () => {
+    const dir = track(repoWith({ "a.txt": "one\ntwo\nthree\n" }));
+    write(dir, { "a.txt": "one\n2\nthree\nfour\n" });
+    sh(dir, ["add", "a.txt"]);
+    write(dir, { "a.txt": "one\nthree\nfour\n" });
+    const entries = await counted(dir);
+    expect(entry(entries, "a.txt", "staged")).toEqual({ path: "a.txt", area: "staged", change: "modified", added: 2, removed: 1, binary: false });
+    expect(entry(entries, "a.txt", "unstaged")).toEqual({ path: "a.txt", area: "unstaged", change: "modified", added: 0, removed: 1, binary: false });
+    // The same numbers the diff route answers for each half.
+    for (const area of ["staged", "unstaged"]) {
+      const d = await readFileDiff(dir, entry(entries, "a.txt", area));
+      expect({ added: d.added, removed: d.removed }, area).toEqual({ added: entry(entries, "a.txt", area).added, removed: entry(entries, "a.txt", area).removed });
+    }
+  });
+
+  it("matches a staged rename by both its ends, edits included", async () => {
+    const dir = track(repoWith({ "old name.txt": "same\nlines\nhere\nand\nmore\n", "other.txt": "x\n" }));
+    sh(dir, ["mv", "old name.txt", "new name.txt"]);
+    write(dir, { "new name.txt": "same\nlines\nhere\nand\nmore\nplus\n", "other.txt": "y\n" });
+    sh(dir, ["add", "new name.txt"]);
+    const entries = await counted(dir);
+    expect(entry(entries, "new name.txt", "staged")).toEqual({ path: "new name.txt", area: "staged", change: "renamed", from: "old name.txt", added: 1, removed: 0, binary: false });
+    expect(entry(entries, "other.txt", "unstaged")).toMatchObject({ added: 1, removed: 1, binary: false });
+  });
+
+  it("marks a binary file binary, tracked or not, and counts a deletion", async () => {
+    const dir = track(repoWith({ "b.bin": Buffer.from([0, 1, 2, 3]), "gone.txt": "a\nb\n" }));
+    write(dir, { "b.bin": Buffer.from([0, 9, 9, 9]), "new.bin": Buffer.from([7, 0, 7]) });
+    sh(dir, ["rm", "-q", "--cached", "gone.txt"]);
+    const entries = await counted(dir);
+    expect(entry(entries, "b.bin", "unstaged")).toMatchObject({ added: 0, removed: 0, binary: true });
+    expect(entry(entries, "new.bin", "untracked")).toMatchObject({ added: 0, removed: 0, binary: true });
+    expect(entry(entries, "gone.txt", "staged")).toMatchObject({ change: "deleted", added: 0, removed: 2, binary: false });
+  });
+
+  it("counts an untracked text file by lines, a final line without a newline included, and CRLF as one line each", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    write(dir, { "n.txt": "x\ny", "crlf.txt": "one\r\ntwo\r\nthree\r\n", "empty.txt": "" });
+    const entries = await counted(dir);
+    expect(entry(entries, "n.txt", "untracked")).toMatchObject({ added: 2, removed: 0, binary: false });
+    expect(entry(entries, "crlf.txt", "untracked")).toMatchObject({ added: 3, removed: 0, binary: false });
+    expect(entry(entries, "empty.txt", "untracked")).toMatchObject({ added: 0, removed: 0, binary: false });
+    // The diff the files pane opens says the same.
+    expect((await readFileDiff(dir, entry(entries, "crlf.txt", "untracked"))).added).toBe(3);
+  });
+
+  it("counts a CRLF file's changed lines as git does, whatever core.autocrlf says", async () => {
+    const dir = track(repoWith({ "w.txt": "a\r\nb\r\nc\r\n" }));
+    sh(dir, ["config", "core.autocrlf", "true"]);
+    write(dir, { "w.txt": "a\r\nB\r\nc\r\nd\r\n" });
+    const entries = await counted(dir);
+    expect(entry(entries, "w.txt", "unstaged")).toMatchObject({ added: 2, removed: 1, binary: false });
+    expect(await readFileDiff(dir, entry(entries, "w.txt", "unstaged"))).toMatchObject({ added: 2, removed: 1 });
+  });
+
+  it("leaves the counts out for an untracked file past the diff cap, a folder, and a conflict", async () => {
+    const dir = track(repoWith({ "a.txt": "base\n" }));
+    sh(dir, ["checkout", "-q", "-b", "other"]);
+    write(dir, { "a.txt": "theirs\n" });
+    commitAll(dir, "theirs");
+    sh(dir, ["checkout", "-q", "main"]);
+    write(dir, { "a.txt": "ours\n" });
+    commitAll(dir, "ours");
+    try { sh(dir, ["merge", "-q", "other"]); } catch { /* the conflict is the point */ }
+    const line = "y".repeat(99) + "\n";
+    write(dir, { "huge.txt": line.repeat(Math.ceil((DIFF_CAP + 1) / line.length)), "folder/inner.txt": "i\n" });
+    const entries = await counted(dir);
+    for (const [path, area] of [["huge.txt", "untracked"], ["folder", "untracked"], ["a.txt", "conflict"]]) {
+      const e = entry(entries, path, area);
+      expect(e, path).toBeTruthy();
+      expect("added" in e || "removed" in e || "binary" in e, path).toBe(false);
+    }
+  });
+
+  it("reads no more than its budget of untracked files, and never changes the entries it was given", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    const files: Record<string, string> = {};
+    for (let i = 0; i < UNTRACKED_COUNT_MAX_FILES + 5; i++) files[`u${String(i).padStart(4, "0")}.txt`] = "x\n";
+    write(dir, files);
+    const status = await readStatus(dir);
+    const before = JSON.stringify(status.entries);
+    const entries = await countEntries(dir, status.entries);
+    expect(entries.filter((e: any) => e.area === "untracked" && typeof e.added === "number")).toHaveLength(UNTRACKED_COUNT_MAX_FILES);
+    expect(JSON.stringify(status.entries)).toBe(before);
+  });
+
+  it("parses numstat records, renames and binaries included", () => {
+    expect(parseNumstat("3\t1\ta b.txt\0-\t-\timg.png\x001\t0\t\0old.txt\0new.txt\0")).toEqual([
+      { path: "a b.txt", added: 3, removed: 1, binary: false },
+      { path: "img.png", added: 0, removed: 0, binary: true },
+      { path: "new.txt", from: "old.txt", added: 1, removed: 0, binary: false },
+    ]);
+    expect(parseNumstat("")).toEqual([]);
+  });
+});
+
 describe("readFileDiff", () => {
   it("diffs the staged and the unstaged half of one file separately", async () => {
     const dir = track(repoWith({ "a.txt": "one\n" }));
@@ -263,6 +362,7 @@ describe("every read leaves the repository as it found it", () => {
       const log = await readLog(dir, head);
       const status = await readStatus(dir);
       for (const e of status.entries) expect((await readFileDiff(dir, e)).ok).toBe(true);
+      expect((await countEntries(dir, status.entries)).filter((e: any) => typeof e.added === "number")).toHaveLength(status.entries.length);
       const c = await readCommit(dir, log.commits[0].sha);
       await readCommitFileDiff(dir, c.commit, c.files[0]);
       seen = await watcher.stop();
