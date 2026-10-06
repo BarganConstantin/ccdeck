@@ -44,3 +44,20 @@ describe("an edge marker activated", () => {
     expect(after).toMatch(/if \(focusAfterFrame\.current === a\.id\) \{\s*focusAfterFrame\.current = null;\s*document\.querySelector<HTMLElement>\(`\.react-flow__node\[data-id="\$\{CSS\.escape\(a\.id\)\}"\]`\)\?\.focus\(\{ preventScroll: true \}\);/);
   });
 });
+
+describe("closing", () => {
+  const at = view.indexOf("const lastSeq = useRef(request.seq);");
+  const close = view.slice(at, view.indexOf("}, [request.seq]);", at));
+
+  it("gives focus back a frame later, so the uncovered rail restyles in its frame, not in the key's handler", () => {
+    expect(close).toMatch(/coverBehind\(false\);\s*if \(!inView\) return;/);
+    expect(close).toMatch(/const raf = requestAnimationFrame\(\(\) => \{/);
+    expect(close).toMatch(/return \(\) => cancelAnimationFrame\(raf\);/);
+  });
+
+  it("takes the opener only while it can be seen, else the selected card", () => {
+    // A card's chip on a face zoomed out too far to draw it is visibility: hidden.
+    expect(close).toMatch(/opener\.checkVisibility\(\{ visibilityProperty: true \}\)/);
+    expect(close).toMatch(/if \(target !== card && document\.activeElement !== target\) card\?\.focus\(\{ preventScroll: true \}\);/);
+  });
+});

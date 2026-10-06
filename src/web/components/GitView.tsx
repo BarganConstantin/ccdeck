@@ -351,10 +351,20 @@ export default function GitView(props: GitViewProps) {
     if (!inView) return;
     const opener = openerRef.current;
     openerRef.current = null;
-    const target = opener && opener.isConnected && !opener.closest("[inert]") && !(panel && panel.contains(opener))
-      ? opener
-      : document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(shown?.id ?? "")}"]`);
-    target?.focus({ preventScroll: true });
+    const cardId = shown?.id ?? "";
+    // A frame later, once the uncovered rail has been restyled in its own
+    // frame rather than inside the key's handler. The opener is taken only
+    // while it can be seen: a card's chip on a face zoomed out too far to
+    // draw it is hidden, and focus put there would land nowhere.
+    const raf = requestAnimationFrame(() => {
+      const card = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(cardId)}"]`);
+      const usable = opener && opener.isConnected && !opener.closest("[inert]") && !panelRef.current?.contains(opener)
+        && (typeof opener.checkVisibility !== "function" || opener.checkVisibility({ visibilityProperty: true }));
+      const target = usable ? opener : card;
+      target?.focus({ preventScroll: true });
+      if (target !== card && document.activeElement !== target) card?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [request.seq]);
 
   if (!mounted || !shown) return null;
