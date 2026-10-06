@@ -443,7 +443,7 @@ export default function GitGraph(props: GitGraphProps) {
   useLayoutEffect(() => {
     const el = paneRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(([e]) => setRefRoom(e.contentRect.width < 560 ? REF_ROOM_NARROW : REF_ROOM));
+    const ro = new ResizeObserver(([e]) => setRefRoom(e.contentRect.width <= 560 ? REF_ROOM_NARROW : REF_ROOM));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);

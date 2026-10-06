@@ -1762,6 +1762,38 @@ describe("the git history's colours, on every bed they are drawn on", () => {
     }
   });
 
+  it("keeps the lanes at their floors on a hovered or selected row too, whose bed is not the panel", () => {
+    /** A lane rule's own paint, the Contrast theme's override taken off and
+     *  this slot's lane put in for `--lane`. */
+    const paint = (selector: string, prop: string, slot: number) => {
+      const v = declFor(selector, prop);
+      if (v === null) throw new Error(`${selector} sets no ${prop}`);
+      const own = /^var\(--gv-forced-ink,\s*([\s\S]*)\)$/.exec(v.trim());
+      return (own ? own[1] : v).replace(/var\(--lane\)/g, `var(--gv-lane-${slot})`);
+    };
+    for (const theme of themes) {
+      for (const [bed, colour] of rowBeds(theme)) {
+        if (bed === "the panel") continue;
+        const row = bed === "a hovered row" ? ".gv-row:hover" : ".gv-row.is-sel";
+        for (const n of SLOTS) {
+          const at = (v: string) => contrastRatio(resolve(v, theme), colour);
+          const dimEdge = at(paint(`${row} .gv-e.is-dim`, "stroke", n));
+          expect(dimEdge, `${theme} lane ${n} dim edge on ${bed} — ${dimEdge.toFixed(2)}:1`).toBeGreaterThanOrEqual(2);
+          const edge = at(paint(`${row} .gv-e:not(.is-dim):not(.is-wip)`, "stroke", n));
+          expect(edge, `${theme} lane ${n} edge on ${bed} — ${edge.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+          for (const [sel, prop] of [[`${row} .gv-node.is-seen`, "fill"], [`${row} .gv-node.is-commit`, "stroke"]] as const) {
+            const node = at(paint(sel, prop, n));
+            expect(node, `${theme} lane ${n} node (${sel}) on ${bed} — ${node.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+          }
+          // The dim still steps back from the lane on the same bed.
+          expect(dimEdge, `${theme} lane ${n} on ${bed}`).toBeLessThan(edge);
+        }
+        const fold = contrastRatio(resolve(paint(`${row} .gv-fold-line`, "stroke", 1), theme), colour);
+        expect(fold, `${theme} fold line on ${bed} — ${fold.toFixed(2)}:1`).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
   it("draws lanes in tokens the sheet owns, never an opacity", () => {
     for (const n of SLOTS) {
       expect(declFor(`.gv-lanes [data-slot="${n}"]`, "--lane")).toBe(`var(--gv-lane-${n})`);
@@ -1781,6 +1813,8 @@ describe("the git history's colours, on every bed they are drawn on", () => {
           ["the author", inkOf(theme, tinted ? (bed === "a hovered row" ? ".gv-row:hover .gv-cell-author" : ".gv-row.is-sel .gv-cell-author") : ".gv-cell-author")],
           ["the SHA", inkOf(theme, tinted ? (bed === "a hovered row" ? ".gv-row:hover .gv-cell-sha" : ".gv-row.is-sel .gv-cell-sha") : ".gv-cell-sha")],
           ["the uncommitted count", inkOf(theme, tinted ? (bed === "a hovered row" ? ".gv-row:hover .gv-wip-n" : ".gv-row.is-sel .gv-wip-n") : ".gv-wip-n")],
+          // "4 by api-fix": the row every open starts on, selected and focused.
+          ["the focus's own count", inkOf(theme, tinted ? (bed === "a hovered row" ? ".gv-row:hover .gv-wip-mine" : ".gv-row.is-sel .gv-wip-mine") : ".gv-wip-mine")],
         ];
         for (const [what, ink] of lines) {
           const r = contrastRatio(ink, colour);
