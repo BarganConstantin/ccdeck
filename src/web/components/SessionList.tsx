@@ -302,8 +302,9 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     clamp, a long question cut it off, and the short answer is
                     the part a person can act on from here. It is Claude Code's
                     guess, so it is shown as one — muted, quoted — and never
-                    typed for anybody. */}
-                {r.status?.reply && <span className="sl-status-reply">suggested reply “{r.status.reply}”</span>}
+                    typed for anybody. One line, so a long one is cut, and
+                    carries itself whole on hover. */}
+                {r.status?.reply && <span className="sl-status-reply" title={`suggested reply “${r.status.reply}”`}>suggested reply “{r.status.reply}”</span>}
               </div>
               </button>
             </li>

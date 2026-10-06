@@ -47,8 +47,8 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
   // list's line already uses, so a question, a failure and a finished job read
   // in the same colours in both places.
   const cls = isRecap ? "recap-note" : `recap-note is-status status-${note.kind}`;
-  // Who wrote a status note; a recap says so in its mark. The face's cut line
-  // carries it too, under the text (faceTitle).
+  // Who wrote a status note; a recap says so in its mark. The text carries it
+  // too, under the text itself (faceTitle), at both sizes.
   const tip = isRecap ? undefined : noteSource(note);
   return (
     <div
@@ -71,10 +71,14 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
           onClick={e => { e.stopPropagation(); dismissRecap(data.noteKey); }}
         >×</button>
       </div>
-      <p className="recap-note-text">{note.text}</p>
+      {/* Its whole text on hover, as the face's line carries it: a status
+          note holds three lines here, a running turn often says more, and the
+          hover preview that holds the rest does not open at this zoom. */}
+      <p className="recap-note-text" title={faceTitle(note.text, tip)}>{note.text}</p>
       {/* Claude Code's guess at the answer to the question above, shown as a
-          guess — muted, quoted — and never typed for anybody. */}
-      {note.reply && <p className="recap-note-reply">suggested reply “{note.reply}”</p>}
+          guess — muted, quoted — and never typed for anybody. One line, so a
+          long one is cut, and carries itself whole on hover. */}
+      {note.reply && <p className="recap-note-reply" title={`suggested reply “${note.reply}”`}>suggested reply “{note.reply}”</p>}
       {/* The note at a distance, drawn in screen pixels over its own box the
           way a card's face is (AgentNode's NodeFace): its mark and age, and as
           many lines of the note as the box has room for at 1:1. Without it the
