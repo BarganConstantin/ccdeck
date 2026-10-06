@@ -132,7 +132,9 @@ describe("the sharp mark: the same file, edited by two live agents since it was 
     // The git view's collision line says it the same way.
     const line = sourceOf("components/GitViewParts.tsx");
     expect(line).not.toMatch(/are running/);
-    expect(line.match(/Neither has ended\./g)).toHaveLength(3);
+    // One sentence for every line the collision draws, wide and glance alike.
+    expect(line).toMatch(/const ended = who\.length > 1 \? "None of them has ended\." : "Neither has ended\.";/);
+    expect(line.match(/\$\{ended\}|\{ended\}/g)?.length).toBeGreaterThanOrEqual(3);
     expect(marks.get(BUG)).toMatchObject({ level: "sharp", target: UI, said: "also edited by web-ui" });
   });
 

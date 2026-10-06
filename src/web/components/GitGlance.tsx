@@ -19,7 +19,7 @@ import { openGitViewFrom } from "../git-view-request";
 import { gitFactsFor, gitFocus, gitViewOpens, subagentKey } from "../git-view-target";
 import { UNCOMMITTED, type GitFileRef } from "../git-view-types";
 import {
-  collisionsFor, commitMark, commitWho, endedAt, shortAge, subjectParts, upstreamWords,
+  commitMark, commitWho, endedAt, focusCollisions, shortAge, subjectParts, upstreamWords,
 } from "../git-view-words";
 import type { GraphState } from "../reducer";
 import { sessionHue } from "../session-hue";
@@ -117,9 +117,12 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   const upstream = upstreamWords(repo);
   // Other agents are named the way their cards are (git-agent-name.ts).
   const nameOf = (sessionId: string, agentId: string | null) => agentNameIn(stateRef.current.agents, sessionId, agentId);
-  const collision = collisionsFor(root?.gitCollisions, focus)[0] ?? null;
+  // The team's own first; a subagent's own is named as its (git-view-words.ts).
+  const collision = focusCollisions(root?.gitCollisions, focus,
+    k => stateRef.current.agents.get(`${agent.sessionId}::${k}`)?.git != null)[0] ?? null;
   // Named as the card's own collision mark names it.
   const other = collision ? otherAgentName(nameOf, collision.with) : "";
+  const who = collision ? collision.who.map(k => otherAgentName(nameOf, { sessionId: agent.sessionId, agentId: k })) : [];
   const own = (data.commits ?? []).filter(c => madeByFocus(c, focus));
   const showCommits = collision ? 2 : 3;
   const files = changedFiles(data.entries, data.edits, focus);
@@ -144,7 +147,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         </p>
       )}
       {collision && (
-        <CollisionLine c={collision} other={other} otherCli={null} where="glance"
+        <CollisionLine c={collision} who={who} other={other} otherCli={null} where="glance"
           onFocus={how => goToAgentCard(collisionTarget(stateRef.current.agents, collision.with), how)} />
       )}
       {data.commits && !own.length && <p className="gv-line-empty">No commits from this {scopeWord} yet.</p>}

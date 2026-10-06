@@ -139,7 +139,8 @@ describe("focusing another agent looks the same from every git surface", () => {
   });
 
   it("keeps the wide line's words whole in its tooltip, the CLI included", () => {
-    expect(parts).toMatch(/const said = `\$\{other\}\$\{otherCli \? ` \(\$\{otherCli\}\)` : ""\} also edited /);
+    expect(parts).toMatch(/const cli = otherCli \? ` \(\$\{otherCli\}\)` : "";/);
+    expect(parts).toMatch(/: `\$\{other\}\$\{cli\} also edited \$\{c\.files\.join\(", "\)\} \$\{since\}`;/);
     expect(parts).toMatch(/<div className="gv-collide-line" role="note" title=\{said\}>/);
   });
 

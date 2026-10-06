@@ -8,7 +8,7 @@ import { fitBranch } from "../git-chip";
 
 import { copyText } from "../copy-text";
 import type { LogCommit } from "../git-view-types";
-import { commitMark, readStateLine, type Collision, type MarkLevel } from "../git-view-words";
+import { andList, commitMark, readStateLine, type Collision, type MarkLevel } from "../git-view-words";
 import { isEscapeKey } from "../modal-dismiss";
 
 // The view's own glyphs, drawn to the deck's 14px grid at a 1.4 stroke.
@@ -44,8 +44,11 @@ export function GvMark({ level }: { level: MarkLevel }) {
 
 /** A collision as one line: sharp in the error colour naming the file, quiet
  *  in the muted tier; either is a way to the other agent. */
-export function CollisionLine({ c, other, otherCli, where, onFocus }: {
+export function CollisionLine({ c, who = [], other, otherCli, where, onFocus }: {
   c: Collision;
+  /** The session's own agents it is about, by name ("↳ docs-sync"), when the
+   *  agent in view is not one of them: they are named before the other agent. */
+  who?: string[];
   /** The other agent's name. */
   other: string;
   /** Its CLI, said in the wide view's sentence ("Codex"), when known. */
@@ -55,31 +58,44 @@ export function CollisionLine({ c, other, otherCli, where, onFocus }: {
   onFocus: (how: PressHow) => void;
 }) {
   const press = (e: { detail: number }) => onFocus(pressHow(e));
+  const them = andList(who);
+  const ended = who.length > 1 ? "None of them has ended." : "Neither has ended.";
   if (c.level === "sharp") {
     const file = c.files[0] ?? "";
     const more = c.files.length > 1 ? ` and ${c.files.length - 1} more` : "";
-    const title = `${other} also edited ${c.files.join(", ")} since it was last committed. Neither has ended.`;
+    const since = `since ${c.files.length === 1 ? "it was" : "they were"} last committed. ${ended}`;
     if (where === "glance") {
+      const title = who.length
+        ? `${them} and ${other} both edited ${c.files.join(", ")} ${since}`
+        : `${other} also edited ${c.files.join(", ")} ${since}`;
       return (
         <button type="button" className="gv-g-collide" title={`${title} Select ${other}.`} onClick={press}>
           <GvIcon name="clash" />
-          <span><b>{file}</b>{more} also edited by {other}</span>
+          <span><b>{file}</b>{more} {who.length ? `edited by ${them} and ${other}` : `also edited by ${other}`}</span>
         </button>
       );
     }
     // The tooltip opens with the line's own words, so a line cut short is whole there.
-    const said = `${other}${otherCli ? ` (${otherCli})` : ""} also edited ${c.files.join(", ")} since ${c.files.length === 1 ? "it was" : "they were"} last committed. Neither has ended.`;
+    const cli = otherCli ? ` (${otherCli})` : "";
+    const said = who.length
+      ? `${them} and ${other}${cli} both edited ${c.files.join(", ")} ${since}`
+      : `${other}${cli} also edited ${c.files.join(", ")} ${since}`;
     return (
       <div className="gv-collide-line" role="note" title={said}>
         <GvIcon name="clash" />
-        <span><b>{other}</b>{otherCli ? ` (${otherCli})` : ""} also edited <b>{file}</b>{more} since it was last committed. Neither has ended.</span>
+        {who.length
+          ? <span><b>{them}</b> and <b>{other}</b>{cli} both edited <b>{file}</b>{more} since it was last committed. {ended}</span>
+          : <span><b>{other}</b>{cli} also edited <b>{file}</b>{more} since it was last committed. {ended}</span>}
         <button type="button" className="gv-link" onClick={press}>Focus {other}</button>
       </div>
     );
   }
-  const what = c.reason === "same-branch" ? "Works on this branch in another folder:" : "Shares this folder with";
+  const branch = c.reason === "same-branch";
+  const what = who.length
+    ? `${them} ${branch ? `${who.length > 1 ? "work" : "works"} on the same branch as` : `${who.length > 1 ? "share" : "shares"} a folder with`}`
+    : branch ? "Works on this branch in another folder:" : "Shares this folder with";
   const button = (
-    <button type="button" className="gv-g-quiet" title={`${other} ${c.reason === "same-branch" ? "works on the same branch" : "works in the same folder"}. Select it.`} onClick={press}>
+    <button type="button" className="gv-g-quiet" title={`${who.length ? them : other} ${branch ? "works on the same branch" : "works in the same folder"}${who.length ? ` as ${other}` : ""}. Select ${who.length ? other : "it"}.`} onClick={press}>
       <GvIcon name="share" /><span>{what} {other}</span>
     </button>
   );
