@@ -186,6 +186,17 @@
   color: var(--muted);
 }
 .canvas-wrap[data-lod="overview"] .cluster-label-branch { display: inline; }
+/* A pill with no room to be drawn whole — above the canvas's top edge, under
+   the category filter bar or the canvas's other chrome, past a side of the
+   pane — is not drawn (SessionClusters, cluster-label-room.ts). Under the top
+   bar it was cut through its words, and under the filter bar it was covered;
+   either way it kept its Tab stop and took focus behind the chrome.
+   `visibility: hidden` takes it out of the paint, the hit test, the tab order
+   and the reading order at once. No transition: it leaves and comes back with
+   the pan that moved it, and the canvas gains no motion for it. */
+.cluster-label[data-offpane] {
+  visibility: hidden;
+}
 .cluster-label-said {
   position: absolute;
   width: 1px;

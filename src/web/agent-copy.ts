@@ -9,7 +9,7 @@
 // the card behind it, and where a test can run them without React.
 import type { AgentNodeData, WaitingBlock } from "./types";
 import { fmtCost } from "./pricing";
-import { agentCost, agentUnpricedTokens } from "./usage-models";
+import { agentCost, agentUnpricedTokens, otherModelIds } from "./usage-models";
 import { shortModel } from "./model-label";
 import { guessLine } from "./notify";
 import { isAlarming } from "./ambient-counts";
@@ -52,6 +52,29 @@ export function waitingSentence(waiting: WaitingBlock): string {
  *  spawned, singular for one (#1776). */
 export function spawnBadgeTitle(count: number): string {
   return `${count} subagent${count === 1 ? "" : "s"} spawned`;
+}
+
+/** The hover text on a card's second row: the row's own words, whole, in the
+ *  order it draws them — what kind of agent this is, how many it started, the
+ *  folder a subagent works in, and what its model chip says.
+ *
+ *  The row ellipsises at the card's width, and a subagent's is the one that
+ *  gets there: "subagent · shop-api-auth" filled it and cut the model chip
+ *  away entirely, with no tooltip to read it back from. A session's folder is
+ *  the name on the row above, so the row leaves it out and so does this; a
+ *  Codex session with no model yet says Codex, as its chip does, and a Claude
+ *  one says nothing about a model it has not reported. */
+export function subRowTitle(a: AgentNodeData): string {
+  const parts = [a.kind === "root" ? "session" : "subagent"];
+  if (a.childCount > 0) parts.push(`→ ${a.childCount}`);
+  if (a.kind === "subagent" && a.cwdBasename) parts.push(a.cwdBasename);
+  if (a.model) {
+    const others = otherModelIds(a).length;
+    parts.push(`${shortModel(a.model)}${others > 0 ? ` +${others}` : ""}`);
+  } else if (a.provider === "codex") {
+    parts.push("Codex");
+  }
+  return parts.join(" · ");
 }
 
 /** What a screen reader says for a card (#853). React Flow names a node from
