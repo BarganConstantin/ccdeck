@@ -109,3 +109,28 @@ describe("reaching and activating the line", () => {
     expect(files).toMatch(/onClick=\{\(\) => activate\(item\)\}/);
   });
 });
+
+describe("a commit's files before they are read, or when they could not be", () => {
+  const commit = (props: Partial<Parameters<typeof GitFiles>[0]>) => render({ entries: [], mode: "commit", sha: "eb7170c0ffee", ...props }).replace(/&#x27;/g, "'");
+
+  it("says they are being read, never that the commit is empty", () => {
+    const html = commit({ reading: "loading" });
+    expect(html).toContain("Reading the commit's files…");
+    expect(html).not.toContain("No files in this commit.");
+  });
+
+  it("says they could not be read, why, and offers it again", () => {
+    const html = commit({ reading: { error: "timeout" }, onRetry: () => {} });
+    expect(html).toContain("Couldn't read this commit's files.");
+    expect(html).toContain("git took too long to answer.");
+    expect(html).toContain(">Try again</button>");
+    expect(html).not.toContain("No files in this commit.");
+    // Nor does its header count files it has not read.
+    expect(html).not.toContain('class="gvf-count"');
+    expect(commit({ reading: "loading" })).not.toContain('class="gvf-count"');
+  });
+
+  it("still calls a commit that changes nothing empty", () => {
+    expect(commit({ reading: null })).toContain("No files in this commit.");
+  });
+});

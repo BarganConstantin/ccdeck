@@ -242,9 +242,23 @@ export interface DiffState {
   loading: boolean;
   /** A newer diff of the same file is waiting behind "Show latest". */
   stale: boolean;
-  /** Why the diff could not be read. */
+  /** What is waiting is that git no longer lists the change (committed,
+   *  staged, or put back as it was). */
+  gone?: boolean;
+  /** Why the diff could not be read: the route's reason, "unlisted" when git
+   *  no longer lists the change, "the deck did not answer". */
   error: string | null;
 }
+
+/** A failed read of a commit's files, and why. */
+export interface ReadFailure { error: string }
+
+/** What a failed read answered, in a few words: the route's reason or error,
+ *  else its status. */
+const failureOf = (a: DiffAnswer, status: number) => a.reason ?? a.error ?? (status === 409 ? "off" : status >= 400 ? `HTTP ${status}` : "error");
+
+/** Stands in for the latest diff when git no longer lists the change. */
+const GONE = { directory: true } as DiffResult;
 
 type DiffAnswer = { ok?: boolean; diff?: DiffResult & { ok?: boolean }; reason?: string; error?: string; files?: CommitFile[] };
 
@@ -289,17 +303,29 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
     if (head) setSelRaw(head);
   }, [data.repo, data.entries, sel]);
 
-  // The commit's files, read once per commit while the view is open.
-  const [commitFiles, setCommitFiles] = useState<Map<string, CommitFile[] | "error">>(() => new Map());
+  // The commit's files, read once per commit while the view is open. A read
+  // that failed is kept only until that commit is chosen again, asked for
+  // again, or the folder moves: it is never shown as an empty commit.
+  const [commitFiles, setCommitFiles] = useState<Map<string, CommitFile[] | ReadFailure>>(() => new Map());
+  const [commitAgain, setCommitAgain] = useState(0);
   useEffect(() => {
     if (!active || sel === UNCOMMITTED || commitFiles.has(sel)) return;
     let gone = false;
     fetch(`/api/git/commit?${gitQuery(sessionId, agent, { sha: sel })}`)
-      .then(r => r.json() as Promise<DiffAnswer>)
-      .then(a => { if (!gone) setCommitFiles(m => new Map(m).set(sel, a.ok && a.files ? a.files : "error")); })
-      .catch(() => { if (!gone) setCommitFiles(m => new Map(m).set(sel, "error")); });
+      .then(async r => ({ status: r.status, a: (await r.json().catch(() => ({}))) as DiffAnswer }))
+      .then(({ status, a }) => { if (!gone) setCommitFiles(m => new Map(m).set(sel, a.ok && a.files ? a.files : { error: failureOf(a, status) })); })
+      .catch(() => { if (!gone) setCommitFiles(m => new Map(m).set(sel, { error: "the deck did not answer" })); });
     return () => { gone = true; };
-  }, [active, sel, sessionId, agent]);
+  }, [active, sel, sessionId, agent, commitAgain]);
+  const dropFailures = (only?: string) => setCommitFiles(m => {
+    const failed = [...m].filter(([id, f]) => !Array.isArray(f) && (only === undefined || id === only));
+    if (!failed.length) return m;
+    const n = new Map(m);
+    for (const [id] of failed) n.delete(id);
+    return n;
+  });
+  useEffect(() => { dropFailures(); }, [data.treeSeq]);
+  const retryCommit = useCallback(() => { dropFailures(); setCommitAgain(n => n + 1); }, []);
   const files = sel === UNCOMMITTED ? null : commitFiles.get(sel);
 
   // The file the view opens on, once there is something to open.
@@ -312,6 +338,7 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
   }, [sel, data.entries, data.edits, files, file]);
 
   const setSel = useCallback((id: string) => {
+    dropFailures(id);
     setSelRaw(id);
     setFile(null);
     picked.current = false;
@@ -320,6 +347,8 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
 
   // ── the diff ──
   const [diff, setDiff] = useState<DiffState>({ file: null, diff: null, loading: false, stale: false, error: null });
+  // Bumped to read the open file's diff again.
+  const [again, setAgain] = useState(0);
   const latest = useRef<DiffResult | null>(null);
   const urlFor = (f: GitFileRef) => (sel === UNCOMMITTED
     ? `/api/git/diff?${gitQuery(sessionId, agent, { path: f.path, area: f.area })}`
@@ -334,16 +363,16 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
     latest.current = null;
     const raf = requestAnimationFrame(() => {
       fetch(urlFor(file))
-        .then(r => r.json() as Promise<DiffAnswer>)
-        .then(a => {
+        .then(async r => ({ status: r.status, a: (await r.json().catch(() => ({}))) as DiffAnswer }))
+        .then(({ status, a }) => {
           if (gone) return;
           if (a.ok && a.diff) setDiff({ file, diff: a.diff, loading: false, stale: false, error: null });
-          else setDiff({ file, diff: null, loading: false, stale: false, error: a.reason ?? a.error ?? "error" });
+          else setDiff({ file, diff: null, loading: false, stale: false, error: failureOf(a, status) });
         })
         .catch(() => { if (!gone) setDiff({ file, diff: null, loading: false, stale: false, error: "the deck did not answer" }); });
     });
     return () => { gone = true; cancelAnimationFrame(raf); };
-  }, [active, fileKey]);
+  }, [active, fileKey, again]);
 
   // The working tree moved: read the open file's diff again, and keep a
   // changed one aside. A read of another folder (the view narrowed or
@@ -357,27 +386,43 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
     if (!was || (data.treeSeq === was.seq && of === was.of)) return;
     const sameRead = of === was.of;
     if (!sameRead || !active || !file || sel !== UNCOMMITTED || diff.loading) return;
+    // A change git no longer lists has no diff to read: the header says so,
+    // and the diff on screen stays until the reader asks for the latest.
+    const unlisted = () => {
+      latest.current = GONE;
+      setDiff(d => (d.file === file && d.diff ? { ...d, stale: true, gone: true } : d));
+    };
+    if (data.entries && !data.entries.some(e => e.path === file.path && e.area === file.area)) { unlisted(); return; }
     let gone = false;
     fetch(urlFor(file))
-      .then(r => r.json() as Promise<DiffAnswer>)
-      .then(a => {
-        if (gone || !a.ok || !a.diff) return;
-        if (sameDiff(a.diff, diff.diff)) return;
+      .then(async r => ({ status: r.status, a: (await r.json().catch(() => ({}))) as DiffAnswer }))
+      .then(({ status, a }) => {
+        if (gone) return;
+        if (status === 404) { unlisted(); return; }
+        if (!a.ok || !a.diff) return;
+        if (sameDiff(a.diff, diff.diff)) {
+          // Changed and changed back since: nothing is waiting any more.
+          if (latest.current) { latest.current = null; setDiff(d => (d.file === file ? { ...d, stale: false, gone: false } : d)); }
+          return;
+        }
         latest.current = a.diff;
-        setDiff(d => (d.file === file ? { ...d, stale: true } : d));
+        setDiff(d => (d.file === file ? { ...d, stale: true, gone: false } : d));
       })
       .catch(() => {});
     return () => { gone = true; };
   }, [data.treeSeq, sessionId, agent]);
 
+  /** `n`, the pill and the header's reload: the latest diff when one is
+   *  waiting, else the open file's diff read again. */
   const showLatest = useCallback(() => {
     const next = latest.current;
-    if (!next) return;
     latest.current = null;
-    setDiff(d => ({ ...d, diff: next, stale: false }));
+    if (next === GONE) { setDiff(d => ({ ...d, diff: null, stale: false, gone: false, error: "unlisted" })); return; }
+    if (next) { setDiff(d => ({ ...d, diff: next, stale: false, gone: false })); return; }
+    setAgain(n => n + 1);
   }, []);
 
-  return { sel, setSel, file, pickFile, commitFiles: files ?? null, diff, showLatest };
+  return { sel, setSel, file, pickFile, commitFiles: files ?? null, diff, showLatest, retryCommit };
 }
 
 /** Counts the header's scope chip and the Uncommitted row say: the focus's

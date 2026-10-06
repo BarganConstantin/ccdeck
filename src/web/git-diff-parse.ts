@@ -35,6 +35,26 @@ export function diffState(d: DiffResult): DiffState {
   return typeof d.patch === "string" ? "text" : "error";
 }
 
+/** A failed read's reasons, as the routes and the page name them, in words. */
+const REASON: Record<string, string> = {
+  timeout: "git took too long to answer.",
+  gone: "The file is no longer there.",
+  outside: "The file is outside this repository.",
+  error: "git could not read it.",
+  "too-large": "The answer was too large.",
+  "not-downloaded": "This partial clone has not downloaded it, and the deck never fetches.",
+  off: "Git is switched off in Settings.",
+  "the deck did not answer": "The deck did not answer.",
+};
+
+/** A failed read's words: the known reasons in a sentence, anything else as
+ *  the route said it. */
+export function failureLine(error: string): string {
+  if (REASON[error]) return REASON[error];
+  if (!error || error.length > 100) return REASON.error;
+  return `${error[0].toUpperCase()}${error.slice(1)}.`;
+}
+
 export type LineKind = "add" | "del" | "ctx";
 
 export interface DiffLine {

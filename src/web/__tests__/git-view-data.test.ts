@@ -141,6 +141,6 @@ describe("the reads' rhythm", () => {
 
   it("reads the diff a frame after it is asked for, and keeps a newer one aside", () => {
     expect(src).toMatch(/const raf = requestAnimationFrame\(\(\) => \{\s*fetch\(urlFor\(file\)\)/);
-    expect(src).toMatch(/latest\.current = a\.diff;\s*setDiff\(d => \(d\.file === file \? \{ \.\.\.d, stale: true \} : d\)\);/);
+    expect(src).toMatch(/latest\.current = a\.diff;\s*setDiff\(d => \(d\.file === file \? \{ \.\.\.d, stale: true, gone: false \} : d\)\);/);
   });
 });

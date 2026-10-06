@@ -1,6 +1,6 @@
 import React, { forwardRef, useCallback, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { copyText } from "../copy-text";
-import { groupDigits } from "../git-diff-parse";
+import { failureLine, groupDigits } from "../git-diff-parse";
 import {
   commitRows, fileKey, rowOrder, uncommittedList,
   type CardNamer, type CommitFile, type ElsewhereRow, type FileRef, type FileRow, type GitEdit, type GraphFocus, type StatusEntry,
@@ -41,6 +41,11 @@ export interface GitFilesProps {
   elsewhere?: ElsewhereRow[];
   /** One of them activated (click, Enter, →): narrow the view to it. */
   onElsewhere?: (agentId: string) => void;
+  /** Commit mode: its files are still being read, or the read failed and why.
+   *  Either way `entries` is empty, and the list never calls the commit empty. */
+  reading?: "loading" | { error: string } | null;
+  /** Read the commit's files again, after a failed read. */
+  onRetry?: () => void;
 }
 
 /** A stop in the list's keyboard walk: a file, or a line naming a subagent
@@ -78,7 +83,7 @@ const SHELL_NOTE = "Marked from the agent's edit tools (Edit, Write, MultiEdit, 
  * `↳` before a file name is cut; a file listed twice is cut the same in both.
  */
 const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(props, ref) {
-  const { entries, mode, edits, focus, selected, onSelect, onOpen, collisions, name, sha, commitBy, cleanNote, cardName, onElsewhere } = props;
+  const { entries, mode, edits, focus, selected, onSelect, onOpen, collisions, name, sha, commitBy, cleanNote, cardName, onElsewhere, reading, onRetry } = props;
   const elsewhere = mode === "uncommitted" ? props.elsewhere ?? NO_ELSEWHERE : NO_ELSEWHERE;
   const listRef = useRef<HTMLDivElement>(null);
   const rowEls = useRef(new Map<string, HTMLDivElement>());
@@ -294,7 +299,7 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
   };
 
   const head = mode === "commit" ? (
-    <CommitHead sha={sha ?? null} count={rows.length} by={commitBy} />
+    <CommitHead sha={sha ?? null} count={reading ? null : rows.length} by={commitBy} />
   ) : (
     <div className="gvf-head">
       <span className="gvf-title">Uncommitted</span>
@@ -306,10 +311,18 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
     return (
       <div className="gvf" data-mode={mode}>
         {head}
-        <div className="gvf-empty">
-          {mode === "commit"
-            ? <><b>No files in this commit.</b><span>It changes nothing in the tree, like an empty or merge-only commit.</span></>
-            : <><b>Working tree clean.</b><span>{cleanNote ?? "Nothing to commit."}</span></>}
+        <div className="gvf-empty" role={reading === "loading" ? "status" : undefined}>
+          {mode === "commit" && reading === "loading" ? <span>Reading the commit's files…</span>
+            : mode === "commit" && reading && reading !== "loading" ? (
+              <>
+                <b>Couldn't read this commit's files.</b>
+                <span>{failureLine(reading.error)}</span>
+                {onRetry && <button type="button" className="btn gvf-retry" onClick={onRetry}>Try again</button>}
+              </>
+            )
+            : mode === "commit"
+              ? <><b>No files in this commit.</b><span>It changes nothing in the tree, like an empty or merge-only commit.</span></>
+              : <><b>Working tree clean.</b><span>{cleanNote ?? "Nothing to commit."}</span></>}
         </div>
         {/* A teammate in another folder is named even when this one is clean. */}
         {elsewhere.length > 0 && (
@@ -390,7 +403,7 @@ function Counts({ added, removed, binary }: { added: number; removed: number; bi
   );
 }
 
-function CommitHead({ sha, count, by }: { sha: string | null; count: number; by?: string }) {
+function CommitHead({ sha, count, by }: { sha: string | null; count: number | null; by?: string }) {
   const [copied, setCopied] = useState(false);
   const short = sha ? sha.slice(0, 7) : "";
   const copy = async () => {
@@ -403,7 +416,7 @@ function CommitHead({ sha, count, by }: { sha: string | null; count: number; by?
   return (
     <div className="gvf-head">
       <span className="gvf-title gvf-sha">{short}</span>
-      <span className="gvf-count">{groupDigits(count)}</span>
+      {count !== null && <span className="gvf-count">{groupDigits(count)}</span>}
       {by && <span className="gvf-sub" title={by}>{by}</span>}
       {sha && (
         <button type="button" className="glyph-btn gvf-copy" onClick={copy} title={`Copy ${sha}`} aria-label={`Copy commit SHA ${short}`}>

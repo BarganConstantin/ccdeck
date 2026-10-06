@@ -69,3 +69,14 @@ describe("the diff's sources", () => {
     expect(diff).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
 });
+
+describe("copying from the diff", () => {
+  it("copies the code alone: what a line says to a screen reader cannot be selected", () => {
+    expect(css).toMatch(/\.gvd-code \.vis-hidden, \.gvd-noeol \{ -webkit-user-select: none; user-select: none; \}/);
+    // The words are still there for a screen reader.
+    expect(diff).toContain('<span className="vis-hidden">added: </span>');
+    expect(diff).toContain('<span className="vis-hidden"> no newline at end of file</span>');
+    // An empty line is an empty line on the clipboard, not a space.
+    expect(diff).toMatch(/if \(!text\) return <br \/>;/);
+  });
+});
