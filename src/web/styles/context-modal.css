@@ -336,11 +336,26 @@
 /* A note has no stripe: its hue is its edge, as it is at the full size. */
 .lod-face.recap-face::before { display: none; }
 .recap-face .recap-note-mark { flex: none; font-size: 11px; }
+/* The age is a value, so like a waiting row's duration it is never cut: cut
+   to fit, "39m ago" read "3". It is drawn whole or not at all. The mark row
+   wraps, and is one line tall with the second clipped, so an age the face is
+   too narrow for goes onto that hidden line and nothing under the row moves.
+   Clipped downward only: a mark wider than the narrowest face still runs into
+   its padding as it did. And left-aligned at every width, where the card's
+   narrowest face centres its mark: that is a lone shape, and this one is a
+   word that sits at the left at every other distance. The moment the age
+   stands for is its tooltip, with the age above it. */
+.recap-face .lod-id {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-start;
+  height: 15px;
+  overflow-x: visible;
+  overflow-y: clip;
+}
+.canvas-wrap[data-lod="overview"] .recap-face .lod-id { height: 14px; }
 .recap-face-age {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  flex: none;
   font-size: 11px;
   font-weight: 400;
   color: var(--muted);

@@ -85,7 +85,7 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
       <div className="lod-face recap-face" aria-hidden>
         <div className="lod-id">
           <span className="recap-note-mark"><NoteMark recap={isRecap} />{noteTag(note.kind)}</span>
-          <span className="recap-face-age">{written.label}</span>
+          <span className="recap-face-age" title={faceTitle(written.label, written.title)}>{written.label}</span>
         </div>
         <p className="recap-face-text" title={faceTitle(note.text, tip)}>{note.text}</p>
       </div>

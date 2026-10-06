@@ -5,7 +5,8 @@
 //
 // The face measured on a board zoomed out a step at a time: with a content
 // box 44.4px tall it drew two lines of the note, which then needed 45, and
-// the second lost the bottom of its letters.
+// the second lost the bottom of its letters; and its age, cut to
+// fit the face, read "3" for 39 minutes, with nothing on hover to say so.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -61,8 +62,38 @@ describe("the note's text on a zoomed-out face", () => {
   });
 
   it("puts the line itself above a tooltip that does not already hold it", () => {
+    expect(faceTitle("39m ago", "6 Oct 2026, 16:15:02")).toBe("39m ago\n6 Oct 2026, 16:15:02");
     expect(faceTitle("Bump the aws provider", "From the session's newest reply")).toBe("Bump the aws provider\nFrom the session's newest reply");
     expect(faceTitle("Bump the aws provider", undefined)).toBe("Bump the aws provider");
     expect(faceTitle("shop-api-auth", "/w/shop-api-auth\nAdd the login route")).toBe("/w/shop-api-auth\nAdd the login route");
+  });
+});
+
+describe("the note's age on a zoomed-out face", () => {
+  it("is a value, so it is drawn whole or not at all", () => {
+    // Never cut: "3" in the place of "39m ago" is a different number. A face
+    // too narrow for it wraps it onto a second row the first row's height
+    // hides, so nothing under the row moves either way.
+    const age = rule(".recap-face-age");
+    expect(age).toMatch(/flex:\s*none;/);
+    expect(age).not.toMatch(/text-overflow|overflow:/);
+    const id = rule(".recap-face .lod-id");
+    expect(id).toMatch(/flex-wrap:\s*wrap;/);
+    expect(id).toMatch(/align-content:\s*flex-start;/);
+    expect(id).toMatch(/justify-content:\s*flex-start;/);
+    // Clipped downward only, which leaves its box out of the flex column's
+    // shrinking (a scroller's minimum height is 0, and it shrank under the
+    // mark at the narrowest face) and lets a long mark run on as before.
+    expect(id).toMatch(/overflow-x:\s*visible;/);
+    expect(id).toMatch(/overflow-y:\s*clip;/);
+    // One row tall at each distance: the row's own line height.
+    expect(px(id, "height")).toBe(px(rule(".lod-id"), "line-height"));
+    const overview = rule('.canvas-wrap[data-lod="overview"] .recap-face .lod-id');
+    expect(px(overview, "height")).toBe(px(rule('.canvas-wrap[data-lod="overview"] .lod-id'), "line-height"));
+  });
+
+  it("carries the moment it stands for on hover, as the full note's age does", () => {
+    expect(node).toContain('<span className="recap-face-age" title={faceTitle(written.label, written.title)}>{written.label}</span>');
+    expect(node).toContain('<span className="recap-note-age" title={written.title}>{written.label}</span>');
   });
 });
