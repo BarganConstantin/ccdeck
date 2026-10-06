@@ -176,6 +176,117 @@ describe("the sharp mark: the same file, edited by two live agents since it was 
   });
 });
 
+describe("the main card speaks for its team without taking a teammate's collision as its own", () => {
+  const TEAM = "ef0af835-d7df-4151-a311-6aea5eb3ecc2";
+  const HOT = "933fc571-70f8-4e61-9e01-7de849629a07";
+  const away = (key: string, label: string, folder: string) =>
+    sub(TEAM, key, { label, cwd: folder, git: { state: "repo", topLevel: folder, stale: 0 } });
+
+  it("names a subagent in a folder of its own in front of the agent it shares that folder with, and gives its folder", () => {
+    // The session works in web-app; its subagent elsewhere-agent works in
+    // shop-api, where develop-hotfix is. web-ui shares web-app with the session.
+    const team: GitCollisions = {
+      quiet: [quietWith(HOT, "same-worktree", "else3"), quietWith(UI)],
+      sharp: [],
+    };
+    const marks = cardMarks([
+      root(TEAM, { gitCollisions: team }),
+      away("else3", "elsewhere-agent", "/w/shop-api"),
+      root(HOT, { sessionName: "develop-hotfix", label: "shop-api", cwd: "/w/shop-api", git: { state: "repo", topLevel: "/w/shop-api", stale: 0 } }),
+      root(UI, { sessionName: "web-ui" }),
+    ]);
+    const m = marks.get(TEAM)!;
+    // Its own neighbour leads the row.
+    expect(m).toMatchObject({ level: "quiet", said: "shares folder with web-ui", tail: "+1", target: UI });
+    expect(m.title).toBe([
+      "shares folder with web-ui (/w/web-app).",
+      "↳ elsewhere-agent shares folder with develop-hotfix (/w/shop-api).",
+      "Select web-ui.",
+    ].join("\n"));
+    expect(m.title).not.toMatch(/develop-hotfix \(\/w\/web-app\)/);
+    // The subagent's own card says it as its own, with its own folder.
+    expect(marks.get(`${TEAM}::else3`)).toMatchObject({ said: "shares folder with develop-hotfix", target: HOT });
+    expect(marks.get(`${TEAM}::else3`)!.title).toContain("(/w/shop-api)");
+  });
+
+  it("leads with the teammate when that is all there is, and still goes to the other agent", () => {
+    const marks = cardMarks([
+      root(TEAM, { gitCollisions: { quiet: [quietWith(HOT, "same-worktree", "else3")], sharp: [] } }),
+      away("else3", "elsewhere-agent", "/w/shop-api"),
+      root(HOT, { sessionName: "develop-hotfix" }),
+    ]);
+    expect(marks.get(TEAM)).toMatchObject({
+      level: "quiet", said: "↳ elsewhere-agent shares folder with develop-hotfix", target: HOT,
+      words: "↳ elsewhere-agent shares folder with develop-hotfix",
+    });
+    const branch = cardMarks([
+      root(TEAM, { gitCollisions: { quiet: [quietWith(HOT, "same-branch", "else3")], sharp: [] } }),
+      away("else3", "elsewhere-agent", "/w/shop-api-2"),
+      root(HOT, { sessionName: "develop-hotfix" }),
+    ]);
+    expect(branch.get(TEAM)!.said).toBe("↳ elsewhere-agent on the same branch as develop-hotfix");
+    expect(branch.get(TEAM)!.title).toContain("↳ elsewhere-agent on the same branch as develop-hotfix, in another folder.");
+  });
+
+  it("names both sides of a sharp one a teammate in another folder has, with that folder", () => {
+    const marks = cardMarks([
+      root(TEAM, { gitCollisions: { quiet: [], sharp: [sharpWith(HOT, ["src/money.ts"], "else3")] } }),
+      away("else3", "elsewhere-agent", "/w/shop-api"),
+      root(HOT, { sessionName: "develop-hotfix" }),
+    ]);
+    expect(marks.get(TEAM)).toMatchObject({ level: "sharp", lead: "money.ts", said: "edited by ↳ elsewhere-agent and develop-hotfix", target: HOT });
+    expect(marks.get(TEAM)!.title.split("\n")[0])
+      .toBe("src/money.ts edited by both ↳ elsewhere-agent and develop-hotfix since it was last committed, in /w/shop-api.");
+  });
+
+  it("keeps a subagent in the session's own folder speaking as the team", () => {
+    const marks = cardMarks([
+      root(UI, { gitCollisions: { quiet: [], sharp: [sharpWith(BUG, ["src/app.ts"], "ag1")] } }),
+      sub(UI, "ag1"),
+      root(BUG, { sessionName: "web-bugfix" }),
+    ]);
+    expect(marks.get(UI)).toMatchObject({ said: "also edited by web-bugfix" });
+  });
+
+  it("says two of its own subagents on one file once, naming both, and goes to the first", () => {
+    // The server sends the pair from each side.
+    const team: GitCollisions = {
+      quiet: [],
+      sharp: [sharpWith(TEAM, ["src/team-shared.ts"], "wr001", "wr002"), sharpWith(TEAM, ["src/team-shared.ts"], "wr002", "wr001")],
+    };
+    const marks = cardMarks([
+      root(TEAM, { gitCollisions: team }),
+      sub(TEAM, "wr001", { label: "writer-one" }),
+      sub(TEAM, "wr002", { label: "writer-two" }),
+    ]);
+    const m = marks.get(TEAM)!;
+    expect(m).toMatchObject({
+      level: "sharp", lead: "team-shared.ts", said: "edited by ↳ writer-one and ↳ writer-two", tail: "", target: `${TEAM}::wr001`,
+      words: "src/team-shared.ts edited by ↳ writer-one and ↳ writer-two",
+    });
+    expect(m.title).toBe([
+      "src/team-shared.ts edited by both ↳ writer-one and ↳ writer-two since it was last committed.",
+      "Both are running.",
+      "Select ↳ writer-one.",
+    ].join("\n"));
+    expect(m.title).not.toContain("also edited");
+    // Each subagent's own card names the other one.
+    expect(marks.get(`${TEAM}::wr001`)).toMatchObject({ said: "also edited by ↳ writer-two", target: `${TEAM}::wr002` });
+    expect(marks.get(`${TEAM}::wr002`)).toMatchObject({ said: "also edited by ↳ writer-one", target: `${TEAM}::wr001` });
+  });
+
+  it("does not hand a teammate's collision in another folder to a subagent of the session's folder", () => {
+    const team: GitCollisions = { quiet: [], sharp: [sharpWith(HOT, ["src/money.ts"], "else3")] };
+    const marks = cardMarks([
+      root(TEAM, { gitCollisions: team }),
+      away("else3", "elsewhere-agent", "/w/shop-api"),
+      sub(TEAM, "ag9", { label: "reader" }),
+      root(HOT, { sessionName: "develop-hotfix" }),
+    ]);
+    expect(marks.has(`${TEAM}::ag9`)).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------- the card
 
 const T0 = 1_700_000_000_000;
