@@ -18,6 +18,10 @@ export interface BranchChip {
   title: string;
   /** What a screen reader hears, which also says what pressing it does. */
   label: string;
+  /** The folder is gone and the name is the one its session's log last
+   *  recorded: drawn apart from a branch read off a live repository, and a
+   *  press shows why in the Git section rather than opening a view. */
+  gone?: true;
 }
 
 /** The chip a card shows, or null for none. */
@@ -36,8 +40,12 @@ export function branchChip(a: Pick<AgentNodeData, "kind" | "git" | "cwd">): Bran
   if (g.linkedWorktree && g.name && g.mainName) lines.push(`worktree ${g.name} of ${g.mainName}`);
   else if (g.nameDiffers && g.name) lines.push(`repository ${g.name}`);
   if (fromLog) lines.push("as the session's log last recorded it: its folder no longer exists");
+  const kind = detached ? "detached" : "branch";
+  if (fromLog) {
+    return { kind, name, title: lines.join("\n"), label: `Branch ${name}, as its session's log last recorded it. Its folder no longer exists`, gone: true };
+  }
   const said = detached ? `Detached HEAD at ${name}` : `Branch ${name}`;
-  return { kind: detached ? "detached" : "branch", name, title: lines.join("\n"), label: `${said}. Open its git view` };
+  return { kind, name, title: lines.join("\n"), label: `${said}. Open its git view` };
 }
 
 /**

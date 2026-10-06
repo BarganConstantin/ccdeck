@@ -412,6 +412,10 @@
    can, keeps the glyph alone, and the name in the tooltip and the accessible
    name, rather than a ticket cut in two. */
 .git-chip[data-bare] .git-chip-name { display: none; }
+/* A folder that no longer exists: the name is what its session's log last
+   recorded, not what git reads now, so it is set in italic, the tooltip and
+   the accessible name saying why. */
+.git-chip[data-gone] .git-chip-name { font-style: italic; }
 .git-chip:hover,
 .git-chip:focus-visible { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
 /* The ring inset, as .canvas-wrap's and the usage bars' are: the sub row hides
