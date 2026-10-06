@@ -1,13 +1,16 @@
-import React from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { useStore, useViewport, type ReactFlowState } from "reactflow";
 import { sessionHue } from "../reducer";
 import { SEP } from "../cluster-header";
 import { clusterBounds, clusterBoxStyle, clusterLabelStyle, shallowEqualClusters, type Cluster } from "../cluster-bounds";
+import { labelRoom, paneChrome, sameBoxes, type PaneBox } from "../cluster-label-room";
 import { AlertMark } from "./StateMark";
 
 function selectClusters(s: ReactFlowState): Cluster[] {
   return clusterBounds(s.nodeInternals.values());
 }
+const selectPaneWidth = (s: ReactFlowState) => s.width;
+const selectPaneHeight = (s: ReactFlowState) => s.height;
 
 /**
  * A click on a cluster's name asks the deck to bring that session into view,
@@ -24,6 +27,23 @@ function selectClusters(s: ReactFlowState): Cluster[] {
 export default function SessionClusters({ onFocusSession }: { onFocusSession?: (sessionId: string) => void }) {
   const { x, y, zoom } = useViewport();
   const clusters = useStore(selectClusters, shallowEqualClusters);
+  // The pane's size, from the store React Flow measures it into, and the
+  // chrome drawn over it, from the page: where each pill has room to be drawn
+  // whole (cluster-label-room.ts). The chrome is read after every render and
+  // before paint — this layer renders on every camera frame, and the filter
+  // bar, the panels and the chip come and go with the renders above it — and
+  // a measure that has not changed is the same state, so it costs no render.
+  const width = useStore(selectPaneWidth);
+  const height = useStore(selectPaneHeight);
+  const pane = { width, height };
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const [chrome, setChrome] = useState<PaneBox[]>([]);
+  useLayoutEffect(() => {
+    const host = layerRef.current?.parentElement;
+    if (!host) return;
+    const next = paneChrome(host);
+    setChrome(prev => (sameBoxes(prev, next) ? prev : next));
+  });
 
   if (clusters.length <= 1) return null; // no need to disambiguate one tree
 
@@ -52,7 +72,7 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
   };
 
   return (
-    <div className="session-clusters" style={cameraStyle}>
+    <div className="session-clusters" style={cameraStyle} ref={layerRef}>
       {clusters.map(c => {
         const hue = sessionHue(c.sessionId);
         // Only the hue. The four colours these two elements used to carry —
@@ -66,7 +86,12 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
         // Where the box and the pill go, and why neither carries the camera, is
         // cluster-bounds.ts's: see clusterBoxStyle and clusterLabelStyle.
         const boxStyle = clusterBoxStyle(c, hue);
-        const labelStyle = clusterLabelStyle(c, zoom, hue);
+        // Drawn whole inside the pane and clear of the chrome over it, or not
+        // at all: under the top bar or the filter bar a pill was cut through
+        // its words and still took focus behind them. Never moved to stay in
+        // view, and never wider than its gutter — cluster-label-room.ts.
+        const room = labelRoom(c, { x, y, zoom }, pane, chrome);
+        const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);
         // Three fields, one pill, and only the middle one in a span of its own.
         // The separators stay the same glyph on purpose: what differs between
         // these fields is their KIND, not their rank, and the sheet says so by
@@ -79,11 +104,12 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
         // properties on .cluster-card are the node bounds above and no name
         // reaches them.
         //
-        // The tooltip carries the whole thing untruncated, on the line above
-        // the sentence rather than after another separator: with three fields
-        // now joined by the same glyph, a fourth would have read as a fourth
-        // field. The label is not a drag surface — the gesture belongs to the
-        // sessionGroup node behind the cards, and this button sits above the
+        // The tooltip carries the whole thing untruncated — everything the pill
+        // says, in its order — on the line above the sentence rather than
+        // after another separator: with the fields joined by one glyph, a
+        // sentence after another would have read as one more field
+        // (cluster-header.ts builds it). The label is not a drag surface —
+        // the gesture belongs to the sessionGroup node behind the cards, and this button sits above the
         // handle by LABEL_LIFT precisely so a click reaches it — so a title
         // here has no drag to fight.
         return (
@@ -93,8 +119,9 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
               type="button"
               className="cluster-label"
               data-alarm={c.alarm ? "" : undefined}
+              data-offpane={room.hidden ? "" : undefined}
               style={labelStyle}
-              title={`${c.alarm ? "Waiting on you\n" : ""}Zoom to ${c.fullLabel}\ndrag the wrapper to move the whole session`}
+              title={c.title}
               onClick={() => focusSession(c.sessionId)}
             >
               {/* Stopped until a human answers, said first and in words for a

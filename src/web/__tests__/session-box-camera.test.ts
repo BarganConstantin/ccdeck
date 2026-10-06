@@ -277,7 +277,9 @@ describe("the camera is applied once, to the layer, on a property nothing eases"
   });
 
   it("hands that transform to the layer element and to nothing else", () => {
-    expect(tsx).toMatch(/<div className="session-clusters" style=\{cameraStyle\}>/);
+    // The ref is how the layer finds the pane it measures the chrome over
+    // (cluster-label-room.ts); it carries no style.
+    expect(tsx).toMatch(/<div className="session-clusters" style=\{cameraStyle\} ref=\{layerRef\}>/);
   });
 
   it("measures the layer from its top-left corner, where the coordinates start", () => {
@@ -331,7 +333,9 @@ describe("the eased geometry carries layout coordinates, not screen ones", () =>
     // that makes them the ones on screen. The box is handed no zoom at all, so
     // the camera cannot reach it through this call either.
     expect(tsx).toContain("const boxStyle = clusterBoxStyle(c, hue);");
-    expect(tsx).toContain("const labelStyle = clusterLabelStyle(c, zoom, hue);");
+    // The label is also handed the width its room allows on screen, which only
+    // ever narrows it (cluster-label-room.ts); where it sits stays layout space.
+    expect(tsx).toContain("const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);");
   });
 
   it("keeps the label in the same space, so the two cannot disagree", () => {
@@ -340,7 +344,7 @@ describe("the eased geometry carries layout coordinates, not screen ones", () =>
     // The lift is divided by the zoom since #846 — a layout distance that is
     // 12px on screen at every zoom — so the tab keeps its 1× geometry; it is
     // still layout space, which is what this guards.
-    expect(prop(labelStyle(), "left")).toBe("c.x + 16");
+    expect(prop(labelStyle(), "left")).toBe("c.x + LABEL_INDENT");
     expect(prop(labelStyle(), "top")).toBe("c.y - LABEL_LIFT / (zoom || 1)");
   });
 

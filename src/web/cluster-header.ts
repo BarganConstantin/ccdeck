@@ -31,9 +31,15 @@ export interface ClusterHeader {
    *  another cluster carries the same workspace label; a name never replaces
    *  it. */
   shortId?: string;
-  /** The same three fields on one line with nothing truncated — the tooltip,
-   *  which is where a cut name is recovered. */
+  /** The same three fields on one line with nothing truncated — the line the
+   *  tooltip is built on, which is where a cut name is recovered. */
   fullLabel: string;
+  /** The pill's tooltip: everything the pill says, whole and in the order it
+   *  draws it — the words a screen reader hears for a session waiting on you,
+   *  the workspace, the subagents' summary, the name, the id — and then what a
+   *  press does. The pill ellipsises at its gutter and at the pane's edge, and
+   *  this is where the cut part is read back. */
+  title: string;
 }
 
 /** The separator between two header fields. One glyph for all of them — see
@@ -161,10 +167,15 @@ export function clusterHeader(
   sessionId: string,
   collides: boolean,
   peers: readonly string[] = [],
+  { branch, alarm = false }: { branch?: string; alarm?: boolean } = {},
 ): ClusterHeader {
   const named = name?.trim() ?? "";
   const id = collides ? distinctIdTail(sessionId, peers) : undefined;
   const fields = [workspace, named || undefined, id].filter(Boolean) as string[];
+  // The pill draws the subagents' summary between the workspace and the name,
+  // and says "waiting on you: " first for a screen reader; the tooltip reads
+  // the same run.
+  const whole = [workspace, branch, named || undefined, id].filter(Boolean).join(SEP);
   return {
     // THE LAST UNBOUNDED STRING ON THE HEADER, and it is capped by the same
     // ruler as the name beside it. The note above records that a long
@@ -176,11 +187,12 @@ export function clusterHeader(
     // cross. Capping it costs nothing that was working: every workspace
     // measured here is far inside 32 columns, so this fires only where the
     // header was going to reach the cluster next door. The whole of it stays
-    // in `fullLabel`, which is the tooltip.
+    // in `fullLabel` and in the tooltip built on it.
     label: truncateName(workspace),
     name: named ? truncateName(named) : undefined,
     shortId: id,
     fullLabel: fields.join(SEP),
+    title: `${alarm ? "waiting on you: " : ""}${whole}\nZoom to this session\ndrag the wrapper to move the whole session`,
   };
 }
 

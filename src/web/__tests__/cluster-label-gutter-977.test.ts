@@ -109,9 +109,11 @@ describe("the header pill is bounded in the unit it is drawn in (#977)", () => {
     for (const zoom of [1, 0.5, 0.38, 0.32, 0.2]) {
       expect(clusterLabelStyle(cluster, zoom, 0).maxWidth, `zoom ${zoom}`).toBe(labelMaxWidth(BOX, zoom));
     }
-    // And the component draws the pill with that style rather than one of its own.
+    // And the component draws the pill with that style rather than one of its
+    // own. The width it passes is the room cluster-label-room.ts allows, which
+    // is this cap or less (cluster-label-room.test.ts).
     expect(component, "labelStyle is not clusterLabelStyle's — the rule below is not the one on screen")
-      .toContain("const labelStyle = clusterLabelStyle(c, zoom, hue);");
+      .toContain("const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);");
   });
 });
 
