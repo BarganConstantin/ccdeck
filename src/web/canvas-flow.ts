@@ -25,6 +25,7 @@ import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
 import { NODE_W } from "./layout-geometry";
 import { cardMarks, type CardMark } from "./git-card-mark";
+import { gitOnNow } from "./git-pref";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
@@ -91,6 +92,13 @@ export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string
     }
     return d;
   };
+}
+
+/** What a card's accessible name says of its git: a file another live agent
+ *  also edited, as the zoomed-out face marks it (the card's own, not its
+ *  session's), and nothing while Appearance › Git is off. */
+function gitWords(d: FlowNodeData): string | null {
+  return d.gitMark?.level === "sharp" && !d.gitMark.session && gitOnNow() ? d.gitMark.words : null;
 }
 
 /**
@@ -251,8 +259,9 @@ export function snapshotToFlow(
       position: { x: 0, y: 0 },
       data: dataFor(a),
       className: cls,
-      // Composed, not read off the card: see agentAriaLabel (#853).
-      ariaLabel: agentAriaLabel(a, now, selectedIds.has(a.id)),
+      // Composed, not read off the card: see agentAriaLabel (#853). The
+      // second dataFor is the same object, from this revision's cache.
+      ariaLabel: agentAriaLabel(a, now, selectedIds.has(a.id), gitWords(dataFor(a))),
       ...(m ? { width: m.width, height: m.height } : null),
     });
     if (a.parentId && visibleIds.has(a.parentId)) {

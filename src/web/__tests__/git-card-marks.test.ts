@@ -89,6 +89,90 @@ describe("the quiet mark: two agents in one folder, or on one branch", () => {
   });
 });
 
+describe("the sharp mark: the same file, edited by two live agents since it was last committed", () => {
+  it("names the file first and the other agent after it, on both cards, with the path in the tooltip", () => {
+    const marks = cardMarks([
+      root(UI, { sessionName: "web-ui", gitCollisions: { quiet: [quietWith(BUG)], sharp: [sharpWith(BUG, ["src/app.ts"])] } }),
+      root(BUG, { sessionName: "web-bugfix", gitCollisions: { quiet: [quietWith(UI)], sharp: [sharpWith(UI, ["src/app.ts"])] } }),
+    ]);
+    // Sharp wins the row; the quiet entry for the same agent says nothing more.
+    expect(marks.get(UI)).toMatchObject({ level: "sharp", target: BUG, lead: "app.ts", said: "also edited by web-bugfix", tail: "", session: false });
+    expect(marks.get(UI)!.words).toBe("src/app.ts also edited by web-bugfix");
+    expect(marks.get(UI)!.title).toBe("src/app.ts also edited by web-bugfix since it was last committed.\nBoth are running.\nSelect web-bugfix.");
+    expect(marks.get(BUG)).toMatchObject({ level: "sharp", target: UI, said: "also edited by web-ui" });
+  });
+
+  it("counts several files and lists them in the tooltip", () => {
+    const marks = cardMarks([
+      root(UI, { gitCollisions: { quiet: [], sharp: [sharpWith(BUG, ["src/app.ts", "src/format.ts"])] } }),
+      root(BUG, { sessionName: "web-bugfix" }),
+    ]);
+    expect(marks.get(UI)).toMatchObject({ lead: "2 files", said: "also edited by web-bugfix", words: "2 files also edited by web-bugfix" });
+    expect(marks.get(UI)!.title).toContain("2 files (src/app.ts, src/format.ts) also edited by web-bugfix since they were last committed.");
+  });
+
+  it("counts the other agents, and keeps a quiet one it does not cover in the tooltip", () => {
+    const marks = cardMarks([
+      root(UI, { gitCollisions: { quiet: [quietWith(API, "same-branch")], sharp: [sharpWith(BUG, ["src/app.ts"]), sharpWith(API, ["src/app.ts"])] } }),
+      root(BUG, { sessionName: "web-bugfix" }),
+      root(API, { sessionName: "rate-review" }),
+    ]);
+    expect(marks.get(UI)).toMatchObject({ level: "sharp", lead: "app.ts", said: "also edited by web-bugfix", tail: "+1" });
+    expect(marks.get(UI)!.title).toContain("src/app.ts also edited by rate-review since it was last committed.");
+    expect(marks.get(UI)!.title).toContain("All of them are running.");
+    const quietOnly = cardMarks([
+      root(UI, { gitCollisions: { quiet: [quietWith(API, "same-branch")], sharp: [sharpWith(BUG, ["src/app.ts"])] } }),
+      root(BUG, { sessionName: "web-bugfix" }), root(API, { sessionName: "rate-review" }),
+    ]);
+    expect(quietOnly.get(UI)!.tail).toBe("");
+    expect(quietOnly.get(UI)!.title).toContain("Also same branch as rate-review, in another folder.");
+  });
+
+  it("starts its tooltip from the row's own words, so a row cut short is whole there", () => {
+    const marks = cardMarks([
+      root(UI, { gitCollisions: { quiet: [], sharp: [sharpWith(BUG, ["src/components/InvoicePreviewComponent.test.tsx"])] } }),
+      root(BUG, { sessionName: "account-management-oauth-flow" }),
+    ]);
+    const m = marks.get(UI)!;
+    expect(m.title.split("\n")[0]).toContain(`${m.lead}`);
+    expect(m.title.split("\n")[0]).toContain(m.said);
+  });
+
+  it("names another session's subagent with ↳, and goes to its card", () => {
+    const marks = cardMarks([
+      root(UI, { gitCollisions: { quiet: [], sharp: [sharpWith(API, ["src/app.ts"], null, "ag7")] } }),
+      root(API, { label: "shop-api-auth" }),
+      sub(API, "ag7", { label: "docs-sync" }),
+    ]);
+    expect(marks.get(UI)).toMatchObject({ said: "also edited by ↳ docs-sync", target: `${API}::ag7` });
+  });
+
+  it("is on a subagent's card for the files that subagent edited itself", () => {
+    const marks = cardMarks([
+      root(UI, { gitCollisions: { quiet: [], sharp: [sharpWith(BUG, ["src/app.ts"], "ag1")] } }),
+      sub(UI, "ag1"),
+      root(BUG, { sessionName: "web-bugfix" }),
+    ]);
+    expect(marks.get(`${UI}::ag1`)).toMatchObject({ level: "sharp", lead: "app.ts", said: "also edited by web-bugfix", session: false, tail: "" });
+    // The main card speaks for the whole team, as the git view from it does.
+    expect(marks.get(UI)).toMatchObject({ level: "sharp", lead: "app.ts" });
+  });
+
+  it("says · in this session on a running subagent in the session's folder that did not edit the file", () => {
+    const team = { quiet: [quietWith(BUG)], sharp: [sharpWith(BUG, ["src/app.ts"])] };
+    const marks = cardMarks([root(UI, { gitCollisions: team }), sub(UI, "ag1"), root(BUG, { sessionName: "web-bugfix" })]);
+    expect(marks.get(`${UI}::ag1`)).toMatchObject({ level: "sharp", lead: "app.ts", said: "also edited by web-bugfix", tail: "· in this session", session: true });
+    expect(marks.get(`${UI}::ag1`)!.words).toBe("src/app.ts also edited by web-bugfix in this session");
+    expect(marks.get(`${UI}::ag1`)!.title).toContain("In this session, not in this subagent's own files.");
+    // Not for a quiet one alone: the session's own card already says that.
+    expect(cardMarks([root(UI, { gitCollisions: { quiet: [quietWith(BUG)], sharp: [] } }), sub(UI, "ag1"), root(BUG)]).has(`${UI}::ag1`)).toBe(false);
+    // Not once it has finished, nor from a folder of its own.
+    expect(cardMarks([root(UI, { gitCollisions: team }), sub(UI, "ag1", { state: "done" }), root(BUG)]).has(`${UI}::ag1`)).toBe(false);
+    const elsewhere = sub(UI, "ag1", { cwd: "/w/web-app-docs", git: { state: "repo", topLevel: "/w/web-app-docs", stale: 0 } });
+    expect(cardMarks([root(UI, { gitCollisions: team }), elsewhere, root(BUG)]).has(`${UI}::ag1`)).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------- the card
 
 const T0 = 1_700_000_000_000;
@@ -156,7 +240,36 @@ describe("the quiet mark on the card", () => {
   });
 });
 
-describe("the quiet mark's look", () => {
+describe("the sharp mark on the card", () => {
+  const sharp = (other: string, files = ["src/app.ts"]): GitCollisions => ({ quiet: [quietWith(other)], sharp: [sharpWith(other, files)] });
+
+  it("leads with the clash glyph, named in words, then the file and the agent", () => {
+    const row = markRow(card(webApp(sharp(BUG), sharp(UI)), UI))!;
+    expect(row).toContain('data-level="sharp"');
+    expect(row).toMatch(/<span class="git-mark-glyph" role="img" aria-label="same file"><svg[^>]*aria-hidden="true"/);
+    // The glyph is two arrows meeting at a bar, never a close ×.
+    expect(row).toContain('d="M7 2.6v8.8M1.4 7h3.4M3.4 5 5.2 7 3.4 9M12.6 7H9.2M10.6 5 8.8 7l1.8 2"');
+    expect(row).toMatch(/<b class="git-mark-lead">app\.ts<\/b><span class="git-mark-said">also edited by web-bugfix<\/span>/);
+    expect(row).not.toContain("git-mark-tail");
+  });
+
+  it("dashes its edge and keeps its tail on a subagent that only shares the danger with its session", () => {
+    const row = markRow(card(webApp(sharp(BUG)), `${UI}::ag1`))!;
+    expect(row).toContain("data-session");
+    expect(row).toContain('<span class="git-mark-tail">· in this session</span>');
+  });
+
+  it("tells a screen reader about a card's own sharp collision in the card's name, at every zoom", async () => {
+    const { agentAriaLabel } = await import("../agent-copy");
+    const s = webApp(sharp(BUG));
+    const a = s.agents.get(UI)!;
+    expect(agentAriaLabel(a, T0, false, "src/app.ts also edited by web-bugfix")).toMatch(/^web-app, session, live, src\/app\.ts also edited by web-bugfix, /);
+    expect(agentAriaLabel(a, T0, false)).not.toContain("also edited");
+    expect(sourceOf("canvas-flow.ts")).toMatch(/agentAriaLabel\(a, now, selectedIds\.has\(a\.id\), gitWords\(dataFor\(a\)\)\)/);
+  });
+});
+
+describe("the mark's look", () => {
   const css = sheetText();
   const rule = (sel: string) => {
     const at = css.indexOf(`\n${sel} {`);
@@ -184,4 +297,18 @@ describe("the quiet mark's look", () => {
     const reduced = /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.agent-node \.git-mark:active[\s\S]*?\{ transform: none; \}/.exec(css);
     expect(reduced).not.toBeNull();
   });
+
+  it("draws sharp in the error colour on an edge — never amber, which is for waiting on you", () => {
+    const sh = rule('.agent-node .git-mark[data-level="sharp"]');
+    expect(sh).toContain("color: var(--err)");
+    expect(sh).toContain("border-color: color-mix(in srgb, var(--err) 70%, transparent)");
+    expect(css.slice(css.indexOf("THE COLLISION MARK"), css.indexOf("THE COLLISION MARK") + 6000)).not.toContain("--warn");
+    expect(css).toMatch(/\.agent-node \.git-mark\[data-level="sharp"\]:hover \{ background: color-mix\(in srgb, var\(--err\) 9%, transparent\); \}/);
+    expect(css).toContain('.agent-node .git-mark[data-session] { border-style: dashed; }');
+  });
+
+  it("keeps its edge under a Windows contrast theme", () => {
+    expect(/@media \(forced-colors: active\) \{[\s\S]*?\.agent-node \.git-mark\[data-level="sharp"\][^{]*\{ border-color: CanvasText; \}/.test(css)).toBe(true);
+  });
 });
+

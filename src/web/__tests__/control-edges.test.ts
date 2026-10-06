@@ -642,6 +642,10 @@ const CONTROLS: Control[] = [
   // on the detail panel. Its Open draws no boundary at rest — "Open" is its own
   // label — and the control edge under the pointer, measured on the panel.
   { at: ".gv-g-collide", beds: ["--panel"] },
+  // The card's sharp collision mark: the same bordered line in the error
+  // colour, at rest, measured on the surfaces a card's own gradient runs
+  // between. The quiet one draws no boundary — its words identify it.
+  { at: '.agent-node .git-mark[data-level="sharp"]', beds: ["--panel", "--bg-soft"] },
   { at: ".gv-open:hover", fillFrom: ".gv-open:hover", beds: ["--panel"] },
   // The network map's way in, over Local network's row, on the same terms as
   // the two above: no boundary at rest, an edge under the pointer and the

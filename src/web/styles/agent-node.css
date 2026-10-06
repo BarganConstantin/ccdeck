@@ -456,6 +456,19 @@
   color: var(--muted);
 }
 .agent-node .git-mark[data-level="quiet"]:hover { color: var(--text); }
+/* SHARP is the same file edited by two live agents since it was last
+   committed — where one agent's work quietly undoes the other's. The error
+   colour, never amber (that is waiting on you), on an edge, in the waiting
+   row's geometry: the deck's one shape for "this card has something to say".
+   The clash glyph carries the word "same file" for a screen reader. A dashed
+   edge is a subagent sharing the danger with its session, not its own file. */
+.agent-node .git-mark[data-level="sharp"] {
+  color: var(--err);
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--err) 70%, transparent);
+}
+.agent-node .git-mark[data-level="sharp"]:hover { background: color-mix(in srgb, var(--err) 9%, transparent); }
+.agent-node .git-mark[data-session] { border-style: dashed; }
 .agent-node .git-mark:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .agent-node .git-mark { transition: background-color 120ms ease, color 120ms ease; }
