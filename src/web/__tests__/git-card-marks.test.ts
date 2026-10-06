@@ -545,6 +545,17 @@ describe("marks that come and go", () => {
     expect(css).toMatch(/\.agent-node \.git-mark\[data-leaving\] \{\s*pointer-events: none;/);
   });
 
+  it("keep the same button when sharp turns quiet or back, so a keyboard on it stays there, and fade the new words in", () => {
+    // Remounting the button on a new level threw away the focused node and
+    // left the keyboard on the page's body.
+    expect(row).not.toMatch(/key=\{shown\.level\}/);
+    expect(row).not.toMatch(/\bkey=/);
+    const effect = row.slice(row.indexOf("useLayoutEffect(() => {"), row.indexOf("}, [level]);"));
+    expect(effect).toMatch(/if \(was == null \|\| was === level\) return;/);
+    expect(effect).toMatch(/\.getAnimations\(\)/);
+    expect(effect).toMatch(/animationName === "git-mark-in"\) \{ an\.cancel\(\); an\.play\(\); \}/);
+  });
+
   it("fade in and out in 150ms with no travel, and are simply there and gone under reduced motion", () => {
     expect(/\n\.agent-node \.git-mark \{[^}]*animation: git-mark-in 150ms cubic-bezier\(0\.23, 1, 0\.32, 1\) both;/.test(css)).toBe(true);
     expect(css).toMatch(/\.agent-node \.git-mark\[data-leaving\] \{[^}]*animation: git-mark-out 150ms cubic-bezier\(0\.23, 1, 0\.32, 1\) forwards;/);
