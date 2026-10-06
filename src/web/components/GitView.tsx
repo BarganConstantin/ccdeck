@@ -35,7 +35,7 @@ import { pressHow } from "../agent-goto";
 import { flashCard } from "../card-flash";
 import { elsewhereRows } from "../git-files-model";
 import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
-import { madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
+import { UNREADABLE, madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
 import { collisionsFor, commitWho, upstreamWords } from "../git-view-words";
 import { setGitViewNewest } from "../git-view-request";
 import { shortAgo } from "../relative-time";
@@ -78,6 +78,10 @@ function canvasBox(canvas: HTMLElement | null): { top: number; left: number; rig
   const r = canvas.getBoundingClientRect();
   return { top: r.top, left: r.left, right: r.right, width: r.width, height: r.height };
 }
+
+type CanvasBox = NonNullable<ReturnType<typeof canvasBox>>;
+const sameBox = (a: CanvasBox | null, b: CanvasBox | null) =>
+  a === b || (a != null && b != null && a.top === b.top && a.left === b.left && a.right === b.right && a.width === b.width && a.height === b.height);
 
 /** Elements made inert while the view is open, and what to give back. */
 function setInert(els: Iterable<Element>, on: boolean, held: Set<Element>) {
@@ -159,6 +163,9 @@ export default function GitView(props: GitViewProps) {
 
   // ── the camera beside the view ────────────────────────────────────────
   const savedViewport = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  // Where a close is taking the camera back to, until it gets there: a reopen
+  // on the way keeps that as the camera to give back, not the one mid-flight.
+  const restoring = useRef<{ to: { x: number; y: number; zoom: number }; until: number } | null>(null);
   const inertCards = useState(() => new Set<Element>())[0];
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
@@ -201,6 +208,8 @@ export default function GitView(props: GitViewProps) {
     const bar = canvas.querySelector(".cat-filter-bar")?.getBoundingClientRect();
     const top = bar && bar.height > 0 ? bar.bottom - rect.top : 0;
     const plan = gitViewFrame({ pane: { width: rect.width, height: rect.height }, cover, top, session, alarms, anchor });
+    // The camera the plane is drawn with until this move lands.
+    const was = rf.getViewport();
     moveCamera(plan.viewport, duration);
     // Cards wholly under the panel cannot be seen, so they cannot be Tab stops either.
     const coverLeft = window.innerWidth - w;
@@ -212,6 +221,14 @@ export default function GitView(props: GitViewProps) {
       const m = measuredRef.current.get(n.id);
       const left = rect.left + x + n.position.x * zoom;
       (whollyCovered({ left, right: left + (m?.width ?? 0) * zoom }, coverLeft) ? under : clear).add(el);
+    }
+    // So do the session clusters' name tags, anchored on the same plane
+    // (drawn at one size whatever the zoom): where each one's left edge lands
+    // once the camera has moved.
+    for (const el of canvas.querySelectorAll<HTMLElement>(".cluster-label")) {
+      const r = el.getBoundingClientRect();
+      const left = rect.left + x + ((r.left - rect.left - was.x) / was.zoom) * zoom;
+      (whollyCovered({ left, right: left + r.width }, coverLeft) ? under : clear).add(el);
     }
     setInert(clear, false, inertCards);
     setInert(under, true, inertCards);
@@ -300,14 +317,20 @@ export default function GitView(props: GitViewProps) {
     const animate = request.how === "pointer";
     if (want) {
       const opening = !wasWanted.current;
-      if (opening && !sheet) savedViewport.current = rf.getViewport();
+      // The reader's camera, to give back on close — taken on a sheet too,
+      // which leaves the camera alone until a wider window puts the view beside it.
+      if (opening) {
+        const back = restoring.current && performance.now() < restoring.current.until ? restoring.current.to : null;
+        savedViewport.current = back ?? rf.getViewport();
+        restoring.current = null;
+      }
       wasWanted.current = true;
       setGitViewFrame(frame, cover);
       let raf2 = 0, raf3 = 0;
       // Two frames: the first paints the panel, the second does the rest.
       const raf = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => {
         const measured = canvasBox(canvasRef.current);
-        setBox(prev => (prev && measured && Object.keys(measured).every(k => prev[k as keyof typeof prev] === measured[k as keyof typeof measured]) ? prev : measured));
+        setBox(prev => (sameBox(prev, measured) ? prev : measured));
         coverBehind(true);
         frame(animate ? 200 : 0);
         // A glance file row hands focus to that file, a commit row to its row.
@@ -321,9 +344,35 @@ export default function GitView(props: GitViewProps) {
     setMarkers([]);
     coverBehind(false);
     setInert([...inertCards], false, inertCards);
-    if (savedViewport.current) moveCamera(savedViewport.current, animate ? 150 : 0);
+    if (savedViewport.current) {
+      const duration = animate ? 150 : 0;
+      moveCamera(savedViewport.current, duration);
+      restoring.current = { to: savedViewport.current, until: performance.now() + duration + 50 };
+    }
     savedViewport.current = null;
   }, [want, agent?.id, width, sheet, detailShown]);
+
+  // The canvas changes size under the open view on its own — the session list
+  // or another side column opening beside it: the box is measured again, which
+  // keeps the canvas beside the panel at its least width, and the camera, the
+  // inert cards and the edge markers follow.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!want || !canvas || typeof ResizeObserver === "undefined") return;
+    let raf = 0, seen = false;
+    const ro = new ResizeObserver(() => {
+      // The first call only reports the size the view opened on.
+      if (!seen) { seen = true; return; }
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const measured = canvasBox(canvas);
+        setBox(prev => (sameBox(prev, measured) ? prev : measured));
+        frame(0);
+      });
+    });
+    ro.observe(canvas);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+  }, [want]);
   useEffect(() => () => {
     setGitViewFrame(null);
     setInert([...inertCards], false, inertCards);
@@ -548,6 +597,14 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     initial: away ? {} : { sel: request.sel, file: request.file }, seq: request.seq,
   });
   const { sel, file } = view;
+  // The view followed the selection to a folder git cannot read before the
+  // server had said so on the card: its own read says it, and the view steps
+  // back to the glance's one line, which answers as it does for `g` there.
+  useEffect(() => {
+    if (!request.open || away || !UNREADABLE.has(data.state)) return;
+    onClose("pointer");
+    window.dispatchEvent(new CustomEvent("gitview:unreadable", { detail: agent.id }));
+  }, [data.state, request.open, agent.id, away]);
   // The panel's first frame draws the history's first rows — what fits in its
   // pane — and the rest a frame later, so a press shows the view at once
   // rather than after a hundred rows have rendered.
