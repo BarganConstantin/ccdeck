@@ -479,8 +479,18 @@ export function lineFeed(subs) {
  * Start a command and don't wait for it. Same resolution, no output captured.
  * Used where the result lands somewhere else — a file the next poll reads, or
  * a sound the user hears.
+ *
+ * The options are for starting an APP rather than a helper — the git view's
+ * hand-off buttons (git-handoff-routes.mjs). `cwd` and `env` as spawn's;
+ * `ownGroup` puts the child in a session of its own, so a Ctrl+C in the
+ * terminal the deck was started from, or the deck's own exit, does not take an
+ * editor somebody opened with it (on Windows it is DETACHED_PROCESS: no console
+ * at all); `window` lets a Windows app show its window rather than start with
+ * the hidden one every helper gets; `verbatim` is spawn's
+ * windowsVerbatimArguments, for a cmd.exe line the caller has quoted itself.
+ * None of them is set by the existing callers, whose spawn is unchanged.
  */
-export function runDetached(cmd, args) {
+export function runDetached(cmd, args, { cwd, env, ownGroup = false, window = false, verbatim = false } = {}) {
   const tries = candidates(cmd);
   const attempt = (i) => {
     if (i >= tries.length) return;
@@ -491,7 +501,12 @@ export function runDetached(cmd, args) {
     // exactly like every other caller.
     const { file, args: argv, opts } = candidateSpec(raw, args);
     try {
-      const child = spawn(file, argv, { stdio: "ignore", shell: false, windowsHide: true, ...opts });
+      const child = spawn(file, argv, {
+        stdio: "ignore", shell: false, windowsHide: !window,
+        ...(cwd !== undefined ? { cwd } : {}), ...(env ? { env } : {}), ...(ownGroup ? { detached: true } : {}),
+        ...(verbatim ? { windowsVerbatimArguments: true } : {}),
+        ...opts,
+      });
       child.on("error", (err) => { if (tryNext(err)) attempt(i + 1); });
       // Same trap as above: a batch spelling is spawned through cmd.exe, which
       // succeeds whether or not the batch file is there, so only a clean exit

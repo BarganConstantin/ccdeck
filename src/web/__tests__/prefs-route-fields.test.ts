@@ -134,13 +134,14 @@ describe("POST /api/prefs and the fields the deck writes itself", () => {
 
 // Every write the page and the desktop app make, in the shape they make it:
 // use-os-notifications.ts and desktop/main.mjs, use-welcome-and-notes.ts,
-// use-auto-restart.ts, git-pref.ts, use-lan-section.ts, LanAddDeckModal.tsx and
-// LanSetupModal.tsx.
+// use-auto-restart.ts, git-pref.ts, git-handoffs.ts, use-lan-section.ts,
+// LanAddDeckModal.tsx and LanSetupModal.tsx.
 const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifications", { notifications: true }, p => p.notifications, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["git", { git: false }, p => p.git, false],
+  ["gitApps", { gitApps: { editor: "zed" } }, p => p.gitApps, { git: "", editor: "zed", terminal: "" }],
   ["lan.enabled", { lan: { enabled: false } }, p => p.lan.enabled, false],
   ["lan.manual", { lan: { manual: ["10.0.0.1:5000", "10.0.0.2:5001"] } }, p => p.lan.manual, ["10.0.0.1:5000", "10.0.0.2:5001"]],
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
@@ -181,7 +182,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "tourSeen", "autoUpdate", "git"],
+      top: ["notifications", "tourSeen", "autoUpdate", "git", "gitApps"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

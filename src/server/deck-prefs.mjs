@@ -86,6 +86,10 @@ export const DEFAULTS = Object.freeze({
   // and the reads behind it. ON — it only helps if people see it — and one
   // switch turns all of it off, the server's reads included (git-watch.mjs).
   git: true,
+  // Which app each of the git view's hand-off buttons opens, picked in
+  // Appearance when a machine has more than one: an id from
+  // git-handoff-apps.mjs's catalogue per slot, "" for the first one found.
+  gitApps: Object.freeze({ git: "", editor: "", terminal: "" }),
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -308,11 +312,21 @@ export function normalise(raw) {
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     git: flagOr(src.git, DEFAULTS.git),
+    gitApps: normaliseGitApps(src.gitApps),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),
     lan: normaliseLan(src.lan),
   };
+}
+
+/** The hand-off picks, coerced: each slot an app id's shape or "". Whether the
+ *  id names an app this machine has is the launch's question, asked each time,
+ *  so a pick survives the app being reinstalled. */
+function normaliseGitApps(raw) {
+  const src = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const id = v => (typeof v === "string" && /^[a-z0-9-]{1,40}$/.test(v) ? v : "");
+  return { git: id(src.git), editor: id(src.editor), terminal: id(src.terminal) };
 }
 
 /** The reporter's own state, coerced: strings empty when absent, the day's
@@ -596,7 +610,10 @@ async function save(mutate, home, deps) {
   // The LAN section merges rather than replaces, so a page toggling the
   // switch does not have to send the passphrase back to keep it — and so
   // nothing has to send a secret it was never given.
-  const merged = { ...prev, ...patch, lan: { ...prev.lan, ...(patch?.lan ?? {}) } };
+  // The hand-off picks merge the same way, so one pick does not reset the
+  // other two.
+  const picks = patch?.gitApps && typeof patch.gitApps === "object" && !Array.isArray(patch.gitApps) ? patch.gitApps : {};
+  const merged = { ...prev, ...patch, lan: { ...prev.lan, ...(patch?.lan ?? {}) }, gitApps: { ...prev.gitApps, ...picks } };
   const next = normalise(merged);
   await mk(prefsDir(home), { recursive: true, mode: 0o700 });
   // `createTemp`, not a name built out of the pid alone.
@@ -690,7 +707,7 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "tourSeen", "autoUpdate", "git"]),
+  top: Object.freeze(["notifications", "tourSeen", "autoUpdate", "git", "gitApps"]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

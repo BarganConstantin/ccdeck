@@ -213,6 +213,10 @@ describe("what was migrated to the secondary tier", () => {
       // issue from it, never with the contact or the images. Read once, to
       // decide what to write.
       ".fb-where",
+      // The git view's hand-off row seen from another machine: the sentence
+      // that says why its open buttons are gone and which machine they would
+      // open apps on — read once, in a row whose other parts are buttons.
+      ".gv-ho-note",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",

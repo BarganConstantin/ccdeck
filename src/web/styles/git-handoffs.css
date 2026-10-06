@@ -1,0 +1,154 @@
+/* The git view's hand-off row (GitHandoffs.tsx): open the session's folder in
+   a git client, an editor or a terminal, and copy its branch, SHA and path.
+
+   Two faces of one row. In the glance the launch buttons carry their app's
+   name; in the wide view's header (`data-compact`) every button is a square
+   glyph, its words in its title and label, at every width. Both are the
+   deck's own `button.btn` at a denser size, so the edge, hover, press and
+   focus ring are the ones every control here has, at the deck's one control
+   height (--ctl-h). */
+.gv-handoffs-wrap { position: relative; min-width: 0; }
+.gv-handoffs-wrap:not([data-compact]) { margin-top: 10px; }
+.gv-handoffs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  /* Holds the row's height while the deck says which apps it has, so the
+     buttons arriving never push the rows under them. */
+  min-height: var(--ctl-h);
+}
+.gv-handoffs[data-compact] { flex-wrap: nowrap; gap: 4px; }
+
+button.btn.gv-hand {
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+button.btn.gv-hand svg { flex: none; }
+/* A glyph alone: a square of the deck's one control height. */
+button.btn.gv-hand[data-icon] { width: var(--ctl-h); padding: 0; }
+/* The Copy menu's button keeps its chevron beside the glyph. */
+button.btn.gv-hand[data-copy="menu"] { gap: 4px; padding: 0 8px 0 10px; }
+button.btn.gv-hand[data-copy="menu"][data-icon] { width: auto; gap: 2px; padding: 0 5px 0 6px; }
+.gv-ho-chev { color: var(--muted); }
+button.btn.gv-hand:hover .gv-ho-chev { color: inherit; }
+button.btn.gv-hand[aria-busy="true"] { cursor: progress; }
+/* A launch the deck refused: the error colour on its glyph and words, with
+   the reason in its title and label and, in the glance, in the line under the
+   row. In the header the glyph itself changes, so the state is not colour
+   alone. */
+button.btn.gv-hand[data-failed] { color: var(--err); }
+
+/* Two words in one cell (Copy / Copied): the hidden one still holds its width. */
+.gv-ho-words { display: inline-grid; justify-items: center; }
+.gv-ho-words > span { grid-area: 1 / 1; }
+.gv-ho-words > span:not([data-on]) { visibility: hidden; }
+
+/* The rule between the launch glyphs and the copy glyph in the header. */
+.gv-ho-rule { flex: none; width: 1px; height: 16px; margin: 0 2px; background: var(--line); }
+
+/* Prose: the sentence that says why the open buttons are gone, and the
+   reason a launch was refused. */
+.gv-ho-note {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+/* The machine's name is not broken at its hyphens; a name too long for the
+   line on its own is cut, its whole in the title. */
+.gv-ho-note b {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: var(--text);
+  font-weight: 600;
+}
+.gv-ho-failed { color: var(--err); }
+
+/* The Copy menu: hung under its button, inside the row's own box rather than
+   portalled, so it stays inside the git view's key scope and Escape closes it
+   before anything behind it. */
+.gv-ho-copy { position: relative; display: inline-flex; }
+.gv-ho-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  /* Its width and its left edge are measured when it opens (GitHandoffs.tsx):
+     as wide as its longest value up to 288px, inside the box that clips it. */
+  left: 0;
+  width: max-content;
+  min-width: min(208px, calc(100vw - 16px));
+  max-width: min(288px, calc(100vw - 16px));
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
+  text-align: left;
+}
+/* Out of the button over 120ms when the pointer opened it; from the keyboard
+   it is simply there. */
+.gv-ho-menu[data-motion="pointer"] { animation: gv-ho-pop 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes gv-ho-pop { from { opacity: 0; transform: translateY(-3px); } }
+@keyframes gv-ho-fade { from { opacity: 0; } }
+
+/* The rows are the deck's own menu rows (.ap-menu-item: no edge, the control
+   fill under the pointer and the keyboard, deeper while pressed, nothing
+   moving); this only lays a row out as a name and its value. */
+.gv-ho-item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  column-gap: 8px;
+  padding: 0 8px;
+}
+.gv-ho-key { color: var(--muted); font-size: 11px; }
+/* On the row's fill --muted can fall under 4.5:1, so it steps up to --text. */
+.gv-ho-item:hover .gv-ho-key,
+.gv-ho-item:focus-visible .gv-ho-key { color: var(--text); }
+.gv-ho-val {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* A narrow wide view keeps only the copy glyph in its header; the launch
+   buttons are still in the glance. */
+@container gv (max-width: 560px) {
+  .gv-handoffs[data-compact] .gv-hand[data-slot],
+  .gv-handoffs[data-compact] .gv-ho-rule { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gv-ho-menu[data-motion="pointer"] { animation: gv-ho-fade 120ms ease-out; }
+}
+
+
+/* Appearance › Git: which app each hand-off button opens, under the switch,
+   for the slots that have more than one. The station picker's label column,
+   widened for "Git client", and the sound menu's select. */
+.appearance-git-picks {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.appearance-git-pick {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.appearance-git-pick > label { color: var(--muted); font-size: 12px; font-weight: 500; line-height: 18px; }
+.appearance-git-pick .sm-select { min-height: var(--ctl-h); }

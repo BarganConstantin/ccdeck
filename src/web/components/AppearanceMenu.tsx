@@ -11,6 +11,7 @@ import {
 import { isEscapeKey } from "../modal-dismiss";
 import { isTypingTarget } from "../shortcuts";
 import { toggleGit, useGitOn } from "../git-pref";
+import GitHandoffPicks from "./GitHandoffPicks";
 
 const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
@@ -401,6 +402,8 @@ export default function AppearanceMenu({
             </button>
             <span id="appearance-git-note" className="appearance-row-note">Reads your repos locally; never changes them.</span>
           </label>
+          {/* Which app each hand-off button opens, where there is a choice. */}
+          <GitHandoffPicks />
         </div>
       </section>
 
