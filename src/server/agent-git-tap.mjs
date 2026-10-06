@@ -13,10 +13,19 @@
 //     local commit store (agent-git-detect.mjs → agent-git-record.mjs →
 //     agent-git-store.mjs), so the marks outlive the log.
 //
-// A commit is recorded only from a LIVE event, and only by the deck that is
-// writing that session to the events log — the same election that keeps one
-// deck per log line, so two decks on one machine do not both record it. A
-// replayed event was live once, in front of whichever deck recorded it then.
+// A commit is recorded from a LIVE event only by the deck that is writing that
+// session to the events log — the same election that keeps one deck per log
+// line, so two decks on one machine do not both record it.
+//
+// A commit found in the BOOT REPLAY was live once, but possibly in front of no
+// recording deck at all (one from before recording existed, or one that had
+// the git view switched off). Those candidates are set aside while the replay
+// runs — the newest REPLAY_RECORD_MAX of them, with what the session had spent
+// and how long it had worked as the replayed events tell it — and nothing is
+// done with them on the replay's path. `recordReplayed` takes them up later,
+// once the deck knows it is the one writing the log: the ones whose SHA the
+// store does not hold yet are confirmed against their repository like a live
+// one and kept only when it confirms them, marked `source: "replay"`.
 //
 // Nothing here runs git. Recording needs the repository a folder is in and,
 // ideally, the repo's word that the commit exists; both come in through
@@ -33,12 +42,17 @@ import { commitStorePath, createCommitStore } from "./agent-git-store.mjs";
 import { createEditTracker } from "./agent-git-edits.mjs";
 import { createSessionFacts } from "./agent-git-facts.mjs";
 
+/** The most commits found in one boot replay that are set aside to record —
+ *  the newest. */
+export const REPLAY_RECORD_MAX = 500;
+
 /**
  * @param {{ edits?: ReturnType<typeof createEditTracker>,
  *           facts?: ReturnType<typeof createSessionFacts>,
  *           store?: ReturnType<typeof createCommitStore>,
  *           resolveRepo?: ((cwd: string) => any) | null,
- *           confirm?: ((candidate: object) => any) | null }} [deps]
+ *           confirm?: ((candidate: object) => any) | null,
+ *           replayMax?: number }} [deps]
  */
 export function createAgentGitTap({
   edits = createEditTracker(),
@@ -46,9 +60,12 @@ export function createAgentGitTap({
   store = createCommitStore({ path: commitStorePath() }),
   resolveRepo = null,
   confirm = null,
+  replayMax = REPLAY_RECORD_MAX,
 } = {}) {
   const joiner = createCallJoiner();
   const recorder = createCommitRecorder({ store, resolveRepo, confirm });
+  /** Commits the boot replay found, oldest first: `{ candidate, facts }`. */
+  let replayed = [];
 
   return {
     edits,
@@ -77,12 +94,60 @@ export function createAgentGitTap({
       const call = joiner.join(envelope);
       if (!call) return;
       edits.noteCall(call);
-      if (opts.replay || !opts.persisting || !recorder.connected || !call.commands.length) return;
+      if (!recorder.connected || !call.commands.length) return;
+      if (opts.replay) {
+        // Set aside for recordReplayed, with the spend and names as the
+        // replay has rebuilt them up to this event; the newest kept.
+        for (const candidate of commitCandidates(call)) {
+          replayed.push({ candidate, facts: facts.snapshot(candidate.sessionId, candidate.agentId) });
+        }
+        if (replayed.length > replayMax * 2) replayed = replayed.slice(-replayMax);
+        return;
+      }
+      if (!opts.persisting) return;
       for (const candidate of commitCandidates(call)) {
         // The spend and names as they stand now, not after the async lookups.
         void recorder.record(candidate, facts.snapshot(candidate.sessionId, candidate.agentId));
       }
     },
+
+    /**
+     * Record the commits the boot replay set aside — the newest
+     * `replayMax`, oldest first — whose SHA the store does not hold yet, each
+     * kept only when its repository confirms it. Takes them: a second call
+     * finds none. Never rejects. Answers what it did:
+     * `{ found, known, recorded }`.
+     */
+    async recordReplayed() {
+      const batch = replayed.slice(-replayMax);
+      replayed = [];
+      const done = { found: batch.length, known: 0, recorded: 0 };
+      if (!batch.length || !recorder.connected) return done;
+      let held = [];
+      try { held = await store.all(); } catch { /* an unreadable store holds nothing */ }
+      // By the first seven hex, the shortest SHA either side can hold.
+      const byPrefix = new Map();
+      for (const r of held) {
+        const k = r.sha.slice(0, 7);
+        if (!byPrefix.has(k)) byPrefix.set(k, []);
+        byPrefix.get(k).push(r.sha);
+      }
+      const known = (sha) => (byPrefix.get(sha.slice(0, 7)) ?? []).some((h) => h.startsWith(sha) || sha.startsWith(h));
+      for (const { candidate, facts: snapshot } of batch) {
+        if (known(candidate.shortSha)) { done.known++; continue; }
+        const line = await recorder.record(candidate, snapshot, { replay: true });
+        if (line) {
+          done.recorded++;
+          const k = line.sha.slice(0, 7);
+          if (!byPrefix.has(k)) byPrefix.set(k, []);
+          byPrefix.get(k).push(line.sha);
+        }
+      }
+      return done;
+    },
+
+    /** Forget the commits the replay set aside, unrecorded. */
+    dropReplayed() { replayed = []; },
 
     /** Connect the git hooks recording needs — see agent-git-record.mjs. */
     connect(hooks) { recorder.connect(hooks); },

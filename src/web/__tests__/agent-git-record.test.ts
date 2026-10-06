@@ -7,7 +7,7 @@
 // integration will back them; the events are the shapes pushEvent admits.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
@@ -261,5 +261,130 @@ describe("recording an agent's commit", () => {
     expect(history.map(c => c.sha)).not.toContain(stored.sha);
     const got = attributeCommits(await tap.store.all(), history);
     expect(got.get(history[0].sha)).toMatchObject({ confidence: "matched", record: { sha: stored.sha, sessionId: SID } });
+  });
+});
+
+describe("recording the commits a boot replay found", () => {
+  const REPLAY = { replay: true, persisting: false };
+  const lines = (tap: ReturnType<typeof freshTap>) => tap.store.all() as Promise<Rec[]>;
+
+  /** The same session as startSession, read back from the log at boot. */
+  function replaySession(tap: ReturnType<typeof freshTap>) {
+    tap.observe(env({ session_id: SID, cwd: repo, hook_event_name: "SessionStart" }, T0), REPLAY);
+    tap.observe(env({ session_id: SID, hook_event_name: "SessionNamed", sessionName: "agent-commits", sessionTitle: "Commit tracking" }, T0 + 10, "internal"), REPLAY);
+    tap.observe(env({ session_id: SID, hook_event_name: "SubagentStart", cwd: repo, agent_id: "agent-7", agent_type: "general-purpose" }, T0 + 20), REPLAY);
+    tap.observe(env({ session_id: SID, hook_event_name: "UsageObserved", usage: USAGE, usageByModel: BY_MODEL }, T0 + 55_000, "internal"), REPLAY);
+  }
+
+  it("records a replayed commit the store lacks, confirmed, seen, timed and costed from the replayed events", async () => {
+    const tap = freshTap();
+    replaySession(tap);
+    tap.observe(env(bash("git commit -m 'fix: second'", out.second, { tool_use_id: "toolu_r2" }), T0 + 60_000), REPLAY);
+    tap.observe(env(bash("git commit -m 'chore: third'", out.third, { tool_use_id: "toolu_r3", agent_id: "agent-7" }), T0 + 90_000), REPLAY);
+    await tap.settled();
+    expect(await lines(tap), "nothing is written on the replay's path").toEqual([]);
+
+    expect(await tap.recordReplayed()).toEqual({ found: 2, known: 0, recorded: 2 });
+    const [second, third] = await lines(tap);
+    expect(second).toMatchObject({
+      sha: git(repo, "rev-parse", "HEAD~1").trim(), shaFull: true, subject: "fix: second", branch: "agent/work",
+      sessionId: SID, agentId: null, label: "agent-commits", at: T0 + 60_000, confidence: "seen", source: "replay",
+      cost: { usage: USAGE, usageByModel: BY_MODEL, at: T0 + 55_000 }, durationMs: 60_000, durationFrom: "session-start",
+    });
+    expect(second.authorTime).toBe(Number(git(repo, "log", "-1", "--format=%at", "HEAD~1").trim()) * 1000);
+    expect(third).toMatchObject({ sha: git(repo, "rev-parse", "HEAD").trim(), agentId: "agent-7", label: "general-purpose", source: "replay", durationMs: 30_000, durationFrom: "commit" });
+    // Taken: asking again finds nothing to do.
+    expect(await tap.recordReplayed()).toEqual({ found: 0, known: 0, recorded: 0 });
+  });
+
+  it("adds nothing on the next boot, the store read afresh from its file", async () => {
+    const first = freshTap();
+    replaySession(first);
+    first.observe(env(bash("git commit -m 'fix: second'", out.second, { tool_use_id: "toolu_b1" }), T0 + 60_000), REPLAY);
+    expect(await first.recordReplayed()).toMatchObject({ recorded: 1 });
+    const path = first.store.path as string;
+    const before = readFileSync(path, "utf8");
+
+    const store = createCommitStore({ path });
+    const next = createAgentGitTap({ store, resolveRepo, confirm });
+    replaySession(next);
+    next.observe(env(bash("git commit -m 'fix: second'", out.second, { tool_use_id: "toolu_b1" }), T0 + 60_000), REPLAY);
+    expect(await next.recordReplayed()).toEqual({ found: 1, known: 1, recorded: 0 });
+    expect(readFileSync(path, "utf8")).toBe(before);
+  });
+
+  it("never records from the replay what the repo cannot vouch for, nor a line recorded live", async () => {
+    const unsure = freshTap({ resolveRepo, confirm: () => null });
+    unsure.observe(env(bash("git commit -m 'fix: second'", out.second), T0), REPLAY);
+    const denied = freshTap();
+    denied.observe(env(bash("git commit -m 'fix: second'", "[agent/work deadbee] fix: second\n"), T0), REPLAY);
+    const unconfirmable = freshTap({ resolveRepo });
+    unconfirmable.observe(env(bash("git commit -m 'fix: second'", out.second), T0), REPLAY);
+    for (const tap of [unsure, denied, unconfirmable]) {
+      expect((await tap.recordReplayed()).recorded).toBe(0);
+      expect(await lines(tap)).toEqual([]);
+    }
+    const live = freshTap();
+    live.observe(env(bash("git commit -m 'fix: second'", out.second), T0), LIVE);
+    await live.settled();
+    expect(Object.keys((await lines(live))[0])).not.toContain("source");
+  });
+
+  it("times a replayed commit from the session's stored commit before it, never one after", async () => {
+    const tap = freshTap();
+    replaySession(tap);
+    // Recorded live by an earlier run: the third commit, made later.
+    tap.observe(env(bash("git commit -m 'chore: third'", out.third, { tool_use_id: "toolu_t3" }), T0 + 90_000), LIVE);
+    await tap.settled();
+    tap.observe(env(bash("git commit -m 'fix: second'", out.second, { tool_use_id: "toolu_t2" }), T0 + 60_000), REPLAY);
+    expect(await tap.recordReplayed()).toMatchObject({ recorded: 1 });
+    expect((await lines(tap)).find(r => r.subject === "fix: second")).toMatchObject({ durationMs: 60_000, durationFrom: "session-start" });
+  });
+
+  it("keeps only the newest of what the replay found, and nothing before the hooks are connected", async () => {
+    const tap = freshTap({ resolveRepo, confirm, replayMax: 2 });
+    replaySession(tap);
+    tap.observe(env(bash("git commit -m 'feat: first'", out.first, { tool_use_id: "toolu_n1" }), T0 + 30_000), REPLAY);
+    tap.observe(env(bash("git commit -m 'fix: second'", out.second, { tool_use_id: "toolu_n2" }), T0 + 60_000), REPLAY);
+    tap.observe(env(bash("git commit -m 'chore: third'", out.third, { tool_use_id: "toolu_n3" }), T0 + 90_000), REPLAY);
+    expect(await tap.recordReplayed()).toEqual({ found: 2, known: 0, recorded: 2 });
+    expect((await lines(tap)).map(r => r.subject)).toEqual(["fix: second", "chore: third"]);
+
+    const unhooked = freshTap({});
+    unhooked.observe(env(bash("git commit -m 'fix: second'", out.second), T0), REPLAY);
+    unhooked.connect({ resolveRepo, confirm });
+    expect(await unhooked.recordReplayed()).toEqual({ found: 0, known: 0, recorded: 0 });
+  });
+
+  it("carries a commit amended away since to its new SHA by the subject and author time, and skips one the repo has dropped", async () => {
+    const amendRepo = join(ROOT, "amend-replay");
+    mkdirSync(amendRepo);
+    git(amendRepo, "init", "-q");
+    const made = commitIn(amendRepo, "m.txt", "feat: amended after the fact");
+    const amend = () => {
+      writeFileSync(join(amendRepo, "m.txt"), `changed ${Math.random()}\n`);
+      git(amendRepo, "add", "m.txt");
+      execFileSync("git", [...CFG, "commit", "--amend", "--no-edit"], { cwd: amendRepo, env: { ...GIT_ENV, GIT_COMMITTER_DATE: "2031-01-01T00:00:00Z" }, stdio: "ignore" });
+    };
+    amend();
+    const tap = freshTap();
+    tap.observe(env(bash("git commit -m 'feat: amended after the fact'", made, { cwd: amendRepo }), T0), REPLAY);
+    expect(await tap.recordReplayed()).toMatchObject({ recorded: 1 });
+    const history = git(amendRepo, "log", "--format=%H%x00%s%x00%at").trim().split("\n").map(l => {
+      const [sha, subject, at] = l.split("\0");
+      return { sha, subject, authorTime: Number(at), branch: "main" };
+    });
+    const [stored] = await lines(tap);
+    expect(history.map(c => c.sha)).not.toContain(stored.sha);
+    expect(attributeCommits(await lines(tap), history).get(history[0].sha)).toMatchObject({ confidence: "matched", record: { sha: stored.sha, source: "replay" } });
+
+    // Once nothing keeps the old commit, the repo no longer has it to confirm.
+    const gone = commitIn(amendRepo, "g.txt", "feat: dropped later");
+    amend();
+    git(amendRepo, "reflog", "expire", "--expire=now", "--all");
+    git(amendRepo, "gc", "-q", "--prune=now");
+    const after = freshTap();
+    after.observe(env(bash("git commit -m 'feat: dropped later'", gone, { cwd: amendRepo }), T0), REPLAY);
+    expect(await after.recordReplayed()).toEqual({ found: 1, known: 0, recorded: 0 });
   });
 });

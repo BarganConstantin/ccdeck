@@ -168,7 +168,7 @@ import { handleGitHandoffs, handleGitOpen } from "./git-handoff-routes.mjs";
 import { refreshCollisions } from "./git-collisions.mjs";
 // Commit recording: the repository's word on each commit an agent's shell
 // output reports — see git-confirm.mjs.
-import { connectCommitRecording } from "./git-confirm.mjs";
+import { connectCommitRecording, scheduleReplayRecording } from "./git-confirm.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -235,6 +235,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     refreshGit();
     // And who collides with whom, worked out afresh: it is never logged.
     refreshCollisions();
+    // The agent commits the replay found that the commit store does not hold
+    // yet, recorded a few seconds from now by the deck writing the log.
+    scheduleReplayRecording();
     if (replayed > 0) {
       // Don't broadcast replays as live; SSE clients catch up via Last-Event-ID
       // already. Just keep the buffer + seq counter primed.

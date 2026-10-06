@@ -25,7 +25,15 @@
 // THE SWITCH. Recording follows the git view's own setting: switched off, no
 // repository is resolved, so nothing is recorded, exactly as no repository is
 // read.
-import { connectAgentGit } from "./agent-git-tap.mjs";
+//
+// THE REPLAY. The commits the boot replay found (agent-git-tap.mjs) are
+// recorded a few seconds after the replay, off the boot's path, and only by
+// the deck the log election names the writer of the events log — the deck
+// that records the live ones. That election needs this deck's own discovery
+// record, which is written once the server listens, so the pass waits for it
+// a little; a deck that never registers is alone, and records them itself.
+import { agentGit, connectAgentGit } from "./agent-git-tap.mjs";
+import { logSharing } from "./event-log.mjs";
 import { classifyFailure, git } from "./git-run.mjs";
 import { repoTopOf } from "./git-state.mjs";
 import { gitEnabled } from "./git-watch.mjs";
@@ -83,4 +91,56 @@ export function connectCommitRecording({ enabled = gitEnabled } = {}) {
     resolveRepo: (cwd) => (enabled() ? repoTopOf(cwd) : null),
     confirm: (candidate) => (enabled() ? confirmCommit(candidate) : null),
   });
+}
+
+/** How long after the replay its commits are recorded, so the pass is never
+ *  on the boot's path. */
+export const REPLAY_RECORD_DELAY_MS = 3_000;
+
+const sleep = (ms) => new Promise((done) => { const t = setTimeout(done, ms); t.unref?.(); });
+
+/**
+ * Whether this deck is the one writing the events log, by the election the
+ * hook and the Clear use (event-log.mjs logSharing). Until this deck's own
+ * discovery record is there the election cannot name it, so it asks again,
+ * `tries` times, `everyMs` apart; a deck that never shows up is alone and
+ * owns its log. No log, no owner.
+ *
+ * @param {{ sharing?: typeof logSharing, tries?: number, everyMs?: number }} [opts]
+ */
+export async function ownsEventLog({ sharing = logSharing, tries = 10, everyMs = 1_000 } = {}) {
+  for (let i = 0; ; i++) {
+    let s;
+    try { s = await sharing(); } catch { return false; }
+    if (!s || !s.path) return false;
+    if (s.owner || i >= tries) return !!s.mine;
+    await sleep(everyMs);
+  }
+}
+
+/**
+ * Record the commits the boot replay found, when this deck writes the log and
+ * the git view is on; otherwise forget them. Never rejects. Answers what the
+ * tap did, or null when it recorded nothing by choice.
+ *
+ * @param {{ enabled?: () => boolean, owns?: () => Promise<boolean>, tap?: typeof agentGit }} [opts]
+ */
+export async function recordReplayedCommits({ enabled = gitEnabled, owns = ownsEventLog, tap = agentGit } = {}) {
+  try {
+    if (!enabled() || !(await owns()) || !enabled()) { tap.dropReplayed(); return null; }
+    return await tap.recordReplayed();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Arm the pass above to run `delayMs` after now — called once, right after
+ * the boot replay. The timer never holds the process open.
+ *
+ * @param {{ delayMs?: number }} [opts]
+ */
+export function scheduleReplayRecording({ delayMs = REPLAY_RECORD_DELAY_MS } = {}) {
+  const t = setTimeout(() => { void recordReplayedCommits(); }, delayMs);
+  t.unref?.();
 }

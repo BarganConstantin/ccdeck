@@ -16,7 +16,11 @@
 //
 //   { v: 1, repo, top, sha, shaFull, subject, authorTime, branch, detached,
 //     sessionId, agentId, label, agentType, model, kind, at, cwd, cost,
-//     durationMs, durationFrom, confidence, amend, subcommand }
+//     durationMs, durationFrom, confidence, amend, subcommand, source? }
+//
+// `source: "replay"` marks a line recorded after the fact, from a commit found
+// in the events log the deck replayed at boot rather than as it was made; a
+// line recorded live carries no `source`.
 //
 // `repo` is the realpath of the repository's common git directory, which is
 // what every worktree of one repository shares; `sha` is the full SHA when the
@@ -256,12 +260,13 @@ export function createCommitStore({ path, maxBytes = COMMIT_STORE_MAX_BYTES }) {
       return enqueue(async () => { await load(); return index.values().filter(r => r.repo === repo).sort(byAt); });
     },
 
-    /** The newest commit a session made, or null. */
-    lastForSession(sessionId) {
+    /** The newest commit a session made — no later than `before` (ms), when
+     *  given — or null. */
+    lastForSession(sessionId, before = Infinity) {
       return enqueue(async () => {
         await load();
         let last = null;
-        for (const r of index.values()) if (r.sessionId === sessionId && (!last || r.at >= last.at)) last = r;
+        for (const r of index.values()) if (r.sessionId === sessionId && r.at <= before && (!last || r.at >= last.at)) last = r;
         return last;
       });
     },

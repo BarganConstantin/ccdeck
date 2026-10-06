@@ -34,12 +34,16 @@ const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
  * `cost` is the session's cumulative spend at the time (main thread and every
  * subagent): raw tokens and models, never priced here and never shown yet.
  *
+ * `source` is "replay" for a commit found in the replayed events log rather
+ * than seen as it was made; a live line carries none.
+ *
  * @param {import("./agent-git-detect.mjs").CommitCandidate} c
  * @param {{ repo: string, top?: string | null, cwd: string, confirmed?: { sha: string, authorTime?: number | null } | null }} where
  * @param {import("./agent-git-facts.mjs").SessionSnapshot} [facts]
  * @param {{ at: number } | null} [previous] the session's newest stored commit
+ * @param {{ source?: "replay" | null }} [opts]
  */
-export function buildCommitRecord(c, where, facts = /** @type {any} */ ({}), previous = null) {
+export function buildCommitRecord(c, where, facts = /** @type {any} */ ({}), previous = null, { source = null } = {}) {
   const sub = typeof c.agentId === "string" && c.agentId !== "";
   const confirmed = where.confirmed && typeof where.confirmed.sha === "string" && FULL_SHA.test(where.confirmed.sha) ? where.confirmed : null;
   let durationMs = null;
@@ -75,6 +79,7 @@ export function buildCommitRecord(c, where, facts = /** @type {any} */ ({}), pre
     confidence: "seen",
     amend: !!c.amend,
     subcommand: c.subcommand ?? "commit",
+    ...(source === "replay" ? { source: "replay" } : {}),
   };
 }
 
@@ -102,9 +107,12 @@ export function createCommitRecorder({ store, resolveRepo = null, confirm = null
     try { return await realpath(commonDir); } catch { return commonDir; }
   }
 
-  async function recordOne(c, facts) {
+  async function recordOne(c, facts, replay) {
     const { resolveRepo: resolve, confirm: check } = hooks;
     if (!resolve || !c || !Array.isArray(c.cwds) || !c.cwds.length) return null;
+    // A commit found in the replayed log is kept only on the repo's word: the
+    // folder it names may be another repository by now.
+    if (replay && !check) return null;
     let chosen = null;
     for (const cwd of c.cwds) {
       const repo = await ask(resolve, cwd);
@@ -114,20 +122,24 @@ export function createCommitRecorder({ store, resolveRepo = null, confirm = null
       if (confirmed && typeof confirmed.sha === "string") { chosen = { cwd, repo, confirmed }; break; }
       // Unconfirmed: kept only when the folder was certain. A candidate that
       // could have come from several folders is placed by confirmation alone.
-      if (!chosen && c.cwd === cwd) chosen = { cwd, repo, confirmed: null };
+      if (!replay && !chosen && c.cwd === cwd) chosen = { cwd, repo, confirmed: null };
     }
     if (!chosen) return null;
     const repo = await repoKey(chosen.repo.commonDir);
-    const previous = await store.lastForSession(c.sessionId);
-    const record = buildCommitRecord(c, { repo, top: chosen.repo.top ?? null, cwd: chosen.cwd, confirmed: chosen.confirmed }, facts, previous);
+    // Live commits arrive in order; a replayed one is timed from the session's
+    // newest stored commit before it, not from one recorded after it.
+    const previous = await store.lastForSession(c.sessionId, replay ? c.at : Infinity);
+    const record = buildCommitRecord(c, { repo, top: chosen.repo.top ?? null, cwd: chosen.cwd, confirmed: chosen.confirmed }, facts, previous, { source: replay ? "replay" : null });
     const { added } = await store.append(record);
     return added ? record : null;
   }
 
   return {
-    /** Record one candidate; answers the stored line, or null. Never rejects. */
-    record(candidate, facts) {
-      const next = chain.then(() => recordOne(candidate, facts)).catch(() => null);
+    /** Record one candidate; answers the stored line, or null. Never rejects.
+     *  `replay`: found in the replayed events log — recorded only when the
+     *  repo confirms it, and marked `source: "replay"`. */
+    record(candidate, facts, { replay = false } = {}) {
+      const next = chain.then(() => recordOne(candidate, facts, replay)).catch(() => null);
       chain = next.then(() => {});
       return next;
     },
