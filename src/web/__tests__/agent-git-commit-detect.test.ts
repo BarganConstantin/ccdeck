@@ -196,6 +196,13 @@ describe("gitCommitInvocations", () => {
     expect(at("git revert --no-edit HEAD")[0]).toMatchObject({ subcommand: "revert", noCommit: false });
   });
 
+  it("counts a merge finished after a conflict, which prints the same summary line", () => {
+    expect(at("git merge --continue")).toEqual([{ cwd: "/repo", subcommand: "merge", amend: false, quiet: false, noCommit: false }]);
+    expect(at("git merge --no-commit side")[0]).toMatchObject({ noCommit: true });
+    // To merge, -n is --no-stat; to cherry-pick, --no-commit.
+    expect(at("git merge -n side")[0]).toMatchObject({ noCommit: false });
+  });
+
   it("survives the heredoc message Claude writes, apostrophes and all", () => {
     const cmd = "git add -A && git commit -m \"$(cat <<'EOF'\nfix: don't drop the (last) line\n\nBody with \"quotes\" && ; | chars.\nEOF\n)\" && git log --oneline -1";
     expect(at(cmd)).toEqual([{ cwd: "/repo", subcommand: "commit", amend: false, quiet: false, noCommit: false }]);
@@ -282,6 +289,14 @@ describe("commitCandidates", () => {
     const cmd = `git -C ${JSON.stringify(repo)} commit -m a; git -C ${JSON.stringify(other)} commit -m 'in the other repo'`;
     const [c] = commitCandidates(join1(claudeBash(cmd, out.other)));
     expect(c).toMatchObject({ cwd: null, cwds: [repo, other], subject: "in the other repo" });
+  });
+
+  it("records a merge finished with --continue, and names one that completes on its own as a blind spot", () => {
+    const done = commitCandidates(join1(claudeBash("git add src/app.ts && GIT_EDITOR=true git merge --continue", "[main 5a1c42a] Merge branch 'side'\n")));
+    expect(done).toEqual([expect.objectContaining({ subcommand: "merge", shortSha: "5a1c42a", subject: "Merge branch 'side'", cwd: repo })]);
+    const clean = "Merge made by the 'ort' strategy.\n b | 1 +\n 1 file changed, 1 insertion(+)\n";
+    expect(commitCandidates(join1(claudeBash("git merge --no-ff -m 'merge side' side", clean)))).toEqual([]);
+    expect(commitCandidates(join1(claudeBash("git pull --no-rebase origin main", clean)))).toEqual([]);
   });
 
   it("finds nothing for a quiet or redirected commit — a known blind spot", () => {
