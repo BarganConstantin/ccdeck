@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { GitData } from "../use-git-view";
 import type { AgentNodeData } from "../types";
 import { sourceOf } from "./client-source";
+import { sheetParts } from "./sheet-source";
 
 const read = vi.hoisted(() => ({ data: null as GitData | null, calls: [] as unknown[] }));
 vi.mock("../use-git-view", async () => {
@@ -87,5 +88,22 @@ describe("what a screen reader hears", () => {
     read.data = { ...REPO, edits: [{ path: "logo.png", agentId: null, label: "app", at: NOW }] };
     expect(render(root())).toContain('<span class="gv-g-bin" title="binary file"><span aria-hidden="true">bin</span><span class="vis-hidden">binary file</span></span>');
     expect(sourceOf("components/GitFiles.tsx")).toContain('<span className="gvf-bin" title="binary file"><span aria-hidden="true">bin</span><span className="vis-hidden">binary file</span></span>');
+  });
+});
+
+describe("the room the section holds", () => {
+  it("holds a repository's room while its read arrives, the card having said it is one", () => {
+    expect(render(root())).toContain('data-reserve=""');
+  });
+
+  it("holds none before anything has said there is a repository: a plain folder would give it back", () => {
+    const html = render(root({ git: undefined }));
+    expect(html).not.toContain("data-reserve");
+    expect(html).not.toContain("gv-open");
+  });
+
+  it("keeps rows at their height when the content passes that room", () => {
+    const css = sheetParts().find(([path]) => path === "styles/git-view.css")![1];
+    expect(css).toMatch(/\.gv-glance \{ gap: 0; flex-shrink: 0; \}/);
   });
 });

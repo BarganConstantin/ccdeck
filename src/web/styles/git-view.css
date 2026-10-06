@@ -269,7 +269,9 @@
 .gv-card-btn svg { flex: none; }
 
 /* ------------------------------------------- the glance in the detail panel */
-.gv-glance { gap: 0; }
+/* The detail panel is a scrolling flex column: without flex-shrink: 0 a
+   section taller than its reserve was squeezed back to it, rows and all. */
+.gv-glance { gap: 0; flex-shrink: 0; }
 /* Room for the section's eight rows and its hand-off row, held while the read
    arrives and as the repository changes, so the panel under it stays put. */
 .gv-glance[data-reserve] { min-height: 268px; }

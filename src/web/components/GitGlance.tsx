@@ -78,11 +78,13 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   // From a pointer the view slides in; from Enter or Space it opens at once.
   const open = (e: { detail: number }, hints: { sel?: string | null; file?: GitFileRef | null } = {}) =>
     openGitViewFrom(pressHow(e), { agentId: agent.id, focusInside: true, ...hints });
+  // Whether the card or the read has said there is a repository here.
+  const known = readable && (facts?.state === "repo" || data.state === "repo");
   // The section and its heading are named "Git" alone, not after the button in it.
   const heading = (
     <h3 aria-labelledby={`gv-glance-${agent.id}`}>
       <span id={`gv-glance-${agent.id}`}>Git</span>
-      {readable && (data.state === "repo" || data.state === "loading") && (
+      {known && (data.state === "repo" || data.state === "loading") && (
         <button type="button" className="gv-open" title="Open the git view (g)" onClick={e => open(e)}>Open<kbd>g</kbd></button>
       )}
     </h3>
@@ -99,6 +101,11 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   if (state !== "repo" && state !== "loading") {
     return section(<ReadStateLine state={state} folder={agent.cwd ?? null} className="gv-line-empty" lineRef={lineRef} />);
   }
+  // Nothing has said there is a repository yet — the server says so on the
+  // card of every session in one — so no room is held: a plain folder would
+  // give it all back when its answer came, pulling the panel under it up.
+  // One blank line stands in for the line that answer brings.
+  if (state === "loading" && !known) return section(<p className="gv-line-empty" aria-hidden="true">{"\u00a0"}</p>);
 
   const isSub = agent.kind === "subagent";
   const scopeWord = isSub ? "subagent" : "session";
