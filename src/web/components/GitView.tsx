@@ -935,7 +935,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               </>
             ) : (
               <GitGraph
-                repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={data.commits} rowLimit={rowLimit} head={head ?? null}
+                repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={data.commits} rowLimit={rowLimit} head={head ?? null} defaultBranch={repo?.defaultBranch ?? null}
                 uncommitted={{ files: counts.changed, byFocus: counts.files, label: focusName }} focus={focus} selected={sel}
                 onSelect={view.setSel} onOpen={() => focusPane("files")}
                 onAgentCard={openCard} liveInsert={liveInsert}

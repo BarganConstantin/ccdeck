@@ -9,7 +9,7 @@
 // well as on the columns.
 import { describe, it, expect } from "vitest";
 import {
-  layoutGraph, graphTones, baseTip, rowDrawing, onFocusLine, graphColumns, graphWidth, nodeReach,
+  layoutGraph, graphTones, baseTips, trunkNames, TRUNK_NAMES, rowDrawing, onFocusLine, graphColumns, graphWidth, nodeReach,
   pickSlot, clashes, fixedSlot, mergedBranchName, branchKeyOf, seniority,
   parseSlotMemory, rememberSlots, repoSlots, historyAge, workDuration, conventionalPrefix,
   WIP_ID, VISIBLE_LANES, ROW_H, LANE_W, LANE_X0, SLOT_MEMORY_BRANCHES, SLOT_MEMORY_REPOS,
@@ -306,7 +306,7 @@ describe("the 150-commit history", () => {
     expect(tones.get("ebe97fb")).toBe("base");
     expect(tones.get("ab9d31e")).toBe("off"); // origin/develop is one ahead
     expect(tones.get("c66f14c")).toBe("off"); // another worktree's branch
-    expect(baseTip(all, HEAD)).toBe("ab9d31e");
+    expect(baseTips(all, HEAD)).toEqual(["ab9d31e"]);
   });
 
   it("measures a feature branch against develop", () => {
@@ -316,7 +316,75 @@ describe("the 150-commit history", () => {
     for (const own of ["c66f14c", "4402065", "65fecee", "bb50a24"]) expect(tones.get(own), own).toBe("own");
     expect(tones.get("dbebcb9")).toBe("base");
     expect(tones.get("eb7170c")).toBe("off");
-    expect(baseTip(list, head)).toBe("eb7170c");
+    // Every trunk, local and remote: develop, origin/develop, main.
+    expect(baseTips(list, head).sort()).toEqual(["6bc901a", "ab9d31e", "eb7170c"]);
+  });
+});
+
+// ─── what a branch is measured against ────────────────────────────────────
+
+/** Refs on a built commit. */
+const at = (local: string[], remote: string[] = [], head = false) => ({ local, remote, tags: [], head });
+
+describe("the trunk a branch is measured against", () => {
+  it("knows the usual names, and the remote's default branch first", () => {
+    expect(TRUNK_NAMES).toEqual(["develop", "development", "dev", "main", "master", "trunk"]);
+    expect(trunkNames("stable")[0]).toBe("stable");
+    expect(trunkNames("main")).toEqual(TRUNK_NAMES);
+  });
+
+  it("measures a branch made from origin/development by what it adds over it, not as all its own", () => {
+    // ccdeck's own shape: the integration branch is `development`, a release
+    // went to main days ago, teammates' pull requests merged since, and an
+    // agent's branch made from origin/development with two commits.
+    const list = topo([
+      c("a2", ["a1"], ["feature/agent-y"], { refs: at(["feature/agent-y"], [], true) }),
+      c("a1", ["d3"]),
+      c("d3", ["d2", "p1"], [], { refs: at([], ["origin/development"]), subject: "Merge pull request #1970 from someone/fix" }),
+      c("p1", ["d2"]),
+      c("d2", ["d1"]),
+      c("d1", ["r"], [], { refs: at([], ["origin/main"]) }),
+      c("r"),
+    ]);
+    const head = { sha: "a2", branch: "feature/agent-y", detached: false };
+    const tones = graphTones(list, head);
+    expect([...tones].filter(([, t]) => t === "own").map(([sha]) => sha).sort()).toEqual(["a1", "a2"]);
+    for (const sha of ["d3", "p1", "d2", "d1", "r"]) expect(tones.get(sha), sha).toBe("base");
+  });
+
+  it("does not take a stale local trunk over the remote's: teammates' commits stay the base", () => {
+    // Local develop is ten commits behind origin/develop, and the branch was
+    // made from origin/develop (the usual worktree flow).
+    const team = Array.from({ length: 10 }, (_, i) => c(`t${10 - i}`, [i === 9 ? "dev0" : `t${9 - i}`]));
+    team[0] = { ...team[0], refs: at([], ["origin/develop"]) };
+    const list = topo([
+      c("x2", ["x1"], [], { refs: at(["feature/agent-x"], [], true) }),
+      c("x1", ["t10"]),
+      ...team,
+      c("dev0", ["root"], ["develop"]),
+      c("root"),
+    ]);
+    const tones = graphTones(list, { sha: "x2", branch: "feature/agent-x", detached: false });
+    expect([...tones].filter(([, t]) => t === "own").map(([sha]) => sha).sort()).toEqual(["x1", "x2"]);
+    expect(tones.get("t5")).toBe("base");
+  });
+
+  it("measures against the remote's default branch whatever it is called", () => {
+    const list = topo([
+      c("f2", ["f1"], [], { refs: at(["topic"], [], true) }),
+      c("f1", ["s2"]),
+      c("s2", ["s1"], [], { refs: at([], ["origin/stable"]) }),
+      c("s1"),
+    ]);
+    const head = { sha: "f2", branch: "topic", detached: false };
+    // Without the name, nothing is a trunk: the whole branch reads as its own.
+    expect(graphTones(list, head).get("s1")).toBe("own");
+    const tones = graphTones(list, head, "stable");
+    expect(tones.get("f1")).toBe("own");
+    expect(tones.get("s2")).toBe("base");
+    // And a trunk HEAD is measured against its own remote-tracking branch.
+    const onStable = list.map(x => ({ ...x, refs: x.sha === "s2" ? at(["stable"], ["origin/stable"], true) : at([]) }));
+    expect(baseTips(onStable, { branch: "stable", detached: false }, "stable")).toEqual(["s2"]);
   });
 });
 
@@ -446,6 +514,10 @@ describe("lane colours are branch identity", () => {
     expect(fixedSlot("main")).toBe(1);
     expect(fixedSlot("master")).toBe(1);
     expect(fixedSlot("feature/x")).toBeNull();
+    // An integration branch by its other usual names takes develop's place.
+    expect(fixedSlot("development")).toBe(0);
+    expect(fixedSlot("dev")).toBe(0);
+    expect(fixedSlot("developer-notes")).toBeNull();
   });
 
   it("a new branch avoids every slot in its row, lanes ending there included", () => {
@@ -502,6 +574,11 @@ describe("lane colours are branch identity", () => {
     expect(seniority("main")).toBeGreaterThan(seniority("develop"));
     expect(seniority("develop")).toBeGreaterThan(seniority("release/2.0"));
     expect(seniority("release/2.0")).toBeGreaterThan(seniority("feature/x"));
+    expect(seniority("development")).toBe(seniority("develop"));
+    // The remote's default branch ranks with develop whatever it is called.
+    expect(seniority("stable")).toBe(1);
+    expect(seniority("stable", "stable")).toBe(seniority("develop"));
+    expect(branchKeyOf(c("x", [], ["stable", "feature/a"]), "stable")).toBe("stable");
   });
 
   it("reads the merged branch out of every common merge subject", () => {

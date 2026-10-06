@@ -41,6 +41,10 @@ export interface GitGraphProps {
    *  width, its fold and every row drawn are the ones the whole history
    *  gets. Omitted, every row is drawn. */
   rowLimit?: number;
+  /** The branch the repository's remote calls its default (`/api/git/repo`'s
+   *  `defaultBranch`): a trunk HEAD's branch is measured against, ranked
+   *  with develop. Optional; the usual trunk names stand without it. */
+  defaultBranch?: string | null;
 }
 
 /** Where the colours each repository's branches were given are kept. */
@@ -396,7 +400,7 @@ function HoverCard({ state, commit, agent, id }: { state: HoverState; commit: Lo
 let instance = 0;
 
 export default function GitGraph(props: GitGraphProps) {
-  const { repoKey, commits, head, uncommitted, focus, selected, onSelect, onOpen, onAgentCard, liveInsert, agentName, rowLimit } = props;
+  const { repoKey, commits, head, uncommitted, focus, selected, onSelect, onOpen, onAgentCard, liveInsert, agentName, rowLimit, defaultBranch = null } = props;
   const uid = useMemo(() => `gvh${++instance}`, []);
   const listRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
@@ -414,9 +418,9 @@ export default function GitGraph(props: GitGraphProps) {
     slotsRef.current = { repo: repoKey, slots: repoSlots(parseSlotMemory(readStored(LANE_MEMORY_KEY)), repoKey) };
   }
   const layout = useMemo(
-    () => layoutGraph(commits, { head, wip: true, slots: slotsRef.current!.slots }),
+    () => layoutGraph(commits, { head, wip: true, slots: slotsRef.current!.slots, defaultBranch }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [commits, head?.sha, head?.branch, head?.detached, repoKey],
+    [commits, head?.sha, head?.branch, head?.detached, repoKey, defaultBranch],
   );
   useEffect(() => {
     slotsRef.current = { repo: repoKey, slots: layout.slots };
@@ -433,7 +437,7 @@ export default function GitGraph(props: GitGraphProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableHead = useMemo(() => head, [headWords]);
   const focusIds = focus.agentIds === null ? null : focus.agentIds.join("\u0000");
-  const tones = useMemo(() => graphTones(commits, stableHead), [commits, stableHead]);
+  const tones = useMemo(() => graphTones(commits, stableHead, defaultBranch), [commits, stableHead, defaultBranch]);
   const byId = useMemo(() => new Map(commits.map(c => [c.sha, c])), [commits]);
   // HEAD's own line, detached or not: what it cannot reach is dimmed either way.
   const focusKey = layout.headKey;

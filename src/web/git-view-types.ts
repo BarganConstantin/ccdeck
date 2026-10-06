@@ -33,6 +33,9 @@ export interface Repo {
   head: GitHead;
   empty: boolean;
   upstream: GitUpstream | null;
+  /** The branch the remote calls its default (`origin/HEAD`'s), without the
+   *  remote's name; null or absent when no remote names one. */
+  defaultBranch?: string | null;
   stale?: number;
 }
 

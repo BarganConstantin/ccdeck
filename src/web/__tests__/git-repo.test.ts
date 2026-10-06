@@ -17,7 +17,7 @@ process.env.USERPROFILE = HOME;
 process.env.XDG_CONFIG_HOME = join(HOME, ".config");
 
 // @ts-expect-error — plain .mjs server module, no types
-const { resolveRepo, readUpstream } = await import("../../server/git-repo.mjs");
+const { resolveRepo, readUpstream, readDefaultBranch } = await import("../../server/git-repo.mjs");
 
 const made: string[] = [HOME];
 const track = (dir: string) => { made.push(dir); return dir; };
@@ -132,5 +132,32 @@ describe("readUpstream", () => {
     sh(dir, ["branch", "--unset-upstream", "main"]);
     expect(await readUpstream(dir, "main")).toBeNull();
     expect(await readUpstream(dir, null)).toBeNull();
+  });
+});
+
+describe("readDefaultBranch", () => {
+  it("names the branch the remote calls its default, without the remote, origin's first", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    expect(await readDefaultBranch(dir)).toBeNull();
+    sh(dir, ["update-ref", "refs/remotes/fork/stable", "HEAD"]);
+    sh(dir, ["symbolic-ref", "refs/remotes/fork/HEAD", "refs/remotes/fork/stable"]);
+    expect(await readDefaultBranch(dir)).toBe("stable");
+    sh(dir, ["update-ref", "refs/remotes/upstream/trunk", "HEAD"]);
+    sh(dir, ["symbolic-ref", "refs/remotes/upstream/HEAD", "refs/remotes/upstream/trunk"]);
+    expect(await readDefaultBranch(dir)).toBe("trunk");
+    sh(dir, ["update-ref", "refs/remotes/origin/feature/default/x", "HEAD"]);
+    sh(dir, ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/feature/default/x"]);
+    expect(await readDefaultBranch(dir)).toBe("feature/default/x");
+  });
+
+  it("is what a clone records, and rides along on the repository the git view reads", async () => {
+    const src = track(repoWith({ "a.txt": "one\n" }));
+    sh(src, ["branch", "-q", "-m", "development"]);
+    const clone = track(tempDir("ccdeck-git-repo-clone-"));
+    sh(clone, ["clone", "-q", "--no-local", src, "."]);
+    expect(await readDefaultBranch(clone)).toBe("development");
+    // @ts-expect-error — plain .mjs server module, no types
+    const { repoOf } = await import("../../server/git-state.mjs");
+    expect(await repoOf(clone)).toMatchObject({ state: "repo", defaultBranch: "development" });
   });
 });

@@ -21,7 +21,8 @@
 //
 // The log's commits each carry `agent` — who made it, and how the deck knows
 // (git-attribution.mjs) — and the session's own agent commits older than the
-// window follow it with `outsideWindow: true`.
+// window follow it with `outsideWindow: true`. The repository carries
+// `defaultBranch`, the branch its remote calls its default.
 //
 // The repo answer for a session (not narrowed to one subagent) also lists the
 // session's subagents that work in another folder — another worktree, another
