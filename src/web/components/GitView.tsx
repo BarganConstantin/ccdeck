@@ -14,7 +14,7 @@
 // to outlast the panel — its phase, the sizes, the camera beside it, focus to
 // give back — and GitViewBody, mounted only while the panel is, which draws it.
 import {
-  memo, useCallback, useEffect, useLayoutEffect, useRef, useState,
+  memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type CSSProperties, type KeyboardEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -23,7 +23,6 @@ import { useReactFlow, type Node } from "reactflow";
 import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
-import { fitBranch } from "../git-chip";
 import { gitViewFrame, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
 import { splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
@@ -31,7 +30,12 @@ import {
   GIT_VIEW_DEFAULTS, edgeBounds, filesBounds, graphBounds, clampTo, isSheet, panelWidth, readGitViewPrefs,
   splitterTarget, writeGitViewPrefs, type GitViewPrefs, type SplitterKind,
 } from "../git-view-sizes";
-import { gitFactsFor, gitFocus, gitViewOpens, subagentKey } from "../git-view-target";
+import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
+import { madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
+import { collisionCardId, collisionsFor, commitWho, upstreamWords } from "../git-view-words";
+import { setGitViewNewest } from "../git-view-request";
+import { shortAgo } from "../relative-time";
+import { shortModel } from "../model-label";
 import type { GitFileRef } from "../git-view-types";
 import { UNCOMMITTED } from "../git-view-types";
 import { useGitViewRequest, type GitViewHow, type GitViewRequest } from "../git-view-request";
@@ -43,42 +47,12 @@ import type { AgentNodeData } from "../types";
 import { TOOL_LANE_ALLOWANCE } from "../use-camera";
 import { useMirroredRef } from "../use-mirrored-ref";
 import GitHandoffs from "./GitHandoffs";
-import GitDiff from "./GitDiff";
-import GitFiles from "./GitFiles";
+import { CollisionLine, CommitCard, GvIcon, ReadStateLine, useFittedName, type CommitCardFacts } from "./GitViewParts";
+import GitDiff, { readDiffWrap, writeDiffWrap, type GitDiffHandle } from "./GitDiff";
+import GitFiles, { type GitFilesHandle } from "./GitFiles";
 import GitGraph from "./GitGraph";
 
 export type { GitViewHow, GitViewRequest } from "../git-view-request";
-
-// ── icons ────────────────────────────────────────────────────────────────
-// The view's own glyphs, drawn to the deck's 14px grid at a 1.4 stroke.
-const PATHS = {
-  branch: <><circle cx="4.4" cy="3.3" r="1.4" /><circle cx="4.4" cy="10.7" r="1.4" /><circle cx="9.8" cy="4.6" r="1.4" /><path d="M4.4 4.7v4.6M9.8 6c0 2.4-2.2 2.8-5.2 3.5" /></>,
-  commit: <><circle cx="7" cy="7" r="2.3" /><path d="M1.6 7h3.1M9.3 7h3.1" /></>,
-  back: <path d="M8.6 3 4.6 7l4 4" />,
-  close: <path d="M3.6 3.6l6.8 6.8M10.4 3.6l-6.8 6.8" />,
-  chev: <path d="M5.2 3.4 8.8 7l-3.6 3.6" />,
-  share: <path d="M2.4 5h8.8l-2.1-2.1M11.6 9H2.8l2.1 2.1" />,
-  // two arrows meeting at a bar: "both here", never read as a close ×
-  clash: <path d="M7 2.6v8.8M1.4 7h3.4M3.4 5 5.2 7 3.4 9M12.6 7H9.2M10.6 5 8.8 7l1.8 2" />,
-  copy: <><rect x="4.8" y="4.8" width="6.8" height="6.8" rx="1.3" /><path d="M9.2 4.8V3.5a1 1 0 0 0-1-1H3.5a1 1 0 0 0-1 1v4.7a1 1 0 0 0 1 1h1.3" /></>,
-} as const;
-export type GvIconName = keyof typeof PATHS;
-export function GvIcon({ name, size = 13 }: { name: GvIconName; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={name === "clash" ? 1.5 : 1.4}
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{PATHS[name]}</svg>
-  );
-}
-
-/** The three marks a commit can carry: seen by ccdeck, from the commit's
- *  message, no agent seen — a shape each, so colour never carries it alone. */
-export function GvMark({ level }: { level: "seen" | "trailer" | "round" }) {
-  return (
-    <svg className="gv-mark" data-level={level} viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
-      {level === "round" ? <circle cx="5" cy="5" r="3.2" /> : <path d="M5 0.9 9.1 5 5 9.1 0.9 5z" />}
-    </svg>
-  );
-}
 
 // ── the window ───────────────────────────────────────────────────────────
 /** The window's width, settled once per frame while it is being resized. */
@@ -110,6 +84,9 @@ function setInert(els: Iterable<Element>, on: boolean, held: Set<Element>) {
   }
 }
 
+/** How many history rows the panel's first frame draws: a tall pane's worth. */
+const FIRST_ROWS = 24;
+
 /** What the panel's body lends the keys: moving between panes, and the newest diff. */
 interface BodyActions { focusPane: (p: GitViewPane) => void; newest: () => void }
 const NO_ACTIONS: BodyActions = { focusPane: () => {}, newest: () => {} };
@@ -133,11 +110,13 @@ export interface GitViewProps {
   onClose: (how: GitViewHow) => void;
   /** Select another agent: the view follows the selection. */
   onSelectAgent: (id: string) => void;
+  /** Show an agent's card on the canvas, keeping the view on what it shows. */
+  onShowCard: (id: string) => void;
 }
 
 export default function GitView(props: GitViewProps) {
   const request = useGitViewRequest();
-  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, openerRef, onClose, onSelectAgent } = props;
+  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, openerRef, onClose, onSelectAgent, onShowCard } = props;
   const rf = useReactFlow();
   const root = agent ? stateRef.current.agents.get(agent.sessionId) ?? null : null;
   const opens = agent != null && gitViewOpens(gitFactsFor(agent, root));
@@ -201,7 +180,11 @@ export default function GitView(props: GitViewProps) {
       const b = boxOf(n);
       if (b) alarms.push({ id: n.id, ...b });
     }
-    const plan = gitViewFrame({ pane: { width: rect.width, height: rect.height }, cover, session, alarms, anchor });
+    // The category filter bar sits over the canvas's top left: the frame starts
+    // under it, so no framed card or cluster name lands beneath it.
+    const bar = canvas.querySelector(".cat-filter-bar")?.getBoundingClientRect();
+    const top = bar && bar.height > 0 ? bar.bottom - rect.top : 0;
+    const plan = gitViewFrame({ pane: { width: rect.width, height: rect.height }, cover, top, session, alarms, anchor });
     moveCamera(plan.viewport, duration);
     // Cards wholly under the panel cannot be seen, so they cannot be Tab stops either.
     const coverLeft = window.innerWidth - w;
@@ -282,6 +265,8 @@ export default function GitView(props: GitViewProps) {
   const wasWanted = useRef(false);
   const focusInsideRef = useRef(false);
   focusInsideRef.current = request.focusInside;
+  const fileHintRef = useRef(false);
+  fileHintRef.current = request.file != null;
   useEffect(() => {
     const animate = request.how === "pointer";
     if (want) {
@@ -296,7 +281,8 @@ export default function GitView(props: GitViewProps) {
         setBox(prev => (prev && measured && Object.keys(measured).every(k => prev[k as keyof typeof prev] === measured[k as keyof typeof measured]) ? prev : measured));
         coverBehind(true);
         frame(animate ? 200 : 0);
-        if (opening) raf3 = requestAnimationFrame(() => (focusInsideRef.current ? bodyActions.current.focusPane("graph") : takeLostFocus()));
+        // A glance file row hands focus to that file, a commit row to its row.
+        if (opening) raf3 = requestAnimationFrame(() => (focusInsideRef.current ? bodyActions.current.focusPane(fileHintRef.current ? "files" : "graph") : takeLostFocus()));
       }); });
       return () => { cancelAnimationFrame(raf); cancelAnimationFrame(raf2); cancelAnimationFrame(raf3); };
     }
@@ -390,10 +376,10 @@ export default function GitView(props: GitViewProps) {
         onTransitionEnd={onTransitionEnd}
       >
         <GitViewBody
-          agent={shown} root={root} agentKey={bodyKey(shown, root)} rootKey={root?.gitCollisions} request={request} sheet={sheet} prefs={prefs} savePrefs={savePrefs}
+          agent={shown} root={root} agentKey={bodyKey(shown, root)} rootKey={null} request={request} sheet={sheet} prefs={prefs} savePrefs={savePrefs}
           width={width} room={room} win={win} panelRef={panelRef as MutableRefObject<HTMLElement | null>}
           pane={pane} setPane={setPane} actions={bodyActions} onClose={onClose}
-          onResized={reframeNow}
+          onResized={reframeNow} stateRef={stateRef} onSelectAgent={onSelectAgent} onShowCard={onShowCard}
         />
       </section>, document.body)}
       {markers.length > 0 && canvasRef.current && createPortal(
@@ -427,44 +413,19 @@ function EdgeMarkers({ markers, right, now, onGo }: { markers: EdgeMarker[]; rig
 // ── the panel ────────────────────────────────────────────────────────────
 
 /** The fields of an agent the panel reads, joined: when none of them moved,
- *  the panel has nothing to redraw. Git facts are compared by identity. */
-const factsSeen = new WeakMap<object, number>();
-let factsSerial = 0;
+ *  the panel has nothing to redraw. Git facts and collisions are compared by
+ *  identity — each GitObserved and GitCollisions replaces them. */
+const serials = new WeakMap<object, number>();
+let serialNext = 0;
+const serialOf = (o: object | undefined | null): number => {
+  if (!o) return 0;
+  let n = serials.get(o);
+  if (n === undefined) { n = ++serialNext; serials.set(o, n); }
+  return n;
+};
 function bodyKey(agent: AgentNodeData, root: AgentNodeData | null): string {
-  const facts = gitFactsFor(agent, root);
-  let n = facts ? factsSeen.get(facts) : 0;
-  if (facts && n === undefined) { n = ++factsSerial; factsSeen.set(facts, n); }
-  return [agent.id, agent.label, agent.kind, agent.cwd ?? "", root?.label ?? "", n].join("\u0000");
-}
-
-/** The branch name, cut by measuring its box: the ticket first and never cut
- *  inside it (git-chip.ts), the whole name in the tooltip. React's own text
- *  node is rewritten, so React keeps owning it. */
-function useFittedName(name: string, watch: MutableRefObject<HTMLElement | null>) {
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    const text = el?.firstChild;
-    if (!el || !text || text.nodeType !== 3) return;
-    // The name is set in the mono stack, where every character takes one
-    // cell, so the full name's own width says what a cell is.
-    const fit = () => {
-      text.nodeValue = name;
-      const room = el.clientWidth;
-      const full = el.scrollWidth;
-      if (full <= room + 1 || !name.length) return;
-      const cell = full / name.length;
-      text.nodeValue = fitBranch(name, t => t.length * cell <= room);
-    };
-    // The first fit waits for the first frame, which paints the CSS ellipsis;
-    // the observer then answers every width the panel is given.
-    const host = watch.current;
-    if (!host || typeof ResizeObserver === "undefined") { const raf = requestAnimationFrame(fit); return () => cancelAnimationFrame(raf); }
-    const ro = new ResizeObserver(fit);
-    ro.observe(host);
-    return () => ro.disconnect();
-  }, [name]);
-  return ref;
+  return [agent.id, agent.label, agent.kind, agent.cwd ?? "", root?.label ?? "",
+    serialOf(agent.git), serialOf(root?.git), serialOf(root?.gitCollisions)].join("\u0000");
 }
 
 interface BodyProps {
@@ -486,6 +447,11 @@ interface BodyProps {
   actions: MutableRefObject<BodyActions>;
   onClose: (how: GitViewHow) => void;
   onResized: () => void;
+  stateRef: MutableRefObject<GraphState>;
+  /** Select another agent: the view follows. */
+  onSelectAgent: (id: string) => void;
+  /** Show an agent's card on the canvas; the view stays where it is. */
+  onShowCard: (id: string) => void;
 }
 
 /** The panel redraws for what it shows, not for the deck's 250ms clock: the
@@ -501,19 +467,44 @@ function bodyPropsEqual(a: BodyProps, b: BodyProps): boolean {
 
 const GitViewBody = memo(GitViewBodyRaw, bodyPropsEqual);
 
-function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, room, win, panelRef, pane, setPane, actions, onClose, onResized }: BodyProps) {
-  const facts = gitFactsFor(agent, root);
+function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, room, win, panelRef, pane, setPane, actions, onClose, onResized, stateRef, onSelectAgent, onShowCard }: BodyProps) {
   const [widened, setWidened] = useState(false);
   useEffect(() => setWidened(false), [agent.id]);
   const focus = gitFocus(agent, widened);
-  const [sel, setSel] = useState<string>(request.sel ?? UNCOMMITTED);
-  const [file, setFile] = useState<GitFileRef | null>(request.file ?? null);
+  const narrow = focus.agentIds != null;
+  const agentParam = narrow ? focus.agentIds![0] : null;
+  // From a subagent widened to its session, the session's repository is read.
+  const facts = narrow ? gitFactsFor(agent, root) : root?.git ?? gitFactsFor(agent, root);
+  const data = useGitData({
+    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, enabled: true, fresh: true,
+    ownFolder: narrow && agent.git != null,
+  });
+  const view = useGitSelection({
+    data, sessionId: agent.sessionId, agent: agentParam, focus, active: request.open,
+    initial: { sel: request.sel, file: request.file }, seq: request.seq,
+  });
+  const { sel, file } = view;
+  // The panel's first frame draws the history's first rows — what fits in its
+  // pane — and the rest a frame later, so a press shows the view at once
+  // rather than after a hundred rows have rendered.
+  const [allRows, setAllRows] = useState(false);
   useEffect(() => {
-    if (!request.open) return;
-    setSel(request.sel ?? UNCOMMITTED);
-    setFile(request.file ?? null);
+    setAllRows(false);
+    let raf2 = 0;
+    const raf = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => setAllRows(true)); });
+    return () => { cancelAnimationFrame(raf); cancelAnimationFrame(raf2); };
   }, [request.seq, agent.id]);
-  const [wrap, setWrap] = useState(prefs.wrap);
+  const firstRows = useMemo(() => {
+    const all = data.commits;
+    if (!all || allRows) return all;
+    const head = all.slice(0, FIRST_ROWS);
+    // A row asked for further down is drawn with everything from the start.
+    return sel === UNCOMMITTED || head.some(c => c.sha === sel) ? head : all;
+  }, [data.commits, allRows, sel]);
+  const counts = useFocusCounts(data, focus);
+  const [wrap, setWrap] = useState(readDiffWrap);
+  const filesHandle = useRef<GitFilesHandle>(null);
+  const diffHandle = useRef<GitDiffHandle>(null);
 
   const panesRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<HTMLElement>(null);
@@ -536,6 +527,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   }, []);
 
   const focusPane = useCallback((p: GitViewPane) => {
+    // The files and the diff take the keyboard through their own handles.
+    const handle = p === "files" ? filesHandle.current : p === "diff" ? diffHandle.current : null;
+    if (handle) { handle.focus(); setPane(p); return; }
     const section = panelRef.current?.querySelector<HTMLElement>(`[data-gv-pane="${p}"]`);
     if (!section) return;
     // The pane's selected row, else its one tab stop, else (an empty pane) the
@@ -548,7 +542,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     target.scrollIntoView?.({ block: "nearest" });
     setPane(p);
   }, []);
-  actions.current = { focusPane, newest: () => {} };
+  actions.current = { focusPane, newest: view.showLatest };
+  // `n` from the deck, with focus outside the view, reaches the same action.
+  useEffect(() => { setGitViewNewest(view.showLatest); return () => setGitViewNewest(null); }, [view.showLatest]);
 
   // ── dividers ──────────────────────────────────────────────────────────
   const boundsFor = (kind: SplitterKind) => {
@@ -627,15 +623,72 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   };
 
   // ── header ────────────────────────────────────────────────────────────
-  const detached = facts?.detached === true;
-  const branchName = detached ? `detached at ${facts?.sha ?? ""}` : facts?.branch ?? "";
-  const nameRef = useFittedName(branchName, headRef);
-  const repoName = facts?.name ?? agent.cwdBasename ?? "";
-  const repoTitle = facts?.linkedWorktree && facts.mainName && facts.mainName !== facts.name
-    ? `worktree ${facts.name} of ${facts.mainName}` : facts?.topLevel ?? repoName;
-  const narrow = focus.agentIds != null;
+  const repo = data.repo;
+  const head = repo?.head;
+  const detached = head ? head.detached : facts?.detached === true;
+  const shortSha = head?.short ?? facts?.sha ?? "";
+  const branch = head ? head.branch : facts?.branch ?? null;
+  const branchName = detached ? `detached at ${shortSha}` : branch ?? "";
+  const unborn = head ? head.unborn : facts?.unborn === true;
+  const upstream = upstreamWords(repo);
+  const nWord = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  const scopeCounts = data.state === "repo" && data.commits && data.entries
+    ? `${counts.commits ? nWord(counts.commits, "commit") : "no commits"} · ${nWord(counts.files, "file")}` : null;
+  const nameRef = useFittedName(branchName, headRef, `${upstream?.text}|${scopeCounts}|${unborn}`);
+  const repoName = repo?.name ?? facts?.name ?? agent.cwdBasename ?? "";
+  const linked = repo ? repo.linkedWorktree && repo.mainName !== repo.name : facts?.linkedWorktree && facts.mainName && facts.mainName !== facts.name;
+  const repoTitle = linked ? `worktree ${repoName} of ${repo?.mainName ?? facts?.mainName}` : repo?.topLevel ?? facts?.topLevel ?? repoName;
   const who = narrow ? agent : root ?? agent;
   const hue = sessionHue(agent.sessionId);
+  const labelOf = useCallback((id: string) => stateRef.current.agents.get(id)?.label ?? null, []);
+  // The name a canvas card goes by, for a commit the server knows only by its
+  // session (Codex, an unnamed agent).
+  const agentName = useCallback((sessionId: string, agentId: string | null) =>
+    labelOf(agentId ? `${sessionId}::${agentId}` : sessionId), [labelOf]);
+  const collisions = collisionsFor(root?.gitCollisions, focus);
+  const collision = collisions[0] ?? null;
+  const otherOf = (c: { with: { sessionId: string; agentId: string | null } }) => labelOf(collisionCardId(c.with)) ?? labelOf(c.with.sessionId) ?? "another agent";
+  const cliOf = (c: { with: { sessionId: string } }) => {
+    const m = stateRef.current.agents.get(c.with.sessionId)?.model ?? "";
+    return /^(gpt|o\d|codex)/i.test(m) ? "Codex" : m ? "Claude Code" : null;
+  };
+
+  // ── panes ─────────────────────────────────────────────────────────────
+  const reading = data.state !== "repo";
+  const fileCollisions = collisions.filter(c => c.level === "sharp").flatMap(c => c.files.map(path => ({ path, with: otherOf(c) })));
+  const diffCollision = sel === UNCOMMITTED && file ? fileCollisions.find(c => c.path === file.path) ?? null : null;
+  const selectedCommit = sel === UNCOMMITTED ? null : data.commits?.find(c => c.sha === sel) ?? null;
+  const commitBy = selectedCommit ? commitWho(selectedCommit.agent, labelOf) : null;
+  const lastOwn = (data.commits ?? []).find(c => madeByFocus(c, focus));
+
+  // ── the commit card ───────────────────────────────────────────────────
+  const [card, setCard] = useState<{ sha: string; anchor: DOMRect | null } | null>(null);
+  useEffect(() => setCard(null), [agent.id, request.seq]);
+  const cardFacts = (sha: string): CommitCardFacts | null => {
+    const c = data.commits?.find(x => x.sha === sha);
+    if (!c) return null;
+    const a = c.agent;
+    const seenBy = a && "sessionId" in a ? a : null;
+    const cardId = seenBy ? (seenBy.agentId ? `${seenBy.sessionId}::${seenBy.agentId}` : seenBy.sessionId) : null;
+    const known = cardId != null && stateRef.current.agents.has(cardId);
+    return {
+      commit: c, who: commitWho(a, labelOf), sub: seenBy?.agentId != null, hue: seenBy ? sessionHue(seenBy.sessionId) : null,
+      model: seenBy?.model ? `${seenBy.kind === "codex" ? "Codex" : "Claude Code"} · ${shortModel(seenBy.model)}` : null,
+      worked: seenBy?.durationMs != null ? elapsed(0, seenBy.durationMs, seenBy.durationMs) : null,
+      cardId: known ? cardId : null,
+    };
+  };
+  const openCard = useCallback((sha: string) => {
+    const row = panelRef.current?.querySelector<HTMLElement>(`[data-gv-pane="graph"] [role="option"][data-id="${CSS.escape(sha)}"]`);
+    setCard({ sha, anchor: row?.getBoundingClientRect() ?? null });
+  }, []);
+  const cardNow = useMirroredRef(card);
+  const closeCard = useCallback((refocus: boolean) => {
+    const was = cardNow.current;
+    setCard(null);
+    if (was && refocus) panelRef.current?.querySelector<HTMLElement>(`[data-gv-pane="graph"] [role="option"][data-id="${CSS.escape(was.sha)}"]`)?.focus({ preventScroll: true });
+  }, []);
+  const shownCard = card ? cardFacts(card.sha) : null;
 
   return (
     <>
@@ -657,7 +710,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                 <span className="gv-crumb-branch-name" ref={nameRef} data-name={branchName}>{branchName}</span>
               </span>
             )}
-            {facts?.unborn && <span className="gv-fetch gv-fetch-word">no commits yet</span>}
+            {unborn ? <span className="gv-fetch gv-fetch-word">no commits yet</span>
+              : upstream && <span className={`gv-fetch${upstream.word ? " gv-fetch-word" : ""}`} title={upstream.title}>{upstream.text}</span>}
           </div>
           <span
             className={`gv-scope${narrow ? " is-narrow" : ""}`}
@@ -666,6 +720,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           >
             <i className="gv-swatch" aria-hidden="true" />
             <span className="gv-scope-who">{narrow ? `↳ ${agent.label}` : who.label}</span>
+            {scopeCounts && <span className="gv-scope-n">{scopeCounts}</span>}
             {narrow && (
               <button type="button" className="gv-scope-x" aria-label={`Show the whole session, ${root?.label ?? "its main agent"} and its subagents`}
                 title="Show the whole session" onClick={() => { setWidened(true); requestAnimationFrame(() => focusPane("graph")); }}>
@@ -675,8 +730,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           </span>
           <div className="gv-head-end">
             <GitHandoffs
-              sessionId={agent.sessionId} agentId={agent.git ? subagentKey(agent) : null}
-              branch={detached ? null : facts?.branch ?? null} sha={detached ? facts?.sha ?? null : null}
+              sessionId={agent.sessionId} agentId={agentParam}
+              branch={detached ? null : branch} sha={selectedCommit?.sha ?? (detached ? head?.sha ?? null : null)}
               path={agent.cwd ?? null} compact
             />
             <span className="gv-head-rule" aria-hidden="true" />
@@ -685,34 +740,69 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             </button>
           </div>
         </header>
+        {collision && (
+          <CollisionLine c={collision} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
+            onFocus={() => onSelectAgent(collisionCardId(collision.with))} />
+        )}
+        {detached && !reading && (
+          <p className="gv-detached-note">
+            <GvIcon name="commit" />
+            <span>HEAD is detached at <b>{shortSha}</b>, not on a branch.{data.entries && !data.entries.length ? " The folder has no changes." : ""}</span>
+          </p>
+        )}
         <div className="gv-panes" ref={panesRef}>
           <section className="gv-graph" id="gv-graph" aria-label="History" data-gv-pane="graph" ref={graphRef}>
-            <GitGraph
-              repoKey={facts?.topLevel ?? agent.sessionId} commits={[]} head={null}
-              uncommitted={{ files: 0, byFocus: 0, label: who.label }} focus={focus} selected={sel}
-              onSelect={id => { setSel(id); setFile(null); }} onOpen={() => focusPane("files")}
-              onAgentCard={() => {}} liveInsert={null}
-            />
+            {reading || !data.commits ? (
+              <>
+                <div className="gv-pane-head"><span className="gv-pane-title">History</span></div>
+                {reading && <ReadStateLine state={data.state} folder={agent.cwd ?? null} />}
+              </>
+            ) : (
+              <GitGraph
+                repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={firstRows ?? data.commits} head={head ?? null}
+                uncommitted={{ files: counts.changed, byFocus: counts.files, label: who.label }} focus={focus} selected={sel}
+                onSelect={view.setSel} onOpen={() => focusPane("files")}
+                onAgentCard={openCard} liveInsert={data.newShas.length ? { newShas: data.newShas } : null}
+                agentName={agentName}
+              />
+            )}
           </section>
           {splitter("graph", "horizontal", "Resize the history and the files", "gv-graph", "gv-split-h")}
           <div className="gv-bottom" ref={bottomRef}>
             <section className="gv-files" id="gv-files" aria-label="Files" data-gv-pane="files" ref={filesRef}>
-              <GitFiles
-                entries={[]} mode={sel === UNCOMMITTED ? "uncommitted" : "commit"} edits={[]} focus={focus}
-                selected={file} onSelect={setFile} onOpen={() => focusPane("diff")} collisions={[]}
-                name={who.label} sha={sel === UNCOMMITTED ? null : sel}
-              />
+              {reading || !data.entries ? (
+                <div className="gv-pane-head"><span className="gv-pane-title">{sel === UNCOMMITTED ? "Uncommitted" : sel.slice(0, 7)}</span></div>
+              ) : (
+                <GitFiles
+                  ref={filesHandle}
+                  entries={sel === UNCOMMITTED ? data.entries : Array.isArray(view.commitFiles) ? view.commitFiles : []}
+                  mode={sel === UNCOMMITTED ? "uncommitted" : "commit"} edits={data.edits ?? []} focus={focus}
+                  selected={file} onSelect={view.pickFile} onOpen={() => focusPane("diff")} collisions={fileCollisions}
+                  name={who.label} sha={sel === UNCOMMITTED ? null : sel} commitBy={commitBy ?? undefined}
+                  cleanNote={lastOwn ? `Last commit ${shortAgo(Date.now() - Date.parse(lastOwn.date))} by ${commitWho(lastOwn.agent, labelOf) ?? who.label}.` : undefined}
+                />
+              )}
             </section>
             {splitter("files", "vertical", "Resize the files and the diff", "gv-files", "gv-split-v")}
             <section className="gv-diffpane" aria-label="Diff" data-gv-pane="diff">
-              <GitDiff
-                file={file} diff={null} loading={false} stale={false} onShowLatest={() => {}}
-                wrap={wrap} onToggleWrap={() => { setWrap(!wrap); savePrefs({ ...prefs, wrap: !wrap }); }} collision={null}
-              />
+              {reading || !data.entries ? null : (
+                <GitDiff
+                  ref={diffHandle}
+                  file={view.diff.file ?? file} diff={view.diff.loading ? null : view.diff.diff} loading={view.diff.loading}
+                  stale={view.diff.stale} onShowLatest={view.showLatest}
+                  wrap={wrap} onToggleWrap={() => { writeDiffWrap(!wrap); setWrap(!wrap); }}
+                  collision={diffCollision ? { with: diffCollision.with } : null}
+                  emptyReason={sel === UNCOMMITTED && !data.entries.length ? "clean" : "unselected"}
+                />
+              )}
             </section>
           </div>
         </div>
       </div>
+      {shownCard && (
+        <CommitCard facts={shownCard} anchor={card!.anchor} onClose={closeCard}
+          onShow={id => { closeCard(false); if (sheet) onClose("pointer"); onShowCard(id); }} />
+      )}
     </>
   );
 }

@@ -50,3 +50,22 @@ function set(next: GitViewRequest): void {
 export function useGitViewRequest(): GitViewRequest {
   return useSyncExternalStore(subscribe, gitViewRequest, gitViewRequest);
 }
+
+// `n` takes the newest diff of the file the open view shows — from inside the
+// view, and from the deck while the view is open. The view installs it.
+let newest: (() => void) | null = null;
+export function setGitViewNewest(fn: (() => void) | null): void { newest = fn; }
+export function gitViewNewest(): void { newest?.(); }
+
+// The glance's rows open the view through the page's own opener, which checks
+// the folder can be read and remembers what had focus. The page installs it.
+type ViewOpener = (how: GitViewHow, hints: { agentId?: string; focusInside?: boolean; sel?: string | null; file?: GitFileRef | null }) => void;
+let viewOpener: ViewOpener | null = null;
+export function setGitViewOpener(fn: ViewOpener | null): void { viewOpener = fn; }
+export function openGitViewFrom(how: GitViewHow, hints: Parameters<ViewOpener>[1]): void { viewOpener?.(how, hints); }
+
+// A collision line's way to the other agent: select it and bring it into
+// view. The page installs it.
+let agentFocuser: ((id: string) => void) | null = null;
+export function setGitAgentFocuser(fn: ((id: string) => void) | null): void { agentFocuser = fn; }
+export function focusAgentFrom(id: string): void { agentFocuser?.(id); }

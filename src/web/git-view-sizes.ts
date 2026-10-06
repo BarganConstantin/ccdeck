@@ -5,7 +5,7 @@
 // width under it. All three dividers move by pointer or keyboard, every pane
 // keeps a floor (no pane under 220px, the history under 120px, the canvas
 // beside the panel under 360px), and the choice is kept in the deck's own
-// preferences in this browser, with the diff's wrap toggle beside it.
+// preferences in this browser. (The diff keeps its wrap toggle itself.)
 //
 // The fractions are of the box each divider actually resizes — the panel of the
 // window, the history of the box it shares with the panes under it, the files
@@ -20,11 +20,9 @@ export interface GitViewPrefs {
   graphH: number;
   /** The files list's width, as a fraction of the row it shares with the diff. */
   filesW: number;
-  /** Whether the diff wraps long lines. */
-  wrap: boolean;
 }
 
-export const GIT_VIEW_DEFAULTS: Readonly<GitViewPrefs> = { w: 0.6, graphH: 0.42, filesW: 0.4, wrap: true };
+export const GIT_VIEW_DEFAULTS: Readonly<GitViewPrefs> = { w: 0.6, graphH: 0.42, filesW: 0.4 };
 
 /** Below this window width the view is a full sheet over the canvas. */
 export const SHEET_BELOW = 1100;
@@ -33,6 +31,8 @@ export const CANVAS_MIN = 360;
 export const PANE_MIN = 220;
 export const GRAPH_MIN = 120;
 export const FILES_MAX = 520;
+/** The band an inner divider takes between the panes it divides. */
+export const SPLIT_BAND = 9;
 
 export const GIT_VIEW_PREFS_KEY = "agent-dag.gitView";
 
@@ -48,14 +48,13 @@ export function parseGitViewPrefs(raw: string | null): GitViewPrefs {
     w: fraction(o.w, GIT_VIEW_DEFAULTS.w),
     graphH: fraction(o.graphH, GIT_VIEW_DEFAULTS.graphH),
     filesW: fraction(o.filesW, GIT_VIEW_DEFAULTS.filesW),
-    wrap: typeof o.wrap === "boolean" ? o.wrap : GIT_VIEW_DEFAULTS.wrap,
   };
 }
 
 export const readGitViewPrefs = (): GitViewPrefs => parseGitViewPrefs(readStored(GIT_VIEW_PREFS_KEY));
 export const writeGitViewPrefs = (p: GitViewPrefs): void => {
   const round = (n: number) => Math.round(n * 1000) / 1000;
-  writeStored(GIT_VIEW_PREFS_KEY, JSON.stringify({ w: round(p.w), graphH: round(p.graphH), filesW: round(p.filesW), wrap: p.wrap }));
+  writeStored(GIT_VIEW_PREFS_KEY, JSON.stringify({ w: round(p.w), graphH: round(p.graphH), filesW: round(p.filesW) }));
 };
 
 export const isSheet = (windowW: number): boolean => windowW < SHEET_BELOW;
@@ -77,11 +76,13 @@ export function edgeBounds(windowW: number, room: number) {
   const max = Math.max(0, room - CANVAS_MIN);
   return { min: Math.min(PANEL_MIN, max), max };
 }
+/** `box` is the history + files box, `row` the files + diff row, each with
+ *  the divider's own band in it. */
 export function graphBounds(box: number) {
-  return { min: GRAPH_MIN, max: Math.max(GRAPH_MIN, box - PANE_MIN) };
+  return { min: GRAPH_MIN, max: Math.max(GRAPH_MIN, box - SPLIT_BAND - PANE_MIN) };
 }
 export function filesBounds(row: number) {
-  return { min: PANE_MIN, max: Math.max(PANE_MIN, Math.min(FILES_MAX, row - PANE_MIN)) };
+  return { min: PANE_MIN, max: Math.max(PANE_MIN, Math.min(FILES_MAX, row - SPLIT_BAND - PANE_MIN)) };
 }
 
 export type SplitterKind = "edge" | "graph" | "files";

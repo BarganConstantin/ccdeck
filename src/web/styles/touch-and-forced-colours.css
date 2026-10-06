@@ -136,8 +136,10 @@
      the theme would paint as Canvas, so they keep the text colour, and the
      marker and the collision line keep an edge in it. */
   .gv-swatch,
+  .gv-pip,
   .gv-edge-dot { forced-color-adjust: none; background: CanvasText; }
-  .gv-edge-mark { border-color: CanvasText; }
+  .gv-edge-mark,
+  .gv-g-collide { border-color: CanvasText; }
   .gv-collide-line { border-bottom-color: CanvasText; }
 
   .sysdetail .sd-fill,

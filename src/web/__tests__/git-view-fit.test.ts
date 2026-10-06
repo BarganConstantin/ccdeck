@@ -53,6 +53,12 @@ describe("the frame beside the view", () => {
     expect(roomy.viewport.x + 680 * roomy.viewport.zoom).toBeLessThanOrEqual(pane.width - 32);
   });
 
+  it("frames the session's cluster name with it, below the canvas's filter bar", () => {
+    const plan = gitViewFrame({ pane, cover: 504, top: 88, session: [root, sub], alarms: [], anchor: root });
+    // The cluster tag above the top card is inside the frame, under the bar.
+    expect(plan.viewport.y + (root.y - 44) * plan.viewport.zoom).toBeGreaterThanOrEqual(96);
+  });
+
   it("never zooms a card past its natural size", () => {
     const plan = gitViewFrame({ pane, cover: 0, session: [root], alarms: [], anchor: root });
     expect(plan.viewport.zoom).toBeLessThanOrEqual(1);

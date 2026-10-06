@@ -96,6 +96,10 @@ describe("whose work it is", () => {
 });
 
 describe("the reads' rhythm", () => {
+  it("reads the whole team's edits, so the files can name another agent's", () => {
+    expect(sourceOf("use-git-view.ts")).toMatch(/gitQuery\(sessionId, kind === "edits" \? editsAgent : agent\)/);
+  });
+
   const src = sourceOf("use-git-view.ts");
 
   it("never polls: no timer drives a read", () => {
@@ -103,7 +107,7 @@ describe("the reads' rhythm", () => {
   });
 
   it("reads again when the repository's stale counter moves past what was read", () => {
-    expect(src).toMatch(/if \(e\.seen < stale \|\| e\.data\.at === 0 \|\| \(fresh && old\)\) read\(key, sessionId, agent, stale\);/);
+    expect(src).toMatch(/if \(e\.seen < stale \|\| e\.data\.at === 0 \|\| \(fresh && old\)\) read\(key, sessionId, agent, stale, ownFolder \? agent : null\);/);
   });
 
   it("reads the diff a frame after it is asked for, and keeps a newer one aside", () => {

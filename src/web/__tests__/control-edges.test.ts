@@ -638,6 +638,11 @@ const CONTROLS: Control[] = [
   // accent at rest, because it is news the reader has to see, and measured on
   // the panel the header sits on.
   { at: ".gvd-pill", fillFrom: ".gvd-pill", states: [".gvd-pill:hover"], beds: ["--panel"] },
+  // The glance's sharp collision: a bordered line in the error colour at rest,
+  // on the detail panel. Its Open draws no boundary at rest — "Open" is its own
+  // label — and the control edge under the pointer, measured on the panel.
+  { at: ".gv-g-collide", beds: ["--panel"] },
+  { at: ".gv-open:hover", fillFrom: ".gv-open:hover", beds: ["--panel"] },
   // The network map's way in, over Local network's row, on the same terms as
   // the two above: no boundary at rest, an edge under the pointer and the
   // keyboard, measured on the column's foot.
@@ -862,8 +867,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // the canvas beside it, framed at rest in its state's colour, and from 113
     // to 114 with the git history's new-commits pill, framed at rest.
     // And from 114 to 116 with the git view's diff: its Show latest pill,
-    // framed in the accent at rest, and the keycap inside it.
-    expect(EDGED_CONTROLS.length).toBeLessThan(116);
+    // framed in the accent at rest, and the keycap inside it; and to 118 with
+    // the glance's sharp collision line and its Open under the pointer.
+    expect(EDGED_CONTROLS.length).toBeLessThan(118);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

@@ -126,13 +126,13 @@ function trim() {
 
 /** Ask the three reads of one repository; each answer lands as it arrives,
  *  the working tree first, and an older read's late answers are dropped. */
-function read(key: string, sessionId: string, agent: string | null, stale: number): void {
+function read(key: string, sessionId: string, agent: string | null, stale: number, editsAgent: string | null): void {
   const e = entryFor(key);
   const generation = ++e.generation;
   e.seen = stale;
   e.data = { ...e.data, at: Date.now() };
   for (const kind of ["status", "edits", "log"] as const) {
-    fetch(`/api/git/${kind}?${gitQuery(sessionId, agent)}`)
+    fetch(`/api/git/${kind}?${gitQuery(sessionId, kind === "edits" ? editsAgent : agent)}`)
       .then(async r => ({ status: r.status, body: (await r.json().catch(() => ({}))) as Answer }))
       .catch(() => ({ status: 0, body: { error: "the deck did not answer" } as Answer }))
       .then(({ status, body }) => {
@@ -148,12 +148,16 @@ function read(key: string, sessionId: string, agent: string | null, stale: numbe
  * last read answered for reads again. `fresh` asks a read older than ten
  * seconds to be repeated, for a view the reader has just opened.
  */
-export function useGitData({ sessionId, agent, stale, enabled, fresh = false }: {
+export function useGitData({ sessionId, agent, stale, enabled, fresh = false, ownFolder = false }: {
   sessionId: string | null;
   agent: string | null;
   stale: number;
   enabled: boolean;
   fresh?: boolean;
+  /** The subagent works in a folder of its own: its edits are read there.
+   *  Otherwise the session's whole team's edits are read, and the focus
+   *  narrows them where they are drawn, so another agent's edit can be named. */
+  ownFolder?: boolean;
 }): GitData {
   const key = sessionId && enabled ? keyOf(sessionId, agent) : null;
   const subscribe = useCallback((l: () => void) => {
@@ -169,7 +173,7 @@ export function useGitData({ sessionId, agent, stale, enabled, fresh = false }: 
     if (!key || !sessionId) return;
     const e = entryFor(key);
     const old = Date.now() - e.data.at > 10_000;
-    if (e.seen < stale || e.data.at === 0 || (fresh && old)) read(key, sessionId, agent, stale);
+    if (e.seen < stale || e.data.at === 0 || (fresh && old)) read(key, sessionId, agent, stale, ownFolder ? agent : null);
   }, [key, stale, fresh]);
   return data;
 }

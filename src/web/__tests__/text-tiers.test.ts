@@ -213,6 +213,9 @@ describe("what was migrated to the secondary tier", () => {
       // issue from it, never with the contact or the images. Read once, to
       // decide what to write.
       ".fb-where",
+      // The git view's note over a detached HEAD: the sentence that says HEAD
+      // is on no branch, and whether the folder has changes.
+      ".gv-detached-note",
       // The git view's history. A commit subject is a sentence read to
       // know what changed, and the three tones are own (--text), the history it
       // shares with its base (here) and the rest (--muted): the base tone is
@@ -229,6 +232,13 @@ describe("what was migrated to the secondary tier", () => {
       // that says why its open buttons are gone and which machine they would
       // open apps on — read once, in a row whose other parts are buttons.
       ".gv-ho-note",
+      // The glance's one line where there is nothing to list — "No commits
+      // from this session yet.", "Working tree clean.", or why a folder has
+      // no repository to show.
+      ".gv-line-empty",
+      // The glance's note on an ended session: what its marks and its files
+      // still mean.
+      ".gv-note",
       // The git view's one-line states — "No file selected. Pick a file on
       // the left." — a sentence read to understand why a pane is empty.
       ".gv-pane-empty",

@@ -80,9 +80,11 @@ import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useGitOpener } from "./use-git-opener";
 import GitView from "./components/GitView";
-import { closeGitViewRequest, gitViewRequest, openGitViewRequest, type GitViewHow } from "./git-view-request";
+import { closeGitViewRequest, gitViewRequest, openGitViewRequest, setGitAgentFocuser, setGitViewOpener, type GitViewHow } from "./git-view-request";
 import { gitKeyAllowed } from "./git-view-keys";
-import { gitFactsFor, gitViewOpens } from "./git-view-target";
+import { gitFactsFor, gitViewOpens, subagentKey } from "./git-view-target";
+import { UNREADABLE, cachedGitState } from "./use-git-view";
+import { focusCanvasNode } from "./canvas-node-element";
 import { gitOnNow, useGitOn } from "./git-pref";
 import { canvasModalOpen } from "./shortcuts";
 import { modalStack } from "./modal-dismiss";
@@ -485,7 +487,9 @@ function Inner() {
     const id = opts.agentId ?? primarySelectedIdRef.current;
     const agent = id ? stateRef.current.agents.get(id) : undefined;
     if (!agent || !gitOnNow()) return;
-    if (!gitViewOpens(gitFactsFor(agent, stateRef.current.agents.get(agent.sessionId)))) {
+    // Unreadable as the server said on the card, or as the glance's read found.
+    const cached = cachedGitState(agent.sessionId, agent.kind === "subagent" ? subagentKey(agent) : null);
+    if (!gitViewOpens(gitFactsFor(agent, stateRef.current.agents.get(agent.sessionId))) || (cached != null && UNREADABLE.has(cached))) {
       window.dispatchEvent(new CustomEvent("gitview:unreadable", { detail: agent.id }));
       return;
     }
@@ -496,6 +500,11 @@ function Inner() {
     openGitViewRequest(how, opts);
   }, []);
   const closeGitView = useCallback((how: GitViewHow) => closeGitViewRequest(how), []);
+  useEffect(() => { setGitViewOpener(openGitView); return () => setGitViewOpener(null); }, [openGitView]);
+  useEffect(() => {
+    setGitAgentFocuser(id => { selectAgent(id, false); window.requestAnimationFrame(() => focusAgent(id)); });
+    return () => setGitAgentFocuser(null);
+  }, [selectAgent, focusAgent]);
   const toggleGitView = useCallback(() => {
     if (gitViewRequest().open) { closeGitView("key"); return; }
     if (!gitKeyAllowed({
@@ -505,6 +514,13 @@ function Inner() {
     })) return;
     openGitView("key");
   }, [openGitView, closeGitView]);
+  // "Show on canvas" from a commit's card: the camera goes to that agent's
+  // card and gives it focus (a full sheet steps aside first, GitView.tsx).
+  const selectGitAgent = useCallback((id: string) => selectAgent(id, false), [selectAgent]);
+  const showGitAgentCard = useCallback((id: string) => {
+    focusAgent(id);
+    window.requestAnimationFrame(() => focusCanvasNode(id));
+  }, [focusAgent]);
   const openGitViewFromChip = useCallback((agentId: string) => openGitView("pointer", { agentId }), [openGitView]);
   // Settings › Appearance › Git switched off, or nothing selected any more:
   // the view has nothing to be about.
@@ -810,7 +826,8 @@ function Inner() {
       <GitView
         agent={selected ?? null} stateRef={stateRef} now={now} detailShown={detailShown}
         canvasRef={canvasRef} nodesRef={nodesRef} measuredRef={measuredRef} moveCamera={moveCamera}
-        openerRef={gitOpenerRef} onClose={closeGitView} onSelectAgent={id => selectAgent(id, false)}
+        openerRef={gitOpenerRef} onClose={closeGitView} onSelectAgent={selectGitAgent}
+        onShowCard={showGitAgentCard}
       />
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
