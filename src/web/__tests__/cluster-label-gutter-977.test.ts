@@ -126,11 +126,14 @@ describe("the sheet makes the cut read as a cut (#977)", () => {
   });
 
   it("still opts the pill into pointer events, which is why the bound is needed", () => {
-    // `.session-clusters` is `pointer-events: none` and this button turns them
-    // back on. If that ever stops being true the cap is belt without braces —
-    // but it is also what makes a click on a session name work at all.
+    // `.cluster-labels`, the layer the pills are drawn in inside React Flow's
+    // viewport, is `pointer-events: none` and this button turns them back on.
+    // If that ever stops being true the cap is belt without braces — but it is
+    // also what makes a click on a session name work at all
+    // (cluster-label-click.test.ts). The box layer takes none either.
     const rule = /\.cluster-label\s*\{([^}]*)\}/.exec(css)![1];
     expect(rule).toMatch(/pointer-events:\s*auto/);
+    expect(css).toMatch(/\.cluster-labels\s*\{[^}]*pointer-events:\s*none/);
     expect(css).toMatch(/\.session-clusters\s*\{[^}]*pointer-events:\s*none/);
   });
 });

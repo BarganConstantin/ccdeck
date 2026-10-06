@@ -416,7 +416,8 @@ describe("the drag is answered by a class something actually sets", () => {
   it("renders the card's class as a literal, which is what killed the old rule", () => {
     // No conditional, no template literal. This is not a thing to fix here — it
     // is the reason the answer below cannot be a class on the card.
-    expect(tsx).toMatch(/<div className="cluster-card" style=\{boxStyle\} aria-hidden \/>/);
+    // The key is React's, and it never reaches the class list.
+    expect(tsx).toMatch(/<div key=\{c\.sessionId\} className="cluster-card" style=\{boxStyle\} aria-hidden \/>/);
     expect(tsx).not.toMatch(/className=\{[^}]*cluster-card/);
   });
 
