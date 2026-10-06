@@ -82,10 +82,11 @@ export function textColumns(text: string): number {
  * one:
  *
  *   feature/bargan/VCRM-9090 → feature/…/VCRM-9090 → …/VCRM-9090 → VCRM-9090
- *   …/VCRM-9090-make-the-invoice-builder → VCRM-9090…builder → VCRM-9090…
+ *   …/VCRM-9090-make-the-invoice-builder → VCRM-9090-make-th…ilder → VCRM-9090…
  *
- * and a last segment with no ticket is cut in its middle, down to six
- * characters. A last segment that is only a ticket is never cut. Cuts fall
+ * After a ticket, what follows it keeps its start and its end, as a name
+ * without one does; a last segment that is only a ticket is never cut, and a
+ * name without one is cut in its middle, down to six characters. Cuts fall
  * between the characters a reader sees (`graphemes`), never inside one.
  */
 export function branchCandidates(name: string): string[] {
@@ -96,9 +97,9 @@ export function branchCandidates(name: string): string[] {
   if (seg.length > 1) out.push(`…/${last}`, last);
   const ticket = TICKET.exec(last)?.[0];
   if (ticket) {
-    // The ticket stays whole; what follows it is cut from the front.
+    // The ticket stays whole; what follows it gives way in its middle.
     const rest = graphemes(last.slice(ticket.length));
-    for (let tail = rest.length - 2; tail >= 3; tail--) out.push(`${ticket}…${rest.slice(rest.length - tail).join("")}`);
+    for (let keep = rest.length - 2; keep >= 4; keep -= 2) out.push(`${ticket}${middleCut(rest, keep, 0.55)}`);
     if (rest.length) out.push(`${ticket}…`);
   } else {
     const all = graphemes(last);
@@ -113,8 +114,10 @@ function middleCut(chars: string[], keep: number, share: number): string {
   return `${chars.slice(0, head).join("")}…${chars.slice(chars.length - (keep - head)).join("")}`;
 }
 
-/** A ticket key at the start of a segment: `VCRM-9090`, `ABC-12`, `gh-1960`. */
-const TICKET = /^[A-Za-z][A-Za-z0-9]*-\d+/;
+/** A ticket key at the start of a segment: `VCRM-9090`, `ABC-12` — upper-case
+ *  letters and digits, a hyphen, a number. A lower-case word with a number in
+ *  it (`deps-2`, `v2-1`) is part of the name, and is cut like it. */
+const TICKET = /^[A-Z][A-Z0-9]+-\d+/;
 
 /** The longest spelling `fits` accepts. When none does, the last segment
  *  whole, for the sheet's ellipsis to end: a cut word cut again reads as

@@ -85,12 +85,37 @@ describe("a long branch, shortened in the middle", () => {
     expect(fitBranch("feature/bargan/VCRM-9090", fitsIn(30))).toBe("feature/bargan/VCRM-9090");
     expect(fitBranch("feature/bargan/VCRM-9090", fitsIn(20))).toBe("feature/…/VCRM-9090");
     expect(fitBranch("feature/bargan/VCRM-9090", fitsIn(10))).toBe("VCRM-9090");
-    // The ticket leads, whole, then the cut, then the end of the name.
-    expect(fitBranch(long, fitsIn(24))).toBe("VCRM-9090…and-everything");
-    expect(fitBranch(long, fitsIn(13))).toBe("VCRM-9090…ing");
+    // The ticket leads, whole, then the start of what follows it, the cut,
+    // and the end of the name.
+    expect(fitBranch(long, fitsIn(24))).toBe("VCRM-9090-make-th…thing");
+    expect(fitBranch(long, fitsIn(16))).toBe("VCRM-9090-ma…ng");
+    expect(fitBranch(long, fitsIn(13))).toBe("VCRM-9090…");
     expect(fitBranch(long, fitsIn(10))).toBe("VCRM-9090…");
     expect(fitBranch(long, () => false)).toBe("VCRM-9090-make-the-invoice-builder-understand-everything");
     expect(fitBranch("feature/auth-login", () => false)).toBe("auth-login");
+  });
+});
+
+describe("a ticket, by the rule the cards and the git view share", () => {
+  it("is upper-case letters and digits, a hyphen and a number: VCRM-9090, AB2-12", () => {
+    expect(branchFloor("feature/bargan/VCRM-9090-make-the-invoice-builder")).toBe("VCRM-9090…");
+    expect(branchFloor("fix/AB2-12-x")).toBe("AB2-12…");
+    // Not a word that happens to carry a number: those are cut like any name.
+    for (const name of ["chore/deps-2-bump-everything-to-latest", "feature/v2-1-release-candidate-notes", "node-22-upgrade-the-runtime", "bargan/gh-1960-git-view-follow-ups"]) {
+      const floor = branchFloor(name);
+      expect(floor, name).toMatch(/…./);
+      expect(graphemes(floor.replace("…", "")).length, name).toBeGreaterThanOrEqual(8);
+    }
+    expect(branchCandidates("chore/deps-2-bump-everything-to-latest")).not.toContain("deps-2…");
+  });
+
+  it("keeps the start of what follows the ticket, as the mockup cuts it", () => {
+    const cuts = branchCandidates("feature/bargan/VCRM-9090-make-the-invoice-builder-understand-everything");
+    expect(cuts).toContain("VCRM-9090-make-the-invoic…nd-everything");
+    expect(cuts).toContain("VCRM-9090-ma…ng");
+    expect(cuts[cuts.length - 1]).toBe("VCRM-9090…");
+    // Every cut leads with the ticket whole.
+    for (const c of cuts.slice(3)) expect(c.startsWith("VCRM-9090"), c).toBe(true);
   });
 });
 
