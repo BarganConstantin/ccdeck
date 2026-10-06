@@ -17,7 +17,9 @@
 //
 // A read that started before a mark is not trusted after it: each cached
 // answer records the mark count (`epoch`) it began at, and a worktree marked
-// since then is stale for it, whichever finished first.
+// since then is stale for it, whichever finished first. The same holds for a
+// read still running: an asker after a mark starts a read of its own rather
+// than share one that may have looked before the change the mark is for.
 import { codexCwdInWorkspace } from "./log-election.mjs";
 import { filterNames, readUpstream, resolveRepo } from "./git-repo.mjs";
 import { countEntries, readCommit, readCommitFileDiff, readFileDiff, readLog, readStatus } from "./git-reads.mjs";
@@ -30,7 +32,7 @@ const MAX_WORKTREES = 256;
 
 let epoch = 0;
 let now = () => Date.now();
-const folders = new Map();   // folder -> { at, start, result } | { pending }
+const folders = new Map();   // folder -> { at, start, result } | { pending, start }
 const worktrees = new Map(); // topLevel -> { commonDir, marked, stale, status, counted, log, filters }
 
 /** Whether `path` is `root` or inside it, by the platform's own rules. */
@@ -55,8 +57,10 @@ const holds = (entry, wt) => Boolean(entry) && now() - entry.at < MAX_AGE_MS && 
  */
 export async function repoOf(folder) {
   const hit = folders.get(folder);
-  if (hit?.pending) return hit.pending.then(withStale, () => ({ state: "error" }));
-  if (hit && holds(hit, hit.result.state === "repo" ? worktrees.get(hit.result.topLevel) : null)) {
+  // Shared only while no mark has come since it began: which worktree it is
+  // in is not known yet, so any mark counts.
+  if (hit?.pending && epoch < hit.start) return hit.pending.then(withStale, () => ({ state: "error" }));
+  if (hit?.result && holds(hit, hit.result.state === "repo" ? worktrees.get(hit.result.topLevel) : null)) {
     return withStale(hit.result);
   }
   const start = epoch + 1;
@@ -65,19 +69,23 @@ export async function repoOf(folder) {
     if (r.state !== "repo") return r;
     return { ...r, upstream: await readUpstream(r.topLevel, r.head.branch) };
   })();
-  folders.set(folder, { pending });
+  folders.set(folder, { pending, start });
+  // Only the newest read of a folder writes its answer down.
+  const current = () => folders.get(folder)?.pending === pending;
   try {
     const result = await pending;
-    if (folders.get(folder)?.pending === pending) folders.delete(folder);
-    // Transient failures are never kept: the next ask tries again.
-    if (result.state !== "timeout" && result.state !== "error") {
-      folders.set(folder, { at: now(), start, result });
-      while (folders.size > MAX_FOLDERS) folders.delete(folders.keys().next().value);
+    if (current()) {
+      folders.delete(folder);
+      // Transient failures are never kept: the next ask tries again.
+      if (result.state !== "timeout" && result.state !== "error") {
+        folders.set(folder, { at: now(), start, result });
+        while (folders.size > MAX_FOLDERS) folders.delete(folders.keys().next().value);
+      }
     }
     if (result.state === "repo") worktree(result);
     return withStale(result);
   } catch {
-    if (folders.get(folder)?.pending === pending) folders.delete(folder);
+    if (current()) folders.delete(folder);
     return { state: "error" };
   }
 }
@@ -91,11 +99,11 @@ function withStale(result) {
 async function cached(repo, slot, compute) {
   const wt = worktree(repo);
   const hit = wt[slot];
-  if (hit?.pending) return hit.pending;
-  if (hit && holds(hit, wt)) return hit.value;
+  if (hit?.pending && wt.marked < hit.start) return hit.pending;
+  if (hit && !hit.pending && holds(hit, wt)) return hit.value;
   const start = epoch + 1;
   const pending = compute();
-  wt[slot] = { pending };
+  wt[slot] = { pending, start };
   try {
     const value = await pending;
     if (wt[slot]?.pending === pending) wt[slot] = value?.ok === false ? null : { at: now(), start, value };

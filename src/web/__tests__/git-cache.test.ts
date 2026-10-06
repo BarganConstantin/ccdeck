@@ -3,12 +3,14 @@
 // for changes no agent made. These change real repositories behind the cache's
 // back and check what it answers.
 import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { chmodSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import { repoWith, sh, tempDir, write } from "./git-fixture";
 
 const HOME = tempDir("ccdeck-git-cache-home-");
-const KEYS = ["HOME", "USERPROFILE", "XDG_CONFIG_HOME"] as const;
+const KEYS = ["HOME", "USERPROFILE", "XDG_CONFIG_HOME", "PATH", "CCDECK_TEST_GIT_HOLD"] as const;
 const prev = Object.fromEntries(KEYS.map(k => [k, process.env[k]]));
 process.env.HOME = HOME;
 process.env.USERPROFILE = HOME;
@@ -116,6 +118,71 @@ describe("status and history", () => {
     write(dir, { "late.txt": "x\n" });
     await early;
     expect(paths(await statusOf(repo))).toContain("untracked:late.txt");
+  });
+
+  // A git on PATH that, while CCDECK_TEST_GIT_HOLD names a folder, holds the
+  // answer of a `sub` it ran: it leaves `ran` there and answers once `release`
+  // appears. A shell script, so not on Windows.
+  const holdingGit = (sub: string) => {
+    const real = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+    const bin = track(tempDir("ccdeck-git-cache-bin-"));
+    const hold = track(tempDir("ccdeck-git-cache-hold-"));
+    writeFileSync(join(bin, "git"), [
+      "#!/bin/sh",
+      `out=$(mktemp); err=$(mktemp); '${real}' "$@" >"$out" 2>"$err"; code=$?`,
+      `case " $* " in *" ${sub} "*) if [ -n "$CCDECK_TEST_GIT_HOLD" ]; then touch "$CCDECK_TEST_GIT_HOLD/ran"; i=0; while [ ! -e "$CCDECK_TEST_GIT_HOLD/release" ] && [ $i -lt 200 ]; do sleep 0.05; i=$((i+1)); done; fi;; esac`,
+      'cat "$out"; cat "$err" >&2; rm -f "$out" "$err"; exit $code',
+    ].join("\n") + "\n");
+    chmodSync(join(bin, "git"), 0o755);
+    process.env.PATH = `${bin}:${prev.PATH}`;
+    process.env.CCDECK_TEST_GIT_HOLD = hold;
+    return {
+      ran: async () => {
+        for (let i = 0; i < 200 && !existsSync(join(hold, "ran")); i++) await new Promise(r => setTimeout(r, 25));
+        return existsSync(join(hold, "ran"));
+      },
+      release: () => writeFileSync(join(hold, "release"), ""),
+      restore: () => { process.env.PATH = prev.PATH; delete process.env.CCDECK_TEST_GIT_HOLD; },
+    };
+  };
+
+  it.skipIf(process.platform === "win32")("never hands a repository read still running from before a mark to an asker after it", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    const held = holdingGit("symbolic-ref");
+    try {
+      const early = repoOf(dir);
+      expect(await held.ran()).toBe(true);
+      sh(dir, ["checkout", "-q", "-b", "moved"]);
+      markStale(dir);
+      const late = repoOf(dir);
+      held.release();
+      expect((await early).head.branch).toBe("main");
+      expect((await late).head.branch).toBe("moved");
+      expect((await repoOf(dir)).head.branch).toBe("moved");
+    } finally {
+      held.restore();
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("never hands a read still running from before a mark to an asker after it", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    const repo = await repoOf(dir);
+    const held = holdingGit("status");
+    try {
+      const early = statusOf(repo);
+      expect(await held.ran()).toBe(true);
+      // The agent writes a file and its call marks the worktree, while the
+      // read before it is still answering.
+      write(dir, { "late.txt": "x\n" });
+      markStale(dir);
+      const late = statusOf(repo);
+      held.release();
+      expect(paths(await early)).toEqual([]);
+      expect(paths(await late)).toContain("untracked:late.txt");
+      expect(paths(await statusOf(repo))).toContain("untracked:late.txt");
+    } finally {
+      held.restore();
+    }
   });
 
   it("can be told the session's own worktree when the folder it names is spelled differently", async () => {
