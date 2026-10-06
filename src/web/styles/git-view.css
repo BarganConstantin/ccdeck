@@ -192,8 +192,12 @@
    share of .gv-panes, the box its flex-basis resolves against, so the clamp
    the divider works out (git-view-sizes.ts) is the one the layout applies. */
 .gv-panes { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.gv-graph { flex: 0 0 var(--gv-graph-h, 42%); min-height: 120px; display: flex; flex-direction: column; min-width: 0; }
-.gv-bottom { flex: 1; min-height: 220px; display: flex; min-width: 0; }
+/* On a short window (a laptop at 200% zoom: 640x400 CSS px) the history
+   gives way down to its 120px and the files and diff below take what is left,
+   down to the room the history and the divider band (9px) leave: never past
+   the panel's foot, where their last rows could not be scrolled into view. */
+.gv-graph { flex: 0 1 var(--gv-graph-h, 42%); min-height: 120px; display: flex; flex-direction: column; min-width: 0; }
+.gv-bottom { flex: 1; min-height: min(220px, calc(100% - 129px)); display: flex; min-width: 0; }
 .gv-files { flex: 0 0 var(--gv-files-w, 40%); min-width: 220px; max-width: 520px; display: flex; flex-direction: column; min-height: 0; }
 .gv-diffpane { flex: 1; min-width: 220px; display: flex; flex-direction: column; min-height: 0; container: gvdiff / inline-size; }
 /* A pane holds focus itself while its rows are on their way (GitView.tsx
@@ -269,7 +273,9 @@
 .gv-card-btn svg { flex: none; }
 
 /* ------------------------------------------- the glance in the detail panel */
-.gv-glance { gap: 0; }
+/* The detail panel is a scrolling flex column: without flex-shrink: 0 a
+   section taller than its reserve was squeezed back to it, rows and all. */
+.gv-glance { gap: 0; flex-shrink: 0; }
 /* Room for the section's eight rows and its hand-off row, held while the read
    arrives and as the repository changes, so the panel under it stays put. */
 .gv-glance[data-reserve] { min-height: 268px; }

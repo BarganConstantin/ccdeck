@@ -61,6 +61,15 @@ describe("what it covers while open", () => {
   });
 });
 
+describe("the panes on a short window", () => {
+  it("never run past the panel's foot: the history gives way to its floor, the files and diff take the rest", () => {
+    // A laptop at 200% zoom is 640x400 CSS px: the history's 42% and a 220px
+    // floor below it overflowed the panel, and the last rows could not be reached.
+    expect(rule(".gv-graph")).toMatch(/flex: 0 1 var\(--gv-graph-h, 42%\); min-height: 120px;/);
+    expect(rule(".gv-bottom")).toMatch(/min-height: min\(220px, calc\(100% - 129px\)\);/);
+  });
+});
+
 describe("the dividers (WAI-ARIA window splitter)", () => {
   it("are focusable separators with a value, a range and what they control", () => {
     expect(view).toMatch(/role="separator" tabIndex=\{0\} aria-orientation=\{orientation\} aria-label=\{label\}/);

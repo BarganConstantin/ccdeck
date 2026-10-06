@@ -39,7 +39,7 @@ describe("counts on the working tree's rows", () => {
     const html = render();
     expect(html).toContain('<span class="gvf-add">+12<span class="vis-hidden"> added</span></span><span class="gvf-del">−3<span class="vis-hidden"> removed</span></span>');
     expect(html).toContain('<span class="gvf-add">+1,204<span class="vis-hidden"> added</span></span>');
-    expect(html).toContain('<span class="gvf-bin" title="binary file">bin</span>');
+    expect(html).toContain('<span class="gvf-bin" title="binary file"><span aria-hidden="true">bin</span><span class="vis-hidden">binary file</span></span>');
   });
 
   it("says nothing for a change with no counts, and keeps its column so the tags line up", () => {
