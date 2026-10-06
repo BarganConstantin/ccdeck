@@ -44,17 +44,41 @@ export function splitPath(path: string): PathParts {
  */
 export function middleCut(text: string, room: number, measure: Measure, headShare = 0.5): string {
   if (measure(text) <= room) return text;
+  // Kept and cut by what a reader sees as one character: an emoji with its
+  // joiners and modifiers, a letter with its marks, a hidden character's
+  // `⟨U+202E⟩`; never half of a surrogate pair.
+  const u = units(text);
   const spell = (keep: number) => {
     const head = Math.ceil(keep * headShare);
-    return `${text.slice(0, head)}${ELLIPSIS}${text.slice(text.length - (keep - head))}`;
+    return `${u.slice(0, head).join("")}${ELLIPSIS}${u.slice(u.length - (keep - head)).join("")}`;
   };
-  let lo = 0, hi = text.length - 1;
+  let lo = 0, hi = u.length - 1;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
     if (measure(spell(mid)) <= room) lo = mid;
     else hi = mid - 1;
   }
   return spell(lo);
+}
+
+const segmenter = typeof Intl !== "undefined" && "Segmenter" in Intl
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  : null;
+
+/** `text` as the characters a reader sees — grapheme clusters, or code points
+ *  where the platform cannot segment — with each drawn hidden character's
+ *  `⟨U+…⟩` kept as one. */
+export function units(text: string): string[] {
+  const raw = segmenter ? Array.from(segmenter.segment(text), s => s.segment) : Array.from(text);
+  if (!text.includes("⟨U+")) return raw;
+  const out: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const rest = raw.slice(i, i + 9).join("");
+    const m = /^⟨U\+[0-9A-F]{4,6}⟩/.exec(rest);
+    if (m) { out.push(m[0]); i += Array.from(m[0]).length - 1; continue; }
+    out.push(raw[i]);
+  }
+  return out;
 }
 
 /**
@@ -71,7 +95,7 @@ export function fitPath(path: string, room: number, measure: Measure): PathCut {
     // folder still ends where the name begins.
     let folder = middleCut(dir.slice(0, -1), room - measure(base) - measure("/"), measure);
     // A sliver of a folder (`s…/`) reads as noise; `…/` says the same.
-    if (folder.length - 1 < 3) folder = ELLIPSIS;
+    if (units(folder).length - 1 < 3) folder = ELLIPSIS;
     return { dir: `${folder}/`, base, cut: true };
   }
   const whole = middleCut(path, room, measure, 0.4);

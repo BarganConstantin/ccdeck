@@ -1942,6 +1942,24 @@ describe("the git view's diff and file list", () => {
     }
   });
 
+  it("reads the no-newline and carriage-return marks at 4.5:1 on every line bed", () => {
+    for (const theme of themes) {
+      const beds: Array<[string, Rgba, string]> = [
+        ["context line", bed(theme, "var(--panel)"), sheet(".gvd-noeol", "color")],
+        ["added line", bed(theme, sheet('.gvd-line[data-kind="add"]', "background")), sheet('.gvd-line[data-kind="add"] .gvd-noeol', "color")],
+        ["removed line", bed(theme, sheet('.gvd-line[data-kind="del"]', "background")), sheet('.gvd-line[data-kind="del"] .gvd-noeol', "color")],
+      ];
+      for (const [where, b, noeol] of beds) {
+        const r = ratio(theme, noeol, b);
+        expect(r, `${theme} no-newline mark on the ${where} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        const cr = ratio(theme, sheet(".gvd-cr", "color"), b);
+        expect(cr, `${theme} carriage-return mark on the ${where} — ${cr.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+      const ctl = ratio(theme, sheet(".gvd-ctl", "color"), bed(theme, sheet(".gvd-ctl", "background")));
+      expect(ctl, `${theme} a hidden character's code point — ${ctl.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+
   it("reads a hunk's header on its own bed", () => {
     for (const theme of themes) {
       const hunk = bed(theme, sheet(".gvd-hunk", "background"));

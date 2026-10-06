@@ -21,9 +21,12 @@ const MAX_CELLS = 160 * 160;
  *  before marking the difference says anything. */
 const MIN_SHARED = 0.35;
 
-/** Words, runs of white space, and every other character on its own. */
+/** Words (a letter's combining marks with it), runs of white space, an emoji
+ *  whole (its modifiers, variation selectors and joined parts), a flag's two
+ *  letters, and every other character on its own: a changed emoji or syllable
+ *  is marked whole, never as one code point of it. */
 export function tokenize(text: string): string[] {
-  return text.match(/[\p{L}\p{N}_$]+|\s+|[^\p{L}\p{N}_$\s]/gu) ?? [];
+  return text.match(/[\p{L}\p{N}\p{M}_$]+|\s+|\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}\uFE0F]|\u200D\p{Extended_Pictographic}\uFE0F?)*|\p{Regional_Indicator}{2}|[^\p{L}\p{N}_$\s]/gu) ?? [];
 }
 
 /**

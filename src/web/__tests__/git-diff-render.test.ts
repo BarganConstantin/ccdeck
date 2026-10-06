@@ -149,6 +149,16 @@ describe("a read that failed, or a change git no longer lists", () => {
     expect(words(render({ diff: { ok: false, reason: "timeout" }, onRetry: () => {} }))).toContain("Couldn't read this diff. git took too long to answer. Try again");
   });
 
+  it("offers no Try again where reading again cannot help: a partial clone's missing content, a filter it will not run", () => {
+    for (const html of [render({ error: "not-downloaded", onRetry: () => {} }), render({ diff: { ok: false, reason: "not-downloaded" }, onRetry: () => {} })]) {
+      expect(words(html)).toContain("Not downloaded in this partial clone. The deck never fetches");
+      expect(html).not.toContain("Try again");
+    }
+    const unsafe = render({ error: "unsafe", onRetry: () => {} });
+    expect(words(unsafe)).toContain("Couldn't read this diff. git would run a filter program");
+    expect(unsafe).not.toContain("Try again");
+  });
+
   it("says a change git no longer lists is no longer there, rather than an error", () => {
     for (const error of ["unlisted", "no such change in this repository"]) {
       const html = render({ error });
@@ -183,5 +193,24 @@ describe("a commit's files that are still being read, or could not be", () => {
     expect(hook).toMatch(/const setSel = useCallback\(\(id: string\) => \{\n    dropFailures\(id\);/);
     expect(hook).toMatch(/useEffect\(\(\) => \{ dropFailures\(\); \}, \[data\.treeSeq\]\);/);
     expect(sourceOf("components/GitView.tsx")).toMatch(/reading=\{sel === UNCOMMITTED \? null : view\.commitFiles == null \? "loading" : Array\.isArray\(view\.commitFiles\) \? null : view\.commitFiles\}/);
+  });
+});
+
+describe("a rename, and a change of line endings, as the header and lines say them", () => {
+  it("names a renamed file's old path as the list has it, not as git quoted it in the patch", () => {
+    const patch = 'diff --git "a/edge/we\\"q.txt" "b/edge/moved.txt"\nsimilarity index 66%\nrename from "edge/we\\"q.txt"\nrename to "edge/moved.txt"\n@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n';
+    const html = render({ file: { path: "edge/moved.txt", area: "staged", from: "edge/we\"q.txt" }, diff: { ok: true, binary: false, patch, added: 1, removed: 1 } });
+    expect(words(html)).toContain('← we"q.txt · 66%');
+    expect(html).not.toContain("we\\&quot;q.txt&quot;");
+  });
+
+  it("marks the carriage return a line lost, and says only the endings changed", () => {
+    const html = render({ file: { path: "edge/eol.txt", area: "unstaged" }, diff: { ok: true, binary: false, patch: "@@ -1,2 +1,2 @@\n-one\r\n-two\r\n+one\n+two\n", added: 2, removed: 2 } });
+    expect((html.match(/class="gvd-cr"/g) ?? []).length).toBe(2);
+    expect(words(html)).toContain("Only the line endings changed (CRLF → LF).");
+    // A CRLF file with an ordinary edit marks nothing and says nothing.
+    const edit = render({ diff: { ok: true, binary: false, patch: "@@ -1 +1 @@\n-a\r\n+b\r\n", added: 1, removed: 1 } });
+    expect(edit).not.toContain("gvd-cr");
+    expect(edit).not.toContain("line endings");
   });
 });

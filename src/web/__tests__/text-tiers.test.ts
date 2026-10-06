@@ -255,9 +255,14 @@ describe("what was migrated to the secondary tier", () => {
       // gutter, kept here by their bed (--muted on the dark tints is under
       // 4.5:1); and its sentences — the wait for a diff, the note that
       // another agent edited the file, and every placeholder that says what a
-      // file is when there is no diff to draw.
+      // file is when there is no diff to draw. The carriage-return mark of a
+      // line whose only change is its ending, and the no-newline mark on an
+      // added or removed line, are kept here by their bed: --muted on the dark
+      // tints is under 4.5:1.
+      ".gvd-cr",
       ".gvd-hunk-range",
       ".gvd-line[data-kind=\"add\"] .gvd-ln, .gvd-line[data-kind=\"add\"] .gvd-glyph",
+      ".gvd-line[data-kind=\"add\"] .gvd-noeol, .gvd-line[data-kind=\"del\"] .gvd-noeol",
       ".gvd-line[data-kind=\"del\"] .gvd-ln, .gvd-line[data-kind=\"del\"] .gvd-glyph",
       ".gvd-loading",
       ".gvd-note",

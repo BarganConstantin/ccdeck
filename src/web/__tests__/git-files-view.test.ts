@@ -40,7 +40,7 @@ describe("the file list", () => {
   it("cuts paths by measuring, one cut per file, and folds a subagent's name first", () => {
     expect(files).toContain("fitShared(rooms, measure)");
     expect(files).toContain("monoMeasure(PATH_PX)");
-    expect(files).toMatch(/nameFits\(row\.path, withName, measure\)/);
+    expect(files).toMatch(/nameFits\(shownPath\(row\.path\), withName, measure\)/);
     expect(css).toMatch(/\.gvf-row\.is-folded \.gvf-who-name \{ display: none; \}/);
     // No ellipsis on the path: it would take the file name off the end.
     const path = /\.gvf-path \{([^}]*)\}/.exec(css)![1];

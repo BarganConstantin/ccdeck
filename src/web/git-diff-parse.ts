@@ -43,9 +43,16 @@ const REASON: Record<string, string> = {
   error: "git could not read it.",
   "too-large": "The answer was too large.",
   "not-downloaded": "This partial clone has not downloaded it, and the deck never fetches.",
+  unsafe: "git would run a filter program from this repository's settings to read it, and the deck never runs one.",
   off: "Git is switched off in Settings.",
   "the deck did not answer": "The deck did not answer.",
 };
+
+/** The failures reading again cannot mend: the deck will not fetch, run a
+ *  filter, or read past its cap, and a file outside the repository or gone
+ *  stays so. Only the others get a Try again. */
+const LASTING = new Set(["not-downloaded", "unsafe", "too-large", "outside", "gone", "off"]);
+export const failureLasts = (error: string) => LASTING.has(error);
 
 /** A failed read's words: the known reasons in a sentence, anything else as
  *  the route said it. */
@@ -66,6 +73,8 @@ export interface DiffLine {
   text: string;
   /** git's "\ No newline at end of file" came after this line. */
   noEol?: boolean;
+  /** The line ended in a carriage return (CRLF), which its text leaves out. */
+  cr?: boolean;
 }
 
 export interface Hunk {
@@ -109,7 +118,8 @@ export function parsePatch(patch: string): ParsedDiff {
   let hunk: Hunk | null = null;
   let oldLeft = 0, newLeft = 0, oldNo = 0, newNo = 0;
   for (const raw of rows) {
-    const row = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    const cr = raw.endsWith("\r");
+    const row = cr ? raw.slice(0, -1) : raw;
     const h = HUNK.exec(row);
     if (h) {
       oldNo = Number(h[1]);
@@ -124,13 +134,14 @@ export function parsePatch(patch: string): ParsedDiff {
       const sign = row[0];
       // An empty row inside a hunk is an empty context line whose leading
       // space something stripped on the way.
+      const eol = cr ? { cr: true } : {};
       if (sign === " " || row === "") {
-        hunk.lines.push({ kind: "ctx", old: oldNo++, new: newNo++, text: row.slice(1) });
+        hunk.lines.push({ kind: "ctx", old: oldNo++, new: newNo++, text: row.slice(1), ...eol });
         oldLeft--; newLeft--;
         continue;
       }
-      if (sign === "-") { hunk.lines.push({ kind: "del", old: oldNo++, new: null, text: row.slice(1) }); oldLeft--; continue; }
-      if (sign === "+") { hunk.lines.push({ kind: "add", old: null, new: newNo++, text: row.slice(1) }); newLeft--; continue; }
+      if (sign === "-") { hunk.lines.push({ kind: "del", old: oldNo++, new: null, text: row.slice(1), ...eol }); oldLeft--; continue; }
+      if (sign === "+") { hunk.lines.push({ kind: "add", old: null, new: newNo++, text: row.slice(1), ...eol }); newLeft--; continue; }
     }
     if (row.startsWith("\\")) {
       const last = hunk?.lines[hunk.lines.length - 1];
@@ -141,8 +152,8 @@ export function parsePatch(patch: string): ParsedDiff {
     if (hunk) continue;
     let m: RegExpExecArray | null;
     if ((m = /^similarity index (\d+)%$/.exec(row))) out.similarity = Number(m[1]);
-    else if ((m = /^rename from (.+)$/.exec(row))) { out.renamed = true; out.from = m[1]; }
-    else if ((m = /^copy from (.+)$/.exec(row))) { out.copied = true; out.from = m[1]; }
+    else if ((m = /^rename from (.+)$/.exec(row))) { out.renamed = true; out.from = unquotePath(m[1]); }
+    else if ((m = /^copy from (.+)$/.exec(row))) { out.copied = true; out.from = unquotePath(m[1]); }
     else if (/^new file mode /.test(row)) out.created = true;
     else if (/^deleted file mode /.test(row)) out.deleted = true;
     else if ((m = /^old mode (\d+)$/.exec(row))) out.oldMode = m[1];
@@ -152,6 +163,32 @@ export function parsePatch(patch: string): ParsedDiff {
   }
   out.lineCount = out.hunks.reduce((n, x) => n + x.lines.length, 0);
   return out;
+}
+
+const C_ESCAPES: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, "\\": 92 };
+
+/**
+ * A path as git wrote it in a patch header, unquoted: git puts a path that
+ * holds a quote, a backslash, a tab, a newline or another control character
+ * in double quotes with C escapes (`"we\"ird\303\251.txt"`), whatever
+ * core.quotePath says, and octal escapes are the UTF-8 bytes of the name.
+ */
+export function unquotePath(raw: string): string {
+  if (raw.length < 2 || raw[0] !== '"' || raw[raw.length - 1] !== '"') return raw;
+  const bytes: number[] = [];
+  const enc = new TextEncoder();
+  // By code point, so a name's emoji is never split in two.
+  const body = Array.from(raw.slice(1, -1));
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch !== "\\") { bytes.push(...enc.encode(ch)); continue; }
+    const next = body[i + 1];
+    const oct = /^[0-3][0-7]{2}$/.exec(body.slice(i + 1, i + 4).join(""));
+    if (oct) { bytes.push(parseInt(oct[0], 8)); i += 3; continue; }
+    if (next !== undefined && next in C_ESCAPES) { bytes.push(C_ESCAPES[next]); i++; continue; }
+    bytes.push(92);
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
 }
 
 /** How much of a long diff is drawn before the reader asks for more —
@@ -215,8 +252,13 @@ const LOCKS: Array<[RegExp, string]> = [
 
 /** Paths that are generated by their look alone. */
 const GENERATED_PATH = /(^|\/)(__generated__|generated)\/|\.(generated|gen|g|pb|min)\.[a-z0-9]+$|_pb2\.py$|\.pb\.go$|\.map$/i;
-/** The marks generators leave in a file's first lines. */
-const GENERATED_MARK = /@generated|\bDO NOT EDIT\b|\bauto-?generated\b|\bCode generated by\b/i;
+/** The header a generator leaves in a file's first lines: a comment (`//`,
+ *  `#`, `/*`, `*`, `<!--`, `--`, `;`) that opens with `@generated`, "Code
+ *  generated … DO NOT EDIT", "auto-generated" or "DO NOT EDIT". Prose that
+ *  only mentions generated things is not one. */
+const GENERATED_MARK = /^\s*(?:\/\/+|#+|\/\*+|\*+|<!--|--|;+)\s*(?:@generated\b|Code generated\b.*\bDO NOT EDIT\b|(?:This file (?:is|was|has been) )?auto-?generated\b|DO NOT EDIT\b)/i;
+/** Files written for people to read: a generator's mark in one is prose. */
+const PROSE = /\.(?:md|markdown|mdx|txt|rst|adoc|asciidoc|org)$/i;
 
 export type Collapsed = "lock" | "generated";
 
@@ -236,6 +278,7 @@ export function collapsedKind(path: string, parsed?: ParsedDiff | null): Collaps
   if (lockOwner(path)) return "lock";
   if (GENERATED_PATH.test(path)) return "generated";
   const first = parsed?.hunks[0];
+  if (PROSE.test(path)) return null;
   if (first && first.oldStart <= 1 && first.newStart <= 1 && first.lines.slice(0, 5).some(l => GENERATED_MARK.test(l.text))) return "generated";
   return null;
 }
@@ -268,4 +311,46 @@ export function freshLines(prev: ParsedDiff, next: ParsedDiff): Set<string> {
     else out.add(`${hi}:${li}`);
   }));
   return out;
+}
+
+/**
+ * The changed lines whose only change is their line ending — a removed line
+ * and the added line that replaced it, the same text, one ending in a carriage
+ * return and one not — paired as hunkWordMarks pairs them. Their text alone
+ * reads identical, so the pane marks the ending.
+ */
+export function endingOnly(lines: readonly DiffLine[]): Set<number> {
+  const out = new Set<number>();
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].kind !== "del") { i++; continue; }
+    const delStart = i;
+    while (i < lines.length && lines[i].kind === "del") i++;
+    const addStart = i;
+    while (i < lines.length && lines[i].kind === "add") i++;
+    const pairs = Math.min(addStart - delStart, i - addStart);
+    for (let k = 0; k < pairs; k++) {
+      const d = lines[delStart + k], a = lines[addStart + k];
+      if (d.text === a.text && !d.cr !== !a.cr) { out.add(delStart + k); out.add(addStart + k); }
+    }
+  }
+  return out;
+}
+
+/** "CRLF → LF" (or the other way) when every changed line of a diff changed
+ *  only its line ending, else null. */
+export function endingsChange(p: ParsedDiff): string | null {
+  let changed = 0, toLf = 0, toCrlf = 0;
+  for (const h of p.hunks) {
+    const only = endingOnly(h.lines);
+    for (let i = 0; i < h.lines.length; i++) {
+      const l = h.lines[i];
+      if (l.kind === "ctx") continue;
+      changed++;
+      if (!only.has(i)) return null;
+      if (l.kind === "del") { if (l.cr) toLf++; else toCrlf++; }
+    }
+  }
+  if (!changed) return null;
+  return toLf && !toCrlf ? "CRLF → LF" : toCrlf && !toLf ? "LF → CRLF" : "CRLF and LF";
 }
