@@ -50,12 +50,12 @@
 @import "./styles/lan-setup.css";                /* local network setup */
 @import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */
-@import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */
-@import "./styles/claude-fm.css";                /* Claude FM */
-@import "./styles/account-projects.css";         /* the account Projects report */
 @import "./styles/git-files.css";                /* the git view's file list */
 @import "./styles/git-diff.css";                 /* the git view's diff */
-@import "./styles/rating.css";                   /* the one question the deck asks about itself */
 @import "./styles/git-handoffs.css";             /* the git view's hand-off row: open in an app, copy */
 @import "./styles/git-view.css";                 /* the git view: the widened right panel, its panes, the canvas beside it */
 @import "./styles/git-graph.css";                /* the git view's history: graph, rows, ref chips, agent marks */
+@import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */
+@import "./styles/claude-fm.css";                /* Claude FM */
+@import "./styles/account-projects.css";         /* the account Projects report */
+@import "./styles/rating.css";                   /* the one question the deck asks about itself */

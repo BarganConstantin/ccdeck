@@ -50,8 +50,7 @@ describe("what it covers while open", () => {
   it("hides what it covers whole, marked on the root rather than found by :has()", () => {
     expect(css).toMatch(/:root\[data-git-view\] \.app > \.detail,/);
     expect(css).toMatch(/:root\[data-git-view="sheet"\] \.app > main \{ visibility: hidden; \}/);
-    const ownSheet = css.slice(css.indexOf("/* The git view: the detail rail widening"));
-    expect(ownSheet.slice(0, ownSheet.indexOf("/* ------------------------------------------------- forced colours"))).not.toMatch(/:has\(/);
+    expect(own.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/:has\(/);
   });
 
   it("is a full sheet with a way back to the canvas below 1100px", () => {
@@ -101,6 +100,21 @@ describe("the marker for an agent the camera could not keep in view", () => {
 
   it("writes no colour literal in the view's markup", () => {
     expect(view).not.toMatch(/#[0-9a-fA-F]{3,8}\b(?![\w-])/);
+  });
+});
+
+describe("under forced colours", () => {
+  const order = sheetParts().map(([path]) => path);
+  it("answers after every git sheet, so its marks win where they are spelled as the rules they answer", () => {
+    const forced = order.indexOf("styles/touch-and-forced-colours.css");
+    const git = order.filter(path => path.startsWith("styles/git-"));
+    expect(git.length).toBeGreaterThan(4);
+    for (const path of git) expect(order.indexOf(path), path).toBeLessThan(forced);
+  });
+
+  it("spells the diff's changed-word mark as the diff's own rule does", () => {
+    const sheet = sheetParts().find(([path]) => path === "styles/touch-and-forced-colours.css")![1];
+    expect(sheet).toMatch(/\.gvd-line\[data-kind="add"\] \.gvd-word,\s*\.gvd-line\[data-kind="del"\] \.gvd-word \{ forced-color-adjust: none; background: Mark; color: MarkText; \}/);
   });
 });
 
