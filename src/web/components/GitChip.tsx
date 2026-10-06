@@ -32,10 +32,12 @@ const CHIP_PX = 10;
  * for more (`onGive`) while the row still has something to give (`canGive`):
  * the card draws the row again without it, before paint, and the chip measures
  * again — `given` is how much it has been given so far. Only with nothing left
- * does the chip keep its glyph alone.
+ * does the chip keep its glyph alone; and when even all of that did not make
+ * room for the floor, the row takes back what it gave (`onGiveBack`), since
+ * giving it away bought nothing.
  */
-export default function GitChip({ agentId, chip, row, given, canGive, onGive }: {
-  agentId: string; chip: BranchChip; row: string; given: number; canGive: boolean; onGive: () => void;
+export default function GitChip({ agentId, chip, row, given, canGive, onGive, onGiveBack }: {
+  agentId: string; chip: BranchChip; row: string; given: number; canGive: boolean; onGive: () => void; onGiveBack: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   const [label, setLabel] = useState(chip.name);
@@ -74,9 +76,11 @@ export default function GitChip({ agentId, chip, row, given, canGive, onGive }: 
     const chrome = bareNow ? el.offsetWidth + NAME_GAP : el.offsetWidth - name.offsetWidth;
     const room = CARD_INNER_MAX - used - CHIP_GAP - chrome - 1;
     // Under the floor's room the row gives first; with nothing left to give
-    // the glyph stands alone, the name in the tooltip and the accessible name.
+    // the glyph stands alone, the name in the tooltip and the accessible name,
+    // and the row has back what it gave for nothing.
     const fit = fitChip(chip, room, canGive, measure);
     if (fit.give) { onGive(); return; }
+    if (fit.bare && given > 0) { onGiveBack(); return; }
     setLabel(fit.label);
     setBare(fit.bare);
   }, [chip.name, chip.kind, row, given, canGive]);

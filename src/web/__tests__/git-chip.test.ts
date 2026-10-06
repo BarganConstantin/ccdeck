@@ -217,12 +217,25 @@ describe("a tight sub row gives the chip room before the chip gives up its name"
     expect(fitChip(detached, 9, true)).toEqual({ give: false, label: "56aee3d", bare: false });
   });
 
+  it("gives nothing away when even everything the row could give would not make room for the floor", () => {
+    // A 41-character ticket on a root card: the word "session" went and the
+    // chip was bare anyway. Now the row takes back what it gave and the chip
+    // stands bare beside the row as it was.
+    const chip = sourceOf("components/GitChip.tsx");
+    expect(chip).toMatch(/if \(fit\.bare && given > 0\) \{ onGiveBack\(\); return; \}/);
+    const node = sourceOf("components/AgentNode.tsx");
+    expect(node).toContain("const [given, setGiven] = useState({ row: \"\", count: 0, back: false });");
+    expect(node).toContain("const gaveBack = given.row === rowKey && given.back;");
+    expect(node).toMatch(/canGive=\{!gaveBack && giving\.length < yields\.length\}/);
+    expect(node).toMatch(/onGiveBack=\{\(\) => setGiven\(\{ row: rowKey, count: 0, back: true \}\)\}/);
+  });
+
   it("draws the row without what it gave, and starts again whenever the row says something else", () => {
     const node = sourceOf("components/AgentNode.tsx");
     const sub = node.slice(node.indexOf('<div className="sub">'), node.indexOf("</div>", node.indexOf('<div className="sub">')));
     expect(sub).toContain('{kindShown && <span className="sub-kind">{data.kind === "root" ? "session" : "subagent"}</span>}');
     expect(sub).toContain("{shortModel(data.model)}{moreShown ? modelMore : \"\"}");
-    expect(sub).toMatch(/<GitChip agentId=\{data\.id\} chip=\{chip\} row=\{rowKey\} given=\{giving\.length\} canGive=\{giving\.length < yields\.length\}/);
+    expect(sub).toMatch(/<GitChip agentId=\{data\.id\} chip=\{chip\} row=\{rowKey\} given=\{giving\.length\}/);
     // The count of what was given is kept against the row it was worked out
     // for: a row that changes starts from nothing given, in the same render.
     expect(node).toContain("const giving = given.row === rowKey ? yields.slice(0, given.count) : NO_YIELDS;");
