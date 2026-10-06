@@ -12,13 +12,7 @@ import { placePopover } from "../popover-place";
 import { readStored, writeStored } from "../storage";
 import { copyText } from "../copy-text";
 import { shortModel } from "../model-label";
-
-/** Who the view is about: a session, narrowed to some of its subagents. */
-export interface GraphFocus {
-  sessionId: string;
-  /** null for the whole team: the session's own thread and every subagent. */
-  agentIds: string[] | null;
-}
+import type { GraphFocus } from "../git-view-types";
 
 export interface GitGraphProps {
   /** The repository's identity, for the colours it remembers. */
@@ -84,12 +78,14 @@ function agentView(c: LogCommit, focus: GraphFocus, agentName: GitGraphProps["ag
     const name = a.agent === "codex" ? "Codex" : "Claude";
     return { level: "trailer", name, sub: false, hue: null, quiet: false, cli: name, model: null, duration: null };
   }
-  const name = agentName?.(a.sessionId, a.agentId) ?? a.label ?? a.agentType ?? (a.kind === "codex" ? "Codex" : "Claude");
+  const codex = a.kind === "codex";
+  const name = agentName?.(a.sessionId, a.agentId) ?? a.label ?? a.agentType ?? (codex ? "Codex" : "Claude");
   const mine = a.sessionId === focus.sessionId && (focus.agentIds === null || focus.agentIds.includes(a.agentId ?? ""));
+  const ms = a.durationMs ?? null;
   return {
     level: a.confidence, name, sub: a.agentId !== null, hue: sessionHue(a.sessionId), quiet: !mine,
-    cli: a.kind === "codex" ? "Codex" : "Claude Code", model: a.model ? shortModel(a.model) : null,
-    duration: a.durationMs !== null && a.durationMs >= 1000 ? workDuration(a.durationMs) : null,
+    cli: codex ? "Codex" : "Claude Code", model: a.model ? shortModel(a.model) : null,
+    duration: ms !== null && ms >= 1000 ? workDuration(ms) : null,
   };
 }
 
@@ -254,7 +250,11 @@ const HistoryRow = memo(function HistoryRow(p: RowProps) {
             <>
               <span className="gv-wip-label">Uncommitted</span>
               <span className="gv-wip-n">{files} file{files === 1 ? "" : "s"}</span>
-              {byFocus > 0 && <span className="gv-wip-mine" style={{ "--session-hue": p.focusHue } as React.CSSProperties}><i className="gv-swatch" />{byFocus} by {label}</span>}
+              {byFocus > 0 && (
+                <span className="gv-wip-mine" title={`${byFocus} by ${label}`} style={{ "--session-hue": p.focusHue } as React.CSSProperties}>
+                  <i className="gv-swatch" /><span className="gv-wip-who">{byFocus} by {label}</span>
+                </span>
+              )}
             </>
           ) : <span className="gv-wip-label">Working tree clean</span>}
         </span>

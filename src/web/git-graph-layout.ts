@@ -37,62 +37,19 @@
 // existing line.
 
 // ─── what the server sends ────────────────────────────────────────────────
+//
+// The log's shapes are the view's (git-view-types.ts); these are the names
+// this module and the list read them by.
 
-/** The refs pointing at one commit, as `/api/git/log` lists them. */
-export interface LogRefs {
-  local: string[];
-  /** Remote-tracking branches, remote name first: `origin/main`. */
-  remote: string[];
-  tags: string[];
-  /** Whether HEAD is on this commit. */
-  head: boolean;
-}
+import type { CommitAgent, GitHead, LogCommit } from "./git-view-types";
 
-/** An agent the deck saw make a commit, or matched to it after a rewrite. */
-export interface SeenAgent {
-  sessionId: string;
-  /** The subagent's key, or null for the session's own thread. */
-  agentId: string | null;
-  label: string | null;
-  agentType: string | null;
-  kind: "claude" | "codex";
-  model: string | null;
-  durationMs: number | null;
-  confidence: "seen" | "matched";
-}
-
-/** An agent named only by the commit message's trailers. */
-export interface TrailerAgent {
-  agent: "claude" | "codex";
-  confidence: "trailer";
-}
-
-export type LogAgent = SeenAgent | TrailerAgent | null;
-
-/** One commit of `/api/git/log`. */
-export interface LogCommit {
-  sha: string;
-  parents: string[];
-  author: { name: string; email: string };
-  /** Author date, strict ISO 8601. */
-  date: string;
-  subject: string;
-  trailers: Array<{ key: string; value: string }>;
-  refs: LogRefs;
-  agent: LogAgent;
-  /** One of the session's own commits from before the history's window: its
-   *  parents may not be listed, and no lane runs through it. */
-  outsideWindow?: boolean;
-}
-
+export type { LogCommit } from "./git-view-types";
 /** The repository's HEAD, as `/api/git/repo` reports it. */
-export interface RepoHead {
-  branch: string | null;
-  detached: boolean;
-  sha: string | null;
-  short: string | null;
-  unborn: boolean;
-}
+export type RepoHead = GitHead;
+/** Who made a commit, if anyone the deck knows of. */
+export type LogAgent = CommitAgent | null;
+/** An agent the deck saw make a commit, or matched to it after a rewrite. */
+export type SeenAgent = Extract<CommitAgent, { confidence: "seen" | "matched" }>;
 
 export const isSeen = (a: LogAgent): a is SeenAgent => !!a && a.confidence !== "trailer";
 

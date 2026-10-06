@@ -116,9 +116,12 @@
 .gv-cell-sha[data-copy] { cursor: copy; }
 .gv-cell-sha[data-copy]:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .gv-cell-time { flex: 0 0 36px; text-align: right; color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.gv-wip-label { color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.gv-wip-n { color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.gv-wip-mine { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font: 11px/1 var(--font-mono); white-space: nowrap; }
+.gv-wip-label { flex: none; color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.gv-wip-n { flex: none; color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Who edited them is the part that gives way in a narrow pane, its whole
+   words in the title. */
+.gv-wip-mine { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font: 11px/1 var(--font-mono); white-space: nowrap; }
+.gv-wip-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* Ref chips, tinted with their branch's lane (Fork's grammar). */
 .gv-ref {
