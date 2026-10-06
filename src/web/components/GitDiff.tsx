@@ -405,7 +405,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
       <div className="gvd-table">
         <div className="gvd-diff" key={fileKey} style={cols ? { minWidth: `max(100%, calc(${cols}ch + ${GUTTER_PX + CODE_PAD_PX}px))` } : undefined}>
           {blocks.map(k => (
-            <DiffBlock key={k.key} block={k} rows={rows!} watch={watch} heights={heights.current} />
+            <DiffBlock key={k.key} block={k} rows={rows!} watch={watch} heights={heights.current} onDrawn={notePlace} />
           ))}
         </div>
         {b.shown < b.total && (
@@ -739,8 +739,11 @@ function wordMarks(h: Hunk): Map<number, Range[]> {
  * when the diff is not windowed; otherwise an empty box at the height it was
  * last drawn at (or its estimate), so nothing below it moves.
  */
-const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
+const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights, onDrawn }: {
   block: Block; rows: RowsCtx; watch: Watch | null; heights: Map<string, number>;
+  /** Drawn by the window: the reader's line is noted again, since a jump of
+   *  the scroller is noted before the blocks it lands on are drawn. */
+  onDrawn: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(() => !watch || (!heights.has(block.key) && block.top < FIRST_PX));
@@ -755,6 +758,7 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
       setNear(false);
     });
   }, [watch, block.key, heights]);
+  useLayoutEffect(() => { if (watch && near) onDrawn(); }, [watch, near, onDrawn]);
   if (watch && !near) return <div ref={ref} className="gvd-block" style={{ height: heights.get(block.key) ?? block.est }} />;
   const { hi } = block;
   const h = rows.hunks[hi];
