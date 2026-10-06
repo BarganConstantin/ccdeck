@@ -165,43 +165,34 @@ describe("what one offered login would do here", () => {
   const mine = (alive: boolean) => ({ key: "a@x@@o", email: "a@x", alive });
 
   it("says a login this deck lacks arrives, whatever this deck shares", () => {
-    expect(offerLine(theirs(true), null, false))
+    expect(offerLine(theirs(true), null))
       .toEqual({ there: "works there", here: "not on this deck", note: "arrives next round", tone: "wait" });
   });
 
-  it("repairs an expired one whatever this deck shares, from a deck somebody here chose", () => {
-    expect(offerLine(theirs(true), mine(false), true))
-      .toMatchObject({ here: "expired here", note: "repairs next round", tone: "wait" });
+  it("repairs an expired one, whatever this deck shares and whoever made the pairing", () => {
     // The case that had people deleting accounts: it said "share it to
-    // repair" while an add of the same login needed no tick.
-    expect(offerLine(theirs(true), mine(false), false))
+    // repair" while an add of the same login needed no tick. It takes no
+    // share list and no pairing kind now, because the round reads neither.
+    expect(offerLine(theirs(true), mine(false)))
       .toMatchObject({ here: "expired here", note: "repairs next round", tone: "wait" });
-  });
-
-  it("asks for the tick to repair one only from a deck the switch paired, and says why", () => {
-    expect(offerLine(theirs(true), mine(false), true, false).tone).toBe("wait");
-    const unshared = offerLine(theirs(true), mine(false), false, false);
-    expect(unshared.tone).toBe("bad");
-    expect(unshared.note).toContain("paired automatically");
-    expect(unshared.note).toContain("share it to repair");
   });
 
   it("moves nothing from a copy that is broken there", () => {
-    expect(offerLine(theirs(false), mine(true), true))
+    expect(offerLine(theirs(false), mine(true)))
       .toEqual({ there: "broken there", here: "works here", note: null, tone: "idle" });
-    expect(offerLine(theirs(false), mine(false), true).tone).toBe("bad");
-    expect(offerLine(theirs(false), null, true).tone).toBe("idle");
+    expect(offerLine(theirs(false), mine(false)).tone).toBe("bad");
+    expect(offerLine(theirs(false), null).tone).toBe("idle");
   });
 
   it("is plain about the steady state", () => {
-    expect(offerLine(theirs(true), mine(true), true))
+    expect(offerLine(theirs(true), mine(true)))
       .toEqual({ there: "works there", here: "works here", note: null, tone: "ok" });
   });
 
   it("does not call a valid but inaccessible remote Keychain broken or promise a repair", () => {
-    expect(offerLine(theirs(true, false), null, true))
+    expect(offerLine(theirs(true, false), null))
       .toEqual({ there: "cannot share there", here: "not on this deck", note: null, tone: "idle" });
-    expect(offerLine(theirs(true, false), mine(false), true))
+    expect(offerLine(theirs(true, false), mine(false)))
       .toEqual({ there: "cannot share there", here: "expired here", note: null, tone: "idle" });
   });
 
@@ -211,8 +202,7 @@ describe("what one offered login would do here", () => {
   // back to being read rather than scanned.
   it("says what is true HERE in one of three words, and never more", () => {
     const every = [true, false].flatMap(t =>
-      [null, mine(true), mine(false)].flatMap(m =>
-        [true, false].map(s => offerLine(theirs(t), m, s))));
+      [null, mine(true), mine(false)].map(m => offerLine(theirs(t), m)));
     expect(new Set(every.map(o => o.here)))
       .toEqual(new Set(["works here", "expired here", "not on this deck"]));
     expect(new Set(every.map(o => o.there))).toEqual(new Set(["works there", "broken there"]));
@@ -222,12 +212,12 @@ describe("what one offered login would do here", () => {
   // carry none — that silence is what makes the rows that do have one worth
   // looking at, and it is the only thing the warning ink is spent on.
   it("carries a note on exactly the rows where something happens next", () => {
-    expect(offerLine(theirs(true), mine(true), true).note).toBeNull();
-    expect(offerLine(theirs(false), mine(true), true).note).toBeNull();
-    expect(offerLine(theirs(false), null, true).note).toBeNull();
+    expect(offerLine(theirs(true), mine(true)).note).toBeNull();
+    expect(offerLine(theirs(false), mine(true)).note).toBeNull();
+    expect(offerLine(theirs(false), null).note).toBeNull();
     // Both copies gone is the one state with no repair anywhere, and it used
     // to wear the same words and the same ink as the state fixed with a tick.
-    const dead = offerLine(theirs(false), mine(false), true);
+    const dead = offerLine(theirs(false), mine(false));
     expect(dead.note).toContain("sign in again");
     expect(dead.note).not.toContain("share it to repair");
   });
@@ -249,7 +239,7 @@ describe("one login between two decks", () => {
 
   it("shows a valid but temporarily unshareable local login without promising a transfer", () => {
     const local = { ...acct("a", true), shareable: false };
-    expect(offerLine(acct("a", true), local, true))
+    expect(offerLine(acct("a", true), local))
       .toMatchObject({ here: "cannot share here", tone: "idle" });
     expect(exchangeLanes([acct("a", true)], [local], ["a"])[0])
       .toMatchObject({ here: "unavailable", out: "cut", caption: "cannot share here", tone: "idle" });
@@ -281,17 +271,11 @@ describe("one login between two decks", () => {
       .toMatchObject({ in: "wait", out: "cut", caption: "expired here · repairs next round" });
   });
 
-  it("repairs a copy expired here from a deck somebody chose, shared here or not", () => {
+  it("repairs a copy expired here from any paired deck, shared here or not", () => {
     expect(exchangeLanes([acct("a", true)], [acct("a", false)], [])[0])
       .toMatchObject({ in: "wait", out: null, tone: "wait", caption: "expired here · repairs next round" });
   });
 
-  it("stops a copy at this deck, from a deck the switch paired, until this deck shares it too", () => {
-    expect(exchangeLanes([acct("a", true)], [acct("a", false)], [], null, false)[0])
-      .toMatchObject({ in: "blocked", out: null, tone: "bad", caption: "expired here · paired automatically — share it to repair" });
-    expect(exchangeLanes([acct("a", true)], [acct("a", false)], ["a"], null, false)[0])
-      .toMatchObject({ in: "wait", out: "cut", tone: "wait", caption: "expired here · repairs next round" });
-  });
 
   it("says only the broken end when the other one works", () => {
     expect(exchangeLanes([acct("a", false)], [acct("a", true)], ["a"])[0])
@@ -316,6 +300,27 @@ describe("one login between two decks", () => {
 
   it("draws this deck's half alone when what that deck offers is not known", () => {
     expect(exchangeLanes(null, [acct("a", true)], ["a"]).map(l => [l.in, l.out])).toEqual([[null, "live"]]);
+  });
+});
+
+// Its lanes were drawn stopped at this deck — "paired automatically — pair by
+// invite to take it" — because the round took nothing from it that was not
+// ticked here, and a login this deck lacks cannot be ticked here. The round
+// takes what it offers now (lan-switch-pairing.test.ts), and the lanes say so.
+describe("a deck the switch paired", () => {
+  it("draws what it offers as on its way here, not as stopped at this deck", () => {
+    const acct = (key: string, alive: boolean) => ({ key, email: `${key}@x`, alive });
+    // The row 3.38.0's engine sent for such a deck, `autoPaired` and all.
+    const s = {
+      peers: [paired({ autoPaired: true, offers: { at: NOW, accounts: [acct("a", true), acct("b", true)] } })],
+      shared: [],
+    } as never;
+    const [row] = deckRows(s, NOW);
+    const { lanes } = peerView({ row, source: rowSource(s, row), status: s, accounts: [acct("b", false)], now: NOW });
+    expect(lanes).toMatchObject([
+      { key: "a", here: "missing", in: "wait", tone: "wait", caption: "not on this deck · arrives next round" },
+      { key: "b", here: "expired", in: "wait", tone: "wait", caption: "expired here · repairs next round" },
+    ]);
   });
 });
 

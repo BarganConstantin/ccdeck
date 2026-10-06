@@ -346,3 +346,50 @@
   color: var(--muted);
 }
 
+/* What the session is doing, asking or got done. The recap's slot, its three
+   lines and its tier: a row never carries both (session-status.ts, rowLines),
+   and the two are the same kind of sentence. The tag in front is the only
+   colour, and only on the states that already own one — a question wears
+   --warn as the waiting badge does, a failure --err, a finished job --ok.
+   "now" stays muted: a running turn is not an alarm, and --inflight belongs to
+   the tool call, not to the session. */
+.session-list .sl-status {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--text-secondary);
+}
+.session-list .sl-status-tag {
+  /* With the space the markup puts after it, the gap is the recap glyph's. */
+  margin-right: 2px;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* Toned toward the panel in dark, like .sl-waiting-tool above: the pure hues
+   are lit for a badge, and a tag in running text beside them shouts. */
+.session-list .sl-status.status-needs .sl-status-tag { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
+.session-list .sl-status.status-failed .sl-status-tag { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
+.session-list .sl-status.status-done .sl-status-tag { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
+:root[data-theme="light"] .session-list .sl-status.status-needs .sl-status-tag { color: var(--warn); }
+:root[data-theme="light"] .session-list .sl-status.status-failed .sl-status-tag { color: var(--err); }
+:root[data-theme="light"] .session-list .sl-status.status-done .sl-status-tag { color: var(--ok); }
+/* Claude Code's guess at the answer, shown as a guess: metadata tier, one line
+   under the question it answers. */
+.session-list .sl-status-reply {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--muted);
+}
+

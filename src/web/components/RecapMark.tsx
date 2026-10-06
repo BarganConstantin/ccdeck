@@ -18,3 +18,16 @@ export function RecapMark() {
     </svg>
   );
 }
+
+/** The mark in front of a session's note (session-note.ts): Claude Code's ※
+ *  when the note is its recap, and otherwise a plain dot — the ※ is Claude
+ *  Code's sign for a recap, and a line the deck read off a reply is not one.
+ *  Decoration beside the note's word, hidden like the ※. */
+export function NoteMark({ recap }: { recap: boolean }) {
+  if (recap) return <RecapMark />;
+  return (
+    <svg className="recap-glyph note-glyph" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
+      <circle cx="6" cy="6" r="3" fill="currentColor" />
+    </svg>
+  );
+}

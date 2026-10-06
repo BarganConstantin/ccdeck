@@ -10,7 +10,7 @@
 // thermalSnapshot on /api/system, and re-exports sampleThermal and
 // THROTTLE_LABEL, which is where the suite reaches them.
 import { pointsOf, record } from "./metrics-history.mjs";
-import { readThermal } from "./thermal-metrics.mjs";
+import { heldShare, readThermal } from "./thermal-metrics.mjs";
 
 // ---------------------------------------------------------------------------
 // Thermal: how often this machine is asked whether it is getting hot, and when
@@ -60,7 +60,7 @@ function recordThermal(reading, nowMs = Date.now()) {
   // Stored as the share TAKEN AWAY, the same way the panel draws it, so the
   // chart and the row cannot disagree about which direction is bad.
   if (reading.throttle) {
-    record(`thermal:${THROTTLE_LABEL}`, Math.max(0, 100 - reading.throttle.speedLimit), nowMs);
+    record(`thermal:${THROTTLE_LABEL}`, heldShare(reading.throttle), nowMs);
   }
 }
 
@@ -114,7 +114,9 @@ export async function sampleThermal(deps = {}) {
   const read = deps.read ?? readThermal;
   thermalInFlight = true;
   try {
-    const next = await read();
+    // The last reading goes back in because Linux throttling is the difference
+    // between its count and this one's. See readThermal.
+    const next = await read(process.platform, thermal);
     if (next) { thermal = next; thermalMisses = 0; thermalEverAnswered = true; recordThermal(next); }
     else if (++thermalMisses >= THERMAL_GIVE_UP) {
       // DROP THE LAST READING. It used to be kept, and that is a number from
@@ -181,7 +183,11 @@ export function lastThermal() {
 /** The thermal row /api/system answers: the last reading, with whether the
  *  machine has been held back since the deck started, or null without one. */
 export function thermalSnapshot() {
-  return thermal ? { ...thermal, heldBack: heldBackSoFar() } : null;
+  if (!thermal) return null;
+  // The raw kernel count is the sampler's, for the next difference, and not a
+  // reading: the route answers what the panel draws.
+  const { throttleCount, ...shown } = thermal;
+  return { ...shown, heldBack: heldBackSoFar() };
 }
 
 /** The ten-second timer, made where startSystemMetrics in system-metrics.mjs

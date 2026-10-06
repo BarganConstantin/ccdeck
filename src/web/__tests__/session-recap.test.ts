@@ -289,10 +289,12 @@ describe("where it is drawn", () => {
 
   it("the card, the list and the detail panel all ask the one rule", () => {
     const card = read("../components/AgentNode.tsx");
-    expect(card).toContain("const recap = recapShown(data);");
+    // The recap is one thing the session's note can say (session-note.ts), so
+    // the card asks the note's rule, which asks session-recap.ts's.
+    expect(card).toContain("const note = sessionNoteShown(data);");
     expect(card).toMatch(/className="glyph-btn recap-pin"[\s\S]{0,300}aria-expanded=\{noteOpen\}/);
     // Open by itself; the pin says so while it is.
-    expect(card).toContain("const noteOpen = recap != null && !noteDismissed;");
+    expect(card).toContain("const noteOpen = note != null && !noteDismissed;");
     // The note is a node of its own, built beside the root while the recap is
     // true and not put away, and tied to it by an edge from note to root.
     // The two renderers are registered where <ReactFlow> is, in
@@ -310,22 +312,26 @@ describe("where it is drawn", () => {
     expect(noteSrc).toContain('<Handle type="source" position={Position.Right}');
     // A note, not a dialog: appearing on its own, it must never take focus.
     expect(noteSrc).not.toContain("useModalDismiss");
-    expect(read("../components/SessionList.tsx")).toContain("recap: recapShown(a),");
+    // Through the note's rule, which decides between the recap and the status
+    // line that shares its slot — still the one rule, asked the same way.
+    expect(read("../components/SessionList.tsx")).toContain("const note = sessionNoteShown(a);");
     expect(read("../components/SessionList.tsx")).toContain('<span className="sl-recap" title={r.recap.text}><RecapMark />');
     // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
     const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
-    expect(app).toContain("const recap = recapShown(agent);");
-    expect(app).toContain('<p className="detail-recap">{recap.text}</p>');
+    expect(app).toContain("const note = sessionNoteShown(agent);");
+    expect(app).toContain('<p className="detail-recap" title={noteSource(note)}>{note.text}</p>');
   });
 
   it("draws the terminal's ※ rather than typing it, so every platform gets the same figure", () => {
     // U+203B comes from whatever fallback font a platform has; the card and the
     // list share one authored mark instead.
-    // The mark is RecapMark.tsx's, lifted out of the card; the card draws it.
+    // The mark is RecapMark.tsx's, lifted out of the card; the card draws it
+    // through NoteMark, which is the ※ whenever the note is the recap.
     const card = read("../components/AgentNode.tsx");
     const mark = read("../components/RecapMark.tsx");
     expect(mark).toContain('<svg className="recap-glyph" viewBox="0 0 12 12"');
-    expect(card).toContain("<RecapMark />");
+    expect(mark).toContain("if (recap) return <RecapMark />;");
+    expect(card).toContain("<NoteMark recap={isRecap} />");
     expect(card + "\n" + mark).not.toContain("※</");
   });
 

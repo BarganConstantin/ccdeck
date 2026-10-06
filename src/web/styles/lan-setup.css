@@ -542,7 +542,6 @@ input, textarea { caret-color: var(--accent); }
 .lan-chev[data-dir="in"] { left: -1px; }
 .lan-chev[data-dir="out"] { right: -1px; }
 .lan-lane[data-tone="wait"] .lan-chev[data-dir="in"] { color: var(--accent); }
-.lan-chev[data-gate] { color: var(--warn); }
 
 /* The lane's words: only what the marks cannot say, between the rails. */
 .lan-lane-note {

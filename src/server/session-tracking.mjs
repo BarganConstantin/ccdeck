@@ -13,7 +13,10 @@ import { readBody, send } from "./http-io.mjs";
 // What a session is producing between its tool calls — the 16.5% of measured
 // time the hooks cannot see. See output-watch.mjs.
 import { createOutputWatch } from "./output-watch.mjs";
-import { forgetEnrichment, onRecapTail } from "./session-enrichment.mjs";
+// Claude Code's own line for a background session, from its job folder. See
+// claude-jobs.mjs.
+import { createJobWatch } from "./claude-jobs.mjs";
+import { forgetEnrichment, noteJob, onTranscriptTail } from "./session-enrichment.mjs";
 import { forgetCodexSession } from "./codex-enrichment.mjs";
 // What the page was told about each session's repository — see
 // git-watch.mjs.
@@ -101,6 +104,14 @@ const RECAP_WATCH_WINDOW_MS = 12 * 60 * 60_000;
 const RECAP_WATCH_EVERY = 4;
 let outputWatchTicks = 0;
 
+/** The job folders, every other tick: three seconds, well inside the fifteen
+ *  Claude Code itself waits between rewrites of a working job's line. The
+ *  sessions asked about are the resting window's, not the live one's — a
+ *  background job blocked on a question fires no hook for as long as nobody
+ *  answers it, and that is the job whose line matters most. */
+const jobWatch = createJobWatch();
+const JOB_WATCH_EVERY = 2;
+
 /** One tick: stat the recent sessions' transcripts, read only what grew, and
  *  say what landed. Everything expensive about this is guarded inside the watch
  *  — a session that wrote nothing costs one `stat`.
@@ -117,15 +128,23 @@ async function outputWatchOnce() {
   const now = Date.now();
   const cutoff = now - OUTPUT_WATCH_WINDOW_MS;
   const restingCutoff = now - RECAP_WATCH_WINDOW_MS;
-  const withResting = outputWatchTicks++ % RECAP_WATCH_EVERY === 0;
+  const tick = outputWatchTicks++;
+  const withResting = tick % RECAP_WATCH_EVERY === 0;
   const live = new Set();
   const polled = [];
+  const recent = [];
   for (const [sid, at] of sessionTouchedAt) {
     if (at >= cutoff) { live.add(sid); polled.push(sid); }
     else if (withResting && at >= restingCutoff) polled.push(sid);
+    if (at >= restingCutoff) recent.push(sid);
+  }
+  if (recent.length && tick % JOB_WATCH_EVERY === 0) {
+    const jobs = await jobWatch.poll().catch(() => null);
+    if (jobs) for (const sid of recent) noteJob(sid, jobs.get(sid) ?? null);
   }
   if (!polled.length) return;
-  const found = await outputWatch.poll(polled, onRecapTail);
+  // The recap and the activity line, off the same tail — see onTranscriptTail.
+  const found = await outputWatch.poll(polled, onTranscriptTail);
   for (const f of found) {
     if (!live.has(f.sid)) continue;
     pushEvent({

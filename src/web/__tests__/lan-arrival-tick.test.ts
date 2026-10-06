@@ -76,8 +76,8 @@ describe("an account ticked because it arrived", () => {
     const stranger = await strangerOf(laptop);
 
     const got = await roundsUntil(laptop, stranger, X);
-    const row = (laptop.e.status().peers as Array<{ id: string; autoPaired?: boolean }>).find(p => p.id === stranger.id.fp);
-    expect(row?.autoPaired, "the case never reached a pairing the switch made").toBe(true);
+    const pin = (laptop.trustWrites.at(-1) ?? []).find(t => t.fp === stranger.id.fp);
+    expect(pin?.auto, "the case never reached a pairing the switch made").toBe(true);
     expect(stranger.imported, "the login went to a deck nobody here chose").toEqual([]);
     // Not even named: it is not in what the laptop offers that deck.
     expect(got.filter(s => s.key === X)).toEqual([]);
