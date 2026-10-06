@@ -283,6 +283,14 @@ describe("readFileDiff", () => {
     expect(await readFileDiff(dir, entry(entries, "empty.txt", "untracked"))).toMatchObject({ ok: true, added: 0 });
   });
 
+  it("counts a changed line that starts with -- or ++ as a changed line", async () => {
+    const dir = track(repoWith({ "q.sql": "-- comment one\nSELECT 1;\n-- comment two\n", "f.md": "---\ntitle: x\n---\nbody\n" }));
+    write(dir, { "q.sql": "SELECT 1;\n++i;\n", "f.md": "title: x\nbody\n" });
+    const { entries } = await readStatus(dir);
+    expect(await readFileDiff(dir, entry(entries, "q.sql", "unstaged"))).toMatchObject({ added: 1, removed: 2 });
+    expect(await readFileDiff(dir, entry(entries, "f.md", "unstaged"))).toMatchObject({ added: 0, removed: 2 });
+  });
+
   it("answers too large with the sizes instead of the content", async () => {
     const big = "x".repeat(80) + "\n";
     const dir = track(repoWith({ "big.txt": big.repeat(10) }));

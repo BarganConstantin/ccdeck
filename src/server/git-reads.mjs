@@ -370,11 +370,14 @@ export async function countEntries(topLevel, entries, { filters = [] } = {}) {
 
 // ─── diffs ────────────────────────────────────────────────────────────────
 
-/** A unified diff's added and removed line counts. */
+/** A unified diff's added and removed line counts. The patch is one file's,
+ *  so its `---`/`+++` header lines all come before the first hunk; after it, a
+ *  line that starts with `--` or `++` is a changed line like any other. */
 function countLines(patch) {
-  let added = 0, removed = 0;
+  let added = 0, removed = 0, inHunk = false;
   for (const line of patch.split("\n")) {
-    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    if (line.startsWith("@@")) { inHunk = true; continue; }
+    if (!inHunk) continue;
     if (line.startsWith("+")) added++;
     else if (line.startsWith("-")) removed++;
   }
