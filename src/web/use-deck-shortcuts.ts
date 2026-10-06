@@ -14,6 +14,7 @@ import { isCanvasNodeElement } from "./canvas-node-element";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { inKeyScope } from "./git-view-keys";
+import { gitViewNewest } from "./git-view-request";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import type { GraphState } from "./reducer";
 import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
@@ -316,6 +317,9 @@ export function useDeckShortcuts({
       // asks for a selection and the view switched on; the dialog gate above
       // has already said no dialog is in front.
       if (e.key === "g" || e.key === "G") toggleGitView();
+      // The newest diff of the file the open git view shows, from anywhere —
+      // the view takes the same key itself while it has focus.
+      if (e.key === "n" || e.key === "N") { if (gitViewOpenRef.current) gitViewNewest(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

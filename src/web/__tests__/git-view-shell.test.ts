@@ -24,7 +24,7 @@ describe("opening and closing", () => {
   });
 
   it("opens nothing on a folder git cannot read, and tells the glance to answer", () => {
-    expect(app).toMatch(/if \(!gitViewOpens\(gitFactsFor\(agent, stateRef\.current\.agents\.get\(agent\.sessionId\)\)\)\) \{\s*window\.dispatchEvent\(new CustomEvent\("gitview:unreadable"/);
+    expect(app).toMatch(/if \(!gitViewOpens\(gitFactsFor\(agent, stateRef\.current\.agents\.get\(agent\.sessionId\)\)\) \|\| \(cached != null && UNREADABLE\.has\(cached\)\)\) \{\s*window\.dispatchEvent\(new CustomEvent\("gitview:unreadable"/);
   });
 
   it("closes when Settings switches git off, and when nothing is selected", () => {

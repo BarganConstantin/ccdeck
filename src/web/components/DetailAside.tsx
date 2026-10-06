@@ -72,6 +72,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
             onShowSummary={setSummaryFor}
             onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
             onRemove={removeSelectedNode}
+            stateRef={stateRef}
           />
     </aside>
   );

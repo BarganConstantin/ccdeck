@@ -78,21 +78,20 @@
   background: transparent;
   transition: background-color 120ms ease;
 }
+/* The two inner dividers are bands of their own, 9px with the line in the
+   middle, so their grab never lies over a row of the panes beside them. */
 .gv-split-h {
   flex: none;
   position: relative;
   z-index: 2;
   height: 9px;
-  margin: -4px 0;
   cursor: row-resize;
   touch-action: none;
 }
 .gv-split-h::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 1px; background: var(--line); }
 .gv-split-h::after { content: ""; position: absolute; left: 0; right: 0; top: 3px; height: 3px; background: transparent; transition: background-color 120ms ease; }
-/* Starts below the row divider's grab band so the two never share pixels;
-   its line reaches up to meet the other one. */
-.gv-split-v { flex: none; position: relative; z-index: 2; width: 9px; margin: 5px -4px 0; cursor: col-resize; touch-action: none; }
-.gv-split-v::before { content: ""; position: absolute; top: -5px; bottom: 0; left: 4px; width: 1px; background: var(--line); }
+.gv-split-v { flex: none; position: relative; z-index: 2; width: 9px; cursor: col-resize; touch-action: none; }
+.gv-split-v::before { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: var(--line); }
 .gv-edge:hover::after, .gv-edge.is-dragging::after,
 .gv-split-v:hover::after, .gv-split-v.is-dragging::after,
 .gv-split-h:hover::after, .gv-split-h.is-dragging::after { background: var(--accent); }
@@ -223,20 +222,179 @@
   line-height: 18px;
 }
 .gv-pane-empty b { color: var(--text); font-size: 13px; font-weight: 600; }
-.gv-pane-empty code { font: 12px var(--font-mono); color: var(--text); }
-.gv-pane-list { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 2px 0 8px; }
-.gv-pane-list:focus-visible { outline-offset: -2px; }
+.gv-pane-empty code, .gv-line-empty code { color: var(--text); font: 11px var(--font-mono); overflow-wrap: anywhere; }
 
-/* Until a pane's own part is in, its rows are a plain list of what it would
-   show, so the shell can be opened, walked and measured. */
-.gv-stand-row { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 10px 0 var(--panel-inset); color: var(--muted); font-size: 12px; cursor: default; }
-.gv-stand-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gv-stand-row .gv-mono { flex: none; margin-left: auto; color: var(--muted); font-size: 11px; }
-.gv-stand-row[aria-selected="true"] { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
-.gv-wide[data-pane="graph"] .gv-graph .gv-stand-row[aria-selected="true"],
-.gv-wide[data-pane="files"] .gv-files .gv-stand-row[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.gv-stand-row:focus-visible { outline-offset: -2px; }
 
+
+/* A key cap in the view and the glance: the shortcuts sheet's cap, inline. */
+.gv-wide kbd,
+.gv-glance kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: 600 10px/1 var(--font-mono);
+}
+
+/* HEAD detached: said once, under the header, a strip like the collision's. */
+.gv-detached-note { flex: none; display: flex; align-items: center; gap: 8px; min-height: 30px; margin: 0; padding: 0 10px 0 var(--panel-inset); border-bottom: 1px solid var(--line-soft); background: var(--bg-soft); color: var(--text-secondary); font-size: 12px; line-height: 17px; }
+.gv-detached-note svg { flex: none; color: var(--muted); }
+.gv-detached-note b { color: var(--text); font: 600 11px var(--font-mono); }
+
+/* The card a commit row opens with `i` (or its agent chip with a click): the
+   history's hover card made a small dialog, with Show on canvas and Copy SHA.
+   Its head, lines and list are the hover card's own (git-graph.css). */
+.gv-card {
+  position: fixed;
+  z-index: 200;
+  width: 280px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
+}
+.gv-card .gv-pop-dl { margin-top: 2px; }
+.gv-card-actions { align-items: center; }
+.gv-card-sha { margin-right: auto; color: var(--muted); font: 11px/1 var(--font-mono); }
+.gv-card .btn.gv-card-btn { gap: 6px; padding: 0 10px; font-size: 11px; }
+.gv-card-btn svg { flex: none; }
+
+/* ------------------------------------------- the glance in the detail panel */
+.gv-glance { gap: 0; }
+.gv-glance h3 { margin-bottom: 6px; }
+.gv-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 140ms var(--gv-ease);
+}
+.gv-open:hover { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
+.gv-open:active { transform: scale(0.97); }
+.gv-g-branch { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px; color: var(--text); font: 12px/1 var(--font-mono); }
+.gv-g-branch > svg { flex: none; color: var(--muted); }
+.gv-g-branch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gv-ahead { flex: none; margin-left: auto; color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gv-g-collide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--err) 70%, transparent);
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--err);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 140ms var(--gv-ease);
+}
+.gv-g-collide:hover { background: color-mix(in srgb, var(--err) 9%, transparent); }
+.gv-g-collide:active { transform: scale(0.97); }
+.gv-g-collide svg, .gv-g-quiet svg { flex: none; width: 12px; height: 12px; }
+.gv-g-collide span, .gv-g-quiet span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gv-g-collide b { font-weight: 700; }
+/* quiet: no tint, no border, still a way to the other agent */
+.gv-g-quiet {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--r-tag);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, transform 140ms var(--gv-ease);
+}
+.gv-g-quiet:hover { color: var(--text); background: var(--ctl-fill); }
+.gv-g-quiet:active { transform: scale(0.97); }
+.gv-g-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--r-tag);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 140ms var(--gv-ease);
+}
+.gv-g-row:hover { background: var(--ctl-fill); }
+.gv-g-row:active { transform: scale(0.97); }
+.gv-g-row .gv-mark { color: var(--muted); }
+.gv-g-subj { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gv-cc { font-weight: 600; }
+.gv-g-who { flex: none; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 10px/1 var(--font-mono); }
+.gv-g-time { flex: none; min-width: 24px; text-align: right; color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.gv-g-file { gap: 6px; }
+.gv-pip { flex: none; width: 6px; height: 6px; margin-right: 2px; border-radius: 50%; background: hsl(var(--session-hue, 200) 70% var(--session-accent-l)); }
+.gv-st { flex: none; width: 14px; text-align: center; color: var(--muted); font: 600 10px/1 var(--font-mono); }
+.gv-path { display: flex; flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; font: 11px/1.4 var(--font-mono); }
+.gv-dir { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.gv-base { flex: none; color: var(--text); }
+.gv-g-files-head { margin-top: 8px; padding: 0 6px 2px; color: var(--muted); font-size: 11px; }
+.gv-g-files-head b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.gv-g-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  height: 24px;
+  margin-top: 2px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--r-tag);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, transform 140ms var(--gv-ease);
+}
+.gv-g-more:hover { background: var(--ctl-fill); color: var(--text); }
+.gv-g-more:active { transform: scale(0.97); }
+/* A sentence in the glance: why there is no repository, or nothing yet. */
+.gv-line-empty { margin: 0; padding: 2px 6px; border-radius: var(--r-tag); color: var(--text-secondary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.gv-line-empty b { color: inherit; font-weight: 400; }
+/* `g` on that folder: the line answers once, a glow that moves nothing. */
+.gv-line-empty.gv-nudge { animation: gv-nudge 1000ms ease-out; }
+@keyframes gv-nudge {
+  0%, 25% { background-color: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { background-color: transparent; box-shadow: 0 0 0 1px transparent; }
+}
+.gv-note { margin: 2px 6px 0; color: var(--text-secondary); font-size: 11px; line-height: 16px; }
 
 /* --------------------------------------------- the canvas beside the view */
 /* Marked on the root while the panel is open (GitView.tsx, `data-git-view`):
@@ -319,7 +477,12 @@
   .gv-wide[data-motion="instant"] { transition: none; }
   .gv-link:active,
   .gv-scope-x:active,
-  .gv-edge-mark:active { transform: none; }
+  .gv-edge-mark:active,
+  .gv-open:active,
+  .gv-g-collide:active,
+  .gv-g-quiet:active,
+  .gv-g-row:active,
+  .gv-g-more:active { transform: none; }
   @starting-style {
     .gv-wide[data-phase="opening"] { transform: none; opacity: 0; }
   }

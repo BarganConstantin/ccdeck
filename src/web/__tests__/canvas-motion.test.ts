@@ -376,6 +376,13 @@ const PRESSES: Press[] = [
   // with the scale property instead.
   [".gv-agent-chip:active", "0.97", "transform"],
   [".gv-new-pill:active", "0.97", "scale"],
+  // The glance in the detail panel: its Open, its rows, its "+N more" and its
+  // collision lines, each a labelled control.
+  [".gv-open:active", "0.97", "transform"],
+  [".gv-g-row:active", "0.97", "transform"],
+  [".gv-g-more:active", "0.97", "transform"],
+  [".gv-g-collide:active", "0.97", "transform"],
+  [".gv-g-quiet:active", "0.97", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],

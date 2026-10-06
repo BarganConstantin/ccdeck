@@ -36,6 +36,9 @@ export interface GitViewFramePlan {
 
 /** The canvas's own furniture the frame keeps clear of, before the panel. */
 export const GIT_FIT_INSETS: Readonly<PaneInsets> = { top: 56, left: 72, bottom: 32, right: 32 };
+/** Room above a session's cards for its cluster's frame and name tag, in flow
+ *  units, so the tag is framed with the cards it names. */
+export const CLUSTER_LABEL_ROOM = 44;
 /** How far out the frame may zoom to keep the whole session in view. */
 export const GIT_FIT_MIN_ZOOM = 0.2;
 const FILL = 0.9;
@@ -51,14 +54,20 @@ const FILL = 0.9;
  * the session wins and the alarms are named as left out. `anchor`, the
  * selected card, is always kept whole and inside the frame.
  */
-export function gitViewFrame({ pane, cover, session, alarms, anchor }: {
+export function gitViewFrame({ pane, cover, top = 0, session, alarms, anchor }: {
   pane: { width: number; height: number };
   cover: number;
+  /** Where the canvas's own chrome along the top (the category filter bar)
+   *  ends, in px from the canvas top; the frame starts below it. */
+  top?: number;
   session: SessionCard[];
   alarms: FitCard[];
   anchor: FlowBox;
 }): GitViewFramePlan {
-  const insets: PaneInsets = { ...GIT_FIT_INSETS, right: cover + GIT_FIT_INSETS.right };
+  const insets: PaneInsets = { ...GIT_FIT_INSETS, top: Math.max(GIT_FIT_INSETS.top, top + 8), right: cover + GIT_FIT_INSETS.right };
+  const labelled = <T extends FlowBox>(b: T): T => ({ ...b, y: b.y - CLUSTER_LABEL_ROOM, height: b.height + CLUSTER_LABEL_ROOM });
+  session = session.map(labelled);
+  alarms = alarms.map(labelled);
   const width = Math.max(1, pane.width - insets.left - insets.right);
   const height = Math.max(1, pane.height - insets.top - insets.bottom);
   const fitsAt = (box: FlowBox) => Math.min(width / Math.max(1, box.width), height / Math.max(1, box.height)) * FILL;

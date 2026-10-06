@@ -3,7 +3,7 @@
 // keyboard, and a remembered choice that survives a bad value in the store.
 import { describe, expect, it } from "vitest";
 import {
-  CANVAS_MIN, GIT_VIEW_DEFAULTS, PANE_MIN, PANEL_MIN, edgeBounds, filesBounds, graphBounds, isSheet,
+  CANVAS_MIN, GIT_VIEW_DEFAULTS, PANE_MIN, PANEL_MIN, SPLIT_BAND, edgeBounds, filesBounds, graphBounds, isSheet,
   panelWidth, parseGitViewPrefs, splitterTarget,
 } from "../git-view-sizes";
 
@@ -27,11 +27,11 @@ describe("the panel's width", () => {
 
 describe("the dividers' floors", () => {
   it("keeps the history at 120px or more and the panes under it at 220px or more", () => {
-    expect(graphBounds(700)).toEqual({ min: 120, max: 700 - PANE_MIN });
+    expect(graphBounds(700)).toEqual({ min: 120, max: 700 - SPLIT_BAND - PANE_MIN });
   });
 
   it("keeps the files list and the diff at 220px or more, the list at 520px or less", () => {
-    expect(filesBounds(600)).toEqual({ min: PANE_MIN, max: 600 - PANE_MIN });
+    expect(filesBounds(600)).toEqual({ min: PANE_MIN, max: 600 - SPLIT_BAND - PANE_MIN });
     expect(filesBounds(1400)).toEqual({ min: PANE_MIN, max: 520 });
   });
 });
@@ -63,13 +63,13 @@ describe("a divider from the keyboard", () => {
 
 describe("the remembered sizes", () => {
   it("reads what was stored", () => {
-    expect(parseGitViewPrefs(JSON.stringify({ w: 0.5, graphH: 0.3, filesW: 0.35, wrap: false })))
-      .toEqual({ w: 0.5, graphH: 0.3, filesW: 0.35, wrap: false });
+    expect(parseGitViewPrefs(JSON.stringify({ w: 0.5, graphH: 0.3, filesW: 0.35 })))
+      .toEqual({ w: 0.5, graphH: 0.3, filesW: 0.35 });
   });
 
   it("falls back per field, and on a store that is not JSON at all", () => {
-    expect(parseGitViewPrefs(JSON.stringify({ w: 7, graphH: "x", wrap: false })))
-      .toEqual({ ...GIT_VIEW_DEFAULTS, wrap: false });
+    expect(parseGitViewPrefs(JSON.stringify({ w: 7, graphH: "x", filesW: 0.3 })))
+      .toEqual({ ...GIT_VIEW_DEFAULTS, filesW: 0.3 });
     expect(parseGitViewPrefs("{not json")).toEqual(GIT_VIEW_DEFAULTS);
     expect(parseGitViewPrefs(null)).toEqual(GIT_VIEW_DEFAULTS);
   });

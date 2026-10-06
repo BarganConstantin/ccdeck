@@ -6,6 +6,7 @@
 import React from "react";
 
 import CostBar from "./CostBar";
+import GitGlance from "./GitGlance";
 import { mcpChipIdentity } from "../tool-skin";
 import { DETAIL_CAT_EMOJI, DETAIL_CAT_LABEL, detailCategoryFor, type DetailCategory } from "../detail-category";
 // The detail panel used to spell both of these out inline — an elapsed clock a
@@ -18,6 +19,8 @@ import { fmtCost } from "../pricing";
 import { promptTime } from "../relative-time";
 import { recapShown } from "../session-recap";
 import { fmtTokens } from "../token-format";
+import type { MutableRefObject } from "react";
+import type { GraphState } from "../reducer";
 import type { AgentNodeData, PromptEntry, ToolCall } from "../types";
 import { agentCost, otherModelIds } from "../usage-models";
 
@@ -28,6 +31,7 @@ export default function Detail({
   onShowSummary,
   onExportSession,
   onRemove,
+  stateRef,
 }: {
   agent: AgentNodeData;
   now: number;
@@ -36,6 +40,8 @@ export default function Detail({
   onShowSummary?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   onRemove?: () => void;
+  /** The graph, for the Git section's other agents (GitGlance.tsx). */
+  stateRef?: MutableRefObject<GraphState>;
 }) {
   // The panel and the card it was opened from are on screen together, so this
   // is the card's clock rather than a second one written out here (#374). The
@@ -152,6 +158,12 @@ export default function Detail({
           )}
         </div>
       </header>
+
+      {/* The Git section, right under the header and above the recap: what
+          the agent changed is the first question when it waits on you. */}
+      {stateRef && (
+        <GitGlance agent={agent} root={stateRef.current.agents.get(agent.sessionId) ?? null} now={now} stateRef={stateRef} />
+      )}
 
       {/* Claude Code's recap, whole — the one surface with the room for all of
           it. The card clamps it to two lines and the session list to three;
