@@ -412,7 +412,7 @@ describe("the sharp mark on the card", () => {
     const a = s.agents.get(UI)!;
     expect(agentAriaLabel(a, T0, false, "src/app.ts also edited by web-bugfix")).toMatch(/^web-app, session, live, src\/app\.ts also edited by web-bugfix, /);
     expect(agentAriaLabel(a, T0, false)).not.toContain("also edited");
-    expect(sourceOf("canvas-flow.ts")).toMatch(/agentAriaLabel\(a, now, selectedIds\.has\(a\.id\), gitWords\(dataFor\(a\)\)\)/);
+    expect(sourceOf("canvas-flow.ts")).toMatch(/agentAriaLabel\(dataFor\(a\), now, selectedIds\.has\(a\.id\), gitWords\(dataFor\(a\)\)\)/);
   });
 });
 

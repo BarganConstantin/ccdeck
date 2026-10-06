@@ -64,12 +64,34 @@ function peersOf(agents: Iterable<NamedCard>): Peers {
  */
 function nameWith(card: NamedCard, peers: Peers): string {
   if (card.kind === "subagent") {
-    const same = peers.subs.get(subGroup(card)) ?? [];
-    return same.length > 1 ? `${card.label} · ${distinctIdTail(subKeyOf(card), same)}` : card.label;
+    const tail = subTailWith(card, peers);
+    return tail ? `${card.label} · ${tail}` : card.label;
   }
   const name = ownName(card);
   const same = (card.sessionName?.trim() ? peers.named.get(name) : peers.workspace.get(card.label)) ?? [];
   return same.length > 1 ? `${name} · ${distinctIdTail(card.sessionId, same)}` : name;
+}
+
+/** A subagent's key's tail, when its session has another subagent of its type. */
+function subTailWith(card: NamedCard, peers: Peers): string | null {
+  const same = peers.subs.get(subGroup(card)) ?? [];
+  return same.length > 1 ? distinctIdTail(subKeyOf(card), same) : null;
+}
+
+/** The tail each subagent card's title carries, by card id: the one every git
+ *  surface names it by after its type ("general-purpose · f002"), for the
+ *  subagents whose session has another of their type — so a collision warning
+ *  that names one can be matched to its card. The rest are absent. */
+export function subagentTails(agents: Iterable<NamedCard>): Map<string, string> {
+  const cards = [...agents];
+  const peers = peersOf(cards);
+  const out = new Map<string, string>();
+  for (const c of cards) {
+    if (c.kind !== "subagent") continue;
+    const tail = subTailWith(c, peers);
+    if (tail) out.set(c.id, tail);
+  }
+  return out;
 }
 
 const cardIdOf = (sessionId: string, agentId: string | null) => (agentId ? `${sessionId}::${agentId}` : sessionId);

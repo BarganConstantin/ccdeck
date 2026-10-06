@@ -62,12 +62,14 @@ export function spawnBadgeTitle(count: number): string {
  *  is composed from the data instead, so it does not change with zoom, and it
  *  says the things a reader chooses a card by, in the card's own words: name,
  *  kind, the state pill, the waiting sentence, model, tools, failures, cost. */
-export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false, git: string | null = null): string {
+export function agentAriaLabel(data: AgentNodeData & { nameTail?: string }, now: number = Date.now(), selected = false, git: string | null = null): string {
   // Over the agent's whole life, like the card's "err" (#1809).
   const failed = data.toolErrorCount ?? 0;
   const cost = agentCost(data, now).total;
   return [
-    data.label,
+    // A subagent's title carries its key's tail beside a teammate of its type,
+    // as the collision warnings that name it do (canvas-flow.ts).
+    data.nameTail ? `${data.label} · ${data.nameTail}` : data.label,
     data.kind === "root" ? "session" : "subagent",
     stateLabel(data.state),
     isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,

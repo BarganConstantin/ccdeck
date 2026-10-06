@@ -69,7 +69,7 @@ describe("the canvas wiring (#853)", () => {
     // The node is built in canvas-flow.ts since #1175; App registers the
     // renderer and this is what it is handed.
     // The card's own sharp git collision rides along (git-card-mark.ts).
-    expect(flowCode).toMatch(/type: "agent",[\s\S]{0,240}?ariaLabel: agentAriaLabel\(a, now, selectedIds\.has\(a\.id\), gitWords\(dataFor\(a\)\)\),/);
+    expect(flowCode).toMatch(/type: "agent",[\s\S]{0,240}?ariaLabel: agentAriaLabel\(dataFor\(a\), now, selectedIds\.has\(a\.id\), gitWords\(dataFor\(a\)\)\),/);
   });
 
   it("drops React Flow's false keyboard instructions and its delete key", () => {
