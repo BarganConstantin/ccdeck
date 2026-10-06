@@ -23,7 +23,10 @@ import { useReactFlow, type Node } from "reactflow";
 import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
-import { foldMarkers, gitViewFrame, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
+import {
+  clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  type FitCard, type PaneBox, type SessionCard,
+} from "../git-view-fit";
 import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
@@ -102,6 +105,9 @@ const NO_ACTIONS: BodyActions = { focusPane: () => {}, newest: () => {} };
 /** What a waiting or failed agent left out of the frame is marked with. The
  *  last marker of a column too long for the canvas counts the agents it
  *  folds (`more`), and goes to the first of them. */
+/** No name tags to keep off: no marker is drawn. */
+const NO_BOXES: PaneBox[] = [];
+
 interface EdgeMarker { id: string; label: string; alarm: "waiting" | "failed"; since: number; top: number; more?: { waiting: number; failed: number } }
 
 export interface GitViewProps {
@@ -175,6 +181,9 @@ export default function GitView(props: GitViewProps) {
   const restoring = useRef<{ to: { x: number; y: number; zoom: number }; epoch: number } | null>(null);
   const inertCards = useState(() => new Set<Element>())[0];
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
+  // The cluster name tags on the uncovered canvas, where the frame puts them:
+  // the edge markers keep off them.
+  const [labelBoxes, setLabelBoxes] = useState<PaneBox[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
   const focusAfterFrame = useRef<string | null>(null);
 
@@ -232,11 +241,17 @@ export default function GitView(props: GitViewProps) {
     // So do the session clusters' name tags, anchored on the same plane
     // (drawn at one size whatever the zoom): where each one's left edge lands
     // once the camera has moved.
+    const boxes: PaneBox[] = [];
     for (const el of canvas.querySelectorAll<HTMLElement>(".cluster-label")) {
       const r = el.getBoundingClientRect();
       const left = rect.left + x + ((r.left - rect.left - was.x) / was.zoom) * zoom;
-      (whollyCovered({ left, right: left + r.width }, coverLeft) ? under : clear).add(el);
+      const covered = whollyCovered({ left, right: left + r.width }, coverLeft);
+      (covered ? under : clear).add(el);
+      if (covered || r.width <= 0) continue;
+      const tagTop = labelTopAt(r.top - rect.top, was, plan.viewport);
+      boxes.push({ left: left - rect.left, right: left - rect.left + r.width, top: tagTop, bottom: tagTop + r.height });
     }
+    setLabelBoxes(plan.leftOut.length ? boxes : NO_BOXES);
     setInert(clear, false, inertCards);
     setInert(under, true, inertCards);
     const out = plan.leftOut.map((id): EdgeMarker => {
@@ -480,24 +495,39 @@ export default function GitView(props: GitViewProps) {
         />
       </section>, document.body)}
       {markers.length > 0 && canvasRef.current && createPortal(
-        <EdgeMarkers markers={markers} right={cover + 12} now={now} onGo={id => { focusAfterFrame.current = id; onSelectAgent(id); }} />,
+        <EdgeMarkers markers={markers} labels={labelBoxes} right={cover + 12} now={now} onGo={id => { focusAfterFrame.current = id; onSelectAgent(id); }} />,
         canvasRef.current,
       )}
     </>
   );
 }
 
-function EdgeMarkers({ markers, right, now, onGo }: { markers: EdgeMarker[]; right: number; now: number; onGo: (id: string) => void }) {
+function EdgeMarkers({ markers, labels, right, now, onGo }: {
+  markers: EdgeMarker[]; labels: readonly PaneBox[]; right: number; now: number; onGo: (id: string) => void;
+}) {
+  // Each marker moved off the cluster name tags in its own width, once that
+  // width is drawn: placed before paint, so none is seen over a tag.
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [placed, setPlaced] = useState<{ of: EdgeMarker[]; tops: number[] } | null>(null);
+  useLayoutEffect(() => {
+    const els = refs.current.slice(0, markers.length);
+    const pane = els[0]?.parentElement;
+    if (!pane || els.some(e => !e)) { setPlaced(null); return; }
+    const w = pane.clientWidth;
+    const tops = clearOfLabels(markers.map((m, i) => ({ top: m.top, left: w - right - els[i]!.offsetWidth, right: w - right })), labels, pane.clientHeight);
+    setPlaced({ of: markers, tops });
+  }, [markers, labels, right]);
+  const topOf = (m: EdgeMarker, i: number) => (placed?.of === markers ? placed.tops[i] : m.top);
   return (
     <>
-      {markers.map(m => {
+      {markers.map((m, i) => {
         if (m.more) {
           const { waiting, failed } = m.more;
           const said = !failed ? "waiting" : !waiting ? "failed" : `${waiting} waiting · ${failed} failed`;
           return (
             <button
-              key="more" type="button" className="gv-edge-mark" data-alarm={waiting ? "waiting" : "failed"}
-              style={{ top: m.top, right }}
+              key="more" ref={el => { refs.current[i] = el; }} type="button" className="gv-edge-mark" data-alarm={waiting ? "waiting" : "failed"}
+              style={{ top: topOf(m, i), right }}
               title={`${waiting + failed} more agents ${waiting ? "waiting for you" : "stopped on an error"} outside this view. Select ${m.label}.`}
               onClick={() => onGo(m.id)}
             >
@@ -508,8 +538,8 @@ function EdgeMarkers({ markers, right, now, onGo }: { markers: EdgeMarker[]; rig
         const said = m.alarm === "waiting" ? `waiting ${elapsed(m.since, undefined, now)}` : "failed";
         return (
           <button
-            key={m.id} type="button" className="gv-edge-mark" data-alarm={m.alarm}
-            style={{ top: m.top, right }}
+            key={m.id} ref={el => { refs.current[i] = el; }} type="button" className="gv-edge-mark" data-alarm={m.alarm}
+            style={{ top: topOf(m, i), right }}
             title={`${m.label} is ${m.alarm === "waiting" ? "waiting for you" : "stopped on an error"}, outside this view. Select it.`}
             onClick={() => onGo(m.id)}
           >
