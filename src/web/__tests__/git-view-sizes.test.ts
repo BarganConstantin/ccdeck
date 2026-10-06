@@ -43,9 +43,11 @@ describe("a divider from the keyboard", () => {
     expect(splitterTarget("edge", { step: 64 }, 864, edge, 864)).toBe(800);
   });
 
-  it("sends the edge to its leftmost place on Home (the widest panel) and rightmost on End", () => {
-    expect(splitterTarget("edge", { to: "min" }, 864, edge, 864)).toBe(edge.max);
-    expect(splitterTarget("edge", { to: "max" }, 864, edge, 864)).toBe(edge.min);
+  it("gives the panel its least width on Home and its most on End, as its aria-valuenow says", () => {
+    // WAI-ARIA window splitter: Home moves to the position that gives the
+    // controlled pane its smallest size, so valuenow lands on valuemin.
+    expect(splitterTarget("edge", { to: "min" }, 864, edge, 864)).toBe(edge.min);
+    expect(splitterTarget("edge", { to: "max" }, 864, edge, 864)).toBe(edge.max);
   });
 
   it("grows the pane above or left of the other dividers when they move down or right", () => {
