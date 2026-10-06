@@ -149,7 +149,19 @@
   text-overflow: ellipsis;
   max-width: 160px;
 }
+/* One line at every card width, and one width while it counts. Past a hundred
+   minutes the clock read "104m 54s", the header of a card at its widest had no
+   room for it beside the context donut, and it broke onto a second line that
+   made the card taller. It is never wrapped and never shrunk now: the label
+   beside it, which has its tooltip, gives way instead. Seven characters hold
+   every reading under a hundred hours (duration.ts), so the box keeps one width
+   from "2s" to "99h 59m" and a card does not change size as the minutes turn
+   over; the figures are tabular in a monospaced face, so 1ch is one digit. */
 .agent-node .time {
+  flex: none;
+  min-width: 7ch;
+  text-align: right;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--muted);
