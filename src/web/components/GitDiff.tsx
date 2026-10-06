@@ -326,7 +326,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     const b = budgeted!;
     const next = b.shown < b.total ? budgetHunks(parsed!.hunks, steps + 1).shown : b.total;
     return (
-      <>
+      <div className="gvd-table">
         <div className="gvd-diff" key={fileKey} style={cols ? { minWidth: `max(100%, calc(${cols}ch + ${GUTTER_PX + CODE_PAD_PX}px))` } : undefined}>
           {blocks.map(k => (
             <DiffBlock key={k.key} block={k} rows={rows!} watch={watch} heights={heights.current} />
@@ -339,7 +339,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
             <button type="button" className="gvd-link" onClick={() => { holdFocus(); setSteps(() => Infinity); }}>Load all</button>
           </div>
         )}
-      </>
+      </div>
     );
   }
 
@@ -365,7 +365,8 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
           </span>
           {AREA_WORD[file.area] && <span className="gvd-area" data-area={file.area}>{AREA_WORD[file.area]}</span>}
           {renameFrom && (
-            <span className="gvd-from" title={`renamed from ${renameFrom}${parsed?.similarity !== undefined ? `, ${parsed.similarity}% similar` : ""}`}>
+            <span className="gvd-from"
+              title={`← ${splitPath(shownPath(renameFrom)).base}${parsed?.similarity !== undefined ? ` · ${parsed.similarity}%` : ""}\nrenamed from ${renameFrom}${parsed?.similarity !== undefined ? `, ${parsed.similarity}% similar` : ""}`}>
               ← {splitPath(shownPath(renameFrom)).base}{parsed?.similarity !== undefined ? ` · ${parsed.similarity}%` : ""}
             </span>
           )}

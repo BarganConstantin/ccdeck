@@ -46,9 +46,11 @@
   min-width: 0;
   overflow: hidden;
 }
-/* Cut by measuring, file name whole (git-path-fit.ts): no ellipsis here. */
+/* Cut by measuring, file name whole (git-path-fit.ts): no ellipsis here, and
+   no shrinking either, or the flex row would cut it again after the measure.
+   The rename chip beside it gives way instead. */
 .gvd-path {
-  flex: 0 1 auto;
+  flex: none;
   display: flex;
   min-width: 0;
   overflow: hidden;
@@ -68,8 +70,9 @@
 }
 .gvd-area[data-area="staged"] { border-color: var(--ctl-edge); }
 .gvd-from {
-  flex: 0 3 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 40%;
   overflow: hidden;
   color: var(--muted);
   font: 11px/1 var(--font-mono);
@@ -159,6 +162,10 @@
 }
 /* The shared ring, inset: the scroller would clip it at its edges. */
 .gvd-scroll:focus-visible { outline-offset: -2px; }
+/* The lines and the load-more row under them, as wide as the widest line, so
+   the row can stay at the scroller's left edge while the code scrolls. */
+.gvd-table { width: max-content; min-width: 100%; }
+.gvd[data-wrap="true"] .gvd-table { width: auto; }
 .gvd-diff { width: max-content; min-width: 100%; padding-bottom: 12px; }
 /* A diff is drawn in blocks of lines (GitDiff.tsx); a long one renders only
    the blocks near the view, the rest holding their height. Each block keeps
@@ -181,7 +188,9 @@
   white-space: nowrap;
 }
 .gvd-block:first-child > .gvd-hunk { margin-top: 0; }
-.gvd-hunk-range { grid-column: 4; padding-left: 4px; color: var(--text-secondary); }
+/* Unwrapped and scrolled sideways, the range stays beside the sticky gutters
+   (44 + 44 + 18px), as the load-more row stays at the left edge. */
+.gvd-hunk-range { position: sticky; left: 106px; grid-column: 4; padding-left: 4px; color: var(--text-secondary); }
 /* One line, always: the enclosing function git found is cut, whole in its title. */
 .gvd-hunk-ctx { grid-column: 5; min-width: 0; padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }
 .gvd .gvd-line { display: grid; grid-template-columns: 44px 44px 18px auto; min-height: 20px; }
@@ -210,6 +219,8 @@
 .syn-str { color: var(--gv-syn-str); }
 .syn-com { color: var(--gv-syn-com); font-style: italic; }
 .gvd-noeol { margin-left: 6px; color: var(--muted); font-size: 11px; }
+/* --muted falls under 4.5:1 on the dark added and removed beds. */
+.gvd-line[data-kind="add"] .gvd-noeol, .gvd-line[data-kind="del"] .gvd-noeol { color: var(--text-secondary); }
 /* A hidden or bidirectional control character, drawn as its code point in a
    box ringed in the error colour (git-hidden-chars.ts). The character itself
    is kept, isolated so it reorders nothing, for a copy; the code point is
@@ -249,6 +260,10 @@
 .gvd[data-wrap="true"] .gvd-code { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .gvd-more {
+  position: sticky;
+  left: 0;
+  box-sizing: border-box;
+  width: min(100%, 100cqi);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -320,7 +335,7 @@ button.btn.gvd-show { margin-top: 4px; }
   .gvd-glyph { left: 40px; }
   .gvd-line[data-kind="del"] .gvd-ln.n2::before { content: attr(data-old); }
   .gvd-hunk { grid-template-columns: 40px 16px auto minmax(0, 1fr); }
-  .gvd-hunk-range { grid-column: 3; }
+  .gvd-hunk-range { grid-column: 3; left: 56px; }
   .gvd-hunk-ctx { grid-column: 4; }
   .gvd-more::before { width: 52px; }
 }
@@ -332,7 +347,7 @@ button.btn.gvd-show { margin-top: 4px; }
   .gvd-glyph { left: 40px; }
   .gvd-line[data-kind="del"] .gvd-ln.n2::before { content: attr(data-old); }
   .gvd-hunk { grid-template-columns: 40px 16px auto minmax(0, 1fr); }
-  .gvd-hunk-range { grid-column: 3; }
+  .gvd-hunk-range { grid-column: 3; left: 56px; }
   .gvd-hunk-ctx { grid-column: 4; }
   .gvd-more::before { width: 52px; }
 }

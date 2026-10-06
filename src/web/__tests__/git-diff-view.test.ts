@@ -80,3 +80,22 @@ describe("copying from the diff", () => {
     expect(diff).toMatch(/if \(!text\) return <br \/>;/);
   });
 });
+
+describe("the header and the rows that stay put", () => {
+  it("cuts the path only by measuring: it never shrinks, and the rename chip gives way", () => {
+    expect(/\.gvd-path \{[^}]*flex: none;/.test(css)).toBe(true);
+    const from = /\.gvd-from \{([^}]*)\}/.exec(css)![1];
+    expect(from).toMatch(/flex: 0 1 auto;/);
+    expect(from).toMatch(/max-width: 40%;/);
+    expect(from).toMatch(/text-overflow: ellipsis;/);
+  });
+
+  it("keeps a hunk's range and the load-more row in view when unwrapped code scrolls sideways", () => {
+    expect(css).toMatch(/\.gvd-hunk-range \{ position: sticky; left: 106px;/);
+    expect(css).toMatch(/\.gvd-hunk-range \{ grid-column: 3; left: 56px; \}/);
+    const more = /\.gvd-more \{([^}]*)\}/.exec(css)![1];
+    expect(more).toMatch(/position: sticky;\s*left: 0;/);
+    expect(css).toMatch(/\.gvd-table \{ width: max-content; min-width: 100%; \}/);
+    expect(diff).toContain('<div className="gvd-table">');
+  });
+});
