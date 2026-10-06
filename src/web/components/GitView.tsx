@@ -23,7 +23,7 @@ import { useReactFlow, type Node } from "reactflow";
 import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
-import { gitViewFrame, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
+import { foldMarkers, gitViewFrame, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
 import { splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
@@ -31,6 +31,7 @@ import {
   splitterTarget, writeGitViewPrefs, type GitViewPrefs, type SplitterKind,
 } from "../git-view-sizes";
 import { agentNameIn, cardName as cardNameIn, collisionTarget, otherAgentName } from "../git-agent-name";
+import { pressHow } from "../agent-goto";
 import { flashCard } from "../card-flash";
 import { elsewhereRows } from "../git-files-model";
 import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
@@ -94,8 +95,10 @@ const FIRST_ROWS = 24;
 interface BodyActions { focusPane: (p: GitViewPane) => void; newest: () => void }
 const NO_ACTIONS: BodyActions = { focusPane: () => {}, newest: () => {} };
 
-/** What a waiting or failed agent left out of the frame is marked with. */
-interface EdgeMarker { id: string; label: string; alarm: "waiting" | "failed"; since: number; top: number }
+/** What a waiting or failed agent left out of the frame is marked with. The
+ *  last marker of a column too long for the canvas counts the agents it
+ *  folds (`more`), and goes to the first of them. */
+interface EdgeMarker { id: string; label: string; alarm: "waiting" | "failed"; since: number; top: number; more?: { waiting: number; failed: number } }
 
 export interface GitViewProps {
   /** The primary selection, which the view is about. */
@@ -159,6 +162,7 @@ export default function GitView(props: GitViewProps) {
   const inertCards = useState(() => new Set<Element>())[0];
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
+  const focusAfterFrame = useRef<string | null>(null);
 
   const frame = useCallback((duration: number) => {
     const { agent: a, width: w, sheet: sh } = live.current;
@@ -211,13 +215,26 @@ export default function GitView(props: GitViewProps) {
     }
     setInert(clear, false, inertCards);
     setInert(under, true, inertCards);
-    const tops = plan.leftOut.map(id => markerTop(alarms.find(c => c.id === id)!, plan.viewport, rect.height));
-    const stacked = stackMarkers(tops, rect.height);
-    setMarkers(plan.leftOut.map((id, i) => {
+    const out = plan.leftOut.map((id): EdgeMarker => {
       const ag = agents.get(id);
       const alarm = alarmOf.get(id)!;
-      return { id, label: ag ? cardNameIn(agents, ag) : id, alarm, since: alarm === "waiting" ? ag?.waiting?.since ?? 0 : 0, top: stacked[i] };
-    }));
+      const top = markerTop(alarms.find(c => c.id === id)!, plan.viewport, rect.height);
+      return { id, label: ag ? cardNameIn(agents, ag) : id, alarm, since: alarm === "waiting" ? ag?.waiting?.since ?? 0 : 0, top };
+    });
+    // More than the edge has rows for: the last row counts the rest.
+    const { kept, folded } = foldMarkers(out, markerRoom(rect.height));
+    const column = folded.length ? [...kept, {
+      ...folded[0], top: rect.height,
+      more: { waiting: folded.filter(m => m.alarm === "waiting").length, failed: folded.filter(m => m.alarm === "failed").length },
+    }] : kept;
+    const stacked = stackMarkers(column.map(m => m.top), rect.height);
+    setMarkers(column.map((m, i) => ({ ...m, top: stacked[i] })));
+    // A marker the keyboard activated is gone once its agent is selected:
+    // focus goes on to that agent's card, now framed and a Tab stop again.
+    if (focusAfterFrame.current === a.id) {
+      focusAfterFrame.current = null;
+      document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(a.id)}"]`)?.focus({ preventScroll: true });
+    }
   }, [moveCamera]);
 
   const reframeNow = useCallback(() => frame(0), [frame]);
@@ -335,10 +352,20 @@ export default function GitView(props: GitViewProps) {
     if (!inView) return;
     const opener = openerRef.current;
     openerRef.current = null;
-    const target = opener && opener.isConnected && !opener.closest("[inert]") && !(panel && panel.contains(opener))
-      ? opener
-      : document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(shown?.id ?? "")}"]`);
-    target?.focus({ preventScroll: true });
+    const cardId = shown?.id ?? "";
+    // A frame later, once the uncovered rail has been restyled in its own
+    // frame rather than inside the key's handler. The opener is taken only
+    // while it can be seen: a card's chip on a face zoomed out too far to
+    // draw it is hidden, and focus put there would land nowhere.
+    const raf = requestAnimationFrame(() => {
+      const card = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(cardId)}"]`);
+      const usable = opener && opener.isConnected && !opener.closest("[inert]") && !panelRef.current?.contains(opener)
+        && (typeof opener.checkVisibility !== "function" || opener.checkVisibility({ visibilityProperty: true }));
+      const target = usable ? opener : card;
+      target?.focus({ preventScroll: true });
+      if (target !== card && document.activeElement !== target) card?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [request.seq]);
 
   if (!mounted || !shown) return null;
@@ -396,7 +423,7 @@ export default function GitView(props: GitViewProps) {
         />
       </section>, document.body)}
       {markers.length > 0 && canvasRef.current && createPortal(
-        <EdgeMarkers markers={markers} right={cover + 12} now={now} onGo={onSelectAgent} />,
+        <EdgeMarkers markers={markers} right={cover + 12} now={now} onGo={id => { focusAfterFrame.current = id; onSelectAgent(id); }} />,
         canvasRef.current,
       )}
     </>
@@ -407,6 +434,20 @@ function EdgeMarkers({ markers, right, now, onGo }: { markers: EdgeMarker[]; rig
   return (
     <>
       {markers.map(m => {
+        if (m.more) {
+          const { waiting, failed } = m.more;
+          const said = !failed ? "waiting" : !waiting ? "failed" : `${waiting} waiting · ${failed} failed`;
+          return (
+            <button
+              key="more" type="button" className="gv-edge-mark" data-alarm={waiting ? "waiting" : "failed"}
+              style={{ top: m.top, right }}
+              title={`${waiting + failed} more agents ${waiting ? "waiting for you" : "stopped on an error"} outside this view. Select ${m.label}.`}
+              onClick={() => onGo(m.id)}
+            >
+              <span className="gv-edge-dot" aria-hidden="true" /><b>+{waiting + failed} more</b><span>{said}</span><GvIcon name="chev" />
+            </button>
+          );
+        }
         const said = m.alarm === "waiting" ? `waiting ${elapsed(m.since, undefined, now)}` : "failed";
         return (
           <button
@@ -549,22 +590,36 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     return () => ro.disconnect();
   }, []);
 
+  // A pane asked for focus before its rows were drawn — a keyboard open with
+  // nothing read yet — holds focus itself, inside the view that owns the keys,
+  // and hands it to its row once the row is there.
+  const pendingPane = useRef<GitViewPane | null>(null);
   const focusPane = useCallback((p: GitViewPane) => {
-    // The files and the diff take the keyboard through their own handles.
-    const handle = p === "files" ? filesHandle.current : p === "diff" ? diffHandle.current : null;
-    if (handle) { handle.focus(); setPane(p); return; }
     const section = panelRef.current?.querySelector<HTMLElement>(`[data-gv-pane="${p}"]`);
     if (!section) return;
-    // The pane's selected row, else its one tab stop, else (an empty pane) the
-    // panel's first control, so focus never falls back to the page.
-    const target = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]')
-      ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]')
-      ?? panelRef.current?.querySelector<HTMLElement>("button:not([disabled])");
-    if (!target) return;
-    target.focus({ preventScroll: true });
-    target.scrollIntoView?.({ block: "nearest" });
     setPane(p);
+    // The files and the diff take the keyboard through their own handles;
+    // the history goes to its selected row, else its one tab stop.
+    const handle = p === "files" ? filesHandle.current : p === "diff" ? diffHandle.current : null;
+    if (handle) handle.focus();
+    else {
+      const row = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]')
+        ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]');
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView?.({ block: "nearest" });
+    }
+    const active = document.activeElement;
+    if (active !== section && section.contains(active)) { pendingPane.current = null; return; }
+    section.focus({ preventScroll: true });
+    pendingPane.current = p;
   }, []);
+  useEffect(() => {
+    const p = pendingPane.current;
+    if (!p) return;
+    // Only while the pane still holds it: the reader may have moved on.
+    if (document.activeElement === panelRef.current?.querySelector(`[data-gv-pane="${p}"]`)) focusPane(p);
+    else pendingPane.current = null;
+  });
   actions.current = { focusPane, newest: view.showLatest };
   // `n` from the deck, with focus outside the view, reaches the same action.
   useEffect(() => { setGitViewNewest(view.showLatest); return () => setGitViewNewest(null); }, [view.showLatest]);
@@ -749,7 +804,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
         if (p && p !== pane) setPane(p);
       }}>
         <header className="gv-head" ref={headRef}>
-          <button type="button" className="btn gv-back" aria-label="Back to the canvas" onClick={() => onClose("pointer")}>
+          <button type="button" className="btn gv-back" aria-label="Back to the canvas" onClick={e => onClose(pressHow(e))}>
             <GvIcon name="back" /><span>Canvas</span>
           </button>
           <div className="gv-crumbs">
@@ -790,7 +845,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               path={folder} compact
             />
             <span className="gv-head-rule" aria-hidden="true" />
-            <button type="button" className="glyph-btn gv-close" title="Close the git view (Esc)" aria-label="Close the git view" onClick={() => onClose("pointer")}>
+            <button type="button" className="glyph-btn gv-close" title="Close the git view (Esc)" aria-label="Close the git view" onClick={e => onClose(pressHow(e))}>
               <GvIcon name="close" />
             </button>
           </div>
@@ -811,7 +866,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           </p>
         )}
         <div className="gv-panes" ref={panesRef}>
-          <section className="gv-graph" id="gv-graph" aria-label="History" data-gv-pane="graph" ref={graphRef}>
+          <section className="gv-graph" id="gv-graph" aria-label="History" data-gv-pane="graph" tabIndex={-1} ref={graphRef}>
             {reading || !data.commits ? (
               <>
                 <div className="gv-pane-head"><span className="gv-pane-title">History</span></div>
@@ -829,7 +884,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           </section>
           {splitter("graph", "horizontal", "Resize the history and the files", "gv-graph", "gv-split-h")}
           <div className="gv-bottom" ref={bottomRef}>
-            <section className="gv-files" id="gv-files" aria-label="Files" data-gv-pane="files" ref={filesRef}>
+            <section className="gv-files" id="gv-files" aria-label="Files" data-gv-pane="files" tabIndex={-1} ref={filesRef}>
               {reading || !data.entries ? (
                 <div className="gv-pane-head"><span className="gv-pane-title">{sel === UNCOMMITTED ? "Uncommitted" : sel.slice(0, 7)}</span></div>
               ) : (
@@ -845,7 +900,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               )}
             </section>
             {splitter("files", "vertical", "Resize the files and the diff", "gv-files", "gv-split-v")}
-            <section className="gv-diffpane" aria-label="Diff" data-gv-pane="diff">
+            <section className="gv-diffpane" aria-label="Diff" data-gv-pane="diff" tabIndex={-1}>
               {reading || !data.entries ? null : (
                 <GitDiff
                   ref={diffHandle}
@@ -864,7 +919,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
         <CommitCard facts={shownCard} anchor={card!.anchor} onClose={closeCard}
           onShow={(id, how) => {
             closeCard(false);
-            if (sheet) onClose("pointer");
+            if (sheet) onClose(how);
             onShowCard(id);
             // As a collision mark does: lit once from a pointer; from a key the ring on the card answers.
             if (how === "pointer") requestAnimationFrame(() => flashCard(id));

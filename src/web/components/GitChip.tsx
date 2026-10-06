@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { fitChip, type BranchChip } from "../git-chip";
+import { pressHow } from "../agent-goto";
 import { openGitFor } from "../git-open";
 
 /** The card's widest inner width: agent-node.css's `max-width` less its
@@ -92,7 +93,7 @@ export default function GitChip({ agentId, chip, row, given, canGive, onGive }: 
       aria-label={chip.label}
       // The card's own click selects it and goes to its session; this one is
       // a press on the chip alone, and opens the agent's git view.
-      onClick={e => { e.stopPropagation(); openGitFor(agentId); }}
+      onClick={e => { e.stopPropagation(); openGitFor(agentId, pressHow(e)); }}
       onDoubleClick={e => e.stopPropagation()}
     >
       {chip.kind === "detached" ? <CommitGlyph /> : <BranchGlyph />}

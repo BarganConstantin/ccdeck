@@ -10,7 +10,7 @@
 // and when `g` is pressed there, that line answers instead of a view opening.
 import { useEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode } from "react";
 
-import { goToAgentCard } from "../agent-goto";
+import { goToAgentCard, pressHow } from "../agent-goto";
 import { agentNameIn, collisionTarget, otherAgentName } from "../git-agent-name";
 import { groupDigits } from "../git-diff-parse";
 import { pathCounts } from "../git-files-model";
@@ -80,13 +80,14 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   const nameRef = useFittedName(branchName, branchRowRef, `${upstreamWords(data.repo)?.text}|${data.state}`);
   if (!gitOn) return null;
 
-  const open = (hints: { sel?: string | null; file?: GitFileRef | null } = {}) =>
-    openGitViewFrom("pointer", { agentId: agent.id, focusInside: true, ...hints });
+  // From a pointer the view slides in; from Enter or Space it opens at once.
+  const open = (e: { detail: number }, hints: { sel?: string | null; file?: GitFileRef | null } = {}) =>
+    openGitViewFrom(pressHow(e), { agentId: agent.id, focusInside: true, ...hints });
   const heading = (
     <h3 id={`gv-glance-${agent.id}`}>
       Git
       {readable && (data.state === "repo" || data.state === "loading") && (
-        <button type="button" className="gv-open" title="Open the git view (g)" onClick={() => open()}>Open<kbd>g</kbd></button>
+        <button type="button" className="gv-open" title="Open the git view (g)" onClick={e => open(e)}>Open<kbd>g</kbd></button>
       )}
     </h3>
   );
@@ -144,7 +145,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         const sub = !isSub && a?.agentId ? commitWho(c.agent, nameOf) : null;
         const { prefix, rest } = subjectParts(c.subject);
         return (
-          <button type="button" key={c.sha} className="gv-g-row" title={`${c.subject} · ${c.sha.slice(0, 7)}`} onClick={() => open({ sel: c.sha })}>
+          <button type="button" key={c.sha} className="gv-g-row" title={`${c.subject} · ${c.sha.slice(0, 7)}`} onClick={e => open(e, { sel: c.sha })}>
             <GvMark level={commitMark(c.agent).level} />
             <span className="gv-g-subj">{prefix && <span className="gv-cc">{prefix} </span>}{rest}</span>
             {sub && <span className="gv-g-who">↳ {sub}</span>}
@@ -165,7 +166,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
           <button
             type="button" key={f.path} className="gv-g-row gv-g-file" style={{ "--session-hue": hue } as CSSProperties}
             title={`${f.path} — edited by this ${scopeWord} (from its edit tools)`}
-            onClick={() => open({ sel: UNCOMMITTED, file: { path: f.entry.path, area: f.entry.area, ...(f.entry.from ? { from: f.entry.from } : {}) } })}
+            onClick={e => open(e, { sel: UNCOMMITTED, file: { path: f.entry.path, area: f.entry.area, ...(f.entry.from ? { from: f.entry.from } : {}) } })}
           >
             <i className="gv-pip" aria-hidden="true" />
             <span className="gv-st" title={word}><span aria-hidden="true">{letter}</span><span className="vis-hidden">{word}</span></span>
@@ -182,7 +183,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         );
       })}
       {(moreCommits > 0 || moreFiles > 0) && (
-        <button type="button" className="gv-g-more" onClick={() => open()}>
+        <button type="button" className="gv-g-more" onClick={e => open(e)}>
           {[moreCommits ? `+${moreCommits} commit${moreCommits === 1 ? "" : "s"}` : "", moreFiles ? `+${moreFiles} more file${moreFiles === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
           <span aria-hidden="true">·</span><kbd>g</kbd><span>open</span>
         </button>

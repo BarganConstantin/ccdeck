@@ -141,21 +141,23 @@ describe("a tight sub row gives the chip room before the chip gives up its name"
 describe("pressing the chip", () => {
   it("reaches whatever the page installed, and nothing once it is removed", () => {
     const seen: string[] = [];
-    setGitOpener(id => seen.push(id));
+    setGitOpener((id, how) => seen.push(`${id} ${how}`));
     openGitFor("s1::ag1");
+    openGitFor("s1::ag2", "key");
     setGitOpener(null);
     openGitFor("s1");
-    expect(seen).toEqual(["s1::ag1"]);
+    expect(seen).toEqual(["s1::ag1 pointer", "s1::ag2 key"]);
   });
 
   it("is the chip's own press: it stops at the chip, opens the git view, and the page installs that", () => {
     const chip = sourceOf("components/GitChip.tsx");
-    expect(chip).toMatch(/onClick=\{e => \{ e\.stopPropagation\(\); openGitFor\(agentId\); \}\}/);
+    // Pressed with Enter or Space, it opens the view at once; clicked, it slides in.
+    expect(chip).toMatch(/onClick=\{e => \{ e\.stopPropagation\(\); openGitFor\(agentId, pressHow\(e\)\); \}\}/);
     expect(chip).toContain('className="git-chip"');
     const opener = sourceOf("use-git-opener.ts");
-    expect(opener).toMatch(/selectAgent\(id, false\);\s*openGitView\(id\);/);
+    expect(opener).toMatch(/selectAgent\(id, false\);\s*openGitView\(id, how\);/);
     expect(sourceOf("App.tsx")).toContain("useGitOpener({ selectAgent, openGitView: openGitViewFromChip })");
-    expect(sourceOf("App.tsx")).toMatch(/openGitView\("pointer", \{ agentId \}\)/);
+    expect(sourceOf("App.tsx")).toMatch(/\(agentId: string, how: GitViewHow\) => openGitView\(how, \{ agentId \}\)/);
   });
 
   it("sits last on the card's sub row, and a subagent's replaces its folder name there", () => {
