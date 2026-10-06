@@ -361,6 +361,12 @@ const PRESSES: Press[] = [
   [".ctx-donut:active", "0.94", "transform"],
   // The branch chip on a card: a labelled control, so the labelled tier.
   [".git-chip:active", "0.97", "transform"],
+  // The git view: the link to the other agent in its collision line and the
+  // marker for an agent the canvas could not keep in view are labelled
+  // controls; the scope chip's × is a glyph on its own, the glyph tier.
+  [".gv-link:active", "0.97", "transform"],
+  [".gv-edge-mark:active", "0.97", "transform"],
+  [".gv-scope-x:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],

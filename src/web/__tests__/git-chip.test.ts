@@ -19,7 +19,7 @@ describe("which cards show a branch", () => {
   it("shows a root's branch, with the full name in the tooltip", () => {
     expect(branchChip({ kind: "root", git: repo(), cwd: "/w/shop-api" })).toEqual({
       kind: "branch", name: "feature/bargan/VCRM-9090", title: "feature/bargan/VCRM-9090",
-      label: "Branch feature/bargan/VCRM-9090. Open this agent's details",
+      label: "Branch feature/bargan/VCRM-9090. Open its git view",
     });
   });
 
@@ -148,13 +148,14 @@ describe("pressing the chip", () => {
     expect(seen).toEqual(["s1::ag1"]);
   });
 
-  it("is the chip's own press: it stops at the chip, opens details, and the page installs that", () => {
+  it("is the chip's own press: it stops at the chip, opens the git view, and the page installs that", () => {
     const chip = sourceOf("components/GitChip.tsx");
     expect(chip).toMatch(/onClick=\{e => \{ e\.stopPropagation\(\); openGitFor\(agentId\); \}\}/);
     expect(chip).toContain('className="git-chip"');
     const opener = sourceOf("use-git-opener.ts");
-    expect(opener).toMatch(/selectAgent\(id, false\)/);
-    expect(sourceOf("App.tsx")).toContain("useGitOpener({ selectAgent, focusAgent })");
+    expect(opener).toMatch(/selectAgent\(id, false\);\s*openGitView\(id\);/);
+    expect(sourceOf("App.tsx")).toContain("useGitOpener({ selectAgent, openGitView: openGitViewFromChip })");
+    expect(sourceOf("App.tsx")).toMatch(/openGitView\("pointer", \{ agentId \}\)/);
   });
 
   it("sits last on the card's sub row, and a subagent's replaces its folder name there", () => {

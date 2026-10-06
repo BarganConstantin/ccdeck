@@ -342,6 +342,9 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
   });
 });
 
+/** The git view's parts, which may set a tabIndex (see below). */
+const GIT_VIEW_PARTS = /^components\/Git(View|ViewStandIns|Graph|Files|Diff)\.tsx$/;
+
 describe("nothing else in the deck invents a focus stop", () => {
   /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
   function components(dir: string): string[] {
@@ -370,7 +373,15 @@ describe("nothing else in the deck invents a focus stop", () => {
     // `tabIndex={0}`, `tabIndex="0"`, `tabIndex={2}` — anything whose value
     // starts with a digit. A leading `-` is not a digit, which is the whole
     // distinction this regex is drawn to make.
+    //
+    // Revisited again for the git view, deliberately: its history and files
+    // are listboxes whose selected row is the one tab stop (a roving tabindex,
+    // WAI-ARIA's listbox pattern), its diff is a scroller the keyboard enters
+    // with Enter, and its dividers are window splitters, which are focusable
+    // separators by definition. Those parts — and only those — may set one;
+    // `GIT_VIEW_PARTS` names them, and every other component is held as before.
     const offenders = components(web)
+      .filter(p => !GIT_VIEW_PARTS.test(p.slice(web.length).replaceAll("\\", "/")))
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))
       .map(p => p.slice(web.length));
     expect(offenders).toEqual([]);
@@ -381,7 +392,9 @@ describe("nothing else in the deck invents a focus stop", () => {
     // it leaves behind is a mouse-focusable div nobody can reach by keyboard.
     // One in the app, on <main>, is the whole allowance. <main> is
     // components/CanvasMain.tsx's since it left App.tsx's markup.
+    // The git view's parts are the one other allowance, for the reason above.
     const negatives = components(web)
+      .filter(p => !GIT_VIEW_PARTS.test(p.slice(web.length).replaceAll("\\", "/")))
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
         .map(() => p.slice(web.length).replaceAll("\\", "/")));
     expect(negatives).toEqual(["components/CanvasMain.tsx"]);

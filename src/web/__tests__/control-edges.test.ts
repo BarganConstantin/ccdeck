@@ -624,6 +624,13 @@ const CONTROLS: Control[] = [
   // gradient runs between.
   { at: ".git-chip:hover", fillFrom: ".git-chip:hover",
     states: [".git-chip:focus-visible"], beds: ["--panel", "--bg-soft"] },
+  // The git view's marker for an agent waiting on you, or failed, that the
+  // camera beside the view could not keep in sight: a pill in the state's own
+  // colour, framed at rest, floating on the canvas.
+  // Waiting and failed are two marks, not a mark and its hover, so each is
+  // measured on its own.
+  { at: ".gv-edge-mark", fillFrom: ".gv-edge-mark", beds: ["--bg"] },
+  { at: '.gv-edge-mark[data-alarm="failed"]', fillFrom: ".gv-edge-mark", beds: ["--bg"] },
   // The network map's way in, over Local network's row, on the same terms as
   // the two above: no boundary at rest, an edge under the pointer and the
   // keyboard, measured on the column's foot.
@@ -844,7 +851,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // And from 106 to 108 with the one question's scale: a number framed at
     // rest, and louder under the pointer. And from 108 to 110 with the branch
     // chip on a card, which gains an edge under the pointer and the keyboard.
-    expect(EDGED_CONTROLS.length).toBeLessThan(110);
+    // And from 110 to 113 with the git view's marker for an agent left out of
+    // the canvas beside it, framed at rest in its state's colour.
+    expect(EDGED_CONTROLS.length).toBeLessThan(113);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

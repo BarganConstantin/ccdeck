@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -79,6 +79,14 @@ import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useGitOpener } from "./use-git-opener";
+import GitView from "./components/GitView";
+import { closeGitViewRequest, gitViewRequest, openGitViewRequest, type GitViewHow } from "./git-view-request";
+import { gitKeyAllowed } from "./git-view-keys";
+import { gitFactsFor, gitViewOpens } from "./git-view-target";
+import { gitOnNow, useGitOn } from "./git-pref";
+import { canvasModalOpen } from "./shortcuts";
+import { modalStack } from "./modal-dismiss";
+import type { GitFileRef } from "./git-view-types";
 import { createChimePlayer } from "./chime-player";
 
 export default function App() {
@@ -464,8 +472,48 @@ function Inner() {
     clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef,
   });
 
+  // The git view: open or closed, how it was asked for, and what had focus
+  // when it was — components/GitView.tsx. It is always about the primary
+  // selection, so it follows a click on another card and closes when the
+  // selection goes; `g` needs a selection, the view switched on in Settings
+  // and no dialog in front. A folder git cannot read opens nothing: the
+  // glance's one line answers instead.
+  // The request itself lives outside React (git-view-request.ts), so a press
+  // re-renders the view and nothing else.
+  const gitOpenerRef = useRef<HTMLElement | null>(null);
+  const openGitView = useCallback((how: GitViewHow, opts: { agentId?: string; focusInside?: boolean; sel?: string | null; file?: GitFileRef | null } = {}) => {
+    const id = opts.agentId ?? primarySelectedIdRef.current;
+    const agent = id ? stateRef.current.agents.get(id) : undefined;
+    if (!agent || !gitOnNow()) return;
+    if (!gitViewOpens(gitFactsFor(agent, stateRef.current.agents.get(agent.sessionId)))) {
+      window.dispatchEvent(new CustomEvent("gitview:unreadable", { detail: agent.id }));
+      return;
+    }
+    const active = document.activeElement as HTMLElement | null;
+    if (!gitViewRequest().open && active && active !== document.body && !active.closest("[data-key-scope]")) {
+      gitOpenerRef.current = active;
+    }
+    openGitViewRequest(how, opts);
+  }, []);
+  const closeGitView = useCallback((how: GitViewHow) => closeGitViewRequest(how), []);
+  const toggleGitView = useCallback(() => {
+    if (gitViewRequest().open) { closeGitView("key"); return; }
+    if (!gitKeyAllowed({
+      selected: primarySelectedIdRef.current != null,
+      gitOn: gitOnNow(),
+      dialogOpen: canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() }),
+    })) return;
+    openGitView("key");
+  }, [openGitView, closeGitView]);
+  const openGitViewFromChip = useCallback((agentId: string) => openGitView("pointer", { agentId }), [openGitView]);
+  // Settings › Appearance › Git switched off, or nothing selected any more:
+  // the view has nothing to be about.
+  const gitOn = useGitOn();
+  useEffect(() => { if (!gitOn) closeGitView("key"); }, [gitOn, closeGitView]);
+  useEffect(() => { if (!primarySelectedId) closeGitView("pointer"); }, [primarySelectedId, closeGitView]);
+
   // What a card's branch chip opens — use-git-opener.ts.
-  useGitOpener({ selectAgent, focusAgent });
+  useGitOpener({ selectAgent, openGitView: openGitViewFromChip });
 
   // What the peek reads, made once — use-peek-readers.ts.
   const peek = usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef });
@@ -499,6 +547,7 @@ function Inner() {
     handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
     setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme,
+    gitViewOpenRef: { get current() { return gitViewRequest().open; } }, toggleGitView, closeGitView,
   });
 
   /** Not a topbar readout any more — the "agents" counter went with the
@@ -754,6 +803,15 @@ function Inner() {
           onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
         />
       ) : null}
+
+      {/* The git view, over the right of the canvas and the detail rail it
+          widens out of — components/GitView.tsx. After the rail in the DOM,
+          so Tab reaches it after the canvas. */}
+      <GitView
+        agent={selected ?? null} stateRef={stateRef} now={now} detailShown={detailShown}
+        canvasRef={canvasRef} nodesRef={nodesRef} measuredRef={measuredRef} moveCamera={moveCamera}
+        openerRef={gitOpenerRef} onClose={closeGitView} onSelectAgent={id => selectAgent(id, false)}
+      />
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs

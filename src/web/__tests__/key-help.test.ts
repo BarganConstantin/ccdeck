@@ -81,8 +81,9 @@ describe("every key the deck binds is written down where a user can find it", ()
       // W since #825: the session waiting on you. B, S and V since #826: the
       // three topbar panels that were pointer-only. Z with the adaptive graph:
       // the selected card and its session, framed at a readable zoom. Delete
-      // since Remove from board left the topbar for the detail panel.
-      .toEqual([" ", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
+      // since Remove from board left the topbar for the detail panel. G for
+      // the git view on the selected agent.
+      .toEqual([" ", "?", "a", "b", "c", "d", "delete", "escape", "f", "g", "h", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {

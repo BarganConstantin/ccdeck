@@ -1,21 +1,20 @@
-// What a card's branch chip opens, installed by the page: today the agent's
-// detail panel, selected and brought into view the way a double-click does
-// (use-canvas-clicks.ts). The git view replaces this opener with its own — see
-// git-open.ts.
+// What a card's branch chip opens, installed by the page: the git view on that
+// agent, selected the way a click selects it (see git-open.ts). The chip
+// itself only names the agent.
 import { useEffect } from "react";
 import { setGitOpener } from "./git-open";
 import type { useSelection } from "./use-selection";
 
-export function useGitOpener({ selectAgent, focusAgent }: {
+export function useGitOpener({ selectAgent, openGitView }: {
   selectAgent: ReturnType<typeof useSelection>["selectAgent"];
-  focusAgent: (id: string) => void;
+  /** Opens the git view on the selected agent, by pointer. */
+  openGitView: (agentId: string) => void;
 }): void {
   useEffect(() => {
     setGitOpener(id => {
       selectAgent(id, false);
-      // A paint later, for the canvas the panel has just narrowed.
-      window.setTimeout(() => { try { focusAgent(id); } catch { /* the card left */ } }, 80);
+      openGitView(id);
     });
     return () => setGitOpener(null);
-  }, [selectAgent, focusAgent]);
+  }, [selectAgent, openGitView]);
 }

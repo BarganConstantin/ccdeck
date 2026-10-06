@@ -37,7 +37,7 @@ export function branchChip(a: Pick<AgentNodeData, "kind" | "git" | "cwd">): Bran
   else if (g.nameDiffers && g.name) lines.push(`repository ${g.name}`);
   if (fromLog) lines.push("as the session's log last recorded it: its folder no longer exists");
   const said = detached ? `Detached HEAD at ${name}` : `Branch ${name}`;
-  return { kind: detached ? "detached" : "branch", name, title: lines.join("\n"), label: `${said}. Open this agent's details` };
+  return { kind: detached ? "detached" : "branch", name, title: lines.join("\n"), label: `${said}. Open its git view` };
 }
 
 /**

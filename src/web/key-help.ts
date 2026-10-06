@@ -97,6 +97,8 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // Drawn only where Claude Code is, like A. M under Settings is the switch
       // itself; this is the menu the speaker opens.
       { cap: "V", action: "the sound menu — volume, tones, notifications", binds: ["v", "V"] },
+      // Over the right of the canvas; Esc steps back out of it one layer at a time.
+      { cap: "G", action: "git view for the selected agent — its commits, files and diffs", binds: ["g", "G"] },
       { cap: "?", action: "this sheet", binds: ["?"] },
     ],
   },

@@ -55,3 +55,4 @@
 @import "./styles/account-projects.css";         /* the account Projects report */
 @import "./styles/rating.css";                   /* the one question the deck asks about itself */
 @import "./styles/git-handoffs.css";             /* the git view's hand-off row: open in an app, copy */
+@import "./styles/git-view.css";                 /* the git view: the widened right panel, its panes, the canvas beside it */
