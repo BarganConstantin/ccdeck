@@ -99,6 +99,15 @@ async function refsByCommit(topLevel) {
   return map;
 }
 
+/** How many commits of HEAD's own line the history lists after the window
+ *  when HEAD is older than it. */
+export const HEAD_LINE_MAX = 20;
+
+/** The branch names a branch is measured against, besides the remote's own
+ *  default: the history's three tones (web/git-graph-layout.ts keeps the same
+ *  list, and a test holds the two together). */
+export const TRUNK_NAMES = ["develop", "development", "dev", "main", "master", "trunk"];
+
 /** How long `--topo-order` may take on a repository with no commit-graph
  *  before the history is read the streaming way instead (readLog). */
 export const TOPO_BUDGET_MS = 2_000;
@@ -127,9 +136,17 @@ const MAX_SLOW_TOPO = 256;
  * commit still comes before its parents. `commonDir` is where to look for the
  * commit-graph, and what the slow repository is remembered by.
  *
+ * HEAD OLDER THAN THE WINDOW. In a busy repository a branch a day or two old
+ * is already past the newest LOG_LIMIT commits, and the history would list
+ * none of what the view is about. Then HEAD and up to HEAD_LINE_MAX commits of
+ * its first-parent line follow the window, flagged `outsideWindow`, up to the
+ * first one already listed. The commits between them and the window are not
+ * listed, so the page cannot tell which of them the branch HEAD is measured
+ * against already has; each carries `base`, git's answer to that (headLine).
+ *
  * `{ ok: true, commits }`, or `{ ok: false, reason }` for a read that failed.
  */
-export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = null, topoBudgetMs = TOPO_BUDGET_MS } = {}) {
+export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = null, topoBudgetMs = TOPO_BUDGET_MS, defaultBranch = null } = {}) {
   const refs = await refsByCommit(topLevel);
   const starts = ["--branches", "--remotes", "--tags"];
   if (head?.sha) starts.push("HEAD");
@@ -140,14 +157,58 @@ export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = n
   const graph = await hasCommitGraph(commonDir);
   if (graph || !slowTopo.has(key)) {
     const r = await read(true, graph ? null : topoBudgetMs);
-    if (r.ok) return { ok: true, commits: withRefs(r.stdout, refs, head) };
+    if (r.ok) return { ok: true, commits: await withHeadLine(topLevel, withRefs(r.stdout, refs, head), refs, head, defaultBranch) };
     if (graph || !r.timedOut) return { ok: false, reason: readFailure(r) };
     slowTopo.add(key);
     while (slowTopo.size > MAX_SLOW_TOPO) slowTopo.delete(slowTopo.values().next().value);
   }
   const r = await read(false, null);
   if (!r.ok) return { ok: false, reason: readFailure(r) };
-  return { ok: true, commits: graphOrder(withRefs(r.stdout, refs, head)) };
+  return { ok: true, commits: await withHeadLine(topLevel, graphOrder(withRefs(r.stdout, refs, head)), refs, head, defaultBranch) };
+}
+
+/** The window, and after it HEAD's own line when HEAD is not in it (readLog).
+ *  A read of that line that fails leaves the window as it is. */
+async function withHeadLine(topLevel, commits, refs, head, defaultBranch) {
+  if (!head?.sha || !isShaLike(head.sha) || commits.some((c) => c.sha === head.sha)) return commits;
+  const r = await git("log", ["-z", "--first-parent", `--max-count=${HEAD_LINE_MAX}`, `--format=${LOG_FORMAT}`, head.sha, "--"], { cwd: topLevel });
+  if (!r.ok) return commits;
+  const listed = new Set(commits.map((c) => c.sha));
+  const line = [];
+  for (const c of withRefs(r.stdout, refs, head)) {
+    if (listed.has(c.sha)) break;
+    line.push({ ...c, outsideWindow: true });
+  }
+  const bases = baseRefs(refs, head, defaultBranch);
+  if (!line.length || !bases.length) return [...commits, ...line];
+  // HEAD's own commits: on its line and on none of the branches it is
+  // measured against. The rest of the line is what they already have.
+  const own = await git("rev-list", ["--first-parent", `--max-count=${HEAD_LINE_MAX}`, head.sha, "--not", ...bases, "--"], { cwd: topLevel });
+  if (!own.ok) return [...commits, ...line];
+  const mine = new Set(own.stdout.split("\n").map((l) => l.trim()).filter(Boolean));
+  return [...commits, ...line.map((c) => ({ ...c, base: !mine.has(c.sha) }))];
+}
+
+/**
+ * The refs HEAD's branch is measured against, as the history's tones measure
+ * it: a trunk (the remote's default branch, or one of TRUNK_NAMES) against its
+ * own remote-tracking branches, so its own commits are the ones not pushed;
+ * any other branch, or a detached HEAD, against every trunk there is, local
+ * and remote-tracking.
+ */
+function baseRefs(refs, head, defaultBranch) {
+  const names = new Set([...(defaultBranch ? [defaultBranch] : []), ...TRUNK_NAMES]);
+  const branch = head && !head.detached ? head.branch : null;
+  const out = new Set();
+  for (const slot of refs.values()) {
+    for (const r of slot.remote) {
+      const name = r.slice(r.indexOf("/") + 1);
+      if (branch && names.has(branch) ? name === branch : names.has(name)) out.add(`refs/remotes/${r}`);
+    }
+    if (branch && names.has(branch)) continue;
+    for (const l of slot.local) if (names.has(l) && l !== branch) out.add(`refs/heads/${l}`);
+  }
+  return [...out];
 }
 
 /** Whether the repository whose common git directory is `commonDir` has a

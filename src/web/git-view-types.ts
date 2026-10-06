@@ -33,6 +33,9 @@ export interface Repo {
   head: GitHead;
   empty: boolean;
   upstream: GitUpstream | null;
+  /** The branch the remote calls its default (`origin/HEAD`'s), without the
+   *  remote's name; null or absent when no remote names one. */
+  defaultBranch?: string | null;
   stale?: number;
 }
 
@@ -52,6 +55,10 @@ export interface LogCommit {
   refs: { local: string[]; remote: string[]; tags: string[]; head: boolean };
   agent: CommitAgent | null;
   outsideWindow?: boolean;
+  /** On HEAD's line past the window: whether the branch HEAD is measured
+   *  against already has the commit — git's answer, since the commits that
+   *  join that line to the window are not listed. */
+  base?: boolean;
 }
 
 export type StatusArea = "staged" | "unstaged" | "untracked" | "conflict";

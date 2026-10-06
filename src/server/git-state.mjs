@@ -24,7 +24,7 @@
 // read still running: an asker after a mark starts a read of its own rather
 // than share one that may have looked before the change the mark is for.
 import { codexCwdInWorkspace } from "./log-election.mjs";
-import { filterNames, readUpstream, resolveRepo } from "./git-repo.mjs";
+import { filterNames, readDefaultBranch, readUpstream, resolveRepo } from "./git-repo.mjs";
 import { countEntries, readCommit, readCommitFileDiff, readFileDiff, readLog, readStatus } from "./git-reads.mjs";
 
 /** How long an answer is trusted with no mark at all — the bound on how late a
@@ -62,8 +62,10 @@ const markOf = (wt, slot) => (TREE_SLOTS.has(slot) ? Math.max(wt.marked, wt.tree
 const holds = (entry, wt, slot) => Boolean(entry) && now() - entry.at < MAX_AGE_MS && (!wt || markOf(wt, slot) < entry.start);
 
 /**
- * The repository `folder` is in — git-repo.mjs's answer plus `upstream` and
- * `stale` — or the reason there is none. Concurrent askers share one read.
+ * The repository `folder` is in — git-repo.mjs's answer plus `upstream`,
+ * `defaultBranch` (the remote's default branch, for the history to measure
+ * a branch against) and `stale` — or the reason there is none. Concurrent
+ * askers share one read.
  */
 export async function repoOf(folder) {
   const hit = folders.get(folder);
@@ -77,7 +79,8 @@ export async function repoOf(folder) {
   const pending = (async () => {
     const r = await resolveRepo(folder);
     if (r.state !== "repo") return r;
-    return { ...r, upstream: await readUpstream(r.topLevel, r.head.branch) };
+    const [upstream, defaultBranch] = await Promise.all([readUpstream(r.topLevel, r.head.branch), readDefaultBranch(r.topLevel)]);
+    return { ...r, upstream, defaultBranch };
   })();
   folders.set(folder, { pending, start });
   // Only the newest read of a folder writes its answer down.
@@ -126,7 +129,7 @@ async function cached(repo, slot, compute) {
 
 const filtersOf = (repo) => cached(repo, "filters", () => filterNames(repo.topLevel));
 
-export const logOf = (repo) => cached(repo, "log", () => readLog(repo.topLevel, repo.head, { commonDir: repo.commonDir }));
+export const logOf = (repo) => cached(repo, "log", () => readLog(repo.topLevel, repo.head, { commonDir: repo.commonDir, defaultBranch: repo.defaultBranch ?? null }));
 
 export const statusOf = (repo) => cached(repo, "status", async () => readStatus(repo.topLevel, { filters: await filtersOf(repo) }));
 

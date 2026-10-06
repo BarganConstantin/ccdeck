@@ -59,10 +59,14 @@ export const isSeen = (a: LogAgent): a is SeenAgent => !!a && a.confidence !== "
 export const WIP_ID = "uncommitted";
 
 const MAIN = /^(main|master)$/;
-/** How senior a branch is when several lanes meet at one commit. */
-export function seniority(key: string): number {
+/** The integration branch's usual names: develop's place and colour. */
+const DEVELOP = /^(develop|development|dev)$/;
+/** How senior a branch is when several lanes meet at one commit. The
+ *  remote's default branch (`defaultBranch`) ranks with develop when its
+ *  name is not one of the usual ones. */
+export function seniority(key: string, defaultBranch: string | null = null): number {
   if (MAIN.test(key)) return 4;
-  if (key === "develop") return 3;
+  if (DEVELOP.test(key) || key === defaultBranch) return 3;
   if (/^release\//.test(key)) return 2;
   return 1;
 }
@@ -71,19 +75,19 @@ export function seniority(key: string): number {
 export const remoteBranch = (ref: string): string => ref.slice(ref.indexOf("/") + 1);
 
 /** The most senior of some branch names, the first listed on a tie. */
-function senior(keys: string[]): string | null {
+function senior(keys: string[], defaultBranch: string | null = null): string | null {
   let best: string | null = null;
-  for (const k of keys) if (best === null || seniority(k) > seniority(best)) best = k;
+  for (const k of keys) if (best === null || seniority(k, defaultBranch) > seniority(best, defaultBranch)) best = k;
   return best;
 }
 
 /** The branch a commit is the tip of, if any: its most senior local branch,
  *  else its most senior remote-tracking branch's own name (origin's first). */
-export function branchKeyOf(c: Pick<LogCommit, "refs">): string | null {
-  const local = senior(c.refs.local);
+export function branchKeyOf(c: Pick<LogCommit, "refs">, defaultBranch: string | null = null): string | null {
+  const local = senior(c.refs.local, defaultBranch);
   if (local) return local;
   const remotes = [...c.refs.remote].sort((a, b) => Number(b.startsWith("origin/")) - Number(a.startsWith("origin/")));
-  return senior(remotes.map(remoteBranch));
+  return senior(remotes.map(remoteBranch), defaultBranch);
 }
 
 /** The branch a merge commit's subject names as merged in, or null:
@@ -119,7 +123,7 @@ export const clashes = (a: number, b: number): boolean => CLASH.has(a < b ? `${a
 
 /** The slot a branch always has, or null for one that takes a slot. */
 export function fixedSlot(key: string): number | null {
-  if (key === "develop") return DEVELOP_SLOT;
+  if (DEVELOP.test(key)) return DEVELOP_SLOT;
   if (MAIN.test(key)) return MAIN_SLOT;
   return null;
 }
@@ -211,8 +215,12 @@ export interface GraphRow {
   key: string;
   slot: number;
   kind: "commit" | "merge" | "wip";
-  /** Listed after the window, with no lane through it. */
+  /** Listed after the window, with no lane through it — except HEAD's own
+   *  line (`headLine`), which keeps its lane down the first column. */
   outside: boolean;
+  /** HEAD, or a commit of its line, listed after the window because HEAD is
+   *  older than it. */
+  headLine?: boolean;
   /** HEAD can reach it (the uncommitted row too). */
   onHead: boolean;
   /** Lanes crossing the row's top edge, by column; null is a hole. */
@@ -240,6 +248,8 @@ export interface LayoutOptions {
   wip?: boolean;
   /** What this repository's branches were given before. */
   slots?: ReadonlyMap<string, number>;
+  /** The branch the remote calls its default, which ranks with develop. */
+  defaultBranch?: string | null;
 }
 
 interface Node {
@@ -252,29 +262,48 @@ interface Node {
 }
 
 /**
- * The graph of a history listed child-first (`git log --topo-order`), the
- * session's older commits (`outsideWindow`) after it.
+ * HEAD's own line when HEAD is older than the window: HEAD and the first
+ * parents after it among the commits listed past the window, in order.
+ * Empty when HEAD is in the window or not listed at all.
+ */
+export function headLine(commits: readonly LogCommit[], headSha: string | null): Set<string> {
+  const byId = new Map(commits.map(c => [c.sha, c]));
+  const line = new Set<string>();
+  for (let c = headSha ? byId.get(headSha) : undefined; c && c.outsideWindow && !line.has(c.sha); c = byId.get(c.parents[0] ?? "")) line.add(c.sha);
+  return line;
+}
+
+/**
+ * The graph of a history listed child-first (`git log --topo-order`); after
+ * it, HEAD's own line when HEAD is older than the window, then the session's
+ * older commits (both `outsideWindow`).
+ *
+ * HEAD older than the window keeps its place: the uncommitted row's dashed
+ * line runs down the first column to the window's foot, HEAD's line goes on
+ * below it in that column, and the session's older commits stand alone.
  */
 export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions = {}): GraphLayout {
   const slots = new Map(opts.slots ?? []);
   const assigned: string[] = [];
+  const trunk = opts.defaultBranch ?? null;
   const byId = new Map(commits.map(c => [c.sha, c]));
   const headSha = opts.head?.sha && byId.has(opts.head.sha) ? opts.head.sha : (commits.find(c => c.refs.head && !c.outsideWindow)?.sha ?? null);
   const fromHead = reach(byId, headSha);
+  const line = headLine(commits, headSha);
 
   const nodes: Node[] = [];
   if (opts.wip) {
     const headCommit = headSha ? byId.get(headSha) : undefined;
     nodes.push({
       id: WIP_ID,
-      parents: headCommit && !headCommit.outsideWindow ? [headCommit.sha] : [],
-      ownKey: headCommit ? (branchKeyOf(headCommit) ?? opts.head?.branch ?? headCommit.sha) : null,
+      parents: headCommit ? [headCommit.sha] : [],
+      ownKey: headCommit ? (branchKeyOf(headCommit, trunk) ?? opts.head?.branch ?? headCommit.sha) : null,
       subject: "",
       outside: false,
       wip: true,
     });
   }
-  for (const c of commits) nodes.push({ id: c.sha, parents: dedupe(c.parents), ownKey: branchKeyOf(c), subject: c.subject, outside: !!c.outsideWindow, wip: false });
+  for (const c of commits) nodes.push({ id: c.sha, parents: dedupe(c.parents), ownKey: branchKeyOf(c, trunk), subject: c.subject, outside: !!c.outsideWindow, wip: false });
 
   const lastUse = new Map<number, number>();
   const slotOf = (key: string, rowSlots: Iterable<number>, neighbours: number[]): number => {
@@ -290,7 +319,7 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
   /** The identity of a lane opened for a merge's further parent. */
   const mergeLaneKey = (parent: string, subject: string): string => {
     const p = byId.get(parent);
-    return (p && branchKeyOf(p)) ?? mergedBranchName(subject) ?? parent;
+    return (p && branchKeyOf(p, trunk)) ?? mergedBranchName(subject) ?? parent;
   };
 
   const rows: GraphRow[] = [];
@@ -299,6 +328,24 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
   let headKey: string | null = null;
 
   nodes.forEach((n, index) => {
+    if (n.outside && line.has(n.id)) {
+      // HEAD's line past the window: one lane down the first column, into
+      // HEAD from the uncommitted row's line above the window's foot, and
+      // from each commit to the next one of the line listed.
+      const at = lanes.findIndex(l => !!l && l.id === n.id);
+      const into = at >= 0 ? lanes[at]! : null;
+      const key = into && n.ownKey ? senior([n.ownKey, into.key], trunk)! : into?.key ?? n.ownKey ?? n.id;
+      const slot = into && into.key === key ? into.slot : slotOf(key, [], []);
+      const next = n.parents[0] !== undefined && line.has(n.parents[0]) ? n.parents[0] : null;
+      const output: Lane[] = next ? [{ id: next, key, slot, onHead: true }] : [];
+      const edges: Edge[] = [];
+      if (into) edges.push({ kind: "in", from: 0, to: 0, key: into.key, slot: into.slot, onHead: !!into.onHead, ...(into.wip ? { wip: true } : {}) });
+      if (next) edges.push({ kind: "fp", from: 0, to: 0, key, slot, onHead: true });
+      if (n.id === headSha) headKey = key;
+      rows.push({ id: n.id, col: 0, key, slot, kind: n.parents.length > 1 ? "merge" : "commit", outside: true, headLine: true, onHead: true, input: into ? [into] : [], output, edges });
+      lanes = output;
+      return;
+    }
     if (n.outside) {
       // No lane runs through an older commit: the window's lanes stopped at
       // its last row, and this one stands alone in the first column.
@@ -319,7 +366,7 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
       col = hits[0];
       const keys = hits.map(j => input[j]!.key);
       if (n.ownKey) keys.unshift(n.ownKey);
-      key = senior(keys)!;
+      key = senior(keys, trunk)!;
       const inLane = hits.map(j => input[j]!).find(l => l.key === key);
       slot = inLane ? inLane.slot : slotOf(key, input.filter(Boolean).map(l => l!.slot), neighbourSlots(input, col));
     } else if (n.wip && !n.ownKey) {
@@ -437,8 +484,16 @@ function neighbourSlots(lanes: Array<Lane | null>, col: number): number[] {
 
 export type Tone = "own" | "base" | "off";
 
-const TRUNKS = ["develop", "main", "master"];
-const isTrunk = (name: string) => TRUNKS.includes(name);
+/** The branch names a branch is measured against, besides the remote's own
+ *  default (server/git-reads.mjs keeps the same list for HEAD's line past the
+ *  window, and a test holds the two together). */
+export const TRUNK_NAMES = ["develop", "development", "dev", "main", "master", "trunk"];
+
+/** The trunks of a repository: the branch its remote calls its default
+ *  first, then the usual names. */
+export function trunkNames(defaultBranch: string | null = null): string[] {
+  return defaultBranch && !TRUNK_NAMES.includes(defaultBranch) ? [defaultBranch, ...TRUNK_NAMES] : TRUNK_NAMES;
+}
 
 /** The commits reachable from `from` within the list. */
 function reach(byId: ReadonlyMap<string, LogCommit>, from: string | null): Set<string> {
@@ -456,46 +511,51 @@ function reach(byId: ReadonlyMap<string, LogCommit>, from: string | null): Set<s
 }
 
 /**
- * What HEAD's branch is measured against: for a trunk (develop, main,
- * master) its own remote-tracking branch, so its own rows are what has not
- * been pushed; for any other branch, or a detached HEAD, the trunk it most
- * likely grew from — develop, else main, else master, local before remote.
- * Null when the repository has none of them listed.
+ * What HEAD's branch is measured against, as the commits that name it: for a
+ * trunk (the remote's default branch, develop, development, dev, main,
+ * master, trunk) its own remote-tracking branches, so its own rows are what
+ * has not been pushed; for any other branch, or a detached HEAD, every trunk
+ * listed, local and remote-tracking alike — a local trunk left behind its
+ * remote, or a branch made from a remote's trunk, measures the same. Empty
+ * when the repository has none of them listed.
  */
-export function baseTip(commits: readonly LogCommit[], head: Pick<RepoHead, "branch" | "detached"> | null): string | null {
+export function baseTips(commits: readonly LogCommit[], head: Pick<RepoHead, "branch" | "detached"> | null, defaultBranch: string | null = null): string[] {
+  const names = trunkNames(defaultBranch);
   const branch = head && !head.detached ? head.branch : null;
-  const local = (name: string) => commits.find(c => !c.outsideWindow && c.refs.local.includes(name))?.sha ?? null;
-  const remote = (name: string) => {
-    const at = (c: LogCommit, origin: boolean) => c.refs.remote.some(r => remoteBranch(r) === name && (!origin || r.startsWith("origin/")));
-    return (commits.find(c => !c.outsideWindow && at(c, true)) ?? commits.find(c => !c.outsideWindow && at(c, false)))?.sha ?? null;
-  };
-  if (branch && isTrunk(branch)) return remote(branch);
-  for (const name of TRUNKS) {
-    if (name === branch) continue;
-    const at = local(name) ?? remote(name);
-    if (at) return at;
+  const onTrunk = branch !== null && names.includes(branch);
+  const tips: string[] = [];
+  for (const c of commits) {
+    if (c.outsideWindow) continue;
+    const at = onTrunk
+      ? c.refs.remote.some(r => remoteBranch(r) === branch)
+      : c.refs.local.some(l => l !== branch && names.includes(l)) || c.refs.remote.some(r => names.includes(remoteBranch(r)));
+    if (at) tips.push(c.sha);
   }
-  return null;
+  return tips;
 }
 
 /**
  * Each commit's tone: "own" for what HEAD's branch has that its base does
  * not, "base" for the history the two share, "off" for what HEAD cannot
  * reach. With no base to measure against, a trunk's history is all "base"
- * and any other branch's all "own".
+ * and any other branch's all "own". HEAD's line past the window is measured
+ * by git (its `base`), since the commits joining it to the window are not
+ * listed.
  */
-export function graphTones(commits: readonly LogCommit[], head: Pick<RepoHead, "sha" | "branch" | "detached"> | null): Map<string, Tone> {
+export function graphTones(commits: readonly LogCommit[], head: Pick<RepoHead, "sha" | "branch" | "detached"> | null, defaultBranch: string | null = null): Map<string, Tone> {
   const byId = new Map(commits.map(c => [c.sha, c]));
   const headSha = head?.sha && byId.has(head.sha) ? head.sha : (commits.find(c => c.refs.head)?.sha ?? null);
   const fromHead = reach(byId, headSha);
-  const tip = baseTip(commits, head);
-  const fromBase = reach(byId, tip);
+  const tips = baseTips(commits, head, defaultBranch);
+  const fromBase = new Set<string>();
+  for (const tip of tips) for (const sha of reach(byId, tip)) fromBase.add(sha);
   const branch = head && !head.detached ? head.branch : null;
-  const noBase: Tone = tip === null && branch !== null && !isTrunk(branch) ? "own" : "base";
+  const noBase: Tone = !tips.length && branch !== null && !trunkNames(defaultBranch).includes(branch) ? "own" : "base";
   const out = new Map<string, Tone>();
   for (const c of commits) {
     if (!fromHead.has(c.sha)) out.set(c.sha, "off");
-    else if (tip === null) out.set(c.sha, noBase);
+    else if (c.outsideWindow && typeof c.base === "boolean") out.set(c.sha, c.base ? "base" : "own");
+    else if (!tips.length) out.set(c.sha, noBase);
     else out.set(c.sha, fromBase.has(c.sha) ? "base" : "own");
   }
   return out;

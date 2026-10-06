@@ -21,7 +21,7 @@ process.env.XDG_CONFIG_HOME = join(HOME, ".config");
 const reads = await import("../../server/git-reads.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { resolveRepo } = await import("../../server/git-repo.mjs");
-const { readLog, readStatus, readFileDiff, readCommit, readCommitFileDiff, parseTrailers, countEntries, parseNumstat, graphOrder, hasCommitGraph, DIFF_CAP, LOG_LIMIT, UNTRACKED_COUNT_MAX_FILES } = reads;
+const { HEAD_LINE_MAX, readLog, readStatus, readFileDiff, readCommit, readCommitFileDiff, parseTrailers, countEntries, parseNumstat, graphOrder, hasCommitGraph, DIFF_CAP, LOG_LIMIT, UNTRACKED_COUNT_MAX_FILES } = reads;
 
 const made: string[] = [HOME];
 const track = (dir: string) => { made.push(dir); return dir; };
@@ -119,6 +119,45 @@ describe("readLog", () => {
     return dir;
   };
   const topoOrder = (dir: string) => sh(dir, ["-c", "core.commitGraph=false", "log", "--topo-order", "--format=%H", "--branches", "--remotes", "--tags", "HEAD", "--"]).trim().split("\n");
+
+  it("measures HEAD's line by the same trunk names the history's tones use", async () => {
+    const { TRUNK_NAMES: page } = await import("../git-graph-layout");
+    expect(reads.TRUNK_NAMES).toEqual(page);
+  });
+
+  it("lists HEAD's own line after the window when HEAD is older than it", async () => {
+    // A long main, and HEAD on a branch made off an old commit of it, dated
+    // before all of main's: the newest LOG_LIMIT commits leave HEAD out.
+    const dir = track(repoWith({ "a.txt": "0\n" }));
+    let stream = "";
+    for (let i = 1; i <= LOG_LIMIT + 30; i++) {
+      stream += `commit refs/heads/main\ncommitter Ada <ada@example.com> ${1700000000 + i * 60} +0000\ndata ${`c${i}`.length}\nc${i}\n`
+        + (i === 1 ? "from refs/heads/main^0\n" : "") + `M 100644 inline a.txt\ndata ${`${i}\n`.length}\n${i}\n\n`;
+    }
+    sh(dir, ["fast-import", "--quiet"], stream);
+    sh(dir, ["checkout", "-q", "-f", "-b", "old", "main~120"]);
+    write(dir, { "b.txt": "old\n" });
+    const tip = commitAll(dir, "old work", "2023-01-01T00:00:00Z");
+    const head = await headOf(dir);
+    const r = await readLog(dir, head);
+    expect(r.ok).toBe(true);
+    const inWindow = r.commits.filter((c: any) => !c.outsideWindow);
+    expect(inWindow).toHaveLength(LOG_LIMIT);
+    expect(inWindow.some((c: any) => c.sha === tip)).toBe(false);
+    const line = r.commits.filter((c: any) => c.outsideWindow);
+    // HEAD, then its first parents in order, each once.
+    expect(line[0]).toMatchObject({ sha: tip, refs: { local: ["old"], head: true } });
+    expect(line.length).toBeGreaterThan(1);
+    expect(line.length).toBeLessThanOrEqual(HEAD_LINE_MAX);
+    for (let i = 1; i < line.length; i++) expect(line[i].sha).toBe(line[i - 1].parents[0]);
+    expect(new Set(r.commits.map((c: any) => c.sha)).size).toBe(r.commits.length);
+    // Measured against main (a trunk): its own commit is not main's, the rest of the line is.
+    expect(line.map((c: any) => c.base)).toEqual([false, ...line.slice(1).map(() => true)]);
+    // HEAD inside the window adds nothing.
+    sh(dir, ["checkout", "-q", "main"]);
+    const back = await readLog(dir, await headOf(dir));
+    expect(back.commits.filter((c: any) => c.outsideWindow)).toEqual([]);
+  });
 
   it("reads a history git cannot sort in time the streaming way, sorted the way git sorts it", async () => {
     const dir = branchy();

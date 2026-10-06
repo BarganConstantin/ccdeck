@@ -136,3 +136,29 @@ export async function readUpstream(topLevel, branch) {
   const behind = Number(/behind (\d+)/.exec(track ?? "")?.[1] ?? 0);
   return { name: short || full, ahead, behind, gone: /\bgone\b/.test(track ?? "") };
 }
+
+/** The remotes whose default branch counts, in order: origin, then the
+ *  canonical one of a fork. */
+const DEFAULT_REMOTES = ["origin", "upstream"];
+
+/**
+ * The branch the repository's remote calls its default — what `origin/HEAD`
+ * points at, as the clone (or `git remote set-head`) left it — without the
+ * remote's name: "main", "development". Read from the refs on disk; the deck
+ * never asks the remote. Origin's first, then upstream's, then any remote's;
+ * null when no remote names one.
+ */
+export async function readDefaultBranch(topLevel) {
+  const r = await git("for-each-ref", ["--format=%(refname)%00%(symref)", "refs/remotes/*/HEAD"], { cwd: topLevel });
+  if (!r.ok) return null;
+  const found = new Map();
+  for (const line of r.stdout.split("\n")) {
+    const [ref, target] = line.split("\0");
+    const m = /^refs\/remotes\/(.+)\/HEAD$/.exec(ref ?? "");
+    if (!m || !target?.startsWith(`refs/remotes/${m[1]}/`)) continue;
+    const name = target.slice(`refs/remotes/${m[1]}/`.length);
+    if (name && name !== "HEAD") found.set(m[1], name);
+  }
+  for (const remote of DEFAULT_REMOTES) if (found.has(remote)) return found.get(remote);
+  return found.values().next().value ?? null;
+}
