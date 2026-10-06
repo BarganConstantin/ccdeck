@@ -162,8 +162,6 @@
 .gv-ref[data-slot="5"] { --ref: var(--gv-lane-5); }
 .gv-ref svg { flex: none; width: 11px; height: 11px; }
 .gv-ref-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-/* One character of the chips' words, measured once (GitGraph.tsx). */
-.gv-ref-probe { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; font: 600 10px/1 var(--font-mono); white-space: pre; }
 .gv-ref-head { align-self: stretch; display: inline-flex; align-items: center; margin-left: -5px; padding: 0 4px; background: var(--text); color: var(--panel); font-size: 9px; letter-spacing: 0.04em; }
 .gv-ref-cloud { display: inline-flex; }
 .gv-ref[data-kind="remote"] { border-style: dashed; background: transparent; color: var(--text-secondary); }

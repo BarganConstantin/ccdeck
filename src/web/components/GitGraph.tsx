@@ -6,7 +6,8 @@ import {
   WIP_ID, ROW_H, type GraphRow, type LogCommit, type NodeShape, type RepoHead, type Tone,
 } from "../git-graph-layout";
 import { dismissesCard, historyKey } from "../git-graph-keys";
-import { fitBranchWidth, monoWidth, type Measure } from "../git-branch-fit";
+import { fitBranch } from "../git-chip";
+import { monoMeasure, type Measure } from "../git-path-fit";
 import { sessionHue } from "../session-hue";
 import { placePopover } from "../popover-place";
 import { readStored, writeStored } from "../storage";
@@ -61,8 +62,9 @@ const REF_CHIPS = 3;
 /** A ref chip's widest box, as git-graph.css draws it, and under a 560px pane. */
 const REF_ROOM = 230;
 const REF_ROOM_NARROW = 120;
-/** What the hidden label measuring one character says. */
-const PROBE = "0123456789abcdefghij";
+/** A ref chip's words: `font: 600 10px var(--font-mono)` (git-graph.css). */
+const REF_PX = 10;
+const REF_WEIGHT = 600;
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -204,7 +206,7 @@ const RowLanes = memo(function RowLanes({ row, shape, focusKey, folded, width, i
 
 // ─── ref chips ────────────────────────────────────────────────────────────
 
-interface Chip {
+export interface Chip {
   kind: "local" | "remote" | "tag" | "head";
   name: string;
   label: string;
@@ -214,14 +216,25 @@ interface Chip {
   synced?: boolean;
 }
 
-function refChips(c: LogCommit, head: RepoHead | null, slotOf: (name: string) => number | null, room: number, measure: Measure | null): { chips: Chip[]; more: string[] } {
+/**
+ * A commit's ref chips, each name cut to the room its chip gets the way the
+ * card's branch chip cuts it (git-chip.ts: the ticket whole, cuts between the
+ * characters a reader sees) and measured the way it is measured — in the
+ * chip's own font, so wide characters and emoji count as wide as they draw.
+ * `measure` is null before the page can measure: names go whole, for the
+ * sheet's ellipsis.
+ */
+export function refChips(c: LogCommit, head: RepoHead | null, slotOf: (name: string) => number | null, room: number, measure: Measure | null): { chips: Chip[]; more: string[] } {
   const r = c.refs;
   const onHead = r.head && head !== null;
   const headBranch = onHead && head && !head.detached && head.branch && r.local.includes(head.branch) ? head.branch : null;
   const chips: Chip[] = [];
   // Each chip's words get the chip's widest box less its own chrome: the
   // padding and edge, the HEAD segment, a cloud, a remote's name.
-  const fit = (name: string, chrome: number) => (measure ? fitBranchWidth(name, Math.max(48, room - chrome), measure) : name);
+  const fit = (name: string, chrome: number) => {
+    const max = Math.max(48, room - chrome);
+    return measure ? fitBranch(name, text => measure(text) <= max) : name;
+  };
   if (onHead && !headBranch) chips.push({ kind: "head", name: "HEAD", label: "HEAD", title: "HEAD, detached: not on a branch", slot: null });
   const locals = headBranch ? [headBranch, ...r.local.filter(l => l !== headBranch)] : r.local;
   for (const name of locals) {
@@ -236,11 +249,12 @@ function refChips(c: LogCommit, head: RepoHead | null, slotOf: (name: string) =>
     const name = remoteBranch(ref);
     if (ref === `origin/${name}` && r.local.includes(name)) continue;
     const remote = ref.slice(0, ref.length - name.length);
-    // The remote's name goes first when there is room for it; in a narrow
-    // pane the cloud and the dashed edge say "remote" and the title names it.
-    const withRemote = fit(name, 27 + (measure ? measure(remote) : remote.length * 6));
-    const roomy = !measure || measure(`${remote}${withRemote}`) <= room - 27;
-    chips.push({ kind: "remote", name: ref, label: roomy ? `${remote}${withRemote}` : fit(name, 27), title: `${ref}: remote-tracking branch, as of the last fetch`, slot: slotOf(name) });
+    // The remote's name goes first when there is room for it beside the
+    // branch's own words, never by cutting them further; in a narrow pane
+    // the cloud and the dashed edge say "remote" and the title names it.
+    const alone = fit(name, 27);
+    const roomy = !measure || (fit(name, 27 + measure(remote)) === alone && measure(`${remote}${alone}`) <= room - 27);
+    chips.push({ kind: "remote", name: ref, label: roomy ? `${remote}${alone}` : alone, title: `${ref}: remote-tracking branch, as of the last fetch`, slot: slotOf(name) });
   }
   for (const t of r.tags) chips.push({ kind: "tag", name: t, label: fit(t, 27), title: `tag ${t}`, slot: null });
   if (chips.length <= REF_CHIPS) return { chips, more: [] };
@@ -266,8 +280,8 @@ interface RowProps {
   head: RepoHead | null;
   slots: ReadonlyMap<string, number>;
   refRoom: number;
-  /** One character of a ref chip's words, in pixels; 0 before it is read. */
-  charPx: number;
+  /** Measures a ref chip's words in its font; null before the page can. */
+  measure: Measure | null;
   now: number;
   fresh: boolean;
   copied: boolean;
@@ -305,7 +319,7 @@ const HistoryRow = memo(function HistoryRow(p: RowProps) {
   }
   const shape: NodeShape = agent && agent.level !== "trailer" ? "seen" : agent ? "trailer" : row.kind === "merge" ? "merge" : "commit";
   const slotOf = (name: string) => fixedSlot(name) ?? p.slots.get(name) ?? null;
-  const { chips, more } = refChips(c, p.head, slotOf, p.refRoom, p.charPx > 0 ? monoWidth(p.charPx) : null);
+  const { chips, more } = refChips(c, p.head, slotOf, p.refRoom, p.measure);
   const cc = p.tone === "own" ? conventionalPrefix(c.subject) : null;
   const seconds = (p.now - Date.parse(c.date)) / 1000;
   const age = Number.isFinite(seconds) ? historyAge(seconds) : "";
@@ -487,16 +501,10 @@ export default function GitGraph(props: GitGraphProps) {
     return () => ro.disconnect();
   }, []);
 
-  // One character of a ref chip's words, read once off a hidden label in the
-  // chips' own font: every spelling of a branch is measured from it.
-  const probeRef = useRef<HTMLSpanElement>(null);
-  const [charPx, setCharPx] = useState(0);
-  useLayoutEffect(() => {
-    const el = probeRef.current;
-    if (!el || !el.textContent) return;
-    const w = el.getBoundingClientRect().width / el.textContent.length;
-    if (w > 0) setCharPx(w);
-  }, []);
+  // The ref chips' words measured in their own font, on a canvas, as the
+  // card's branch chip measures its own (one cached measure per font).
+  const [measure, setMeasure] = useState<Measure | null>(null);
+  useLayoutEffect(() => { setMeasure(() => monoMeasure(REF_PX, REF_WEIGHT)); }, []);
 
   const rowEl = useCallback((id: string) => listRef.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`) ?? null, []);
 
@@ -778,7 +786,7 @@ export default function GitGraph(props: GitGraphProps) {
                 head={stableHead}
                 slots={layout.slots}
                 refRoom={refRoom}
-                charPx={charPx}
+                measure={measure}
                 now={now}
                 fresh={!!c && fresh.has(c.sha)}
                 copied={!!c && copied === c.sha}
@@ -803,7 +811,6 @@ export default function GitGraph(props: GitGraphProps) {
         </div>
       </div>
       <span className="vis-hidden" aria-live="polite">{said}</span>
-      <span ref={probeRef} className="gv-ref-probe" aria-hidden="true">{PROBE}</span>
       {hover && hoverCommit && hoverAgent && <HoverCard state={hover} commit={hoverCommit} agent={hoverAgent} id={`${uid}-pop`} />}
     </div>
   );
