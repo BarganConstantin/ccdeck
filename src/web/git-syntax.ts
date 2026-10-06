@@ -72,10 +72,26 @@ const sent = new Map<string, Promise<boolean>>();
 const done = new Map<string, LineSpans[][]>();
 const DONE_CAP = 32;
 
+/** How long a request may go unanswered before its worker is taken for
+ *  dead: a worker can end without an error event, and a page stays open for
+ *  days. */
+export const TOK_TIMEOUT = 20_000;
+
 function fail() {
   broken = true;
   worker?.terminate();
   worker = null;
+  for (const resolve of pending.values()) resolve(null);
+  pending.clear();
+}
+
+/** A worker that stopped answering: let it go, plain text for what it held,
+ *  and a fresh one, sent its grammars again, for the next diff. */
+function drop(w: Worker) {
+  if (worker !== w) return;
+  w.terminate();
+  worker = null;
+  sent.clear();
   for (const resolve of pending.values()) resolve(null);
   pending.clear();
 }
@@ -98,11 +114,12 @@ function ensureWorker(): Worker | null {
   return worker;
 }
 
-/** Hand `lang`'s grammar to the worker, once. */
+/** Hand `lang`'s grammar to the worker, once. A grammar that failed to load
+ *  is not remembered as failed: the next diff in it tries again. */
 function sendGrammar(w: Worker, lang: string): Promise<boolean> {
   let p = sent.get(lang);
   if (!p) {
-    p = GRAMMARS[lang]().then(m => { w.postMessage({ t: "lang", lang, grammars: m.default }); return true; }, () => false);
+    p = GRAMMARS[lang]().then(m => { w.postMessage({ t: "lang", lang, grammars: m.default }); return true; }, () => { sent.delete(lang); return false; });
     sent.set(lang, p);
   }
   return p;
@@ -129,10 +146,11 @@ export async function highlightDocs(lang: string | null, docs: readonly string[]
   if (hit) return hit;
   const w = ensureWorker();
   if (!w) return null;
-  if (!(await sendGrammar(w, lang)) || broken) return null;
+  if (!(await sendGrammar(w, lang)) || broken || worker !== w) return null;
   const id = nextId++;
   const spans = await new Promise<LineSpans[][] | null>(resolve => {
-    pending.set(id, resolve);
+    const timer = setTimeout(() => { if (pending.delete(id)) { resolve(null); drop(w); } }, TOK_TIMEOUT);
+    pending.set(id, s => { clearTimeout(timer); resolve(s); });
     w.postMessage({ t: "tok", id, lang, docs });
   });
   if (spans) {

@@ -38,3 +38,13 @@ export function InfoGlyph({ size = 12 }: { size?: number }) {
 export function WrapGlyph() {
   return <Glyph><path d="M2.2 3.6h9.6M2.2 7h8a2 2 0 0 1 0 4H7.4M8.8 9.6 7.4 11l1.4 1.4M2.2 10.4h3" /></Glyph>;
 }
+
+/** Code brackets: open the file in the editor. */
+export function EditorGlyph() {
+  return <Glyph><path d="M4.6 4 2 7l2.6 3M9.4 4 12 7l-2.6 3" /></Glyph>;
+}
+
+/** A turning arrow: read the diff again. */
+export function ReloadGlyph() {
+  return <Glyph><path d="M11.4 7a4.4 4.4 0 1 1-1.3-3.1M11.4 2.6v2.9H8.5" /></Glyph>;
+}

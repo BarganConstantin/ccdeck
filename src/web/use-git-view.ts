@@ -241,6 +241,9 @@ export function firstFile(entries: StatusEntry[] | null, edits: Edit[] | null, f
 
 export interface DiffState {
   file: GitFileRef | null;
+  /** The history row the file was read in: the working tree or a commit, so
+   *  one path in two commits is two diffs. */
+  sel?: string;
   /** The diff on screen. */
   diff: DiffResult | null;
   loading: boolean;
@@ -363,17 +366,17 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
   useEffect(() => {
     if (!active || !file) { setDiff(d => (d.file === null && !d.loading ? d : { file: null, diff: null, loading: false, stale: false, error: null })); return; }
     let gone = false;
-    setDiff({ file, diff: null, loading: true, stale: false, error: null });
+    setDiff({ file, sel, diff: null, loading: true, stale: false, error: null });
     latest.current = null;
     const raf = requestAnimationFrame(() => {
       fetch(urlFor(file))
         .then(async r => ({ status: r.status, a: (await r.json().catch(() => ({}))) as DiffAnswer }))
         .then(({ status, a }) => {
           if (gone) return;
-          if (a.ok && a.diff) setDiff({ file, diff: a.diff, loading: false, stale: false, error: null });
-          else setDiff({ file, diff: null, loading: false, stale: false, error: failureOf(a, status) });
+          if (a.ok && a.diff) setDiff({ file, sel, diff: a.diff, loading: false, stale: false, error: null });
+          else setDiff({ file, sel, diff: null, loading: false, stale: false, error: failureOf(a, status) });
         })
-        .catch(() => { if (!gone) setDiff({ file, diff: null, loading: false, stale: false, error: "the deck did not answer" }); });
+        .catch(() => { if (!gone) setDiff({ file, sel, diff: null, loading: false, stale: false, error: "the deck did not answer" }); });
     });
     return () => { gone = true; cancelAnimationFrame(raf); };
   }, [active, fileKey, again]);

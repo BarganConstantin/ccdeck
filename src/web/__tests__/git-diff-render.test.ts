@@ -214,3 +214,44 @@ describe("a rename, and a change of line endings, as the header and lines say th
     expect(edit).not.toContain("line endings");
   });
 });
+
+describe("one path in two commits", () => {
+  it("is two diffs: each opens on its own first budget and collapsed, never on the other's", () => {
+    const diff = sourceOf("components/GitDiff.tsx");
+    expect(diff).toContain('const fileKey = props.diffKey ?? (file ? `${file.area}\\0${file.path}` : "");');
+    const view = sourceOf("components/GitView.tsx");
+    expect(view).toContain("diffKey={view.diff.file && view.diff.sel ? `${view.diff.sel}:${view.diff.file.area}:${view.diff.file.path}` : undefined}");
+    expect(sourceOf("use-git-view.ts")).toContain("setDiff({ file, sel, diff: null, loading: true, stale: false, error: null });");
+  });
+});
+
+describe("the keys inside an unwrapped diff", () => {
+  it("scroll the code sideways both ways, and step back to the files only from the left edge", () => {
+    const diff = sourceOf("components/GitDiff.tsx");
+    expect(diff).toContain("onScroll={notePlace} onKeyDown={scrollSideways}>");
+    expect(diff).toMatch(/const room = e\.key === "ArrowLeft" \? s\.scrollLeft : s\.scrollWidth - s\.clientWidth - s\.scrollLeft;\n    if \(room <= 0\) return;\n    e\.preventDefault\(\);/);
+    // The view swallows a key the pane already answered, and moves to the
+    // files on an ← nobody answered.
+    expect(sourceOf("git-view-keys.ts")).toMatch(/if \(where\.typing \|\| where\.handled\) return \{ kind: "swallow" \};/);
+  });
+});
+
+describe("the header's Open in editor and Reload", () => {
+  const text = { ok: true, binary: false, patch: "@@ -1 +1 @@\n-a\n+b\n", added: 1, removed: 1 };
+
+  it("reloads the working tree's diff, the way n does, and has nothing to reload in a commit", () => {
+    const html = render({ diff: text, onReload: () => {} });
+    expect(html).toMatch(/<button type="button" class="glyph-btn gvd-icon" title="Reload the diff \(n\)" aria-label="Reload the diff">/);
+    expect(render({ file: { path: "src/a.ts", area: "commit" }, diff: text, onReload: () => {} })).not.toContain("Reload the diff");
+    expect(sourceOf("components/GitView.tsx")).toContain("onReload={view.showLatest}");
+  });
+
+  it("opens the file in the editor the deck found, only on the deck's own machine", () => {
+    // Until the deck says it found an editor and the page is on its machine, no button.
+    expect(render({ diff: text, editorFor: { sessionId: "s", agentId: null } })).not.toContain("Open src/a.ts in");
+    const diff = sourceOf("components/GitDiff.tsx");
+    expect(diff).toMatch(/if \(handoffs\.state !== "ready" \|\| !handoffs\.local \|\| !app\) return null;/);
+    expect(diff).toContain('openHandoff({ sessionId: to.sessionId, agentId: to.agentId, slot: "editor", file: path })');
+    expect(diff).toContain("<b>Couldn't open it in {openFailed.app}.</b>");
+  });
+});
