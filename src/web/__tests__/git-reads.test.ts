@@ -21,7 +21,7 @@ process.env.XDG_CONFIG_HOME = join(HOME, ".config");
 const reads = await import("../../server/git-reads.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { resolveRepo } = await import("../../server/git-repo.mjs");
-const { readLog, readStatus, readFileDiff, readCommit, readCommitFileDiff, parseTrailers, countEntries, parseNumstat, DIFF_CAP, LOG_LIMIT, UNTRACKED_COUNT_MAX_FILES } = reads;
+const { readLog, readStatus, readFileDiff, readCommit, readCommitFileDiff, parseTrailers, countEntries, parseNumstat, graphOrder, hasCommitGraph, DIFF_CAP, LOG_LIMIT, UNTRACKED_COUNT_MAX_FILES } = reads;
 
 const made: string[] = [HOME];
 const track = (dir: string) => { made.push(dir); return dir; };
@@ -92,6 +92,73 @@ describe("readLog", () => {
     const r = await readLog(dir, head);
     expect(r.commits).toHaveLength(LOG_LIMIT);
     expect(r.commits.filter((c: any) => c.refs.head).map((c: any) => c.sha)).toEqual([head.sha]);
+  });
+
+  /** Branches merged back, a branch left open, and dates that interleave the
+   *  lines — what tells a topological order from a date order. */
+  const branchy = () => {
+    const dir = track(repoWith({ "a.txt": "0\n" }));
+    const at = (h: number) => `2026-03-01T${String(h).padStart(2, "0")}:00:00Z`;
+    let h = 1;
+    const commit = (file: string, msg: string) => { write(dir, { [file]: `${msg}\n` }); return commitAll(dir, msg, at(h++)); };
+    commit("a.txt", "main one");
+    sh(dir, ["checkout", "-q", "-b", "side"]);
+    commit("s.txt", "side one");
+    sh(dir, ["checkout", "-q", "main"]);
+    commit("a.txt", "main two");
+    sh(dir, ["checkout", "-q", "side"]);
+    commit("s.txt", "side two");
+    sh(dir, ["checkout", "-q", "-b", "open", "main"]);
+    commit("o.txt", "open one");
+    sh(dir, ["checkout", "-q", "main"]);
+    sh(dir, ["merge", "-q", "--no-ff", "-m", "merge side", "side"], undefined, at(h++));
+    commit("a.txt", "main three");
+    sh(dir, ["checkout", "-q", "open"]);
+    commit("o.txt", "open two");
+    sh(dir, ["checkout", "-q", "main"]);
+    return dir;
+  };
+  const topoOrder = (dir: string) => sh(dir, ["-c", "core.commitGraph=false", "log", "--topo-order", "--format=%H", "--branches", "--remotes", "--tags", "HEAD", "--"]).trim().split("\n");
+
+  it("reads a history git cannot sort in time the streaming way, sorted the way git sorts it", async () => {
+    const dir = branchy();
+    const head = await headOf(dir);
+    // As --topo-order reads it, within its budget.
+    expect((await readLog(dir, head)).commits.map((c: any) => c.sha)).toEqual(topoOrder(dir));
+    // Over budget: the default order, put in the same graph order.
+    const slow = await readLog(dir, head, { topoBudgetMs: 1 });
+    expect(slow.ok).toBe(true);
+    expect(slow.commits.map((c: any) => c.sha)).toEqual(topoOrder(dir));
+    expect(slow.commits.find((c: any) => c.subject === "main three").refs).toMatchObject({ local: ["main"], head: true });
+    // Remembered: the next read does not try --topo-order again. A window
+    // shorter than the history shows which way it was read — the newest six
+    // by date, against git's topological walk going down one line first.
+    const subjects = async (dir: string, opts = {}) => (await readLog(dir, head, { limit: 6, ...opts })).commits.map((c: any) => c.subject);
+    expect(await subjects(dir)).toEqual(["open two", "open one", "main three", "merge side", "side two", "main two"]);
+    const fresh = branchy();
+    const freshHead = await headOf(fresh);
+    expect((await readLog(fresh, freshHead, { limit: 6 })).commits.map((c: any) => c.subject))
+      .toEqual(["open two", "open one", "main three", "merge side", "side two", "side one"]);
+  });
+
+  it("puts a window in graph order: children first, one line followed to its end, parents outside ignored", () => {
+    const c = (sha: string, ...parents: string[]) => ({ sha, parents });
+    // Newest first, as git's default walk gives them: two tips, a merge whose
+    // second parent's line is shown before its first parent's, and a parent
+    // (z) outside the window.
+    const walk = [c("m", "a", "s2"), c("t", "a"), c("s2", "s1"), c("a", "b"), c("s1", "b"), c("b", "z")];
+    expect(graphOrder(walk).map((x: any) => x.sha)).toEqual(["m", "s2", "s1", "t", "a", "b"]);
+    expect(graphOrder([])).toEqual([]);
+  });
+
+  it("knows a repository with a commit-graph from one without", async () => {
+    const dir = branchy();
+    const commonDir = join(dir, ".git");
+    expect(await hasCommitGraph(commonDir)).toBe(false);
+    expect(await hasCommitGraph(null)).toBe(false);
+    sh(dir, ["commit-graph", "write", "--reachable"]);
+    expect(await hasCommitGraph(commonDir)).toBe(true);
+    expect((await readLog(dir, await headOf(dir), { commonDir, topoBudgetMs: 1 })).commits.map((c: any) => c.sha)).toEqual(topoOrder(dir));
   });
 
   it("answers an empty history for a repository with no commits", async () => {
