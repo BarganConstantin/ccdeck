@@ -9,6 +9,9 @@
 // readers get a copy or an answer rather than the array. The bodies are
 // unchanged.
 import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, isEnrichment, payloadChars } from "./ring-bounds.mjs";
+// The newest enrichment of each kind per session that eviction takes off the
+// head, for a page that connects after it went — see evicted-enrichment.mjs.
+import { clearEvicted, noteEvicted } from "./evicted-enrichment.mjs";
 
 // ─── The event ring buffer ─────────────────────────────────────────────────
 // Its two bounds, MAX_BUFFER and MAX_BUFFER_CHARS, and the charge an event is
@@ -62,6 +65,8 @@ export function clearEventBuffer() {
   events.length = 0;
   bufferedChars = 0;
   bufferedHookEvents = 0;
+  // And what eviction kept back from it: a cleared deck has nothing to resend.
+  clearEvicted();
 }
 
 /**
@@ -206,9 +211,13 @@ export function admitEvent(raw, source, receivedAt) {
     drop++;
   }
   if (drop > 0) {
-    events.splice(0, drop);
+    const evicted = events.splice(0, drop);
     bufferedChars -= freed;
     bufferedHookEvents -= freedHookEvents;
+    // What leaves is gone for every page that had not been sent it — except
+    // the enrichment, whose newest value per session is kept back for those
+    // pages, because an idle session never sends it again.
+    for (const e of evicted) if (e[ENRICHMENT]) noteEvicted(e, e[CHARS]);
   }
   return evt;
 }

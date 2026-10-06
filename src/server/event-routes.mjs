@@ -22,6 +22,9 @@ import { noteLogWriter } from "./event-log.mjs";
 import { deckProviders } from "./deck-scope.mjs";
 // The names only the server may send — see ring-bounds.mjs.
 import { isReservedEventName } from "./ring-bounds.mjs";
+// The enrichment the ring evicted, handed to a page that connects behind its
+// head — see withEvictedEnrichment.
+import { evictedEnrichment } from "./evicted-enrichment.mjs";
 // The SSE subscribers and the backpressure every frame to them is written
 // under — see sse-clients.mjs.
 import { dropSse, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
@@ -253,6 +256,11 @@ export function handleSse(req, res) {
   // guard is `env.seq <= state.lastSeq`, so the gap costs it a step forward and
   // nothing else. What the byte budget changed is how often and how far the
   // head moves, not what happens to a client that lands behind it.
+  //
+  // One thing in the gap is not history: the newest model, name, usage and the
+  // rest of each session's last-value-wins enrichment, which an idle session
+  // never sends again. That is put back in front of the replay — see
+  // withEvictedEnrichment.
   const asked = Number(req.headers["last-event-id"] ?? 0);
   const lastId = Number.isFinite(asked) ? asked : 0;
 
@@ -311,7 +319,8 @@ async function resumeSse(req, res, lastId, { tray = false } = {}) {
     // means a slow resumer pins one ring's worth of envelopes for as long as its
     // pass lasts, which the budget bounds too: that pin used to be unbounded for
     // the same reason the ring was.
-    const batch = ringSnapshot();
+    // Behind the ring's head, the enrichment that fell off it goes first.
+    const batch = withEvictedEnrichment(ringSnapshot(), sentThrough);
     for (const e of batch) {
       if (e.seq <= sentThrough) continue;
       if (closed || res.destroyed) return;
@@ -371,4 +380,39 @@ async function resumeSse(req, res, lastId, { tray = false } = {}) {
   // it is what eventually reveals the socket as unrecoverable.
   ping = setInterval(() => writeSse(res, `: ping\n\n`), 15000);
   if (!await flushed) dropSse(res);
+}
+
+/**
+ * A replay pass's snapshot, with what this page lost to eviction put in front
+ * of it.
+ *
+ * When the ring's oldest event is newer than the next one this page needs —
+ * a fresh tab on a busy deck, a reload, a laptop waking — everything between
+ * was evicted, and a session's model, name, usage, context, activity line and
+ * job went with it if they were in there: they are sent when they change, so
+ * an idle session's card would be drawn without them for as long as it stayed
+ * idle. The newest value of each, for every session this snapshot holds an
+ * event of (the cards the page will draw), is put in front under its own seq
+ * (see evicted-enrichment.mjs), so the loop below sends it as one more replay
+ * frame, in order, before the ring. Every pass asks, against what this page
+ * has been sent so far: a slow replay the head overtook between passes is
+ * handed what it lost then too, and one that is caught up is handed nothing.
+ *
+ * The page holds a value that arrives before its card and gives it to the
+ * card when the card is made (parked-enrichment.ts).
+ */
+function withEvictedEnrichment(batch, sentThrough) {
+  if (batch.length === 0 || batch[0].seq <= sentThrough + 1) return batch;
+  try {
+    const sessions = new Set();
+    for (const e of batch) {
+      const sid = e.payload?.session_id;
+      if (typeof sid === "string" && sid) sessions.add(sid);
+    }
+    const lost = evictedEnrichment({ after: sentThrough, before: batch[0].seq, sessions });
+    return lost.length > 0 ? lost.concat(batch) : batch;
+  } catch {
+    // A page is never refused its replay for this.
+    return batch;
+  }
 }
