@@ -112,7 +112,7 @@ export function buildRows(state: GraphState, now: number): Row[] {
   return rows;
 }
 
-/** The whole line, uncut, and who wrote it: three lines of a sidebar cut most
+/** The whole line, uncut, and who wrote it: two lines of a sidebar cut most
  *  questions short, and how far to trust a line depends on whether Claude
  *  Code's classifier wrote it or the deck read it off the newest reply. */
 function statusTooltip(s: SessionNote): string {
@@ -284,9 +284,11 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     and it is wider than a card. All of it is the title, and all
                     of it is in the detail panel. */}
                 {r.recap && <span className="sl-recap" title={r.recap.text}><RecapMark />{r.recap.text}</span>}
-                {/* What it is doing, asking or got done, in the recap's slot and
-                    its three lines. The tag is a word in the row's name, not a
-                    colour: "needs you" is heard as well as seen. */}
+                {/* What it is doing, asking or got done, in the recap's slot,
+                    two lines of it and both held while a turn runs, so the row
+                    keeps one height as the text is rewritten. The tag is a word
+                    in the row's name, not a colour: "needs you" is heard as
+                    well as seen. */}
                 {r.status && (
                   <span className={`sl-status status-${r.status.kind}`} title={statusTooltip(r.status)}>
                     {/* A real space after the tag, not only its margin: the row's
@@ -296,7 +298,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     {r.status.text}
                   </span>
                 )}
-                {/* A line of its own, under the question: inside the three-line
+                {/* A line of its own, under the question: inside the line's
                     clamp, a long question cut it off, and the short answer is
                     the part a person can act on from here. It is Claude Code's
                     guess, so it is shown as one — muted, quoted — and never
