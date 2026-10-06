@@ -164,7 +164,27 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
       place.current = line ? { k: line.dataset.k!, off: line.getBoundingClientRect().top - top } : null;
     });
   }, []);
-  useEffect(() => () => cancelAnimationFrame(placeRaf.current), []);
+  // The line the reader was on, put back under them. In a long diff drawn in
+  // blocks, a hunk that now starts elsewhere in the old file comes back as new
+  // blocks, drawn only once they are near the screen: look again then.
+  const placeRetry = useRef(0);
+  const holdPlace = () => {
+    const at = place.current;
+    cancelAnimationFrame(placeRetry.current);
+    if (!keepPlace(scrollRef.current, at) && at && windowed) {
+      // For a moment, and only while nothing has moved the scroller: past
+      // that, the reader has moved on.
+      const until = performance.now() + 600;
+      const st = scrollRef.current?.scrollTop;
+      const again = () => {
+        const s = scrollRef.current;
+        if (!s || s.scrollTop !== st || performance.now() > until || keepPlace(s, at)) return;
+        placeRetry.current = requestAnimationFrame(again);
+      };
+      placeRetry.current = requestAnimationFrame(again);
+    }
+  };
+  useEffect(() => () => { cancelAnimationFrame(placeRaf.current); cancelAnimationFrame(placeRetry.current); }, []);
   useEffect(() => { place.current = null; }, [fileKey]);
 
   // The lines that are new since the version the reader saw: computed when
@@ -172,7 +192,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   const seen = useRef<{ key: string; parsed: ParsedDiff | null; wasStale: boolean }>({ key: "", parsed: null, wasStale: false });
   useLayoutEffect(() => {
     const prev = seen.current;
-    if (prev.key === fileKey && prev.parsed && parsed && prev.parsed !== parsed) keepPlace(scrollRef.current, place.current);
+    if (prev.key === fileKey && prev.parsed && parsed && prev.parsed !== parsed) holdPlace();
     if (prev.key === fileKey && prev.parsed && parsed && prev.parsed !== parsed && prev.wasStale) {
       setFresh(freshLines(prev.parsed, parsed));
       seen.current = { key: fileKey, parsed, wasStale: stale };
@@ -579,13 +599,14 @@ function sideDocs(hunks: Hunk[]): { docs: string[]; sideAt: number[][] } {
 }
 
 /** Put the line the reader was on back where it was on screen, if the new
- *  version still has it. */
-function keepPlace(s: HTMLElement | null, at: { k: string; off: number } | null): void {
-  if (!s || !at) return;
+ *  version still has it drawn; whether it was found. */
+function keepPlace(s: HTMLElement | null, at: { k: string; off: number } | null): boolean {
+  if (!s || !at) return false;
   const line = s.querySelector<HTMLElement>(`.gvd-line[data-k="${CSS.escape(at.k)}"]`);
-  if (!line) return;
+  if (!line) return false;
   const off = line.getBoundingClientRect().top - s.getBoundingClientRect().top;
   if (Math.abs(off - at.off) >= 1) s.scrollTop += off - at.off;
+  return true;
 }
 
 function* linesOf(p: ParsedDiff): Generator<string> {
@@ -740,7 +761,6 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
   const marks = wordMarks(h);
   const keys = lineKeys(h.lines, h.oldStart);
   const ends = endingsOf(h);
-  const at = block.key.slice(0, block.key.lastIndexOf("."));
   return (
     <div ref={ref} className="gvd-block">
       {block.head && (
@@ -753,7 +773,7 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights }: {
         const li = block.from + i;
         const syn = rows.spans?.[hi * 2 + (l.kind === "del" ? 0 : 1)]?.[rows.sideAt[hi]?.[li]];
         return (
-          <div key={keys[li]} className="gvd-line" data-k={`${at}:${keys[li]}`} data-kind={l.kind} data-fresh={rows.fresh.has(`${hi}:${li}`) ? "" : undefined}>
+          <div key={keys[li]} className="gvd-line" data-k={keys[li]} data-kind={l.kind} data-fresh={rows.fresh.has(`${hi}:${li}`) ? "" : undefined}>
             <span className="gvd-ln n1" aria-hidden="true">{l.old ?? ""}</span>
             <span className="gvd-ln n2" aria-hidden="true" data-old={l.kind === "del" ? l.old ?? undefined : undefined}>{l.new ?? ""}</span>
             <span className="gvd-glyph" aria-hidden="true">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : ""}</span>

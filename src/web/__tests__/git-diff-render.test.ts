@@ -131,9 +131,33 @@ describe("the reader's place when the latest version comes", () => {
     expect(lineKeys(add.lines, add.oldStart)).toEqual(["a-1.0", "a-1.1"]);
   });
 
+  it("names a line the same in both versions when its hunk starts elsewhere", () => {
+    // Two changes close enough to share a hunk; the top one is put back, so
+    // the hunk now starts lower in the old file. The lines under the reader
+    // are the same lines, and the place they were read at must still find them.
+    const both = "@@ -4,9 +4,9 @@\n d\n e\n f\n-g\n+G\n h\n i\n-j\n+J\n k\n l\n";
+    const one = "@@ -7,7 +7,7 @@\n g\n h\n i\n-j\n+J\n k\n l\n";
+    const keyOf = (patch: string, code: string) => {
+      const html = render({ diff: { ok: true, binary: false, patch, added: 1, removed: 1 } });
+      const line = [...html.matchAll(/<div class="gvd-line" data-k="([^"]+)"[\s\S]*?<\/div>/g)].find(m => words(m[0]).endsWith(code));
+      return line?.[1];
+    };
+    expect(keyOf(both, "k")).toBeDefined();
+    expect(keyOf(both, "k")).toBe(keyOf(one, "k"));
+    expect(keyOf(both, "added: J")).toBe(keyOf(one, "added: J"));
+  });
+
+  it("looks again for that line once the blocks near it are drawn, when a long diff's block was drawn anew", () => {
+    const src = sourceOf("components/GitDiff.tsx");
+    expect(src).toMatch(/function keepPlace\(s: HTMLElement \| null, at: \{ k: string; off: number \} \| null\): boolean \{/);
+    expect(src).toMatch(/if \(!keepPlace\(scrollRef\.current, at\) && at && windowed\) \{/);
+    // For a moment, and never against a reader who has moved the scroller since.
+    expect(src).toMatch(/if \(!s \|\| s\.scrollTop !== st \|\| performance\.now\(\) > until \|\| keepPlace\(s, at\)\) return;/);
+  });
+
   it("puts the line the reader was on back where it was on screen", () => {
     const src = sourceOf("components/GitDiff.tsx");
-    expect(src).toMatch(/if \(prev\.key === fileKey && prev\.parsed && parsed && prev\.parsed !== parsed\) keepPlace\(scrollRef\.current, place\.current\);/);
+    expect(src).toMatch(/if \(prev\.key === fileKey && prev\.parsed && parsed && prev\.parsed !== parsed\) holdPlace\(\);/);
     expect(src).toContain("onScroll={notePlace}");
     expect(src).toMatch(/<div key=\{keys\[li\]\} className="gvd-line" data-k=/);
   });

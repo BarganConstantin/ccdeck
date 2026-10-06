@@ -37,10 +37,14 @@ export async function copyText(text: string, timeoutMs = 500): Promise<boolean> 
     ta.value = text;
     ta.setAttribute("readonly", "");
     ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    // The field takes focus to be selected; what had it gets it back after,
+    // or a Copy button pressed here would leave focus on the page.
+    const back = document.activeElement as HTMLElement | null | undefined;
     document.body.appendChild(ta);
     ta.select();
     ok = document.execCommand("copy");
     ta.remove();
+    if (back && back.isConnected && typeof back.focus === "function") back.focus({ preventScroll: true });
   } catch { ok = false; }
   return ok;
 }

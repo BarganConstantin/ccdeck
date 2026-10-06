@@ -5,7 +5,7 @@
 // in the same workspace — and never just the folder the session runs in,
 // which the git view's header already names as the repository.
 import { describe, expect, it } from "vitest";
-import { agentNameIn, agentNamer, cardName, collisionTarget, otherAgentName, type NamedCard } from "../git-agent-name";
+import { agentNameIn, agentNamer, cardName, collisionTarget, commitAgentKeys, otherAgentName, type NamedCard } from "../git-agent-name";
 import { sourceOf } from "./client-source";
 
 const UI = "cc150ea9-0000-4000-8000-00000000ad61";
@@ -119,6 +119,23 @@ describe("every git surface asks the one helper", () => {
     expect(view).toMatch(/name=\{focusName\}/);
     // The collision line names the other agent as its card's mark does.
     expect(view).toMatch(/const otherOf = \(c: \{ with: GitCollisionRef \}\) => otherAgentName\(nameOf, c\.with\);/);
+  });
+
+  it("renames the history's chips when a session is renamed while the view is open", () => {
+    // The namer reads the live cards, so its identity alone never told the
+    // history its chips had new words: they kept the old name until the next
+    // history read. It changes now whenever a name the chips carry does.
+    expect(view).toMatch(/const chipNames = commitAgentKeys\(data\.commits\)\.map\(\(\[s, a\]\) => agentNameIn\(stateRef\.current\.agents, s, a\) \?\? ""\)\.join\("\\u0001"\);/);
+    expect(view).toMatch(/const nameOf = useCallback\(\(sessionId: string, agentId: string \| null\) => agentNameIn\(stateRef\.current\.agents, sessionId, agentId\), \[chipNames\]\);/);
+  });
+
+  it("lists each agent a history's commits were seen made by, once", () => {
+    const seen = (sessionId: string, agentId: string | null = null) => ({ sessionId, agentId, level: "seen" });
+    const commits = [
+      { agent: seen("s1") }, { agent: seen("s1") }, { agent: seen("s1", "sub") }, { agent: null }, { agent: { level: "trailer", name: "Claude" } }, { agent: seen("s2") },
+    ];
+    expect(commitAgentKeys(commits as never)).toEqual([["s1", null], ["s1", "sub"], ["s2", null]]);
+    expect(commitAgentKeys(null)).toEqual([]);
   });
 
   it("names the glance's other agents the same way", () => {
