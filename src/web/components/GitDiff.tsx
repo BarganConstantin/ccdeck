@@ -35,6 +35,10 @@ export interface GitDiffProps {
   gone?: boolean;
   /** Read the diff again: a failed read's Try again. */
   onRetry?: () => void;
+  /** Which diff this is, when a path alone does not say: the same file in two
+   *  commits is two diffs, each opened on its own first budget, collapsed if
+   *  it collapses. Defaults to the file's area and path. */
+  diffKey?: string;
 }
 
 /** What the view does to the diff from outside: give it the keyboard. */
@@ -67,6 +71,8 @@ const WINDOW_MARGIN = "800px 0px";
  *  it), for a block not drawn yet; `.gvd-line` and `.gvd-hunk` in the sheet. */
 const LINE_PX = 20;
 const HUNK_PX = 36;
+/** How far ← and → scroll unwrapped code, as the browser's own arrow step. */
+const SIDE_STEP = 40;
 /** Blocks drawn on the first frame of a windowed diff, by their estimated top. */
 const FIRST_PX = 1600;
 
@@ -98,7 +104,7 @@ const UNLISTED = new Set(["unlisted", "no such change in this repository"]);
  */
 const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, ref) {
   const { file, diff, loading, stale, onShowLatest, wrap, onToggleWrap, collision, emptyReason = "unselected", error = null, gone = false, onRetry } = props;
-  const fileKey = file ? `${file.area}\0${file.path}` : "";
+  const fileKey = props.diffKey ?? (file ? `${file.area}\0${file.path}` : "");
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const pathRef = useRef<HTMLSpanElement>(null);
@@ -241,6 +247,18 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     const at = document.activeElement;
     if (s && at && at !== s && s.closest(".gvd")?.contains(at)) s.focus({ preventScroll: true });
   }, []);
+
+  // ← and → scroll unwrapped code sideways, both ways; ← steps back to the
+  // files (the view's own answer) only from the left edge.
+  const scrollSideways = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const s = scrollRef.current;
+    if (!s || e.target !== s || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const room = e.key === "ArrowLeft" ? s.scrollLeft : s.scrollWidth - s.clientWidth - s.scrollLeft;
+    if (room <= 0) return;
+    e.preventDefault();
+    s.scrollLeft += (e.key === "ArrowLeft" ? -1 : 1) * Math.min(SIDE_STEP, room);
+  };
 
   if (!file) {
     return (
@@ -429,7 +447,8 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
           <span><b>Unresolved merge conflict.</b> This is the file as it is now against HEAD, its conflict markers included.</span>
         </div>
       )}
-      <div ref={scrollRef} className="gvd-scroll" tabIndex={0} role="region" aria-label={`Diff of ${file.path}`} aria-busy={loading || undefined} onScroll={notePlace}>
+      <div ref={scrollRef} className="gvd-scroll" tabIndex={0} role="region" aria-label={`Diff of ${file.path}`} aria-busy={loading || undefined}
+        onScroll={notePlace} onKeyDown={scrollSideways}>
         {body}
       </div>
     </div>
