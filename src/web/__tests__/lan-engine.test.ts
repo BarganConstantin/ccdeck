@@ -1411,8 +1411,8 @@ describe("unpairing", () => {
 
   it("does not stop a heal from a deck somebody chose when the login is unticked mid-export", async () => {
     // The tick is this deck's answer to "offer it", not to "repair it", so
-    // taking it away mid-round changes nothing about what arrives. From a deck
-    // the switch paired it still does — see lan-switch-pairing.test.ts.
+    // taking it away mid-round changes nothing about what arrives — from a
+    // deck the switch paired either, since 3.38.1 (lan-switch-pairing.test.ts).
     const A = K("a-heal@x", "o");
     const B = K("b-add@x", "o");
     let release!: () => void;

@@ -28,10 +28,11 @@ export function versionOrder(a: string, b: string): number | null {
  *
  * The engine's rules, said in words. A copy that does not work there moves
  * nothing. One this deck lacks arrives on the next round, and one that is
- * expired here is repaired on it, whatever this deck shares (see roundWith).
- * This said "share it to repair" over every expired login until the engine
- * stopped asking a deck somebody chose for the tick — and the person reading
- * it deleted the account instead, because the add that followed needed none.
+ * expired here is repaired on it, whatever this deck shares and whoever made
+ * the pairing (see roundWith). This said "share it to repair" over every
+ * expired login until the engine stopped asking a deck somebody chose for the
+ * tick — and the person reading it deleted the account instead, because the
+ * add that followed needed none.
  *
  * TWO CELLS, NOT A SENTENCE. This was one string — `works there · works here`,
  * `broken there · not on this deck` — and a reader had to take it left to
@@ -45,18 +46,16 @@ export function versionOrder(a: string, b: string): number | null {
  * answer is "nothing". So the note exists on exactly the rows worth reading,
  * and it is the note — not the state — that carries the ink.
  *
- * `takesAdds` is false for a deck the accept switch paired rather than a
- * person: the engine takes a login from such a deck — missing here or expired
- * here — only when it is ticked here (see roundWith), so "arrives next round"
- * and "repairs next round" would be promises the round does not keep. Pairing
- * with it by invite is a person choosing it, and that is what lifts it. The
- * name is from when it governed adds alone.
+ * NEITHER THIS DECK'S TICKS NOR WHO MADE THE PAIRING, because the round reads
+ * neither. From 3.33.0 a deck the accept switch paired was held to the tick
+ * here, and this drew its logins stopped at this deck — "paired automatically
+ * — pair by invite to take it" — over a login this deck lacked and therefore
+ * could not tick. 3.38.1 took that rule out of the engine, and the state with
+ * it.
  */
 export function offerLine(
   theirs: OfferedAccount,
   mine: LanAccount | null,
-  sharedHere: boolean,
-  takesAdds = true,
 ): { there: string; here: string; note: string | null; tone: "ok" | "wait" | "bad" | "idle" } {
   const here = !mine ? "not on this deck" : mine.alive
     ? mine.shareable === false ? "cannot share here" : "works here"
@@ -78,23 +77,15 @@ export function offerLine(
   // `here` stays what IS, and the note says what WILL BE. The old string put
   // `arrives here next round` in the state slot, which left a reader unable to
   // tell the present from the promise.
-  if (!mine) {
-    return takesAdds || sharedHere
-      ? { there: "works there", here, note: "arrives next round", tone: "wait" }
-      : { there: "works there", here, note: "paired automatically — pair by invite to take it", tone: "bad" };
-  }
+  if (!mine) return { there: "works there", here, note: "arrives next round", tone: "wait" };
   if (mine.alive) return { there: "works there", here, note: null, tone: mine.shareable === false ? "idle" : "ok" };
-  return takesAdds || sharedHere
-    ? { there: "works there", here, note: "repairs next round", tone: "wait" }
-    : { there: "works there", here, note: "paired automatically — share it to repair", tone: "bad" };
+  return { there: "works there", here, note: "repairs next round", tone: "wait" };
 }
 
 /** Which way one login can move between this deck and a paired one. `live`
- *  is a copy that can cross; `wait` is one that will, on the next round;
- *  `blocked` works there and stops at this deck, which the accept switch
- *  paired with that one, until this deck shares it too; `cut` is a copy with
- *  nothing to give. */
-export type LaneFlow = "live" | "wait" | "blocked" | "cut";
+ *  is a copy that can cross; `wait` is one that will, on the next round; `cut`
+ *  is a copy with nothing to give. */
+export type LaneFlow = "live" | "wait" | "cut";
 
 /**
  * One login between this deck and one paired deck — a lane between the two
@@ -137,8 +128,6 @@ export function exchangeLanes(
   /** The key that deck said it is on, or null. The engine only keeps one that
    *  is in the same list, so it can only ever land on a lane it offers. */
   current: string | null = null,
-  /** False for a deck the accept switch paired — see offerLine. */
-  takesAdds = true,
 ): Lane[] {
   // Two slots for one login read as the live one, as the engine's onePerKey
   // picks it (lan-copies.mjs): an expired duplicate after it must not paint this
@@ -153,7 +142,7 @@ export function exchangeLanes(
     seen.add(theirs.key);
     const mine = byKey.get(theirs.key) ?? null;
     const giving = sharedHere.has(theirs.key);
-    const said = offerLine(theirs, mine, giving, takesAdds);
+    const said = offerLine(theirs, mine);
     const here = !mine ? "missing" : !mine.alive ? "expired"
       : mine.shareable === false ? "unavailable" : "works";
     // Both copies gone is the one note that already names both ends.
@@ -170,7 +159,7 @@ export function exchangeLanes(
       there: !theirs.alive ? "broken" : theirs.shareable === false ? "unavailable" : "works",
       in: !theirs.alive || theirs.shareable === false
         ? "cut"
-        : said.tone === "wait" ? "wait" : said.tone === "bad" ? "blocked" : "live",
+        : said.tone === "wait" ? "wait" : "live",
       out: giving && mine ? (mine.alive && mine.shareable !== false ? "live" : "cut") : null,
       caption,
       tone: said.tone,

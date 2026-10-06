@@ -397,7 +397,8 @@ export function createEngine({
    * is new.
    *
    * Or one the accept switch chose for them, which `auto` says and the pin
-   * keeps — see addTrusted, and roundWith for what such a deck may not do.
+   * keeps — see addTrusted, and sharedWith in lan-sync.mjs for what such a
+   * deck is not handed.
    */
   const pin = ({ fp, pub, name }, { auto = false } = {}) => {
     const { list, added } = addTrusted(cfg.trusted, { fp, pub, name, at: now(), ...(auto ? { auto: true } : {}) });
@@ -727,11 +728,11 @@ export function createEngine({
       if (!stillPaired()) throw new Error("peer no longer paired");
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
       const list = keepManifest(conn.key, theirs, conn.peerFp);
-      // FROM A DECK SOMEBODY HERE CHOSE, NEITHER AN ADD NOR A HEAL NEEDS MY
-      // TICK. Adding is the case the owner asked for by name: an account that
-      // appears among the decks I paired with appears on all of them, which is
-      // the whole of "I do not want to paste blobs any more". What can reach
-      // this is what a deck somebody here pressed accept on chose to offer.
+      // FROM ANY PAIRED DECK, NEITHER AN ADD NOR A HEAL NEEDS MY TICK. Adding
+      // is the case the owner asked for by name: an account that appears among
+      // the decks I paired with appears on all of them, which is the whole of
+      // "I do not want to paste blobs any more". What can reach this is what a
+      // paired deck chose to offer.
       //
       // A heal used to need the tick, on the reasoning that it replaces a slot
       // I already have. It replaces only one claude-swap has quarantined, with
@@ -746,13 +747,28 @@ export function createEngine({
       // so this is the ordinary case between one person's machines, not an
       // edge.
       //
-      // WHICH IS ONLY TRUE OF A DECK SOMEBODY CHOSE. The accept switch presses
-      // accept for the owner, so "somebody here pressed accept" is not a
-      // premise about a deck it paired: nobody here chose that deck, and the
-      // logins this store holds would be whatever it decided to offer. What a
-      // deck the switch paired offers comes in — added or healed — only for an
-      // account ticked here, and a person's own press or invite takes the mark
-      // off its pin (see addTrusted).
+      // A DECK THE SWITCH PAIRED INCLUDED, which is what 3.33.0 got wrong. It
+      // held such a deck to the tick — what it offered came in only for an
+      // account ticked here — on the reasoning that nobody here chose it. On
+      // the shipped defaults that was a deadlock rather than a gate. The
+      // accept switch ships on, so two of one person's machines pair by it;
+      // the setup dialog lists only this deck's own accounts, so a login this
+      // deck lacks cannot be ticked here; so an add from such a deck could
+      // never pass. A Mac ticked eight working logins, the deck it had paired
+      // with by the switch received none of them, ever, and its round line
+      // read "all logins fine". The owner chose fully automatic (2026-10-06):
+      // whoever made the pairing, a round takes everything plan() returns.
+      //
+      // What stands between a deck nobody here chose and this store does not
+      // rest on the tick, and none of it moved. plan() never replaces a login
+      // that works here (syncAction never asks for a forced import). A giving
+      // deck hands a deck its switch paired only what a PERSON ticked on it,
+      // not what an arrival ticked onward (sharedWith in lan-sync.mjs). And
+      // nothing that arrives from one is ticked onward here (ticksOnArrival).
+      // What it costs is the switch's own: on a network the owner does not
+      // control, a deck the switch pairs can add the logins ticked on it — so
+      // the dialog and the README say to turn the switch off there.
+      //
       // OVER `list`, NOT THE RAW ARRAY. `offered`, which keepManifest runs the
       // list through above (see lan-manifest.mjs), slices to 50 and type-
       // filters `key` and `email`; this line read `theirs.accounts` and got
@@ -763,15 +779,7 @@ export function createEngine({
       // the store lock, while the panel drew 50 and every other paired deck
       // waited behind it. `step.key` also reached transferChallenge and
       // importAccount untyped, which `offered`'s filter would have caught.
-      const chosen = () => trustedPeer(cfg.trusted, conn.peerFp)?.auto !== true;
-      const takes = step => chosen() || cfg.shared.includes(step.key);
-      const wanted = plan(mine, list).filter(takes);
-      // TWO CHECKS, BECAUSE THEY END DIFFERENT THINGS. Losing the session —
-      // LAN switched off, the peer unpaired (`stillPaired`, above) — ends the
-      // round. From a deck the switch paired, an account unticked mid-round
-      // ends only that step: the next one may still be ticked, and the skipped
-      // row says why rather than vanishing.
-      const stillWanted = takes;
+      const wanted = plan(mine, list);
       /** One login, asked for and opened: a `want` carrying its own proof that
        *  names the account (see transferChallenge), and the `have` opened under
        *  the additional data it was sealed with. The login, or why there is
@@ -790,15 +798,16 @@ export function createEngine({
         return blob ? { blob } : { why: "could not open" };
       };
       let cut = false;
+      // Losing the session — LAN switched off, the peer unpaired — ends the
+      // round, checked before each question and again before each import. A
+      // tick changed here mid-round ends nothing: no step reads one.
       for (const step of wanted) {
         if (!stillPaired()) { cut = true; break; }
-        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         const { blob, why } = await wantLogin(step);
         if (!blob) { done.push({ ...step, ok: false, why }); continue; }
-        // Unpairing, disabling LAN, or unticking a heal while export was in
-        // progress takes effect before the received credential touches disk.
+        // Unpairing or disabling LAN while export was in progress takes effect
+        // before the received credential touches disk.
         if (!stillPaired()) { cut = true; break; }
-        if (!stillWanted(step)) { done.push({ ...step, ok: false, why: "not shared" }); continue; }
         // A verdict rather than a boolean, because "refused" and "kept the
         // slot it already has" are different things to tell somebody and the
         // second one used to be reported as success. A bare `true` is still
@@ -825,11 +834,11 @@ export function createEngine({
         // be asleep or on another network. Nothing new is exposed — the login
         // came FROM the group, so the group has it.
         //
-        // ONLY AN ADD, and only from the local network. A heal already needed
-        // the tick to happen at all (the filter above), so there is nothing to
-        // add for one; and a tailnet reaches further than the person's own
-        // machines, which is a decision they make for themselves rather than
-        // one an arrival makes for them.
+        // ONLY AN ADD, only from the local network, and only from a deck
+        // somebody here chose — see ticksOnArrival for why each. A healed slot
+        // was here already and its tick is somebody's decision either way; a
+        // tailnet reaches further than the person's own machines; and what a
+        // deck the switch paired brings is not passed on in this deck's name.
         // The store can finish an import after the owner disabled LAN or
         // revoked this peer. Keep the imported slot, but do not turn it into
         // a newly shared credential on behalf of an obsolete transfer.
@@ -1026,9 +1035,6 @@ export function createEngine({
     const card = id => ({
       ...heardOf(id),
       pairedAt: trustedPeer(cfg.trusted, id)?.at ?? null,
-      // And whether a switch said that yes rather than a person, which is
-      // what the dialog needs to say which logins will not arrive from it.
-      ...(trustedPeer(cfg.trusted, id)?.auto ? { autoPaired: true } : {}),
     });
     for (const p of [...beacon.peers.values(), ...dials.rows()]) {
       if (!stillListed(p, now())) continue;
