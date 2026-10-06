@@ -15,8 +15,7 @@ import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { SessionRecap, WaitingBlock } from "../types";
 import { shortModel, modelFamily } from "../model-label";
-import { recapShown } from "../session-recap";
-import { rowLines, statusShown, statusTag, type StatusLine } from "../session-status";
+import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../session-note";
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
 import { isAgentVisible } from "../visibility";
@@ -27,15 +26,14 @@ export interface Row {
   cwdBasename?: string;
   state: "active" | "done" | "err";
   waiting?: WaitingBlock | null;
-  /** Claude Code's recap while it still describes the session — the rule is
-   *  session-recap.ts's, the same one the card asks. Null on every other row,
-   *  which keeps exactly the shape it had. */
+  /** Claude Code's recap when it is what the session's note says — the rule is
+   *  session-note.ts's, the same one the card and its note ask. Null on every
+   *  other row, which keeps exactly the shape it had. */
   recap?: SessionRecap | null;
-  /** What the session is doing, asking or got done, in words — a background
-   *  job's own line, or the newest reply of a running turn. The rule is
-   *  session-status.ts's; null whenever the recap speaks instead, or neither
-   *  has anything to say. */
-  status?: StatusLine | null;
+  /** The note when it says anything else: what the session is doing or did
+   *  last, or a background job's question, headline or failure. Same rule;
+   *  null whenever the recap speaks instead, or nothing has been said. */
+  status?: SessionNote | null;
   modelId?: string;
   toolCount: number;
   cost: number;
@@ -81,8 +79,11 @@ export function buildRows(state: GraphState, now: number): Row[] {
       const t = sub.endedAt ?? sub.startedAt;
       if (t > lastActivity) lastActivity = t;
     }
-    // One line under the figures, never two — see rowLines for which speaks.
-    const { status, recap } = rowLines(statusShown(a), recapShown(a));
+    // The session's note, the one its card ties to it on the canvas: a recap
+    // draws as one, anything else as a tagged line.
+    const note = sessionNoteShown(a);
+    const recap = note?.kind === "recap" ? { text: note.text, at: note.at } : null;
+    const status = note && note.kind !== "recap" ? note : null;
     rows.push({
       sessionId: a.sessionId,
       label: a.label || a.cwdBasename || "session",
@@ -114,12 +115,8 @@ export function buildRows(state: GraphState, now: number): Row[] {
 /** The whole line, uncut, and who wrote it: three lines of a sidebar cut most
  *  questions short, and how far to trust a line depends on whether Claude
  *  Code's classifier wrote it or the deck read it off the newest reply. */
-function statusTooltip(s: StatusLine): string {
-  return [
-    s.text,
-    s.reply ? `Suggested reply: ${s.reply}` : "",
-    s.source === "job" ? "Claude Code's own line for this background session" : "From the session's newest reply",
-  ].filter(Boolean).join("\n");
+function statusTooltip(s: SessionNote): string {
+  return [s.text, s.reply ? `Suggested reply: ${s.reply}` : "", noteSource(s)].filter(Boolean).join("\n");
 }
 
 function elapsedShort(start: number, end: number | undefined, now: number): string {
@@ -295,7 +292,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     {/* A real space after the tag, not only its margin: the row's
                         name is its text, and "doneShipped" is one word to a
                         screen reader. */}
-                    <span className="sl-status-tag">{statusTag(r.status.kind)}</span>{" "}
+                    <span className="sl-status-tag">{noteTag(r.status.kind)}</span>{" "}
                     {r.status.text}
                   </span>
                 )}

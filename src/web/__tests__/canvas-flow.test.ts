@@ -403,3 +403,53 @@ describe("what a selection does to the cards around it", () => {
     expect(edge.style?.strokeWidth).toBe("calc(3px * var(--edge-k, 1))");
   });
 });
+
+describe("the note says what the session is doing, until the recap takes its place", () => {
+  // session-note.ts holds the rule; these pin that the canvas draws it as the
+  // one note node beside the card, the node the recap has always been.
+  const working = (sid: string, text: string, at: number) => agent(sid, {
+    state: "active", endedAt: undefined, prompts: [{ at: 1_200, text: "go" }],
+    activity: { text, source: "tool", at },
+  } as Partial<AgentNodeData>);
+
+  it("is a note node beside the card while a turn runs", () => {
+    const state = board(working("w1", "Run the API tests", 1_500));
+    const note = frame(state).nodes.find(n => n.id === recapNoteId("w1"))!;
+    expect(note.type).toBe("recapNote");
+    expect((note.data as { note: { kind: string; text: string } }).note).toMatchObject({ kind: "now", text: "Run the API tests" });
+    expect(note.ariaLabel).toBe("w1: now");
+  });
+
+  it("is the same node, saying the recap, once Claude Code writes one", () => {
+    const a = working("w2", "Run the API tests", 1_500);
+    const state = board(a);
+    const positions = new Map<string, Point>();
+    const provisional: Provisional = new Set();
+    frame(state, { positions, provisional });
+    const placed = positions.get(recapNoteId("w2"));
+    expect(placed).toBeDefined();
+    // The turn ends, and Claude Code's recap lands after it.
+    a.state = "done";
+    a.recap = { text: "Tests pass; PR ready.", at: 2_500 };
+    state.revision++;
+    const note = frame(state, { positions, provisional }).nodes.find(n => n.id === recapNoteId("w2"))!;
+    expect((note.data as { note: { kind: string; text: string } }).note).toMatchObject({ kind: "recap", text: "Tests pass; PR ready." });
+    // Where it was: the recap takes the note's place rather than arriving anew.
+    expect(note.position).toEqual(placed);
+  });
+
+  it("stays put away for the rest of the turn once closed, however often its line changes", () => {
+    const a = working("w3", "Run the API tests", 1_500);
+    const state = board(a);
+    const first = frame(state).nodes.find(n => n.id === recapNoteId("w3"))!;
+    dismissRecap((first.data as { noteKey: string }).noteKey);
+    a.activity = { text: "Reading reducer.ts", source: "tool", at: 1_700 };
+    state.revision++;
+    expect(frame(state).nodes.some(n => n.id === recapNoteId("w3"))).toBe(false);
+    // The recap is news: it opens by itself.
+    a.state = "done";
+    a.recap = { text: "Done reading.", at: 2_600 };
+    state.revision++;
+    expect(frame(state).nodes.some(n => n.id === recapNoteId("w3"))).toBe(true);
+  });
+});
