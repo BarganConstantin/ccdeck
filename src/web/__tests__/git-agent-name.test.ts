@@ -29,6 +29,34 @@ describe("an agent's name on every git surface", () => {
     expect(agentNameIn(two, BUG, null)).toBe("web-app · 3893");
   });
 
+  it("gives a session with no name its cluster header's id tail whenever another session works in that workspace, named or not", () => {
+    // api-fix is named; the session beside it in shop-api-auth is not. Its
+    // cluster header reads SHOP-API-AUTH · 3893, and without the tail the
+    // card titled shop-api-auth would read as colliding with itself.
+    const agents = board(root(UI, { label: "shop-api-auth", sessionName: "api-fix" }), root(BUG, { label: "shop-api-auth" }));
+    expect(agentNameIn(agents, BUG, null)).toBe("shop-api-auth · 3893");
+    // A named session keeps its name alone.
+    expect(agentNameIn(agents, UI, null)).toBe("api-fix");
+    expect(agentNamer(agents.values())(BUG, null)).toBe("shop-api-auth · 3893");
+    expect(cardName(agents, agents.get(BUG)!)).toBe("shop-api-auth · 3893");
+    // Alone in its workspace it needs none.
+    expect(agentNameIn(board(root(BUG, { label: "shop-api-auth" }), root(UI, { sessionName: "api-fix" })), BUG, null)).toBe("shop-api-auth");
+  });
+
+  it("tells two subagents of one session of the same type apart by their keys' tails", () => {
+    const cards = [root(UI, { label: "infra" }), sub(UI, "b0000000000gp001", "general-purpose"), sub(UI, "b0000000000gp002", "general-purpose"),
+      sub(UI, "c1", "test-writer"), sub(BUG, "b0000000000gp003", "general-purpose")];
+    const agents = board(...cards);
+    expect(agentNameIn(agents, UI, "b0000000000gp001")).toBe("general-purpose · p001");
+    expect(agentNameIn(agents, UI, "b0000000000gp002")).toBe("general-purpose · p002");
+    expect(cardName(agents, agents.get(`${UI}::b0000000000gp002`)!)).toBe("general-purpose · p002");
+    expect(agentNamer(cards)(UI, "b0000000000gp001")).toBe("general-purpose · p001");
+    // One of its type in its session, or one in another session: its type alone.
+    expect(agentNameIn(agents, UI, "c1")).toBe("test-writer");
+    expect(agentNameIn(agents, BUG, "b0000000000gp003")).toBe("general-purpose");
+    expect(otherAgentName(agentNamer(cards), { sessionId: UI, agentId: "b0000000000gp002" })).toBe("↳ general-purpose · p002");
+  });
+
   it("is a subagent's own label, its type, never its session's", () => {
     const agents = board(root(UI, { sessionName: "api-fix" }), sub(UI, "a4f1", "test-writer"));
     expect(agentNameIn(agents, UI, "a4f1")).toBe("test-writer");
@@ -42,10 +70,11 @@ describe("an agent's name on every git surface", () => {
   });
 
   it("says the same worked out once for a whole board", () => {
-    const cards = [root(UI), root(BUG), sub(BUG, "ag7", "docs-sync")];
+    const cards = [root(UI), root(BUG), root("f00d-1", { label: "web-app", sessionName: "api-fix" }), sub(BUG, "ag7", "docs-sync"),
+      sub(BUG, "ag8", "docs-sync"), sub(BUG, "ag9", "reader")];
     const name = agentNamer(cards);
     const agents = board(...cards);
-    for (const [sid, key] of [[UI, null], [BUG, null], [BUG, "ag7"], [BUG, "gone"]] as const) {
+    for (const [sid, key] of [[UI, null], [BUG, null], ["f00d-1", null], [BUG, "ag7"], [BUG, "ag8"], [BUG, "ag9"], [BUG, "gone"]] as const) {
       expect(name(sid, key)).toBe(agentNameIn(agents, sid, key));
     }
   });

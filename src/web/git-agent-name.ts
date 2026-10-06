@@ -7,10 +7,11 @@
 // A session goes by the name Claude Code gave it when it has one — short, and
 // the cluster header shows it — and otherwise by its workspace, the card's
 // label (a Codex session, a Claude session not named yet). Agents that collide
-// or share a history usually share that workspace too, so two sessions that
-// would read the same are told apart by the last characters of their ids, the
-// tail the cluster header shows ("web-app · 3893"). A subagent goes by its own
-// label, its type; the surfaces that set it apart write `↳` before it.
+// or share a history usually share that workspace too, so a session that would
+// read like another is told apart by the last characters of its id, the tail
+// its cluster header shows ("web-app · 3893"). A subagent goes by its own
+// label, its type, with its key's tail when its session has another of that
+// type; the surfaces that set it apart write `↳` before it.
 import { distinctIdTail } from "./session-id-tail";
 import type { AgentNodeData, GitCollisionRef } from "./types";
 
@@ -25,10 +26,49 @@ export type AgentNamer = (sessionId: string, agentId: string | null) => string |
 /** What a session calls itself before it is told apart from another. */
 const ownName = (card: NamedCard) => card.sessionName?.trim() || card.label;
 
-function nameWith(card: NamedCard, peersOf: (name: string) => string[]): string {
-  if (card.kind === "subagent") return card.label;
+/** Who a card has to be told apart from, by id: the sessions that would read
+ *  the same as it, or its session's subagents of the same type. */
+interface Peers {
+  /** Sessions by the name Claude Code gave them. */
+  named: Map<string, string[]>;
+  /** Sessions by their workspace, named or not: the set the cluster header
+   *  takes its id tail against. */
+  workspace: Map<string, string[]>;
+  /** Subagents by session and type, by their keys. */
+  subs: Map<string, string[]>;
+}
+
+const subKeyOf = (card: NamedCard) => (card.id.startsWith(`${card.sessionId}::`) ? card.id.slice(card.sessionId.length + 2) : card.id);
+const subGroup = (card: NamedCard) => `${card.sessionId}\u0000${card.label}`;
+const push = (m: Map<string, string[]>, k: string, v: string) => { const at = m.get(k); if (at) at.push(v); else m.set(k, [v]); };
+
+function peersOf(agents: Iterable<NamedCard>): Peers {
+  const p: Peers = { named: new Map(), workspace: new Map(), subs: new Map() };
+  for (const a of agents) {
+    if (a.kind === "subagent") { push(p.subs, subGroup(a), subKeyOf(a)); continue; }
+    if (a.kind !== "root") continue;
+    push(p.named, ownName(a), a.sessionId);
+    push(p.workspace, a.label, a.sessionId);
+  }
+  return p;
+}
+
+/**
+ * A card's name on a board. A named session is told apart only from another
+ * of the same name. One with no name goes by its workspace, as its cluster
+ * header does, and like the header takes the id's tail whenever another
+ * session on the board works in that workspace, named or not — so a Codex
+ * session beside a named Claude one never reads as the other card's own title.
+ * Two subagents of one session of the same type are told apart the same way,
+ * by their own keys' tails.
+ */
+function nameWith(card: NamedCard, peers: Peers): string {
+  if (card.kind === "subagent") {
+    const same = peers.subs.get(subGroup(card)) ?? [];
+    return same.length > 1 ? `${card.label} · ${distinctIdTail(subKeyOf(card), same)}` : card.label;
+  }
   const name = ownName(card);
-  const same = peersOf(name);
+  const same = (card.sessionName?.trim() ? peers.named.get(name) : peers.workspace.get(card.label)) ?? [];
   return same.length > 1 ? `${name} · ${distinctIdTail(card.sessionId, same)}` : name;
 }
 
@@ -38,34 +78,23 @@ const cardIdOf = (sessionId: string, agentId: string | null) => (agentId ? `${se
  *  many agents in one pass (every card's collision mark). */
 export function agentNamer(agents: Iterable<NamedCard>): AgentNamer {
   const byId = new Map<string, NamedCard>();
-  const peers = new Map<string, string[]>();
-  for (const a of agents) {
-    byId.set(a.id, a);
-    if (a.kind !== "root") continue;
-    const name = ownName(a);
-    peers.set(name, [...(peers.get(name) ?? []), a.sessionId]);
-  }
+  for (const a of agents) byId.set(a.id, a);
+  const peers = peersOf(byId.values());
   return (sessionId, agentId) => {
     const card = byId.get(cardIdOf(sessionId, agentId));
-    return card ? nameWith(card, name => peers.get(name) ?? []) : null;
+    return card ? nameWith(card, peers) : null;
   };
 }
 
 /** One agent's name, read off the board as it is now. */
 export function agentNameIn(agents: ReadonlyMap<string, NamedCard>, sessionId: string, agentId: string | null): string | null {
   const card = agents.get(cardIdOf(sessionId, agentId));
-  if (!card) return null;
-  return nameWith(card, name => {
-    const same: string[] = [];
-    for (const a of agents.values()) if (a.kind === "root" && ownName(a) === name) same.push(a.sessionId);
-    return same;
-  });
+  return card ? nameWith(card, peersOf(agents.values())) : null;
 }
 
 /** A card's own name on the board it is on. */
 export function cardName(agents: ReadonlyMap<string, NamedCard>, card: NamedCard): string {
-  if (card.kind === "subagent") return card.label;
-  return agentNameIn(agents, card.sessionId, null) ?? ownName(card);
+  return agents.has(card.id) ? nameWith(card, peersOf(agents.values())) : card.kind === "subagent" ? card.label : ownName(card);
 }
 
 /** The other agent of a collision, as its mark on a card and its line in the

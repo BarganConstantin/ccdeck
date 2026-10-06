@@ -55,6 +55,30 @@ describe("the quiet mark: two agents in one folder, or on one branch", () => {
     expect(marks.get(BUG)!.said).toBe("shares folder with web-app · ad61");
   });
 
+  it("names a session with no name beside a named one in its workspace by the id's tail, as its cluster header does", () => {
+    // api-fix (named) and an unnamed session, both in shop-api-auth: every
+    // card on the board is titled shop-api-auth, so the bare label would read
+    // as the card colliding with itself.
+    const marks = cardMarks([
+      root(API, { label: "shop-api-auth", sessionName: "api-fix", gitCollisions: { quiet: [], sharp: [sharpWith(UI, ["src/auth/session.ts"])] } }),
+      root(UI, { label: "shop-api-auth", gitCollisions: { quiet: [], sharp: [sharpWith(API, ["src/auth/session.ts"])] } }),
+    ]);
+    expect(marks.get(API)!.said).toBe("also edited by shop-api-auth · ad61");
+    expect(marks.get(API)!.title).toContain("Select shop-api-auth · ad61.");
+    expect(marks.get(UI)!.said).toBe("also edited by api-fix");
+  });
+
+  it("tells two subagents of one type apart where it names them", () => {
+    const team: GitCollisions = { quiet: [], sharp: [sharpWith(API, ["README.md"], "b0000000000gp001", "b0000000000gp002"), sharpWith(API, ["README.md"], "b0000000000gp002", "b0000000000gp001")] };
+    const marks = cardMarks([
+      root(API, { label: "infra", gitCollisions: team }),
+      sub(API, "b0000000000gp001", { label: "general-purpose" }),
+      sub(API, "b0000000000gp002", { label: "general-purpose" }),
+    ]);
+    expect(marks.get(API)!.said).toBe("edited by ↳ general-purpose · p001 and ↳ general-purpose · p002");
+    expect(marks.get(`${API}::b0000000000gp001`)!.said).toBe("also edited by ↳ general-purpose · p002");
+  });
+
   it("says the same branch in another worktree in its own words", () => {
     const marks = cardMarks([
       root(UI, { gitCollisions: { quiet: [quietWith(API, "same-branch")], sharp: [] } }),
