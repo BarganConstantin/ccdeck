@@ -24,7 +24,7 @@ import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
 import { foldMarkers, gitViewFrame, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
-import { splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
+import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
   GIT_VIEW_DEFAULTS, edgeBounds, filesBounds, graphBounds, clampTo, isSheet, panelWidth, readGitViewPrefs,
@@ -122,11 +122,13 @@ export interface GitViewProps {
   onSelectAgent: (id: string) => void;
   /** Show an agent's card on the canvas, keeping the view on what it shows. */
   onShowCard: (id: string) => void;
+  /** Focus is back on what opened the view, after a close. */
+  onFocusBack?: (el: HTMLElement) => void;
 }
 
 export default function GitView(props: GitViewProps) {
   const request = useGitViewRequest();
-  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, openerRef, onClose, onSelectAgent, onShowCard } = props;
+  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, openerRef, onClose, onSelectAgent, onShowCard, onFocusBack } = props;
   const rf = useReactFlow();
   const root = agent ? stateRef.current.agents.get(agent.sessionId) ?? null : null;
   const opens = agent != null && gitViewOpens(gitFactsFor(agent, root));
@@ -413,6 +415,7 @@ export default function GitView(props: GitViewProps) {
       const target = usable ? opener : card;
       target?.focus({ preventScroll: true });
       if (target !== card && document.activeElement !== target) card?.focus({ preventScroll: true });
+      if (target && document.activeElement === target) onFocusBack?.(target);
     });
     return () => cancelAnimationFrame(raf);
   }, [request.seq]);
@@ -434,6 +437,7 @@ export default function GitView(props: GitViewProps) {
       pane: (paneEl?.getAttribute("data-gv-pane") as GitViewPane | null) ?? null,
       typing: isTypingTarget({ tagName: t.tagName, isContentEditable: t.isContentEditable, type: (t as HTMLInputElement).type }),
       handled: e.defaultPrevented,
+      control: t.tagName === "BUTTON" || t.tagName === "A",
     });
     if (intent.kind === "pass") return;
     e.stopPropagation();
@@ -655,6 +659,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // nothing read yet — holds focus itself, inside the view that owns the keys,
   // and hands it to its row once the row is there.
   const pendingPane = useRef<GitViewPane | null>(null);
+  // The history's selected row not drawn yet — a detached HEAD's Uncommitted
+  // row waits on the status read — so its one tab stop holds focus for it.
+  const standIn = useRef<HTMLElement | null>(null);
   const focusPane = useCallback((p: GitViewPane) => {
     const section = panelRef.current?.querySelector<HTMLElement>(`[data-gv-pane="${p}"]`);
     if (!section) return;
@@ -664,10 +671,11 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     const handle = p === "files" ? filesHandle.current : p === "diff" ? diffHandle.current : null;
     if (handle) handle.focus();
     else {
-      const row = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]')
-        ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]');
+      const chosen = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]');
+      const row = chosen ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]');
       row?.focus({ preventScroll: true });
       row?.scrollIntoView?.({ block: "nearest" });
+      standIn.current = chosen ? null : row ?? null;
     }
     const active = document.activeElement;
     if (active !== section && section.contains(active)) { pendingPane.current = null; return; }
@@ -675,11 +683,32 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     pendingPane.current = p;
   }, []);
   useEffect(() => {
+    // Only while the stand-in still has focus: the reader may have moved on.
+    const s = standIn.current;
+    if (s) {
+      if (document.activeElement !== s) standIn.current = null;
+      else {
+        const chosen = panelRef.current?.querySelector<HTMLElement>('[data-gv-pane="graph"] [aria-selected="true"][tabindex]');
+        if (chosen && chosen !== s) { standIn.current = null; chosen.focus({ preventScroll: true }); chosen.scrollIntoView?.({ block: "nearest" }); }
+      }
+    }
     const p = pendingPane.current;
     if (!p) return;
     // Only while the pane still holds it: the reader may have moved on.
     if (document.activeElement === panelRef.current?.querySelector(`[data-gv-pane="${p}"]`)) focusPane(p);
     else pendingPane.current = null;
+  });
+  // What last held focus in the view can leave the page with its data — a
+  // file committed or put back, a commit amended away, the Uncommitted row of
+  // a detached HEAD gone clean — and focus would fall to the page, where every
+  // deck key acts again. Its pane takes focus back in the same frame.
+  const lostFrom = useRef<{ el: HTMLElement; pane: GitViewPane | null } | null>(null);
+  useLayoutEffect(() => {
+    const was = lostFrom.current;
+    if (!request.open || !was) return;
+    const active = document.activeElement;
+    const p = paneForLostFocus({ connected: was.el.isConnected, pane: was.pane }, !active || active === document.body);
+    if (p) { lostFrom.current = null; focusPane(p); }
   });
   actions.current = { focusPane, newest: view.showLatest };
   // `n` from the deck, with focus outside the view, reaches the same action.
@@ -868,6 +897,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
       {!sheet && splitter("edge", "vertical", "Resize the git view", "gv-panel", "gv-edge")}
       <div className="gv-inner" id="gv-panel" onFocus={e => {
         const p = (e.target as HTMLElement).closest?.("[data-gv-pane]")?.getAttribute("data-gv-pane") as GitViewPane | null;
+        lostFrom.current = { el: e.target as HTMLElement, pane: p };
         if (p && p !== pane) setPane(p);
       }}>
         <header className="gv-head" ref={headRef}>

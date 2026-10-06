@@ -647,10 +647,14 @@ export default function GitGraph(props: GitGraphProps) {
     hideHover();
     if (listRef.current && listRef.current.scrollTop <= 0) setNewAbove(0);
   }, [hideHover]);
+  // The pill goes away as it is pressed: with focus on it, the history's tab
+  // stop takes focus first, or it would fall to the page and its deck keys.
+  const pillRef = useRef<HTMLButtonElement>(null);
   const toTop = useCallback(() => {
     const sc = listRef.current;
     if (!sc) return;
     sc.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
+    if (pillRef.current?.contains(document.activeElement)) sc.querySelector<HTMLElement>('[role="option"][tabindex="0"]')?.focus({ preventScroll: true });
     setNewAbove(0);
   }, []);
 
@@ -748,7 +752,7 @@ export default function GitGraph(props: GitGraphProps) {
       </div>
       <div className="gv-graph-wrap">
         {newAbove > 0 && (
-          <button type="button" className="gv-new-pill" onClick={toTop}>
+          <button type="button" className="gv-new-pill" ref={pillRef} onClick={toTop}>
             <UpGlyph /><span>{newAbove} new commit{newAbove === 1 ? "" : "s"}</span>
           </button>
         )}

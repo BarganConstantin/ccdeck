@@ -42,6 +42,8 @@ export interface ViewKeyWhere {
   typing: boolean;
   /** The pane already answered this key (it called preventDefault). */
   handled: boolean;
+  /** Focus is on a button or link, which Enter and Space press. */
+  control: boolean;
 }
 
 export type ViewKeyIntent =
@@ -68,6 +70,8 @@ export function viewKeyIntent(
     return { kind: "close" };
   }
   if (where.typing || where.handled) return { kind: "swallow" };
+  // A button's own press: the browser activates it, and the key stops here.
+  if (where.control && (e.key === "Enter" || e.key === " ")) return { kind: "swallow" };
   if (e.key === "g" || e.key === "G") return { kind: "close" };
   if (e.key === "n" || e.key === "N") return { kind: "newest" };
   if (where.pane === "graph" && (e.key === "ArrowRight" || e.key === "Enter")) return { kind: "focus", pane: "files" };
@@ -75,6 +79,17 @@ export function viewKeyIntent(
   if (where.pane === "files" && (e.key === "Enter" || e.key === "ArrowRight")) return { kind: "focus", pane: "diff" };
   if (where.pane === "diff" && e.key === "ArrowLeft") return { kind: "focus", pane: "files" };
   return { kind: "swallow" };
+}
+
+/** Where focus goes back to when what held it inside the view has left the
+ *  page with its data — a file row whose file was committed or put back, a
+ *  commit row amended away, the Uncommitted row of a detached HEAD gone
+ *  clean. Focus would otherwise fall to the page, where every deck key acts
+ *  again. Null when nothing was lost: the holder is still on the page (a
+ *  click on the canvas, another window), or something else has focus. */
+export function paneForLostFocus(lost: { connected: boolean; pane: GitViewPane | null } | null, onPage: boolean): GitViewPane | null {
+  if (!lost || lost.connected || !onPage) return null;
+  return lost.pane ?? "graph";
 }
 
 /** What a key does to a divider (the WAI-ARIA window splitter): a step in
