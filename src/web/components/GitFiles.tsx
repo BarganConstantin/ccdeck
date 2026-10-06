@@ -3,7 +3,7 @@ import { copyText } from "../copy-text";
 import { groupDigits } from "../git-diff-parse";
 import {
   commitRows, fileKey, rowOrder, uncommittedList,
-  type CommitFile, type ElsewhereRow, type FileRef, type FileRow, type GitEdit, type GraphFocus, type StatusEntry,
+  type CardNamer, type CommitFile, type ElsewhereRow, type FileRef, type FileRow, type GitEdit, type GraphFocus, type StatusEntry,
 } from "../git-files-model";
 import { fitShared, monoMeasure, nameFits, type Measure, type PathCut } from "../git-path-fit";
 import { sessionHue } from "../session-hue";
@@ -32,6 +32,10 @@ export interface GitFilesProps {
   commitBy?: string;
   /** A clean working tree: the line under "Working tree clean." */
   cleanNote?: string;
+  /** Names the session's agents the way their cards do, by key (null for the
+   *  main thread). Kept stable by the caller: the list is worked out again
+   *  when it changes. */
+  cardName?: CardNamer;
   /** Uncommitted mode: the session's subagents that work in another folder,
    *  named under its own files. */
   elsewhere?: ElsewhereRow[];
@@ -74,7 +78,7 @@ const SHELL_NOTE = "Marked from the agent's edit tools (Edit, Write, MultiEdit, 
  * `↳` before a file name is cut; a file listed twice is cut the same in both.
  */
 const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(props, ref) {
-  const { entries, mode, edits, focus, selected, onSelect, onOpen, collisions, name, sha, commitBy, cleanNote, onElsewhere } = props;
+  const { entries, mode, edits, focus, selected, onSelect, onOpen, collisions, name, sha, commitBy, cleanNote, cardName, onElsewhere } = props;
   const elsewhere = mode === "uncommitted" ? props.elsewhere ?? NO_ELSEWHERE : NO_ELSEWHERE;
   const listRef = useRef<HTMLDivElement>(null);
   const rowEls = useRef(new Map<string, HTMLDivElement>());
@@ -85,9 +89,9 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
   const focusKey = `${focus.sessionId}\0${focus.agentIds?.join("\0") ?? "*"}`;
   const clashKey = collisions.map(c => `${c.path}\0${c.with}`).join("\n");
   const list = useMemo(
-    () => (mode === "commit" ? commitRows(entries as CommitFile[]) : uncommittedList(entries as StatusEntry[], edits, focus, collisions, name)),
+    () => (mode === "commit" ? commitRows(entries as CommitFile[]) : uncommittedList(entries as StatusEntry[], edits, focus, collisions, name, cardName)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entries, mode, edits, focusKey, clashKey, name],
+    [entries, mode, edits, focusKey, clashKey, name, cardName],
   );
   const rows = useMemo(() => rowOrder(list), [list]);
   // The keyboard walks the files and, between the agent's own and the rest,

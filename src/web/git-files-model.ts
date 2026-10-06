@@ -115,6 +115,10 @@ export interface UncommittedList {
   counted: boolean;
 }
 
+/** What a session's agent is called on its card, by its key in the session
+ *  (null for the main thread), or null when its card is not on the board. */
+export type CardNamer = (agentId: string | null) => string | null;
+
 /** What a session's main thread is called when nothing better is known. */
 const SESSION = "this session";
 
@@ -123,12 +127,11 @@ function editsOf(entry: { path: string; from?: string; directory?: boolean }, ed
   return edits.filter(e => e.path === entry.path || (entry.from !== undefined && e.path === entry.from) || (under !== null && e.path.startsWith(under)));
 }
 
-const nameOf = (e: GitEdit, session: string) => e.label ?? (e.agentId === null ? session : "subagent");
-
 /**
  * The uncommitted list for `focus`: its own files first, then the rest of the
  * folder. `name` is what the focused session (or subagent) is called on its
- * card.
+ * card; `cardName` names the session's other agents the way their cards do,
+ * and the label the server sent with an edit answers for a card that is gone.
  */
 export function uncommittedList(
   entries: readonly StatusEntry[],
@@ -136,8 +139,10 @@ export function uncommittedList(
   focus: GraphFocus,
   collisions: ReadonlyArray<{ path: string; with: string }>,
   name?: string,
+  cardName: CardNamer = () => null,
 ): UncommittedList {
-  const mainLabel = edits.find(e => e.agentId === null)?.label ?? null;
+  const mainLabel = cardName(null) ?? edits.find(e => e.agentId === null)?.label ?? null;
+  const nameOf = (e: GitEdit, session: string) => cardName(e.agentId) ?? e.label ?? (e.agentId === null ? session : "subagent");
   // From a subagent, `name` is the subagent's; the session keeps its own.
   const sessionName = focus.agentIds === null ? name ?? mainLabel ?? SESSION : mainLabel ?? SESSION;
   const inFocus = (e: GitEdit) => focus.agentIds === null || (e.agentId !== null && focus.agentIds.includes(e.agentId));
@@ -167,7 +172,8 @@ export function uncommittedList(
   }
   let label: string;
   if (focus.agentIds !== null) {
-    const subName = edits.find(e => e.agentId !== null && focus.agentIds!.includes(e.agentId))?.label;
+    const subEdit = edits.find(e => e.agentId !== null && focus.agentIds!.includes(e.agentId));
+    const subName = subEdit ? nameOf(subEdit, sessionName) : undefined;
     label = `Edited by ${name ?? subName ?? "this subagent"}`;
   } else {
     label = edits.some(e => e.agentId !== null) ? `Edited by ${sessionName} and its subagents` : `Edited by ${sessionName}`;

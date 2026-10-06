@@ -127,6 +127,30 @@ describe("one file's counts, as the glance says them", () => {
   });
 });
 
+describe("names on the rows, the way the canvas says them", () => {
+  // The card's name for an agent of the session: the session's name for its
+  // main thread, the subagent's own for a subagent.
+  const cards = (agentId: string | null) => (agentId === null ? "api-fix" : agentId === TW ? "test-writer" : null);
+  const unnamed: GitEdit[] = EDITS.map(e => ({ ...e, label: e.agentId === null ? "Add a login endpoint" : "subagent" }));
+
+  it("prefers the card's name over the label the server sent with the edit", () => {
+    const list = uncommittedList(ENTRIES, unnamed, TEAM, [], "api-fix", cards);
+    expect(list.label).toBe("Edited by api-fix and its subagents");
+    expect(list.mine.find(r => r.path === "test/auth/session.test.ts")?.sub).toBe("test-writer");
+    expect(list.mine.find(r => r.path === "src/auth/password.ts")?.editors).toEqual(["api-fix"]);
+  });
+
+  it("names another agent's file by its card too, from a subagent", () => {
+    const list = uncommittedList(ENTRIES, unnamed, { sessionId: "e3200d5a", agentIds: [TW] }, [], "test-writer", cards);
+    expect(list.other.find(r => r.path === "src/auth/password.ts")?.other).toBe("api-fix");
+  });
+
+  it("falls back to the server's label for an agent whose card left the board", () => {
+    const list = uncommittedList(ENTRIES, EDITS, TEAM, [], "api-fix", () => null);
+    expect(list.mine.find(r => r.path === "test/auth/session.test.ts")?.sub).toBe("test-writer");
+  });
+});
+
 describe("a subagent working in another folder", () => {
   const away = (extra: Partial<SubagentElsewhere>): SubagentElsewhere => ({
     agentId: "b7", label: "docs-sync", folder: "/code/shop-api-docs", folderName: "shop-api-docs",

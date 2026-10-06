@@ -307,7 +307,8 @@ describe("a press on the mark", () => {
 
   it("is the mark's own: it selects the other agent and brings it into the uncovered pane, not this card", () => {
     expect(press).toMatch(/e\.stopPropagation\(\);/);
-    expect(press).toMatch(/focusAgentFrom\(target\);/);
+    expect(press).toMatch(/goToAgentCard\(target, pressHow\(e\)\);/);
+    expect(sourceOf("agent-goto.ts")).toMatch(/focusAgentFrom\(target\);/);
     // The page's focuser selects, then frames the card with focus-camera.ts
     // against the panels and the open git view.
     expect(sourceOf("App.tsx")).toMatch(/setGitAgentFocuser\(id => \{ selectAgent\(id, false\); window\.requestAnimationFrame\(\(\) => focusAgent\(id\)\); \}\)/);
@@ -315,7 +316,10 @@ describe("a press on the mark", () => {
   });
 
   it("lights the other card once after a pointer press, and moves the keyboard onto it after a key press", () => {
-    expect(press).toMatch(/if \(e\.detail === 0\) requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => focusCanvasNode\(target\)\)\);\s*else requestAnimationFrame\(\(\) => flashCard\(target\)\);/);
+    // One way to another agent's card for every git surface (agent-goto.ts).
+    const goto = sourceOf("agent-goto.ts");
+    expect(goto).toMatch(/if \(how === "key"\) requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => focusCanvasNode\(target\)\)\);\s*else requestAnimationFrame\(\(\) => flashCard\(target\)\);/);
+    expect(goto).toMatch(/e\.detail === 0 \? "key" : "pointer"/);
     expect(row).not.toMatch(/Notification|notify|chime|sound|Audio/i);
   });
 

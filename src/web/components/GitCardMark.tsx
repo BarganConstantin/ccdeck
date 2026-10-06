@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { flashCard } from "../card-flash";
+import { goToAgentCard, pressHow } from "../agent-goto";
 import { focusCanvasNode } from "../canvas-node-element";
 import type { CardMark } from "../git-card-mark";
-import { focusAgentFrom } from "../git-view-request";
 import { GvIcon } from "./GitViewParts";
 
 /**
@@ -54,10 +53,8 @@ export function GitMarkRow({ mark, agentId }: { mark: CardMark | null; agentId: 
       onClick={e => {
         e.stopPropagation();
         if (leaving) return;
-        focusAgentFrom(target);
-        // `detail` is 0 for a press made with Enter or Space.
-        if (e.detail === 0) requestAnimationFrame(() => requestAnimationFrame(() => focusCanvasNode(target)));
-        else requestAnimationFrame(() => flashCard(target));
+        // Selected and framed; lit once from a pointer, the keyboard onto it from a key (agent-goto.ts).
+        goToAgentCard(target, pressHow(e));
       }}
       onDoubleClick={e => e.stopPropagation()}
       onAnimationEnd={e => { if (leaving && e.animationName === "git-mark-out") setLast(null); }}

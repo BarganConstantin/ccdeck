@@ -10,14 +10,16 @@
 // and when `g` is pressed there, that line answers instead of a view opening.
 import { useEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode } from "react";
 
+import { goToAgentCard } from "../agent-goto";
+import { agentNameIn, collisionTarget, otherAgentName } from "../git-agent-name";
 import { groupDigits } from "../git-diff-parse";
 import { pathCounts } from "../git-files-model";
 import { useGitOn } from "../git-pref";
-import { focusAgentFrom, openGitViewFrom } from "../git-view-request";
+import { openGitViewFrom } from "../git-view-request";
 import { gitFactsFor, gitFocus, gitViewOpens, subagentKey } from "../git-view-target";
 import { UNCOMMITTED, type GitFileRef } from "../git-view-types";
 import {
-  collisionCardId, collisionsFor, commitMark, commitWho, shortAge, subjectParts, upstreamWords,
+  collisionsFor, commitMark, commitWho, shortAge, subjectParts, upstreamWords,
 } from "../git-view-words";
 import type { GraphState } from "../reducer";
 import { sessionHue } from "../session-hue";
@@ -104,9 +106,11 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   const isSub = agent.kind === "subagent";
   const scopeWord = isSub ? "subagent" : "session";
   const upstream = upstreamWords(repo);
-  const labelOf = (id: string) => stateRef.current.agents.get(id)?.label ?? null;
+  // Other agents are named the way their cards are (git-agent-name.ts).
+  const nameOf = (sessionId: string, agentId: string | null) => agentNameIn(stateRef.current.agents, sessionId, agentId);
   const collision = collisionsFor(root?.gitCollisions, focus)[0] ?? null;
-  const other = collision ? labelOf(collisionCardId(collision.with)) ?? labelOf(collision.with.sessionId) ?? "another agent" : "";
+  // Named as the card's own collision mark names it.
+  const other = collision ? otherAgentName(nameOf, collision.with) : "";
   const own = (data.commits ?? []).filter(c => madeByFocus(c, focus));
   const showCommits = collision ? 2 : 3;
   const files = changedFiles(data.entries, data.edits, focus);
@@ -132,12 +136,12 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
       )}
       {collision && (
         <CollisionLine c={collision} other={other} otherCli={null} where="glance"
-          onFocus={() => focusAgentFrom(collisionCardId(collision.with))} />
+          onFocus={how => goToAgentCard(collisionTarget(stateRef.current.agents, collision.with), how)} />
       )}
       {data.commits && !own.length && <p className="gv-line-empty">No commits from this {scopeWord} yet.</p>}
       {own.slice(0, showCommits).map(c => {
         const a = c.agent && "sessionId" in c.agent ? c.agent : null;
-        const sub = !isSub && a?.agentId ? commitWho(c.agent, labelOf) : null;
+        const sub = !isSub && a?.agentId ? commitWho(c.agent, nameOf) : null;
         const { prefix, rest } = subjectParts(c.subject);
         return (
           <button type="button" key={c.sha} className="gv-g-row" title={`${c.subject} · ${c.sha.slice(0, 7)}`} onClick={() => open({ sel: c.sha })}>
