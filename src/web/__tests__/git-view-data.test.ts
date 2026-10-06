@@ -4,7 +4,7 @@
 // never change the diff under the reader.
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_GIT_DATA, changedFiles, editByFocus, firstFile, focusCounts, foldAnswer, gitQuery, madeByFocus, newAtTop,
+  EMPTY_GIT_DATA, changedFiles, editByFocus, firstFile, focusCounts, foldAnswer, gitQuery, madeByFocus, newInHistory,
 } from "../use-git-view";
 import type { Edit, LogCommit, StatusEntry } from "../git-view-types";
 import { sourceOf } from "./client-source";
@@ -61,7 +61,18 @@ describe("an answer folded into what the page holds", () => {
     expect(first.newShas).toEqual([]);
     const next = foldAnswer(first, "log", { ok: true, state: "repo", commits: [commit("d"), commit("c"), commit("b"), commit("a")] }, 200);
     expect(next.newShas).toEqual(["d", "c"]);
-    expect(newAtTop([commit("a")], [commit("x", null, { outsideWindow: true }), commit("a")])).toEqual([]);
+    expect(newInHistory([commit("a")], [commit("x", null, { outsideWindow: true }), commit("a")])).toEqual([]);
+  });
+
+  it("names a commit that landed under the top rows too, and not what fills the window's foot", () => {
+    // A fetch brought commits dated before the branches at the top: they land
+    // in the middle, under rows the reader already had.
+    const before = [commit("t2"), commit("t1"), commit("m"), commit("b"), commit("a")];
+    expect(newInHistory(before, [commit("t2"), commit("t1"), commit("f1"), commit("f2"), commit("m"), commit("b")])).toEqual(["f1", "f2"]);
+    // A branch deleted: older commits move up into the window's foot.
+    expect(newInHistory(before, [commit("t2"), commit("m"), commit("b"), commit("a"), commit("z")])).toEqual([]);
+    // Nothing in common (another repository): nothing is new.
+    expect(newInHistory(before, [commit("q"), commit("r")])).toEqual([]);
   });
 });
 
