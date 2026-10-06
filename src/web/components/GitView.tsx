@@ -208,6 +208,8 @@ export default function GitView(props: GitViewProps) {
     const bar = canvas.querySelector(".cat-filter-bar")?.getBoundingClientRect();
     const top = bar && bar.height > 0 ? bar.bottom - rect.top : 0;
     const plan = gitViewFrame({ pane: { width: rect.width, height: rect.height }, cover, top, session, alarms, anchor });
+    // The camera the plane is drawn with until this move lands.
+    const was = rf.getViewport();
     moveCamera(plan.viewport, duration);
     // Cards wholly under the panel cannot be seen, so they cannot be Tab stops either.
     const coverLeft = window.innerWidth - w;
@@ -219,6 +221,14 @@ export default function GitView(props: GitViewProps) {
       const m = measuredRef.current.get(n.id);
       const left = rect.left + x + n.position.x * zoom;
       (whollyCovered({ left, right: left + (m?.width ?? 0) * zoom }, coverLeft) ? under : clear).add(el);
+    }
+    // So do the session clusters' name tags, anchored on the same plane
+    // (drawn at one size whatever the zoom): where each one's left edge lands
+    // once the camera has moved.
+    for (const el of canvas.querySelectorAll<HTMLElement>(".cluster-label")) {
+      const r = el.getBoundingClientRect();
+      const left = rect.left + x + ((r.left - rect.left - was.x) / was.zoom) * zoom;
+      (whollyCovered({ left, right: left + r.width }, coverLeft) ? under : clear).add(el);
     }
     setInert(clear, false, inertCards);
     setInert(under, true, inertCards);

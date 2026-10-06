@@ -38,3 +38,12 @@ describe("the camera given back on close", () => {
     expect(view).toMatch(/restoring\.current = \{ to: savedViewport\.current, until: performance\.now\(\) \+ duration \+ 50 \};/);
   });
 });
+
+describe("what the panel covers", () => {
+  it("takes the session clusters' name tags it covers out of the Tab order, as it does cards", () => {
+    expect(view).toMatch(/for \(const el of canvas\.querySelectorAll<HTMLElement>\("\.cluster-label"\)\) \{/);
+    expect(view).toMatch(/const left = rect\.left \+ x \+ \(\(r\.left - rect\.left - was\.x\) \/ was\.zoom\) \* zoom;/);
+    // Read before the camera moves: until it lands, the tags are drawn with the old one.
+    expect(view).toMatch(/const was = rf\.getViewport\(\);\s*moveCamera\(plan\.viewport, duration\);/);
+  });
+});
