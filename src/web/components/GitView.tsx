@@ -796,7 +796,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const nWord = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
   const scopeCounts = data.state === "repo" && data.commits && data.entries
     ? `${counts.commits ? nWord(counts.commits, "commit") : "no commits"} · ${nWord(counts.files, "file")}` : null;
-  const nameRef = useFittedName(branchName, headRef, `${upstream?.text}|${scopeCounts}|${unborn}`);
+  const nameRef = useFittedName(branchName, headRef, `${upstream?.text}|${scopeCounts}|${unborn}`, detached ? shortSha : null);
   const folder = away ? away.folder : agent.cwd ?? null;
   const repoName = repo?.name ?? facts?.name ?? (away ? away.folderName : agent.cwdBasename) ?? "";
   const linked = repo ? repo.linkedWorktree && repo.mainName !== repo.name : facts?.linkedWorktree && facts.mainName && facts.mainName !== facts.name;

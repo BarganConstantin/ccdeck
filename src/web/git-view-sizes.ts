@@ -90,10 +90,12 @@ export type SplitterKind = "edge" | "graph" | "files";
 /**
  * Where a divider goes for a key, as the size of what it resizes.
  *
- * The keys speak in screen positions — Home sends a divider to its leftmost or
- * topmost place, an arrow right moves it right — and the sizes follow: the
- * panel's own left edge moving left makes the panel wider, the other two
- * dividers moving right or down make the pane before them bigger.
+ * The arrows speak in screen positions — an arrow right moves the divider
+ * right — and the sizes follow: the panel's own left edge moving left makes
+ * the panel wider, the other two dividers moving right or down make the pane
+ * before them bigger. Home and End speak in the size the divider reports
+ * (WAI-ARIA window splitter): Home gives the pane it controls its least size,
+ * End its most, whichever side of the divider that pane is on.
  */
 export function splitterTarget(
   kind: SplitterKind,
@@ -105,9 +107,7 @@ export function splitterTarget(
   const grows = kind === "edge" ? -1 : 1;
   if ("to" in move) {
     if (move.to === "reset") return clamp(resetTo, bounds.min, bounds.max);
-    const leftmost = kind === "edge" ? bounds.max : bounds.min;
-    const rightmost = kind === "edge" ? bounds.min : bounds.max;
-    return move.to === "min" ? leftmost : rightmost;
+    return move.to === "min" ? bounds.min : bounds.max;
   }
   return clamp(current + grows * move.step, bounds.min, bounds.max);
 }

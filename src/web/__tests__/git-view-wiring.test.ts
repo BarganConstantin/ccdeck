@@ -58,3 +58,12 @@ describe("counts in the glance", () => {
     expect(viewCss).toMatch(/\.gv-g-del \{ color: var\(--gv-del-ink\); \}/);
   });
 });
+
+describe("a detached HEAD's name where it does not fit", () => {
+  it("shows the bare short SHA rather than a cut inside it: the commit glyph already says detached", () => {
+    const parts = sourceOf("components/GitViewParts.tsx");
+    expect(parts).toMatch(/if \(full <= room \+ 1 \|\| !name\.length\) return;\s*if \(short\) \{ text\.nodeValue = short; return; \}/);
+    expect(view).toMatch(/useFittedName\(branchName, headRef, `[^`]*`, detached \? shortSha : null\)/);
+    expect(glance).toMatch(/useFittedName\(branchName, branchRowRef, `[^`]*`, detached \? shortSha : null\)/);
+  });
+});

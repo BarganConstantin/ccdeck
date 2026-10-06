@@ -217,6 +217,7 @@
   .gvf-pip, .gvf-swatch, .gvd-pill-dot { forced-color-adjust: none; background: CanvasText; }
   .gvf-pip.is-none { background: transparent; }
   .gvf-row.is-sel::before, .gvf-list:focus-within .gvf-row.is-sel::before { forced-color-adjust: none; background: Highlight; }
-  .gvd-word { forced-color-adjust: none; background: Mark; color: MarkText; }
+  .gvd-line[data-kind="add"] .gvd-word,
+  .gvd-line[data-kind="del"] .gvd-word { forced-color-adjust: none; background: Mark; color: MarkText; }
   .gvf-stage, .gvf-who.is-other, .gvd-area, .gvd-placeholder, .gvd-pill { border-color: CanvasText; }
 }
