@@ -8,6 +8,7 @@
 // see.
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { releaseToolIds, settleUnanswered } from "./tool-calls";
+import { forgetParkedGit } from "./git-events";
 import type { AgentNodeData } from "./types";
 
 /** Record that a sweep changed something, and pass its answer through.
@@ -125,10 +126,15 @@ export function pruneOldAgents(
     for (const k of kids) drop(k.id);
     drop(c.id);
   }
-  if (onForget && touched.size > 0) {
+  if (touched.size > 0) {
     const left = new Set<string>();
     for (const a of state.agents.values()) left.add(a.sessionId);
-    for (const sid of touched) if (!left.has(sid)) onForget(sid);
+    for (const sid of touched) {
+      if (left.has(sid)) continue;
+      // A git value still waiting for one of its cards goes with it.
+      forgetParkedGit(state, sid);
+      onForget?.(sid);
+    }
   }
   return bump(state, removed > 0);
 }
@@ -220,6 +226,8 @@ export function pruneDoneSessions(
     for (const id of state.pendingSubagentModels.keys()) {
       if (id.startsWith(subPrefix)) state.pendingSubagentModels.delete(id);
     }
+    // And so does a git value still waiting for one of its cards.
+    forgetParkedGit(state, sid);
     // Whole, so there is nothing left to check: the page has forgotten this
     // session and the server has to be told. See `ForgetSession`.
     onForget?.(sid);

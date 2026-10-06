@@ -3,7 +3,14 @@
 // Here rather than in reducer.ts so that the modules the reducer applies events
 // through can read the same shape without importing the file that imports
 // them. reducer.ts re-exports what the rest of the client reads.
-import type { AgentNodeData, ToolCall } from "./types";
+import type { AgentNodeData, GitCollisions, GitFacts, ToolCall } from "./types";
+
+/** What the server last said about an agent's repository and collisions,
+ *  held until the agent's card exists. See `parkedGit`. */
+export interface ParkedGit {
+  observed?: GitFacts;
+  collisions?: GitCollisions;
+}
 
 export interface GraphState {
   agents: Map<string, AgentNodeData>;
@@ -38,6 +45,20 @@ export interface GraphState {
   /** Model observations that overtook SubagentStart. Only Start creates a node;
    * cap the pending entries so scans of old subagents cannot grow this forever. */
   pendingSubagentModels: Map<string, string>;
+  /** Agent id → the GitObserved / GitCollisions that arrived before that
+   *  agent's card did, applied when the card is created (git-events.ts).
+   *
+   *  Both are last-value-wins state, which the server's ring keeps past the
+   *  hook events it evicts. A page opened on a busy deck is therefore handed a
+   *  session's branch and collisions ahead of the first surviving event that
+   *  puts its card on the board, and an idle session sends neither again until
+   *  its repository changes — so a value dropped for want of a card left the
+   *  card without its branch for as long as the session stayed quiet.
+   *
+   *  Bounded: the newest PARKED_GIT_MAX ids, a restated one moving to the back;
+   *  an entry goes when its card takes it, when its session leaves the board,
+   *  and with the board on a clear. */
+  parkedGit: Map<string, ParkedGit>;
   lastSeq: number;
   /** Which server process the `lastSeq` counter belongs to — the `epoch` the
    *  envelopes carry. Stays null while talking to a server too old to stamp it. */
@@ -74,6 +95,7 @@ export function initialState(): GraphState {
     activeSubagentStack: new Map(),
     subagentTombstones: new Map(),
     pendingSubagentModels: new Map(),
+    parkedGit: new Map(),
     lastSeq: 0,
     seqEpoch: null,
     totalEvents: 0,

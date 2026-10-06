@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { fitBranch, type BranchChip } from "../git-chip";
+import { fitChip, type BranchChip } from "../git-chip";
 import { openGitFor } from "../git-open";
 
 /** The card's widest inner width: agent-node.css's `max-width` less its
@@ -10,8 +10,6 @@ export const CARD_INNER_MAX = 230;
 /** The gap the chip keeps from what is before it, as the model chip keeps 6px
  *  from its own neighbour. */
 const CHIP_GAP = 6;
-/** Fewer letters than this fit, and the chip shows its glyph alone. */
-const BARE_BELOW = 5;
 /** The sheet's gap between the glyph and the name (`.git-chip`). */
 const NAME_GAP = 4;
 
@@ -25,11 +23,20 @@ const NAME_GAP = 4;
  * what else the row says, so the label is fitted again when that changes. The
  * name is monospace, so one character's width, read off the rendered label,
  * measures every spelling.
+ *
+ * Too little room even for the ticket (branchFloor), and the chip asks the row
+ * for more (`onGive`) while the row still has something to give (`canGive`):
+ * the card draws the row again without it, before paint, and the chip measures
+ * again — `given` is how much it has been given so far. Only with nothing left
+ * does the chip keep its glyph alone.
  */
-export default function GitChip({ agentId, chip, row }: { agentId: string; chip: BranchChip; row: string }) {
+export default function GitChip({ agentId, chip, row, given, canGive, onGive }: {
+  agentId: string; chip: BranchChip; row: string; given: number; canGive: boolean; onGive: () => void;
+}) {
   const ref = useRef<HTMLButtonElement>(null);
   const [label, setLabel] = useState(chip.name);
-  /** No room for even a few letters: the glyph alone. */
+  /** No room for even the floor, and nothing left on the row to give: the
+   *  glyph alone. */
   const [bare, setBare] = useState(false);
   /** One character of the name, measured while the name was showing — the
    *  chip mounts with it showing, and a bare chip has nothing to measure. */
@@ -40,7 +47,7 @@ export default function GitChip({ agentId, chip, row }: { agentId: string; chip:
     const name = el?.querySelector<HTMLElement>(".git-chip-name");
     const sub = el?.parentElement;
     const whole = () => { setLabel(chip.name); setBare(false); };
-    if (!el || !name || !sub || chip.kind === "detached") { whole(); return; }
+    if (!el || !name || !sub) { whole(); return; }
     const bareNow = el.hasAttribute("data-bare");
     if (!bareNow && name.textContent) charRef.current = name.scrollWidth / name.textContent.length;
     const charWidth = charRef.current;
@@ -66,13 +73,13 @@ export default function GitChip({ agentId, chip, row }: { agentId: string; chip:
     // between glyph and name, which a bare chip does not draw.
     const chrome = bareNow ? el.offsetWidth + NAME_GAP : el.offsetWidth - name.offsetWidth;
     const room = CARD_INNER_MAX - used - CHIP_GAP - chrome - 1;
-    // What is left may be less than the shortest spelling; the ellipsis in the
-    // sheet takes it from there, and the tooltip still has the whole name.
-    // Under five letters' room there is nothing worth reading, and the glyph
-    // stands alone.
-    setLabel(fitBranch(chip.name, text => text.length * charWidth <= room));
-    setBare(room < BARE_BELOW * charWidth);
-  }, [chip.name, chip.kind, row]);
+    // Under the floor's room the row gives first; with nothing left to give
+    // the glyph stands alone, the name in the tooltip and the accessible name.
+    const fit = fitChip(chip, room / charWidth, canGive);
+    if (fit.give) { onGive(); return; }
+    setLabel(fit.label);
+    setBare(fit.bare);
+  }, [chip.name, chip.kind, row, given, canGive]);
 
   return (
     <button
