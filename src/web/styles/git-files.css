@@ -256,6 +256,7 @@
   line-height: 18px;
 }
 .gvf-empty b { color: var(--text); font-size: 13px; font-weight: 600; }
+button.btn.gvf-retry { margin-top: 4px; }
 
 /* A narrow panel: stage words become S/U badges (their word in the title and
    for a reader), and the names beside a file fold into its tooltip. */

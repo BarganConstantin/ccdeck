@@ -19,7 +19,8 @@ const render = (props: Partial<GitDiffProps>) => renderToStaticMarkup(createElem
 }));
 
 /** The visible words of some markup, tags dropped. */
-const words = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+const words = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+  .replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
 const CONFLICT = [
   "diff --git a/CHANGELOG.md b/CHANGELOG.md",
@@ -42,7 +43,7 @@ describe("a file in conflict", () => {
     expect(html).toContain("Unresolved merge conflict.");
     expect(html).not.toContain("No changes in the text.");
     expect((html.match(/class="gvd-line"[^>]*data-kind="add"/g) ?? []).length).toBe(4);
-    expect(words(html)).toContain("added: &lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD");
+    expect(words(html)).toContain("added: <<<<<<< HEAD");
   });
 
   it("never claims nothing changed when git answers with a combined diff or an unmerged path", () => {
@@ -135,5 +136,52 @@ describe("the reader's place when the latest version comes", () => {
     expect(src).toMatch(/if \(prev\.key === fileKey && prev\.parsed && parsed && prev\.parsed !== parsed\) keepPlace\(scrollRef\.current, place\.current\);/);
     expect(src).toContain("onScroll={notePlace}");
     expect(src).toMatch(/<div key=\{keys\[li\]\} className="gvd-line" data-k=/);
+  });
+});
+
+describe("a read that failed, or a change git no longer lists", () => {
+  it("says the diff could not be read, why, and offers it again", () => {
+    const html = render({ error: "timeout", onRetry: () => {} });
+    expect(words(html)).toContain("Couldn't read this diff. git took too long to answer. Try again");
+    expect(html).not.toContain("Nothing to show yet.");
+    expect(words(render({ error: "the deck did not answer", onRetry: () => {} }))).toContain("The deck did not answer. Try again");
+    // A failed read the route answered with 200 says the same.
+    expect(words(render({ diff: { ok: false, reason: "timeout" }, onRetry: () => {} }))).toContain("Couldn't read this diff. git took too long to answer. Try again");
+  });
+
+  it("says a change git no longer lists is no longer there, rather than an error", () => {
+    for (const error of ["unlisted", "no such change in this repository"]) {
+      const html = render({ error });
+      expect(words(html)).toContain("No longer unstaged. git no longer lists this change here: it was committed, staged, or put back as it was.");
+      expect(html).not.toContain("Try again");
+    }
+  });
+
+  it("keeps the diff on screen and says in the header that git no longer lists it", () => {
+    const html = render({ diff: { ok: true, binary: false, patch: "@@ -1 +1 @@\n-a\n+b\n", added: 1, removed: 1 }, stale: true, gone: true });
+    expect(words(html)).toContain("No longer unstaged · Show latest n");
+    expect((html.match(/class="gvd-line"/g) ?? []).length).toBe(2);
+  });
+
+  it("is read again from the view: the pill, n and Try again all read the latest, or read once more", () => {
+    const hook = sourceOf("use-git-view.ts");
+    expect(hook).toMatch(/if \(data\.entries && !data\.entries\.some\(e => e\.path === file\.path && e\.area === file\.area\)\) \{ unlisted\(\); return; \}/);
+    expect(hook).toMatch(/if \(next === GONE\) \{ setDiff\(d => \(\{ \.\.\.d, diff: null, stale: false, gone: false, error: "unlisted" \}\)\); return; \}/);
+    expect(hook).toMatch(/setAgain\(n => n \+ 1\);\n  \}, \[\]\);/);
+    expect(hook).toMatch(/\}, \[active, fileKey, again\]\);/);
+    const view = sourceOf("components/GitView.tsx");
+    expect(view).toContain("error={view.diff.error} gone={view.diff.gone} onRetry={view.showLatest}");
+  });
+});
+
+describe("a commit's files that are still being read, or could not be", () => {
+  const hook = sourceOf("use-git-view.ts");
+
+  it("never keeps a failed read as the commit's files: choosing it again, Try again or the folder moving reads again", () => {
+    expect(hook).not.toMatch(/"error"\)\);/);
+    expect(hook).toMatch(/a\.ok && a\.files \? a\.files : \{ error: failureOf\(a, status\) \}/);
+    expect(hook).toMatch(/const setSel = useCallback\(\(id: string\) => \{\n    dropFailures\(id\);/);
+    expect(hook).toMatch(/useEffect\(\(\) => \{ dropFailures\(\); \}, \[data\.treeSeq\]\);/);
+    expect(sourceOf("components/GitView.tsx")).toMatch(/reading=\{sel === UNCOMMITTED \? null : view\.commitFiles == null \? "loading" : Array\.isArray\(view\.commitFiles\) \? null : view\.commitFiles\}/);
   });
 });

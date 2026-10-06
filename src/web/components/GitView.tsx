@@ -899,6 +899,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                   name={focusName} sha={sel === UNCOMMITTED ? null : sel} commitBy={commitBy ?? undefined}
                   cleanNote={lastOwn ? `Last commit ${shortAgo(Date.now() - Date.parse(lastOwn.date))} by ${commitWho(lastOwn.agent, nameOf) ?? focusName}.` : undefined}
                   cardName={cardName} elsewhere={elsewhere} onElsewhere={narrowTo}
+                  reading={sel === UNCOMMITTED ? null : view.commitFiles == null ? "loading" : Array.isArray(view.commitFiles) ? null : view.commitFiles}
+                  onRetry={view.retryCommit}
                 />
               )}
             </section>
@@ -912,6 +914,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                   wrap={wrap} onToggleWrap={() => { writeDiffWrap(!wrap); setWrap(!wrap); }}
                   collision={diffCollision ? { with: diffCollision.with } : null}
                   emptyReason={sel === UNCOMMITTED && !data.entries.length ? "clean" : "unselected"}
+                  error={view.diff.error} gone={view.diff.gone} onRetry={view.showLatest}
                 />
               )}
             </section>

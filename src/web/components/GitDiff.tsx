@@ -2,7 +2,7 @@ import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, u
 import { fmtBytes } from "../byte-format";
 import { copyText } from "../copy-text";
 import {
-  budgetHunks, collapsedKind, diffState, freshLines, groupDigits, lockOwner, parsePatch,
+  budgetHunks, collapsedKind, diffState, failureLine, freshLines, groupDigits, lockOwner, parsePatch,
   type DiffLine, type DiffResult, type Hunk, type ParsedDiff,
 } from "../git-diff-parse";
 import { fitPath, monoMeasure, splitPath, type PathParts } from "../git-path-fit";
@@ -27,6 +27,13 @@ export interface GitDiffProps {
   collision: { with: string } | null;
   /** Why no file is selected: a clean working tree, or nothing picked yet. */
   emptyReason?: "clean" | "unselected";
+  /** Why the diff could not be read, when it could not; "unlisted" when git
+   *  no longer lists the change. */
+  error?: string | null;
+  /** What is waiting behind the pill is that git no longer lists the change. */
+  gone?: boolean;
+  /** Read the diff again: a failed read's Try again. */
+  onRetry?: () => void;
 }
 
 /** What the view does to the diff from outside: give it the keyboard. */
@@ -73,14 +80,8 @@ export function writeDiffWrap(wrap: boolean): void {
 
 const AREA_WORD: Record<string, string> = { staged: "staged", unstaged: "unstaged", untracked: "untracked", conflict: "conflict" };
 
-const REASON: Record<string, string> = {
-  timeout: "git took too long to answer.",
-  gone: "The file is no longer there.",
-  outside: "The file is outside this repository.",
-  error: "git could not read it.",
-  "too-large": "The answer was too large.",
-  "not-downloaded": "This partial clone has not downloaded it, and the deck never fetches.",
-};
+/** The route's answer for a change git no longer lists. */
+const UNLISTED = new Set(["unlisted", "no such change in this repository"]);
 
 /**
  * One file's diff, unified, the way the git view reads it: numbered gutters
@@ -95,7 +96,7 @@ const REASON: Record<string, string> = {
  * once when it comes.
  */
 const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, ref) {
-  const { file, diff, loading, stale, onShowLatest, wrap, onToggleWrap, collision, emptyReason = "unselected" } = props;
+  const { file, diff, loading, stale, onShowLatest, wrap, onToggleWrap, collision, emptyReason = "unselected", error = null, gone = false, onRetry } = props;
   const fileKey = file ? `${file.area}\0${file.path}` : "";
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -252,7 +253,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   const pending = !diff && loading && lastBody.current != null;
   let content: React.ReactNode;
   if (!diff) {
-    content = pending ? lastBody.current : loading ? null : <Placeholder title="Nothing to show yet." />;
+    content = pending ? lastBody.current : loading ? null : error ? failed(error) : <Placeholder title="Nothing to show yet." />;
   } else {
     content = renderBody();
     lastBody.current = content;
@@ -264,10 +265,23 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     </>
   );
 
+  /** A read that failed says so, and why, and offers it again; a change git
+   *  no longer lists says that instead. Never an empty pane. */
+  function failed(why: string): React.ReactNode {
+    const retry = onRetry && <button type="button" className="btn gvd-show" onClick={() => { holdFocus(); onRetry(); }}>Try again</button>;
+    if (UNLISTED.has(why)) {
+      return (
+        <Placeholder title={`No longer ${AREA_WORD[file!.area] ?? "changed"}.`}
+          line="git no longer lists this change here: it was committed, staged, or put back as it was." />
+      );
+    }
+    return <Placeholder title="Couldn't read this diff." line={failureLine(why)}>{retry}</Placeholder>;
+  }
+
   function renderBody(): React.ReactNode {
     const d = diff!;
     const state = diffState(d);
-    if (state === "error") return <Placeholder title="Couldn't read this diff." line={REASON[d.reason ?? "error"] ?? REASON.error} />;
+    if (state === "error") return failed(d.reason ?? "error");
     if (state === "directory") {
       return <Placeholder title="An untracked folder." line="git lists a new folder as one entry until a file in it is added, so its files are not shown one by one." />;
     }
@@ -355,9 +369,10 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
             </span>
           )}
           {stale && (
-            <button type="button" className="gvd-pill" onClick={() => { holdFocus(); onShowLatest(); }} title="The file changed since this diff was read. Show the latest (n)">
+            <button type="button" className="gvd-pill" onClick={() => { holdFocus(); onShowLatest(); }}
+              title={gone ? "git no longer lists this change. Show the latest (n)" : "The file changed since this diff was read. Show the latest (n)"}>
               <span className="gvd-pill-dot" aria-hidden="true" />
-              <span className="gvd-pill-long">Updated just now · </span>Show latest <kbd>n</kbd>
+              <span className="gvd-pill-long">{gone ? `No longer ${AREA_WORD[file.area] ?? "changed"} · ` : "Updated just now · "}</span>Show latest <kbd>n</kbd>
             </button>
           )}
         </div>
@@ -370,7 +385,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
           </button>
         </span>
         <span className="vis-hidden" aria-live="polite">
-          {stale ? "This file changed since the diff was read. Show the latest with n." : copied ? "Path copied" : ""}
+          {stale ? (gone ? "git no longer lists this change. Show the latest with n." : "This file changed since the diff was read. Show the latest with n.") : copied ? "Path copied" : ""}
         </span>
       </div>
       {collision && (
@@ -394,11 +409,12 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
 
 export default GitDiff;
 
-function Placeholder({ title, line, mono }: { title: string; line?: string | null; mono?: boolean }) {
+function Placeholder({ title, line, mono, children }: { title: string; line?: string | null; mono?: boolean; children?: React.ReactNode }) {
   return (
     <div className="gvd-placeholder">
       <b>{title}</b>
       {line && <span className={mono ? "gvd-mono" : undefined}>{line}</span>}
+      {children}
     </div>
   );
 }
