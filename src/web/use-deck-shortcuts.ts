@@ -13,6 +13,7 @@ import { blockedSessions, nextWaiting } from "./ambient-counts";
 import { isCanvasNodeElement } from "./canvas-node-element";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
+import { inKeyScope } from "./git-view-keys";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import type { GraphState } from "./reducer";
 import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
@@ -59,6 +60,12 @@ export interface DeckShortcuts {
   setSoundMenuOpen: Toggle;
   setKeyHelpOpen: Toggle;
   setTheme: Dispatch<SetStateAction<Theme>>;
+  // ── the git view ──
+  /** Whether the git view is open (components/GitView.tsx). */
+  gitViewOpenRef: Read<boolean>;
+  /** `g`: opens the git view on the selection, or closes it. */
+  toggleGitView: () => void;
+  closeGitView: (how: "key") => void;
 }
 
 export function useDeckShortcuts({
@@ -68,6 +75,7 @@ export function useDeckShortcuts({
   handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
   setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme,
+  gitViewOpenRef, toggleGitView, closeGitView,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -77,6 +85,11 @@ export function useDeckShortcuts({
       // things the rules need off the target — getAttribute rather than the
       // reflected .role property, which older browsers do not expose.
       const el = e.target as (HTMLElement & { type?: string }) | null;
+      // A region that owns its keys keeps every one of them. The git view
+      // answers its own and stops the rest before they get here; this is the
+      // second wall, so that no letter typed inside it — R above all, which
+      // drops every pin with no undo — can ever reach the canvas.
+      if (inKeyScope(el)) return;
       const target: FocusTarget = {
         tagName: el?.tagName,
         isContentEditable: el?.isContentEditable,
@@ -93,6 +106,9 @@ export function useDeckShortcuts({
         const outcome = escapeOutcome({ overlayOpen: modalStack.depth() > 0, typing: isTypingTarget(target) });
         if (outcome === "dismiss") modalStack.dismissTop();
         else if (outcome === "blur") el?.blur();
+        // The git view is the layer in front of the selection: Esc closes it
+        // and keeps the agent selected, one layer at a time.
+        else if (gitViewOpenRef.current) closeGitView("key");
         else {
           // And the branch that gave the keyboard its way back. Every control
           // on this deck is a <button> or a role="button", so the gate below
@@ -296,8 +312,12 @@ export function useDeckShortcuts({
       // opens is written down in key-help.ts, held against this handler by a
       // test, so the sheet cannot fall behind the keys again.
       if (e.key === "?") setKeyHelpOpen(o => !o);
+      // The git view for the selected agent, and the same key closes it. It
+      // asks for a selection and the view switched on; the dialog gate above
+      // has already said no dialog is in front.
+      if (e.key === "g" || e.key === "G") toggleGitView();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause]);
+  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause, toggleGitView, closeGitView]);
 }

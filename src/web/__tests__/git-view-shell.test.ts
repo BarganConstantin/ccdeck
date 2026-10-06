@@ -17,9 +17,10 @@ const rule = (sel: string) => {
 };
 
 describe("opening and closing", () => {
-  it("opens from the card's chip and the glance through one request", () => {
+  it("opens from the card's chip, from g and from the glance, through one request", () => {
     expect(app).toMatch(/useGitOpener\(\{ selectAgent, openGitView: openGitViewFromChip \}\)/);
     expect(app).toMatch(/openGitViewRequest\(how, opts\)/);
+    expect(sourceOf("use-deck-shortcuts.ts")).toMatch(/if \(e\.key === "g" \|\| e\.key === "G"\) toggleGitView\(\);/);
   });
 
   it("opens nothing on a folder git cannot read, and tells the glance to answer", () => {

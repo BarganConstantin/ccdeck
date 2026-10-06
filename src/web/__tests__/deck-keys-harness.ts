@@ -34,6 +34,8 @@ export interface KeyTarget {
   role?: string;
   type?: string;
   blur?: () => void;
+  /** Inside a region that owns its keys (`data-key-scope`, the git view). */
+  inKeyScope?: boolean;
 }
 
 export const BODY: KeyTarget = { tagName: "BODY" };
@@ -49,6 +51,7 @@ export function mountDeckKeys() {
   const theme = flag<Theme>("dark");
   const detail = flag(false);
   const usage = flag(false);
+  const gitView = flag(false);
   const pointerFocusRef = { current: null as EventTarget | null };
   const removeSelected = vi.fn();
   const props: DeckShortcuts = {
@@ -84,6 +87,9 @@ export function mountDeckKeys() {
     setSoundMenuOpen: vi.fn(),
     setKeyHelpOpen: keyHelp.set,
     setTheme: theme.set,
+    gitViewOpenRef: { get current() { return gitView.value; } },
+    toggleGitView: vi.fn(() => { gitView.value = !gitView.value; }),
+    closeGitView: vi.fn(() => { gitView.value = false; }),
   };
   useDeckShortcuts(props);
   if (!onKey) throw new Error("useDeckShortcuts put no keydown listener on window");
@@ -94,7 +100,11 @@ export function mountDeckKeys() {
     const target = o.target ?? BODY;
     const e = {
       key, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false, ctrlKey: false, metaKey: false, altKey: false,
-      target: { ...target, getAttribute: (name: string) => (name === "role" ? target.role ?? null : null) },
+      target: {
+        ...target,
+        getAttribute: (name: string) => (name === "role" ? target.role ?? null : null),
+        closest: (selector: string) => (target.inKeyScope && selector === "[data-key-scope]" ? {} : null),
+      },
       preventDefault: vi.fn(),
     };
     // The handler compares the target with the pointer's mark by identity.
@@ -103,5 +113,5 @@ export function mountDeckKeys() {
     return e;
   }
 
-  return { props, press, keyHelp, theme, detail, usage, removeSelected };
+  return { props, press, keyHelp, theme, detail, usage, removeSelected, gitView };
 }

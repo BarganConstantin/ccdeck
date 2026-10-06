@@ -81,8 +81,11 @@ import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useGitOpener } from "./use-git-opener";
 import GitView from "./components/GitView";
 import { closeGitViewRequest, gitViewRequest, openGitViewRequest, type GitViewHow } from "./git-view-request";
+import { gitKeyAllowed } from "./git-view-keys";
 import { gitFactsFor, gitViewOpens } from "./git-view-target";
 import { gitOnNow, useGitOn } from "./git-pref";
+import { canvasModalOpen } from "./shortcuts";
+import { modalStack } from "./modal-dismiss";
 import type { GitFileRef } from "./git-view-types";
 import { createChimePlayer } from "./chime-player";
 
@@ -493,6 +496,15 @@ function Inner() {
     openGitViewRequest(how, opts);
   }, []);
   const closeGitView = useCallback((how: GitViewHow) => closeGitViewRequest(how), []);
+  const toggleGitView = useCallback(() => {
+    if (gitViewRequest().open) { closeGitView("key"); return; }
+    if (!gitKeyAllowed({
+      selected: primarySelectedIdRef.current != null,
+      gitOn: gitOnNow(),
+      dialogOpen: canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() }),
+    })) return;
+    openGitView("key");
+  }, [openGitView, closeGitView]);
   const openGitViewFromChip = useCallback((agentId: string) => openGitView("pointer", { agentId }), [openGitView]);
   // Settings › Appearance › Git switched off, or nothing selected any more:
   // the view has nothing to be about.
@@ -535,6 +547,7 @@ function Inner() {
     handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
     setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme,
+    gitViewOpenRef: { get current() { return gitViewRequest().open; } }, toggleGitView, closeGitView,
   });
 
   /** Not a topbar readout any more — the "agents" counter went with the
