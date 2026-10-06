@@ -108,8 +108,9 @@
 }
 
 /* A fingertip gets the 32px the rest of the deck's small targets grow to under
-   a coarse pointer (touch-and-forced-colours.css). Here rather than in that
-   block because this sheet comes after it, and the 24px above would win.
+   a coarse pointer (touch-and-forced-colours.css). Here, after the 24px it
+   replaces, rather than in that block: the order that decides it is then this
+   sheet's own, wherever the list puts the two.
    Eleven of them is 372px, and on a phone the scale's line is the window less
    the question's indent — 307px at 360 — so there each number takes an equal
    share of it instead: 32px where there is room, never under the 24px floor,

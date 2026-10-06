@@ -135,6 +135,19 @@ export function faceSignal(
 
 /** The mark a face draws for the card's state, which is a SHAPE per state and
  *  not only a colour: a filled dot for live, a tick for done, a cross for err. */
+/**
+ * The tooltip a line on a small face carries. Every line there is cut with an
+ * ellipsis when the face is narrower than its text, at a size the face decides
+ * per card, so each carries its whole text on hover the way the full card's
+ * name does: the card's own tooltip for it when that already holds the text — a
+ * root is named after the folder its tooltip opens with — and the text on a
+ * line above it when not, as for a subagent named after its type.
+ */
+export function faceTitle(text: string, tooltip?: string): string {
+  if (!tooltip) return text;
+  return tooltip.includes(text) ? tooltip : `${text}\n${tooltip}`;
+}
+
 export type StateMarkKind = "live" | "done" | "err";
 
 export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
