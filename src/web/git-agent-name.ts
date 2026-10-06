@@ -92,6 +92,23 @@ export function agentNameIn(agents: ReadonlyMap<string, NamedCard>, sessionId: s
   return card ? nameWith(card, peersOf(agents.values())) : null;
 }
 
+/** Each agent a history's commits were seen made by, once, in the order the
+ *  history first lists them: the names its chips carry. */
+export function commitAgentKeys(commits: readonly { agent?: object | null }[] | null | undefined): [string, string | null][] {
+  const out: [string, string | null][] = [];
+  const seen = new Set<string>();
+  for (const c of commits ?? []) {
+    const a = c.agent as { sessionId?: unknown; agentId?: unknown } | null | undefined;
+    if (!a || typeof a.sessionId !== "string") continue;
+    const agentId = typeof a.agentId === "string" ? a.agentId : null;
+    const k = `${a.sessionId}\u0000${agentId ?? ""}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push([a.sessionId, agentId]);
+  }
+  return out;
+}
+
 /** A card's own name on the board it is on. */
 export function cardName(agents: ReadonlyMap<string, NamedCard>, card: NamedCard): string {
   return agents.has(card.id) ? nameWith(card, peersOf(agents.values())) : card.kind === "subagent" ? card.label : ownName(card);

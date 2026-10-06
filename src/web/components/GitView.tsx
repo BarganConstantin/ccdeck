@@ -30,7 +30,7 @@ import {
   GIT_VIEW_DEFAULTS, edgeBounds, filesBounds, graphBounds, clampTo, isSheet, panelWidth, readGitViewPrefs,
   splitterTarget, writeGitViewPrefs, type GitViewPrefs, type SplitterKind,
 } from "../git-view-sizes";
-import { agentNameIn, cardName as cardNameIn, collisionTarget, otherAgentName } from "../git-agent-name";
+import { agentNameIn, cardName as cardNameIn, collisionTarget, commitAgentKeys, otherAgentName } from "../git-agent-name";
 import { pressHow } from "../agent-goto";
 import { flashCard } from "../card-flash";
 import { elsewhereRows } from "../git-files-model";
@@ -834,7 +834,11 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const hue = sessionHue(agent.sessionId);
   // Every agent the view names goes by the name its card does
   // (git-agent-name.ts); the server's label answers for a card that is gone.
-  const nameOf = useCallback((sessionId: string, agentId: string | null) => agentNameIn(stateRef.current.agents, sessionId, agentId), []);
+  // The namer reads the live cards; it is a new one whenever a name the
+  // history's chips carry changes, so a session renamed while the view is
+  // open is renamed in its history too.
+  const chipNames = commitAgentKeys(data.commits).map(([s, a]) => agentNameIn(stateRef.current.agents, s, a) ?? "").join("\u0001");
+  const nameOf = useCallback((sessionId: string, agentId: string | null) => agentNameIn(stateRef.current.agents, sessionId, agentId), [chipNames]);
   const cardName = useCallback((agentId: string | null) => nameOf(agent.sessionId, agentId), [agent.sessionId]);
   const teamName = cardNameIn(stateRef.current.agents, team);
   const focusName = away ? nameOf(agent.sessionId, away.agentId) ?? away.label ?? "subagent" : narrow ? cardNameIn(stateRef.current.agents, agent) : teamName;
