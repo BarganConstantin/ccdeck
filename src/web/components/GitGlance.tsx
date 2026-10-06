@@ -10,6 +10,8 @@
 // and when `g` is pressed there, that line answers instead of a view opening.
 import { useEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode } from "react";
 
+import { groupDigits } from "../git-diff-parse";
+import { pathCounts } from "../git-files-model";
 import { useGitOn } from "../git-pref";
 import { focusAgentFrom, openGitViewFrom } from "../git-view-request";
 import { gitFactsFor, gitFocus, gitViewOpens, subagentKey } from "../git-view-target";
@@ -153,6 +155,8 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         const [dir, base] = splitPath(f.path);
         const letter = f.entry.change.slice(0, 1).toUpperCase();
         const word = STATUS_WORD[letter] ?? f.entry.change;
+        // The file's sides added together, as one file changed; nothing when unknown.
+        const n = pathCounts(data.entries ?? [], f.path);
         return (
           <button
             type="button" key={f.path} className="gv-g-row gv-g-file" style={{ "--session-hue": hue } as CSSProperties}
@@ -162,6 +166,14 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
             <i className="gv-pip" aria-hidden="true" />
             <span className="gv-st" title={word}><span aria-hidden="true">{letter}</span><span className="vis-hidden">{word}</span></span>
             <span className="gv-path"><span className="gv-dir">{dir}</span><span className="gv-base">{base}</span></span>
+            {n && (n.binary
+              ? <span className="gv-g-counts"><span className="gv-g-bin" title="binary file">bin</span></span>
+              : (n.added > 0 || n.removed > 0) && (
+                <span className="gv-g-counts">
+                  {n.added > 0 && <span className="gv-g-add">+{groupDigits(n.added)}<span className="vis-hidden"> added</span></span>}
+                  {n.removed > 0 && <span className="gv-g-del">−{groupDigits(n.removed)}<span className="vis-hidden"> removed</span></span>}
+                </span>
+              ))}
           </button>
         );
       })}

@@ -107,6 +107,9 @@ export interface UncommittedList {
   label: string;
   /** Distinct paths — a file staged and unstaged counts once. */
   files: number;
+  /** Some row has counts: every row keeps the counts column then, empty where
+   *  nothing is known, so the tags before it line up down the list. */
+  counted: boolean;
 }
 
 /** What a session's main thread is called when nothing better is known. */
@@ -166,7 +169,24 @@ export function uncommittedList(
   } else {
     label = edits.some(e => e.agentId !== null) ? `Edited by ${sessionName} and its subagents` : `Edited by ${sessionName}`;
   }
-  return { mine, other, label, files: new Set(entries.map(e => e.path)).size };
+  const counted = [...mine, ...other].some(r => r.counts !== null);
+  return { mine, other, label, files: new Set(entries.map(e => e.path)).size, counted };
+}
+
+/** One file's counts across its entries — a file staged and changed again is
+ *  one file changed, its two sides added together — or null when a side's
+ *  counts are not known. Binary when either side is. */
+export function pathCounts(entries: readonly StatusEntry[], path: string): { added: number; removed: number; binary: boolean } | null {
+  const sides = entries.filter(e => e.path === path);
+  if (!sides.length) return null;
+  let added = 0, removed = 0, binary = false;
+  for (const e of sides) {
+    if (e.binary) { binary = true; continue; }
+    if (typeof e.added !== "number" || typeof e.removed !== "number") return null;
+    added += e.added;
+    removed += e.removed;
+  }
+  return binary ? { added: 0, removed: 0, binary: true } : { added, removed, binary: false };
 }
 
 /** A commit's files as rows, in the order git listed them. */

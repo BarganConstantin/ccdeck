@@ -63,6 +63,12 @@ export interface StatusEntry {
   from?: string;
   submodule?: boolean;
   directory?: boolean;
+  /** The lines this side's diff adds and removes, and whether it is binary:
+   *  absent when the deck does not know (a conflict, a submodule, a folder, a
+   *  file past a size cap). */
+  added?: number;
+  removed?: number;
+  binary?: boolean;
 }
 
 export interface StatusCounts {

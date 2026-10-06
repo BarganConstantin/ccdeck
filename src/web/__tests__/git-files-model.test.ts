@@ -2,7 +2,7 @@
 // first under its name, the rest quieter below — from the fixture worktree
 // where api-fix and its subagent test-writer left every kind of change.
 import { describe, expect, it } from "vitest";
-import { changeMark, commitRows, fileKey, rowOrder, uncommittedList, type GitEdit, type StatusEntry } from "../git-files-model";
+import { changeMark, commitRows, fileKey, pathCounts, rowOrder, uncommittedList, type GitEdit, type StatusEntry } from "../git-files-model";
 
 const ENTRIES: StatusEntry[] = [
   { path: "data/products.csv", area: "unstaged", change: "modified" },
@@ -87,8 +87,41 @@ describe("the uncommitted list, for the whole session", () => {
 
   it("has no counts for a status entry the server sent none for", () => {
     expect(list.mine[0].counts).toBeNull();
+    expect(list.counted).toBe(false);
     const withCounts = uncommittedList([{ path: "a.ts", area: "unstaged", change: "modified", added: 3, removed: 1 }], [], TEAM, []);
     expect(withCounts.other[0].counts).toEqual({ added: 3, removed: 1, binary: false });
+  });
+
+  it("carries the counts the status sent, like a commit's files: per side, binary marked", () => {
+    const counted = uncommittedList([
+      { path: "src/auth/session.ts", area: "staged", change: "modified", added: 12, removed: 3, binary: false },
+      { path: "src/auth/session.ts", area: "unstaged", change: "modified", added: 1204, removed: 0, binary: false },
+      { path: "public/logo.png", area: "unstaged", change: "modified", added: 0, removed: 0, binary: true },
+      { path: "scratch", area: "untracked", change: "untracked", directory: true },
+    ], [], TEAM, []);
+    expect(counted.other.map(r => r.counts)).toEqual([
+      { added: 12, removed: 3, binary: false },
+      { added: 1204, removed: 0, binary: false },
+      { added: 0, removed: 0, binary: true },
+      null,
+    ]);
+    // A row with nothing known keeps the column, so the stage tags line up.
+    expect(counted.counted).toBe(true);
+  });
+});
+
+describe("one file's counts, as the glance says them", () => {
+  const e = (area: string, extra: Partial<StatusEntry>): StatusEntry => ({ path: "src/a.ts", area, change: "modified", ...extra });
+
+  it("adds a file's staged and unstaged counts together, as one file changed", () => {
+    expect(pathCounts([e("staged", { added: 12, removed: 3 }), e("unstaged", { added: 4, removed: 1 }), { path: "b.ts", area: "unstaged", change: "modified", added: 9, removed: 9 }], "src/a.ts"))
+      .toEqual({ added: 16, removed: 4, binary: false });
+  });
+
+  it("calls a file binary when either side is, and knows nothing when a side is unknown", () => {
+    expect(pathCounts([e("staged", { added: 0, removed: 0, binary: true }), e("unstaged", { added: 2, removed: 0 })], "src/a.ts")).toEqual({ added: 0, removed: 0, binary: true });
+    expect(pathCounts([e("staged", { added: 1, removed: 0 }), e("unstaged", {})], "src/a.ts")).toBeNull();
+    expect(pathCounts([], "src/a.ts")).toBeNull();
   });
 });
 

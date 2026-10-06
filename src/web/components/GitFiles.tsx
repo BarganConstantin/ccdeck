@@ -78,6 +78,7 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
     [entries, mode, edits, focusKey, clashKey, name],
   );
   const rows = useMemo(() => rowOrder(list), [list]);
+  const counted = !Array.isArray(list) && list.counted;
   const selectedKey = selected ? fileKey(selected) : null;
   const tabKey = rows.some(r => r.key === selectedKey) ? selectedKey : rows[0]?.key ?? null;
 
@@ -224,7 +225,7 @@ const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(pro
             <span className="vis-hidden">, {row.collapsed === "lock" ? "lock file" : "generated file"}</span>
           </span>
         )}
-        {row.counts && <Counts {...row.counts} />}
+        {row.counts ? <Counts {...row.counts} /> : counted && <span className="gvf-counts" />}
       </div>
     );
   };

@@ -370,6 +370,12 @@
 .gv-path { display: flex; flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; font: 11px/1.4 var(--font-mono); }
 .gv-dir { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 .gv-base { flex: none; color: var(--text); }
+/* A file's counts close its row, as the files pane draws them; the path is
+   what gives way. */
+.gv-g-counts { flex: none; display: inline-flex; gap: 6px; font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.gv-g-add { color: var(--gv-add-ink); }
+.gv-g-del { color: var(--gv-del-ink); }
+.gv-g-bin { color: var(--muted); }
 .gv-g-files-head { margin-top: 8px; padding: 0 6px 2px; color: var(--muted); font-size: 11px; }
 .gv-g-files-head b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .gv-g-more {
