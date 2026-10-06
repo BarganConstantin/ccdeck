@@ -25,16 +25,12 @@ export function Machine() {
   );
 }
 
-/** Which way a copy travels, drawn at the end it arrives at. The bar in front
- *  of one is a copy that reaches this deck and stops there — `blocked`. It
- *  stands a clear gap ahead of the chevron: touching, the two strokes read as
- *  a letter K rather than as an arrow meeting a closed door. */
-function Chevron({ dir, gate = false }: { dir: "in" | "out"; gate?: boolean }) {
-  const w = gate ? 12 : 8;
+/** Which way a copy travels, drawn at the end it arrives at. */
+function Chevron({ dir }: { dir: "in" | "out" }) {
   return (
-    <svg className="lan-chev" data-dir={dir} data-gate={gate || undefined} width={w} height="8" viewBox={`0 0 ${w} 8`}
+    <svg className="lan-chev" data-dir={dir} width="8" height="8" viewBox="0 0 8 8"
       fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d={dir === "out" ? "M2.8 1L6 4 2.8 7" : gate ? "M1 1v6M9.6 1L6.4 4l3.2 3" : "M5.2 1L2 4l3.2 3"} />
+      <path d={dir === "out" ? "M2.8 1L6 4 2.8 7" : "M5.2 1L2 4l3.2 3"} />
     </svg>
   );
 }
@@ -152,7 +148,7 @@ export default function LanPeerMap({ view, row, status, asking, drawn, onSetting
                     {(l.in === "live" || l.in === "wait") && <i className="lan-glint" data-dir="in" data-tone={l.in} />}
                     {l.out === "live" && <i className="lan-glint" data-dir="out" />}
                   </span>
-                  {l.in && l.in !== "cut" && <Chevron dir="in" gate={l.in === "blocked"} />}
+                  {l.in && l.in !== "cut" && <Chevron dir="in" />}
                   {l.out === "live" && <Chevron dir="out" />}
                   <span className="lan-lane-email">{l.email}</span>
                 </span>

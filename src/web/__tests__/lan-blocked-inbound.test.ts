@@ -17,10 +17,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { silenceNote } from "../lan-round";
-import { REACH_WAY_OUT } from "../components/LanReachNote";
+import LanReachNote, { REACH_WAY_OUT } from "../components/LanReachNote";
 // @ts-expect-error — plain .mjs server module, no types
-import { MAC_FW, QUIET_MS, isActive, linuxFixSteps, linuxReach, macFixSteps, macReach, readMacProbe, readUfw, reachability, silentInbound } from "../../server/lan-reach.mjs";
+import { MAC_FW, QUIET_MS, isActive, linuxFixSteps, linuxReach, macFixSteps, macReach, readMacProbe, readUfw, reachability, servedReach, silentInbound } from "../../server/lan-reach.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { anotherMachine } from "../../server/lan-engine.mjs";
 
@@ -464,5 +466,55 @@ describe("the press is answered by a measurement, not by a cache", () => {
     const onPort = /onPort: async port => \{([\s\S]*?)\n  \},/.exec(LAN)?.[1] ?? "";
     expect(onPort, "onPort was not found in the server source").not.toBe("");
     expect(onPort).toMatch(/forgetReach\(\)/);
+  });
+});
+
+// ── after somebody pastes the lines ─────────────────────────────────────────
+//
+// Reported from the Omarchy box at the start of this file, once its owner had
+// run `sudo ufw allow …`: the panel kept saying "ufw is running here…" for up
+// to five minutes after decks were already connecting. The verdict is taken at
+// most every five minutes (see refreshReach in lan-deck.mjs), and the one being
+// served was taken before anything had connected — the only thing the Linux
+// verdict can measure. And the note told the reader to restart the deck, which
+// ufw does not need: it applies a rule the moment it is added, and the restart
+// is what wiped the in-memory record of the connection that had got in.
+/** The status route, which serves the verdict. */
+const ROUTES = strip(read("../../server/lan-routes.mjs"));
+
+describe("after somebody opens the ports", () => {
+  const ufwOn = { enabled: true, input: "DROP" };
+
+  it("drops a blocked verdict taken before anything connected once a connection from another machine arrives", () => {
+    const before = linuxReach({ ufw: ufwOn, syncPort: 45_825 });
+    expect(before.blocked).toBe(true);
+    // Nothing has got in yet: the verdict stands as it was taken.
+    expect(servedReach(before, null)).toBe(before);
+    // Something has: the same answer the next probe will give, served now.
+    expect(servedReach(before, NOW)).toMatchObject({ blocked: false, why: "inbound seen" });
+    expect(servedReach(before, NOW).steps).toBeUndefined();
+    // The measured verdict, for a machine with nothing to ask, clears the same way.
+    const quiet = silentInbound({ heard: 1, listeningSince: NOW - QUIET_MS - 60_000, now: NOW });
+    expect(quiet.blocked).toBe(true);
+    expect(servedReach(quiet, NOW)).toMatchObject({ blocked: false });
+    // And every answer that was not a complaint is left exactly as it was.
+    const clear = linuxReach({ ufw: ufwOn, syncPort: 45_825, inbound: NOW });
+    expect(servedReach(clear, NOW)).toBe(clear);
+    expect(servedReach(null, NOW)).toBeNull();
+  });
+
+  it("is what the status route serves, against the engine's own record of what got in", () => {
+    expect(ROUTES).toMatch(/reach: servedReach\(lastReach\(\), (\w+)\.inboundAt\)/);
+    expect(ROUTES).not.toMatch(/reach: lastReach\(\)/);
+  });
+
+  it("does not tell a Linux reader to restart the deck after opening the ports", () => {
+    for (const reach of [linuxReach({ ufw: ufwOn, syncPort: 45_825 }), linuxReach({ firewalld: true, syncPort: 45_825 })]) {
+      for (const where of ["panel", "dialog"] as const) {
+        const html = renderToStaticMarkup(createElement(LanReachNote, { reach, where }));
+        expect(html, `the ${reach.tool} lines were not drawn`).toContain("sudo ");
+        expect(html, `the ${reach.tool} note asks for a restart`).not.toMatch(/restart/i);
+      }
+    }
   });
 });
