@@ -3,10 +3,13 @@
 // card can keep its full face, and a marker for each one that could not be.
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  foldMarkers, frameForGitView, gitViewCover, gitViewFrame, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  boxesOverlap, clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  MARKER_H,
 } from "../git-view-fit";
+import { LABEL_LIFT } from "../session-chrome";
 import { DETAIL_ENTER_ZOOM } from "../semantic-zoom";
 import { sourceOf } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 const card = (id: string, x: number, y: number) => ({ id, x, y, width: 260, height: 120, lane: 0 });
 const pane = { width: 1080, height: 848 };
@@ -101,6 +104,70 @@ describe("the edge markers", () => {
     expect(kept).toHaveLength(room - 1);
     expect(kept.every(m => m.alarm === "waiting")).toBe(true);
     expect(folded.map(m => m.id)).toEqual(["w24", "f0"]);
+  });
+});
+
+describe("the edge markers beside the cluster name tags", () => {
+  // A 1280×340 window: the pane is 288px tall, the marker right-aligned at the
+  // canvas's uncovered edge, a cluster's name tag under its top.
+  const mark = { top: 72, left: 285, right: 448 };
+  const tag = { left: 155, right: 338, top: 93, bottom: 111 };
+
+  it("move off a name tag they would cover, to just under it", () => {
+    expect(clearOfLabels([mark], [tag], 288)).toEqual([111 + 4]);
+  });
+
+  it("stay where they are beside a tag outside their own width, or clear of it", () => {
+    expect(clearOfLabels([mark], [{ ...tag, right: 280 }], 288)).toEqual([72]);
+    expect(clearOfLabels([{ ...mark, top: 140 }], [tag], 288)).toEqual([140]);
+  });
+
+  it("go above the tag when under it would pass the pane's foot, and stay put when neither way is free", () => {
+    const low = { left: 155, right: 338, top: 230, bottom: 250 };
+    expect(clearOfLabels([{ ...mark, top: 240 }], [low], 288)).toEqual([230 - 4 - MARKER_H]);
+    const tall = { left: 155, right: 338, top: 60, bottom: 260 };
+    expect(clearOfLabels([{ ...mark, top: 120 }], [tall], 288)).toEqual([120]);
+  });
+
+  it("keep a row apart while they move", () => {
+    const tops = clearOfLabels([mark, { ...mark, top: 102 }], [tag], 288);
+    expect(tops[0]).toBe(115);
+    expect(tops[1]).toBe(145);
+  });
+
+  it("know where a tag lands once the camera has moved: on the plane, lifted a fixed height above its box", () => {
+    // A tag 12px above a box at plane y 400, drawn at zoom 0.5 with the camera at y 20.
+    const was = { y: 20, zoom: 0.5 }, now = { y: -100, zoom: 0.25 };
+    const shownTop = was.y + 400 * was.zoom - LABEL_LIFT;
+    expect(labelTopAt(shownTop, was, now)).toBe(now.y + 400 * now.zoom - LABEL_LIFT);
+  });
+
+  it("are placed clear of the tags the frame put in the canvas, measured as drawn", () => {
+    const view = sourceOf("components/GitView.tsx");
+    expect(view).toMatch(/const tagTop = labelTopAt\(r\.top - rect\.top, was, plan\.viewport\);/);
+    expect(view).toMatch(/setLabelBoxes\(plan\.leftOut\.length \? boxes : NO_BOXES\);/);
+    const edge = view.slice(view.indexOf("function EdgeMarkers("), view.indexOf("// ── the panel"));
+    expect(edge).toMatch(/clearOfLabels\(/);
+    expect(edge).toMatch(/useLayoutEffect\(/);
+  });
+});
+
+describe("the canvas's filter bar beside the open view", () => {
+  const bar = { left: 0, right: 217, top: 10, bottom: 42 };
+
+  it("covers a name tag that reaches under it, by a pixel or more, and no other", () => {
+    expect(boxesOverlap({ left: 121, right: 271, top: 38, bottom: 56 }, bar)).toBe(true);
+    expect(boxesOverlap({ left: 121, right: 271, top: 42, bottom: 60 }, bar)).toBe(false);
+    expect(boxesOverlap({ left: 217, right: 300, top: 20, bottom: 38 }, bar)).toBe(false);
+  });
+
+  it("is counted as covered when the frame places the tags: a tag under it leaves the Tab order and is not drawn", () => {
+    const view = sourceOf("components/GitView.tsx");
+    expect(view).toMatch(/const underBar = barBox !== null && boxesOverlap\(tag, barBox\);/);
+    expect(view).toMatch(/\(covered \|\| underBar \? under : clear\)\.add\(el\);/);
+    // Neither is a tag an edge marker has to keep off.
+    expect(view).toMatch(/if \(covered \|\| underBar \|\| r\.width <= 0\) continue;/);
+    expect(sheetText()).toMatch(/:root\[data-git-view\] \.cluster-label\[inert\] \{ visibility: hidden; \}/);
   });
 });
 

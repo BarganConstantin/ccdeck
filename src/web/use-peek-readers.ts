@@ -1,6 +1,7 @@
 // What the peek reads, through refs so the three are made once: the node's
 // own data (branch summary included), a parent's label, and the room it may
-// open into — the canvas less the rail of panels over its right edge.
+// open into — the canvas less the rail of panels over its right edge, or less
+// the open git view, whichever covers more of it.
 //
 // Moved out of App.tsx unchanged. SessionPeek asks these when a card or a
 // recap note is hovered; they read the board at that moment rather than the
@@ -10,6 +11,7 @@ import type { Node } from "reactflow";
 import type { FlowNodeData } from "./canvas-flow";
 import type { RecapNoteData } from "./components/RecapNoteNode";
 import type { GraphState } from "./reducer";
+import { gitViewCover } from "./git-view-fit";
 
 export function usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef }: {
   /** The array React Flow was last handed. */
@@ -33,11 +35,12 @@ export function usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef }: 
   const peekBounds = useCallback(() => {
     // The canvas's own box, not the window's: the peek belongs over the canvas,
     // and the canvas already runs to the foot of the page.
+    // Beside the open git view, the part of the canvas the panel covers is not
+    // room either: a card's peek opens left of it, never over the view.
     const box = canvasRef.current?.getBoundingClientRect();
+    if (box) return { width: box.right - Math.max(railInsetRef.current, gitViewCover()), height: box.bottom };
     const doc = document.documentElement;
-    return box
-      ? { width: box.right - railInsetRef.current, height: box.bottom }
-      : { width: doc.clientWidth, height: doc.clientHeight };
+    return { width: doc.clientWidth, height: doc.clientHeight };
   }, []);
   return { peekAgent, peekLabel, peekRecap, peekBounds };
 }

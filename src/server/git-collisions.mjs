@@ -46,7 +46,7 @@
 // sent with persist: false and only the page and the ring hold it. Like
 // GitObserved it is LAST_VALUE_WINS in ring-bounds.mjs — and like it, sent
 // again to a page that connects after the ring dropped the event that carried
-// it (reannounceCollisions), since an unchanged answer is never sent twice.
+// it (collisionsBehind), since an unchanged answer is never sent twice.
 import { join } from "node:path";
 import { collisionFacts } from "./agent-git-collisions.mjs";
 import { agentGit, editsFor } from "./agent-git-tap.mjs";
@@ -84,7 +84,7 @@ const FOLDS_CASE = process.platform === "win32" || process.platform === "darwin"
 const sessions = new Map();
 // sid -> the collisions last sent for it, serialized; absent once they are empty
 const sent = new Map();
-// sid -> the seq of the event that carried its last answer, empty ones included
+// sid -> the seq and time of the event that carried its last answer, empty ones included
 const sentSeq = new Map();
 let timer = null;
 let due = Infinity;
@@ -322,32 +322,32 @@ function send(sid, collisions) {
   const evt = pushEvent({ hook_event_name: "GitCollisions", session_id: sid, collisions: c }, "internal", { persist: false });
   if (collisions) sent.set(sid, JSON.stringify(collisions));
   else sent.delete(sid);
-  sentSeq.set(sid, evt?.seq ?? null);
+  sentSeq.set(sid, evt ? { seq: evt.seq, at: evt.receivedAt } : null);
 }
 
 /**
- * Send again the last collisions of every session a connecting page cannot be
- * replayed them for: each whose event is newer than the page's last one
- * (`after`) and has already left the ring (older than `before`, its oldest).
- * Only for the `sessions` the page will draw a card for, and, for a page that
- * has seen nothing yet, only a collision that holds — it has none to clear.
- * Answers how many.
+ * The last collisions of every session a connecting page cannot be replayed
+ * them for: each whose event is newer than the page's last one (`after`) and
+ * has already left the ring (older than `before`, its oldest). Only for the
+ * `sessions` the page will draw a card for, and, for a page that has seen
+ * nothing yet, only a collision that holds — it has none to clear. Each as it
+ * was sent, its seq and its time, for the page alone (withGitBehind in
+ * event-routes.mjs), never pushed again to every page open.
  *
  * @param {{ after: number, before: number, sessions: Set<string> }} range
+ * @returns {Array<{ seq: number, receivedAt: number, payload: object }>}
  */
-export function reannounceCollisions({ after, before, sessions }) {
-  let n = 0;
-  if (!enabled()) return n;
-  for (const [sid, seq] of sentSeq) {
-    if (!sessions.has(sid) || seq === null || seq <= after || seq >= before) continue;
+export function collisionsBehind({ after, before, sessions }) {
+  const out = [];
+  if (!enabled()) return out;
+  for (const [sid, as] of sentSeq) {
+    if (!sessions.has(sid) || as === null || as.seq <= after || as.seq >= before) continue;
     const json = sent.get(sid);
     if (!json && after === 0) continue;
     const c = json ? JSON.parse(json) : { quiet: [], sharp: [] };
-    const evt = pushEvent({ hook_event_name: "GitCollisions", session_id: sid, collisions: c }, "internal", { persist: false });
-    sentSeq.set(sid, evt?.seq ?? null);
-    n++;
+    out.push({ seq: as.seq, receivedAt: as.at, payload: { hook_event_name: "GitCollisions", session_id: sid, collisions: c } });
   }
-  return n;
+  return out;
 }
 
 /** Work everything out again soon — after the boot replay, and when the git

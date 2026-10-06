@@ -15,10 +15,10 @@ import { OVERSIZE_DRAIN_MS, send, sendInternalError } from "./http-io.mjs";
 import { presentsDeckToken } from "./request-gates.mjs";
 // The ring the readers walk — see event-ring.mjs.
 import { SEQ_EPOCH, eventBufferStats, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
-// The git state a page connecting behind the ring's head is told again — see
-// reannounceGit and reannounceCollisions.
-import { reannounceGit } from "./git-watch.mjs";
-import { reannounceCollisions } from "./git-collisions.mjs";
+// The git state handed to a page connecting behind the ring's head — see
+// withGitBehind.
+import { gitBehind } from "./git-watch.mjs";
+import { collisionsBehind } from "./git-collisions.mjs";
 // The one door every event comes through — see event-pipeline.mjs.
 import { pushEvent } from "./event-pipeline.mjs";
 import { noteLogWriter } from "./event-log.mjs";
@@ -279,31 +279,39 @@ function isTrayRequest(req) {
 }
 
 /**
- * The git state a page connecting behind the ring's head would otherwise
- * never be told again: a card's branch (GitObserved) and its collisions
- * (GitCollisions) are sent once, when they change, and an unchanged one is
- * not sent twice — so once the event that carried one has left the ring, a
- * reload or a second tab on a busy deck drew every card without them, and a
- * collision stayed unmarked for as long as it lasted. When events newer than
- * the page's last id have been evicted, each such value is pushed again
- * (persist: false), for the sessions the ring still holds an event of — the
- * cards the page will draw. The new events land at the ring's tail, so the
- * replay below hands them over before `replay-end`; the pages already
- * connected take them as the last value they already hold.
+ * A replay pass's snapshot, with the git state this page lost to eviction put
+ * in front of it.
+ *
+ * A card's branch (GitObserved) and its collisions (GitCollisions) are sent
+ * once, when they change, and an unchanged one is not sent twice — so once the
+ * event that carried one has left the ring, a reload or a second tab on a busy
+ * deck would draw every card without them, and a collision would stay unmarked
+ * for as long as it lasted. When the ring's oldest event is newer than the next
+ * one this page needs, the last of each, for every session this snapshot holds
+ * an event of (the cards the page will draw), is put in front under its own seq
+ * and time, so the loop below sends it as one more replay frame, in order,
+ * before the ring. Only to this page: nothing is pushed into the ring or the
+ * log, the pages already connected are sent nothing, and none of it reads to
+ * the deck or to a page as the session being heard from just now. Every pass
+ * asks, against what this page has been sent so far.
  */
-function reannounceBehind(lastId) {
-  const { oldestSeq } = eventBufferStats();
-  if (!(oldestSeq > lastId + 1)) return;
+function withGitBehind(batch, sentThrough) {
+  if (batch.length === 0 || batch[0].seq <= sentThrough + 1) return batch;
   try {
     const sessions = new Set();
-    for (const e of ringSnapshot()) {
+    for (const e of batch) {
       const sid = e.payload?.session_id;
       if (typeof sid === "string" && sid) sessions.add(sid);
     }
-    const range = { after: lastId, before: oldestSeq, sessions };
-    reannounceGit(range);
-    reannounceCollisions(range);
-  } catch { /* a page is never refused for this */ }
+    const range = { after: sentThrough, before: batch[0].seq, sessions };
+    const lost = [...gitBehind(range), ...collisionsBehind(range)]
+      .map(e => ({ seq: e.seq, epoch: SEQ_EPOCH, receivedAt: e.receivedAt, source: "internal", payload: e.payload }))
+      .sort((a, b) => a.seq - b.seq);
+    return lost.length > 0 ? lost.concat(batch) : batch;
+  } catch {
+    // A page is never refused its replay for this.
+    return batch;
+  }
 }
 
 /**
@@ -328,8 +336,6 @@ async function resumeSse(req, res, lastId, { tray = false } = {}) {
     trayClients.delete(res);
   });
 
-  reannounceBehind(lastId);
-
   for (;;) {
     // A snapshot per pass, because a wait lets pushEvent splice the head of
     // `events` off, and iterating an array being spliced from the front skips
@@ -345,7 +351,8 @@ async function resumeSse(req, res, lastId, { tray = false } = {}) {
     // means a slow resumer pins one ring's worth of envelopes for as long as its
     // pass lasts, which the budget bounds too: that pin used to be unbounded for
     // the same reason the ring was.
-    const batch = ringSnapshot();
+    // Behind the ring's head, the git state that fell off it goes first.
+    const batch = withGitBehind(ringSnapshot(), sentThrough);
     for (const e of batch) {
       if (e.seq <= sentThrough) continue;
       if (closed || res.destroyed) return;

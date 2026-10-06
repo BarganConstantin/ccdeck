@@ -23,7 +23,10 @@ import { useReactFlow, type Node } from "reactflow";
 import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
-import { foldMarkers, gitViewFrame, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered, type FitCard, type SessionCard } from "../git-view-fit";
+import {
+  boxesOverlap, clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  type FitCard, type PaneBox, type SessionCard,
+} from "../git-view-fit";
 import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
@@ -102,6 +105,9 @@ const NO_ACTIONS: BodyActions = { focusPane: () => {}, newest: () => {} };
 /** What a waiting or failed agent left out of the frame is marked with. The
  *  last marker of a column too long for the canvas counts the agents it
  *  folds (`more`), and goes to the first of them. */
+/** No name tags to keep off: no marker is drawn. */
+const NO_BOXES: PaneBox[] = [];
+
 interface EdgeMarker { id: string; label: string; alarm: "waiting" | "failed"; since: number; top: number; more?: { waiting: number; failed: number } }
 
 export interface GitViewProps {
@@ -115,6 +121,9 @@ export interface GitViewProps {
   nodesRef: MutableRefObject<Node[]>;
   measuredRef: MutableRefObject<Map<string, { width: number; height: number }>>;
   moveCamera: (want: { x: number; y: number; zoom: number }, duration: number) => number;
+  /** The latest camera move's epoch: bumped by every move the deck makes and
+   *  by the reader's own pan or zoom. */
+  cameraEpochRef: MutableRefObject<number>;
   /** What had focus when the view was asked to open. */
   openerRef: MutableRefObject<HTMLElement | null>;
   onClose: (how: GitViewHow) => void;
@@ -128,7 +137,7 @@ export interface GitViewProps {
 
 export default function GitView(props: GitViewProps) {
   const request = useGitViewRequest();
-  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, openerRef, onClose, onSelectAgent, onShowCard, onFocusBack } = props;
+  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, cameraEpochRef, openerRef, onClose, onSelectAgent, onShowCard, onFocusBack } = props;
   const rf = useReactFlow();
   const root = agent ? stateRef.current.agents.get(agent.sessionId) ?? null : null;
   const opens = agent != null && gitViewOpens(gitFactsFor(agent, root));
@@ -165,11 +174,16 @@ export default function GitView(props: GitViewProps) {
 
   // ── the camera beside the view ────────────────────────────────────────
   const savedViewport = useRef<{ x: number; y: number; zoom: number } | null>(null);
-  // Where a close is taking the camera back to, until it gets there: a reopen
-  // on the way keeps that as the camera to give back, not the one mid-flight.
-  const restoring = useRef<{ to: { x: number; y: number; zoom: number }; until: number } | null>(null);
+  // Where a close took the camera back to, and that camera move's epoch: a
+  // reopen while it is still the latest move — on its way however long a
+  // loaded machine takes, or landed with nothing moving it since — gives back
+  // that camera, not the one mid-flight.
+  const restoring = useRef<{ to: { x: number; y: number; zoom: number }; epoch: number } | null>(null);
   const inertCards = useState(() => new Set<Element>())[0];
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
+  // The cluster name tags on the uncovered canvas, where the frame puts them:
+  // the edge markers keep off them.
+  const [labelBoxes, setLabelBoxes] = useState<PaneBox[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
   const focusAfterFrame = useRef<string | null>(null);
 
@@ -225,13 +239,24 @@ export default function GitView(props: GitViewProps) {
       (whollyCovered({ left, right: left + (m?.width ?? 0) * zoom }, coverLeft) ? under : clear).add(el);
     }
     // So do the session clusters' name tags, anchored on the same plane
-    // (drawn at one size whatever the zoom): where each one's left edge lands
-    // once the camera has moved.
+    // (drawn at one size whatever the zoom): where each one lands once the
+    // camera has moved. The filter bar's corner counts as covered too: a tag
+    // of a session outside the frame that lands under it leaves the Tab order
+    // and is not drawn (the sheet), rather than reading through the bar.
+    const barBox: PaneBox | null = bar && bar.height > 0 ? { left: bar.left - rect.left, right: bar.right - rect.left, top: bar.top - rect.top, bottom: bar.bottom - rect.top } : null;
+    const boxes: PaneBox[] = [];
     for (const el of canvas.querySelectorAll<HTMLElement>(".cluster-label")) {
       const r = el.getBoundingClientRect();
       const left = rect.left + x + ((r.left - rect.left - was.x) / was.zoom) * zoom;
-      (whollyCovered({ left, right: left + r.width }, coverLeft) ? under : clear).add(el);
+      const covered = whollyCovered({ left, right: left + r.width }, coverLeft);
+      const tagTop = labelTopAt(r.top - rect.top, was, plan.viewport);
+      const tag: PaneBox = { left: left - rect.left, right: left - rect.left + r.width, top: tagTop, bottom: tagTop + r.height };
+      const underBar = barBox !== null && boxesOverlap(tag, barBox);
+      (covered || underBar ? under : clear).add(el);
+      if (covered || underBar || r.width <= 0) continue;
+      boxes.push(tag);
     }
+    setLabelBoxes(plan.leftOut.length ? boxes : NO_BOXES);
     setInert(clear, false, inertCards);
     setInert(under, true, inertCards);
     const out = plan.leftOut.map((id): EdgeMarker => {
@@ -322,7 +347,7 @@ export default function GitView(props: GitViewProps) {
       // The reader's camera, to give back on close — taken on a sheet too,
       // which leaves the camera alone until a wider window puts the view beside it.
       if (opening) {
-        const back = restoring.current && performance.now() < restoring.current.until ? restoring.current.to : null;
+        const back = restoring.current && cameraEpochRef.current === restoring.current.epoch ? restoring.current.to : null;
         savedViewport.current = back ?? rf.getViewport();
         restoring.current = null;
       }
@@ -348,8 +373,7 @@ export default function GitView(props: GitViewProps) {
     setInert([...inertCards], false, inertCards);
     if (savedViewport.current) {
       const duration = animate ? 150 : 0;
-      moveCamera(savedViewport.current, duration);
-      restoring.current = { to: savedViewport.current, until: performance.now() + duration + 50 };
+      restoring.current = { to: savedViewport.current, epoch: moveCamera(savedViewport.current, duration) };
     }
     savedViewport.current = null;
   }, [want, agent?.id, width, sheet, detailShown]);
@@ -476,24 +500,39 @@ export default function GitView(props: GitViewProps) {
         />
       </section>, document.body)}
       {markers.length > 0 && canvasRef.current && createPortal(
-        <EdgeMarkers markers={markers} right={cover + 12} now={now} onGo={id => { focusAfterFrame.current = id; onSelectAgent(id); }} />,
+        <EdgeMarkers markers={markers} labels={labelBoxes} right={cover + 12} now={now} onGo={id => { focusAfterFrame.current = id; onSelectAgent(id); }} />,
         canvasRef.current,
       )}
     </>
   );
 }
 
-function EdgeMarkers({ markers, right, now, onGo }: { markers: EdgeMarker[]; right: number; now: number; onGo: (id: string) => void }) {
+function EdgeMarkers({ markers, labels, right, now, onGo }: {
+  markers: EdgeMarker[]; labels: readonly PaneBox[]; right: number; now: number; onGo: (id: string) => void;
+}) {
+  // Each marker moved off the cluster name tags in its own width, once that
+  // width is drawn: placed before paint, so none is seen over a tag.
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [placed, setPlaced] = useState<{ of: EdgeMarker[]; tops: number[] } | null>(null);
+  useLayoutEffect(() => {
+    const els = refs.current.slice(0, markers.length);
+    const pane = els[0]?.parentElement;
+    if (!pane || els.some(e => !e)) { setPlaced(null); return; }
+    const w = pane.clientWidth;
+    const tops = clearOfLabels(markers.map((m, i) => ({ top: m.top, left: w - right - els[i]!.offsetWidth, right: w - right })), labels, pane.clientHeight);
+    setPlaced({ of: markers, tops });
+  }, [markers, labels, right]);
+  const topOf = (m: EdgeMarker, i: number) => (placed?.of === markers ? placed.tops[i] : m.top);
   return (
     <>
-      {markers.map(m => {
+      {markers.map((m, i) => {
         if (m.more) {
           const { waiting, failed } = m.more;
           const said = !failed ? "waiting" : !waiting ? "failed" : `${waiting} waiting · ${failed} failed`;
           return (
             <button
-              key="more" type="button" className="gv-edge-mark" data-alarm={waiting ? "waiting" : "failed"}
-              style={{ top: m.top, right }}
+              key="more" ref={el => { refs.current[i] = el; }} type="button" className="gv-edge-mark" data-alarm={waiting ? "waiting" : "failed"}
+              style={{ top: topOf(m, i), right }}
               title={`${waiting + failed} more agents ${waiting ? "waiting for you" : "stopped on an error"} outside this view. Select ${m.label}.`}
               onClick={() => onGo(m.id)}
             >
@@ -504,8 +543,8 @@ function EdgeMarkers({ markers, right, now, onGo }: { markers: EdgeMarker[]; rig
         const said = m.alarm === "waiting" ? `waiting ${elapsed(m.since, undefined, now)}` : "failed";
         return (
           <button
-            key={m.id} type="button" className="gv-edge-mark" data-alarm={m.alarm}
-            style={{ top: m.top, right }}
+            key={m.id} ref={el => { refs.current[i] = el; }} type="button" className="gv-edge-mark" data-alarm={m.alarm}
+            style={{ top: topOf(m, i), right }}
             title={`${m.label} is ${m.alarm === "waiting" ? "waiting for you" : "stopped on an error"}, outside this view. Select it.`}
             onClick={() => onGo(m.id)}
           >

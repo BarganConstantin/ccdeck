@@ -835,7 +835,7 @@ function Inner() {
       <GitView
         agent={selected ?? null} stateRef={stateRef} now={now} detailShown={detailShown}
         canvasRef={canvasRef} nodesRef={nodesRef} measuredRef={measuredRef} moveCamera={moveCamera}
-        openerRef={gitOpenerRef} onClose={closeGitView} onSelectAgent={selectGitAgent}
+        cameraEpochRef={cameraEpochRef} openerRef={gitOpenerRef} onClose={closeGitView} onSelectAgent={selectGitAgent}
         onShowCard={showGitAgentCard} onFocusBack={gitFocusBack}
       />
 

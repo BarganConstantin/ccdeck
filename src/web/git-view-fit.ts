@@ -14,6 +14,7 @@
 // view instead of for the whole board, through the seam at the bottom.
 import { focusViewport, unionBox, type FlowBox, type PaneInsets } from "./focus-camera";
 import { DETAIL_ENTER_ZOOM, FOCUS_MAX_ZOOM, fitZoomForDrawnLanes } from "./semantic-zoom";
+import { LABEL_LIFT } from "./session-chrome";
 
 export interface FitCard extends FlowBox {
   id: string;
@@ -97,6 +98,57 @@ const MARKER_FOOT = 40;
 export function markerTop(card: FlowBox, viewport: { y: number; zoom: number }, paneHeight: number): number {
   const mid = viewport.y + (card.y + card.height / 2) * viewport.zoom;
   return Math.round(Math.min(Math.max(mid - 12, MARKER_FLOOR), paneHeight - MARKER_FOOT));
+}
+
+/** A box on the canvas, in px from its top left. */
+export interface PaneBox { left: number; right: number; top: number; bottom: number }
+
+/** Whether two boxes share any area: a tag that reaches a pixel under the
+ *  canvas's own chrome is under it. */
+export function boxesOverlap(a: PaneBox, b: PaneBox): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+/** An edge marker's height (`.gv-edge-mark`). */
+export const MARKER_H = 24;
+
+/**
+ * Where a session cluster's name tag stands once the camera has moved, in px
+ * from the canvas top, given where it stands now: on the plane at its box's
+ * top, lifted a fixed LABEL_LIFT above it at every zoom (cluster-bounds.ts).
+ */
+export function labelTopAt(shownTop: number, was: { y: number; zoom: number }, now: { y: number; zoom: number }): number {
+  const planeY = (shownTop - was.y + LABEL_LIFT) / was.zoom;
+  return now.y + planeY * now.zoom - LABEL_LIFT;
+}
+
+/**
+ * Edge markers kept off the cluster name tags beside them. `marks` are each
+ * marker's place (its top) and the span its own width takes; one that would
+ * cover a tag in that span moves to just under it, or above it when under
+ * would pass the pane's foot, always a row below the marker before it. Where
+ * neither way is free it stays where it was.
+ */
+export function clearOfLabels(marks: ReadonlyArray<{ top: number; left: number; right: number }>, labels: readonly PaneBox[], paneHeight: number, row = 30, gap = 4): number[] {
+  const out = marks.map(m => m.top);
+  const order = marks.map((_, i) => i).sort((a, b) => marks[a].top - marks[b].top);
+  const foot = paneHeight - MARKER_FOOT;
+  let floor = -Infinity;
+  for (const i of order) {
+    const m = marks[i];
+    const on = (y: number) => labels.find(l => l.left < m.right && m.left < l.right && l.top < y + MARKER_H + gap && y - gap < l.bottom);
+    const start = Math.max(m.top, floor + row);
+    let y = start;
+    for (let hit = on(y); hit && y <= foot; hit = on(y)) y = Math.ceil(hit.bottom + gap);
+    if (y > foot) {
+      y = start;
+      for (let hit = on(y); hit && y >= MARKER_FLOOR; hit = on(y)) y = Math.floor(hit.top - gap - MARKER_H);
+      if (y < MARKER_FLOOR || y < floor + row || on(y)) y = Math.min(start, foot);
+    }
+    out[i] = y;
+    floor = y;
+  }
+  return out;
 }
 
 /** Markers that would land on top of one another move a row apart: down
