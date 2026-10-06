@@ -579,6 +579,21 @@ describe("the mark's look", () => {
     expect(rule(".agent-node .git-mark-said")).toMatch(/text-overflow: ellipsis/);
   });
 
+  it("lets the file's name give way after the sentence, so the tail never spills out of a narrow card", () => {
+    // A 220px subagent card: glyph, three gaps, the name at up to half the
+    // row and "+1 · in this session" did not fit, and the tail ran past the
+    // card's edge. The sentence goes first, then the name down to a stub;
+    // the tail never.
+    const lead = rule(".agent-node .git-mark-lead");
+    expect(lead).toContain("flex: 0 1 auto;");
+    expect(lead).toContain("min-width: 4ch;");
+    expect(lead).toMatch(/text-overflow: ellipsis/);
+    expect(rule(".agent-node .git-mark-said")).toContain("flex: 0 1000 auto;");
+    expect(css).toContain(".agent-node .git-mark-tail { flex: none; white-space: nowrap; }");
+    // Nothing drawn past the row's own edge, whatever the words.
+    expect(rule(".agent-node .git-mark")).toContain("overflow: hidden;");
+  });
+
   it("presses like every labelled control, and the press stands still under reduced motion", () => {
     expect(css).toContain(".agent-node .git-mark:active { transform: scale(0.97); }");
     const reduced = /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.agent-node \.git-mark:active[\s\S]*?\{ transform: none; \}/.exec(css);
