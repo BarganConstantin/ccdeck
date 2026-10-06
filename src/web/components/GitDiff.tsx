@@ -1,4 +1,4 @@
-import React, { forwardRef, memo, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fmtBytes } from "../byte-format";
 import { copyText } from "../copy-text";
 import {
@@ -205,6 +205,15 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   // nothing: React has nothing to draw again.
   const lastBody = useRef<React.ReactNode>(null);
 
+  // A control in the diff that goes away when pressed (Show diff, Load all,
+  // the last Load more, Show latest) leaves the keyboard in the diff rather
+  // than on the page, where the deck's own keys would answer the next press.
+  const holdFocus = useCallback(() => {
+    const s = scrollRef.current;
+    const at = document.activeElement;
+    if (s && at && at !== s && s.closest(".gvd")?.contains(at)) s.focus({ preventScroll: true });
+  }, []);
+
   if (!file) {
     return (
       <div className="gvd" data-wrap={wrap}>
@@ -269,7 +278,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
             {(d.removed ?? 0) > 0 && <><span className="gvd-del">−{groupDigits(d.removed ?? 0)}</span>{" "}</>}
             lines{who ? `, written by ${who}` : ""}.
           </span>
-          <button type="button" className="btn gvd-show" onClick={() => setExpanded(true)}>Show diff</button>
+          <button type="button" className="btn gvd-show" onClick={() => { holdFocus(); setExpanded(true); }}>Show diff</button>
         </div>
       );
     }
@@ -285,8 +294,8 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
         {b.shown < b.total && (
           <div className="gvd-more">
             <span>Showing {groupDigits(b.shown)} of {groupDigits(b.total)} lines</span>
-            <button type="button" className="gvd-link" onClick={() => setSteps(s => s + 1)}>Load {groupDigits(next - b.shown)} more</button>
-            <button type="button" className="gvd-link" onClick={() => setSteps(() => Infinity)}>Load all</button>
+            <button type="button" className="gvd-link" onClick={() => { if (next >= b.total) holdFocus(); setSteps(s => s + 1); }}>Load {groupDigits(next - b.shown)} more</button>
+            <button type="button" className="gvd-link" onClick={() => { holdFocus(); setSteps(() => Infinity); }}>Load all</button>
           </div>
         )}
       </>
@@ -324,7 +333,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
             </span>
           )}
           {stale && (
-            <button type="button" className="gvd-pill" onClick={onShowLatest} title="The file changed since this diff was read. Show the latest (n)">
+            <button type="button" className="gvd-pill" onClick={() => { holdFocus(); onShowLatest(); }} title="The file changed since this diff was read. Show the latest (n)">
               <span className="gvd-pill-dot" aria-hidden="true" />
               <span className="gvd-pill-long">Updated just now · </span>Show latest <kbd>n</kbd>
             </button>

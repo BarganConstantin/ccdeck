@@ -84,7 +84,7 @@ describe("a long diff", () => {
   });
 });
 
-describe("what the diff windows", () => {
+describe("what the diff windows and how it keeps the keyboard", () => {
   const src = sourceOf("components/GitDiff.tsx");
 
   it("renders only the blocks near the view once a diff is long, each skipped block holding its height", () => {
@@ -100,4 +100,10 @@ describe("what the diff windows", () => {
     expect(src).not.toContain("gvd-pending");
   });
 
+  it("moves the keyboard to the diff before a control it was on goes away", () => {
+    expect(src).toContain('onClick={() => { holdFocus(); setExpanded(true); }}>Show diff</button>');
+    expect(src).toContain("onClick={() => { holdFocus(); setSteps(() => Infinity); }}>Load all</button>");
+    expect(src).toContain("onClick={() => { if (next >= b.total) holdFocus(); setSteps(s => s + 1); }}");
+    expect(src).toMatch(/const holdFocus = useCallback\(\(\) => \{[\s\S]*?s\.focus\(\{ preventScroll: true \}\)/);
+  });
 });
