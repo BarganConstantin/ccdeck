@@ -42,6 +42,8 @@ export interface ViewKeyWhere {
   typing: boolean;
   /** The pane already answered this key (it called preventDefault). */
   handled: boolean;
+  /** Focus is on a button or link, which Enter and Space press. */
+  control: boolean;
 }
 
 export type ViewKeyIntent =
@@ -68,6 +70,8 @@ export function viewKeyIntent(
     return { kind: "close" };
   }
   if (where.typing || where.handled) return { kind: "swallow" };
+  // A button's own press: the browser activates it, and the key stops here.
+  if (where.control && (e.key === "Enter" || e.key === " ")) return { kind: "swallow" };
   if (e.key === "g" || e.key === "G") return { kind: "close" };
   if (e.key === "n" || e.key === "N") return { kind: "newest" };
   if (where.pane === "graph" && (e.key === "ArrowRight" || e.key === "Enter")) return { kind: "focus", pane: "files" };

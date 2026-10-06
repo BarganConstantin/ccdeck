@@ -128,6 +128,12 @@ describe("an opener the pointer pressed, given focus back on close", () => {
   });
 });
 
+describe("the key handler tells a button from a row", () => {
+  it("says when focus is on a button or link, so Enter and Space press it", () => {
+    expect(view).toMatch(/control: t\.tagName === "BUTTON" \|\| t\.tagName === "A",/);
+  });
+});
+
 describe("the history's new-commits pill, pressed", () => {
   // It goes away as it is pressed; with focus on it, focus fell to the page
   // and the next R re-arranged the board.

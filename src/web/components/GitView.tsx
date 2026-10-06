@@ -437,6 +437,7 @@ export default function GitView(props: GitViewProps) {
       pane: (paneEl?.getAttribute("data-gv-pane") as GitViewPane | null) ?? null,
       typing: isTypingTarget({ tagName: t.tagName, isContentEditable: t.isContentEditable, type: (t as HTMLInputElement).type }),
       handled: e.defaultPrevented,
+      control: t.tagName === "BUTTON" || t.tagName === "A",
     });
     if (intent.kind === "pass") return;
     e.stopPropagation();
