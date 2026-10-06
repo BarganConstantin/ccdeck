@@ -115,6 +115,9 @@ export interface GitViewProps {
   nodesRef: MutableRefObject<Node[]>;
   measuredRef: MutableRefObject<Map<string, { width: number; height: number }>>;
   moveCamera: (want: { x: number; y: number; zoom: number }, duration: number) => number;
+  /** The latest camera move's epoch: bumped by every move the deck makes and
+   *  by the reader's own pan or zoom. */
+  cameraEpochRef: MutableRefObject<number>;
   /** What had focus when the view was asked to open. */
   openerRef: MutableRefObject<HTMLElement | null>;
   onClose: (how: GitViewHow) => void;
@@ -128,7 +131,7 @@ export interface GitViewProps {
 
 export default function GitView(props: GitViewProps) {
   const request = useGitViewRequest();
-  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, openerRef, onClose, onSelectAgent, onShowCard, onFocusBack } = props;
+  const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, cameraEpochRef, openerRef, onClose, onSelectAgent, onShowCard, onFocusBack } = props;
   const rf = useReactFlow();
   const root = agent ? stateRef.current.agents.get(agent.sessionId) ?? null : null;
   const opens = agent != null && gitViewOpens(gitFactsFor(agent, root));
@@ -165,9 +168,11 @@ export default function GitView(props: GitViewProps) {
 
   // ── the camera beside the view ────────────────────────────────────────
   const savedViewport = useRef<{ x: number; y: number; zoom: number } | null>(null);
-  // Where a close is taking the camera back to, until it gets there: a reopen
-  // on the way keeps that as the camera to give back, not the one mid-flight.
-  const restoring = useRef<{ to: { x: number; y: number; zoom: number }; until: number } | null>(null);
+  // Where a close took the camera back to, and that camera move's epoch: a
+  // reopen while it is still the latest move — on its way however long a
+  // loaded machine takes, or landed with nothing moving it since — gives back
+  // that camera, not the one mid-flight.
+  const restoring = useRef<{ to: { x: number; y: number; zoom: number }; epoch: number } | null>(null);
   const inertCards = useState(() => new Set<Element>())[0];
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
@@ -322,7 +327,7 @@ export default function GitView(props: GitViewProps) {
       // The reader's camera, to give back on close — taken on a sheet too,
       // which leaves the camera alone until a wider window puts the view beside it.
       if (opening) {
-        const back = restoring.current && performance.now() < restoring.current.until ? restoring.current.to : null;
+        const back = restoring.current && cameraEpochRef.current === restoring.current.epoch ? restoring.current.to : null;
         savedViewport.current = back ?? rf.getViewport();
         restoring.current = null;
       }
@@ -348,8 +353,7 @@ export default function GitView(props: GitViewProps) {
     setInert([...inertCards], false, inertCards);
     if (savedViewport.current) {
       const duration = animate ? 150 : 0;
-      moveCamera(savedViewport.current, duration);
-      restoring.current = { to: savedViewport.current, until: performance.now() + duration + 50 };
+      restoring.current = { to: savedViewport.current, epoch: moveCamera(savedViewport.current, duration) };
     }
     savedViewport.current = null;
   }, [want, agent?.id, width, sheet, detailShown]);

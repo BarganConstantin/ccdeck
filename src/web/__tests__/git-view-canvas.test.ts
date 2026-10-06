@@ -34,8 +34,15 @@ describe("the camera given back on close", () => {
   });
 
   it("is the one a close was taking it back to when the view reopens on the way, not the camera mid-flight", () => {
-    expect(view).toMatch(/const back = restoring\.current && performance\.now\(\) < restoring\.current\.until \? restoring\.current\.to : null;/);
-    expect(view).toMatch(/restoring\.current = \{ to: savedViewport\.current, until: performance\.now\(\) \+ duration \+ 50 \};/);
+    // Keyed on the close's own camera move, not on a time: a loaded machine
+    // can take far longer than the animation to land it, and while no other
+    // move (a fit, a focus, the reader's pan) has superseded it, where it was
+    // going is the camera to give back.
+    expect(view).toMatch(/const back = restoring\.current && cameraEpochRef\.current === restoring\.current\.epoch \? restoring\.current\.to : null;/);
+    expect(view).toMatch(/restoring\.current = \{ to: savedViewport\.current, epoch: moveCamera\(savedViewport\.current, duration\) \};/);
+    expect(view).not.toMatch(/until: performance\.now\(\)/);
+    // The deck's camera epoch: every move it makes and the reader's own pans bump it.
+    expect(sourceOf("App.tsx")).toMatch(/<GitView[^>]*cameraEpochRef=\{cameraEpochRef\}/);
   });
 });
 
