@@ -26,6 +26,10 @@ export interface Collision {
   /** Sharp: the files both edited since they were last committed. */
   files: string[];
   reason?: "same-worktree" | "same-branch";
+  /** Who on the focus's side it is about: null for the session's main
+   *  thread, a subagent's key for that subagent. From a main node several
+   *  agents of the team can collide with the same other agent. */
+  by: (string | null)[];
 }
 
 /** The collisions that concern the focus: the whole team's from a main node,
@@ -35,15 +39,19 @@ export function collisionsFor(c: GitCollisions | undefined, focus: GraphFocus): 
   const mine = (agentId: string | null) => focus.agentIds == null || (agentId != null && focus.agentIds.includes(agentId));
   const key = (r: GitCollisionRef) => `${r.sessionId}|${r.agentId ?? ""}`;
   const out = new Map<string, Collision>();
+  const by = (had: Collision | undefined, agentId: string | null) => (had?.by.includes(agentId) ? had.by : [...(had?.by ?? []), agentId]);
   for (const s of c.sharp) {
     if (!mine(s.agentId)) continue;
     const k = key(s.with);
     const had = out.get(k);
-    out.set(k, { level: "sharp", with: s.with, files: [...new Set([...(had?.files ?? []), ...s.files])] });
+    out.set(k, { level: "sharp", with: s.with, files: [...new Set([...(had?.files ?? []), ...s.files])], by: by(had, s.agentId) });
   }
   for (const q of c.quiet) {
-    if (!mine(q.agentId) || out.has(key(q.with))) continue;
-    out.set(key(q.with), { level: "quiet", with: q.with, files: [], reason: q.reason });
+    if (!mine(q.agentId)) continue;
+    const k = key(q.with);
+    const had = out.get(k);
+    if (had?.level === "sharp") continue;
+    out.set(k, { level: "quiet", with: q.with, files: [], reason: had?.reason ?? q.reason, by: by(had, q.agentId) });
   }
   return [...out.values()];
 }

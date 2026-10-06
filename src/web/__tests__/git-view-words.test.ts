@@ -44,6 +44,18 @@ describe("the collisions that concern the agent in view", () => {
     expect(team[0].files).toEqual(["src/app.ts"]);
   });
 
+  it("says who on this side each one is about: the main thread, a subagent, or both", () => {
+    const team = collisionsFor({
+      quiet: [
+        { agentId: null, with: { sessionId: "s2", agentId: null }, reason: "same-worktree", branch: null },
+        { agentId: "a1", with: { sessionId: "s2", agentId: null }, reason: "same-worktree", branch: null },
+        { agentId: "a2", with: { sessionId: "s3", agentId: null }, reason: "same-worktree", branch: null },
+      ],
+      sharp: [{ agentId: "a1", with: { sessionId: "s4", agentId: null }, files: ["x.ts"] }, { agentId: "a3", with: { sessionId: "s4", agentId: null }, files: ["y.ts"] }],
+    }, { sessionId: "s1", agentIds: null });
+    expect(team.map(x => [x.with.sessionId, x.by])).toEqual([["s4", ["a1", "a3"]], ["s2", [null, "a1"]], ["s3", ["a2"]]]);
+  });
+
   it("keeps a subagent's own when the view is narrowed to it", () => {
     expect(collisionsFor(c, { sessionId: "s1", agentIds: ["a1"] }).map(x => x.with.sessionId)).toEqual(["s4"]);
     expect(collisionsFor(undefined, { sessionId: "s1", agentIds: null })).toEqual([]);

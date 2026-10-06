@@ -58,7 +58,7 @@ export function CollisionLine({ c, other, otherCli, where, onFocus }: {
   if (c.level === "sharp") {
     const file = c.files[0] ?? "";
     const more = c.files.length > 1 ? ` and ${c.files.length - 1} more` : "";
-    const title = `${other} also edited ${c.files.join(", ")} since it was last committed. Both are running.`;
+    const title = `${other} also edited ${c.files.join(", ")} since it was last committed. Neither has ended.`;
     if (where === "glance") {
       return (
         <button type="button" className="gv-g-collide" title={`${title} Select ${other}.`} onClick={press}>
@@ -68,11 +68,11 @@ export function CollisionLine({ c, other, otherCli, where, onFocus }: {
       );
     }
     // The tooltip opens with the line's own words, so a line cut short is whole there.
-    const said = `${other}${otherCli ? ` (${otherCli})` : ""} also edited ${c.files.join(", ")} since ${c.files.length === 1 ? "it was" : "they were"} last committed. Both are running.`;
+    const said = `${other}${otherCli ? ` (${otherCli})` : ""} also edited ${c.files.join(", ")} since ${c.files.length === 1 ? "it was" : "they were"} last committed. Neither has ended.`;
     return (
       <div className="gv-collide-line" role="note" title={said}>
         <GvIcon name="clash" />
-        <span><b>{other}</b>{otherCli ? ` (${otherCli})` : ""} also edited <b>{file}</b>{more} since it was last committed. Both are running.</span>
+        <span><b>{other}</b>{otherCli ? ` (${otherCli})` : ""} also edited <b>{file}</b>{more} since it was last committed. Neither has ended.</span>
         <button type="button" className="gv-link" onClick={press}>Focus {other}</button>
       </div>
     );
