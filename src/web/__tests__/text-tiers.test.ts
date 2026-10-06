@@ -240,6 +240,16 @@ describe("what was migrated to the secondary tier", () => {
       ".gv-row.is-sel[data-tone=\"off\"] .gv-subj",
       ".gv-row:hover[data-tone=\"off\"] .gv-agent-chip, .gv-row.is-sel[data-tone=\"off\"] .gv-agent-chip",
       ".gv-row[data-tone=\"base\"] .gv-subj",
+      // The git view's file list: the empty tree's sentence; the heading that says whose
+      // files come first and that the mark is inferred from edit tools; the
+      // names of the folder's other changes, a tier under the agent's own so
+      // the two groups read apart and still names a reader reads; and the
+      // grey words on a hovered or selected row, by bed (--muted is 3.5:1 on
+      // the accent wash in dark).
+      ".gvf-empty",
+      ".gvf-group",
+      ".gvf-row.is-quiet .gvf-base",
+      ".gvf-row:hover .gvf-collapsed, .gvf-row.is-sel .gvf-collapsed",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",
