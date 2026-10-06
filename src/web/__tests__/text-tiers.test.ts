@@ -217,6 +217,9 @@ describe("what was migrated to the secondary tier", () => {
       // that says why its open buttons are gone and which machine they would
       // open apps on — read once, in a row whose other parts are buttons.
       ".gv-ho-note",
+      // The git view's one-line states — "No file selected. Pick a file on
+      // the left." — a sentence read to understand why a pane is empty.
+      ".gv-pane-empty",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",

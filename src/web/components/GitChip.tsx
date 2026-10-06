@@ -91,7 +91,7 @@ export default function GitChip({ agentId, chip, row, given, canGive, onGive }: 
       title={chip.title}
       aria-label={chip.label}
       // The card's own click selects it and goes to its session; this one is
-      // a press on the chip alone, and opens the agent's details.
+      // a press on the chip alone, and opens the agent's git view.
       onClick={e => { e.stopPropagation(); openGitFor(agentId); }}
       onDoubleClick={e => e.stopPropagation()}
     >

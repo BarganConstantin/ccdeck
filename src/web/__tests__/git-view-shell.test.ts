@@ -1,0 +1,107 @@
+// The git view's container, held where a canvas cannot be rendered: the
+// wiring that opens and closes it, what it makes inert while it is open, the
+// dividers' keyboard contract, and the colours its canvas marker may wear.
+import { describe, expect, it } from "vitest";
+import { sourceOf } from "./client-source";
+import { sheetParts, sheetText } from "./sheet-source";
+
+const view = sourceOf("components/GitView.tsx");
+const app = sourceOf("App.tsx");
+const css = sheetText();
+/** A rule of the view's own part of the sheet. */
+const own = sheetParts().find(([path]) => path === "styles/git-view.css")![1];
+const rule = (sel: string) => {
+  const at = own.indexOf(`${sel} {`);
+  expect(at, sel).toBeGreaterThan(-1);
+  return own.slice(at, own.indexOf("}", at));
+};
+
+describe("opening and closing", () => {
+  it("opens from the card's chip and the glance through one request", () => {
+    expect(app).toMatch(/useGitOpener\(\{ selectAgent, openGitView: openGitViewFromChip \}\)/);
+    expect(app).toMatch(/openGitViewRequest\(how, opts\)/);
+  });
+
+  it("opens nothing on a folder git cannot read, and tells the glance to answer", () => {
+    expect(app).toMatch(/if \(!gitViewOpens\(gitFactsFor\(agent, stateRef\.current\.agents\.get\(agent\.sessionId\)\)\)\) \{\s*window\.dispatchEvent\(new CustomEvent\("gitview:unreadable"/);
+  });
+
+  it("closes when Settings switches git off, and when nothing is selected", () => {
+    expect(app).toMatch(/useEffect\(\(\) => \{ if \(!gitOn\) closeGitView\("key"\); \}, \[gitOn, closeGitView\]\);/);
+    expect(app).toMatch(/useEffect\(\(\) => \{ if \(!primarySelectedId\) closeGitView\("pointer"\); \}/);
+  });
+
+  it("is a named region that owns its keys, mounted outside the app's grid", () => {
+    expect(view).toMatch(/className="gv-wide"\s+aria-label="Git view"\s+data-key-scope="git"/);
+    expect(view).toMatch(/<\/section>, document\.body\)\}/);
+  });
+});
+
+describe("what it covers while open", () => {
+  it("makes the detail rail inert, and the whole deck beside the canvas when it is a sheet", () => {
+    expect(view).toMatch(/"\.app > :is\(main, \.detail, \.session-list, \.accounts-panel, \.usage-panel, \.sysdetail\)"\s*:\s*"\.app > \.detail"/);
+  });
+
+  it("takes a card wholly under the panel out of the Tab order", () => {
+    expect(view).toMatch(/whollyCovered\(\{ left, right: left \+ \(m\?\.width \?\? 0\) \* zoom \}, coverLeft\) \? under : clear/);
+  });
+
+  it("hides what it covers whole, marked on the root rather than found by :has()", () => {
+    expect(css).toMatch(/:root\[data-git-view\] \.app > \.detail,/);
+    expect(css).toMatch(/:root\[data-git-view="sheet"\] \.app > main \{ visibility: hidden; \}/);
+    const ownSheet = css.slice(css.indexOf("/* The git view: the detail rail widening"));
+    expect(ownSheet.slice(0, ownSheet.indexOf("/* ------------------------------------------------- forced colours"))).not.toMatch(/:has\(/);
+  });
+
+  it("is a full sheet with a way back to the canvas below 1100px", () => {
+    expect(rule(".gv-wide[data-sheet]")).toMatch(/width: 100%/);
+    expect(css).toMatch(/\.gv-wide\[data-sheet\] \.gv-head \.btn\.gv-back \{ display: inline-flex; \}/);
+    expect(view).toMatch(/aria-label="Back to the canvas"/);
+  });
+});
+
+describe("the dividers (WAI-ARIA window splitter)", () => {
+  it("are focusable separators with a value, a range and what they control", () => {
+    expect(view).toMatch(/role="separator" tabIndex=\{0\} aria-orientation=\{orientation\} aria-label=\{label\}/);
+    expect(view).toMatch(/aria-controls=\{controls\} aria-valuemin=\{pct\(b\.min\)\} aria-valuemax=\{pct\(b\.max\)\} aria-valuenow=\{pct\(now\)\}/);
+  });
+
+  it("drag once a frame and re-fit the canvas once, when the pointer comes up", () => {
+    expect(view).toMatch(/const move = \(ev: PointerEvent\) => \{ last = ev; if \(!raf\) raf = requestAnimationFrame\(apply\); \};/);
+    expect(view).toMatch(/if \(kind === "edge"\) requestAnimationFrame\(onResized\);/);
+  });
+
+  it("reset on a double click", () => {
+    expect(view).toMatch(/onDoubleClick=\{onSplitterDouble\(kind\)\}/);
+  });
+});
+
+describe("the marker for an agent the camera could not keep in view", () => {
+  it("wears amber for waiting and the error colour for failed, with words", () => {
+    expect(rule(".gv-edge-mark")).toMatch(/color: var\(--warn\)/);
+    expect(rule('.gv-edge-mark[data-alarm="failed"]')).toMatch(/color: var\(--err\)/);
+    expect(view).toMatch(/`waiting \$\{elapsed\(m\.since, undefined, now\)\}` : "failed"/);
+  });
+
+  it("writes no colour literal in the view's markup", () => {
+    expect(view).not.toMatch(/#[0-9a-fA-F]{3,8}\b(?![\w-])/);
+  });
+});
+
+describe("the motion lives in the sheet, on the house curve", () => {
+  it("slides in over 200ms and out over 150ms on cubic-bezier(0.23, 1, 0.32, 1)", () => {
+    expect(rule(".gv-wide")).toMatch(/transition:\s*transform 200ms var\(--gv-ease\)/);
+    expect(rule('.gv-wide[data-phase="closing"]')).toMatch(/transition-duration:\s*150ms/);
+    expect(css).toMatch(/--gv-ease:\s*cubic-bezier\(0\.23,\s*1,\s*0\.32,\s*1\)/);
+  });
+
+  it("moves nothing when the keyboard opened or closed it", () => {
+    expect(rule('.gv-wide[data-motion="instant"]')).toMatch(/transition:\s*none/);
+  });
+
+  it("fades instead of sliding under reduced motion", () => {
+    const reduced = own.slice(own.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(reduced).toMatch(/\.gv-wide\s*\{[^}]*transition:\s*opacity 150ms/);
+  });
+
+});
