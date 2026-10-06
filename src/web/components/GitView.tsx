@@ -36,7 +36,7 @@ import { flashCard } from "../card-flash";
 import { elsewhereRows } from "../git-files-model";
 import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
 import { UNREADABLE, madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
-import { collisionsFor, commitWho, upstreamWords } from "../git-view-words";
+import { commitWho, focusCollisions, upstreamWords } from "../git-view-words";
 import { setGitViewNewest } from "../git-view-request";
 import { shortAgo } from "../relative-time";
 import { shortModel } from "../model-label";
@@ -809,10 +809,15 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const cardName = useCallback((agentId: string | null) => nameOf(agent.sessionId, agentId), [agent.sessionId]);
   const teamName = cardNameIn(stateRef.current.agents, team);
   const focusName = away ? nameOf(agent.sessionId, away.agentId) ?? away.label ?? "subagent" : narrow ? cardNameIn(stateRef.current.agents, agent) : teamName;
-  const collisions = collisionsFor(root?.gitCollisions, focus);
+  // The team's own first; a subagent's own collision is named as its, never
+  // claimed for the main thread (git-view-words.ts).
+  const collisions = focusCollisions(root?.gitCollisions, focus,
+    key => stateRef.current.agents.get(`${agent.sessionId}::${key}`)?.git != null);
   const collision = collisions[0] ?? null;
-  // The other agent of a collision, as the card's own mark names it.
+  // The other agent of a collision, as the card's own mark names it, and the
+  // session's own agents it is about.
   const otherOf = (c: { with: GitCollisionRef }) => otherAgentName(nameOf, c.with);
+  const whoOf = (c: { who: string[] }) => c.who.map(k => otherAgentName(nameOf, { sessionId: agent.sessionId, agentId: k }));
   const cliOf = (c: { with: { sessionId: string } }) => {
     const m = stateRef.current.agents.get(c.with.sessionId)?.model ?? "";
     return /^(gpt|o\d|codex)/i.test(m) ? "Codex" : m ? "Claude Code" : null;
@@ -820,7 +825,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
 
   // ── panes ─────────────────────────────────────────────────────────────
   const reading = data.state !== "repo";
-  const fileCollisions = collisions.filter(c => c.level === "sharp").flatMap(c => c.files.map(path => ({ path, with: otherOf(c) })));
+  // A subagent's collision in a folder of its own names files of that folder, not of this one.
+  const fileCollisions = collisions.filter(c => c.level === "sharp" && !c.away).flatMap(c => c.files.map(path => ({ path, with: otherOf(c) })));
   const diffCollision = sel === UNCOMMITTED && file ? fileCollisions.find(c => c.path === file.path) ?? null : null;
   const selectedCommit = sel === UNCOMMITTED ? null : data.commits?.find(c => c.sha === sel) ?? null;
   const commitBy = selectedCommit ? commitWho(selectedCommit.agent, nameOf) : null;
@@ -912,7 +918,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           </div>
         </header>
         {collision && (
-          <CollisionLine c={collision} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
+          <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
             onFocus={how => {
               // The view follows the selection to the other agent; a pointer also lights its card once.
               const id = collisionTarget(stateRef.current.agents, collision.with);

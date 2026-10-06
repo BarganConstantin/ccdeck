@@ -66,6 +66,53 @@ export function collisionsFor(c: GitCollisions | undefined, focus: GraphFocus): 
   return [...out.values()];
 }
 
+/** A collision as the agent in view speaks for it. `who`: the session's own
+ *  subagents it is about when the agent in view is not party to it, named
+ *  before the other agent so a main thread never claims a subagent's
+ *  collision as its own. `away`: theirs is about a folder of their own, not
+ *  the one in view. */
+export interface FocusCollision extends Collision {
+  who: string[];
+  away: boolean;
+}
+
+/**
+ * The collisions the focus speaks for, sharp first and its own first — as the main card's
+ * collision mark speaks for them (git-card-mark.ts). Narrowed to one
+ * subagent, each is its own. From a main node the team's own come first: its
+ * main thread's, and those of subagents working in its folder. Then two of
+ * the session's own agents on one file, as one pair named both. Last, those
+ * of subagents working in a folder of their own, each named.
+ * `worksElsewhere` says which of the session's subagents have a folder of
+ * their own.
+ */
+export function focusCollisions(c: GitCollisions | undefined, focus: GraphFocus, worksElsewhere: (agentId: string) => boolean): FocusCollision[] {
+  const list = collisionsFor(c, focus);
+  if (focus.agentIds != null) return list.map(x => ({ ...x, who: [], away: false }));
+  const own: FocusCollision[] = [], away: FocusCollision[] = [];
+  const pairs = new Map<string, FocusCollision>();
+  for (const x of list) {
+    const members = x.by.filter((k): k is string => k != null);
+    if (x.with.sessionId === focus.sessionId) {
+      // The server says a pair from both sides: one entry for the two.
+      const two = x.with.agentId;
+      if (!two || !members.length) continue;
+      const k = [members[0], two].sort().join("|");
+      const had = pairs.get(k);
+      pairs.set(k, { ...x, files: [...new Set([...(had?.files ?? []), ...x.files])], who: had?.who ?? [members[0]], with: had?.with ?? x.with, away: false });
+    } else if (x.by.includes(null) || !members.some(worksElsewhere)) own.push({ ...x, who: [], away: false });
+    else away.push({ ...x, who: members, away: true });
+  }
+  // Sharp wins the line, as it wins the card's row; within a level, the
+  // team's own first.
+  return [...own, ...pairs.values(), ...away].sort((a, b) => (a.level === b.level ? 0 : a.level === "sharp" ? -1 : 1));
+}
+
+/** "a", "a and b", "a, b and c". */
+export function andList(names: string[]): string {
+  return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 /** The card id of the other agent in a collision. */
 export const collisionCardId = (r: GitCollisionRef) => (r.agentId ? `${r.sessionId}::${r.agentId}` : r.sessionId);
 

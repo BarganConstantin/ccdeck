@@ -5,10 +5,11 @@ import { pressHow, type PressHow } from "../agent-goto";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject, type Ref } from "react";
 
 import { fitBranch } from "../git-chip";
+import { monoMeasure } from "../git-path-fit";
 
 import { copyText } from "../copy-text";
 import type { LogCommit } from "../git-view-types";
-import { commitMark, readStateLine, type Collision, type MarkLevel } from "../git-view-words";
+import { andList, commitMark, readStateLine, type Collision, type MarkLevel } from "../git-view-words";
 import { isEscapeKey } from "../modal-dismiss";
 
 // The view's own glyphs, drawn to the deck's 14px grid at a 1.4 stroke.
@@ -44,8 +45,11 @@ export function GvMark({ level }: { level: MarkLevel }) {
 
 /** A collision as one line: sharp in the error colour naming the file, quiet
  *  in the muted tier; either is a way to the other agent. */
-export function CollisionLine({ c, other, otherCli, where, onFocus }: {
+export function CollisionLine({ c, who = [], other, otherCli, where, onFocus }: {
   c: Collision;
+  /** The session's own agents it is about, by name ("↳ docs-sync"), when the
+   *  agent in view is not one of them: they are named before the other agent. */
+  who?: string[];
   /** The other agent's name. */
   other: string;
   /** Its CLI, said in the wide view's sentence ("Codex"), when known. */
@@ -55,31 +59,44 @@ export function CollisionLine({ c, other, otherCli, where, onFocus }: {
   onFocus: (how: PressHow) => void;
 }) {
   const press = (e: { detail: number }) => onFocus(pressHow(e));
+  const them = andList(who);
+  const ended = who.length > 1 ? "None of them has ended." : "Neither has ended.";
   if (c.level === "sharp") {
     const file = c.files[0] ?? "";
     const more = c.files.length > 1 ? ` and ${c.files.length - 1} more` : "";
-    const title = `${other} also edited ${c.files.join(", ")} since it was last committed. Neither has ended.`;
+    const since = `since ${c.files.length === 1 ? "it was" : "they were"} last committed. ${ended}`;
     if (where === "glance") {
+      const title = who.length
+        ? `${them} and ${other} both edited ${c.files.join(", ")} ${since}`
+        : `${other} also edited ${c.files.join(", ")} ${since}`;
       return (
         <button type="button" className="gv-g-collide" title={`${title} Select ${other}.`} onClick={press}>
           <GvIcon name="clash" />
-          <span><b>{file}</b>{more} also edited by {other}</span>
+          <span><b>{file}</b>{more} {who.length ? `edited by ${them} and ${other}` : `also edited by ${other}`}</span>
         </button>
       );
     }
     // The tooltip opens with the line's own words, so a line cut short is whole there.
-    const said = `${other}${otherCli ? ` (${otherCli})` : ""} also edited ${c.files.join(", ")} since ${c.files.length === 1 ? "it was" : "they were"} last committed. Neither has ended.`;
+    const cli = otherCli ? ` (${otherCli})` : "";
+    const said = who.length
+      ? `${them} and ${other}${cli} both edited ${c.files.join(", ")} ${since}`
+      : `${other}${cli} also edited ${c.files.join(", ")} ${since}`;
     return (
       <div className="gv-collide-line" role="note" title={said}>
         <GvIcon name="clash" />
-        <span><b>{other}</b>{otherCli ? ` (${otherCli})` : ""} also edited <b>{file}</b>{more} since it was last committed. Neither has ended.</span>
+        {who.length
+          ? <span><b>{them}</b> and <b>{other}</b>{cli} both edited <b>{file}</b>{more} since it was last committed. {ended}</span>
+          : <span><b>{other}</b>{cli} also edited <b>{file}</b>{more} since it was last committed. {ended}</span>}
         <button type="button" className="gv-link" onClick={press}>Focus {other}</button>
       </div>
     );
   }
-  const what = c.reason === "same-branch" ? "Works on this branch in another folder:" : "Shares this folder with";
+  const branch = c.reason === "same-branch";
+  const what = who.length
+    ? `${them} ${branch ? `${who.length > 1 ? "work" : "works"} on the same branch as` : `${who.length > 1 ? "share" : "shares"} a folder with`}`
+    : branch ? "Works on this branch in another folder:" : "Shares this folder with";
   const button = (
-    <button type="button" className="gv-g-quiet" title={`${other} ${c.reason === "same-branch" ? "works on the same branch" : "works in the same folder"}. Select it.`} onClick={press}>
+    <button type="button" className="gv-g-quiet" title={`${who.length ? them : other} ${branch ? "works on the same branch" : "works in the same folder"}${who.length ? ` as ${other}` : ""}. Select ${who.length ? other : "it"}.`} onClick={press}>
       <GvIcon name="share" /><span>{what} {other}</span>
     </button>
   );
@@ -199,22 +216,28 @@ export function CommitCard({ facts, anchor, onShow, onClose }: {
  *  form of its own — a detached HEAD's bare SHA, whose glyph already says
  *  detached — shows that instead of being cut. React's own text node is
  *  rewritten, so React keeps owning it. */
+/** The size the header's and the glance's branch names are set in
+ *  (git-view.css), stated rather than asked of the element on every fit. */
+export const BRANCH_PX = 12;
+
 export function useFittedName(name: string, watch: MutableRefObject<HTMLElement | null>, room: unknown = null, short: string | null = null) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const el = ref.current;
     const text = el?.firstChild;
     if (!el || !text || text.nodeType !== 3) return;
-    // The name is set in the mono stack, where every character takes one
-    // cell, so the full name's own width says what a cell is.
+    // Each spelling is measured in the label's own font, as the card's chip
+    // measures its own: a wide character (CJK, an emoji) takes two cells of
+    // the mono stack, and a count of characters would miss it. The spellings
+    // cut between the characters a reader sees, never inside one.
     const fit = () => {
       text.nodeValue = name;
       const room = el.clientWidth;
       const full = el.scrollWidth;
       if (full <= room + 1 || !name.length) return;
       if (short) { text.nodeValue = short; return; }
-      const cell = full / name.length;
-      text.nodeValue = fitBranch(name, t => t.length * cell <= room);
+      const measure = monoMeasure(BRANCH_PX);
+      text.nodeValue = fitBranch(name, t => measure(t) <= room);
     };
     // The first fit waits for the first frame, which paints the CSS ellipsis;
     // the observer then answers every width the box is given, and `room`

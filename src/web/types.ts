@@ -506,9 +506,10 @@ export interface AgentNodeData {
    *  still holds exactly, so a board of nothing but idle sessions still settles
    *  at `cap` with the oldest going first.
    *
-   *  Nothing on screen reads it. `state`, `endedAt` and `waiting` are untouched
-   *  by it, so the card, the session list, `runningSessionCount` and the favicon
-   *  show exactly what they showed before. */
+   *  One thing on screen reads it: the git glance's "Ended … ago", which says
+   *  so only of a session that has ended (git-view-words.ts `endedAt`). `state`,
+   *  `endedAt` and `waiting` are untouched by it, so the card, the session list,
+   *  `runningSessionCount` and the favicon show exactly what they showed before. */
   closedAt?: number;
   /** When the newest turn-ending event this root has accepted said the turn
    *  ended — `Stop` or `SessionEnd`, whichever landed last — and the ONE field
