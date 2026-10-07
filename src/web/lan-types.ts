@@ -56,6 +56,10 @@ export interface Peer {
   /** When somebody here accepted it. Null for a pairing made before this was
    *  kept, and for a row that is not paired. */
   pairedAt?: number | null;
+  /** What is ticked here and not offered to it: the logins an arrival ticked,
+   *  when the accept switch paired it — see sharedWith in lan-sync.mjs. Absent
+   *  when it is offered everything ticked here. */
+  notOffered?: string[];
   /** How it is reached: the local network, or this person's tailnet. Absent
    *  from a deck older than Tailscale discovery, and absent means local. */
   via?: LanRoute;

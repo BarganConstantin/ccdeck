@@ -33,7 +33,8 @@ import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from ".
 // and a session's card cannot disagree about which lines billed anything, nor
 // about the speed they were billed at — see transcript-scan.mjs.
 import {
-  billedSpeed, hasSpend, MAX_SPEEDS_PER_MODEL, repeatsRequestUsage, UNRECOGNISED_SPEED,
+  billedSpeed, hasSpend, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
+  requestBilling, streamingRequestId, BILL_LINE, REBILL_REQUEST, SKIP_LINE,
 } from "./transcript-scan.mjs";
 
 /** The pseudo-account for messages the swap log cannot place — everything
@@ -41,7 +42,7 @@ import {
  *  a per-account total is never quietly inflated by work that is not that
  *  account's. A NUL keeps it from ever colliding with a real `email@@org` key. */
 export const UNATTRIBUTED = "\u0000unattributed";
-const STATE_VERSION = 4;
+const STATE_VERSION = 5;
 
 /** Where the tally and cursors live, beside cswap-auto's own state. */
 export function statePath(home = homedir()) {
@@ -104,6 +105,16 @@ function addInto(dst, src) {
   return dst;
 }
 
+/** Take `src`'s six counters back out of `dst`. */
+function takeFrom(dst, src) {
+  dst.i -= src.i; dst.o -= src.o; dst.cr -= src.cr;
+  dst.cc -= src.cc; dst.c1h -= src.c1h; dst.c5m -= src.c5m;
+}
+
+function isZero(c) {
+  return !c.i && !c.o && !c.cr && !c.cc && !c.c1h && !c.c5m;
+}
+
 /** The share of `counters` billed at `speed` (#754), created on first sight:
  *  `s[speed]`, a SUBSET of the counters it sits on, the way the 1h/5m split is
  *  of `cc`, so the totals read exactly as they did and the client prices the
@@ -112,11 +123,18 @@ function addInto(dst, src) {
  *  past the cap is kept as UNRECOGNISED_SPEED, which no rate table names, so it
  *  is counted and left unpriced rather than priced at the standard rate. */
 function speedShareOf(counters, speed) {
+  const key = speedShareKey(counters, speed);
+  return counters.s[key];
+}
+
+/** The key `speed`'s share is kept under in `counters`, the share created on
+ *  first sight — see speedShareOf. */
+function speedShareKey(counters, speed) {
   const shares = counters.s ??= {};
-  if (Object.hasOwn(shares, speed)) return shares[speed];
+  if (Object.hasOwn(shares, speed)) return speed;
   const key = Object.keys(shares).length < MAX_SPEEDS_PER_MODEL ? speed : UNRECOGNISED_SPEED;
   if (!Object.hasOwn(shares, key)) shares[key] = zero();
-  return shares[key];
+  return key;
 }
 
 function zero() { return { i: 0, o: 0, cr: 0, cc: 0, c1h: 0, c5m: 0 }; }
@@ -223,22 +241,28 @@ export function projectPath(cwd) {
  *
  * `timeline` is the sorted swap log; the account is whoever it says was active
  * at this line's timestamp, or UNATTRIBUTED when the timestamp precedes it.
- * `from` names the transcript's project directory — see folderOf.
+ * `from` names the transcript's project directory — see folderOf — and, as
+ * `requests` and `path`, where the request this file is still waiting on a
+ * final record for is kept between passes.
  */
 export function foldLine(tally, line, timeline, from) {
   if (!line || !line.includes('"usage"')) return;
   let obj = null;
   try { obj = JSON.parse(line); } catch { return; }
-  // Claude writes one assistant record for each content block in a request,
-  // and every block repeats the request's usage, so only block 0 is billable
-  // — see repeatsRequestUsage.
-  if (repeatsRequestUsage(obj)) return;
+  // A request is billed once, from its final record, which in a subagent's
+  // file follows a streaming snapshot — see requestBilling. A call that keeps
+  // no requests for the file never sees one replaced, and bills block 0.
+  const requests = from?.requests ?? null;
+  const streaming = requests?.[from.path] ?? null;
+  const billing = requestBilling(obj, streaming?.id ?? null);
+  if (billing === SKIP_LINE) return;
   const usage = obj?.message?.usage;
   if (!usage || typeof usage !== "object") return;
   const ts = Date.parse(obj?.timestamp);
   if (!Number.isFinite(ts)) return;
   const c = countersFrom(usage);
   if (!hasSpend(asUsageTotals(c))) return;   // a usage block that billed nothing
+  if (billing === REBILL_REQUEST) refund(tally, streaming);
   const model = typeof obj?.message?.model === "string" ? obj.message.model : "";
   const lineCwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : "";
   const cwd = projectPath(folderOf(lineCwd, from));   // a worktree counts under the repo it checks out
@@ -251,7 +275,41 @@ export function foldLine(tally, line, timeline, from) {
   // board prices it so (#754). Kept as a share rather than a model of its own,
   // so a row's tokens and its model read exactly as before.
   const speed = billedSpeed(obj);
-  if (speed) addInto(speedShareOf(counters, speed), c);
+  const share = speed ? speedShareKey(counters, speed) : null;
+  if (share) addInto(counters.s[share], c);
+  if (billing === REBILL_REQUEST) dropIfEmpty(tally, streaming);
+  if (billing === BILL_LINE || !requests) return;
+  // What a request still streaming was charged, and where, so its final
+  // record can take that back, in this pass or a later one.
+  const id = streamingRequestId(obj);
+  if (id === null) delete requests[from.path];
+  else requests[from.path] = { id, at: [key, cwd, day, model], s: share, c };
+}
+
+/** Take a streaming request's charge back out of the row it was charged to,
+ *  for its later record to charge in its place. A row pruned since has
+ *  nothing left to take back. */
+function refund(tally, { at: [key, cwd, day, model], s, c }) {
+  const counters = tally[key]?.[cwd]?.[day]?.[model];
+  if (!counters) return;
+  takeFrom(counters, c);
+  if (s && counters.s?.[s]) takeFrom(counters.s[s], c);
+}
+
+/** Remove what a refund left at zero — a speed share, or a whole row whose
+ *  request's final record landed on another day or account — so the report
+ *  never lists an empty row. */
+function dropIfEmpty(tally, { at: [key, cwd, day, model], s }) {
+  const days = tally[key]?.[cwd];
+  const counters = days?.[day]?.[model];
+  if (!counters) return;
+  if (s && counters.s?.[s] && isZero(counters.s[s])) delete counters.s[s];
+  if (counters.s && !Object.keys(counters.s).length) delete counters.s;
+  if (!isZero(counters)) return;
+  delete days[day][model];
+  if (!Object.keys(days[day]).length) delete days[day];
+  if (!Object.keys(days).length) delete tally[key][cwd];
+  if (!Object.keys(tally[key]).length) delete tally[key];
 }
 
 /** Read the bytes of `path` from `start` to `size`, folding each COMPLETE line,
@@ -423,7 +481,7 @@ export function createProjectRollup({
   setInterval: setIv = setInterval,
   clearInterval: clearIv = clearInterval,
 } = {}) {
-  let state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {} };
+  let state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, requests: {} };
   let timer = null;
   let running = false;
   let dirty = false;
@@ -437,14 +495,17 @@ export function createProjectRollup({
       if (disk && disk.version === STATE_VERSION && disk.tally && disk.cursors) {
         state = disk;
         state.folders ??= {};
-      } else if (disk && (disk.version === 1 || disk.version === 2 || disk.version === 3)) {
+        state.requests ??= {};
+      } else if (disk && [1, 2, 3, 4].includes(disk.version)) {
         // Version 1 counted every API content block; version 2 keyed each row
         // by the line's own cwd, a row per folder the agent cd'd into (#1278);
         // version 3 kept no speed, so every fast turn read at the standard
-        // rate. None of them can be re-keyed, since it no longer knows which
-        // transcript a count came from. Keep the heartbeat so a restart gap
-        // remains fenced, but rebuild the tally from transcripts.
-        state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, lastAlive: disk.lastAlive };
+        // rate; version 4 billed a subagent's request from its streaming
+        // snapshot, most of its output and its speed missing (#1883). None of
+        // them can be re-keyed, since it no longer knows which transcript a
+        // count came from. Keep the heartbeat so a restart gap remains fenced,
+        // but rebuild the tally from transcripts.
+        state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, requests: {}, lastAlive: disk.lastAlive };
         dirty = true;
       }
     } catch { /* first run: empty state */ }
@@ -474,9 +535,9 @@ export function createProjectRollup({
     // resync the cursor to the current end: the replaced content is lost, never
     // counted twice. Transcripts append and do not shrink in normal use, so this
     // is the rare, safe side to err on.
-    if (st.size < offset) { state.cursors[path] = st.size; dirty = true; return; }
+    if (st.size < offset) { state.cursors[path] = st.size; delete state.requests[path]; dirty = true; return; }
     if (st.size <= offset) return;
-    const from = { slug, folders: state.folders };
+    const from = { slug, folders: state.folders, requests: state.requests, path };
     let fh = null;
     try {
       fh = await open(path, "r");
@@ -504,9 +565,11 @@ export function createProjectRollup({
       const timeline = await readSwapLog(swapLog);
       const files = await listTranscripts(roots);
       for (const [path, slug] of files) await foldFile(path, slug, timeline);
-      // Forget cursors for files that are gone, and the folders of project
-      // directories with no transcript left, so neither map grows forever.
+      // Forget the cursors and streaming requests of files that are gone, and
+      // the folders of project directories with no transcript left, so none of
+      // the three maps grows forever.
       for (const p of Object.keys(state.cursors)) if (!files.has(p)) { delete state.cursors[p]; dirty = true; }
+      for (const p of Object.keys(state.requests)) if (!files.has(p)) { delete state.requests[p]; dirty = true; }
       const slugs = new Set(files.values());
       for (const s of Object.keys(state.folders)) if (!slugs.has(s)) { delete state.folders[s]; dirty = true; }
       // Heartbeat: record that the deck was alive now, so a later boot can see

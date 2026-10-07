@@ -179,16 +179,17 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
   //
   // Cached input is a DISCOUNT, not an addition: OpenAI's input_tokens already
   // includes the cached portion, so costForUsage subtracts it before applying
-  // the full input rate. cacheWrite is 0 for every family except gpt-5.6 and
-  // gpt-6-astra, the two that publish a separate cache-write price.
+  // the full input rate. cacheWrite is 0 for every family except gpt-5.6,
+  // gpt-6 and gpt-6.1, the ones that publish a separate cache-write price.
   //
   // Order matters — the first match wins, so each family's variants precede
   // its bare alias.
 
   // gpt-6-astra — $10 / $50  (cached $1, cache write $12.50).  1.05M.
   //
-  // Read 2026-09-15 from developers.openai.com/api/docs/pricing, where it is
-  // the only gpt-6 id, and from .../models/gpt-6-astra for the window (#754).
+  // Read 2026-09-15 from developers.openai.com/api/docs/pricing, where it was
+  // then the only gpt-6 id, and from .../models/gpt-6-astra for the window
+  // (#754).
   // Until then the id reached no row, so a Codex session on it added nothing
   // to the board's cost. These are the short-context standard rates, as every
   // row here is. The >272K tier ($20 / $75) is left out for the reason given
@@ -205,6 +206,31 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
   // matches, because the guard refuses only a letter after the separator.
   { match: /^gpt[-_]6[-_]astra\b(?![-_][A-Za-z])/i,
     rates: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.50 } },
+
+  // gpt-6.1-sol — $2 / $10  (cached $0.10, cache write $2.50).  1.05M.
+  // gpt-6-sol   — $2 / $10  (cached $0.20, cache write $2.50).  1.05M.
+  // gpt-6-luna  — $0.10 / $0.50  (cached $0.01, cache write $0.125).  1.05M.
+  //
+  // Read 2026-10-07 from developers.openai.com/api/docs/pricing (Standard,
+  // short context; gpt-6-sol sits under "All models") and from the "Text
+  // tokens" panel and the window on .../models/gpt-6.1-sol, .../gpt-6-sol and
+  // .../gpt-6-luna, which quote the same numbers (#1885). Until then none of
+  // the three reached a row, so a Codex session on one read "not priced".
+  // Short-context standard rates, as every row here is: the >272K tier and the
+  // Fast tier are left out for the reasons given at gpt-6-astra above.
+  //
+  // The two Sols differ only in the cache hit, $0.10 against $0.20 — 5% and
+  // 10% of input on their model pages — so neither row may price the other,
+  // and they cannot: `gpt-6.1` never reads as `gpt-6-`. Each carries #688's
+  // named-sibling guard, like Astra's, so a `-mini` or `-pro` of any of them
+  // prints `not priced` until a rate for it is read. There is no bare `gpt-6`
+  // or `gpt-6.1` alias on either page, so neither id reaches a row.
+  { match: /^gpt[-_]6[-_.]1[-_]sol\b(?![-_][A-Za-z])/i,
+    rates: { input: 2, output: 10, cacheRead: 0.10, cacheWrite: 2.50 } },
+  { match: /^gpt[-_]6[-_]sol\b(?![-_][A-Za-z])/i,
+    rates: { input: 2, output: 10, cacheRead: 0.20, cacheWrite: 2.50 } },
+  { match: /^gpt[-_]6[-_]luna\b(?![-_][A-Za-z])/i,
+    rates: { input: 0.10, output: 0.50, cacheRead: 0.01, cacheWrite: 0.125 } },
 
   // gpt-5.6-cyber — $12.50 / $75  (cached $1.25, cache write $15.625).  400K.
   //
@@ -453,12 +479,16 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
 // Opus 4.6 is left out because it runs a fast request at standard speed and
 // reports `"standard"`; Opus 4.7 rejects the request.
 //
-// Codex has no rows here. OpenAI publishes a Fast column (gpt-6-astra
-// $20 / $100, "2x the applicable rates"), but the deck prices a Codex session
-// from the rollout's running total, which carries no tier, so there is no
-// share of it to apply the column to. Pricing it would mean splitting that
-// total request by request at the tier each `thread_settings_applied` event
-// set, which is a change to how Codex usage is read, not to this table.
+// Codex has no rows here. OpenAI publishes a Fast column for every gpt-6 row
+// (Astra $20 / $100, both Sols $4 / $20, Luna $0.20 / $1, each model page
+// calling it 2x; read 2026-10-07), but the deck prices a Codex session from the
+// rollout's running total, which carries no tier, so there is no share of it
+// to apply the column to. The only tier a rollout records is the one the
+// session ASKED for, `thread_settings_applied`'s `service_tier`, and Codex's
+// own page (developers.openai.com/codex/speed) says Fast runs "where
+// available", depending on "plan, client, workspace settings, and rollout",
+// so the request is not evidence of the bill. Pricing it waits on a rollout
+// that shows the tier a request was actually served at (#1884).
 export const FAST_RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelRates) }> = [
   // Opus 5.5 fast — $8 / $40, cache read $0.40 (0.05x). Above Opus 5, the
   // order the standard table keeps.
