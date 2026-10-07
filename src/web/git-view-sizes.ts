@@ -191,9 +191,11 @@ export function filesBounds(row: number) {
 export function fkGraphBounds(box: number) {
   return { min: FK_HISTORY_MIN, max: Math.max(FK_HISTORY_MIN, box - FK_INSPECTOR_MIN) };
 }
-/** The Fork sidebar column, never leaving the history beside it under 360px. */
+/** The Fork sidebar column, never leaving the history beside it under the
+ *  600px that keeps it there: past that it would float, and hide, and a
+ *  floating sidebar has no divider to bring it back. */
 export function sidebarBounds(panelW: number) {
-  return { min: SIDEBAR_MIN, max: Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, panelW - 360)) };
+  return { min: SIDEBAR_MIN, max: Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, panelW - SIDE_HISTORY_MIN)) };
 }
 
 export type SplitterKind = "edge" | "graph" | "files" | "sidebar";

@@ -186,6 +186,9 @@
   color: var(--fk-text);
   font-family: var(--fk-font);
 }
+/* A row's key in Fork's grey: the deck's --muted falls under 4.5:1 on the
+   raised surface. Under the pointer and the keyboard it lifts as the deck's does. */
+.gv-wide[data-look="fork"] .gv-ho-item:not(:hover, :focus-visible) .gv-ho-key { color: var(--fk-text-2); }
 .gv-wide[data-look="fork"] .gv-ho-launch { grid-template-columns: 14px minmax(0, 1fr); align-items: center; }
 .gv-wide[data-look="fork"] .gv-ho-launch .gv-ho-val { font-family: var(--fk-font); font-size: 12px; }
 .gv-wide[data-look="fork"] .gv-ho-launch[aria-busy="true"] { cursor: progress; }
@@ -233,7 +236,7 @@
 .fk-repo-line { position: relative; display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
 .fk-repo-name { flex: 0 0 auto; max-width: 100%; min-width: 0; overflow: hidden; color: var(--fk-text-strong); font-size: 13px; font-weight: 700; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 /* "of main" gives way before the name does. */
-.fk-repo-of { flex: 0 100 auto; min-width: 0; overflow: hidden; color: var(--fk-text-2); font-size: 10px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.fk-repo-of { flex: 0 100 auto; min-width: 0; overflow: hidden; color: var(--fk-chrome-label); font-size: 10px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .fk-repo-branch { display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; color: var(--fk-branch-line); font-size: 12px; line-height: 15px; }
 .fk-repo-glyph { flex: none; }
 .fk-repo-branch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

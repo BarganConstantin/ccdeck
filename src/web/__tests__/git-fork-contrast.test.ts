@@ -96,7 +96,7 @@ const LANES = [0, 1, 2, 3, 4, 5].map(i => v(`lane-${i}`));
 /** Each word the Fork look writes, on every surface it is written on. */
 const WORDS: Array<[fg: string, bg: string, under?: string]> = [
   ...["list", "chrome", "inspector", "tree", "diff", "raised", "banner"].map(bg => [v("text"), v(bg)] as [string, string]),
-  [v("text-strong"), v("field")], [v("branch-line"), v("field")],
+  [v("text-strong"), v("field")], [v("branch-line"), v("field")], [v("chrome-label"), v("field")], [v("text-2"), v("raised")],
   ...["list", "chrome", "inspector", "diff", "banner"].map(bg => [v("text-2"), v(bg)] as [string, string]),
   [v("text-muted"), v("list")],
   [v("chrome-label"), v("chrome")], [v("chrome-label"), v("tool-hover"), v("chrome")],
@@ -126,6 +126,28 @@ describe("the Fork look's words hold 4.5:1 on what they are written on", () => {
   for (const theme of THEMES) {
     it(`in ${theme}`, () => {
       for (const [fg, bg, under] of WORDS) expect(ratio(fg, bg, theme, { under }), `${fg} on ${bg}`).toBeGreaterThanOrEqual(BODY);
+    });
+  }
+});
+
+describe("the words it writes with a rule of its own", () => {
+  /** The colour the rule for `selector` alone, at a line's start, gives as written. */
+  const colourOf = (selector: string): string => {
+    const at = css.indexOf(`\n${selector} {`);
+    expect(at, selector).toBeGreaterThan(-1);
+    const m = /(?:^|[\s;{])color:\s*([^;]+);/.exec(css.slice(at + selector.length + 1, css.indexOf("}", at)));
+    expect(m, `${selector} color`).not.toBeNull();
+    return m![1].trim();
+  };
+  // A linked worktree's "of <main repo>" in the repository box, and the
+  // Open in / Copy menus' keys (Branch, Commit, Folder) on Fork's raised surface.
+  const PAIRS: Array<[selector: string, bg: string]> = [
+    [".fk-repo-of", v("field")],
+    ['.gv-wide[data-look="fork"] .gv-ho-item:not(:hover, :focus-visible) .gv-ho-key', v("raised")],
+  ];
+  for (const theme of THEMES) {
+    it(`hold 4.5:1 on the surface they sit on, in ${theme}`, () => {
+      for (const [selector, bg] of PAIRS) expect(ratio(colourOf(selector), bg, theme), selector).toBeGreaterThanOrEqual(BODY);
     });
   }
 });

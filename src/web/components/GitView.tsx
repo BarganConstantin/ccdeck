@@ -62,7 +62,7 @@ import GitGraph from "./GitGraph";
 import FkBanner from "./FkBanner";
 import FkInspector, { FK_TABS, shownTab } from "./FkInspector";
 import FkToolbar, { FkGlyph } from "./FkToolbar";
-import FkChanges from "./FkChanges";
+import FkChanges, { type FkChangesHandle } from "./FkChanges";
 import FkCommitTab from "./FkCommitTab";
 import FkSidebar from "./FkSidebar";
 
@@ -698,15 +698,19 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const agentParam = away ? away.agentId : narrow ? focus.agentIds![0] : null;
   // From a subagent widened to its session, the session's repository is read.
   const facts = away ? awayCard?.git : narrow ? gitFactsFor(agent, root) : root?.git ?? gitFactsFor(agent, root);
+  // The worktree the read follows the agent into: the selection is that
+  // worktree's, and starts over when the agent moves to another.
+  const top = facts?.topLevel ?? null;
   const data = useGitData({
-    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, top: facts?.topLevel ?? null, enabled: true, fresh: true,
+    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, top, enabled: true, fresh: true,
     ownFolder: away != null || (narrow && agent.git != null),
   });
   const view = useGitSelection({
-    data, sessionId: agent.sessionId, agent: agentParam, focus, active: request.open,
-    // The row and file a request named are in the session's folder, not in
-    // the one a subagent was narrowed to.
-    initial: away ? {} : { sel: request.sel, file: request.file }, seq: request.seq,
+    data, sessionId: agent.sessionId, agent: agentParam, top, focus, active: request.open,
+    // The row and file a request named are the agent's it opened on, in the
+    // session's folder: never another agent's the view follows, nor the
+    // folder a subagent was narrowed to.
+    initial: away || request.agentId !== agent.id ? {} : { sel: request.sel, file: request.file }, seq: request.seq,
     forkOpen: prefs.look === "fork",
   });
   const { sel, file } = view;
@@ -743,6 +747,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const [wrap, setWrap] = useState(readDiffWrap);
   const filesHandle = useRef<GitFilesHandle>(null);
   const diffHandle = useRef<GitDiffHandle>(null);
+  // The Fork look's files and diff, one FkChanges at a time.
+  const fkChanges = useRef<FkChangesHandle>(null);
 
   // ── the Fork look ─────────────────────────────────────────────────────
   const fork = prefs.look === "fork";
@@ -837,6 +843,11 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // nothing read yet — holds focus itself, inside the view that owns the keys,
   // and hands it to its row once the row is there.
   const pendingPane = useRef<GitViewPane | null>(null);
+  // In the Fork look the files pane waits for its selected file: until it is
+  // chosen and drawn, the first row is a folder and the first tab stop the
+  // tree's divider, neither of them where the reader is going.
+  const forkNow = useMirroredRef(fork);
+  const fileNow = useMirroredRef(file);
   // The history's selected row not drawn yet — a detached HEAD's Uncommitted
   // row waits on the status read — so its one tab stop holds focus for it.
   const standIn = useRef<HTMLElement | null>(null);
@@ -853,11 +864,17 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     setPane(p);
     // The files and the diff take the keyboard through their own handles;
     // the history goes to its selected row, else its one tab stop.
-    const handle = p === "files" ? filesHandle.current : p === "diff" ? diffHandle.current : null;
+    const fk = fkChanges.current;
+    const handle = p === "files" ? filesHandle.current
+      : p === "diff" ? diffHandle.current ?? (fk ? { focus: () => fk.focusDiff() } : null) : null;
     if (handle) handle.focus();
-    else {
+    else if (forkNow.current && p === "files") {
+      // Its selected file, once there is one drawn; the pane holds focus till then.
+      const chosen = fileNow.current ? section.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]') : null;
+      chosen?.focus({ preventScroll: true });
+    } else {
       const chosen = section.querySelector<HTMLElement>('[aria-selected="true"][tabindex]');
-      const row = chosen ?? section.querySelector<HTMLElement>('[tabindex="0"], [role="region"][tabindex]')
+      const row = chosen ?? section.querySelector<HTMLElement>('[tabindex="0"]:not([role="separator"]), [role="region"][tabindex]')
         ?? section.querySelector<HTMLElement>('[aria-current="true"], button:not(:disabled)');
       row?.focus({ preventScroll: true });
       row?.scrollIntoView?.({ block: "nearest" });
@@ -1220,7 +1237,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             {local ? (
               <section className="fk-local" aria-label="Local Changes" data-gv-pane="files" tabIndex={-1}>
                 {reading || !data.entries ? (reading && <ReadStateLine state={data.state} folder={folder} />) : (
-                  <FkChanges mode="local" entries={data.entries} selected={file} onOpen={() => focusPane("diff")}
+                  <FkChanges ref={fkChanges} mode="local" entries={data.entries} selected={file} onOpen={() => focusPane("diff")}
                     emptyReason={data.entries.length ? "unselected" : "clean"} {...changesProps} />
                 )}
               </section>
@@ -1250,7 +1267,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                     </div>
                   ) : (
                     <div className="fk-changes" data-gv-pane="files" tabIndex={-1}>
-                      <FkChanges mode="commit" entries={Array.isArray(view.commitFiles) ? view.commitFiles : []} selected={file} onOpen={() => focusPane("diff")}
+                      <FkChanges ref={fkChanges} mode="commit" entries={Array.isArray(view.commitFiles) ? view.commitFiles : []} selected={file} onOpen={() => focusPane("diff")}
                         commit={selectedCommit} reading={view.commitFiles == null ? "loading" : Array.isArray(view.commitFiles) ? null : view.commitFiles}
                         onRetryFiles={view.retryCommit} {...changesProps} />
                     </div>

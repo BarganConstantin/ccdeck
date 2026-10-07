@@ -3,7 +3,7 @@
 // keyboard, and a remembered choice that survives a bad value in the store.
 import { describe, expect, it } from "vitest";
 import {
-  CANVAS_MIN, FK_HISTORY_MIN, FK_INSPECTOR_MIN, GIT_VIEW_DEFAULTS, PANE_MIN, PANEL_MIN, SIDEBAR_MAX, SIDEBAR_MIN, SPLIT_BAND, edgeBounds,
+  CANVAS_MIN, FK_HISTORY_MIN, FK_INSPECTOR_MIN, GIT_VIEW_DEFAULTS, PANE_MIN, PANEL_MIN, SIDE_HISTORY_MIN, SIDEBAR_MAX, SIDEBAR_MIN, SPLIT_BAND, edgeBounds,
   filesBounds, fkGraphBounds, graphBounds, isSheet, isSidebarFloating, panelWidth, parseGitViewPrefs, sidebarBounds, sidebarShownFor, splitterTarget,
 } from "../git-view-sizes";
 
@@ -96,10 +96,16 @@ describe("the Fork look's sizes", () => {
     expect(fkGraphBounds(200)).toEqual({ min: FK_HISTORY_MIN, max: FK_HISTORY_MIN });
   });
 
-  it("draws a 264px sidebar column, resizable between 176 and 436px, never leaving the history under 360px", () => {
+  it("draws a 264px sidebar column, resizable between 176 and 436px, never leaving the history beside it under 600px", () => {
     expect(GIT_VIEW_DEFAULTS.sidebarW).toBe(264);
     expect(sidebarBounds(1200)).toEqual({ min: SIDEBAR_MIN, max: SIDEBAR_MAX });
-    expect(sidebarBounds(700)).toEqual({ min: SIDEBAR_MIN, max: 340 });
+    // A 1280px window's panel: past 320px the sidebar would float, and hide.
+    expect(sidebarBounds(920)).toEqual({ min: SIDEBAR_MIN, max: 920 - SIDE_HISTORY_MIN });
+    expect(sidebarBounds(700)).toEqual({ min: SIDEBAR_MIN, max: SIDEBAR_MIN });
+    // The divider is drawn only beside the history: no step of it floats the sidebar away.
+    for (let panelW = SIDEBAR_MIN + SIDE_HISTORY_MIN; panelW <= 1600; panelW += 7) {
+      expect(isSidebarFloating(panelW, sidebarBounds(panelW).max, false), `${panelW}px`).toBe(false);
+    }
     expect(parseGitViewPrefs(JSON.stringify({ sidebarW: 9000 })).sidebarW).toBe(SIDEBAR_MAX);
   });
 

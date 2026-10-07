@@ -32,7 +32,8 @@ describe("a subagent working in another folder, from the files pane", () => {
     expect(view).toMatch(/useEffect\(\(\) => setNarrowed\(null\), \[request\.seq\]\);/);
     expect(view).toMatch(/const away = narrowed && shown && narrowed\.from === shown\.id \? narrowed\.row : null;/);
     // What a request named lives in the session's folder: a narrowed view opens on its own first file.
-    expect(view).toMatch(/initial: away \? \{\} : \{ sel: request\.sel, file: request\.file \}/);
+    // Nor does another agent the view follows open on the row and file a request named for the one it opened on.
+    expect(view).toMatch(/initial: away \|\| request\.agentId !== agent\.id \? \{\} : \{ sel: request\.sel, file: request\.file \}/);
   });
 
   it("keeps focus inside the view while the narrowed read arrives, then hands it to the files", () => {

@@ -66,6 +66,29 @@ describe("a history asked for focus before its selected row is drawn", () => {
   });
 });
 
+describe("focus into the Fork look's inspector", () => {
+  // Its files and diff had no handle, so focus went to the pane's first tab
+  // stop: the tree/diff divider while a commit's files were still on their
+  // way (an arrow then resized the tree), or the first folder row while the
+  // selected file was chosen elsewhere.
+  const at = view.indexOf("const focusPane = useCallback(");
+  const body = view.slice(at, view.indexOf("}, []);", at));
+
+  it("lands on the selected file, and the pane holds focus until that file is chosen and drawn", () => {
+    expect(body).toMatch(/else if \(forkNow\.current && p === "files"\) \{[\s\S]*?const chosen = fileNow\.current \? section\.querySelector<HTMLElement>\('\[role="treeitem"\]\[aria-selected="true"\]'\) : null;\s*chosen\?\.focus\(\{ preventScroll: true \}\);/);
+    expect(view).toMatch(/const fileNow = useMirroredRef\(file\);/);
+  });
+
+  it("goes into the diff through the inspector's own handle, in either view", () => {
+    expect(body).toMatch(/p === "diff" \? diffHandle\.current \?\? \(fk \? \{ focus: \(\) => fk\.focusDiff\(\) \} : null\) : null;/);
+    expect((view.match(/<FkChanges ref=\{fkChanges\} mode="(local|commit)"/g) ?? []).length).toBe(2);
+  });
+
+  it("never falls back to a divider: it is a Tab stop only for resizing", () => {
+    expect(body).toMatch(/section\.querySelector<HTMLElement>\('\[tabindex="0"\]:not\(\[role="separator"\]\), \[role="region"\]\[tabindex\]'\)/);
+  });
+});
+
 describe("an edge marker activated", () => {
   it("hands focus to its agent's card once the frame has made it a Tab stop: the marker itself is gone", () => {
     expect(view).toMatch(/onGo=\{id => \{ focusAfterFrame\.current = id; onSelectAgent\(id\); \}\}/);
