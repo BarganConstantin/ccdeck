@@ -929,31 +929,6 @@ button.btn.sm-hear {
    and --muted on that is 4.25:1 in dark (#1788). The 10px under the 11px name
    keeps the caption the quieter line. */
 .sm-custom-card-copy > span { font-size: 10px; line-height: 1.35; color: var(--text-secondary); }
-/* The import card is a <label>, so the whole card is the file picker's target
-   and it answers a press as the other labelled controls do. Only this card
-   takes a hover: the record card's target is its button, and a card that lit up
-   under the pointer would promise a click it does not take. */
-.sm-file {
-  cursor: pointer;
-  transition: border-color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-.sm-file:hover { border-color: var(--sm-edge); }
-.sm-file:active { transform: scale(0.97); }
-/* The input carries aria-disabled while the library is full, but it is drawn
-   at 1px and invisible, so the refusal has to show on the card it stands for. */
-.sm-file:has(input[aria-disabled="true"]) { opacity: var(--dim-off); cursor: default; }
-.sm-file:has(input[aria-disabled="true"]):hover { border-color: var(--line); }
-.sm-file:has(input[aria-disabled="true"]):active { transform: none; }
-.sm-file input[type="file"] {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-/* focus-visible rather than focus-within: a mouse click on the label focuses
-   the hidden input too, and that must not draw a keyboard ring. */
-.sm-file:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sm-voice {
   color: var(--text-dim);
   font-size: 11px;
@@ -1006,7 +981,6 @@ button.btn.sm-hear {
    height is --ctl-h's, which panel-rhythm.test.ts keeps to one value. */
 button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: 11px; }
 @media (prefers-reduced-motion: reduce) {
-  .sm-file:active,
   .sm-voice summary:active { transform: none; }
   .sm-voice summary::after { transition: none; }
 }

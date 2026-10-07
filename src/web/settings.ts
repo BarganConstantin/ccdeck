@@ -27,6 +27,17 @@ export function sectionIndex(section: SettingsSection): number {
   return Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
 }
 
+const TAB_ID_PREFIX = "settings-tab-";
+
+/** The section whose tab should hold focus now that `selected` is on show, or
+ *  null when focus is not on a nav tab (a field in the pane, the ×, nothing) or
+ *  is already on the right one. Two tabs must never read as chosen at once: the
+ *  selected fill on one, the focus ring on another. */
+export function focusedTabToFollow(focusedId: string | null | undefined, selected: SettingsSection): SettingsSection | null {
+  if (!focusedId?.startsWith(TAB_ID_PREFIX)) return null;
+  return focusedId === `${TAB_ID_PREFIX}${selected}` ? null : selected;
+}
+
 /** Whether Settings is up, and the section it shows — or showed last, while it
  *  is closed, so a door that names none opens it where the reader left it. Not
  *  persisted: an open dialog is a thing being done, not a thing that is set. */

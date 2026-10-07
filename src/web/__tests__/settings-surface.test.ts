@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { openedAt, sectionIndex, SETTINGS_CLOSED, SETTINGS_SECTIONS, type SettingsSection } from "../settings";
+import { focusedTabToFollow, openedAt, sectionIndex, SETTINGS_CLOSED, SETTINGS_SECTIONS, type SettingsSection } from "../settings";
 import { tabStripMove } from "../tablist-keys";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import SoundMenu from "../components/SoundMenu";
@@ -22,6 +22,7 @@ import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY } from "../appearan
 import { FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY } from "../fm-stations";
 import { THEME_KEY } from "../theme";
 import { DEFAULTS } from "../../server/deck-prefs.mjs";
+import { sheetText } from "./sheet-source";
 import { sourceOf } from "./client-source";
 
 const noop = () => {};
@@ -151,6 +152,26 @@ describe("the arrow keys walk the nav", () => {
   it("finds each section where the nav draws it", () => {
     SETTINGS_SECTIONS.forEach((s, i) => expect(sectionIndex(s.id)).toBe(i));
   });
+
+  it("focuses the section Settings opened on, not General", () => {
+    for (const { id } of SETTINGS_SECTIONS) {
+      const general = "settings-tab-general";
+      expect(focusedTabToFollow(general, id), id).toBe(id === "general" ? null : id);
+    }
+  });
+
+  it("moves focus to the selected tab when focus sits on another tab, and leaves focus elsewhere alone", () => {
+    expect(focusedTabToFollow("settings-tab-music", "sounds")).toBe("sounds");
+    expect(focusedTabToFollow("settings-tab-sounds", "sounds")).toBeNull();
+    expect(focusedTabToFollow("settings-pane-field", "sounds")).toBeNull();
+    expect(focusedTabToFollow(undefined, "sounds")).toBeNull();
+  });
+
+  it("keeps focus on the selected tab whenever the section changes", () => {
+    const modal = sourceOf("components/SettingsModal.tsx");
+    expect(modal).toContain("focusedTabToFollow(document.activeElement?.id, section)");
+    expect(modal).toMatch(/\[section\]\);/);
+  });
 });
 
 // ── the sound popover ───────────────────────────────────────────────────────
@@ -184,6 +205,24 @@ describe("the sound popover keeps the quick things and links to the rest", () =>
 });
 
 // ── a machine with no Claude Code ───────────────────────────────────────────
+
+describe("Import audio is a button like the deck's others", () => {
+  const section = sourceOf("components/CustomSoundsSection.tsx");
+
+  it("draws Choose file as a real button, in the tab order, beside Record", () => {
+    expect(section).toMatch(/<button\s+ref=\{importRef\}\s+type="button"\s+className="btn sm-custom-action"/);
+    expect(section).not.toMatch(/<span className="btn/);
+    expect(section).toMatch(/<input\s+ref=\{pickerRef\}\s+type="file"\s+hidden/);
+  });
+
+  it("refuses at the ceiling with aria-disabled and without opening the picker", () => {
+    expect(section).toContain("onClick={() => { if (!full) pickerRef.current?.click(); }}");
+  });
+
+  it("styles the button at the same size as Record", () => {
+    expect(sheetText()).toContain("button.btn.sm-custom-action { align-self: flex-start;");
+  });
+});
 
 describe("a Codex-only machine reaches every setting", () => {
   const codexOnly = { kind: "reported" as const, claude: false, codex: true };
