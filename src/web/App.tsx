@@ -530,7 +530,10 @@ function Inner() {
     focusAgent(id);
     window.requestAnimationFrame(() => focusCanvasNode(id));
   }, [focusAgent]);
-  const openGitViewFromChip = useCallback((agentId: string, how: GitViewHow) => openGitView(how, { agentId }), [openGitView]);
+  // A card's branch chip opens the view on its agent; a commit in the lane
+  // under the card, on that commit.
+  const openGitViewFromChip = useCallback((agentId: string, how: GitViewHow, hints?: { sel?: string | null }) =>
+    openGitView(how, { agentId, ...(hints?.sel ? { sel: hints.sel } : null) }), [openGitView]);
   // Settings › Appearance › Git switched off, or nothing selected any more:
   // the view has nothing to be about.
   const gitOn = useGitOn();

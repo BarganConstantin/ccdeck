@@ -31,7 +31,7 @@ import {
   applySessionNamed, applySessionRecapped, applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
 import { applyNotification, clearAnsweredWaiting } from "./waiting-block";
-import { applyGitCollisions, applyGitObserved } from "./git-events";
+import { applyGitCollisions, applyGitObserved, applyGitRecentCommits } from "./git-events";
 import type { HookEnvelope } from "./types";
 
 // The board's state and the keys it is filed under are graph-state.ts's, where
@@ -98,6 +98,9 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // Who the session collides with in git: the server's word too, and for the
   // same reason never read as the session moving.
   if (name === "GitCollisions") { applyGitCollisions(state, p, sessionId); return state; }
+  // The commits its agents were seen making in the last half hour: the
+  // server's word as well, never the session moving.
+  if (name === "GitRecentCommits") { applyGitRecentCommits(state, p, sessionId); return state; }
 
   // Clear the waiting block here rather than adding a line to eight cases. A
   // badge that outlives the block is worse than no badge — it teaches the user

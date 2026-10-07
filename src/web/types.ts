@@ -273,6 +273,29 @@ export interface GitCollisions {
   sharp: Array<{ agentId: string | null; with: GitCollisionRef; files: string[] }>;
 }
 
+/** One commit an agent was seen making — the synthetic `GitRecentCommits`
+ *  (src/server/git-recent-commits.mjs). `sha` is the full SHA when the
+ *  repository confirmed it, else the one git printed; `at` is when the deck saw
+ *  it; `agentId` the subagent that made it (null for the main thread), `label`
+ *  what the server calls that agent; `branch` where it went, null on a detached
+ *  HEAD. */
+export interface RecentCommit {
+  sha: string;
+  short: string;
+  subject: string;
+  at: number;
+  agentId: string | null;
+  label: string | null;
+  branch: string | null;
+}
+
+/** A session's commits of the last half hour, newest first, and the
+ *  repository (its common git directory) of the newest one. */
+export interface RecentCommits {
+  repo: string | null;
+  commits: RecentCommit[];
+}
+
 export interface AgentNodeData {
   id: string;                 // session_id or `${session}::${parent_tool_use_id}`
   sessionId: string;          // root session id (same as id for root agents)
@@ -314,6 +337,9 @@ export interface AgentNodeData {
   /** Session root only: who the session's agents collide with right now —
    *  see GitCollisions. Absent when there is nobody. */
   gitCollisions?: GitCollisions;
+  /** Session root only: the commits the session's agents were seen making in
+   *  the last half hour — see RecentCommits. Absent when there are none. */
+  gitRecent?: RecentCommits;
   firstPrompt?: string;
   /** The name Claude Code gave this session, from the transcript's `agent-name`
    *  records — e.g. "account-management-oauth-flow". Session root only, and
@@ -692,6 +718,10 @@ export interface HookPayload {
   git?: GitFacts & { subagent?: string };
   /** On the synthetic `GitCollisions`: the session's collisions as they stand. */
   collisions?: GitCollisions;
+  /** On the synthetic `GitRecentCommits`: the session's commits of the last
+   *  half hour, newest first, and the repository of the newest. */
+  commits?: RecentCommit[];
+  repo?: string | null;
   /** Claude-only, on the synthetic `ActivityObserved`: what the session's newest
    *  reply says it is doing (src/server/session-activity.mjs). Never null — the
    *  next prompt is what retires it, and the client holds that rule. */
