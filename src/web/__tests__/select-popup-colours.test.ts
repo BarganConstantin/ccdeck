@@ -73,6 +73,10 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     name: "an account's slot",
     chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-pop"]), el("div", ["ap-pop-form"]), el("span", ["ap-field"]), el("select")],
   }],
+  "components/GitHandoffPicks.tsx": [{
+    name: "a git hand-off's app",
+    chain: [el("body"), el("div", ["modal-backdrop", "appearance-backdrop"]), el("div", ["modal", "appearance-menu", "appearance-modal"]), el("section", ["appearance-section"]), el("div", ["appearance-controls"]), el("div", ["appearance-git-picks"]), el("div", ["appearance-git-pick"]), el("select", ["sm-select"])],
+  }],
 };
 
 /** The states a list is opened from: a click, which hovers, and a key, which
