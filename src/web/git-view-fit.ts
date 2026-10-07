@@ -185,10 +185,12 @@ export function foldMarkers<T extends { alarm: Alarm; top: number }>(markers: T[
   return { kept: markers.filter(m => keep.has(m)), folded: ranked.slice(Math.max(0, room - 1)) };
 }
 
-/** Whether a card on screen sits wholly under the panel, whose left edge is
- *  at `coverLeft` (screen px). */
-export function whollyCovered(card: { left: number; right: number }, coverLeft: number): boolean {
-  return card.left >= coverLeft;
+/** Whether a card on screen lies wholly outside the part of the canvas the
+ *  open view leaves the reader, `sight` (screen px): under the panel, whose
+ *  left edge is `sight.right`, or past the canvas's left, top or bottom edge.
+ *  A card that shows by a pixel is still in sight. */
+export function outOfSight(card: PaneBox, sight: PaneBox): boolean {
+  return card.left >= sight.right || card.right <= sight.left || card.top >= sight.bottom || card.bottom <= sight.top;
 }
 
 // ── the seam ──────────────────────────────────────────────────────────────

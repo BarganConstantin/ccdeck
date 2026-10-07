@@ -18,13 +18,13 @@ import {
   type CSSProperties, type KeyboardEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { useReactFlow, type Node } from "reactflow";
+import { useReactFlow, useStoreApi, type Node, type Viewport } from "reactflow";
 
 import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
 import {
-  boxesOverlap, clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  boxesOverlap, clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, outOfSight, setGitViewFrame, stackMarkers,
   type FitCard, type PaneBox, type SessionCard,
 } from "../git-view-fit";
 import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
@@ -96,6 +96,10 @@ function setInert(els: Iterable<Element>, on: boolean, held: Set<Element>) {
   }
 }
 
+/** How long the camera stays still before the Tab stops follow it: a pan is a
+ *  run of wheel events, a zoom a short glide. */
+const SETTLE_MS = 120;
+
 /** How many history rows the panel's first frame draws: a tall pane's worth. */
 const FIRST_ROWS = 24;
 
@@ -140,6 +144,7 @@ export default function GitView(props: GitViewProps) {
   const request = useGitViewRequest();
   const { agent, stateRef, now, detailShown, canvasRef, nodesRef, measuredRef, moveCamera, cameraEpochRef, openerRef, onClose, onSelectAgent, onShowCard, onFocusBack } = props;
   const rf = useReactFlow();
+  const store = useStoreApi();
   const root = agent ? stateRef.current.agents.get(agent.sessionId) ?? null : null;
   const opens = agent != null && gitViewOpens(gitFactsFor(agent, root));
   const want = request.open && agent != null && opens;
@@ -181,12 +186,61 @@ export default function GitView(props: GitViewProps) {
   // that camera, not the one mid-flight.
   const restoring = useRef<{ to: { x: number; y: number; zoom: number }; epoch: number } | null>(null);
   const inertCards = useState(() => new Set<Element>())[0];
+  // When the frame's own camera move lands, for the Tab stops to wait on.
+  const framedUntil = useRef(0);
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
   // The cluster name tags on the uncovered canvas, where the frame puts them:
   // the edge markers keep off them.
   const [labelBoxes, setLabelBoxes] = useState<PaneBox[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
   const focusAfterFrame = useRef<string | null>(null);
+
+  // What the reader cannot see is no Tab stop: a card wholly under the panel,
+  // or wholly off the canvas it leaves — the frame beside the view puts the
+  // sessions to the left of the one it shows past the canvas's left edge. `at`
+  // is the camera the plane is drawn with once the move under way lands, `was`
+  // the one it is drawn with now; after a pan or a zoom the two are the same.
+  // Answers the session name tags still in sight, which the edge markers keep off.
+  const takeOutOfSight = useCallback((at: Viewport, was: Viewport): PaneBox[] => {
+    const { width: w } = live.current;
+    const canvas = canvasRef.current;
+    if (!canvas) return NO_BOXES;
+    const rect = canvas.getBoundingClientRect();
+    const sight: PaneBox = { left: rect.left, right: Math.min(rect.right, window.innerWidth - w), top: rect.top, bottom: rect.bottom };
+    const { x, y, zoom } = at;
+    const under = new Set<Element>(), clear = new Set<Element>();
+    for (const n of nodesRef.current) {
+      if (n.type !== "agent" && n.type !== "recapNote") continue;
+      const el = document.querySelector(`.react-flow__node[data-id="${CSS.escape(n.id)}"]`);
+      if (!el) continue;
+      const m = measuredRef.current.get(n.id);
+      const left = rect.left + x + n.position.x * zoom, top = rect.top + y + n.position.y * zoom;
+      const card: PaneBox = { left, right: left + (m?.width ?? 0) * zoom, top, bottom: top + (m?.height ?? 0) * zoom };
+      (outOfSight(card, sight) ? under : clear).add(el);
+    }
+    // So do the session clusters' name tags, anchored on the same plane
+    // (drawn at one size whatever the zoom): where each one lands once the
+    // camera has moved. The filter bar's corner counts as covered too: a tag
+    // of a session outside the frame that lands under it leaves the Tab order
+    // and is not drawn (the sheet), rather than reading through the bar.
+    const bar = canvas.querySelector(".cat-filter-bar")?.getBoundingClientRect();
+    const barBox: PaneBox | null = bar && bar.height > 0 ? { left: bar.left - rect.left, right: bar.right - rect.left, top: bar.top - rect.top, bottom: bar.bottom - rect.top } : null;
+    const boxes: PaneBox[] = [];
+    for (const el of canvas.querySelectorAll<HTMLElement>(".cluster-label")) {
+      const r = el.getBoundingClientRect();
+      const left = rect.left + x + ((r.left - rect.left - was.x) / was.zoom) * zoom;
+      const tagTop = labelTopAt(r.top - rect.top, was, at);
+      const covered = outOfSight({ left, right: left + r.width, top: rect.top + tagTop, bottom: rect.top + tagTop + r.height }, sight);
+      const tag: PaneBox = { left: left - rect.left, right: left - rect.left + r.width, top: tagTop, bottom: tagTop + r.height };
+      const underBar = barBox !== null && boxesOverlap(tag, barBox);
+      (covered || underBar ? under : clear).add(el);
+      if (covered || underBar || r.width <= 0) continue;
+      boxes.push(tag);
+    }
+    setInert(clear, false, inertCards);
+    setInert(under, true, inertCards);
+    return boxes;
+  }, []);
 
   const frame = useCallback((duration: number) => {
     const { agent: a, width: w, sheet: sh } = live.current;
@@ -231,38 +285,9 @@ export default function GitView(props: GitViewProps) {
     // The camera the plane is drawn with until this move lands.
     const was = rf.getViewport();
     moveCamera(plan.viewport, duration);
-    // Cards wholly under the panel cannot be seen, so they cannot be Tab stops either.
-    const coverLeft = window.innerWidth - w;
-    const { x, zoom } = plan.viewport;
-    const under = new Set<Element>(), clear = new Set<Element>();
-    for (const n of nodes) {
-      const el = document.querySelector(`.react-flow__node[data-id="${CSS.escape(n.id)}"]`);
-      if (!el) continue;
-      const m = measuredRef.current.get(n.id);
-      const left = rect.left + x + n.position.x * zoom;
-      (whollyCovered({ left, right: left + (m?.width ?? 0) * zoom }, coverLeft) ? under : clear).add(el);
-    }
-    // So do the session clusters' name tags, anchored on the same plane
-    // (drawn at one size whatever the zoom): where each one lands once the
-    // camera has moved. The filter bar's corner counts as covered too: a tag
-    // of a session outside the frame that lands under it leaves the Tab order
-    // and is not drawn (the sheet), rather than reading through the bar.
-    const barBox: PaneBox | null = bar && bar.height > 0 ? { left: bar.left - rect.left, right: bar.right - rect.left, top: bar.top - rect.top, bottom: bar.bottom - rect.top } : null;
-    const boxes: PaneBox[] = [];
-    for (const el of canvas.querySelectorAll<HTMLElement>(".cluster-label")) {
-      const r = el.getBoundingClientRect();
-      const left = rect.left + x + ((r.left - rect.left - was.x) / was.zoom) * zoom;
-      const covered = whollyCovered({ left, right: left + r.width }, coverLeft);
-      const tagTop = labelTopAt(r.top - rect.top, was, plan.viewport);
-      const tag: PaneBox = { left: left - rect.left, right: left - rect.left + r.width, top: tagTop, bottom: tagTop + r.height };
-      const underBar = barBox !== null && boxesOverlap(tag, barBox);
-      (covered || underBar ? under : clear).add(el);
-      if (covered || underBar || r.width <= 0) continue;
-      boxes.push(tag);
-    }
+    framedUntil.current = performance.now() + duration + SETTLE_MS;
+    const boxes = takeOutOfSight(plan.viewport, was);
     setLabelBoxes(plan.leftOut.length ? boxes : NO_BOXES);
-    setInert(clear, false, inertCards);
-    setInert(under, true, inertCards);
     const out = plan.leftOut.map((id): EdgeMarker => {
       const ag = agents.get(id);
       const alarm = alarmOf.get(id)!;
@@ -404,6 +429,25 @@ export default function GitView(props: GitViewProps) {
     ro.observe(canvas);
     return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, [want]);
+  // A pan or a zoom while the view is open moves cards into sight and out of
+  // it: once the camera has stopped, the Tab stops follow it. The frame's own
+  // move is left to land first, as it has already said where its cards will be.
+  useEffect(() => {
+    if (!want || sheet) return;
+    let timer = 0;
+    const settle = () => {
+      const wait = framedUntil.current - performance.now();
+      if (wait > 0) { timer = window.setTimeout(settle, wait); return; }
+      const now = rf.getViewport();
+      takeOutOfSight(now, now);
+    };
+    const unsubscribe = store.subscribe((s, prev) => {
+      if (s.transform === prev.transform) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(settle, SETTLE_MS);
+    });
+    return () => { unsubscribe(); window.clearTimeout(timer); };
+  }, [want, sheet]);
   useEffect(() => () => {
     setGitViewFrame(null);
     setInert([...inertCards], false, inertCards);
