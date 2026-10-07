@@ -8,7 +8,8 @@
 @media (pointer: coarse) {
   .ap-manage-btn,
   .ap-switch,
-  .ap-field select { min-height: 32px; }
+  .ap-field select,
+  .ap-policy .ap-threshold-input { min-height: 32px; }
   /* The popover's rows sit flush against each other, so a fingertip gets the
      height a touch list needs rather than the 32px floor; its form controls
      stand at the same height as each other, a step over it. */

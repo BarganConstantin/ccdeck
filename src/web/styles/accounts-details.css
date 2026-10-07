@@ -59,7 +59,7 @@
      arrives there without travelling. */
   .ap-lan-chev { transition: none; }
   .ap-manage-btn.danger.armed::after { animation: none; transform: scaleX(0); }
-  .ap-policy > .ap-manage-btn { animation: none; }
+  .ap-policy > .ap-manage-btn, .ap-threshold-field { animation: none; }
   /* Every press in the app lands here, not just this panel's — the scale is one
      convention and it has to switch off in one place, or the next control to
      adopt it quietly reintroduces the motion. */
