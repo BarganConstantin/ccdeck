@@ -349,6 +349,8 @@ describe("the Commit tab", () => {
       { kind: "tag", name: "v1.2.0" },
     ]);
     expect(refBadges({ refs: { local: [], remote: [], tags: [], head: true } }, null)).toEqual([{ kind: "detached", name: "HEAD" }]);
+    // A real branch whose name ends in HEAD is no remote's HEAD.
+    expect(refBadges({ refs: { local: [], remote: ["origin/fix/HEAD", "fork/HEAD"], tags: [], head: false } }, null)).toEqual([{ kind: "remote", name: "origin/fix/HEAD" }]);
     const html = tab();
     // The history's own badge, in its neutral colours.
     expect(html).toContain('<span class="fk-ref" data-kind="remote" data-tone="neutral" title="remote branch origin/feature/bargan/9277"><span class="fk-ref-cell"');

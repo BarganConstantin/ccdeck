@@ -4,7 +4,7 @@ import { failureLasts, failureLine, groupDigits } from "../git-diff-parse";
 import type { CommitDetail, CommitFile, CommitMessage, GitFileRef, LogCommit } from "../git-view-types";
 import { longDate } from "./FkCommitStrip";
 import { FkAvatar } from "./FkAvatar";
-import { FkRefBadge, type FkChip } from "./FkRefBadge";
+import { FkRefBadge, isRemoteHead, type FkChip } from "./FkRefBadge";
 import FkFileTypeLabel from "./FkFileTypeLabel";
 import FkStatusBadge from "./FkStatusBadge";
 import { CheckGlyph, CopyGlyph } from "./GitDiffIcons";
@@ -194,7 +194,7 @@ export function refBadges(c: Pick<LogCommit, "refs">, headBranch: string | null)
   if (c.refs.head && headBranch && locals.includes(headBranch)) out.push({ kind: "head", name: headBranch });
   else if (c.refs.head && !headBranch) out.push({ kind: "detached", name: "HEAD" });
   for (const n of locals) if (!(out[0]?.kind === "head" && n === headBranch)) out.push({ kind: "local", name: n });
-  for (const n of [...c.refs.remote].sort(byName)) if (!/\/HEAD$/.test(n)) out.push({ kind: "remote", name: n });
+  for (const n of [...c.refs.remote].sort(byName)) if (!isRemoteHead(n)) out.push({ kind: "remote", name: n });
   for (const n of [...c.refs.tags].sort(byName)) out.push({ kind: "tag", name: n });
   return out;
 }

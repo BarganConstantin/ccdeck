@@ -38,8 +38,10 @@ export interface FkChip {
 
 const order = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 const byName = (a: string, b: string) => order.compare(a, b) || (a < b ? -1 : a > b ? 1 : 0);
-/** `origin/HEAD` and its kind: a pointer at another ref, which is listed itself. */
-const isRemoteHead = (ref: string) => /\/HEAD$/.test(ref);
+/** `origin/HEAD` and its kind: a pointer at another ref, which is listed
+ *  itself. A branch whose own name ends in `/HEAD` (`origin/fix/HEAD`) is not
+ *  one. */
+export const isRemoteHead = (ref: string) => remoteBranch(ref) === "HEAD";
 
 /**
  * A commit's badges in Fork's order — HEAD (detached) or HEAD's branch first,
