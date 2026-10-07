@@ -381,6 +381,10 @@
   gap: 5px;
 }
 .node-peek p { margin: 0; }
+/* Each line keeps its height, so a card capped by a window shorter than it
+   scrolls. A flex column would squeeze them instead, and a line that hides its
+   own overflow, like the session title, would shrink to nothing. */
+.node-peek > * { flex: none; }
 .node-peek-head {
   display: flex;
   align-items: baseline;
@@ -421,30 +425,79 @@
 .node-peek-state[data-kind="live"] { color: var(--inflight); }
 .node-peek-state[data-kind="done"] { color: var(--ok); }
 .node-peek-state[data-kind="err"] { color: var(--err); }
+/* Two lines, then an ellipsis. The max-height is the same two lines for an
+   engine with no line clamp, which cuts there without the ellipsis rather than
+   letting a pasted paragraph grow the card. */
 .node-peek-title {
   font-size: 12px;
+  line-height: 1.4;
   color: var(--text);
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-height: calc(2 * 1.4em);
   overflow: hidden;
 }
+/* What the session is waiting for, which is the reason this card is worth
+   opening at all, so it is said in full: two lines before anything is cut, and
+   only a question longer than that ends in an ellipsis. Its whole text is also
+   the card's title and the waiting card's spoken name, but this card refuses
+   the pointer and opens for keyboard focus as often as for a hover, so a
+   tooltip here is one nobody can open. How long it has waited keeps its own
+   width level with the first line, and is never the part that gives way. */
 .node-peek-wait {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   font-size: 11px;
+  line-height: 1.4;
   color: var(--accent);
 }
 .node-peek-wait.warn { color: var(--warn); }
-.node-peek-wait > span {
+/* One line of the row tall, so the drawing, centred in its square viewBox,
+   sits in the middle of the first line. */
+.node-peek-wait .alert-mark { flex: none; height: 1.4em; }
+.node-peek-said {
   flex: 1 1 auto;
   min-width: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-height: calc(2 * 1.4em);
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
-.node-peek-wait b { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* The duration floats at the end of the first line and the second line runs
+   under it, so the sentence has the card's whole width wherever it can. It is
+   first in the clamped text, and the clamp cuts at the end, so it is never the
+   part that is cut. It floats inside an inline wrapper rather than being a
+   child of the clamp itself: an engine that lays the clamp out as a legacy
+   flexible box makes each of its children a box, and a box does not float. */
+.node-peek-since > b {
+  float: right;
+  margin-left: 6px;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* A live Codex session's line in the same slot: the deck cannot see its
+   approval prompts. The card's own words and its quiet ink — muted, italic, a
+   hollow dot — because it is a limit of the deck, not news about the session,
+   and must never read as the amber line above. */
+.node-peek-blind {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--muted);
+}
+/* Centred in the 10px the state mark above takes, so the dot sits under the
+   dot and the words start under "live". */
+.node-peek-blind .approval-blind-dot { margin-inline: 2.5px; }
 /* Counts and labels, which are what --muted is for; the title above is the
    card's one piece of prose. */
 .node-peek-facts,

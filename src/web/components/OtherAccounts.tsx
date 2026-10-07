@@ -53,6 +53,8 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
     const el = ref.current;
     const anchor = document.getElementById(anchorId);
     if (!el || !anchor) return;
+    // Measured at its natural height, as SessionPeek's card is and for its reason.
+    el.style.maxHeight = "";
     const p = placeBeside(anchor.getBoundingClientRect(), { width: el.offsetWidth, height: el.offsetHeight },
       { width: window.innerWidth, height: window.innerHeight });
     el.style.top = `${p.top}px`;
