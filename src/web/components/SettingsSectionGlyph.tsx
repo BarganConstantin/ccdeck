@@ -8,18 +8,25 @@
 // each one the tab's own ink — muted at rest, the text colour when chosen,
 // the system's colours under a Contrast theme — with no rule of its own.
 //
-// Sounds is the topbar's speaker itself, imported rather than copied. General
+// Sounds is the speaker the topbar's sound button wore — a cone with two
+// waves — and it lives here alone since that button left the bar
+// (2026-10-07): Settings › Sounds is where everything it opened is. General
 // is the sliders the topbar's appearance button wore before the gear replaced
 // it (#2034): the gear is the door into Settings, so inside it would name
 // every section at once. The bell and the headphones are drawn for this nav,
 // at the same weight and inside the same box as their neighbours.
 import type { SettingsSection } from "../settings";
-import { SpeakerGlyph } from "./TopbarRuns";
 
 export default function SettingsSectionGlyph({ section }: { section: SettingsSection }) {
-  if (section === "sounds") return <SpeakerGlyph on />;
   return (
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {section === "sounds" && (
+        <>
+          <path d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z" />
+          <path d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2" />
+          <path d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2" />
+        </>
+      )}
       {section === "general" && (
         <>
           <path d="M1.5 3h4.3M9.2 3h3.3M1.5 7h1.3M6.2 7h6.3M1.5 11h6.3M11.2 11h1.3" />

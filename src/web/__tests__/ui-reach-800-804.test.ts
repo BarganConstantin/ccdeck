@@ -16,7 +16,7 @@
 // called — emptyScope and autoRestartStep both are — and where it lives in JSX
 // the source is read, which is what this suite can reach without a DOM.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { emptyScope } from "../scope";
 import { autoRestartStep } from "../restart";
@@ -30,11 +30,11 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
 // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
 const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../components/TopbarRuns.tsx");
-const soundMenu = read("../components/SoundMenu.tsx");
 // The notification switches and the browser channel left the sound popover for
 // Settings › Notifications (2026-10-07), whole; Settings mounts them with what
-// they are handed. The Sounds switch both the popover and Settings › Sounds
-// draw is SoundSwitch.tsx, and the tone groups are SoundsSection.tsx's.
+// they are handed, and the popover itself went with the topbar speaker the
+// same day. The Sounds switch Settings › Sounds draws is SoundSwitch.tsx, and
+// the tone groups are SoundsSection.tsx's.
 const notifications = read("../components/NotificationsSection.tsx");
 const settings = read("../components/SettingsModal.tsx");
 const soundsSection = read("../components/SoundsSection.tsx");
@@ -91,8 +91,11 @@ describe("#801 — what the Notifications switch is saying", () => {
 
   it("keeps the switch answering exactly one question, and answering it alone", () => {
     expect(notifications).toContain("aria-checked={notifyOn}");
-    // One home: the speaker's popover no longer draws it.
-    expect(soundMenu).not.toMatch(/notifyOn|onToggleNotify/);
+    // One home: Settings › Notifications draws it, and no other component
+    // does — the speaker's popover, its old second home, is gone.
+    const components = fileURLToPath(new URL("../components/", import.meta.url));
+    const homes = readdirSync(components).filter(f => /\.tsx$/.test(f) && read(`../components/${f}`).includes("aria-checked={notifyOn}"));
+    expect(homes).toEqual(["NotificationsSection.tsx"]);
     expect(settings).toContain('notifyPermission={notifySupported ? notifyPermission : "unsupported"}');
     // Nothing about the browser reaches the switch or its note. That is what
     // "on" over "needs permission" was, and a control cannot contradict itself

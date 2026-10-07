@@ -430,8 +430,7 @@ button.btn.icon-btn[aria-pressed="true"] {
    panel on screen already says it is open. The edge carries the state
    difference #370 asked for: it is the same --ctl-edge control-edges.test.ts
    holds to 3:1 against both ends of the bar, where a closed button has none.
-   Sound takes the same look while its menu is out, since the menu is what it
-   opened. The fill below stays for a setting that is on, which is what
+   The fill below stays for a setting that is on, which is what
    aria-pressed means, and no topbar control carries it now. */
 .topbar button.btn.icon-btn {
   border-color: transparent;

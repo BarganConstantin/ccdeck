@@ -42,6 +42,15 @@
 // name promises — which is what the two sweeps below do, one as a property over
 // the set and one figure by figure. The rest was a listening job; the pull
 // request says which pair is closest and therefore worth hearing first.
+//
+// THE POPOVER IS GONE (2026-10-07), with the topbar speaker that opened it.
+// Settings › Sounds held everything it did — the switch and each tone's volume
+// — one press of the gear away, so the bar carried two doors to the same three
+// controls. The three survivals above still hold and are still pinned here: M
+// toggles from anywhere, now with no click that disagrees with it; the
+// contours; the bounds and the keys. What the popover's own cases pinned — a
+// disclosure button, its non-modal dialog, the outside press, its tooltip —
+// went with it, and the switch and the volumes are pinned where they live now.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -55,10 +64,8 @@ import {
 } from "../sound";
 import { createChimePlayer } from "../chime-player";
 import { readStored } from "../storage";
-import { finishSoundTitle } from "../provider-copy";
-import { ASSUMED } from "../providers";
 import { KEY_HELP } from "../key-help";
-import { openTags, withoutComments } from "./tsx-scan";
+import { withoutComments } from "./tsx-scan";
 import { clientText, sourceOf } from "./client-source";
 import { soundMenuSurface } from "./sound-menu-surface";
 import { sheetText } from "./sheet-source";
@@ -77,16 +84,13 @@ const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-
 // them is a positive match, so the wider text cannot make one pass falsely.
 // `app` stays those four files for the rest, including the one negative case.
 const client = clientText();
-const menu = withoutComments(read("components/SoundMenu.tsx"));
-// The popover kept the switch and the two volumes when Settings took the rest
-// (2026-10-07). The tone groups, the preview note and the custom sounds are
-// Settings › Sounds now, SoundsSection.tsx; the switch both of them draw is
-// SoundSwitch.tsx; and Settings mounts the section with its callbacks.
+// The tone groups, the preview note and the custom sounds are Settings ›
+// Sounds, SoundsSection.tsx, and since the popover went (2026-10-07) so are the
+// switch and the volumes it carried; the switch is SoundSwitch.tsx; and
+// Settings mounts the section with its callbacks.
 const soundsSection = withoutComments(read("components/SoundsSection.tsx"));
 const soundSwitch = withoutComments(read("components/SoundSwitch.tsx"));
 const settingsModal = withoutComments(read("components/SettingsModal.tsx"));
-// The outside-press rule SoundMenu shares with AnchoredPopover.
-const outsidePress = withoutComments(read("components/use-outside-press.ts"));
 // Each tone's row — its preview, volume and sound — moved to ToneSection.tsx,
 // and the volume on from there to VolumeRow.tsx.
 const toneSection = withoutComments(read("components/ToneSection.tsx"));
@@ -848,41 +852,32 @@ describe("the one press allowed past the switch", () => {
 
 // ── the shape, held to the source ───────────────────────────────────────────
 
-describe("the click opens the menu, and M still silences the deck", () => {
-  it("makes the topbar speaker a disclosure rather than a toggle", () => {
-    expect(app).toMatch(/onClick=\{\(\) => setSoundMenuOpen\(o => !o\)\}/);
-    const tags = openTags(read("components/TopbarRuns.tsx"), ["button"])
-      .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
-    expect(tags).toHaveLength(1);
-    expect(tags[0].ranAway).toBe(false);
-    expect(tags[0].attrs).toMatch(/aria-haspopup="dialog"/);
-    expect(tags[0].attrs).toMatch(/aria-expanded=\{soundMenuOpen\}/);
-    // "Pressed" would describe an action this button no longer performs.
-    expect(tags[0].attrs).not.toMatch(/aria-pressed/);
-    // An IDREF that resolves to nothing is a dangling pointer, and closed is
-    // exactly when there is nothing to point at — the rule the two panel
-    // toggles already follow.
-    expect(tags[0].attrs).toMatch(/aria-controls=\{soundMenuOpen \? "sound-menu" : undefined\}/);
-    expect(menu).toMatch(/id="sound-menu"/);
+describe("M silences the deck from anywhere, and the switch is in Settings › Sounds", () => {
+  it("draws no speaker on the topbar, and V opens Settings at Sounds instead", () => {
+    // The speaker's popover held the switch and the two volumes, and Settings ›
+    // Sounds holds both (below), so the bar lost a door rather than a control.
+    // The key that opened the popover opens the section, through the gear's
+    // own door.
+    const runs = withoutComments(read("components/TopbarRuns.tsx"));
+    expect(runs).not.toMatch(/Sound settings|SoundMenu|soundMenuOpen|setSoundMenuOpen/);
+    expect(app).not.toMatch(/setSoundMenuOpen|soundButtonRef/);
+    expect(app).toMatch(/if \(e\.key === "v" \|\| e\.key === "V"\) openSettings\("sounds"\);/);
   });
 
-  it("keeps M on the toggle, which is now the only one-press route to silence", () => {
-    // The half a redesign loses quietly. The key handler is untouched by #711
-    // and still guards on the same two conditions.
-    expect(app).toMatch(/providersRef\.current\.claude && soundOnRef\.current !== null/);
-    expect(app).toMatch(/activateSoundRef\.current\(e\.shiftKey\)/);
+  it("keeps M on the toggle, the one-press route to silence", () => {
+    // The half a redesign loses quietly. Guarded only by the state the switch
+    // waits for — the stored flag read back.
+    expect(app).toMatch(/if \(e\.key === "m" \|\| e\.key === "M"\) \{\s*if \(soundOnRef\.current !== null\) activateSoundRef\.current\(e\.shiftKey\);/);
     // And the sheet says so, in the words a user reads.
     const rows = KEY_HELP.flatMap(g => g.rows);
     expect(rows.find(r => /^m$/i.test(r.cap))!.action).toMatch(/sound on or off/);
-    // The click and M no longer agree, so the divergence is written down rather
-    // than left to be discovered — which is what #709 removed Shift+M for.
-    expect(rows.some(r => /^click$/i.test(r.cap) && /speaker/i.test(r.action))).toBe(true);
+    // The click that disagreed with M — it opened a menu where M toggled — is
+    // gone with the speaker, and so is the sheet's row that wrote the
+    // divergence down.
+    expect(rows.some(r => /speaker/i.test(r.action))).toBe(false);
   });
 
-  it("gives the mouse the switch back, inside the menu, through the same door", () => {
-    expect(app).toMatch(/onToggleSound=\{toggleSound\}/);
-    // One switch, drawn by the popover and by Settings › Sounds alike.
-    expect(menu).toMatch(/<SoundSwitch soundOn=\{soundOn\} onToggleSound=\{onToggleSound\} \/>/);
+  it("gives the mouse the switch in Settings › Sounds, through the same door", () => {
     expect(soundsSection).toMatch(/<SoundSwitch soundOn=\{soundOn\} onToggleSound=\{onToggleSound\} \/>/);
     expect(settingsModal).toMatch(/onToggleSound=\{toggleSound\}/);
     expect(soundSwitch).toMatch(/onClick=\{onToggleSound\}/);
@@ -890,6 +885,9 @@ describe("the click opens the menu, and M still silences the deck", () => {
     // and the same accent the deck gives figures it REPORTS, so the one control
     // at the top of this menu read as a readout — see toggle-state.test.ts.
     expect(soundSwitch).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
+    // And each tone's volume beside it, the other thing the popover carried.
+    expect(soundsSection).toMatch(/\{CHIME_ORDER\.map\(chime => \(\s*<ToneSection/);
+    expect(toneSection).toMatch(/<VolumeRow\b/);
   });
 
   it("leaves everything below the master switch live, and says why the preview still sounds", () => {
@@ -949,13 +947,6 @@ describe("the click opens the menu, and M still silences the deck", () => {
     expect(voice, "a voice-form control was disabled").not.toMatch(/\bdisabled\b/);
     expect(voice, "a voice-form control was dimmed").not.toMatch(/\bopacity\b/);
     expect(voice).not.toMatch(/\bsoundOn\b/);
-    // And the popover's two volumes, which are the same road from the
-    // speaker: nothing in them is keyed on the switch either.
-    const levels = menu.slice(menu.indexOf('<div className="sm-levels">'), menu.indexOf("sm-all-settings"));
-    expect(levels).toContain("<VolumeRow");                  // the right slice
-    expect(levels, "a popover volume was disabled").not.toMatch(/\bdisabled\b/);
-    expect(levels, "a popover volume was dimmed").not.toMatch(/\bopacity\b/);
-    expect(levels).not.toMatch(/\bsoundOn\b/);
   });
 
   it("gives the tooltip the exception and the description the reason", () => {
@@ -981,80 +972,21 @@ describe("the click opens the menu, and M still silences the deck", () => {
     expect(sheet).not.toMatch(/soundLevel|kh-volume/);
     expect(css).not.toMatch(/\.kh-volume|\.kh-sound/);
   });
-
-  it("says on the button what the press now does", () => {
-    // The press changed meaning, so a tooltip that only reported state would
-    // leave the user to find that out by pressing — the "gesture you could not
-    // discover" complaint, pointed the other way round.
-    for (const on of [true, false]) {
-      const title = finishSoundTitle(ASSUMED, { on, locked: false, prefs: DEFAULT_PREFS });
-      expect(title, `on=${on}`).toMatch(/Click to set the volume and the sound/);
-      expect(title, `on=${on}`).toMatch(/\(M\)/);
-    }
-    // It reports both volumes, and collapses them when they agree — which is
-    // the common case and the one a two-number sentence would complicate.
-    expect(finishSoundTitle(ASSUMED, { on: true, locked: false, prefs: DEFAULT_PREFS }))
-      .toMatch(/on at 50% —/);
-    expect(finishSoundTitle(ASSUMED, { on: true, locked: false, prefs: prefsOf([25, "two"], [75, "two"]) }))
-      .toMatch(/on at 25% and 75%/);
-    // A caller that has not read the store back yet gets the defaults, not
-    // "undefined%".
-    expect(finishSoundTitle(ASSUMED, { on: true, locked: false })).toMatch(/on at 50%/);
-  });
 });
 
-describe("the popover, built out of the parts the six dialogs already use", () => {
-  it("takes Escape, the Tab trap and the focus hand-back from the shared hook", () => {
-    // Not a second spelling: useModalDismiss owns where focus starts, where Tab
-    // may go, and where focus lands on close. A popover needs all three and has
-    // no reason to reimplement any of them.
-    // And registers as a popover, so the canvas letters stay live under it
-    // (#1175) — see modal-shortcut-gate.test.ts.
-    expect(menu).toMatch(/const dialogRef = useModalDismiss<HTMLDivElement>\(onClose, \{ popover: true \}\);/);
-    expect(menu).toMatch(/role="dialog"/);
-    expect(menu).toMatch(/aria-label="Sound settings"/);
-    // Non-modal on purpose: there is no scrim and nothing behind it is inert.
-    expect(menuSurface).not.toMatch(/aria-modal/);
-  });
-
-  it("adds the one rule a popover needs and a modal does not", () => {
-    // A modal has a backdrop to catch the click; this has nothing. pointerdown
-    // rather than click, so a press that starts outside dismisses even if the
-    // pointer travels back in before release — and in the capture phase, so a
-    // control that stops propagation cannot keep the menu open.
-    //
-    // The listener is use-outside-press.ts's now, shared with AnchoredPopover,
-    // so the phase and the event are read there and the menu is held to
-    // handing it the right two elements.
-    expect(outsidePress).toMatch(/window\.addEventListener\("pointerdown", onDown, true\)/);
-    expect(outsidePress).toMatch(/window\.removeEventListener\("pointerdown", onDown, true\)/);
-    // The two exclusions, and the opener is the one that matters: without it
-    // the outside-press closes the menu and the button's own onClick reopens it
-    // in the same gesture.
-    expect(outsidePress).toMatch(/if \(popover\?\.contains\(target\)\) return false;/);
-    expect(outsidePress).toMatch(/if \(opener\?\.contains\(target\)\) return false;/);
-    expect(menu).toMatch(/useOutsidePress\(dialogRef, \(\) => openerRef\.current, onClose\);/);
-    expect(app).toMatch(/openerRef=\{soundButtonRef\}/);
-    expect(app).toMatch(/ref=\{soundButtonRef\}/);
-  });
-
-  it("disables nothing, least of all the button that opened it (#620)", () => {
-    // A disclosure that disabled itself under its own press would drop focus
-    // off the very control the popover's Escape hands focus back to. The one
-    // refusal the menu does make — no more custom sounds at the ceiling
-    // (#1207) — is aria-disabled, which leaves the control focusable, and is
-    // the only spelling of the word allowed here.
+describe("Settings › Sounds, which is all of the menu now", () => {
+  it("disables nothing, and refuses at the ceiling without taking the control away (#620)", () => {
+    // The one refusal the section does make — no more custom sounds at the
+    // ceiling (#1207) — is aria-disabled, which leaves the control focusable,
+    // and is the only spelling of the word allowed here.
     expect(customSounds).toMatch(/"aria-disabled": true/);
     expect(menuSurface.replace(/"aria-disabled"/g, "")).not.toMatch(/disabled/);
-    const tags = openTags(read("components/TopbarRuns.tsx"), ["button"])
-      .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
-    expect(tags[0].attrs.replace(/\s+/g, " ")).toMatch(/\{\.\.\.selfPressProps\(false\)\}/);
-    expect(tags[0].attrs).not.toMatch(/disabled=/);
   });
 
-  it("is not remembered across a reload, because a popover is not a setting", () => {
-    expect(app).toMatch(/const \[soundMenuOpen, setSoundMenuOpen\] = useState\(false\);/);
-    expect(app).not.toMatch(/soundMenuOpen.*localStorage|localStorage.*soundMenuOpen/);
+  it("is not remembered across a reload, because an open dialog is not a setting", () => {
+    const door = withoutComments(read("use-settings-menus.ts"));
+    expect(door).toMatch(/const \[settings, setSettings\] = useState<SettingsDoor>\(SETTINGS_CLOSED\);/);
+    expect(door).not.toMatch(/localStorage|writeStored|readStored/);
   });
 });
 
@@ -1125,16 +1057,9 @@ describe("App owns the settings, the write and the round trip", () => {
   });
 
   it("gives the menu everything it needs and nothing it does not", () => {
-    // The run that mounts the popover is SettingsRun, which App.tsx hands the
-    // switch, the tone settings and the menus' state whole. Settings › Sounds,
-    // which took the rest, is mounted by SettingsModal with the same hooks.
-    expect(withoutComments(read("App.tsx"))).toMatch(/<SettingsRun\b[^>]*\bsound=\{sound\} tones=\{tones\}[^>]*\bmenus=\{menus\}/);
-    for (const prop of [
-      /soundOn=\{soundOn === true\}/, /onToggleSound=\{toggleSound\}/, /prefs=\{tonePrefs\}/,
-      /onLevel=/, /openerRef=/, /onClose=/, /onAllSettings=/,
-    ]) {
-      expect(app, String(prop)).toMatch(prop);
-    }
+    // Settings › Sounds is mounted by SettingsModal with the hooks App owns;
+    // the topbar run hands it nothing since the popover went.
+    expect(withoutComments(read("App.tsx"))).not.toMatch(/<SettingsRun\b[^>]*\b(?:sound|tones)=/);
     for (const prop of [
       /soundOn=\{soundOn === true\}/, /onToggleSound=\{toggleSound\}/, /prefs=\{tonePrefs\}/,
       /onLevel=/, /onFigure=/, /onPreview=/,

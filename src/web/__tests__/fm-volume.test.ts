@@ -74,7 +74,7 @@ describe("the Claude FM volume preference", () => {
     expect(row).toContain('className="sm-read"');
     expect(row).toContain('"--sm-level"');
     expect(row).toContain("onChange={e => onLevel(Number(e.target.value))}");
-    // Native, for the same reasons SoundMenu's is: the arrows, Home and End and
+    // Native, for the same reasons the tones' volumes are: the arrows, Home and End and
     // the announced percentage are the browser's to give.
     expect(row).toContain('type="range"');
   });

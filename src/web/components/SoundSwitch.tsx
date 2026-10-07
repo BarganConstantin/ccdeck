@@ -1,10 +1,9 @@
-// The deck's sound switch, as a control: one switch, drawn in two places.
+// The deck's sound switch, as a control.
 //
-// Settings › Sounds holds it with everything the tones can be set to, and the
-// speaker's quick popover holds it beside the two volumes, because turning the
-// sound off is the thing that popover is opened for most. Both draw this, so
-// there is one switch in the source and one door behind it — onToggleSound is
-// use-sound-switch.ts's toggle, the one M reaches too.
+// Settings › Sounds holds it above everything the tones can be set to. It was
+// drawn in the topbar speaker's quick popover as well, until the speaker left
+// the bar (2026-10-07). One switch in the source and one door behind it —
+// onToggleSound is use-sound-switch.ts's toggle, the one M reaches too.
 import { useId } from "react";
 
 interface Props {
@@ -13,9 +12,8 @@ interface Props {
 }
 
 export default function SoundSwitch({ soundOn, onToggleSound }: Props) {
-  // Its own ids wherever it is drawn: the popover and Settings are never up
-  // together, but an id that two mounts could share is a name that could
-  // resolve to the wrong one.
+  // Its own ids wherever it is drawn: an id that two mounts could share is a
+  // name that could resolve to the wrong one.
   const labelId = useId();
   return (
     <div className="sm-setting">

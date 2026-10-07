@@ -1,6 +1,6 @@
 // A volume, as a slider with its reading: the row each tone's section in
-// Settings › Sounds draws, the two the quick sound popover draws, and the one
-// Settings › Music & character borrows for Claude FM.
+// Settings › Sounds draws, and the one Settings › Music & character borrows
+// for Claude FM.
 //
 // Lifted out of ToneSection.tsx. The Appearance menu had copied the row whole —
 // `.sm-row`, the native range, the `--sm-level` fill arithmetic and the
@@ -15,8 +15,8 @@ interface Props {
   /** The range's id, which the label points at. */
   id: string;
   /** The words the label says. "Volume" wherever the row sits under the name
-   *  of the thing it is the volume of; the quick sound popover's two rows have
-   *  no such heading, so each says which tone it sets. */
+   *  of the thing it is the volume of, which is everywhere it is drawn now; a
+   *  row with no such heading over it says what it sets. */
   label?: string;
   /** The level, LEVEL_MIN to LEVEL_MAX in steps of LEVEL_STEP. */
   value: number;

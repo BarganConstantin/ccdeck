@@ -44,7 +44,7 @@ const RUNS: { run: El; controls: El[][] }[] = [
   { run, controls: [[button()], [button()], [button("tb-fold")]] },
   { run, controls: [[button()], [button()], [button("bw-btn", "tb-fold")]] },
   { run: utility, controls: [
-    [el("div", ["sound-slot"]), button()], [button()],                                    // Sound, Settings
+    [button()],                                                                          // Settings
     [button("tb-fold")], [button("tb-more")],
   ] },
 ];
