@@ -149,7 +149,19 @@
   text-overflow: ellipsis;
   max-width: 160px;
 }
+/* One line at every card width, and one width while it counts. Past a hundred
+   minutes the clock read "104m 54s", the header of a card at its widest had no
+   room for it beside the context donut, and it broke onto a second line that
+   made the card taller. It is never wrapped and never shrunk now: the label
+   beside it, which has its tooltip, gives way instead. Seven characters hold
+   every reading under a hundred hours (duration.ts), so the box keeps one width
+   from "2s" to "99h 59m" and a card does not change size as the minutes turn
+   over; the figures are tabular in a monospaced face, so 1ch is one digit. */
 .agent-node .time {
+  flex: none;
+  min-width: 7ch;
+  text-align: right;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--muted);
@@ -326,6 +338,9 @@
 .canvas-wrap[data-lod="overview"] .lod-face.recap-face {
   display: flex;
   justify-content: flex-start;
+  /* The overview's 1px under the mark row at both distances: at the first
+     compact step of most windows it is what lets a second line in whole. */
+  gap: 1px;
   padding: 5px 8px;
   background: var(--panel);
   --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
@@ -333,17 +348,37 @@
 /* A note has no stripe: its hue is its edge, as it is at the full size. */
 .lod-face.recap-face::before { display: none; }
 .recap-face .recap-note-mark { flex: none; font-size: 11px; }
+/* The age is a value, so like a waiting row's duration it is never cut: cut
+   to fit, "39m ago" read "3". It is drawn whole or not at all. The mark row
+   wraps, and is one line tall with the second clipped, so an age the face is
+   too narrow for goes onto that hidden line and nothing under the row moves.
+   Clipped downward only: a mark wider than the narrowest face still runs into
+   its padding as it did. And left-aligned at every width, where the card's
+   narrowest face centres its mark: that is a lone shape, and this one is a
+   word that sits at the left at every other distance. The moment the age
+   stands for is its tooltip, with the age above it. */
+.recap-face .lod-id {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-start;
+  height: 15px;
+  overflow-x: visible;
+  overflow-y: clip;
+}
+.canvas-wrap[data-lod="overview"] .recap-face .lod-id { height: 14px; }
 .recap-face-age {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  flex: none;
   font-size: 11px;
   font-weight: 400;
   color: var(--muted);
 }
-/* As many lines of the recap as the face has room for, read off its content
-   box: the mark row is 15px and a line of the text 14px after a 2px gap. */
+/* As many lines of the note as the face has room for, read off its content
+   box: the mark row is 15px and a line of the text 14px after the face's 1px
+   gap, so N lines take 16 + 14N px and each tier starts at exactly that
+   height. Tiers that started early clamped two lines into a box short of
+   them, and the flex column took the difference off the second line's
+   letters. The overview's mark row is a pixel shorter, so a tier that fits
+   here fits there. */
 .recap-face-text {
   margin: 0;
   overflow-wrap: anywhere;
@@ -353,10 +388,10 @@
   line-clamp: 4;
   overflow: hidden;
 }
-@container lod (max-height: 72px) { .recap-face-text { -webkit-line-clamp: 3; line-clamp: 3; } }
-@container lod (max-height: 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
-@container lod (max-height: 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
-@container lod (max-height: 30px) { .recap-face-text { display: none; } }
+@container lod (height < 72px) { .recap-face-text { -webkit-line-clamp: 3; line-clamp: 3; } }
+@container lod (height < 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
+@container lod (height < 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
+@container lod (height < 30px) { .recap-face-text { display: none; } }
 .recap-note-head {
   display: flex;
   align-items: center;
@@ -390,6 +425,39 @@
   -webkit-line-clamp: 8;
   line-clamp: 8;
   overflow: hidden;
+}
+
+/* The same note while it says something other than the recap (session-note.ts):
+   what the session is doing, or what came of a background job. That text is
+   rewritten every few seconds of a running turn, so it holds exactly three
+   lines — the reply line's cap fits in them — and the note keeps one height
+   from the first sentence to the last. A note that grew and shrank with each
+   sentence would push its neighbours on the canvas about as it did. */
+.recap-note.is-status .recap-note-text {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  min-height: calc(3 * 1.5em);
+}
+/* A question, a failure and a finished job wear the hue the session list's line
+   gives them, toned toward the panel in dark the same way. "now" and "last"
+   keep the session's own colour, as the recap does. */
+.recap-note.status-needs .recap-note-mark { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
+.recap-note.status-failed .recap-note-mark { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
+.recap-note.status-done .recap-note-mark { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
+:root[data-theme="light"] .recap-note.status-needs .recap-note-mark { color: var(--warn); }
+:root[data-theme="light"] .recap-note.status-failed .recap-note-mark { color: var(--err); }
+:root[data-theme="light"] .recap-note.status-done .recap-note-mark { color: var(--ok); }
+/* The dot in front of a status note's word: a little smaller than the ※, which
+   is drawn to the same box with nothing at its centre. */
+.note-glyph { transform: scale(0.85); }
+/* Claude Code's guess at the answer, under the question: metadata tier, one line. */
+.recap-note-reply {
+  margin: 6px 0 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--muted);
 }
 
 /* The "this deck cannot see approval prompts on this session" row (#398).

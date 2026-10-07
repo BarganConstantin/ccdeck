@@ -9,6 +9,7 @@
 //
 //   graph-state.ts         the state, and the keys it is filed under
 //   agent-attribution.ts   which agent an event belongs to; roots and subagents
+//   parked-enrichment.ts   the server's scans that reach a session before its card
 //   session-lifecycle.ts   SessionStart, prompts, Stop and SessionEnd
 //   subagent-lifecycle.ts  SubagentStart and SubagentStop
 //   tool-calls.ts          a call's start and outcome, and its history window
@@ -20,6 +21,7 @@
 import { extractModel } from "./payload-model";
 import { initialState, rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { explicitSubagentKey, noteKeyedSubagent, resolveOwner } from "./agent-attribution";
+import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
 import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, noteSessionHeard } from "./session-lifecycle";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
 import { applyPreToolUse, applyToolOutcome, returnLentCalls } from "./tool-calls";
@@ -121,7 +123,9 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
 
   // The server's transcript scans enrich the root and stop here: none of them
   // is the session's own traffic, so none is attributed to an owner, stamps a
-  // provider or has a model read off it. See transcript-events.ts.
+  // provider or has a model read off it. See transcript-events.ts. One whose
+  // session has no card yet waits for the card instead — parked-enrichment.ts.
+  if (parkEnrichment(state, name, p, sessionId)) return state;
   switch (name) {
     case "ModelObserved": applyModelObserved(state, p, sessionId); return state;
     case "ContextObserved": applyContextObserved(state, p, sessionId); return state;
@@ -134,6 +138,9 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   }
 
   const owner = resolveOwner(state, p, now);
+  // The card exists now, if this event made it: what reached the session before
+  // it lands first, so everything this event says, being newer, lands on top.
+  adoptParkedEnrichment(state, sessionId);
   // A subagent naming itself on its own traffic settles, for the rest of the
   // session, that an event naming nobody is the root's — and the root takes
   // back what the stack lent its subagents before this said so. See

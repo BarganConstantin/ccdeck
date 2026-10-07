@@ -6,6 +6,7 @@
 // Each one mutates the state in place and answers whether anything changed,
 // through `bump`, so a sweep that changed something is also one every memo can
 // see.
+import { forgetParkedEnrichment } from "./parked-enrichment";
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { releaseToolIds, settleUnanswered } from "./tool-calls";
 import type { AgentNodeData } from "./types";
@@ -108,6 +109,9 @@ export function pruneOldAgents(
     // #443: the agent's in-flight ids go with it. See `releaseToolIds`.
     releaseToolIds(state, a);
     state.agents.delete(id);
+    // A root never leaves before its subagents, so this is the session going:
+    // and nothing it was waiting for may outlive it.
+    if (a.kind === "root") forgetParkedEnrichment(state, a.sessionId);
     touched.add(a.sessionId);
     removed++;
   };
@@ -213,6 +217,8 @@ export function pruneDoneSessions(
       if (a) releaseToolIds(state, a);
       state.agents.delete(id);
     }
+    // Enrichment still waiting for this session's card goes with it.
+    forgetParkedEnrichment(state, sid);
     // A model still waiting for its subagent's Start goes with the session: it
     // is filed under that subagent's id, and every one of those starts with
     // the session's own prefix.

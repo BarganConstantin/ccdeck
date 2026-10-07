@@ -338,7 +338,9 @@ describe("the session header pill offers only the gesture it has", () => {
 
   it("is a button with a click and nothing else", () => {
     expect(label.startsWith("<button")).toBe(true);
-    expect(label).toContain("onClick={() => focusSession(c.sessionId)}");
+    // The press goes to the session at once, or after a double-click's length
+    // under reduced motion (cluster-label-click.test.ts); a click either way.
+    expect(label).toContain("onClick={e => pressSession(e, c.sessionId)}");
     for (const drag of ["onPointerDown", "onMouseDown", "onDragStart", "onTouchStart", "draggable"])
       expect(label, `the label grew a ${drag}`).not.toContain(drag);
   });

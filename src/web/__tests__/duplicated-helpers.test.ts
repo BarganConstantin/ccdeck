@@ -247,9 +247,11 @@ describe("the elapsed clock", () => {
     return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
   }
 
-  it("prints what BOTH surfaces printed, for every span of a second or more", () => {
+  it("prints what BOTH surfaces printed, for every span from a second to a hundred minutes", () => {
+    // A hundred minutes and up read as hours since (card-clock-one-line), on
+    // both surfaces at once: they still call this one function.
     const moved: Array<{ ms: number; was: string; now: string }> = [];
-    for (let ms = 1000; ms <= 3 * 3600_000; ms += 7) {
+    for (let ms = 1000; ms < 100 * 60_000; ms += 7) {
       const was = detailInline(0, undefined, ms), is = elapsed(0, undefined, ms);
       if (was !== is) moved.push({ ms, was, now: is });
     }

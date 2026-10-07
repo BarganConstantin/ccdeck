@@ -62,6 +62,8 @@ export default function LanPeek({ anchorId, id, rows, onHold, onLet }: {
     const el = ref.current;
     const anchor = document.getElementById(anchorId);
     if (!el || !anchor) return;
+    // Measured at its natural height, as SessionPeek's card is and for its reason.
+    el.style.maxHeight = "";
     const p = placeBeside(anchor.getBoundingClientRect(), { width: el.offsetWidth, height: el.offsetHeight },
       { width: window.innerWidth, height: window.innerHeight });
     el.style.top = `${p.top}px`;
@@ -90,7 +92,7 @@ export default function LanPeek({ anchorId, id, rows, onHold, onLet }: {
           {shown.map(r => (
             <span key={`${r.kind}:${r.fp}`} className="ap-peek-who">
               <i className="ap-nav-live" aria-hidden />
-              <span>{r.name}{r.via === "tailscale" && <span className="ap-lan-via"> · Tailscale</span>}</span>
+              <span title={r.via === "tailscale" ? `${r.name} · Tailscale` : r.name}>{r.name}{r.via === "tailscale" && <span className="ap-lan-via"> · Tailscale</span>}</span>
             </span>
           ))}
         </div>

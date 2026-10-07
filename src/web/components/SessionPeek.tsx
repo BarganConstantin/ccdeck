@@ -11,9 +11,11 @@ import { sessionDisplay } from "../session-display";
 import { useNow } from "../use-now";
 import { branchLong, stateMarkKind, type BranchSummary } from "../node-face";
 import { promptTime } from "../relative-time";
-import type { AgentNodeData, SessionRecap } from "../types";
+import type { AgentNodeData } from "../types";
 import { stateLabel, waitingLabel } from "../agent-copy";
-import { RecapMark } from "./RecapMark";
+import { codexApprovalTell } from "../codex-approval";
+import { noteSource, noteTag, type SessionNote } from "../session-note";
+import { NoteMark } from "./RecapMark";
 import { AlertMark, StateMark } from "./StateMark";
 
 /**
@@ -84,10 +86,11 @@ export function hidePeek(id?: string): void {
   emit();
 }
 
-/** What a recap note's peek needs: the recap, the session's hue for its mark,
- *  and the name of the session it speaks for. */
+/** What a session note's peek needs: the note — Claude Code's recap, or what
+ *  the session is doing or did (session-note.ts) — the session's hue for its
+ *  mark, and the name of the session it speaks for. */
 export interface PeekRecap {
-  recap: SessionRecap;
+  note: SessionNote;
   hue: number;
   sessionLabel?: string;
 }
@@ -143,6 +146,10 @@ function usePlacedBeside(anchor: Element, bounds: () => { width: number; height:
   const place = useCallback(() => {
     const el = ref.current;
     if (!el || !anchor.isConnected) return;
+    // Measured at its natural height: measured with last time's cap on, a
+    // capped card fits, loses its cap, and runs past the window until the next
+    // render caps it again.
+    el.style.maxHeight = "";
     const p = placeBeside(anchor.getBoundingClientRect(), { width: el.offsetWidth, height: el.offsetHeight }, bounds());
     el.style.top = `${p.top}px`;
     el.style.left = `${p.left}px`;
@@ -154,27 +161,30 @@ function usePlacedBeside(anchor: Element, bounds: () => { width: number; height:
 }
 
 /**
- * A RECAP NOTE, READ WHOLE WITHOUT ZOOMING TO IT.
+ * A SESSION NOTE, READ WHOLE WITHOUT ZOOMING TO IT.
  *
  * The note is a node beside its card and shrinks with the canvas like one; at
  * a distance its face has room for its mark and a line or two. This is the
- * rest: Claude Code's sentence entire, how long ago it was written, and whose
- * session it is — the same text the note and the detail panel carry, so again
- * nothing that exists only here.
+ * rest: the sentence entire, how long ago it was written, who wrote it and
+ * whose session it is — the same text the note and the detail panel carry, so
+ * again nothing that exists only here.
  */
 function RecapPeek({ r, anchor, bounds }: { r: PeekRecap; anchor: Element; bounds: () => { width: number; height: number } }) {
   const ref = usePlacedBeside(anchor, bounds);
   const now = useNow(30_000);
-  const written = promptTime(r.recap.at, now);
+  const note = r.note;
+  const isRecap = note.kind === "recap";
+  const written = promptTime(note.at, now);
   return createPortal(
     <div ref={ref} className="ap-peek node-peek recap-peek" role="tooltip" id="node-peek"
       style={{ "--session-hue": r.hue } as React.CSSProperties}>
       <div className="node-peek-head">
-        <span className="recap-peek-mark"><RecapMark />recap</span>
+        <span className="recap-peek-mark"><NoteMark recap={isRecap} />{noteTag(note.kind)}</span>
         <span className="node-peek-time" title={written.title}>{written.label}</span>
       </div>
-      {r.sessionLabel && <div className="node-peek-kind"><span>Claude Code's recap of {r.sessionLabel}</span></div>}
-      <p className="recap-peek-text">{r.recap.text}</p>
+      {r.sessionLabel && <div className="node-peek-kind"><span>{noteSource(note)} · {r.sessionLabel}</span></div>}
+      <p className="recap-peek-text">{note.text}</p>
+      {note.reply && <p className="recap-peek-text">Suggested reply: “{note.reply}”</p>}
       <p className="node-peek-hint">Click to go to the session · double-click for its details</p>
     </div>,
     document.body,
@@ -198,6 +208,9 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   const cost = agentCost(a, now).total;
   const tokens = a.usage.inputTokens + a.usage.outputTokens;
   const alarm = a.kind === "root" && isAlarming(a.waiting);
+  // What a live Codex session says in the waiting line's slot, as its card does:
+  // the deck cannot see its approval prompts (codex-approval.ts).
+  const blind = codexApprovalTell(a);
   const kind = a.kind === "root" ? "session" : parentLabel ? `subagent of ${parentLabel}` : "subagent";
   const facts = [
     `${a.toolCount} ${a.toolCount === 1 ? "tool" : "tools"}`,
@@ -209,7 +222,7 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   return createPortal(
     <div ref={ref} className="ap-peek node-peek" role="tooltip" id="node-peek">
       <div className="node-peek-head">
-        <span className="node-peek-name">{a.label}</span>
+        <span className="node-peek-name" title={a.label}>{a.label}</span>
         <span className="node-peek-time">{a.synthetic ? "≥ " : ""}{elapsed(a.startedAt, a.endedAt, now)}</span>
       </div>
       <div className="node-peek-kind">
@@ -219,14 +232,16 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
         <span>{kind}</span>
         {a.model ? <span>{shortModel(a.model)}</span> : null}
       </div>
-      {a.kind === "root" && naming.face && <p className="node-peek-title">{naming.face}</p>}
+      {a.kind === "root" && naming.face && <p className="node-peek-title" title={naming.face}>{naming.face}</p>}
       {a.kind === "root" && a.waiting && (
         <p className={`node-peek-wait${alarm ? " warn" : ""}`}>
           {alarm && <AlertMark />}
-          <span>{waitingLabel(a.waiting)}</span>
-          <b>{elapsed(a.waiting.since, undefined, now)}</b>
+          {/* The duration first, so it floats at the end of the first line and
+              the clamp, which cuts at the end of the text, never reaches it. */}
+          <span className="node-peek-said" title={waitingLabel(a.waiting)}><span className="node-peek-since"><b>{elapsed(a.waiting.since, undefined, now)}</b></span>{waitingLabel(a.waiting)}</span>
         </p>
       )}
+      {blind && <p className="node-peek-blind"><span className="approval-blind-dot" aria-hidden />{blind.label}</p>}
       <p className="node-peek-facts">
         {facts}
         {failed > 0 && <span className="node-peek-failed"> · {failed} failed</span>}

@@ -354,7 +354,10 @@ describe("the canvas wiring the pure halves depend on", () => {
     expect(app).not.toMatch(/rf\.fitView\(\{[^}]*nodes: \[/);
     expect(clusters).not.toContain("rf.fitView(");
     expect(app).toMatch(/selectAgent\(id, e\.shiftKey, false\);\s*if \(e\.shiftKey\) return;/);
-    expect(app).toMatch(/if \(detailOpen\) setDetailOpen\(false\);\s*if \(detailShown\) \{\s*window\.setTimeout\(\(\) => \{ try \{ focusAgent\(id\); \} catch \{\} \}, 80\);\s*\} else \{\s*focusAgent\(id\);/);
+    // Under reduced motion the click's jump is held for a double-click
+    // (focus-hold.ts), and reaches focusAgent from there.
+    expect(app).toMatch(/if \(detailOpen\) setDetailOpen\(false\);\s*(?:\/\/[^\n]*\n\s*)*if \(prefersReducedMotion\(\)\) \{\s*focusHold\.hold\(id\);\s*\} else if \(detailShown\) \{\s*window\.setTimeout\(\(\) => \{ try \{ focusAgent\(id\); \} catch \{\} \}, 80\);\s*\} else \{\s*focusAgent\(id\);/);
+    expect(app).toMatch(/focus: id => focusRef\.current\(id\)/);
     expect(app).toMatch(/if \(e\.key === "z" \|\| e\.key === "Z"\) \{\s*if \(primarySelectedIdRef\.current\) focusAgent\(primarySelectedIdRef\.current\);/);
   });
 
@@ -379,7 +382,7 @@ describe("the canvas wiring the pure halves depend on", () => {
     expect(app).toContain("recapFor={peekRecap}");
     const peek = read("../components/SessionPeek.tsx");
     expect(peek).toContain('if (r) return <RecapPeek key={t.id} r={r} anchor={t.anchor} bounds={bounds} />;');
-    expect(peek).toContain('<p className="recap-peek-text">{r.recap.text}</p>');
+    expect(peek).toContain('<p className="recap-peek-text">{note.text}</p>');
   });
 
   it("marks a blocked session on the one label that is 1× at every zoom", () => {

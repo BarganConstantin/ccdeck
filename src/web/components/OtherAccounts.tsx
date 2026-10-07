@@ -53,6 +53,8 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
     const el = ref.current;
     const anchor = document.getElementById(anchorId);
     if (!el || !anchor) return;
+    // Measured at its natural height, as SessionPeek's card is and for its reason.
+    el.style.maxHeight = "";
     const p = placeBeside(anchor.getBoundingClientRect(), { width: el.offsetWidth, height: el.offsetHeight },
       { width: window.innerWidth, height: window.innerHeight });
     el.style.top = `${p.top}px`;
@@ -80,7 +82,7 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
       <div className="ap-peek-list">
         {shown.map(p => (
           <span key={p.key} className="ap-peek-who ap-fold-who">
-            <span className="ap-fold-name">{p.name}</span>
+            <span className="ap-fold-name" title={p.name}>{p.name}</span>
             {/* The number is what makes this card a choice rather than a list.
                 A name nothing has ever been collected for gets no number and no
                 guess — see foldPeek on why it also sorts last. */}
