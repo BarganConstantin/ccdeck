@@ -149,8 +149,11 @@ export function peerView({ row, source, status, accounts, now }: {
   const otherThere = !!current && "other" in current;
   // A deck that calls in sends its list with every call now, so its lanes are
   // drawn from what it said like anybody else's; an older one sends none.
+  // This deck's half is what it offers THAT deck, which is less than what is
+  // ticked here for a deck the accept switch paired — see notOffered.
+  const offering = (status.shared ?? []).filter(key => !peer?.notOffered?.includes(key));
   const lanes = paired
-    ? exchangeLanes(offers?.accounts ?? null, accounts, status.shared ?? [], theirKey)
+    ? exchangeLanes(offers?.accounts ?? null, accounts, offering, theirKey)
     : [];
   // A login this deck advertises and cannot honour, with nothing coming the
   // other way to repair it: every paired deck is promised something that
