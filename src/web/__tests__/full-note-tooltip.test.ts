@@ -5,8 +5,9 @@
 // was cut at its third line, the note's only tooltip said who wrote it and not
 // what, and the hover preview that holds the whole text does not open at that
 // zoom. So the cut text had nowhere to be read but the detail panel. The note's
-// text now carries itself on hover, the way the zoomed-out face's line does
-// (faceTitle): the text, then who wrote it. The suggested reply under a
+// text now carries itself on hover (faceTitle): the text, then who wrote it.
+// The zoomed-out face's line does not, since the hover card opens over it with
+// the same words (note-face-one-hover.test.ts). The suggested reply under a
 // question, cut to one line with an ellipsis, carries its whole line too, on
 // the canvas and in the session list.
 import { describe, it, expect } from "vitest";
@@ -25,9 +26,12 @@ describe("the note at the full card's size", () => {
     expect(body(".recap-note-reply")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 
-  it("carries its whole text on hover, with who wrote it under it, as its face does", () => {
+  it("carries its whole text on hover, with who wrote it under it, where no hover card opens", () => {
     expect(node).toContain('<p className="recap-note-text" title={faceTitle(note.text, tip)}>{note.text}</p>');
-    expect(node).toContain('<p className="recap-face-text" title={faceTitle(note.text, tip)}>{note.text}</p>');
+    // Its face does not: the hover card that opens over the face says it, and a
+    // title there put the browser's tooltip on top of the card, the same words
+    // twice. One hover affordance per element.
+    expect(node).toContain('<p className="recap-face-text">{note.text}</p>');
     // What the hover says for a line the deck read off the newest reply, and
     // for a recap, which names itself in its mark and has no tooltip of its own.
     expect(faceTitle("Now I'll make the invoice preview pick up the customer's locale", "From the session's newest reply"))
