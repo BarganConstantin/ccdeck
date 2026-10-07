@@ -221,6 +221,121 @@
   --gv-lane-3-node-dim: color-mix(in srgb, var(--gv-lane-3) 82%, var(--panel));
   --gv-lane-4-node-dim: color-mix(in srgb, var(--gv-lane-4) 82%, var(--panel));
   --gv-lane-5-node-dim: color-mix(in srgb, var(--gv-lane-5) 82%, var(--panel));
+  /* FORK LOOK. The git view's second look draws Fork's own window: these
+     are its colours, measured off Fork for macOS (dark) and its light
+     screenshots, used only under .gv-wide[data-look="fork"]. Where Fork's
+     own colour misses a contrast floor the deck holds, the floor-safe value
+     is the one here. */
+  /* Fork look: surfaces */
+  --fk-chrome: #1e1e1e;
+  --fk-list: #1e1e1e;
+  --fk-sidebar: #1b1b1b;
+  --fk-sidebar-edge: rgba(255, 255, 255, 0.15);
+  --fk-sidebar-shadow: 0 0 12px rgba(0, 0, 0, 0.25), 0 0 36px rgba(0, 0, 0, 0.18);
+  --fk-sidebar-select: #464646;
+  --fk-sidebar-line: #3a3a3a;
+  --fk-sidebar-field-line: #828282;
+  --fk-sidebar-field: var(--fk-sidebar);
+  --fk-field: #363636;
+  --fk-tool-hover: rgba(255, 255, 255, 0.1);
+  --fk-tool-press: rgba(255, 255, 255, 0.16);
+  --fk-inspector-bar: #343434;
+  --fk-inspector-pill: #4f4f4f;
+  --fk-inspector: #282828;
+  --fk-tree: #1e1e1e;
+  --fk-diff: #282828;
+  --fk-raised: #2b2b2b;
+  --fk-select: #0058d0;
+  --fk-select-idle: #464646;
+  --fk-select-ink: #ffffff;
+  --fk-select-idle-ink: #ffffff;
+  --fk-tree-hover: rgba(222, 222, 222, 0.08);
+  --fk-banner: #2b2b2b;
+  --fk-scroll-thumb: #7c7c7c;
+  --fk-scroll-thumb-hover: #a5a5a5;
+  /* lines */
+  --fk-line: #3f3f3f;
+  --fk-line-soft: #3c3c3c;
+  --fk-line-chrome: #242424;
+  --fk-tool-sep: #3c3c3c;
+  /* text */
+  --fk-text: #dedede;
+  --fk-text-strong: #e6e6e6;
+  --fk-text-2: #a1a1a1;
+  --fk-text-muted: #939393;
+  --fk-chrome-label: #9f9f9f;
+  --fk-chrome-icon: #e8e8e8;
+  --fk-branch-line: #b5b5b5;
+  --fk-tab-ink: #a7a7a7;
+  --fk-tab-ink-active: #e5e5e5;
+  --fk-sidebar-text: #ffffff;
+  --fk-sidebar-glyph: #9b9b9b;
+  --fk-sidebar-glyph-sel: color-mix(in srgb, #ffffff 55%, var(--fk-sidebar-select));
+  --fk-sidebar-check: #e2e2e2;
+  --fk-sidebar-count: #e9e9e9;
+  --fk-sidebar-dim: #858585;
+  --fk-return-mark: #9d9d9d;
+  --fk-link: #009fff;
+  /* accent, focus, marks */
+  --fk-accent: #0a84ff;
+  --fk-focus: #3d95ff;
+  --fk-unpushed-dot: #0491fe;
+  --fk-incoming-dot: #787878;
+  --fk-warn: #ffc500;
+  /* lanes, in the order Fork hands them out (light: darkened to hold 3:1 on white) */
+  --fk-lane-0: #fa9204;
+  --fk-lane-1: #fecb00;
+  --fk-lane-2: #ff3a31;
+  --fk-lane-3: #a2835d;
+  --fk-lane-4: #64da3a;
+  --fk-lane-5: #2f9df4;
+  /* ref badges (--lane is set per row) */
+  --fk-ref-fill: color-mix(in srgb, var(--lane) 30%, var(--fk-list));
+  --fk-ref-edge: var(--lane);
+  --fk-ref-ink: #ffffff;
+  --fk-ref-cell: #1e1e1e;
+  --fk-ref-cell-ink: #bdbdbd;
+  --fk-ref-neutral-fill: #505050;
+  --fk-ref-neutral-edge: #bdbdbd;
+  --fk-ref-neutral-ink: #f4f4f4;
+  /* diff (dark word tints and comment tone darkened to hold 4.5:1) */
+  --fk-diff-add: #3a5c40;
+  --fk-diff-del: #633e3e;
+  --fk-diff-add-word: #2f6b37;
+  --fk-diff-del-word: #8f3a40;
+  --fk-diff-gutter: var(--fk-diff);
+  --fk-diff-ln: #9e9e9e;
+  --fk-diff-gutter-line: #3c3c3c;
+  --fk-diff-hunk-ink: #959595;
+  --fk-diff-hunk-bg: transparent;
+  --fk-diff-sign-add: #64da3a;
+  --fk-diff-sign-del: #ff6b63;
+  --fk-diff-ruler-add: #45854b;
+  --fk-diff-ruler-del: #953d3a;
+  --fk-syn-kw: #649bd1;
+  --fk-syn-str: #c99480;
+  --fk-syn-com: #959ba5;
+  --fk-syn-mod: #ec6390;
+  /* file status, file icons, avatars */
+  --fk-st-modified: #ffcc00;
+  --fk-st-added: #20c537;
+  --fk-st-untracked: #20c537;
+  --fk-st-deleted: #fe3b31;
+  --fk-st-renamed: #b54eee;
+  --fk-st-conflict: #f5ab00;
+  --fk-st-glyph: rgba(255, 255, 255, 0.88);
+  --fk-st-rim: none;
+  --fk-folder-top: #5ed4ff;
+  --fk-folder-bottom: #1b92cd;
+  --fk-folder-back: #2f9fd9;
+  --fk-page: #f2f2f2;
+  --fk-page-fold: #d4d4d4;
+  --fk-page-line: #a4a4a4;
+  --fk-avatar-0: #d89939;
+  --fk-avatar-1: #bc67b9;
+  --fk-avatar-2: #53af75;
+  --fk-avatar-3: #52aaca;
+  --fk-avatar-4: #d57068;
   color-scheme: dark;
 }
 
@@ -405,6 +520,121 @@
   --gv-lane-3-node-dim: color-mix(in srgb, var(--gv-lane-3) 75%, var(--panel));
   --gv-lane-4-node-dim: color-mix(in srgb, var(--gv-lane-4) 75%, var(--panel));
   --gv-lane-5-node-dim: color-mix(in srgb, var(--gv-lane-5) 75%, var(--panel));
+  /* FORK LOOK. The git view's second look draws Fork's own window: these
+     are its colours, measured off Fork for macOS (dark) and its light
+     screenshots, used only under .gv-wide[data-look="fork"]. Where Fork's
+     own colour misses a contrast floor the deck holds, the floor-safe value
+     is the one here. */
+  /* Fork look: surfaces */
+  --fk-chrome: #f5f5f5;
+  --fk-list: #ffffff;
+  --fk-sidebar: #e2e2e2;
+  --fk-sidebar-edge: rgba(0, 0, 0, 0.12);
+  --fk-sidebar-shadow: 0 0 12px rgba(0, 0, 0, 0.14), 0 0 36px rgba(0, 0, 0, 0.1);
+  --fk-sidebar-select: #c9c9c9;
+  --fk-sidebar-line: #d0d0d0;
+  --fk-sidebar-field-line: #b8b8b8;
+  --fk-sidebar-field: #ffffff;
+  --fk-field: #e9e9e9;
+  --fk-tool-hover: rgba(0, 0, 0, 0.06);
+  --fk-tool-press: rgba(0, 0, 0, 0.1);
+  --fk-inspector-bar: #ffffff;
+  --fk-inspector-pill: #d9d9d9;
+  --fk-inspector: #ffffff;
+  --fk-tree: #ffffff;
+  --fk-diff: #ffffff;
+  --fk-raised: #f6f6f6;
+  --fk-select: #0063e1;
+  --fk-select-idle: #dcdcdc;
+  --fk-select-ink: #ffffff;
+  --fk-select-idle-ink: var(--fk-text);
+  --fk-tree-hover: rgba(38, 38, 38, 0.08);
+  --fk-banner: #f2f2f2;
+  --fk-scroll-thumb: #9a9a9a;
+  --fk-scroll-thumb-hover: #7a7a7a;
+  /* lines */
+  --fk-line: #e1e1e1;
+  --fk-line-soft: #e8e8e8;
+  --fk-line-chrome: #e1e1e1;
+  --fk-tool-sep: #d6d6d6;
+  /* text */
+  --fk-text: #262626;
+  --fk-text-strong: #1a1a1a;
+  --fk-text-2: #6e6e6e;
+  --fk-text-muted: #737373;
+  --fk-chrome-label: #5c5c5c;
+  --fk-chrome-icon: #3a3a3a;
+  --fk-branch-line: #4d4d4d;
+  --fk-tab-ink: #5c5c5c;
+  --fk-tab-ink-active: #1f1f1f;
+  --fk-sidebar-text: #262626;
+  --fk-sidebar-glyph: #6e6e6e;
+  --fk-sidebar-glyph-sel: #6e6e6e;
+  --fk-sidebar-check: #3a3a3a;
+  --fk-sidebar-count: #262626;
+  --fk-sidebar-dim: #8a8a8a;
+  --fk-return-mark: #7a7a7a;
+  --fk-link: #0068da;
+  /* accent, focus, marks */
+  --fk-accent: #007aff;
+  --fk-focus: #0062d6;
+  --fk-unpushed-dot: #007aff;
+  --fk-incoming-dot: #999999;
+  --fk-warn: #e0a100;
+  /* lanes, in the order Fork hands them out (light: darkened to hold 3:1 on white) */
+  --fk-lane-0: #c96e00;
+  --fk-lane-1: #a37f00;
+  --fk-lane-2: #d93a2b;
+  --fk-lane-3: #8a7454;
+  --fk-lane-4: #3f9a2a;
+  --fk-lane-5: #1f86c9;
+  /* ref badges (--lane is set per row) */
+  --fk-ref-fill: color-mix(in srgb, var(--lane) 16%, #ffffff);
+  --fk-ref-edge: color-mix(in srgb, var(--lane) 82%, #000000);
+  --fk-ref-ink: color-mix(in srgb, var(--lane) 28%, #141414);
+  --fk-ref-cell: #f4f4f4;
+  --fk-ref-cell-ink: #4d4d4d;
+  --fk-ref-neutral-fill: #ececec;
+  --fk-ref-neutral-edge: #8f8f8f;
+  --fk-ref-neutral-ink: #1f1f1f;
+  /* diff (dark word tints and comment tone darkened to hold 4.5:1) */
+  --fk-diff-add: #e1fee2;
+  --fk-diff-del: #ffe5e6;
+  --fk-diff-add-word: #b9f4be;
+  --fk-diff-del-word: #ffc4c6;
+  --fk-diff-gutter: var(--fk-diff);
+  --fk-diff-ln: #6e6e6e;
+  --fk-diff-gutter-line: #e8e8e8;
+  --fk-diff-hunk-ink: #737373;
+  --fk-diff-hunk-bg: transparent;
+  --fk-diff-sign-add: #136b2f;
+  --fk-diff-sign-del: #b42323;
+  --fk-diff-ruler-add: #3f8a46;
+  --fk-diff-ruler-del: #b04a46;
+  --fk-syn-kw: #0b4fb3;
+  --fk-syn-str: #953020;
+  --fk-syn-com: #4b5260;
+  --fk-syn-mod: #b3135a;
+  /* file status, file icons, avatars */
+  --fk-st-modified: #ffcc00;
+  --fk-st-added: #20c537;
+  --fk-st-untracked: #20c537;
+  --fk-st-deleted: #fe3b31;
+  --fk-st-renamed: #b54eee;
+  --fk-st-conflict: #f5ab00;
+  --fk-st-glyph: rgba(255, 255, 255, 0.88);
+  --fk-st-rim: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+  --fk-folder-top: #62c9fb;
+  --fk-folder-bottom: #1f8fd3;
+  --fk-folder-back: #2a95d3;
+  --fk-page: #ffffff;
+  --fk-page-fold: #e2e2e2;
+  --fk-page-line: #9a9a9a;
+  --fk-avatar-0: #d89939;
+  --fk-avatar-1: #bc67b9;
+  --fk-avatar-2: #53af75;
+  --fk-avatar-3: #52aaca;
+  --fk-avatar-4: #d57068;
   color-scheme: light;
 }
 
