@@ -828,7 +828,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
         ?? section.querySelector<HTMLElement>('[aria-current="true"], button:not(:disabled)');
       row?.focus({ preventScroll: true });
       row?.scrollIntoView?.({ block: "nearest" });
-      standIn.current = chosen ? null : row ?? null;
+      // Only the history's own tab stop stands in for a row still to come.
+      standIn.current = chosen || p !== "graph" ? null : row ?? null;
     }
     const active = document.activeElement;
     if (active !== section && section.contains(active)) { pendingPane.current = null; return; }
@@ -1146,13 +1147,13 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                 name: repoName, mainName: linked ? repo?.mainName ?? facts?.mainName ?? null : null, title: repoTitle,
                 branch: branch ?? "", detached, shortSha, unborn,
                 ahead: repo?.upstream?.ahead ?? 0, behind: repo?.upstream?.behind ?? 0, upstreamTitle: upstream?.title ?? null,
-                loading: data.state === "loading",
+                loading: data.state === "loading" || data.pending > 0,
               }}
               handoffs={(
                 <GitHandoffs
                   sessionId={agent.sessionId} agentId={agentParam}
                   branch={detached ? null : branch} sha={selectedCommit?.sha ?? (detached ? head?.sha ?? null : null)}
-                  path={folder} compact
+                  path={folder} compact tools
                 />
               )}
               onLook={() => setGitLook("deck")}

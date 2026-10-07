@@ -98,3 +98,27 @@ describe("the Fork layout", () => {
     expect(view).toMatch(/"--gv-graph-h": `\$\{\(\(fork \? prefs\.fkGraphH : prefs\.graphH\) \* 100\)\.toFixed\(1\)\}%`/);
   });
 });
+
+describe("the Fork toolbar", () => {
+  it("draws the hand-offs as its Open in and Copy tools, from the same row the deck look uses", () => {
+    expect(view).toMatch(/path=\{folder\} compact tools/);
+    const handoffs = sourceOf("components/GitHandoffs.tsx");
+    expect(handoffs).toMatch(/<span className="fk-tool-label">Open in<\/span>/);
+    expect(handoffs).toMatch(/<Words now="Copy" then="Copied" done=\{copied === "menu"\} \/>/);
+  });
+
+  it("turns its spinner while any read is on its way, beside the name so nothing moves", () => {
+    expect(view).toMatch(/loading: data\.state === "loading" \|\| data\.pending > 0,/);
+    expect(fork).toMatch(/\.fk-spin \{\s*position: absolute;/);
+  });
+
+  it("gives the repository box way before the tools at a phone's width, and folds nothing into a menu", () => {
+    expect(fork).toMatch(/@container fk \(max-width: 520px\) \{\s*\.fk-toolbar \{ grid-template-columns: auto minmax\(84px, 1fr\) auto; \}/);
+    expect(toolbar).not.toMatch(/»/);
+  });
+
+  it("starts with Canvas on a sheet and draws its close only beside the canvas", () => {
+    expect(toolbar).toMatch(/\{sheet && <FkTool className="fk-tool-back"/);
+    expect(toolbar).toMatch(/\{!sheet && \(/);
+  });
+});

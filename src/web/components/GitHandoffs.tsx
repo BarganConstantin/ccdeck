@@ -13,6 +13,10 @@
 // Several copy values share one Copy menu wherever the launch buttons need the
 // room; three identical copy glyphs side by side would only be told apart by
 // hovering each.
+//
+// The Fork look's toolbar (`tools`) draws the same actions as two of its tool
+// columns, Open in ▾ and Copy ▾, each a menu: the launches in one, the copies
+// in the other.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { copyText } from "../copy-text";
 import { isEscapeKey } from "../modal-dismiss";
@@ -28,6 +32,8 @@ interface Props {
   compact: boolean;
   /** A subagent whose folder is its own, by the key the server knows it by. */
   agentId?: string | null;
+  /** The Fork look's toolbar: Open in ▾ and Copy ▾ as its tool columns. */
+  tools?: boolean;
 }
 
 type CopyKind = "branch" | "sha" | "path";
@@ -67,6 +73,29 @@ const ICON = {
   ),
   failed: svg("M7 3.4v4.2M7 10.2v.1"),
 };
+/** The Fork toolbar's 18px glyphs, and its 7px menu chevron. */
+const TOOL = {
+  open: (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
+      <path d="M8 3.6H5a1.6 1.6 0 0 0-1.6 1.6v7.8A1.6 1.6 0 0 0 5 14.6h7.8a1.6 1.6 0 0 0 1.6-1.6v-3" /><path d="M10.6 3.4h4v4M14.4 3.6 8.6 9.4" />
+    </svg>
+  ),
+  copy: (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
+      <rect x="6.4" y="6.4" width="8.4" height="8.4" rx="1.6" /><path d="M11.6 6.4V4.8a1.4 1.4 0 0 0-1.4-1.4H4.8a1.4 1.4 0 0 0-1.4 1.4v5.4a1.4 1.4 0 0 0 1.4 1.4h1.6" />
+    </svg>
+  ),
+  check: (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false"><path d="M4 9.6 7.4 13 14 5.6" /></svg>
+  ),
+  chevron: (
+    <svg className="fk-tool-chev" width="7" height="7" viewBox="0 0 7 7" fill="none" stroke="currentColor" strokeWidth="1.3"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false"><path d="M1 2.4 3.5 4.9 6 2.4" /></svg>
+  ),
+};
 
 /** A button's word and the word it reads for a moment after a copy, stacked in
  *  one cell so the button is as wide as the longer and never changes width —
@@ -94,11 +123,15 @@ function launchWords(slot: HandoffSlot, app: string, name: string): { word: stri
   return { word: app, title: `Open ${name} in ${app}` };
 }
 
-export default function GitHandoffs({ sessionId, branch, sha, path, compact, agentId = null }: Props) {
+export default function GitHandoffs({ sessionId, branch, sha, path, compact, agentId = null, tools = false }: Props) {
   const handoffs = useHandoffs();
   const uid = useId();
-  const menuId = `${uid}-copy-menu`;
-  const buttonId = `${uid}-copy`;
+  // Which menu is open: Copy, or (the Fork toolbar's) Open in.
+  const [which, setWhich] = useState<"copy" | "open">("copy");
+  const menuId = `${uid}-${which}-menu`;
+  const copyId = `${uid}-copy`;
+  const openId = `${uid}-open`;
+  const buttonId = which === "open" ? openId : copyId;
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
   // Whether the pointer opened the menu: only then does it animate in.
   const [menuByPointer, setMenuByPointer] = useState(false);
@@ -164,8 +197,9 @@ export default function GitHandoffs({ sessionId, branch, sha, path, compact, age
 
   // ── the Copy menu: a menu button, its items walked by the arrows ──────────
   const itemsInMenu = () => Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
-  const openMenu = (start: "first" | "last", byPointer = false) => {
+  const openMenu = (start: "first" | "last", byPointer = false, of: "copy" | "open" = "copy") => {
     setMenuByPointer(byPointer);
+    setWhich(of);
     setMenu(start);
   };
   // Placed before it is painted, inside the panel that holds the row — the
@@ -205,9 +239,10 @@ export default function GitHandoffs({ sessionId, branch, sha, path, compact, age
     };
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
-    // Mount of the menu only: a re-render must not pull focus back to an end.
+    // Mount of a menu only (or the other menu replacing it): a re-render
+    // must not pull focus back to an end.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menu !== null]);
+  }, [menu !== null && which]);
 
   const onMenuKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const list = itemsInMenu();
@@ -236,8 +271,78 @@ export default function GitHandoffs({ sessionId, branch, sha, path, compact, age
   const onMenuButtonKey = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
-    openMenu(e.key === "ArrowUp" ? "last" : "first");
+    openMenu(e.key === "ArrowUp" ? "last" : "first", false, e.currentTarget.id === openId ? "open" : "copy");
   };
+  // A menu button's press: opens its menu, or closes the one open.
+  const pressMenu = (of: "copy" | "open", detail: number) =>
+    (menu && which === of ? closeMenu(false) : openMenu("first", detail > 0, of));
+  const copyItems = (
+    items.map(item => (
+      <button key={item.kind} type="button" role="menuitem" className="ap-menu-item gv-ho-item"
+        title={item.value}
+        onClick={() => { closeMenu(true); copy(item, "menu"); }}>
+        <span className="gv-ho-key">{item.key}</span>
+        <span className="gv-ho-val">{item.shown}</span>
+      </button>
+    ))
+  );
+
+  if (tools) {
+    // The Fork toolbar's two tools. Open in is drawn only where the deck
+    // found an app and the page is on its machine, as the launch buttons are.
+    const openTitle = failed ? `Could not open: ${failed.error}` : `Open ${name} in an app`;
+    const copyTitle = copied === "menu" ? said : "Copy the branch, commit SHA or folder path";
+    return (
+      <div className="gv-handoffs-wrap" ref={wrapRef} data-tools="">
+        <div className="gv-handoffs" role="group" aria-label="Open or copy" aria-busy={loading || undefined} data-tools="">
+          {!loading && launches.length > 0 && (
+            <span className="gv-ho-copy">
+              <button id={openId} type="button" className="fk-tool" data-failed={failed ? "" : undefined}
+                aria-haspopup="menu" aria-expanded={menu !== null && which === "open"} aria-controls={menu && which === "open" ? menuId : undefined}
+                title={openTitle} aria-label={openTitle}
+                onClick={e => pressMenu("open", e.detail)} onKeyDown={onMenuButtonKey}>
+                <span className="fk-tool-icon">{TOOL.open}{TOOL.chevron}</span>
+                <span className="fk-tool-label">Open in</span>
+              </button>
+              {menu && which === "open" && (
+                <div ref={menuRef} id={menuId} className="gv-ho-menu" role="menu" aria-labelledby={openId}
+                  data-motion={menuByPointer ? "pointer" : undefined} onKeyDown={onMenuKey}>
+                  {launches.map(({ slot, app }) => {
+                    const { word, title } = launchWords(slot, app.name, name);
+                    return (
+                      <button key={slot} type="button" role="menuitem" className="ap-menu-item gv-ho-item gv-ho-launch" data-slot={slot}
+                        title={title} aria-busy={busy === slot || undefined}
+                        onClick={() => { closeMenu(true); launch(slot); }}>
+                        {ICON[slot]}<span className="gv-ho-val">{word}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </span>
+          )}
+          {!loading && items.length > 0 && (
+            <span className="gv-ho-copy">
+              <button id={copyId} type="button" className="fk-tool" data-done={copied === "menu" ? "" : undefined}
+                aria-haspopup="menu" aria-expanded={menu !== null && which === "copy"} aria-controls={menu && which === "copy" ? menuId : undefined}
+                title={copyTitle} aria-label={copyTitle}
+                onClick={e => pressMenu("copy", e.detail)} onKeyDown={onMenuButtonKey}>
+                <span className="fk-tool-icon">{copied === "menu" ? TOOL.check : TOOL.copy}{TOOL.chevron}</span>
+                <span className="fk-tool-label"><Words now="Copy" then="Copied" done={copied === "menu"} /></span>
+              </button>
+              {menu && which === "copy" && (
+                <div ref={menuRef} id={menuId} className="gv-ho-menu" role="menu" aria-labelledby={copyId}
+                  data-motion={menuByPointer ? "pointer" : undefined} onKeyDown={onMenuKey}>
+                  {copyItems}
+                </div>
+              )}
+            </span>
+          )}
+        </div>
+        <span className="vis-hidden" role="status" aria-live="polite">{said}</span>
+      </div>
+    );
+  }
 
   const copyButton = (item: CopyItem) => {
     const done = copied === item.kind;
@@ -275,28 +380,21 @@ export default function GitHandoffs({ sessionId, branch, sha, path, compact, age
         {!loading && !folded && items.map(copyButton)}
         {!loading && folded && (
           <span className="gv-ho-copy">
-            <button id={buttonId} type="button" className="btn gv-hand" data-copy="menu"
+            <button id={copyId} type="button" className="btn gv-hand" data-copy="menu"
               data-icon={compact ? "" : undefined} data-done={copied === "menu" ? "" : undefined}
               aria-haspopup="menu" aria-expanded={menu !== null} aria-controls={menu ? menuId : undefined}
               title={copied === "menu" ? said : "Copy the branch, commit SHA or folder path"}
               aria-label={copied === "menu" ? said : "Copy the branch, commit SHA or folder path"}
-              onClick={e => (menu ? closeMenu(false) : openMenu("first", e.detail > 0))} onKeyDown={onMenuButtonKey}>
+              onClick={e => pressMenu("copy", e.detail)} onKeyDown={onMenuButtonKey}>
               {copied === "menu" ? ICON.check : ICON.copy}
               {/* A plain swap here: nothing follows this button in its row. */}
               {!compact && <span>{copied === "menu" ? "Copied" : "Copy"}</span>}
               {ICON.chevron}
             </button>
             {menu && (
-              <div ref={menuRef} id={menuId} className="gv-ho-menu" role="menu" aria-labelledby={buttonId}
+              <div ref={menuRef} id={menuId} className="gv-ho-menu" role="menu" aria-labelledby={copyId}
                 data-motion={menuByPointer ? "pointer" : undefined} onKeyDown={onMenuKey}>
-                {items.map(item => (
-                  <button key={item.kind} type="button" role="menuitem" className="ap-menu-item gv-ho-item"
-                    title={item.value}
-                    onClick={() => { closeMenu(true); copy(item, "menu"); }}>
-                    <span className="gv-ho-key">{item.key}</span>
-                    <span className="gv-ho-val">{item.shown}</span>
-                  </button>
-                ))}
+                {copyItems}
               </div>
             )}
           </span>

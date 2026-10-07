@@ -58,7 +58,8 @@ describe("a history asked for focus before its selected row is drawn", () => {
     const at = view.indexOf("const focusPane = useCallback(");
     const body = view.slice(at, view.indexOf("}, []);", at));
     expect(body).toMatch(/const chosen = section\.querySelector<HTMLElement>\('\[aria-selected="true"\]\[tabindex\]'\);/);
-    expect(body).toMatch(/standIn\.current = chosen \? null : row \?\? null;/);
+    // Only the history stands in for a row still to come: a sidebar or a Commit tab never hands focus back to it.
+    expect(body).toMatch(/standIn\.current = chosen \|\| p !== "graph" \? null : row \?\? null;/);
     const effect = view.slice(view.indexOf("const s = standIn.current;"), view.indexOf("const p = pendingPane.current;"));
     expect(effect).toMatch(/if \(document\.activeElement !== s\) standIn\.current = null;/);
     expect(effect).toMatch(/if \(chosen && chosen !== s\) \{ standIn\.current = null; chosen\.focus\(\{ preventScroll: true \}\);/);

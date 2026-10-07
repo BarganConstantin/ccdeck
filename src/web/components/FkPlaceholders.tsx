@@ -79,7 +79,7 @@ export function FkCommitTab({ commit, detail, loading, onOpenFile }: FkCommitTab
         <ul className="fk-ph-files">
           {(detail?.files ?? []).map(f => (
             <li key={f.path}>
-              <button type="button" className="fk-ph-file" onClick={() => onOpenFile({ path: f.path, area: "commit", ...(f.from ? { from: f.from } : {}) })}>
+              <button type="button" className="fk-ph-file" title={f.path} onClick={() => onOpenFile({ path: f.path, area: "commit", ...(f.from ? { from: f.from } : {}) })}>
                 {f.path}
               </button>
             </li>
@@ -112,7 +112,7 @@ export function FkChanges(p: FkChangesProps) {
         {refs.length === 0 && <p className="fk-ph-note">No changes</p>}
         {refs.map((r, i) => (
           <div
-            key={`${r.area}:${r.path}`} role="option" className="fk-ph-file" aria-selected={i === at}
+            key={`${r.area}:${r.path}`} role="option" className="fk-ph-file" aria-selected={i === at} title={r.path}
             tabIndex={i === Math.max(0, at) ? 0 : -1}
             onClick={() => p.onSelect(r)} onDoubleClick={p.onOpen}
             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); p.onOpen(); } }}
