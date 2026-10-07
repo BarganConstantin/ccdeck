@@ -236,10 +236,20 @@ function geometry(layout: GraphLayout): string[] {
       if (!e) return null;
       return e.kind === "pass" || e.kind === "merge" || e.kind === "fp" ? row.output[e.to]?.id ?? null : null;
     };
+    // Each stroke's lane once, and its box: two strokes whose boxes stay more
+    // than the closeness apart cannot overlap, so most pairs — two lanes in
+    // their own columns — are settled without comparing their points.
+    const lanes = drawing.strokes.map((_, k) => laneOf(k));
+    const boxes = sampled.map(pts => pts.reduce(
+      (b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)],
+      [Infinity, Infinity, -Infinity, -Infinity]));
+    const apart = (a: number, b: number) =>
+      boxes[a][2] + 0.6 < boxes[b][0] || boxes[b][2] + 0.6 < boxes[a][0] || boxes[a][3] + 0.6 < boxes[b][1] || boxes[b][3] + 0.6 < boxes[a][1];
     for (let a = 0; a < sampled.length; a++) for (let b = a + 1; b < sampled.length; b++) {
       const sa = drawing.strokes[a], sb = drawing.strokes[b];
       if (sa.kind !== "pass" && sb.kind !== "pass") continue;
-      const la = laneOf(a), lb = laneOf(b);
+      if (apart(a, b)) continue;
+      const la = lanes[a], lb = lanes[b];
       if (la !== null && la === lb) continue;
       let run = 0;
       for (const [x1, y1, dx1, dy1] of sampled[a]) {
