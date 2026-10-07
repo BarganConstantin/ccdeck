@@ -64,7 +64,7 @@ import FkInspector, { FK_TABS, shownTab } from "./FkInspector";
 import FkToolbar, { FkGlyph } from "./FkToolbar";
 import FkChanges from "./FkChanges";
 import FkCommitTab from "./FkCommitTab";
-import { FkSidebar } from "./FkPlaceholders";
+import FkSidebar from "./FkSidebar";
 
 export type { GitViewHow, GitViewRequest } from "../git-view-request";
 

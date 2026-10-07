@@ -344,21 +344,6 @@
 .gv-wide[data-look="fork"] .gv-pane-empty { color: var(--fk-text-2); }
 .gv-wide[data-look="fork"] .gv-pane-empty b { color: var(--fk-text); }
 
-/* ------------------------------------- the sidebar's stand-in until it arrives */
-.fk-ph-side { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; }
-.fk-ph-repo { margin: 0 0 8px 19px; overflow: hidden; font-size: 13px; font-weight: 700; line-height: 22px; text-overflow: ellipsis; white-space: nowrap; }
-.fk-ph-nav {
-  height: 22px;
-  padding: 0 8px 0 24px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fk-sidebar-text);
-  font: 400 13px/22px var(--fk-font);
-  text-align: left;
-  cursor: default;
-}
-.fk-ph-nav[aria-current="true"] { background: var(--fk-sidebar-select); }
 
 /* ------------------------------------- the deck look's way to the Fork look */
 .gv-look svg { display: block; }
