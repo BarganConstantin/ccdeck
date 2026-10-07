@@ -527,10 +527,16 @@
 
 /* The foot is part of the panel rather than a band of its own — no ground, no
    rule — and sits outside the body's scroll, so a long message grows the body
-   and never pushes Send off the dialog. The shortcut sits on the left, as
-   quiet as a line can be and still be read. */
+   and never pushes Send off the dialog. The shortcut sits beside Cancel and
+   the Send it names, as quiet as a line can be and still be read. Discard,
+   drawn only while there is a draft to discard, takes the far corner, the
+   furthest it can be from the press somebody makes most — the LAN dialog's
+   rule for its own irreversible verb — so its arrival moves nothing else.
+   In a window too narrow for all four on one line, the last of them wrap to
+   a second line, still at the right, rather than run off the dialog. */
 .fb-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -540,10 +546,23 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-right: auto;
   color: var(--text-dim);
   font-size: 11px;
 }
+/* Edgeless and in the quiet ink until it is pointed at, the way the LAN
+   dialog's Unpair is (.lan-peer-foot .btn.danger), and in the error colour
+   only once armed, the moment the colour is about something. */
+.fb-discard { margin-right: auto; }
+.fb-foot .btn.danger:not(.armed) {
+  border-color: transparent;
+  color: var(--muted);
+}
+.fb-foot .btn.danger:not(.armed):hover:not(:disabled),
+.fb-foot .btn.danger:not(.armed):focus-visible {
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  color: var(--err);
+}
+.fb-foot .btn.danger.armed { color: var(--bg); background: var(--err); }
 /* The sound menu's cap (.sm-foot kbd), on the canvas tier so it stands off
    the panel the foot now sits on. */
 .fb-shortcut kbd {

@@ -190,8 +190,10 @@ describe("the kinds, as one compact control", () => {
   });
 
   it("changes the question and nothing else, so what was typed stays", () => {
-    // The message is the dialog's state, keyed to nothing the kind changes.
-    expect(dialog).toMatch(/const \[body, setBody\] = useState\(initialBody \?\? ""\);/);
+    // The message is the dialog's state, keyed to nothing the kind changes. It
+    // opens on the kept draft's message when there is one, and on the seed's
+    // otherwise (feedback-draft-kept.test.ts runs that).
+    expect(dialog).toMatch(/const \[body, setBody\] = useState\(kept\?\.body \?\? seed\.body\);/);
     expect(kinds).not.toMatch(/setBody|body/);
   });
 });
@@ -364,7 +366,7 @@ describe("Add details", () => {
   });
 
   it("keeps what was typed across folding and unfolding: always drawn, its value held by the dialog", () => {
-    expect(dialog).toMatch(/const \[contact, setContact\] = useState\(""\);/);
+    expect(dialog).toMatch(/const \[contact, setContact\] = useState\(kept\?\.contact \?\? ""\);/);
     expect(flatDialog).toMatch(/<FeedbackDetails open=\{detailsOpen\} contact=\{contact\} onContact=\{setContact\} \/>/);
     // Never mounted on a condition, which would throw the field away.
     expect(flatDialog).not.toMatch(/detailsOpen &&/);
