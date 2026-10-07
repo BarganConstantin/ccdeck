@@ -8,12 +8,15 @@
 //
 // Whole engines on loopback; see lan-engine-rig.ts.
 import { describe, it, expect, afterEach } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise, publicPrefs, withShared } from "../../server/deck-prefs.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
 import { deckRows, rowSource } from "../lan-roster";
 import { peerView } from "../lan-peer";
+import LanPeerMap from "../components/LanPeerMap";
 import type { LanStatus } from "../lan-types";
 import { announce, rigDeck, stopAll, type RigDeck } from "./lan-engine-rig";
 
@@ -115,16 +118,31 @@ describe("an account ticked because it arrived", () => {
   }, 60_000);
 });
 
-/** The keys `here`'s dialog about the deck `fp` draws going out from this deck,
- *  read from the status the engine serves, the way the panel reads it. */
-function drawnOut(here: RigDeck, fp: string) {
+/** `here`'s dialog about the deck `fp`, built from the status the engine
+ *  serves, the way the panel builds it. */
+function dialogOf(here: RigDeck, fp: string) {
   const status = here.e.status() as LanStatus;
   const now = Date.now();
   const row = deckRows(status, now).find(r => r.fp === fp);
   expect(row?.kind, `${fp} is not a paired row here`).toBe("paired");
   const accounts = [{ key: X, email: EMAIL, alive: true, shareable: true }];
-  const { lanes } = peerView({ row: row!, source: rowSource(status, row!), status, accounts, now });
-  return lanes.filter(l => l.out != null).map(l => l.key);
+  return { row: row!, status, view: peerView({ row: row!, source: rowSource(status, row!), status, accounts, now }) };
+}
+
+/** The keys that dialog draws going out from this deck. */
+function drawnOut(here: RigDeck, fp: string) {
+  return dialogOf(here, fp).view.lanes.filter(l => l.out != null).map(l => l.key);
+}
+
+/** The key under that dialog's lanes, as it reads. */
+function legendOf(here: RigDeck, fp: string) {
+  const { row, status, view } = dialogOf(here, fp);
+  const html = renderToStaticMarkup(createElement(LanPeerMap, {
+    view, row, status, asking: false, drawn: 0, onSettings: () => {},
+  }));
+  const legend = html.match(/<div class="lan-legend">([\s\S]*?)<\/div>/)?.[1];
+  expect(legend, "the dialog drew no key").toBeDefined();
+  return legend!.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
 describe("what the deck's dialog draws of an arrival's tick", () => {
@@ -143,6 +161,34 @@ describe("what the deck's dialog draws of an arrival's tick", () => {
     const laptop = await laptopWithArrival();
     const [desk] = (laptop.e.status() as LanStatus).peers.filter(p => p.paired);
     expect(drawnOut(laptop, desk.peerFp ?? desk.fp)).toEqual([X]);
+  }, 60_000);
+
+  // The key under the lanes read "from this deck, to every paired deck" in
+  // every dialog. In the dialog of a deck somebody here chose, the lane of a
+  // login an arrival ticked goes out — and a deck the switch paired, paired
+  // here too, is not handed it, so "every" said more than the deck does.
+  it("keys the arrow to the decks somebody chose while a deck the switch paired is not handed what it draws", async () => {
+    const laptop = await laptopWithArrival();
+    const [desk] = (laptop.e.status() as LanStatus).peers.filter(p => p.paired);
+    const deskFp = desk.peerFp ?? desk.fp;
+    expect(legendOf(laptop, deskFp), "the common case changed").toContain("from this deck, to every paired deck");
+
+    await laptop.e.apply({ autoAccept: true });
+    const stranger = await strangerOf(laptop);
+    await roundsUntil(laptop, stranger, X);
+    const pin = (laptop.trustWrites.at(-1) ?? []).find(t => t.fp === stranger.id.fp);
+    expect(pin?.auto, "the case never reached a pairing the switch made").toBe(true);
+    expect(drawnOut(laptop, deskFp)).toEqual([X]);
+
+    const key = legendOf(laptop, deskFp);
+    expect(key).not.toContain("every paired deck");
+    expect(key).toContain("from this deck, to decks you chose");
+
+    // Ticked again by a person, it is handed to every paired deck, and the key
+    // says so again.
+    await laptop.e.apply({ shared: [], onward: [] });
+    await laptop.e.apply({ shared: [X], onward: [] });
+    expect(legendOf(laptop, deskFp)).toContain("from this deck, to every paired deck");
   }, 60_000);
 });
 
