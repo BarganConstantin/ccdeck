@@ -15,9 +15,9 @@
 // no portal is needed (panel-modal-portal.test.ts). Each section is its own
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame and the nav.
-import { useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
-import { sectionIndex, SETTINGS_SECTIONS, type SettingsSection } from "../settings";
+import { focusedTabToFollow, sectionIndex, SETTINGS_SECTIONS, type SettingsSection } from "../settings";
 import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
@@ -57,6 +57,10 @@ export default function SettingsModal({
   const scrimPress = useScrimDismiss(onClose);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const at = sectionIndex(section);
+
+  useEffect(() => {
+    if (focusedTabToFollow(document.activeElement?.id, section)) selectedTabRef.current?.focus();
+  }, [section]);
 
   const { theme, setTheme, characterEnabled, setCharacterEnabled } = appearance;
 

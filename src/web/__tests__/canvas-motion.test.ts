@@ -387,10 +387,8 @@ const PRESSES: Press[] = [
   // #820's Resume, the one pressable part of the auto-fit strip. A labelled
   // control, so 0.97 like every other one.
   [".autofit-resume:active", "0.97", "transform"],
-  // The sound menu's import card, a <label> the size of a card that opens the
-  // file picker, and the spoken-voice disclosure under it: a full-width row,
-  // like `.up-disclose`. Both are labelled controls, so 0.97.
-  [".sm-file:active", "0.97", "transform"],
+  // The spoken-voice disclosure under the custom-sound cards: a full-width
+  // row, like `.up-disclose`. A labelled control, so 0.97.
   [".sm-voice summary:active", "0.97", "transform"],
   // A section of Settings, in the nav down its side: a labelled row the width
   // of the nav, pressed like every other labelled control — 0.97.
