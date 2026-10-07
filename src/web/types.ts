@@ -714,8 +714,9 @@ export interface HookPayload {
    *  transcript last showed it, or null once a later turn has retired it. */
   recap?: SessionRecap | null;
   /** On the synthetic `GitObserved`: the agent's repository and branch, with
-   *  `subagent` naming the subagent it is about when it is not the root. */
-  git?: GitFacts & { subagent?: string };
+   *  `subagent` naming the subagent it is about when it is not the root, and
+   *  `sameAsRoot` taking a subagent's own back once it is in the root's folder. */
+  git?: GitFacts & { subagent?: string; sameAsRoot?: boolean };
   /** On the synthetic `GitCollisions`: the session's collisions as they stand. */
   collisions?: GitCollisions;
   /** On the synthetic `GitRecentCommits`: the session's commits of the last

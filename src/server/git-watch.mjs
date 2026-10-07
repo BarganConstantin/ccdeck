@@ -16,13 +16,14 @@
 //   { hook_event_name: "GitObserved", session_id, provider?: "codex",
 //     git: { subagent?, state, stale, topLevel?, name?, mainName?, folderName?,
 //            nameDiffers?, linkedWorktree?, branch?, detached?, sha?, unborn?,
-//            empty?, fromLog?, followed? } }
+//            empty?, fromLog?, followed?, sameAsRoot? } }
 //
 // for the session's root and for each subagent whose folder is not the
-// root's (`git.subagent` is its key). `state` is "repo" or why there is none
-// ("not-a-repo", "gone", "no-git", "bare", "unsafe") — sent only to take back
-// a branch the page was already shown, since a card without one needs no
-// event. The exception is a root whose folder is "gone": its own log still
+// root's (`git.subagent` is its key) — and for a subagent that had a folder of
+// its own and is back in the root's, one `sameAsRoot: true` to take that back.
+// `state` is "repo" or why there is none ("not-a-repo", "gone", "no-git",
+// "bare", "unsafe") — sent only to take back a branch the page was already
+// shown, since a card without one needs no event. The exception is a root whose folder is "gone": its own log still
 // names a branch (the transcript's `gitBranch`, a Codex rollout's
 // session_meta), sent as `branch` with `fromLog: true`. A read that timed out
 // or failed sends nothing, so a slow disk never takes a branch off a card.
@@ -307,6 +308,9 @@ function schedule(sid, w, delay) {
   w.timer.unref?.();
 }
 
+/** The signature of a subagent taken back into its session's folder. */
+const SAME_AS_ROOT = "same-as-root";
+
 /** The identity part of an observation: what a card would draw differently. */
 function signature(git) {
   return JSON.stringify([git.state, git.topLevel ?? null, git.branch ?? null, git.detached ? git.sha : null, Boolean(git.unborn)]);
@@ -362,6 +366,26 @@ async function look(sid) {
     w.seen.add(key);
     if (cwd !== root.cwd) targets.push([key, cwd]);
   }
+  // A subagent that worked in a folder of its own and is back in the
+  // session's: what it was told of its own is taken back, so its card reads
+  // the session's again (`sameAsRoot`). Logged like any change of identity,
+  // so a restart does not follow it back out (seedFromLog).
+  const here = new Set(targets.map(([key]) => key));
+  for (const [key, prev] of w.sent) {
+    if (key === "" || here.has(key) || prev.sameAsRoot) continue;
+    const entry = { sig: SAME_AS_ROOT, stale: 0, top: null, state: "repo", drawn: false, sameAsRoot: true, payload: null, seq: null, at: null };
+    w.sent.set(key, entry);
+    if (!prev.payload) continue;
+    entry.payload = {
+      hook_event_name: "GitObserved",
+      session_id: sid,
+      ...(root.provider === "codex" ? { provider: "codex" } : {}),
+      git: { subagent: key, state: "repo", sameAsRoot: true, stale: 0 },
+    };
+    const evt = pushEvent(entry.payload, "internal");
+    entry.seq = evt?.seq ?? null;
+    entry.at = evt?.receivedAt ?? null;
+  }
   const moved = new Set();
   for (const [key, cwd] of targets) {
     const repo = await repoOf(cwd);
@@ -378,7 +402,8 @@ async function look(sid) {
       if (branch) Object.assign(git, { branch, fromLog: true });
     }
     const sig = signature(git);
-    const prev = w.sent.get(key);
+    const told = w.sent.get(key);
+    const prev = told?.sameAsRoot ? undefined : told;
     if (prev && prev.sig === sig && prev.stale === git.stale) continue;
     const identity = !prev || prev.sig !== sig;
     if (identity && prev && git.topLevel) moved.add(git.topLevel);
@@ -412,6 +437,15 @@ function seedFromLog(raw, seq, at) {
   const git = raw.git;
   if (typeof sid !== "string" || sid === "" || !git || typeof git !== "object" || typeof git.state !== "string") return;
   const key = typeof git.subagent === "string" ? git.subagent : "";
+  // A subagent back in its session's folder: nothing of its own followed.
+  if (key && git.sameAsRoot === true) {
+    followFolder(sid, key, null);
+    watching(sid).sent.set(key, {
+      sig: SAME_AS_ROOT, stale: 0, top: null, state: "repo", drawn: false, sameAsRoot: true,
+      payload: raw, seq: typeof seq === "number" ? seq : null, at: typeof at === "number" ? at : null,
+    });
+    return;
+  }
   // Where it was working when this was sent: a worktree away from the folder
   // it started in is followed again, so a restart does not send it home.
   // `followed` says so; a line from before it was written is judged by its

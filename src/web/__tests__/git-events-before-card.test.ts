@@ -57,6 +57,24 @@ describe("a git event that arrives before its card", () => {
     expect(s.agents.get("s1")!.git).toBeUndefined();
   });
 
+  it("takes a subagent's own worktree back when it is in its session's folder again, on its card or while it waits", () => {
+    const s = initialState();
+    apply(s, { hook_event_name: "SessionStart", session_id: "s1", cwd: "/w/shop-api" });
+    apply(s, { hook_event_name: "SubagentStart", session_id: "s1", cwd: "/w/shop-api", agent_id: "ag1", agent_type: "docs-sync" });
+    apply(s, observed("s1", repo("main")));
+    apply(s, observed("s1", { ...repo("docs/rate-limits", { linkedWorktree: true }), subagent: "ag1" }));
+    expect(s.agents.get("s1::ag1")!.git?.branch).toBe("docs/rate-limits");
+    apply(s, observed("s1", { subagent: "ag1", state: "repo", sameAsRoot: true, stale: 0 }));
+    expect(s.agents.get("s1::ag1")!.git).toBeUndefined();
+    expect(s.agents.get("s1")!.git?.branch).toBe("main");
+    // Before the card exists: the parked value goes, and nothing is parked for it.
+    apply(s, observed("s1", { ...repo("docs/x", { linkedWorktree: true }), subagent: "ag2" }));
+    apply(s, observed("s1", { subagent: "ag2", state: "repo", sameAsRoot: true, stale: 0 }));
+    expect(s.parkedGit.has("s1::ag2")).toBe(false);
+    apply(s, { hook_event_name: "SubagentStart", session_id: "s1", cwd: "/w/shop-api", agent_id: "ag2", agent_type: "porter" });
+    expect(s.agents.get("s1::ag2")!.git).toBeUndefined();
+  });
+
   it("keeps only the last word while it waits: a newer value replaces it, an empty collision list takes it away", () => {
     const s = initialState();
     apply(s, observed("s1", repo("main")));

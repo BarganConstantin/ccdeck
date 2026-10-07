@@ -411,6 +411,33 @@ describe("the worktree a session works in", () => {
     expect(await repoTop("F5")).toBe(wt);
   });
 
+  it("takes back a subagent's own worktree when it comes back to its session's folder, in the log too", async () => {
+    const { dir, wt } = repoAndWorktree("rejoin");
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F10", cwd: dir });
+    await event({ hook_event_name: "PreToolUse", session_id: "F10", cwd: dir, agent_id: "fr-1", tool_name: "Read" });
+    await next("F10", since);
+    since = await lastSeq();
+    const bash = (command: string, id: string) =>
+      event({ hook_event_name: "PostToolUse", session_id: "F10", cwd: dir, agent_id: "fr-1", tool_name: "Bash", tool_input: { command }, tool_use_id: id });
+    await bash(`cd '${wt}' && git status`, "toolu_fr1");
+    const away = await next("F10", since, g => g.subagent === "fr-1");
+    expect(away.payload.git).toMatchObject({ topLevel: wt, branch: "wt/rejoin" });
+    since = await lastSeq();
+    await bash(`cd '${dir}' && git status`, "toolu_fr2");
+    const back = await next("F10", since, g => g.subagent === "fr-1");
+    expect(back.payload.git).toEqual({ subagent: "fr-1", state: "repo", sameAsRoot: true, stale: 0 });
+    expect(await repoTop("F10", "fr-1")).toBe(dir);
+    for (let i = 0; i < 100 && loggedFor("F10").filter((p: any) => p.git.subagent).length < 2; i++) await new Promise(r => setTimeout(r, 50));
+    const lines = loggedFor("F10").filter((p: any) => p.git.subagent === "fr-1");
+    expect(lines.map((p: any) => p.git.sameAsRoot ?? p.git.topLevel)).toEqual([wt, true]);
+    // A restarted deck replays both lines and keeps the subagent home.
+    noteSessionFolder({ session_id: "F10r", cwd: dir, hook_event_name: "SessionStart" });
+    noteSessionFolder({ session_id: "F10r", cwd: dir, agent_id: "fr-1", hook_event_name: "PreToolUse" });
+    lines.forEach((p: any, i: number) => noteGitEvent({ ...p, session_id: "F10r" }, { replay: true, seq: i + 1, at: i + 1 }));
+    expect(sessionFolder("F10r", "fr-1")).toMatchObject({ cwd: dir });
+  });
+
   it("follows a folder change made while git was switched off, once it is on again", async () => {
     const { dir, wt } = repoAndWorktree("off");
     let since = await lastSeq();
