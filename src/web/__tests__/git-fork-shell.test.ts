@@ -120,7 +120,8 @@ describe("the Fork toolbar", () => {
     // The glance's row keeps its 10px over the hand-offs; the toolbar's tools do not.
     expect(fork).toMatch(/\.gv-wide\[data-look="fork"\] \.gv-handoffs-wrap\[data-tools\] \{ flex: none; margin-top: 0; \}/);
     // Their words go before the end of the toolbar is too narrow for them, so nothing overlaps the repository box.
-    expect(fork).toMatch(/@container fk \(max-width: 840px\) \{\s*\.fk-tool \.fk-tool-label \{ display: none; \}/);
+    expect(fork).toMatch(/@container fk \(max-width: 900px\) \{\s*\.fk-toolbar \{ grid-template-columns: minmax\(0, 1fr\) minmax\(84px, min\(240px, calc\(100% - 536px\)\)\) minmax\(0, 1fr\); \}/);
+    expect(fork).toMatch(/@container fk \(max-width: 700px\) \{\s*\.fk-tool \.fk-tool-label \{ display: none; \}/);
   });
 
   it("turns its spinner while any read is on its way, beside the name so nothing moves", () => {
