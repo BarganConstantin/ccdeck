@@ -461,14 +461,17 @@ export function useGitSelection({ data, sessionId, agent, top = null, focus, ini
     [head, files],
   );
 
-  // The file the view opens on, once there is something to open.
+  // The file the view opens on, once there is something to open — in the
+  // working tree, once the focus's edits are in too (or every read is), as
+  // its own files come first.
   useEffect(() => {
     if (pick.picked || file) return;
+    if (sel === UNCOMMITTED && !data.edits && data.pending > 0) return;
     const first = sel === UNCOMMITTED
       ? firstFile(data.entries, data.edits, focus)
       : Array.isArray(files) && files[0] ? { path: files[0].path, area: "commit", ...(files[0].from ? { from: files[0].from } : {}) } : null;
     if (first) setPick(p => (p.of === of && !p.picked && !p.file ? { ...p, file: first } : p));
-  }, [sel, data.entries, data.edits, files, file, pick.picked]);
+  }, [sel, data.entries, data.edits, data.pending, files, file, pick.picked]);
 
   // Every choice — the reader's, and the Fork look's opening — settles where
   // the view opens: the opening rule never moves a selection someone made.

@@ -27,6 +27,17 @@ describe("the canvas changing size under the open view", () => {
   });
 });
 
+describe("the camera beside the view reframing for a new width", () => {
+  // `f` and the edge divider's keys change the panel's width: the camera
+  // glided over 200ms in a view the pointer had opened, though nothing set
+  // off from the keyboard moves.
+  it("glides only on a pointer's open and a followed agent; a new width reframes at once", () => {
+    expect(view).toMatch(/const followed = framedAgent\.current !== agent\?\.id;\s*framedAgent\.current = agent\?\.id \?\? null;/);
+    expect(view).toMatch(/frame\(animate && \(opening \|\| followed\) \? 200 : 0\);/);
+    expect(view).not.toMatch(/frame\(animate \? 200 : 0\)/);
+  });
+});
+
 describe("the camera given back on close", () => {
   it("is taken on every open, a sheet's too, so widening past 1100px and closing still gives it back", () => {
     expect(view).not.toMatch(/if \(opening && !sheet\) savedViewport\.current/);

@@ -84,6 +84,12 @@ describe("the switch between the looks", () => {
   });
 });
 
+describe("the commit card", () => {
+  it("closes when the look switches: its anchor is the row it was opened beside, in the look before", () => {
+    expect(view).toMatch(/useEffect\(\(\) => setCard\(null\), \[agent\.id, request\.seq, prefs\.look\]\);/);
+  });
+});
+
 describe("the Fork layout", () => {
   it("lays the sidebar column, the toolbar, the history and the inspector out as Fork's window", () => {
     expect(view).toMatch(/<div className="fk-side-col" id="fk-side"/);
@@ -108,6 +114,13 @@ describe("the Fork toolbar", () => {
     const handoffs = sourceOf("components/GitHandoffs.tsx");
     expect(handoffs).toMatch(/<span className="fk-tool-label">Open in<\/span>/);
     expect(handoffs).toMatch(/<Words now="Copy" then="Copied" done=\{copied === "menu"\} \/>/);
+  });
+
+  it("lines Open in and Copy up with the other tools, never shrunk under the separator beside them", () => {
+    // The glance's row keeps its 10px over the hand-offs; the toolbar's tools do not.
+    expect(fork).toMatch(/\.gv-wide\[data-look="fork"\] \.gv-handoffs-wrap\[data-tools\] \{ flex: none; margin-top: 0; \}/);
+    // Their words go before the end of the toolbar is too narrow for them, so nothing overlaps the repository box.
+    expect(fork).toMatch(/@container fk \(max-width: 840px\) \{\s*\.fk-tool \.fk-tool-label \{ display: none; \}/);
   });
 
   it("turns its spinner while any read is on its way, beside the name so nothing moves", () => {

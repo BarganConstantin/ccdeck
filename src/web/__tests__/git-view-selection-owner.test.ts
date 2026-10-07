@@ -182,6 +182,27 @@ describe("the Fork look's opening", () => {
   });
 });
 
+describe("the file the view opens on", () => {
+  it("waits for the agent's edits when they land after the working tree: it is the first file the agent edited", async () => {
+    const entries = [entry("data/products.csv"), entry("src/auth/password.ts")];
+    const edits = [{ path: "src/auth/password.ts", agentId: null, label: null, at: 1 }];
+    const props: Props = { data: repoData({ commits: [], entries, edits: null, pending: 2 }), sessionId: "s1", agent: null, top: "/r/a", focus, initial: {}, seq: 1, active: true };
+    const v = mount(props);
+    await v.start();
+    expect(v.now().file).toBeNull();
+    await v.update({ ...props, data: repoData({ commits: [], entries, edits, pending: 1 }) });
+    expect(v.now().file?.path).toBe("src/auth/password.ts");
+    await v.stop();
+  });
+
+  it("opens on the first change git lists once every read is in, when the edits never came", async () => {
+    const v = mount({ data: repoData({ commits: [], entries: [entry("a.ts")], edits: null, pending: 0 }), sessionId: "s1", agent: null, top: null, focus, initial: {}, seq: 1, active: true });
+    await v.start();
+    expect(v.now().file?.path).toBe("a.ts");
+    await v.stop();
+  });
+});
+
 describe("the shared read", () => {
   it("never hands one worktree's answer to a reader asking for another", async () => {
     auto = url => ({ status: 200, body: { ok: true, state: "repo", repo: null, entries: [entry(url.pathname.endsWith("status") ? "web.ts" : "x")], commits: [], edits: [] } });
