@@ -325,8 +325,11 @@ export type SidebarMove =
  * an open one, then steps out to its parent; Enter and Space open a folder or
  * select a ref's commit; the menu key (or Shift+F10) opens the row's menu; a
  * printable character goes to the filter. Nothing here animates.
+ *
+ * While `filtering`, every folder is held open, so none opens or shuts: ←
+ * steps out to the parent at once and Enter on a folder stays.
  */
-export function sidebarKey(e: SidebarKey, rows: readonly SbRow[], at: number, page: number): SidebarMove {
+export function sidebarKey(e: SidebarKey, rows: readonly SbRow[], at: number, page: number, filtering = false): SidebarMove {
   if (isBrowserChord(e)) return { kind: "pass" };
   const count = rows.length;
   if (count === 0) return e.key.length === 1 && e.key !== " " ? { kind: "type", text: e.key } : { kind: "pass" };
@@ -349,14 +352,14 @@ export function sidebarKey(e: SidebarKey, rows: readonly SbRow[], at: number, pa
     }
     case "ArrowLeft": {
       if (!row) return { kind: "cursor", index: 0 };
-      if (expandable(row) && row.open) return { kind: "toggle", index: here, open: false };
+      if (expandable(row) && row.open && !filtering) return { kind: "toggle", index: here, open: false };
       const up = row.parent ? rows.findIndex(r => r.key === row.parent) : -1;
       return up >= 0 ? { kind: "cursor", index: up } : { kind: "stay" };
     }
     case "Enter":
     case " ": {
       if (!row) return { kind: "stay" };
-      if (expandable(row)) return { kind: "toggle", index: here, open: !row.open };
+      if (expandable(row)) return filtering ? { kind: "stay" } : { kind: "toggle", index: here, open: !row.open };
       return row.sha ? { kind: "jump", index: here } : { kind: "stay" };
     }
     case "ContextMenu": return row?.copy ? { kind: "menu", index: here } : { kind: "stay" };

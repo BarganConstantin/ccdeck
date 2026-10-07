@@ -217,6 +217,17 @@ describe("keys on the tree", () => {
     expect(k("ArrowRight", at("develop"))).toEqual({ kind: "stay" });
   });
 
+  it("steps out of a folder with ← while a filter holds every folder open, and into it with →", () => {
+    const filtered = rowsOf({ query: "ticket" });
+    const kf = (key: string, label: string) => sidebarKey({ key, ctrlKey: false, metaKey: false, altKey: false }, filtered, filtered.findIndex(r => r.label === label), 5, true);
+    expect(kf("ArrowLeft", "ticket-2")).toEqual({ kind: "cursor", index: filtered.findIndex(r => r.label === "bulk") });
+    expect(kf("ArrowLeft", "bulk")).toEqual({ kind: "cursor", index: filtered.findIndex(r => r.label === "Branches") });
+    expect(kf("ArrowLeft", "Branches")).toEqual({ kind: "stay" });
+    expect(kf("ArrowRight", "bulk")).toEqual({ kind: "cursor", index: filtered.findIndex(r => r.label === "bulk") + 1 });
+    // Nothing to open or shut while filtering: Enter on a folder stays.
+    expect(kf("Enter", "bulk")).toEqual({ kind: "stay" });
+  });
+
   it("selects a ref's commit with Enter or Space, opens and shuts a folder with them, and opens the row's menu", () => {
     expect(k("Enter", at("develop"))).toEqual({ kind: "jump", index: at("develop") });
     expect(k(" ", at("main"))).toEqual({ kind: "jump", index: at("main") });

@@ -292,7 +292,7 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
         <FkSidebarTree
           rows={rows} selKey={selKey} stopKey={stopKey} label={name ? `${name}: branches, tags and more` : "Branches, tags and more"}
           onCursor={setSelKey} onToggle={setRowOpen} onJump={row => row.sha && onJump(row.sha)} onMenu={rowMenu} onType={onType}
-          focusSeq={focusSeq}
+          focusSeq={focusSeq} filtering={query.trim() !== ""}
         />
       </div>
       <span className="vis-hidden" role="status" aria-live="polite">{said}</span>
