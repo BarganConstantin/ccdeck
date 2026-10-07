@@ -1,7 +1,9 @@
 // A session's note seen from a distance: the face RecapNoteNode draws over the
 // note's box at the compact and overview zooms, in screen pixels (see
 // `.lod-face`). Two things it owes a reader there: every line it paints is
-// whole, and a line it cuts short carries its whole text on hover (faceTitle).
+// whole, and a line it cuts short is read whole in the deck's hover card, which
+// opens over the face at both distances — not in a title of its own, which put
+// the browser's tooltip on top of that card (note-face-one-hover.test.ts).
 //
 // The face measured on a board zoomed out a step at a time: with a content
 // box 44.4px tall it drew two lines of the note, which then needed 45, and
@@ -56,9 +58,9 @@ describe("the note's text on a zoomed-out face", () => {
     expect(rule(".recap-face-text")).toMatch(/-webkit-line-clamp:\s*4;/);
   });
 
-  it("carries its whole text on hover, and the note's own tooltip under it", () => {
-    expect(node).toContain("const tip = isRecap ? undefined : noteSource(note);");
-    expect(node).toContain('<p className="recap-face-text" title={faceTitle(note.text, tip)}>{note.text}</p>');
+  it("leaves its whole text to the hover card that opens over it, with no title of its own", () => {
+    expect(node).toContain('<p className="recap-face-text">{note.text}</p>');
+    expect(read("../components/SessionPeek.tsx")).toContain('<p className="recap-peek-text">{note.text}</p>');
   });
 
   it("puts the line itself above a tooltip that does not already hold it", () => {
@@ -92,8 +94,8 @@ describe("the note's age on a zoomed-out face", () => {
     expect(px(overview, "height")).toBe(px(rule('.canvas-wrap[data-lod="overview"] .lod-id'), "line-height"));
   });
 
-  it("carries the moment it stands for on hover, as the full note's age does", () => {
-    expect(node).toContain('<span className="recap-face-age" title={faceTitle(written.label, written.title)}>{written.label}</span>');
+  it("takes no title under the hover card, and the full note's age keeps the moment it stands for", () => {
+    expect(node).toContain('<span className="recap-face-age">{written.label}</span>');
     expect(node).toContain('<span className="recap-note-age" title={written.title}>{written.label}</span>');
   });
 });

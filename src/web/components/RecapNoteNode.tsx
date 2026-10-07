@@ -47,18 +47,21 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
   // list's line already uses, so a question, a failure and a finished job read
   // in the same colours in both places.
   const cls = isRecap ? "recap-note" : `recap-note is-status status-${note.kind}`;
-  // Who wrote a status note; a recap says so in its mark. The text carries it
-  // too, under the text itself (faceTitle), at both sizes.
+  // Who wrote a status note; a recap says so in its mark. On hover it is the
+  // full size's alone: the head says it, and the text carries it under the
+  // text itself (faceTitle). Never on the note's own box, which the face sits
+  // in — a pointer on the face would take it from there, on top of the hover
+  // card that already says it. A screen reader has it as the description.
   const tip = isRecap ? undefined : noteSource(note);
   return (
     <div
       className={cls}
       role="note"
       aria-label={isRecap ? "Claude Code's recap" : `Session note: ${noteTag(note.kind)}`}
-      title={tip}
+      aria-description={tip}
       style={{ "--session-hue": data.hue } as React.CSSProperties}
     >
-      <div className="recap-note-head">
+      <div className="recap-note-head" title={tip}>
         <span className="recap-note-mark"><NoteMark recap={isRecap} />{noteTag(note.kind)}</span>
         <span className="recap-note-age" title={written.title}>{written.label}</span>
         {/* The click stops here: a click on the node is App's, and selects
@@ -71,9 +74,9 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
           onClick={e => { e.stopPropagation(); dismissRecap(data.noteKey); }}
         >×</button>
       </div>
-      {/* Its whole text on hover, as the face's line carries it: a status
-          note holds three lines here, a running turn often says more, and the
-          hover preview that holds the rest does not open at this zoom. */}
+      {/* Its whole text on hover: a status note holds three lines here, a
+          running turn often says more, and the hover card that holds the rest
+          does not open at this zoom, so the title is the only way to read it. */}
       <p className="recap-note-text" title={faceTitle(note.text, tip)}>{note.text}</p>
       {/* Claude Code's guess at the answer to the question above, shown as a
           guess — muted, quoted — and never typed for anybody. One line, so a
@@ -83,15 +86,16 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
           way a card's face is (AgentNode's NodeFace): its mark and age, and as
           many lines of the note as the box has room for at 1:1. Without it the
           note below the full card was an empty box around a 3px "recap". The
-          whole text is the peek's, beside the pointer, and the cut line carries
-          it on hover too (faceTitle). Hidden from assistive technology, which
-          has the note itself. */}
+          whole text is the hover card's, beside the pointer, which opens at
+          every distance this face is drawn at — so nothing here carries a
+          title, or the browser's tooltip would open on top of it with the same
+          words. Hidden from assistive technology, which has the note itself. */}
       <div className="lod-face recap-face" aria-hidden>
         <div className="lod-id">
           <span className="recap-note-mark"><NoteMark recap={isRecap} />{noteTag(note.kind)}</span>
-          <span className="recap-face-age" title={faceTitle(written.label, written.title)}>{written.label}</span>
+          <span className="recap-face-age">{written.label}</span>
         </div>
-        <p className="recap-face-text" title={faceTitle(note.text, tip)}>{note.text}</p>
+        <p className="recap-face-text">{note.text}</p>
       </div>
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
