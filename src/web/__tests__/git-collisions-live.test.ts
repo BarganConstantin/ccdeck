@@ -205,6 +205,26 @@ describe("GitCollisions", () => {
     });
   });
 
+  it("keeps a file sharp in the worktree an agent left uncommitted, after it is followed into another", async () => {
+    const repo = track(repoWith({ "a.txt": "a\n" }, "ccdeck-collide-left-"));
+    const wt = join(track(tempDir("ccdeck-collide-leftwt-")), "side");
+    sh(repo, ["worktree", "add", "-q", "-b", "side", wt]);
+    let since = await lastSeq();
+    await start("L-x", repo);
+    await start("L-y", repo);
+    await edit("L-x", repo, "a.txt");
+    await edit("L-y", repo, "a.txt");
+    await next("L-x", since, c => c.sharp.length === 1);
+    // L-x looks at the other worktree once: the reads follow it there, while
+    // both edits still sit uncommitted in the first one.
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "L-x", cwd: repo, tool_name: "Bash", tool_input: { command: `cd '${wt}' && git status` }, tool_response: { stdout: "" }, tool_use_id: "toolu_lx_cd" });
+    expect(await next("L-y", since, c => c.quiet.length === 0)).toEqual({
+      quiet: [], sharp: [{ agentId: null, with: { sessionId: "L-x", agentId: null }, files: ["a.txt"] }],
+    });
+    expect((await next("L-x", since, c => c.quiet.length === 0)).sharp).toEqual([{ agentId: null, with: { sessionId: "L-y", agentId: null }, files: ["a.txt"] }]);
+  });
+
   it("clears for a session the page let go of, and when the git view is switched off", async () => {
     const repo = track(repoWith({ "a.txt": "a\n" }, "ccdeck-collide-forget-"));
     let since = await lastSeq();
