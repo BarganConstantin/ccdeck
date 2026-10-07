@@ -411,6 +411,36 @@ describe("the worktree a session works in", () => {
     expect(await repoTop("F5")).toBe(wt);
   });
 
+  it("follows a folder change made while git was switched off, once it is on again", async () => {
+    const { dir, wt } = repoAndWorktree("off");
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F7", cwd: dir });
+    await next("F7", since);
+    expect((await call("POST", "/api/prefs", { git: false })).body.prefs.git).toBe(false);
+    try {
+      await event({ hook_event_name: "UserPromptSubmit", session_id: "F7", cwd: wt, prompt: "go on" });
+    } finally {
+      expect((await call("POST", "/api/prefs", { git: true })).body.prefs.git).toBe(true);
+    }
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "F7", cwd: wt, tool_name: "Bash", tool_input: { command: "npm test" } });
+    await next("F7", since, g => g.topLevel === wt);
+    expect(await repoTop("F7")).toBe(wt);
+  });
+
+  it("follows a folder change made after the page let the session go", async () => {
+    const { dir, wt } = repoAndWorktree("forgot");
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F8", cwd: dir });
+    await next("F8", since);
+    await event({ hook_event_name: "UserPromptSubmit", session_id: "F8", cwd: dir, prompt: "one" });
+    expect((await call("POST", "/api/forget", { ids: ["F8"] })).status).toBe(200);
+    since = await lastSeq();
+    await event({ hook_event_name: "UserPromptSubmit", session_id: "F8", cwd: wt, prompt: "two" });
+    await next("F8", since, g => g.topLevel === wt);
+    expect(await repoTop("F8")).toBe(wt);
+  });
+
   it("puts a restarted deck's session back in the worktree its last GitObserved named", () => {
     const { dir, wt } = repoAndWorktree("replay");
     noteSessionFolder({ session_id: "F6", cwd: dir, hook_event_name: "SessionStart" });

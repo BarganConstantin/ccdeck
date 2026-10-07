@@ -76,7 +76,7 @@ import { pushEvent } from "./event-sink.mjs";
 import { codexCwdInWorkspace } from "./log-election.mjs";
 import { gitOn } from "./deck-prefs.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
-import { followFolder, recentSessions, sessionFolder, sessionSubagents, sessionTranscript } from "./git-sessions.mjs";
+import { followFolder, noteLiveFolder, recentSessions, sessionFolder, sessionSubagents, sessionTranscript, takeMove } from "./git-sessions.mjs";
 import { markStale, repoOf } from "./git-state.mjs";
 // What a call edited and the folders its commands name.
 import { digestToolCall } from "./agent-git-digest.mjs";
@@ -101,7 +101,7 @@ export const FIRST_LOOK_MS = 250;
 export const AFTER_COMMAND_MS = 600;
 export const AFTER_EDIT_MS = 2_000;
 
-const watched = new Map(); // sid -> { timer, due, seen: Set<key>, sent: Map<key, { sig, stale, top, state, drawn, payload, seq, at }>, cwds: Map<key, cwd>, pending: Map<key, { top, n }>, following: Promise }
+const watched = new Map(); // sid -> { timer, due, seen: Set<key>, sent: Map<key, { sig, stale, top, state, drawn, payload, seq, at }>, pending: Map<key, { top, n }>, following: Promise }
 /** The Settings switch: off, the deck runs no git at all. */
 let enabled = () => gitOn(heldPrefs.current());
 /** How many of the most recently heard sessions a refresh looks at — every
@@ -127,7 +127,7 @@ export const gitEnabled = () => enabled();
 function watching(sid) {
   let w = watched.get(sid);
   if (!w) {
-    w = { timer: null, due: Infinity, seen: new Set(), sent: new Map(), cwds: new Map(), pending: new Map(), following: Promise.resolve() };
+    w = { timer: null, due: Infinity, seen: new Set(), sent: new Map(), pending: new Map(), following: Promise.resolve() };
     watched.set(sid, w);
     while (watched.size > MAX_WATCHED) forgetGitSession(watched.keys().next().value);
   }
@@ -148,9 +148,12 @@ export function noteGitEvent(raw, { replay = false, seq = null, at = null } = {}
       if (raw.hook_event_name === "GitObserved") seedFromLog(raw, seq, at);
       return;
     }
-    if (!enabled()) return;
     const sid = raw.session_id;
     if (typeof sid !== "string" || sid === "" || typeof raw.cwd !== "string" || raw.cwd === "") return;
+    // The folder it is in, heard with the reads switched off too: a move made
+    // meanwhile is followed once they are on again.
+    noteLiveFolder(sid, subagentKeyOf(raw), raw.cwd);
+    if (!enabled()) return;
     const w = watching(sid);
     if (changesRepo(raw)) {
       const marked = mark(raw, w);
@@ -164,7 +167,7 @@ export function noteGitEvent(raw, { replay = false, seq = null, at = null } = {}
         }
       }
     }
-    const evidence = whereItWorks(raw, w);
+    const evidence = whereItWorks(raw, sid);
     if (evidence.moves.length || evidence.edits.length) {
       const key = subagentKeyOf(raw) ?? "";
       w.following = w.following.then(() => follow(sid, key, evidence, w)).catch(() => {});
@@ -213,18 +216,18 @@ function mark(raw, w) {
 
 /**
  * What one event says about where its agent works: `moves`, the folders it
- * went to — its own folder when that changed, then each folder its commands
+ * went to — its own folder when that changed since the last live event heard
+ * from it (git-sessions.mjs takeMove, which also keeps a change heard while
+ * the reads were off or the session was let go), then each folder its commands
  * `cd` or `git -C` into, in order — and `edits`, the folders of the files it
  * edited. A Claude call counts once it finished; a Codex call as it starts,
  * since its outcome names no tool.
  */
-function whereItWorks(raw, w) {
-  const key = subagentKeyOf(raw) ?? "";
+function whereItWorks(raw, sid) {
   const moves = [];
   const edits = [];
-  const before = w.cwds.get(key);
-  w.cwds.set(key, raw.cwd);
-  if (before !== undefined && before !== raw.cwd) moves.push(raw.cwd);
+  const moved = takeMove(sid, subagentKeyOf(raw));
+  if (moved) moves.push(moved);
   const codex = raw.provider === "codex";
   if (codex ? raw.hook_event_name === "PreToolUse" : FINISHED.has(raw.hook_event_name) && CHANGING_TOOLS.has(raw.tool_name)) {
     const call = digestToolCall(raw.tool_name, raw.tool_input, raw.cwd);
