@@ -34,7 +34,8 @@ import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from ".
 // about the speed they were billed at — see transcript-scan.mjs.
 import {
   billedSpeed, hasSpend, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
-  requestBilling, streamingRequestId, BILL_LINE, REBILL_REQUEST, SKIP_LINE,
+  requestBilling, newRequestLedger, noteRequestRecord, streamingRequestId,
+  BILL_LINE, REBILL_REQUEST, SKIP_LINE,
 } from "./transcript-scan.mjs";
 
 /** The pseudo-account for messages the swap log cannot place — everything
@@ -42,7 +43,7 @@ import {
  *  a per-account total is never quietly inflated by work that is not that
  *  account's. A NUL keeps it from ever colliding with a real `email@@org` key. */
 export const UNATTRIBUTED = "\u0000unattributed";
-const STATE_VERSION = 5;
+const STATE_VERSION = 6;
 
 /** Where the tally and cursors live, beside cswap-auto's own state. */
 export function statePath(home = homedir()) {
@@ -242,19 +243,23 @@ export function projectPath(cwd) {
  * `timeline` is the sorted swap log; the account is whoever it says was active
  * at this line's timestamp, or UNATTRIBUTED when the timestamp precedes it.
  * `from` names the transcript's project directory — see folderOf — and, as
- * `requests` and `path`, where the request this file is still waiting on a
- * final record for is kept between passes.
+ * `requests` and `path`, where what this file has read of its requests is kept
+ * between passes: the newest request record, which a resumed subagent's replay
+ * of its history is told apart by, and the request still waiting on a final
+ * record (newRequestLedger in transcript-scan.mjs).
  */
 export function foldLine(tally, line, timeline, from) {
   if (!line || !line.includes('"usage"')) return;
   let obj = null;
   try { obj = JSON.parse(line); } catch { return; }
   // A request is billed once, from its final record, which in a subagent's
-  // file follows a streaming snapshot — see requestBilling. A call that keeps
-  // no requests for the file never sees one replaced, and bills block 0.
+  // file follows a streaming snapshot, and not again when a resumed subagent
+  // restates it — see requestBilling. A call that keeps no requests for the
+  // file never sees one replaced or restated, and bills block 0.
   const requests = from?.requests ?? null;
-  const streaming = requests?.[from.path] ?? null;
-  const billing = requestBilling(obj, streaming?.id ?? null);
+  const ledger = requests?.[from.path] ?? null;
+  const billing = requestBilling(obj, ledger);
+  if (requests && billing !== BILL_LINE) noteRequestRecord(requests[from.path] ??= newRequestLedger(), obj);
   if (billing === SKIP_LINE) return;
   const usage = obj?.message?.usage;
   if (!usage || typeof usage !== "object") return;
@@ -262,7 +267,7 @@ export function foldLine(tally, line, timeline, from) {
   if (!Number.isFinite(ts)) return;
   const c = countersFrom(usage);
   if (!hasSpend(asUsageTotals(c))) return;   // a usage block that billed nothing
-  if (billing === REBILL_REQUEST) refund(tally, streaming);
+  if (billing === REBILL_REQUEST) refund(tally, ledger.streaming);
   const model = typeof obj?.message?.model === "string" ? obj.message.model : "";
   const lineCwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : "";
   const cwd = projectPath(folderOf(lineCwd, from));   // a worktree counts under the repo it checks out
@@ -277,13 +282,12 @@ export function foldLine(tally, line, timeline, from) {
   const speed = billedSpeed(obj);
   const share = speed ? speedShareKey(counters, speed) : null;
   if (share) addInto(counters.s[share], c);
-  if (billing === REBILL_REQUEST) dropIfEmpty(tally, streaming);
+  if (billing === REBILL_REQUEST) dropIfEmpty(tally, ledger.streaming);
   if (billing === BILL_LINE || !requests) return;
   // What a request still streaming was charged, and where, so its final
   // record can take that back, in this pass or a later one.
   const id = streamingRequestId(obj);
-  if (id === null) delete requests[from.path];
-  else requests[from.path] = { id, at: [key, cwd, day, model], s: share, c };
+  requests[from.path].streaming = id === null ? null : { id, at: [key, cwd, day, model], s: share, c };
 }
 
 /** Take a streaming request's charge back out of the row it was charged to,
@@ -496,15 +500,17 @@ export function createProjectRollup({
         state = disk;
         state.folders ??= {};
         state.requests ??= {};
-      } else if (disk && [1, 2, 3, 4].includes(disk.version)) {
+      } else if (disk && [1, 2, 3, 4, 5].includes(disk.version)) {
         // Version 1 counted every API content block; version 2 keyed each row
         // by the line's own cwd, a row per folder the agent cd'd into (#1278);
         // version 3 kept no speed, so every fast turn read at the standard
         // rate; version 4 billed a subagent's request from its streaming
-        // snapshot, most of its output and its speed missing (#1883). None of
-        // them can be re-keyed, since it no longer knows which transcript a
-        // count came from. Keep the heartbeat so a restart gap remains fenced,
-        // but rebuild the tally from transcripts.
+        // snapshot, most of its output and its speed missing (#1883); version
+        // 5 billed a resumed subagent's request again each time its file
+        // restated its history. None of them can be re-keyed, since it no
+        // longer knows which transcript a count came from. Keep the heartbeat
+        // so a restart gap remains fenced, but rebuild the tally from
+        // transcripts.
         state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, requests: {}, lastAlive: disk.lastAlive };
         dirty = true;
       }
@@ -565,7 +571,7 @@ export function createProjectRollup({
       const timeline = await readSwapLog(swapLog);
       const files = await listTranscripts(roots);
       for (const [path, slug] of files) await foldFile(path, slug, timeline);
-      // Forget the cursors and streaming requests of files that are gone, and
+      // Forget the cursors and request ledgers of files that are gone, and
       // the folders of project directories with no transcript left, so none of
       // the three maps grows forever.
       for (const p of Object.keys(state.cursors)) if (!files.has(p)) { delete state.cursors[p]; dirty = true; }

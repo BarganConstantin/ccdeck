@@ -74,6 +74,12 @@
     "3.38.1",
     "3.38.2"
   ],
+  "3.38.4": [
+    {
+      "title": "🔔 A notification when Auto-switch changes your account",
+      "body": "When Auto-switch moves Claude Code to another account, ccdeck now tells you once, with where it went and why, for example \"Switched to work \u00b7 personal@example.com reached 90%\". You can turn it off in the sound settings, where two more wait, off until you turn them on: one when a quota window of the Claude or Codex account you are on reaches 90% and again at 100%, and one when a window that had reached 90% is available again. Each is said once per window and a restart does not repeat it. With either quota notification on, the deck reads quota about every two minutes even while no page is open."
+    }
+  ],
   "3.38.3": [
     {
       "title": "🧾 Subagent costs count their whole reply",

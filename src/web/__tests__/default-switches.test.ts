@@ -25,6 +25,19 @@ describe("the switches a deck starts with", () => {
     expect(DEFAULTS.notifications).toBe(false);
   });
 
+  it("says when the deck moved the account, and nothing about quota until asked", () => {
+    // The account notifications (account-notify.mjs), the owner's defaults of
+    // 2026-10-07: the swap is rare and nothing else says it, so it starts on;
+    // the two quota ones start off, because turning either on is also what
+    // starts the deck reading quota with no page open.
+    expect(DEFAULTS.notifySwap).toBe(true);
+    expect(DEFAULTS.notifyQuota).toBe(false);
+    expect(DEFAULTS.notifyReset).toBe(false);
+    expect(normalise({})).toMatchObject({ notifySwap: true, notifyQuota: false, notifyReset: false });
+    expect(normalise({ notifySwap: false, notifyQuota: true, notifyReset: true }))
+      .toMatchObject({ notifySwap: false, notifyQuota: true, notifyReset: true });
+  });
+
   it("pairs on its own, and still offers nothing until a login is ticked", () => {
     // REVERSED 2026-09-16, at the owner's asking. 3.22.7 shipped auto-accept
     // OFF so that an office full of decks would not pair in silence. What that
@@ -80,7 +93,7 @@ describe("what counts as an answer in the prefs file", () => {
     // default: none of them may move.
     // `reports` joined with #1853: on by default, so the string "false" a hand
     // edit wrote must not switch it off, and only a real `false` does.
-    const top = ["notifications", "tourSeen", "autoUpdate", "reports"] as const;
+    const top = ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "reports"] as const;
     const lan = ["enabled", "autoAsk", "autoAccept", "shareActive", "tailscale", "tailscaleAsk", "tailscaleAccept"] as const;
     const raw = {
       ...Object.fromEntries(top.map(k => [k, String(!DEFAULTS[k])])),
