@@ -133,10 +133,13 @@ export default function NotificationsSection({
 
       {/* THREE MORE, AND NOT UNDER THE ONE ABOVE. That switch is about a deck
           nobody is looking at; these are said whether a page is open or not,
-          so each is its own switch and none waits on it. One group with one
-          note, because the note is the same for all three: whose accounts, and
-          that the deck need not be closed. */}
-      <div className="sm-setting">
+          so each is its own switch and none waits on it, and a hairline parts
+          the two subjects. One group with one note, because the note is the
+          same for all three: whose accounts, and that the deck need not be
+          closed. The note leads, as a caption does; under the last switch it
+          read as that switch's alone. */}
+      <div className="sm-account-switches">
+        <p className="sm-note">{notifyVetoed ? ACCOUNT_NOTIFY_VETO_NOTE : ACCOUNT_NOTIFY_NOTE}</p>
         {ACCOUNT_NOTIFY_SWITCHES.map(({ kind, label, title }) => (
           <label className="sm-switch" key={kind}>
             <span className="sm-switch-label" id={`sm-${kind}-label`}>{label}</span>
@@ -153,7 +156,6 @@ export default function NotificationsSection({
             </button>
           </label>
         ))}
-        <p className="sm-note">{notifyVetoed ? ACCOUNT_NOTIFY_VETO_NOTE : ACCOUNT_NOTIFY_NOTE}</p>
       </div>
     </div>
   );

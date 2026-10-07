@@ -127,19 +127,26 @@ describe("#801 — what the Notifications switch is saying", () => {
   });
 
   it("draws the channel under the switch it serves, at neither rank", () => {
-    // A named group with one control beside its name — the shape TURN FINISHED
-    // already has — but NOT its caps heading. All caps in this menu belongs to
-    // the two event groups, which are what structure it; a third one here would
-    // give a capability report the rank of a section the user configures.
+    // A named group with one control beside its name — the shape Turn finished
+    // already has — but NOT its group heading. The tone groups wear Settings'
+    // one group heading (.settings-caption h3: 12px, 600, --muted), and the
+    // channel stays a step under it — 11px in --text-dim, never capitals — so a
+    // capability report never takes the rank of a group the user configures.
+    // (The tone groups were capitals while they lived in the popover; in
+    // Settings, beside "Color theme" and "Claude FM", that made Sounds the one
+    // section in another hand, so the caps are gone on purpose.)
     const chan = notifications.slice(notifications.indexOf('aria-labelledby="sm-channel-name"'));
     expect(chan).toContain('<h3 className="sm-channel-name" id="sm-channel-name">Browser notifications</h3>');
     expect(chan).toContain('<div className="sm-channel-head">');
     expect(notifications).toContain('<section className="sm-channel" aria-labelledby="sm-channel-name">');
     const chanName = css.slice(css.indexOf(".sm-channel-name {"));
-    expect(chanName.slice(0, chanName.indexOf("}"))).not.toContain("text-transform");
-    const toneName = css.slice(css.lastIndexOf(".sm-tone-name {"));
-    expect(toneName.slice(0, toneName.indexOf("}")), "the event groups lost their caps")
-      .toContain("text-transform: uppercase");
+    const chanBody = chanName.slice(0, chanName.indexOf("}"));
+    expect(chanBody).not.toContain("text-transform");
+    expect(chanBody).toContain("font-size: 11px");
+    expect(chanBody).toContain("color: var(--text-dim)");
+    expect(css, "the tone groups share Settings' one group heading")
+      .toMatch(/\.settings-caption h3,\s*\.sm-tone-name \{[^}]*font-size: 12px;[^}]*\}/);
+    expect(css).not.toMatch(/\.sm-tone-name \{[^}]*text-transform/);
     // And the head keeps a floor, so granting the permission swaps a 30px
     // button for a word without the section shortening under the press.
     expect(css).toMatch(/\.sm-channel-head \{[^}]*min-height: var\(--ctl-h\)/);

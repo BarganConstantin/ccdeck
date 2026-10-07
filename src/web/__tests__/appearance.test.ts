@@ -49,7 +49,7 @@ describe("character appearance preference", () => {
   const themes = () => read("components/ThemeSection.tsx");
   const music = () => read("components/MusicSection.tsx");
 
-  it("uses a dismissible, accessible centered modal for the appearance settings", () => {
+  it("uses a dismissible, accessible modal pinned at the top for the appearance settings", () => {
     const styles = sheetText();
     expect(modal()).toContain("useModalDismiss");
     expect(modal()).toContain('role="dialog"');
@@ -64,9 +64,15 @@ describe("character appearance preference", () => {
     expect(themes()).toContain('role="radio"');
     expect(music()).toContain('role="switch"');
     expect(modal()).toContain("onClick={onClose}");
-    // Inside the viewport, and the section scrolls rather than the page.
+    // Inside the viewport, and the section scrolls rather than the page. The
+    // dialog is pinned at the top and as tall as its section, so the nav never
+    // moves as the sections swap, and its bottom edge stops short of the
+    // window's at every width.
     expect(styles).toContain(".modal.settings-modal");
-    expect(styles).toContain("height: min(640px, calc(100vh - 32px))");
+    expect(styles).toContain(".modal-backdrop:has(> .settings-modal) { align-items: flex-start; }");
+    expect(styles).toMatch(/\.modal\.settings-modal \{[^}]*max-height: calc\(100vh - min\(12vh, 96px\) - 16px\);[^}]*margin-top: min\(12vh, 96px\);/);
+    expect(styles).toMatch(/@media \(max-width: 640px\) \{\s*\.modal\.settings-modal \{[^}]*max-height: calc\(100vh - 32px\);/);
+    expect(styles).not.toMatch(/\.modal\.settings-modal \{[^}]*\bheight: min\(640px/);
     expect(styles).toMatch(/\.settings-pane \{[^}]*overflow-y: auto;/);
     expect(themes()).toContain("onKeyDown={moveTheme}");
     expect(themes()).toContain('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"');

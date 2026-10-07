@@ -396,8 +396,8 @@ export default function MusicSection({
       {/* THE CHARACTER, IN ITS OWN GROUP. It was a row under "Music source",
           where it read as a music setting; it is the thing the music plays
           through, which is what its note now says on screen rather than only
-          to a reader. In the same bordered box as Claude FM's controls, so the
-          two groups of the section read as one kind of thing.
+          to a reader. Under the hairline every second subject in a Settings
+          section stands under, and unboxed, as Claude FM's controls are.
           THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
           press anywhere in it to the switch exactly once — a press on the
           switch itself is the switch's own and the label does not repeat it —

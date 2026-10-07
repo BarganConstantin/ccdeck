@@ -572,6 +572,11 @@ const CONTROLS: Control[] = [
   // panel with the control edge round it, which is the mark that says which
   // one is chosen, so that edge is measured. The track sits on the panel.
   { at: ".fb-kind:has(input:checked)", fillFrom: ".fb-kind:has(input:checked)", beds: ["--panel"] },
+  // Settings' nav, on the same terms: a section's name at rest draws no
+  // boundary — the word names it — and the section on show is raised onto the
+  // panel with the control edge round it, which is the mark that says which,
+  // so that edge is measured. The nav sits a surface down, on --bg-soft.
+  { at: '.settings-tab[aria-selected="true"]', fillFrom: '.settings-tab[aria-selected="true"]', beds: ["--bg-soft"] },
   // Its two quiet buttons under the message, Add screenshot and Add details:
   // no boundary at rest, since their words name them, and the control edge
   // under the pointer and the keyboard, as Other accounts' expand-all draws one.
@@ -841,8 +846,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // And from 106 to 108 with the one question's scale: a number framed at
     // rest, and louder under the pointer. And from 108 to 110 with the
     // feedback dialog's Discard, which gains an edge under the pointer and the
-    // keyboard the way the LAN dialog's Unpair does.
-    expect(EDGED_CONTROLS.length).toBeLessThan(110);
+    // keyboard the way the LAN dialog's Unpair does. And from 110 to 112 with
+    // Settings' nav, whose chosen section is raised with the control edge round
+    // it, as the feedback dialog's chosen kind is.
+    expect(EDGED_CONTROLS.length).toBeLessThan(112);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

@@ -20,6 +20,8 @@
    something and a dialog is not. */
 .sound-menu {
   position: absolute;
+  /* popIn's scale grows out of the corner the speaker is at, not the middle. */
+  transform-origin: top right;
   top: calc(100% + 8px);
   right: 0;
   z-index: 40;
@@ -48,16 +50,22 @@
 /* ---------------- Settings ---------------- */
 
 /* THE ONE SETTINGS SURFACE (SettingsModal.tsx): `.modal`'s shell, a nav down
-   the side and the section beside it. A fixed height rather than one that
-   follows the section, so the nav does not jump under the pointer as the
-   sections swap — macOS resizes its settings window per pane, and a dialog
-   that did that here would move the very tab that was just pressed. The
-   section scrolls inside it; the nav and the header stay. 760px holds a
-   176px nav and a section as wide as the Appearance modal's was. */
+   the side and the section beside it. PINNED AT THE TOP AND AS TALL AS THE
+   SECTION. It was centred at a fixed 640px so the nav would not jump under the
+   pointer as the sections swapped, and that left Notifications three quarters
+   empty and General nearly two thirds. Pinning the top keeps the promise the
+   fixed height was for, without the floor: the top edge, and so the header and
+   the tab that was just pressed, never move; only the bottom edge follows the
+   section. The floor that remains is the shortest section's, so the two short
+   ones open at one height. The section scrolls inside once the dialog reaches
+   the window's bottom. 760px holds a 176px nav and a section as wide as the
+   Appearance modal's was. */
+.modal-backdrop:has(> .settings-modal) { align-items: flex-start; }
 .modal.settings-modal {
   width: min(760px, calc(100vw - 32px));
-  height: min(640px, calc(100vh - 32px));
-  max-height: none;
+  min-height: min(320px, calc(100vh - min(12vh, 96px) - 16px));
+  max-height: calc(100vh - min(12vh, 96px) - 16px);
+  margin-top: min(12vh, 96px);
 }
 .settings-body {
   display: grid;
@@ -77,15 +85,20 @@
   overflow-y: auto;
 }
 /* A row a reader presses, at the one control height. Hover is neutral, as
-   every control's is; the section on show takes the accent — a wash, the
-   theme picker's own 8% made 12% for a smaller target, and a 2px bar on its
-   leading edge, so the choice holds without the colour (1.4.1). */
+   every control's is. The section on show is RAISED, the way the feedback
+   dialog's chosen kind is (.fb-kind): onto the panel the section is drawn on,
+   with the control edge round it, which carries the choice at 3:1 without a
+   hue (1.4.1) and leaves the accent to the focus ring. It was an accent wash
+   and a 2px bar on the leading edge; the wash measured 1.26:1 against the nav,
+   so the bar carried the state alone, and a coloured edge bar is the one mark
+   the rest of the deck does not use for "chosen". The edge is on every tab,
+   transparent until chosen, so choosing one moves nothing. */
 .settings-tab {
   display: flex;
   align-items: center;
   min-height: var(--ctl-h);
   padding: 0 10px;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--r-ctl);
   background: transparent;
   color: var(--muted);
@@ -98,8 +111,8 @@
 }
 .settings-tab:hover { background: var(--ctl-fill); color: var(--text); }
 .settings-tab[aria-selected="true"] {
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-soft));
-  box-shadow: inset 2px 0 0 var(--accent);
+  border-color: var(--ctl-edge);
+  background: var(--panel);
   color: var(--text);
 }
 .settings-tab:active { transform: scale(0.97); }
@@ -108,22 +121,35 @@
 .settings-pane {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-height: 0;
   padding: 16px 20px 20px;
   overflow-y: auto;
 }
-/* A group inside a section, under the caption the panels' sections use: the
-   name in --muted at 12px and 600, a line under it in --text-dim, and the one
-   piece of metadata — a key — on the right. */
+/* ONE CADENCE FOR EVERY SECTION. A group is a caption over its controls, 10px
+   apart; two subjects in one section are parted by a hairline with 16px either
+   side of it — Sounds' rules, now Music's and Notifications' too. No section
+   boxes its groups: a well round Claude FM's controls and none round the tones
+   was the dialog reading as the three menus it was lifted from. */
 .settings-group { display: flex; flex-direction: column; gap: 10px; }
+.settings-pane > .settings-group + .settings-group {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
 .settings-caption {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
-.settings-caption h3 {
+/* THE ONE GROUP HEADING, under the caption the panels' sections use: the name
+   in --muted at 12px and 600, sentence case, a line under it in --text-dim, and
+   the one piece of metadata — a key, a count — on the right. The tone groups
+   and Custom sounds wear it too (.sm-tone-name): they were capitals tracked at
+   0.13em, the popover's banner, which beside "Color theme" and "Claude FM" made
+   Sounds the one section in another hand. */
+.settings-caption h3,
+.sm-tone-name {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
@@ -150,16 +176,23 @@
   border-radius: 4px;
   padding: 1px 5px;
 }
-/* The Sounds section: the popover's column, at the popover's 12px, because it
-   is the same set of things with room to breathe. */
-.sm-sounds { display: flex; flex-direction: column; gap: 12px; }
+/* The Sounds section: the switch, then two subjects under hairlines — the
+   tones, and the sounds of your own — at the section cadence above. */
+.sm-sounds { display: flex; flex-direction: column; gap: 16px; }
 
 /* AT A PHONE'S WIDTH THE NAV GOES ON TOP (#849's breakpoint). A column of
    176px and a section beside it leave the section 150px at 390, so the nav
    becomes a row over the section — two to a line under about 500px, all four
-   above it — and the bar under the chosen tab moves to its bottom edge, the
-   side the section is on. Nothing scrolls sideways: the tabs wrap. */
+   above it. Nothing scrolls sideways: the tabs wrap. The chosen one is raised
+   exactly as it is down the side; a bar under it, in a grid of two rows,
+   pointed at the tab below rather than at the section. The dialog takes the
+   screen's height, 16px off each edge, rather than a desktop's offset. */
 @media (max-width: 640px) {
+  .modal.settings-modal {
+    min-height: min(320px, calc(100vh - 32px));
+    max-height: calc(100vh - 32px);
+    margin-top: 16px;
+  }
   .settings-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -172,7 +205,6 @@
     border-bottom: 1px solid var(--line);
   }
   .settings-tab { justify-content: center; text-align: center; }
-  .settings-tab[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
   .settings-pane { padding: 14px 14px 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -181,14 +213,14 @@
 }
 
 /* TWO PREVIEWS, NOT TWO WORDS. Each choice is the deck itself in that theme,
-   so it is recognised before it is read. The -4px bleed gives each choice a
-   4px plate to hover in while the previews stay on the text edge above them.
-   THE CHOSEN ONE: its frame goes to --text and doubles to 2px with a ring
+   so it is recognised before it is read. The -8px bleed is the plate's own
+   8px padding given back, so each choice has a plate to hover in while the
+   previews stand on the caption's text edge rather than 8px in from it.
+   THE CHOSEN ONE: its frame goes to the accent and doubles to 2px with a ring
    rather than a wider border, so nothing shifts; a check stands at the end of
-   its name; the name comes up from --muted to --text. The frame is 3.16:1
-   dark / 5.32:1 light against the --ctl-edge the other one rests on, so the
-   state holds without the check or the colour. The accent stays the focus
-   ring's, which is drawn round the whole plate.
+   its name; the name comes up from --muted to --text; the plate takes an 8%
+   wash. The check and the doubled frame hold the state without the colour.
+   The focus ring is drawn round the whole plate, outside the frame.
    HOVER lifts the plate and the name, never the frame, so a pointer resting on
    the other theme cannot pass for choosing it. No press-scale: at 118px a
    3% shrink is a lurch, not a click. */
@@ -196,7 +228,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin: 0;
+  margin: 0 -8px;
 }
 .appearance-theme {
   display: flex;
@@ -285,29 +317,27 @@
 .tp-card { fill: var(--tp-surface); stroke: var(--tp-rule); }
 .tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
 
-/* One control, the width of the card. The <label> is the target (see
-   MusicSection.tsx); the -8px bleed lets its hover fill reach the card's
-   padding while the words stay on the text edge. The switch sits in the
-   label's grid row, so it centres on the label's line and not on the pair of
-   lines, and the note spans under both. */
+/* One control, the width of the section. The <label> is the target (see
+   MusicSection.tsx). The switch sits in the label's grid row, so it centres on
+   the label's line and not on the pair of lines, and the note spans under
+   both, 5px off it. Drawn as Notifications' and Sounds' switch rows are
+   (.sm-switch): the name at 13px and 500, no plate under the pointer — the
+   switch's own hover answers it — and so one switch row in the whole dialog,
+   where Music's sat a size smaller in a box and lit up as the others did not. */
 .appearance-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 12px;
-  row-gap: 2px;
+  row-gap: 5px;
+  min-height: 20px;
   margin: 0;
-  padding: 10px 0 2px;
-  border-radius: var(--r-ctl);
   cursor: pointer;
-  transition: background-color 120ms ease-out;
 }
-.appearance-row:hover { background: var(--ctl-fill); }
 .appearance-row-label {
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 18px;
 }
 .appearance-row-note {
   grid-column: 1 / -1;
@@ -318,20 +348,19 @@
   font-size: 11px;
   line-height: 16px;
 }
+/* 48px and 10px: the label column every row in Settings shares (.sm-row), so
+   the station's field and the volume's track start on one edge. */
 .appearance-source-row {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
+/* Claude FM's controls, unboxed: a group's rows at the group's step. */
 .appearance-controls {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 12px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-ctl);
-  background: color-mix(in srgb, var(--bg) 34%, var(--panel));
+  gap: 12px;
 }
 .appearance-source-row > label {
   color: var(--muted);
@@ -470,7 +499,7 @@
 }
 .appearance-fm-status:empty { display: none; }
 /* The station's own verbs, under the picker and in its column (48px label
-   plus the row's 12px gap): Add on the left, and Rename and Remove, which
+   plus the row's 10px gap): Add on the left, and Rename and Remove, which
    only a custom station has, pushed to the right edge, away from Add. Trimmed
    like `.sm-custom-action`, so they read as the field's secondary actions
    rather than as a row of equal buttons competing with it. */
@@ -479,7 +508,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin: -6px 0 0 60px;
+  margin: -6px 0 0 58px;
 }
 .appearance-station-edit { display: inline-flex; gap: 6px; margin-left: auto; }
 button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
@@ -516,14 +545,22 @@ button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
   font-size: 11px;
   line-height: 16px;
 }
-/* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
-   one group and the tone sections below are two others — the gap is what says
-   so now that the boxes are gone. */
-/* ONE CADENCE. The card ran 12 / 12 / 10 / 8 / 10, which is five numbers none
-   of which meant anything against the others. Now: 5px binds a line to the
-   control it belongs to, 9px separates rows inside a group, 14px separates
-   groups. Nothing new is drawn — the spacing is the grouping. */
-.sm-switches { display: flex; flex-direction: column; gap: 12px; }
+/* SETTINGS › NOTIFICATIONS. Two subjects at the section cadence: the switch
+   for a deck nobody is looking at (and the browser channel it reaches you
+   through), then, under a hairline, the three said whether a page is open or
+   not. 5px binds a note to the switch it belongs to. */
+.sm-switches { display: flex; flex-direction: column; gap: 16px; }
+/* The three account switches, with the line that covers all three said FIRST,
+   as a caption is. Under the last of them, 5px off "Quota reset" — the gap a
+   switch's own note sits at — it read as that one switch's note. Rows 10px
+   apart, the group's own step. */
+.sm-account-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
 
 /* A row that is entirely a target: the <label> wraps the name and the switch,
    so the name is clickable and the accessible name comes from the element the
@@ -622,9 +659,8 @@ button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
 .sm-setting { display: flex; flex-direction: column; gap: 5px; }
 
 /* ONE OF THE TWO WAYS NOTIFICATIONS REACH YOU — a capability report, not a
-   setting and not an event group. Sentence case and --text-dim, because ALL
-   CAPS in this menu belongs to TURN FINISHED and CLAUDE IS ASKING: those are
-   what structure it, and a third caps heading here would claim their rank for
+   setting and not a group. 11px in --text-dim, a step under the group heading
+   (.settings-caption h3): a heading at that rank here would claim it for
    something the user configures in the browser rather than here.
    `min-height` and not padding: the head holds a 30px button in one state and
    the word that replaces it in the other, and without a floor the section
@@ -663,8 +699,8 @@ button.btn.sm-channel-action {
 .sm-tones {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding-top: 14px;
+  gap: 24px;
+  padding-top: 16px;
   border-top: 1px solid var(--line);
 }
 
@@ -672,32 +708,13 @@ button.btn.sm-channel-action {
    line saying which turns it covers. */
 .sm-tone { display: flex; flex-direction: column; gap: 10px; }
 .sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-/* The caption the shortcuts sheet's group headings already are, restated for a
-   heading that is not in that grid. */
-/* Uppercase stays — it is what structures the card — but 600 at 0.08em is the
-   setting a terminal uses for a section banner. Lighter and wider reads as a
-   caption instead: the same job, without the shout. */
-.sm-tone-name {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  /* A step off --muted, not a new tier. Wider tracking does part of the
-     softening on its own — letters further apart read quieter at the same
-     colour — so the colour only has to move the rest of the way: to
-     --text-dim, the tier under --muted. It was --muted mixed 12% toward the
-     panel, 3.93:1 in dark (#1788); the dark ramp has no readable tier under
-     --muted, so there the tracking does it alone. */
-  color: var(--text-dim);
-  font-weight: 500;
-}
 /* Narrower than a full .btn, and exactly as TALL as one. The 12px side padding
    is a lot for two words on a caption line, so that is trimmed and the gap
    between the ▶ and the word is stated — but --ctl-h is not touched: this deck
    has one button height and panel-rhythm.test.ts keeps it that way, refusing
    any rule that could put a second one back. A 30px button beside an 11px
    caption looked wrong in the drafting and turned out to be the caption's
-   fault; the row is centred, so the two align on their middles and the height
+   fault (it is 12px now, the dialog's one group heading); the row is centred, so the two align on their middles and the height
    never reads as oversized. */
 /* MADE SECONDARY. It wore `btn` at full outline weight, which is what a page's
    one primary action wears — and counting the selects there are four of those
@@ -851,7 +868,8 @@ button.btn.sm-hear {
   min-width: 34px;
   text-align: right;
   color: var(--muted);
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 /* The one control here the platform draws entirely: only the box it sits in is
@@ -893,11 +911,11 @@ button.btn.sm-hear {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 14px;
+  padding-top: 16px;
   border-top: 1px solid var(--line);
 }
 .sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.sm-custom-head span { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sm-custom-head span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 /* At the ceiling the controls that add a sound stay in the tab order and say
    aria-disabled, never `disabled` — two of them hold focus at the moment the
    library fills (#518). This is `button.btn:disabled`'s dimming, so the refusal
@@ -906,8 +924,9 @@ button.btn.sm-hear {
 .sm-custom [aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
 .sm-custom button.btn[aria-disabled="true"]:active { transform: none; }
 /* Import and record side by side as two cards of one shape: a name, a line
-   saying what it takes, and the one verb. At 268px each card is ~120px, which
-   holds "Choose file" and "Stop & save" on one line. */
+   saying what it takes, and the one verb. Set at Settings' sizes — the name at
+   12px, the line under it at 11px, as a switch's note is — now that the cards
+   live in a section rather than a 268px popover. */
 .sm-custom-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sm-custom-card {
   position: relative;
@@ -924,11 +943,11 @@ button.btn.sm-hear {
   border-radius: 8px;
 }
 .sm-custom-card-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sm-custom-card-copy strong { font-size: 11px; font-weight: 600; color: var(--text); }
+.sm-custom-card-copy strong { font-size: 12px; font-weight: 500; color: var(--text); }
 /* --text-secondary, not --muted: the card's --sm-fill lifts it off the panel,
-   and --muted on that is 4.25:1 in dark (#1788). The 10px under the 11px name
+   and --muted on that is 4.25:1 in dark (#1788). The 11px under the 12px name
    keeps the caption the quieter line. */
-.sm-custom-card-copy > span { font-size: 10px; line-height: 1.35; color: var(--text-secondary); }
+.sm-custom-card-copy > span { font-size: 11px; line-height: 1.35; color: var(--text-secondary); }
 .sm-voice {
   color: var(--text-dim);
   font-size: 11px;
@@ -956,8 +975,8 @@ button.btn.sm-hear {
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .sm-voice[open] summary::after { transform: rotate(90deg); }
-.sm-voice summary > span:first-child { font-weight: 600; }
-.sm-voice summary > span:nth-child(2) { margin-left: auto; color: var(--muted); font-size: 10px; }
+.sm-voice summary > span:first-child { font-size: 12px; font-weight: 500; }
+.sm-voice summary > span:nth-child(2) { margin-left: auto; color: var(--muted); font-size: 11px; }
 .sm-voice-fields {
   display: flex;
   flex-direction: column;
