@@ -540,6 +540,12 @@ const EXEMPT: string[] = [
   // the frame moving to it; a 118px preview scaled by 3% lurches rather than
   // clicks, and the hover plate under it already deepens.
   ".appearance-theme",
+  // A commit in the lane under a card, and the lane's fold: rows in a dense
+  // list, answered the way the LAN list's machines are — the tone lifts and
+  // nothing moves. A row that scaled would slide its subject out from under
+  // the pointer in the instant the git view opens on it.
+  ".git-band-commit",
+  ".git-band-fold",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {
