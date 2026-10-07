@@ -27,7 +27,10 @@ describe("the topbar draws its icons on one spec (#837)", () => {
 
   it("draws every icon at 13px on a 14 viewBox, with one stroke, round caps and joins", () => {
     const svgs = [...bar.matchAll(/<svg\b[^>]*>/g)].map(m => m[0]);
-    expect(svgs.length, "the eight buttons, the theme one drawing two").toBeGreaterThanOrEqual(9);
+    // One per control the runs draw: Session list, Usage, History, Accounts,
+    // Machine, Browser watch, the gear and Feedback — nine with the speaker,
+    // eight since it left the bar (2026-10-07).
+    expect(svgs.length, "the eight controls' glyphs").toBeGreaterThanOrEqual(8);
     for (const svg of svgs) {
       expect(svg).toMatch(/width="13" height="13" viewBox="0 0 14 14"/);
       expect(svg).toMatch(/strokeWidth="1\.4"/);

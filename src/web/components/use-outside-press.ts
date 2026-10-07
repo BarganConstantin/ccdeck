@@ -1,9 +1,9 @@
 // A press anywhere else closes a popover.
 //
 // The one dismissal a popover needs that a modal does not: a modal has a
-// backdrop to catch the click, and a popover has nothing. SoundMenu and
-// AnchoredPopover each wrote the listener out, the same rule twice; it is here
-// once, with the reasons for its shape:
+// backdrop to catch the click, and a popover has nothing. The topbar speaker's
+// SoundMenu (gone since 2026-10-07) and AnchoredPopover each wrote the listener
+// out, the same rule twice; it is here once, with the reasons for its shape:
 //
 //  - `pointerdown` rather than `click`: a press that starts outside should
 //    dismiss even if the pointer travels back in before release, and `click` on

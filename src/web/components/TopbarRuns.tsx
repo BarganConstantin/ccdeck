@@ -4,23 +4,16 @@
 // runs (see the comment on `.actions` in App.tsx): your sessions and what they
 // spend, then who spends it, on what, and what it watched. Those two only open
 // panels and dialogs, so each needs the open flags and the ways to flip them,
-// and nothing else. The third run, the settings, mounts the speaker's quick
-// popover with what it sets, and the gear that opens Settings, so it is handed
-// each hook's return whole rather than props relayed one by one. Settings
-// itself is mounted from DeckDialogs.tsx, the top of the tree.
+// and nothing else. The third run, the utilities, is the gear that opens
+// Settings and the way to send feedback, so it needs the door into Settings
+// and the feedback dialog's. Settings itself is mounted from DeckDialogs.tsx,
+// the top of the tree.
 import type { Dispatch, SetStateAction } from "react";
 
-import { selfPressProps } from "../panel-press";
-import { finishSoundTitle } from "../provider-copy";
 import type { Providers } from "../providers";
 import type { PanelToggles } from "../use-panel-return";
 import { platformName } from "../platform";
-import { settingsChordLabel } from "../settings";
-import type { useChimePlayer } from "../use-chime-player";
-import type { useSettingsMenus } from "../use-settings-menus";
-import type { useSoundSwitch } from "../use-sound-switch";
-import type { useTonePrefs } from "../use-tone-prefs";
-import SoundMenu from "./SoundMenu";
+import { settingsChordLabel, type SettingsSection } from "../settings";
 import TopbarMore from "./TopbarMore";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -131,8 +124,8 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
         </svg>
         {/* No ellipsis. On a row of chips "History…" read as a word cut
             off, the convention it borrowed means "asks for more before it
-            acts" (which a viewer does not), and Sound opens a dialog too
-            without one. Every button here opens something. */}
+            acts" (which a viewer does not), and Settings and Feedback open
+            dialogs too without one. Every button here opens something. */}
         <span className="tb-word">History</span>
       </button>
     </div>
@@ -260,94 +253,22 @@ export function SourceRun({
   );
 }
 
-/** The speaker: a cone, with two waves while sound is on and a cross while it
- *  is off, on the topbar's one spec (#837). Settings' nav draws this same one
- *  beside Sounds, so the button and the section it leads to cannot drift. */
-export function SpeakerGlyph({ on }: { on: boolean }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z" />
-      {on
-        ? <><path d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2" /><path d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2" /></>
-        : <><path d="M10 5.6l2.6 2.8" /><path d="M12.6 5.6L10 8.4" /></>}
-    </svg>
-  );
-}
-
-/** Sound and Settings: the speaker's quick popover, and the gear that opens
- *  every setting the deck has. */
+/** Settings and Feedback: the gear that opens every setting the deck has, and
+ *  the way to tell the people who make it something. */
 export function SettingsRun({
-  providers, sound, tones, chimeState, menus, onFeedback,
-  watchUnseen, setUsageHistoryOpen, setBrowserWatchOpen,
+  openSettings, onFeedback, watchUnseen, setUsageHistoryOpen, setBrowserWatchOpen,
 }: {
-  providers: Providers;
-  sound: ReturnType<typeof useSoundSwitch>;
-  tones: ReturnType<typeof useTonePrefs>;
-  /** Whether the chimes are still waiting for the first gesture to unlock. */
-  chimeState: ReturnType<typeof useChimePlayer>["chimeState"];
-  /** Whether the popover is open, the button it opens from, and the door into
-   *  Settings. */
-  menus: ReturnType<typeof useSettingsMenus>;
+  /** The one door into Settings (use-settings-menus.ts). */
+  openSettings: (section?: SettingsSection) => void;
   onFeedback: () => void;
   /** What the phone-width ⋯ needs of the two dialogs it also opens. */
   watchUnseen: number;
   setUsageHistoryOpen: Toggle;
   setBrowserWatchOpen: Toggle;
 }) {
-  const { soundOn, toggleSound } = sound;
-  const { tonePrefs, changeTone } = tones;
-  const { soundMenuOpen, setSoundMenuOpen, soundButtonRef, openSettings } = menus;
   const settingsTitle = `Settings (${settingsChordLabel(platformName())})`;
   return (
     <div className="action-run action-run-utility">
-      {/* The speaker. Since #711 its click opens a popover instead of
-          toggling, and since Settings that popover holds only the quick
-          things: the switch and the two volumes. Everything else it used to
-          carry is in Settings, which its last line opens at Sounds.
-          Gone without Claude Code, as it always was: the gear beside it is
-          the way to every sound and notification setting on a machine whose
-          only CLI is Codex, and it is always drawn. */}
-      {providers.claude && soundOn !== null && (
-      <div className="sound-slot">
-        <button
-          ref={soundButtonRef}
-          className="btn icon-btn"
-          /* #711: this used to toggle, and the click is now a disclosure.
-             The gesture that was lost is put back rather than dropped —
-             M still toggles from anywhere, and the popover carries the
-             switch so a mouse has both routes. */
-          onClick={() => setSoundMenuOpen(o => !o)}
-          /* #620: a disclosure that disabled itself under its own press
-             would drop focus off the very control the popover's Escape hands
-             focus back to. Opening a popover is synchronous, and the argument
-             is the constant that says so. */
-          {...selfPressProps(false)}
-          title={finishSoundTitle(providers, { on: soundOn === true, locked: chimeState === "locked", prefs: tonePrefs })}
-          /* The name a screen reader announces: what the press DOES (it
-             opens the sound settings), then whether sound is on, the same
-             shape Browser watch's name has. `title` reaches assistive tech
-             only as a description, so nothing a user needs lives only there. */
-          aria-label={`Sound settings, ${soundOn ? "on" : "off"}`}
-          aria-haspopup="dialog"
-          aria-expanded={soundMenuOpen}
-          aria-controls={soundMenuOpen ? "sound-menu" : undefined}
-        >
-          <SpeakerGlyph on={soundOn} />
-          <span className="tb-word">Sound</span>
-        </button>
-        {soundMenuOpen && (
-          <SoundMenu
-            onClose={() => setSoundMenuOpen(false)}
-            soundOn={soundOn === true}
-            onToggleSound={toggleSound}
-            prefs={tonePrefs}
-            onLevel={(chime, level) => changeTone(chime, { level })}
-            onAllSettings={() => openSettings("sounds")}
-            openerRef={soundButtonRef}
-          />
-        )}
-      </div>
-      )}
       {/* THE GEAR, AND IT IS ALWAYS HERE. Every setting the deck has is behind
           it, in one dialog with a section per subject (SettingsModal.tsx), and
           Cmd/Ctrl+, opens the same dialog from anywhere — the chord every
@@ -363,7 +284,13 @@ export function SettingsRun({
           Its word arrives later than the others' (`.tb-word-wider`,
           topbar.css): the busiest bar holds it only from the width given
           there, and under it the gear says its name in its tooltip and its
-          accessible name, the way Feedback does under its own. */}
+          accessible name, the way Feedback does under its own.
+          It stands first in the run since the speaker left it (2026-10-07).
+          The speaker opened a popover holding the sound switch and the two
+          tones' volumes, and every one of those is in Settings › Sounds too:
+          two doors to the same three controls, on a bar with no width to
+          spare. What the speaker gave that the gear does not is kept on the
+          keyboard — M mutes from anywhere, V opens Settings at Sounds. */}
       <button
         className="btn icon-btn"
         onClick={() => openSettings()}
@@ -381,8 +308,8 @@ export function SettingsRun({
       {/* FEEDBACK, WHERE A PERSON LOOKS FOR IT (#1853). The way to tell the
           makers something was buried in the Appearance menu — "Help improve
           ccdeck" → "Send feedback…" — behind the theme and the radio; the owner
-          could not find it. It lives in the utility run beside the two
-          settings, the corner every product keeps its help and feedback in.
+          could not find it. It lives in the utility run beside the gear,
+          the corner every product keeps its help and feedback in.
           It first came as a bare glyph, beside the theme button, so as not to
           be an eighth word. That was the second time it could not be found:
           at the toolbar's --muted, a 13px bubble at the end of a run of words
@@ -415,7 +342,7 @@ export function SettingsRun({
         <span className="tb-word-wide">Feedback</span>
       </button>
       {/* History, Browser watch and Feedback above, folded into one ⋯ at a
-          phone's width, where the bar cannot hold all nine controls and the
+          phone's width, where the bar cannot hold all eight controls and the
           waiting pill as well — components/TopbarMore.tsx. */}
       <TopbarMore
         watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen}

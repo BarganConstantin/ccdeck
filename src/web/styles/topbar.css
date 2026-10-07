@@ -241,10 +241,10 @@
   align-items: center;
   gap: 4px;
 }
-/* The settings pair stands apart from the panels, by spacing and not by a
-   rule: 12px between runs plus these 12 is the 24px this bar already uses
-   between roles, so Sound and the theme read as utilities, not a fourth
-   group of panels. */
+/* The utilities stand apart from the panels, by spacing and not by a rule:
+   12px between runs plus these 12 is the 24px this bar already uses between
+   roles, so the gear and Feedback read as utilities, not a fourth group of
+   panels. */
 .topbar .action-run-utility { margin-left: 12px; }
 /* The dollar sign is the one glyph whose ink is far narrower than its box:
    4.8 of 14 units, where the rest of the set runs 8.6 to 12.2. At the set's
@@ -262,10 +262,15 @@
    125%; 1600 left every one of those on bare glyphs. The words cost about
    440px, and the bar's common worst case at 1440 still fits: a blocked
    session, a live stream and a selected agent come to 256 of readout, 346 of
-   ribbon at 24vw, 743 of controls and 84 of gaps and padding, 1429 in all.
-   A paused deck on top of that does not fit, and `.readout` above is why that
-   costs the wordmark rather than the alarm. Under 1440 the bar is glyphs
-   again: the readouts give first and the controls never do. */
+   ribbon at 24vw, 743 of controls and 84 of gaps and padding, 1429 in all —
+   and 77 less since the speaker left the bar (2026-10-07; measured in
+   Chromium, its button with "Sound" 73px and the 4px after it), so 666 of
+   controls and 1352. The tier stays at 1440 all the same: #737's ribbon caps
+   (topbar-status.css) switch there, and the busiest bar below still needs
+   more than their reserve. A paused deck on top of that does not fit, and
+   `.readout` above is why that costs the wordmark rather than the alarm.
+   Under 1440 the bar is glyphs again: the readouts give first and the
+   controls never do. */
 .tb-word { display: none; }
 @media (min-width: 1440px) {
   .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
@@ -277,13 +282,15 @@
    #737's case (a blocked session, "this month" at its widest, a selected node
    whose name fills any cap), and measured on a real deck it is already wider
    than #737's reserve assumes: 1302px besides the ribbon, where the reserve
-   says 1213. Drawn from 1440, the word's 62px went straight out of the
+   says 1213 — 1225 since the speaker's 77px left the bar (2026-10-07), still
+   over the reserve. Drawn from 1440, the word's 62px went straight out of the
    wordmark. So it arrives where that bar, the word, the ribbon's full 380 and
-   #737's 40px of headroom all fit: 1784 — every 1920 screen. Under that it is
-   the glyph alone, at the toolbar's resting --muted, the tone every labelled
-   control rests at, with its name and its tooltip. */
+   #737's 40px of headroom all fit: 1784 with the speaker, 1707 without it —
+   every 1920 screen, and a 1728 one now too. Under that it is the glyph
+   alone, at the toolbar's resting --muted, the tone every labelled control
+   rests at, with its name and its tooltip. */
 .tb-word-wide { display: none; }
-@media (min-width: 1784px) {
+@media (min-width: 1707px) {
   .topbar .tb-word-wide { display: inline; font-size: 12px; line-height: 1; }
   .topbar button.btn.icon-btn:has(.tb-word-wide) { width: auto; gap: 6px; padding: 0 8px; }
 }
@@ -292,10 +299,11 @@
    from, and the word "Settings" is one more word on it: measured on a real
    deck, the word costs its button 54px, and the busiest bar holds both
    words with the ribbon at its full 380 and #737's 40px of headroom from
-   1838. Under that it is the gear alone, named in its tooltip and its
-   accessible name, as Feedback is under its own width. */
+   1838 with the speaker on the bar, and from 1761 since it left. Under that
+   it is the gear alone, named in its tooltip and its accessible name, as
+   Feedback is under its own width. */
 .tb-word-wider { display: none; }
-@media (min-width: 1838px) {
+@media (min-width: 1761px) {
   .topbar .tb-word-wider { display: inline; font-size: 12px; line-height: 1; }
   .topbar button.btn.icon-btn:has(.tb-word-wider) { width: auto; gap: 6px; padding: 0 8px; }
 }
@@ -323,7 +331,11 @@
    readout group a sliver: the waiting pill was cut off the left edge, and at
    320 the last control went off the right one. Under 480 History, Browser
    watch and Feedback leave for a ⋯ that opens them, 68px back for the pill.
-   The ⋯ wears Browser watch's unread badge while it stands in for it. */
+   The ⋯ wears Browser watch's unread badge while it stands in for it.
+   The speaker left the bar since (2026-10-07), 34px of it at this width, and
+   the fold stays: unfolded, the eight controls are 280px, which beside the
+   one-digit pill, the gap and the padding is 352 — over a 320 screen, and
+   within 8px of a 360 one before the count gains a digit. */
 .topbar .tb-more { display: none; position: relative; }
 @media (max-width: 480px) {
   .topbar .tb-fold { display: none; }

@@ -10,7 +10,7 @@
 //
 // The portal, the placement, and the dismissals a popover has that a modal
 // does not. Escape, holding Tab inside a form view and the focus hand-back are
-// useModalDismiss's, the same way SoundMenu takes them: that hook owns "an
+// useModalDismiss's, the way every dialog takes them: that hook owns "an
 // overlay that answers Escape, holds Tab, and gives focus back", and a second
 // spelling of it here is the thing its own header warns against.
 //
@@ -19,7 +19,7 @@
 // the panel's edge, and the last account's menu — the one nearest the bottom of
 // the window — is exactly the one that needs to open upward past it. Drawn at
 // the top of the document it is placed against the window by popover-place.ts
-// and sits on the sound menu's layer: above the canvas, under every dialog.
+// and sits on the popover layer: above the canvas, under every dialog.
 //
 // PLACED ON EVERY RENDER, NOT ONCE. The row it hangs off moves: the panel
 // scrolls, the roster re-polls every fifteen seconds, a row above it grows a
@@ -36,7 +36,7 @@
 // current. Tab leaves the way focus came in — back to the anchor, and on to the
 // control after it for a plain Tab — instead of stepping through four items
 // the arrows already walk. In a form view Tab stays inside, which is the hook's
-// trap and the sound menu's behaviour: a form's draft is not lost to a Tab.
+// trap: a form's draft is not lost to a Tab.
 import {
   useCallback,
   useEffect,
@@ -168,8 +168,8 @@ export default function AnchoredPopover({
     };
   }, [place, ref]);
 
-  // A press anywhere else closes it — use-outside-press.ts, the rule SoundMenu
-  // shares — and never for the anchor, whose own onClick is what closes it on a
+  // A press anywhere else closes it — use-outside-press.ts, the rule every
+  // popover shares — and never for the anchor, whose own onClick is what closes it on a
   // second press. Looked up at the press, like every other use of the anchor
   // here, so a row re-rendered under it is followed rather than lost.
   useOutsidePress(ref, () => document.getElementById(anchorId), onClose);

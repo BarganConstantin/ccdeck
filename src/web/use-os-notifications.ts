@@ -170,8 +170,8 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
   const notifySupported = typeof Notification !== "undefined";
   // `canAsk` is still what decides whether a prompt can be raised at all; the
   // latch that used to remember "a session blocked once, so offer it" went with
-  // the topbar button it existed for. The sound menu asks the question from a
-  // place that is always there.
+  // the topbar button it existed for. Settings › Notifications asks the
+  // question from a place that is always there.
   const notifyAskable = canAsk(notifyPermission, notifySupported);
   // The confirmation is a status, not a state: it says what just happened and
   // then gets out of the bar. Eight seconds for a refusal against four for a

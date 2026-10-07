@@ -50,7 +50,7 @@
 .ap-share-expiry.gone { color: var(--err); }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Still fades, as the sound menu does here: the popover appearing is the
+  /* Still fades, as every dialog does here: the popover appearing is the
      state change, and a cut to it is harder to follow than 120ms of opacity.
      What goes is the travel. */
   .anchored-popover { animation: fadeIn 120ms ease-out; }
@@ -198,13 +198,7 @@
 
   /* Every dialog, the context and usage-history ones included since #874
      put them on this shell. */
-  .modal,
-  /* #711's popover. Not a dialog, and listed here for exactly the reason the
-     paragraph above gives: a media query does not inherit through a shared
-     shape, only through a selector actually written down. It carries the same
-     popIn — a 4px lift and a scale — over whatever the reader was looking at,
-     which is the case 2.3.3 is about whether the thing lifting is modal or not. */
-  .sound-menu { animation: fadeIn 140ms ease-out; }
+  .modal { animation: fadeIn 140ms ease-out; }
   .appearance-theme,
   .appearance-preview,
   .appearance-check { transition: none; }
