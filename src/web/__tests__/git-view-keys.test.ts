@@ -12,7 +12,7 @@ describe("a keystroke inside the view", () => {
   it("stops every deck shortcut where it is", () => {
     // R re-arranges the canvas and drops every pin with no undo. None of these
     // may leave the view, wherever in it focus sits.
-    for (const k of ["r", "R", "c", "C", "d", "D", "l", "L", "j", "J", "k", "K", "f", "F", "z", "Z", " ", "Delete"]) {
+    for (const k of ["r", "R", "c", "C", "d", "D", "l", "L", "j", "J", "k", "K", "z", "Z", "1", " ", "Delete"]) {
       for (const pane of ["graph", "files", "diff", null] as const) {
         expect(viewKeyIntent(key(k), at(pane)), `${JSON.stringify(k)} in ${pane}`).toEqual({ kind: "swallow" });
       }
@@ -150,5 +150,43 @@ describe("a divider from the keyboard (WAI-ARIA window splitter)", () => {
     expect(splitterMove("Home", "vertical")).toEqual({ to: "min" });
     expect(splitterMove("End", "horizontal")).toEqual({ to: "max" });
     expect(splitterMove("Enter", "vertical")).toEqual({ to: "reset" });
+  });
+});
+
+describe("the Fork look's keys", () => {
+  const fork = (pane: ViewKeyWhere["pane"], f: Partial<NonNullable<ViewKeyWhere["fork"]>> = {}, over: Partial<ViewKeyWhere> = {}) =>
+    at(pane, { fork: { sidebar: true, local: false, tab: "changes", ...f }, ...over });
+
+  it("switches the look on f in either look, and the deck's own f (fit) never hears it", () => {
+    for (const k of ["f", "F"]) {
+      expect(viewKeyIntent(key(k), at("graph"))).toEqual({ kind: "look" });
+      expect(viewKeyIntent(key(k), fork("files"))).toEqual({ kind: "look" });
+    }
+    expect(viewKeyIntent(key("f"), at(null, { typing: true }))).toEqual({ kind: "swallow" });
+  });
+
+  it("picks an inspector tab on 1, 2 and 3 in the Fork look only", () => {
+    expect(viewKeyIntent(key("1"), fork("graph"))).toEqual({ kind: "tab", index: 0 });
+    expect(viewKeyIntent(key("2"), fork("diff"))).toEqual({ kind: "tab", index: 1 });
+    expect(viewKeyIntent(key("3"), fork(null))).toEqual({ kind: "tab", index: 2 });
+    expect(viewKeyIntent(key("2"), at("graph"))).toEqual({ kind: "swallow" });
+  });
+
+  it("walks sidebar, history, inspector, and steps back on Esc without ever needing more presses to close from the history", () => {
+    expect(viewKeyIntent(key("ArrowLeft"), fork("graph"))).toEqual({ kind: "focus", pane: "sidebar" });
+    expect(viewKeyIntent(key("ArrowLeft"), fork("graph", { sidebar: false }))).toEqual({ kind: "swallow" });
+    expect(viewKeyIntent(key("ArrowRight"), fork("graph"))).toEqual({ kind: "focus", pane: "files" });
+    expect(viewKeyIntent(key("Enter"), fork("graph", { tab: "commit" }))).toEqual({ kind: "focus", pane: "commit" });
+    expect(viewKeyIntent(key("Escape"), fork("diff"))).toEqual({ kind: "focus", pane: "files" });
+    expect(viewKeyIntent(key("Escape"), fork("files"))).toEqual({ kind: "focus", pane: "graph" });
+    expect(viewKeyIntent(key("Escape"), fork("commit"))).toEqual({ kind: "focus", pane: "graph" });
+    expect(viewKeyIntent(key("Escape"), fork("sidebar"))).toEqual({ kind: "focus", pane: "graph" });
+    expect(viewKeyIntent(key("Escape"), fork("graph"))).toEqual({ kind: "close" });
+  });
+
+  it("has no history to step back to in Local Changes: the files close the view, the sidebar hands back to them", () => {
+    expect(viewKeyIntent(key("Escape"), fork("files", { local: true }))).toEqual({ kind: "close" });
+    expect(viewKeyIntent(key("Escape"), fork("sidebar", { local: true }))).toEqual({ kind: "focus", pane: "files" });
+    expect(viewKeyIntent(key("ArrowLeft"), fork("files", { local: true }))).toEqual({ kind: "focus", pane: "sidebar" });
   });
 });
