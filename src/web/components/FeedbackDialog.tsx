@@ -109,6 +109,12 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   });
   const copy = kindCopy(kind);
   const bodyMissing = triedToSend && !hasMessage(body);
+  // A draft brought back by a reload whose screenshots stayed behind says so
+  // under the message, and the message, which has the focus, is described by
+  // it, so it is heard as well as seen.
+  const imagesLostShown = imagesLost > 0 && images.shots.length === 0;
+  const messageDescribedBy = [bodyMissing && "fb-body-error", imagesLostShown && "fb-images-lost"]
+    .filter(Boolean).join(" ") || undefined;
   const [capA, capB] = sendShortcutCaps(platformName());
 
   // Sent, the form stays drawn under the thanks, so the dialog keeps its
@@ -239,7 +245,10 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
             <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
           </div>
         </header>
-        <p className="vis-hidden" role="status">{outcomeAnnouncement(outcome.state)}</p>
+        {/* The one live region, which also says what an armed Discard will
+            do: the button's new name alone is not reliably read out while it
+            has the focus, and its tooltip is where the warning lived. */}
+        <p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : outcomeAnnouncement(outcome.state)}</p>
         <div className="fb-stage">
           <form
             ref={formRef}
@@ -266,14 +275,14 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
                   placeholder={copy.placeholder}
                   onChange={e => setBody(e.target.value)}
                   aria-invalid={bodyMissing || undefined}
-                  aria-describedby={bodyMissing ? "fb-body-error" : undefined}
+                  aria-describedby={messageDescribedBy}
                   required
                 />
                 {/* A sibling of the field rather than inside its label: inside,
                     it would join the field's name and be read twice. */}
                 {bodyMissing && <p id="fb-body-error" className="fb-error">{MESSAGE_MISSING}</p>}
                 <FeedbackShots images={images} addRef={addRef} />
-                {imagesLost > 0 && images.shots.length === 0 && <p className="fb-hint">{imagesLostLine(imagesLost)}</p>}
+                {imagesLostShown && <p id="fb-images-lost" className="fb-hint">{imagesLostLine(imagesLost)}</p>}
                 <div className="fb-tools">
                   <AddScreenshot images={images} buttonRef={addRef} />
                   <DetailsToggle open={detailsOpen} onToggle={() => setDetailsOpen(open => !open)} />

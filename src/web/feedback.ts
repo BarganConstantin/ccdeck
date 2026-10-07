@@ -227,7 +227,10 @@ export function feedbackFailure(status: number, reason: unknown, errors?: unknow
     return `The server did not accept an image. ${imageError[0]} Remove it and send again; your text is still here.`;
   }
   if (status === 400) return "The server did not accept the message. It is still here; check it and send again.";
-  return "ccdeck's server could not be reached. Nothing was sent; your text is still here, so try again in a moment.";
+  // One line at the dialog's width, so the failure that invites pressing Send
+  // again grows the dialog by one line and Send stays under the pointer that
+  // just pressed it. Send, still there and still named Send, is the retry.
+  return "ccdeck's server could not be reached. Nothing was sent; your text is still here.";
 }
 
 /** What the dialog's live region says for each outcome. The region is drawn from

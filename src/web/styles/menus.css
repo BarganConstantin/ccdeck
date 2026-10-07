@@ -92,10 +92,15 @@
    and a 2px bar on the leading edge; the wash measured 1.26:1 against the nav,
    so the bar carried the state alone, and a coloured edge bar is the one mark
    the rest of the deck does not use for "chosen". The edge is on every tab,
-   transparent until chosen, so choosing one moves nothing. */
+   transparent until chosen, so choosing one moves nothing.
+   A glyph before each name (SettingsSectionGlyph.tsx), drawn in currentColor
+   so it is the tab's own ink: --muted at rest, --text pointed at or chosen,
+   the system's colours under a Contrast theme. Centred on the line box, which
+   at 12px is where the capitals' middle sits. */
 .settings-tab {
   display: flex;
   align-items: center;
+  gap: 8px;
   min-height: var(--ctl-h);
   padding: 0 10px;
   border: 1px solid transparent;
@@ -109,6 +114,11 @@
   cursor: pointer;
   transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+.settings-tab > svg { display: block; flex: none; }
+/* One line, always: a name that wrapped under its glyph would make one tab
+   taller than its neighbours. The clip is a last resort for enlarged text;
+   under 360px the glyphs step aside instead (below). */
+.settings-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-tab:hover { background: var(--ctl-fill); color: var(--text); }
 .settings-tab[aria-selected="true"] {
   border-color: var(--ctl-edge);
@@ -182,11 +192,16 @@
 
 /* AT A PHONE'S WIDTH THE NAV GOES ON TOP (#849's breakpoint). A column of
    176px and a section beside it leave the section 150px at 390, so the nav
-   becomes a row over the section — two to a line under about 500px, all four
-   above it. Nothing scrolls sideways: the tabs wrap. The chosen one is raised
-   exactly as it is down the side; a bar under it, in a grid of two rows,
-   pointed at the tab below rather than at the section. The dialog takes the
-   screen's height, 16px off each edge, rather than a desktop's offset. */
+   becomes a grid over the section, two by two at every width up to the
+   breakpoint. Four abreast needs about 600px once each tab carries a glyph
+   and its name, and the fill-what-fits grid this was laid three and one
+   from 412px to about 530px, so the two columns are fixed and the grid is
+   always even.
+   Nothing scrolls sideways. The glyph and the name are centred together. The
+   chosen one is raised exactly as it is down the side; a bar under it, in a
+   grid of two rows, pointed at the tab below rather than at the section. The
+   dialog takes the screen's height, 16px off each edge, rather than a
+   desktop's offset. */
 @media (max-width: 640px) {
   .modal.settings-modal {
     min-height: min(320px, calc(100vh - 32px));
@@ -199,13 +214,19 @@
   }
   .settings-nav {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 8px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
   .settings-tab { justify-content: center; text-align: center; }
   .settings-pane { padding: 14px 14px 16px; }
+}
+/* Half of a 320px screen holds "Music & character" or its glyph beside it,
+   not both, so under 360px the names keep the room and all four glyphs go
+   together: one tab without its glyph would read as a different kind. */
+@media (max-width: 359px) {
+  .settings-tab > svg { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .settings-tab { transition: none; }

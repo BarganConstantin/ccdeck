@@ -24,7 +24,7 @@ const { default: FeedbackDialog } = await import("../components/FeedbackDialog")
 const { default: FeedbackShots } = await import("../components/FeedbackShots");
 const { default: FeedbackDetails } = await import("../components/FeedbackDetails");
 const { default: FeedbackKinds } = await import("../components/FeedbackKinds");
-const { draftKey, feedbackDrafts, feedbackSeed, DISCARD_LABEL, DISCARD_ARMED_LABEL } = await import("../feedback-draft");
+const { draftKey, feedbackDrafts, feedbackSeed, DISCARD_LABEL, DISCARD_ARMED_LABEL, DISCARD_ARMED_TITLE } = await import("../feedback-draft");
 const { CONFIRM_GAP_MS } = await import("../panel-press");
 
 /** A PNG small enough to be sent as it is, so no canvas is asked for. */
@@ -238,6 +238,25 @@ describe("discarding a draft", () => {
     const again = open();
     expect(message(again.tree).props.value).toBe("");
     expect(imagesOf(again.tree).shots).toHaveLength(0);
+  });
+
+  it("says in the live region what the armed press will do, and goes quiet once it is done", () => {
+    // The button's new name is not reliably read out while it has the focus,
+    // and the warning that the draft cannot be brought back lived only in its
+    // tooltip: the dialog's one status region says it while it is armed.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const view = open();
+    const region = (tree: unknown) => el(tree, e => e.type === "p" && e.props.role === "status");
+    write(view.tree, "The usage chart is empty after a restart");
+    expect(region(view.tree).props.children).toBe("");
+
+    handler(discardButton(view.tree)!, "onClick")();
+    expect(region(view.tree).props.children).toBe(DISCARD_ARMED_TITLE);
+
+    vi.advanceTimersByTime(CONFIRM_GAP_MS + 1);
+    handler(discardButton(view.tree)!, "onClick")();
+    expect(message(view.tree).props.value).toBe("");
+    expect(region(view.tree).props.children).toBe("");
   });
 
   it("takes a double-click as one press, which only arms it", () => {
