@@ -24,6 +24,13 @@
   /* The feedback dialog's ⌘ Enter hint (#1853): a fingertip has no key to
      press, so there is no key to name. */
   .fb-shortcut { display: none; }
+  /* And its small controls take the floor: the kinds, Add screenshot and Add
+     details, and the foot's three buttons, which sit 8px apart; the remove
+     disc on a thumbnail keeps its 20px face and grows its target. */
+  .fb-kind,
+  .fb-tool,
+  .fb-foot .btn { min-height: 32px; }
+  .fb-shot > .fb-shot-remove::after { inset: -6px; }
 }
 
 /* ---------------- forced colours (#871) ----------------

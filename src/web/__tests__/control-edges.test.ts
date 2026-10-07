@@ -584,6 +584,10 @@ const CONTROLS: Control[] = [
   // And each image's remove: a disc on the panel's own fill at the corner of a
   // thumbnail, framed at rest because a picture of anything may be under it.
   { at: ".fb-shot > .fb-shot-remove", fillFrom: ".fb-shot > .fb-shot-remove", beds: ["--panel"] },
+  // And each image itself, which is the button that replaces it: its edge is
+  // the control edge at rest, so a dark screenshot keeps an outline on the
+  // dark panel, and --text under the pointer and the keyboard.
+  { at: ".fb-shot-img", states: [".fb-shot-pick:hover .fb-shot-img", ".fb-shot-pick:focus-visible .fb-shot-img"], beds: ["--panel"] },
   { at: ".appearance-source-trigger", states: [".appearance-source-trigger:hover", ".appearance-source-picker.is-open .appearance-source-trigger"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
@@ -599,7 +603,10 @@ const CONTROLS: Control[] = [
   // The overview's help disclosure — a 16px circle whose border IS the control,
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
-  { at: ".ap-manage-input", states: [".ap-manage-input:hover"], beds: ACCOUNTS },
+  // The feedback message pressed empty takes the error colour on its edge, a
+  // mark beside the line that says so (#1853): measured as a state of the
+  // field, so it can never be fainter than the field at rest.
+  { at: ".ap-manage-input", states: [".ap-manage-input:hover", '.ap-manage-input.fb-message[aria-invalid="true"]'], beds: ACCOUNTS },
   { at: ".ap-proj-copy", states: [".ap-proj-copy:hover"], beds: ["--panel"] },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
   { at: ".ap-manage-btn.danger", fillFrom: ".ap-manage-btn",
@@ -848,8 +855,11 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's Discard, which gains an edge under the pointer and the
     // keyboard the way the LAN dialog's Unpair does. And from 110 to 112 with
     // Settings' nav, whose chosen section is raised with the control edge round
-    // it, as the feedback dialog's chosen kind is.
-    expect(EDGED_CONTROLS.length).toBeLessThan(112);
+    // it, as the feedback dialog's chosen kind is. And from 112 to 115 with the
+    // feedback dialog's design pass: each image, the button that replaces it,
+    // lifting its edge under the pointer and the keyboard, and the message
+    // taking the error colour on its edge when Send was pressed with it empty.
+    expect(EDGED_CONTROLS.length).toBeLessThan(115);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
