@@ -30,6 +30,7 @@
 // its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
 import { KEY_HELP, KEY_HELP_NOTE } from "../key-help";
+import { isApplePlatform, platformName } from "../platform";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
@@ -42,6 +43,7 @@ interface Props {
 export default function KeyboardHelp({ onClose, onTour }: Props) {
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
+  const apple = isApplePlatform(platformName());
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
@@ -96,7 +98,7 @@ export default function KeyboardHelp({ onClose, onTour }: Props) {
                 <h3 className="kh-group">{group.title}</h3>
                 {group.rows.map(row => (
                   <div className="sc" key={`${group.title}:${row.cap}:${row.action}`}>
-                    <kbd>{row.cap}</kbd><span>{row.action}</span>
+                    <kbd>{apple && row.macCap ? row.macCap : row.cap}</kbd><span>{row.action}</span>
                   </div>
                 ))}
               </Fragment>

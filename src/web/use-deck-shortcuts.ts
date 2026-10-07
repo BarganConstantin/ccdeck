@@ -15,6 +15,7 @@ import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import type { GraphState } from "./reducer";
+import { isSettingsChord, type SettingsSection } from "./settings";
 import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import type { Theme } from "./theme";
 
@@ -59,6 +60,8 @@ export interface DeckShortcuts {
   setSoundMenuOpen: Toggle;
   setKeyHelpOpen: Toggle;
   setTheme: Dispatch<SetStateAction<Theme>>;
+  /** The door into Settings that the gear and the sound popover use too. */
+  openSettings: (section?: SettingsSection) => void;
 }
 
 export function useDeckShortcuts({
@@ -67,7 +70,7 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme,
+  setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme, openSettings,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -107,6 +110,21 @@ export function useDeckShortcuts({
           if (shouldReleaseFocusOnEscape(target)) el?.blur();
           clearSelection();
         }
+        return;
+      }
+      // The one chord the deck claims: Cmd+, on a Mac and Ctrl+, elsewhere,
+      // which is where every desktop app keeps its settings. Asked ahead of
+      // the rule below that gives the browser every other chord, and held to
+      // the two gates every key here answers to: a field somebody is typing
+      // in keeps its keystrokes, and nothing opens behind a dialog that covers
+      // the canvas — Settings over a clear prompt would be two things waiting
+      // on one Escape. A popover covers nothing, so the sound popover gives
+      // way to it instead (openSettings closes it).
+      if (e.key === "," && isSettingsChord(e)) {
+        if (isTypingTarget(target)) return;
+        if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
+        e.preventDefault();
+        if (!e.repeat) openSettings();
         return;
       }
       // Ctrl/Cmd/Alt chords are the browser's, not ours — Ctrl+C is copy and
@@ -275,16 +293,18 @@ export function useDeckShortcuts({
       // recovery with no key, no control and no home outside a tooltip. Same
       // control, same modifier, same outcome: activateSound is the one door
       // both devices come through, so the two can never drift apart.
-      // Guarded exactly the way A is, plus the state the button waits for:
-      // without Claude Code the button is not drawn, and before the stored flag
-      // has been read back there is nothing to invert.
+      // Guarded by the state the switch waits for: before the stored flag has
+      // been read back there is nothing to invert. Not by Claude Code any
+      // more: the switch is in Settings › Sounds on every machine, and a Codex
+      // turn plays the finish tone too, so a Codex-only deck has a sound to
+      // silence and now a key to silence it with.
       if (e.key === "m" || e.key === "M") {
-        if (providersRef.current.claude && soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
+        if (soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
       }
       // #826: the three topbar panels that were pointer-only. S for this
-      // machine (the system's readings), B for Browser Watch, V for the sound
-      // menu — volume and tones, where M is the switch itself. V is guarded the
-      // way the speaker is drawn, exactly as M is.
+      // machine (the system's readings), B for Browser Watch, V for the
+      // speaker's quick popover — the switch and the two volumes. V is guarded
+      // the way the speaker is drawn: only where Claude Code is.
       if (e.key === "s" || e.key === "S") setMachinePanelOpen(o => !o);
       if (e.key === "b" || e.key === "B") setBrowserWatchOpen(o => !o);
       if (e.key === "v" || e.key === "V") {

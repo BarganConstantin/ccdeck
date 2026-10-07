@@ -5,8 +5,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import SoundMenu from "../components/SoundMenu";
-import { DEFAULT_PREFS } from "../sound";
+import NotificationsSection from "../components/NotificationsSection";
 import { accountNotifySettings, DEFAULTS } from "../../server/deck-prefs.mjs";
 import { ACCOUNT_NOTIFY_DEFAULTS, accountNotifyFrom } from "../use-os-notifications";
 import { ACCOUNT_NOTIFY_SWITCHES } from "../notify-reach";
@@ -56,8 +55,10 @@ describe("the page's copy of them", () => {
   });
 });
 
-describe("the sound menu", () => {
-  const menu = readFileSync(`${WEB_DIR}components/SoundMenu.tsx`, "utf8");
+// The three switches moved from the sound popover to Settings › Notifications
+// (2026-10-07), whole: the same markup, the same state, the same press.
+describe("Settings › Notifications", () => {
+  const menu = readFileSync(`${WEB_DIR}components/NotificationsSection.tsx`, "utf8");
   const hook = readFileSync(`${WEB_DIR}use-os-notifications.ts`, "utf8");
 
   it("draws a real switch for each, bound to its own state and its own press", () => {
@@ -71,17 +72,11 @@ describe("the sound menu", () => {
   });
 });
 
-describe("the sound menu, drawn", () => {
-  const draw = (accountNotify: Record<string, boolean>, notifyVetoed = false) => renderToStaticMarkup(createElement(SoundMenu, {
-    onClose: () => {}, soundOn: true, onToggleSound: () => {}, prefs: DEFAULT_PREFS,
-    onLevel: () => {}, onFigure: () => {}, onPreview: () => {}, openerRef: { current: null },
-    customAssets: [], customSelections: { done: null, "needs-input": null },
-    onBuiltInSelected: () => {}, onCustomSelected: () => {},
-    onImportCustom: async () => {}, onCreateVoice: async () => {}, onRenameCustom: async () => {},
-    onPreviewCustom: () => {}, onDeleteCustom: async () => {},
+describe("Settings › Notifications, drawn", () => {
+  const draw = (accountNotify: Record<string, boolean>, notifyVetoed = false) => renderToStaticMarkup(createElement(NotificationsSection, {
     notifyOn: false, onToggleNotify: () => {}, notifyVetoed, notifyPermission: "default", onAskNotify: () => {},
     accountNotify, onToggleAccountNotify: () => {},
-  } as Parameters<typeof SoundMenu>[0]));
+  } as Parameters<typeof NotificationsSection>[0]));
   const state = (html: string, kind: string) =>
     new RegExp(`role="switch" aria-checked="(true|false)" aria-labelledby="sm-${kind}-label"`).exec(html)?.[1];
 

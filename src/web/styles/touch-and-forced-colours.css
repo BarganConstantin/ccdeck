@@ -190,5 +190,10 @@
      takes Highlight, the way an on switch fills with it. */
   .appearance-preview svg { forced-color-adjust: none; }
   .appearance-theme[aria-checked="true"] .appearance-preview { forced-color-adjust: none; border-color: Highlight; box-shadow: 0 0 0 1px Highlight; }
+
+  /* The Settings section on show is a wash and a bar, and a Contrast theme
+     drops both: it fills with the highlight instead, the way a chosen option
+     in a system list does. */
+  .settings-tab[aria-selected="true"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
 }
 

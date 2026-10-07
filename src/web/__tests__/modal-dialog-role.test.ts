@@ -50,7 +50,10 @@ describe("the deck's modals", () => {
     // prompt for an account the deck signed in whose login expired (#1893).
     // The twenty-third is the note that stands in for Usage history or Browser
     // Watch when its chunk did not arrive, a tab older than an upgrade.
-    expect(MODALS.length).toBe(23);
+    // The twenty-fourth is Settings, behind the gear and Cmd/Ctrl+,. The
+    // Appearance modal it replaced was never counted here: its backdrop wore
+    // two classes, which the sweep's one-class pattern does not match.
+    expect(MODALS.length).toBe(24);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

@@ -88,6 +88,8 @@ function lazyDialogs(flags: { usageHistoryOpen?: boolean; browserWatchOpen?: boo
     providers: { claude: true, codex: false },
     stateRef: { current: {} },
     agentCount: 0,
+    // Settings closed: it is mounted from the stack too, and only while open.
+    menus: { settingsOpen: false, settingsSection: "general", showSection: noop, closeSettings: noop },
   };
   const found: Lazy[] = [];
   const walk = (node: ReactNode) => {

@@ -1,4 +1,6 @@
-// The sound menu as one text, for the assertions that say what it does NOT do.
+// The sound menu as one text, for the assertions that say what it does NOT do —
+// the popover and every file lifted out of it, Settings' two sound sections
+// included.
 //
 // SoundMenu.tsx is being taken apart one concern at a time, and the pieces land
 // in the files listed below. A positive assertion reads the file that owns the
@@ -20,6 +22,12 @@ import { WEB_DIR } from "./client-source";
  *  it, is added here in the same change. */
 export const SOUND_MENU_FILES = [
   "components/SoundMenu.tsx",
+  // Settings › Sounds and Settings › Notifications are the menu's two halves,
+  // lifted out whole when Settings took everything but the quick things; the
+  // switch both the popover and Sounds draw is its own file.
+  "components/SoundsSection.tsx",
+  "components/NotificationsSection.tsx",
+  "components/SoundSwitch.tsx",
   "components/ToneSection.tsx",
   "components/VolumeRow.tsx",
   "components/CustomSoundsSection.tsx",

@@ -78,6 +78,13 @@ const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-
 // `app` stays those four files for the rest, including the one negative case.
 const client = clientText();
 const menu = withoutComments(read("components/SoundMenu.tsx"));
+// The popover kept the switch and the two volumes when Settings took the rest
+// (2026-10-07). The tone groups, the preview note and the custom sounds are
+// Settings › Sounds now, SoundsSection.tsx; the switch both of them draw is
+// SoundSwitch.tsx; and Settings mounts the section with its callbacks.
+const soundsSection = withoutComments(read("components/SoundsSection.tsx"));
+const soundSwitch = withoutComments(read("components/SoundSwitch.tsx"));
+const settingsModal = withoutComments(read("components/SettingsModal.tsx"));
 // The outside-press rule SoundMenu shares with AnchoredPopover.
 const outsidePress = withoutComments(read("components/use-outside-press.ts"));
 // Each tone's row — its preview, volume and sound — moved to ToneSection.tsx,
@@ -874,11 +881,15 @@ describe("the click opens the menu, and M still silences the deck", () => {
 
   it("gives the mouse the switch back, inside the menu, through the same door", () => {
     expect(app).toMatch(/onToggleSound=\{toggleSound\}/);
-    expect(menu).toMatch(/onClick=\{onToggleSound\}/);
+    // One switch, drawn by the popover and by Settings › Sounds alike.
+    expect(menu).toMatch(/<SoundSwitch soundOn=\{soundOn\} onToggleSound=\{onToggleSound\} \/>/);
+    expect(soundsSection).toMatch(/<SoundSwitch soundOn=\{soundOn\} onToggleSound=\{onToggleSound\} \/>/);
+    expect(settingsModal).toMatch(/onToggleSound=\{toggleSound\}/);
+    expect(soundSwitch).toMatch(/onClick=\{onToggleSound\}/);
     // A real switch, not a word in a box. `on` sat in the same right-hand slot
     // and the same accent the deck gives figures it REPORTS, so the one control
     // at the top of this menu read as a readout — see toggle-state.test.ts.
-    expect(menu).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
+    expect(soundSwitch).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
   });
 
   it("leaves everything below the master switch live, and says why the preview still sounds", () => {
@@ -899,7 +910,7 @@ describe("the click opens the menu, and M still silences the deck", () => {
     // The tone groups are ToneSection.tsx now, rendered once per tone inside
     // `.sm-tones`; the menu's own slice holds the loop that renders them and
     // hands each the switch, and the row's markup holds the rest.
-    const tones = menu.slice(menu.indexOf('<div className="sm-tones">'));
+    const tones = soundsSection.slice(soundsSection.indexOf('<div className="sm-tones">'));
     const inside = tones.slice(0, tones.lastIndexOf("</div>"));
     expect(inside).toContain("<ToneSection");                // the right slice
     expect(inside, "a control below the master switch was disabled").not.toMatch(/\bdisabled\b/);
@@ -938,6 +949,13 @@ describe("the click opens the menu, and M still silences the deck", () => {
     expect(voice, "a voice-form control was disabled").not.toMatch(/\bdisabled\b/);
     expect(voice, "a voice-form control was dimmed").not.toMatch(/\bopacity\b/);
     expect(voice).not.toMatch(/\bsoundOn\b/);
+    // And the popover's two volumes, which are the same road from the
+    // speaker: nothing in them is keyed on the switch either.
+    const levels = menu.slice(menu.indexOf('<div className="sm-levels">'), menu.indexOf("sm-all-settings"));
+    expect(levels).toContain("<VolumeRow");                  // the right slice
+    expect(levels, "a popover volume was disabled").not.toMatch(/\bdisabled\b/);
+    expect(levels, "a popover volume was dimmed").not.toMatch(/\bopacity\b/);
+    expect(levels).not.toMatch(/\bsoundOn\b/);
   });
 
   it("gives the tooltip the exception and the description the reason", () => {
@@ -946,13 +964,13 @@ describe("the click opens the menu, and M still silences the deck", () => {
     // stops; the description is read in sequence by somebody who cannot see the
     // switch above it, and carries why the exception is useful.
     const tip = toneSection.match(/: "(Plays even when Sounds is off[^"]*)"\}/)![1];
-    const said = menu.match(/<span id="sm-preview-note" className="vis-hidden">\s*([^<]+)/)![1].trim();
+    const said = soundsSection.match(/<span id="sm-preview-note" className="vis-hidden">\s*([^<]+)/)![1].trim();
     expect(tip).toBe("Plays even when Sounds is off");
     expect(said.length).toBeGreaterThan(tip.length);
     expect(said).toContain("before turning sounds back on");
     // And neither exists while the sound is on, where the sentence is noise —
     // the description's node included, so the IDREF is never dangling.
-    expect(menu).toMatch(/\{!soundOn && \(/);
+    expect(soundsSection).toMatch(/\{!soundOn && \(/);
     expect(css).toMatch(/\.vis-hidden/);
   });
 
@@ -1107,14 +1125,21 @@ describe("App owns the settings, the write and the round trip", () => {
   });
 
   it("gives the menu everything it needs and nothing it does not", () => {
-    // The run that mounts the menu is SettingsRun, which App.tsx hands the
-    // switch, the tone settings and the menus' state whole.
+    // The run that mounts the popover is SettingsRun, which App.tsx hands the
+    // switch, the tone settings and the menus' state whole. Settings › Sounds,
+    // which took the rest, is mounted by SettingsModal with the same hooks.
     expect(withoutComments(read("App.tsx"))).toMatch(/<SettingsRun\b[^>]*\bsound=\{sound\} tones=\{tones\}[^>]*\bmenus=\{menus\}/);
     for (const prop of [
       /soundOn=\{soundOn === true\}/, /onToggleSound=\{toggleSound\}/, /prefs=\{tonePrefs\}/,
-      /onLevel=/, /onFigure=/, /onPreview=/, /openerRef=/, /onClose=/,
+      /onLevel=/, /openerRef=/, /onClose=/, /onAllSettings=/,
     ]) {
       expect(app, String(prop)).toMatch(prop);
+    }
+    for (const prop of [
+      /soundOn=\{soundOn === true\}/, /onToggleSound=\{toggleSound\}/, /prefs=\{tonePrefs\}/,
+      /onLevel=/, /onFigure=/, /onPreview=/,
+    ]) {
+      expect(settingsModal, String(prop)).toMatch(prop);
     }
     // The menu writes nothing itself: every change leaves through a callback,
     // so there is one writer of the store and it is App.

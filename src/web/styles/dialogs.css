@@ -13,7 +13,6 @@
   z-index: 100;
   animation: fadeIn 140ms ease-out;
 }
-.appearance-backdrop { z-index: 101; }
 :root[data-theme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
 
 .modal {
@@ -563,7 +562,7 @@
   color: var(--err);
 }
 .fb-foot .btn.danger.armed { color: var(--bg); background: var(--err); }
-/* The sound menu's cap (.sm-foot kbd), on the canvas tier so it stands off
+/* The sound popover's cap (.sm-key-note kbd), on the canvas tier so it stands off
    the panel the foot now sits on. */
 .fb-shortcut kbd {
   /* A box with its own height, so a cap whose glyph is drawn larger stands

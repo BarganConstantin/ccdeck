@@ -37,6 +37,10 @@ export interface KeyHelpRow {
    *  A mouse gesture goes here too — the sheet is about reaching a feature, and
    *  the hand does not care which device the deck listens on. */
   cap: string;
+  /** The cap on a Mac, where a chord is spelled with ⌘ rather than Ctrl. Only
+   *  a row whose keys differ by platform carries one; the sheet draws it in
+   *  place of `cap` on an Apple keyboard (platform.ts). */
+  macCap?: string;
   /** What it does, as an action rather than as a promise about the key. The
    *  distinction matters: `ownsKeystroke()` in shortcuts.ts hands every bare
    *  key to whichever control has focus, so "Re-layout (R)" read while focus
@@ -95,14 +99,19 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "S", action: "this machine — cores, memory, temperature", binds: ["s", "S"] },
       { cap: "B", action: "Browser Watch", binds: ["b", "B"] },
       // Drawn only where Claude Code is, like A. M under Settings is the switch
-      // itself; this is the menu the speaker opens.
-      { cap: "V", action: "the sound menu — volume, tones, notifications", binds: ["v", "V"] },
+      // itself; this is the quick popover the speaker opens.
+      { cap: "V", action: "the sound popover — sounds on or off, and their volumes", binds: ["v", "V"] },
       { cap: "?", action: "this sheet", binds: ["?"] },
     ],
   },
   {
     title: "Settings",
     rows: [
+      // The chord every desktop app opens its settings with, and the one
+      // chord the deck claims for itself (use-deck-shortcuts.ts). Both
+      // spellings work on every platform; the sheet prints the one on the
+      // keyboard in front of the reader.
+      { cap: "Ctrl + ,", macCap: "⌘ ,", action: "all settings", binds: [","] },
       // #711 gave the topbar speaker a menu, so the click stopped toggling and
       // this key became the only one-press route to silence. The action stays
       // worded as the toggle it is, and the Mouse group below says what the
@@ -136,7 +145,9 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // shape #709 removed Shift+M for, and the difference is that this one is
       // written down: a gesture that exists only in the source is not a feature
       // that shipped, and this sheet is where the deck says otherwise.
-      { cap: "click", action: "the topbar speaker opens volume and sound settings", binds: [] },
+      // Since Settings the speaker's popover holds the quick things, and its
+      // last line opens Settings at Sounds for the rest.
+      { cap: "click", action: "the topbar speaker: sounds on or off and their volumes, and the way to all sound settings", binds: [] },
     ],
   },
 ];

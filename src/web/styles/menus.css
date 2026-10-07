@@ -4,7 +4,7 @@
    something off a button. The slot is what gives the menu something to be
    absolute against; it adds no box and no gap of its own, so the run's 8px
    rhythm is unchanged and the button sits exactly where it always did. */
-.sound-slot, .appearance-slot { position: relative; display: flex; }
+.sound-slot { position: relative; display: flex; }
 
 /* Right-aligned to the button rather than centred on it, because this button is
    near the right edge of a bar it can never overhang. 268px is the width the
@@ -45,96 +45,100 @@
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
-/* 268px, the sound menu's width: two popovers hung off one bar are one family,
-   and two theme previews side by side need the room 224px did not have. The
-   clamp keeps a phone-width window's 16px gutter; the grid inside gives. */
-.appearance-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 40;
-  width: 268px;
-  max-width: calc(100vw - 32px);
-  padding: 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  box-shadow: var(--shadow-3);
-  animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
-  text-align: left;
+/* ---------------- Settings ---------------- */
+
+/* THE ONE SETTINGS SURFACE (SettingsModal.tsx): `.modal`'s shell, a nav down
+   the side and the section beside it. A fixed height rather than one that
+   follows the section, so the nav does not jump under the pointer as the
+   sections swap — macOS resizes its settings window per pane, and a dialog
+   that did that here would move the very tab that was just pressed. The
+   section scrolls inside it; the nav and the header stay. 760px holds a
+   176px nav and a section as wide as the Appearance modal's was. */
+.modal.settings-modal {
+  width: min(760px, calc(100vw - 32px));
+  height: min(640px, calc(100vh - 32px));
+  max-height: none;
 }
-.modal.appearance-modal {
-  position: relative;
-  top: auto;
-  right: auto;
-  z-index: auto;
-  width: min(560px, calc(100vw - 32px));
-  max-width: none;
-  max-height: calc(100vh - 32px);
-  overflow: auto;
+.settings-body {
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
 }
-/* THE PANELS' OWN SHAPE. A title over a hairline, as Usage and This machine
-   open, and sections under the uppercase caption their sections use
-   (.up-section-title: 11px, 600, 0.06em, --muted — 4.70:1 dark, 7.87:1 light).
-   One 4px scale: 8 between a caption and what it names, 12 under the header,
-   16 between sections. Spacing is the only separator below the header. */
-.appearance-head {
+/* The nav sits a surface down, as the modal's header does, so the section
+   beside it reads as the page and the nav as the thing that turns it. */
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--line);
+  background: var(--bg-soft);
+  overflow-y: auto;
+}
+/* A row a reader presses, at the one control height. Hover is neutral, as
+   every control's is; the section on show takes the accent — a wash, the
+   theme picker's own 8% made 12% for a smaller target, and a 2px bar on its
+   leading edge, so the choice holds without the colour (1.4.1). */
+.settings-tab {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin: 0 -12px 12px;
-  padding: 2px 16px 14px;
-  border-bottom: 1px solid var(--line-soft);
-}
-.appearance-title {
-  margin: 0;
-  color: var(--text);
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 22px;
-}
-.appearance-heading { min-width: 0; }
-.appearance-subtitle {
-  margin: 3px 0 0;
-  color: var(--text-dim);
-  font-size: 11px;
-  line-height: 16px;
-}
-.appearance-close {
-  width: 26px;
-  height: 26px;
-  margin: -4px -4px -4px 0;
+  min-height: var(--ctl-h);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
   color: var(--muted);
-  font-size: 18px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.appearance-close:hover { color: var(--text); }
-.appearance-section + .appearance-section { margin-top: 20px; }
-.appearance-caption {
+.settings-tab:hover { background: var(--ctl-fill); color: var(--text); }
+.settings-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-soft));
+  box-shadow: inset 2px 0 0 var(--accent);
+  color: var(--text);
+}
+.settings-tab:active { transform: scale(0.97); }
+/* Drawn inside, so the nav's own edge does not clip the ring. */
+.settings-tab:focus-visible { outline-offset: -2px; }
+.settings-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+}
+/* A group inside a section, under the caption the panels' sections use: the
+   name in --muted at 12px and 600, a line under it in --text-dim, and the one
+   piece of metadata — a key — on the right. */
+.settings-group { display: flex; flex-direction: column; gap: 10px; }
+.settings-caption {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 10px;
 }
-.appearance-caption h3 {
+.settings-caption h3 {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
-  text-transform: none;
-  letter-spacing: 0;
 }
-.appearance-section-note {
+.settings-caption-note {
   margin: 2px 0 0;
   color: var(--text-dim);
   font-size: 11px;
   line-height: 16px;
 }
-/* The sound menu's key cap (.sm-foot kbd), in the caption's right-hand slot
-   where the panels put a caption's one piece of metadata. */
-.appearance-key {
+/* The sound popover's key cap (.sm-key-note kbd), in the caption's right-hand
+   slot where the panels put a caption's one piece of metadata. */
+.settings-key {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
@@ -145,6 +149,35 @@
   border-bottom-width: 2px;
   border-radius: 4px;
   padding: 1px 5px;
+}
+/* The Sounds section: the popover's column, at the popover's 12px, because it
+   is the same set of things with room to breathe. */
+.sm-sounds { display: flex; flex-direction: column; gap: 12px; }
+
+/* AT A PHONE'S WIDTH THE NAV GOES ON TOP (#849's breakpoint). A column of
+   176px and a section beside it leave the section 150px at 390, so the nav
+   becomes a row over the section — two to a line under about 500px, all four
+   above it — and the bar under the chosen tab moves to its bottom edge, the
+   side the section is on. Nothing scrolls sideways: the tabs wrap. */
+@media (max-width: 640px) {
+  .settings-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    padding: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .settings-tab { justify-content: center; text-align: center; }
+  .settings-tab[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
+  .settings-pane { padding: 14px 14px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-tab { transition: none; }
+  .settings-tab:active { transform: none; }
 }
 
 /* TWO PREVIEWS, NOT TWO WORDS. Each choice is the deck itself in that theme,
@@ -253,7 +286,7 @@
 .tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
 
 /* One control, the width of the card. The <label> is the target (see
-   AppearanceMenu.tsx); the -8px bleed lets its hover fill reach the card's
+   MusicSection.tsx); the -8px bleed lets its hover fill reach the card's
    padding while the words stay on the text edge. The switch sits in the
    label's grid row, so it centres on the label's line and not on the pair of
    lines, and the note spans under both. */
@@ -809,12 +842,12 @@ button.btn.sm-hear {
    `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
    so both declarations were dead and its comment described a span that has
    never been drawn that way. Reading either rule alone gave the wrong answer
-   about what ships. Descendant-scoped on purpose, and now to TWO menus: the
-   span is rendered in SoundMenu.tsx's subtree and, since the Claude FM volume
-   row, in AppearanceMenu.tsx's — the same reading in the same shape, so the
-   same rule. */
+   about what ships. Descendant-scoped on purpose, to the two surfaces that
+   draw it: the sound popover (SoundMenu.tsx) and Settings, whose Sounds and
+   Music sections both carry volume rows — the same reading in the same shape,
+   so the same rule. */
 .sound-menu .sm-read,
-.appearance-menu .sm-read {
+.settings-modal .sm-read {
   min-width: 34px;
   text-align: right;
   color: var(--muted);
@@ -995,24 +1028,14 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
    Notification — said next to the control it applies to rather than only in a
    tooltip on the button that opened this. */
 .sm-note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text-dim); }
-/* The key, kept visible inside the menu it no longer lives on. The topbar
-   button stopped toggling when it started opening this, so the sentence that
-   says where the toggle went belongs where the user is looking. */
-.sm-foot {
-  margin: 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  font-size: 11px;
-  /* The quietest line in the card, and the only one that is neither a setting
-     nor an answer about one — it is a note about a key. --text-dim is as quiet
-     as a line can be and still be read: mixed 12% further toward the panel it
-     was 3.93:1 in dark and 4.42:1 in light (#1788), so the rule above it and
-     its place at the foot are what set it apart. */
-  color: var(--text-dim);
-}
+/* The key, kept visible under the switch it flips (SoundSwitch.tsx): the
+   topbar button stopped toggling when it started opening the popover, so the
+   sentence that says where the toggle went belongs where the user is looking.
+   An `.sm-note` — the quietest readable tier, --text-dim (#1788) — with the
+   cap drawn in it. */
 /* The shortcuts sheet's cap, without the 38px column width that sheet's grid
    needs — inline in a sentence, a letter box that wide reads as a button. */
-.sm-foot kbd {
+.sm-key-note kbd {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
@@ -1024,4 +1047,20 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
   padding: 1px 5px;
   margin-right: 7px;
 }
+/* THE QUICK POPOVER'S TWO VOLUMES (SoundMenu.tsx), under a rule like the one
+   that used to open the tone groups. Each row says which tone it sets, on a
+   line of its own over the slider: at 268px a "Claude is asking" beside the
+   track would leave the track too short to drag. */
+.sm-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.sm-levels .sm-row { flex-wrap: wrap; row-gap: 4px; }
+.sm-levels .sm-row label { flex-basis: 100%; }
+/* The way to the rest, as wide as the popover so it reads as its last line
+   rather than one more control competing with the switch. */
+button.btn.sm-all-settings { justify-content: center; font-size: 12px; }
 
