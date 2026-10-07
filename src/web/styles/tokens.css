@@ -336,6 +336,8 @@
   --fk-avatar-2: #53af75;
   --fk-avatar-3: #52aaca;
   --fk-avatar-4: #d57068;
+  /* the system UI face Fork is set in, nearest first on every platform */
+  --fk-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Noto Sans", Cantarell, Ubuntu, "Liberation Sans", Arial, sans-serif;
   color-scheme: dark;
 }
 
@@ -635,6 +637,7 @@
   --fk-avatar-2: #53af75;
   --fk-avatar-3: #52aaca;
   --fk-avatar-4: #d57068;
+  --fk-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Noto Sans", Cantarell, Ubuntu, "Liberation Sans", Arial, sans-serif;
   color-scheme: light;
 }
 

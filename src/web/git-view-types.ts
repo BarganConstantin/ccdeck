@@ -123,6 +123,20 @@ export type DiffResult =
   | { tooLarge: true; limit: number; oldSize: number; newSize: number }
   | { directory: true };
 
+/** How the git view draws itself: the deck's own look, or Fork's window. */
+export type GitLook = "deck" | "fork";
+
+/** The Fork look's inspector tabs. */
+export type GitInspectorTab = "commit" | "changes" | "tree";
+
+/** `/api/git/commit` for a commit without a path: the commit and its files. */
+export interface CommitDetail {
+  commit: LogCommit;
+  files: CommitFile[];
+  /** A partial clone without this commit's contents: no line counts, no diffs. */
+  notDownloaded?: boolean;
+}
+
 /** Whose work the view is about: a session's whole team, or one subagent. */
 export interface GraphFocus {
   sessionId: string;

@@ -11,6 +11,8 @@ import {
 import { isEscapeKey } from "../modal-dismiss";
 import { isTypingTarget } from "../shortcuts";
 import { toggleGit, useGitOn } from "../git-pref";
+import { setGitLook, useGitViewPrefs } from "../git-view-sizes";
+import type { GitLook } from "../git-view-types";
 import GitHandoffPicks from "./GitHandoffPicks";
 
 const THEMES: Theme[] = ["light", "dark"];
@@ -78,6 +80,9 @@ export default function AppearanceMenu({
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
   // The git view's switch, which the server reads as well — git-pref.ts.
   const gitOn = useGitOn();
+  // Which look the git view wears: the view's own preference, shared with
+  // its header button and its `f` (git-view-sizes.ts).
+  const gitLook = useGitViewPrefs().look;
   const scrimPress = useScrimDismiss(onClose);
   const fmSources = [
     ...FM_SOURCES.map(source => ({
@@ -402,6 +407,7 @@ export default function AppearanceMenu({
             </button>
             <span id="appearance-git-note" className="appearance-row-note">Reads your repos locally; never changes them.</span>
           </label>
+          {gitOn && <GitLookRow look={gitLook} />}
           {/* Which app each hand-off button opens, where there is a choice. */}
           <GitHandoffPicks />
         </div>
@@ -589,5 +595,33 @@ export default function AppearanceMenu({
     </div>
     ),
     document.body,
+  );
+}
+
+const GIT_LOOKS: ReadonlyArray<{ look: GitLook; word: string }> = [{ look: "deck", word: "Deck" }, { look: "fork", word: "Fork" }];
+
+/** The git view's look, as a pair of radios: one Tab stop on the look that is
+ *  set, the arrows walking the pair and switching as they go. */
+function GitLookRow({ look }: { look: GitLook }) {
+  const onKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    const next = GIT_LOOKS[(GIT_LOOKS.findIndex(l => l.look === look) + 1) % GIT_LOOKS.length].look;
+    setGitLook(next);
+    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[GIT_LOOKS.findIndex(l => l.look === next)]?.focus();
+  };
+  return (
+    <div className="appearance-git-look">
+      <span className="appearance-row-label" id="appearance-git-look-label">Git view look</span>
+      <div className="appearance-git-looks" role="radiogroup" aria-labelledby="appearance-git-look-label" aria-describedby="appearance-git-look-note" onKeyDown={onKey}>
+        {GIT_LOOKS.map(l => (
+          <button key={l.look} type="button" role="radio" className="appearance-git-look-pick" aria-checked={look === l.look}
+            tabIndex={look === l.look ? 0 : -1} onClick={() => setGitLook(l.look)}>
+            {l.word}
+          </button>
+        ))}
+      </div>
+      <span id="appearance-git-look-note" className="appearance-row-note">Fork draws the view as Fork's window, still read-only. F switches it in the view.</span>
+    </div>
   );
 }

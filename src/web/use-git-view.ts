@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type {
-  CommitFile, DiffResult, Edit, GitFileRef, GitReadState, GraphFocus, LogCommit, Repo, StatusCounts, StatusEntry, SubagentElsewhere,
+  CommitDetail, CommitFile, DiffResult, Edit, GitFileRef, GitReadState, GraphFocus, LogCommit, Repo, StatusCounts, StatusEntry, SubagentElsewhere,
 } from "./git-view-types";
 import { UNCOMMITTED } from "./git-view-types";
 
@@ -245,6 +245,35 @@ export function firstFile(entries: StatusEntry[] | null, edits: Edit[] | null, f
   return f ? { path: f.entry.path, area: f.entry.area, ...(f.entry.from ? { from: f.entry.from } : {}) } : null;
 }
 
+// ── the Fork look's two views ────────────────────────────────────────────
+// The Fork look has no working-tree row in its history: the working tree is a
+// view of its own, Local Changes, beside All Commits, chosen in the sidebar.
+// It is the deck's Uncommitted selection under another name, so every read
+// and every diff stays the one the deck makes.
+
+/** Which of the Fork look's views a selection is. */
+export const viewOf = (sel: string): "all" | "local" => (sel === UNCOMMITTED ? "local" : "all");
+
+/** The commit All Commits shows when nothing in it was chosen yet: the
+ *  focus's latest commit, else HEAD, else the newest commit listed. */
+export function forkCommitPick(data: Pick<GitData, "commits" | "repo">, focus: GraphFocus): string | null {
+  const commits = data.commits ?? [];
+  return commits.find(c => madeByFocus(c, focus))?.sha ?? data.repo?.head.sha ?? commits.find(c => !c.outsideWindow)?.sha ?? null;
+}
+
+/** Where the Fork look opens: on Local Changes when the focus has edits still
+ *  uncommitted that are newer than its last commit, else on All Commits at
+ *  its latest commit. A repository with no commits opens on Local Changes. */
+export function forkOpening(data: Pick<GitData, "commits" | "repo" | "entries" | "edits">, focus: GraphFocus): string {
+  const lastOwn = (data.commits ?? []).find(c => madeByFocus(c, focus));
+  const live = new Set((data.entries ?? []).flatMap(e => (e.from ? [e.path, e.from] : [e.path])));
+  let newest = 0;
+  for (const e of data.edits ?? []) if (editByFocus(e, focus) && live.has(e.path) && e.at > newest) newest = e.at;
+  const since = lastOwn ? Date.parse(lastOwn.date) : 0;
+  if (newest > 0 && newest > (Number.isFinite(since) ? since : 0)) return UNCOMMITTED;
+  return forkCommitPick(data, focus) ?? UNCOMMITTED;
+}
+
 // ── the open view's selection and diff ───────────────────────────────────
 
 export interface DiffState {
@@ -275,7 +304,10 @@ const failureOf = (a: DiffAnswer, status: number) => a.reason ?? a.error ?? (sta
 /** Stands in for the latest diff when git no longer lists the change. */
 const GONE = { directory: true } as DiffResult;
 
-type DiffAnswer = { ok?: boolean; diff?: DiffResult & { ok?: boolean }; reason?: string; error?: string; files?: CommitFile[] };
+type DiffAnswer = {
+  ok?: boolean; diff?: DiffResult & { ok?: boolean }; reason?: string; error?: string; files?: CommitFile[];
+  commit?: LogCommit; notDownloaded?: boolean;
+};
 
 const sameDiff = (a: DiffResult | null, b: DiffResult | null) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -289,7 +321,7 @@ const sameDiff = (a: DiffResult | null, b: DiffResult | null) => JSON.stringify(
  * never waits on it; when the working tree moves, the open file's diff is
  * read again and, if it changed, kept aside until the reader asks for it.
  */
-export function useGitSelection({ data, sessionId, agent, focus, initial, seq, active }: {
+export function useGitSelection({ data, sessionId, agent, focus, initial, seq, active, forkOpen = false }: {
   data: GitData;
   sessionId: string;
   agent: string | null;
@@ -300,6 +332,9 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
   seq: number;
   /** The view is open (reads wait otherwise). */
   active: boolean;
+  /** The view opens in the Fork look: where it opens is forkOpening's, once
+   *  the reads it weighs are in, unless the request named a row or a file. */
+  forkOpen?: boolean;
 }) {
   const [sel, setSelRaw] = useState<string>(initial.sel ?? UNCOMMITTED);
   const [file, setFile] = useState<GitFileRef | null>(initial.file ?? null);
@@ -323,12 +358,19 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
   // again, or the folder moves: it is never shown as an empty commit.
   const [commitFiles, setCommitFiles] = useState<Map<string, CommitFile[] | ReadFailure>>(() => new Map());
   const [commitAgain, setCommitAgain] = useState(0);
+  // The commit itself as that read answered it (its committer and message
+  // included), for the Fork look's Commit tab.
+  const [commitHeads, setCommitHeads] = useState<Map<string, { commit: LogCommit; notDownloaded?: boolean }>>(() => new Map());
   useEffect(() => {
     if (!active || sel === UNCOMMITTED || commitFiles.has(sel)) return;
     let gone = false;
     fetch(`/api/git/commit?${gitQuery(sessionId, agent, { sha: sel })}`)
       .then(async r => ({ status: r.status, a: (await r.json().catch(() => ({}))) as DiffAnswer }))
-      .then(({ status, a }) => { if (!gone) setCommitFiles(m => new Map(m).set(sel, a.ok && a.files ? a.files : { error: failureOf(a, status) })); })
+      .then(({ status, a }) => {
+        if (gone) return;
+        setCommitFiles(m => new Map(m).set(sel, a.ok && a.files ? a.files : { error: failureOf(a, status) }));
+        if (a.ok && a.commit) setCommitHeads(m => new Map(m).set(sel, { commit: a.commit!, ...(a.notDownloaded ? { notDownloaded: true } : {}) }));
+      })
       .catch(() => { if (!gone) setCommitFiles(m => new Map(m).set(sel, { error: "the deck did not answer" })); });
     return () => { gone = true; };
   }, [active, sel, sessionId, agent, commitAgain]);
@@ -342,6 +384,11 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
   useEffect(() => { dropFailures(); }, [data.treeSeq]);
   const retryCommit = useCallback(() => { dropFailures(); setCommitAgain(n => n + 1); }, []);
   const files = sel === UNCOMMITTED ? null : commitFiles.get(sel);
+  const head = sel === UNCOMMITTED ? null : commitHeads.get(sel);
+  const commitDetail = useMemo<CommitDetail | null>(
+    () => (head && Array.isArray(files) ? { commit: head.commit, files, ...(head.notDownloaded ? { notDownloaded: true } : {}) } : null),
+    [head, files],
+  );
 
   // The file the view opens on, once there is something to open.
   useEffect(() => {
@@ -359,6 +406,35 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
     picked.current = false;
   }, []);
   const pickFile = useCallback((f: GitFileRef) => { picked.current = true; setFile(f); }, []);
+
+  // ── the Fork look's views ──
+  // The commit All Commits last showed, to go back to from Local Changes.
+  const lastCommit = useRef<string | null>(null);
+  if (sel !== UNCOMMITTED) lastCommit.current = sel;
+  const pickNow = useRef<{ data: GitData; focus: GraphFocus } | null>(null);
+  pickNow.current = { data, focus };
+  const setView = useCallback((v: "all" | "local") => {
+    if (v === "local") { setSel(UNCOMMITTED); return; }
+    const { data: d, focus: f } = pickNow.current!;
+    const known = lastCommit.current && d.commits?.some(c => c.sha === lastCommit.current) ? lastCommit.current : null;
+    const to = known ?? forkCommitPick(d, f);
+    if (to) setSel(to);
+  }, [setSel]);
+  // Where the Fork look opens, decided once per request (and per agent the
+  // view follows) when the reads it weighs are in — and never over a row or
+  // file the request named. A look switched while the view is open keeps
+  // the selection it finds.
+  const decided = useRef<string | null>(null);
+  const opening = `${seq}|${sessionId}|${agent ?? ""}`;
+  useEffect(() => {
+    if (decided.current === opening) return;
+    if (!forkOpen || initial.sel || initial.file) { decided.current = opening; return; }
+    if (data.state !== "repo" && data.state !== "loading") { decided.current = opening; return; }
+    if (!data.commits || !data.entries || !data.edits) return;
+    decided.current = opening;
+    const to = forkOpening(data, focus);
+    if (to !== UNCOMMITTED) setSel(to);
+  }, [opening, forkOpen, data.state, data.commits, data.entries, data.edits]);
 
   // ── the diff ──
   const [diff, setDiff] = useState<DiffState>({ file: null, diff: null, loading: false, stale: false, error: null });
@@ -437,7 +513,7 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
     setAgain(n => n + 1);
   }, []);
 
-  return { sel, setSel, file, pickFile, commitFiles: files ?? null, diff, showLatest, retryCommit };
+  return { sel, setSel, file, pickFile, commitFiles: files ?? null, commitDetail, view: viewOf(sel), setView, diff, showLatest, retryCommit };
 }
 
 /** Counts the header's scope chip and the Uncommitted row say: the focus's

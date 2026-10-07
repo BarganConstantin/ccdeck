@@ -13,7 +13,7 @@ import { placePopover } from "../popover-place";
 import { readStored, writeStored } from "../storage";
 import { copyText } from "../copy-text";
 import { shortModel } from "../model-label";
-import type { GraphFocus } from "../git-view-types";
+import type { GitLook, GraphFocus } from "../git-view-types";
 
 export interface GitGraphProps {
   /** The repository's identity, for the colours it remembers. */
@@ -46,6 +46,11 @@ export interface GitGraphProps {
    *  `defaultBranch`): a trunk HEAD's branch is measured against, ranked
    *  with develop. Optional; the usual trunk names stand without it. */
   defaultBranch?: string | null;
+  /** The view's look: "fork" draws Fork's own rows; the deck's otherwise. */
+  look?: GitLook;
+  /** Whether the history list holds focus: the Fork look's selected row is
+   *  blue while it does, grey while focus is elsewhere. */
+  listFocused?: boolean;
 }
 
 /** Where the colours each repository's branches were given are kept. */
