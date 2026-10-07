@@ -73,6 +73,7 @@
 
 /* -------------------------------------------------- the right-hand column */
 .fk-main {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -80,6 +81,36 @@
   background: var(--fk-list);
   container: fk / inline-size;
 }
+/* Everything under the toolbar: inert while a floating sidebar covers it. */
+.fk-body { flex: 1; min-height: 0; display: flex; flex-direction: column; min-width: 0; }
+
+/* A ref the history does not list: a short note at the foot of the view
+   for a few seconds, on the raised surface, clear of the path bar and the
+   rows read at the top. Words only: it takes no press and blocks none. */
+.fk-note {
+  position: absolute;
+  z-index: 5;
+  bottom: 16px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--fk-line);
+  border-radius: 8px;
+  background: var(--fk-raised);
+  box-shadow: var(--shadow-contact), var(--shadow-1);
+  color: var(--fk-text);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.fk-note > svg { flex: none; color: var(--fk-text-2); }
+.fk-note > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* ------------------------------------------------------------ the toolbar */
 .fk-toolbar {

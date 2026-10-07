@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CANVAS_MIN, FK_HISTORY_MIN, FK_INSPECTOR_MIN, GIT_VIEW_DEFAULTS, PANE_MIN, PANEL_MIN, SIDEBAR_MAX, SIDEBAR_MIN, SPLIT_BAND, edgeBounds,
-  filesBounds, fkGraphBounds, graphBounds, isSheet, panelWidth, parseGitViewPrefs, sidebarBounds, sidebarShownFor, splitterTarget,
+  filesBounds, fkGraphBounds, graphBounds, isSheet, isSidebarFloating, panelWidth, parseGitViewPrefs, sidebarBounds, sidebarShownFor, splitterTarget,
 } from "../git-view-sizes";
 
 describe("the panel's width", () => {
@@ -103,14 +103,20 @@ describe("the Fork look's sizes", () => {
     expect(parseGitViewPrefs(JSON.stringify({ sidebarW: 9000 })).sidebarW).toBe(SIDEBAR_MAX);
   });
 
-  it("starts the sidebar hidden under a 1000px panel and on a sheet, and keeps the reader's choice", () => {
-    expect(sidebarShownFor({ sidebarShown: null }, 1037, false, null)).toBe(true);
-    expect(sidebarShownFor({ sidebarShown: null }, 999, false, null)).toBe(false);
-    expect(sidebarShownFor({ sidebarShown: true }, 800, false, null)).toBe(true);
-    expect(sidebarShownFor({ sidebarShown: false }, 1300, false, null)).toBe(false);
-    // A sheet starts hidden whatever was remembered; ≡ there lasts the open.
-    expect(sidebarShownFor({ sidebarShown: true }, 1000, true, null)).toBe(false);
-    expect(sidebarShownFor({ sidebarShown: true }, 1000, true, true)).toBe(true);
+  it("shows the sidebar beside a history that keeps 600px unless the reader hid it, and keeps that choice", () => {
+    expect(sidebarShownFor({ sidebarShown: null }, false, false)).toBe(true);
+    expect(sidebarShownFor({ sidebarShown: false }, false, false)).toBe(false);
+    expect(sidebarShownFor({ sidebarShown: true }, false, false)).toBe(true);
+    // Floating, it is out only while the reader has it out, whatever was remembered.
+    expect(sidebarShownFor({ sidebarShown: true }, true, false)).toBe(false);
+    expect(sidebarShownFor({ sidebarShown: false }, true, true)).toBe(true);
+  });
+
+  it("floats the sidebar over the history on a sheet and wherever the history beside it would be under 600px", () => {
+    expect(isSidebarFloating(1037, 264, false)).toBe(false);
+    expect(isSidebarFloating(864, 264, false)).toBe(false);
+    expect(isSidebarFloating(863, 264, false)).toBe(true);
+    expect(isSidebarFloating(1300, 264, true)).toBe(true);
   });
 
   it("remembers the inspector's tab and whether it is folded, and opens on Changes", () => {

@@ -31,7 +31,7 @@ import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from 
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
   GIT_VIEW_DEFAULTS, edgeBounds, filesBounds, fkGraphBounds, gitViewPrefsNow, graphBounds, clampTo, isSheet, panelWidth, setGitLook, setGitViewPrefs,
-  sidebarBounds, sidebarShownFor, splitterTarget, useGitViewPrefs, type GitViewPrefs, type SplitterKind,
+  isSidebarFloating, sidebarBounds, sidebarShownFor, splitterTarget, useGitViewPrefs, type GitViewPrefs, type SplitterKind,
 } from "../git-view-sizes";
 import { agentNameIn, cardName as cardNameIn, collisionTarget, commitAgentKeys, otherAgentName } from "../git-agent-name";
 import { pressHow } from "../agent-goto";
@@ -746,20 +746,35 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
 
   // ── the Fork look ─────────────────────────────────────────────────────
   const fork = prefs.look === "fork";
-  // Its sidebar: the reader's choice, else shown where the panel has room
-  // beside the history. On a sheet it starts hidden and ≡ lasts the open.
-  const [sheetSide, setSheetSide] = useState<boolean | null>(null);
-  useEffect(() => setSheetSide(null), [request.seq]);
-  const sidebarShown = sidebarShownFor(prefs, width, sheet, sheetSide);
-  // Too narrow to sit beside the history: it floats over it instead.
-  const sidebarOver = sheet || width - prefs.sidebarW < 600;
+  // Its sidebar: beside the history wherever the history keeps 600px, shown
+  // unless the reader hid it (remembered). Too narrow for that (a sheet, a
+  // narrow panel) it floats over the history instead: hidden at first, out
+  // while the reader has it out, and out of the way again once a view or a
+  // ref is picked in it, on Esc, or on a press outside it.
+  const sidebarOver = isSidebarFloating(width, prefs.sidebarW, sheet);
+  const [floatSide, setFloatSide] = useState(false);
+  useEffect(() => setFloatSide(false), [request.seq, sidebarOver]);
+  const sidebarShown = sidebarShownFor(prefs, sidebarOver, floatSide);
   // Two changes in one press (a tab chosen on a folded inspector) must both
   // land: each one is laid over what the store holds now.
   const patchPrefs = (patch: Partial<GitViewPrefs>) => savePrefs({ ...gitViewPrefsNow(), ...patch });
   const toggleSidebar = () => {
-    if (sheet) setSheetSide(!sidebarShown);
-    else patchPrefs({ sidebarShown: !sidebarShown });
+    if (!sidebarOver) { patchPrefs({ sidebarShown: !sidebarShown }); return; }
+    setFloatSide(!sidebarShown);
+    // Brought out over the history, it takes focus: what it covers is inert.
+    if (!sidebarShown) requestAnimationFrame(() => focusPane("sidebar"));
   };
+  const floatAway = () => { if (sidebarOver) setFloatSide(false); };
+  useEffect(() => {
+    if (!fork || !sidebarOver || !sidebarShown) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (t?.closest?.(".fk-side-col, .fk-sidebar-toggle")) return;
+      setFloatSide(false);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [fork, sidebarOver, sidebarShown]);
   const tab = shownTab(prefs.inspectorTab);
   const setTab = (t: GitInspectorTab) => patchPrefs({ inspectorTab: t });
   const collapsed = prefs.inspectorCollapsed;
@@ -774,8 +789,24 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     window.addEventListener("blur", off);
     return () => { window.removeEventListener("focus", on); window.removeEventListener("blur", off); };
   }, []);
-  // A ref the sidebar asked for that the history does not list, said once.
-  const [jumpNote, setJumpNote] = useState("");
+  // A ref the sidebar (or a parent link) asked for that the history does not
+  // list: said in a short note at the view's foot for a few seconds, and to a
+  // screen reader once, so a press on an old tag never looks dead.
+  const [jumpNote, setJumpNote] = useState<{ text: string; n: number } | null>(null);
+  useEffect(() => {
+    if (!jumpNote) return;
+    const t = window.setTimeout(() => setJumpNote(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [jumpNote]);
+  useEffect(() => setJumpNote(null), [sel, request.seq]);
+  // What a floating sidebar covers is out of reach while it is out: no press
+  // and no Tab stop lands under it, as the canvas's covered cards are.
+  const fkBodyRef = useRef<HTMLDivElement>(null);
+  const covering = fork && sidebarOver && sidebarShown;
+  useLayoutEffect(() => {
+    const el = fkBodyRef.current as (HTMLDivElement & { inert: boolean }) | null;
+    if (el) el.inert = covering;
+  });
 
   const panesRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<HTMLElement>(null);
@@ -866,8 +897,20 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     const p = paneForLostFocus({ connected: was.el.isConnected, pane: was.pane }, !active || active === document.body);
     if (p) { lostFrom.current = null; focusPane(p); }
   });
+  // Into the inspector from the history (Enter, →): a folded inspector opens
+  // first, so the key always lands somewhere. Out of a floating sidebar
+  // (Esc, ←…): it steps aside.
+  const focusFork = (p: GitViewPane) => {
+    if (fork && collapsed && view.view === "all" && (p === "files" || p === "diff" || p === "commit")) {
+      patchPrefs({ inspectorCollapsed: false });
+      requestAnimationFrame(() => focusPane(p));
+      return;
+    }
+    if (fork && p !== "sidebar") floatAway();
+    focusPane(p);
+  };
   actions.current = {
-    focusPane, newest: view.showLatest,
+    focusPane: focusFork, newest: view.showLatest,
     fork: fork ? { sidebar: sidebarShown, local: view.view === "local", tab: tab === "commit" ? "commit" : "changes" } : null,
     // 1 2 3: a tab the bar draws, and the inspector opened if it was folded.
     tab: index => {
@@ -1087,8 +1130,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     const local = view.view === "local";
     const listFocused = winFocused && focusIn && pane === "graph";
     const jump = (sha: string) => {
-      if (data.commits?.some(c => c.sha === sha && !c.outsideWindow)) { setJumpNote(""); view.setSel(sha); return; }
-      setJumpNote("Not in the last 100 commits.");
+      if (data.commits?.some(c => c.sha === sha)) { setJumpNote(null); view.setSel(sha); return; }
+      setJumpNote(n => ({ text: `${sha.slice(0, 7)} is not in the last 100 commits.`, n: (n?.n ?? 0) + 1 }));
     };
     const collisionNode = collision && (
       <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
@@ -1125,8 +1168,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               <div className="fk-side-panel" data-gv-pane="sidebar" tabIndex={-1}>
                 <FkSidebar
                   sessionId={agent.sessionId} agent={agentParam} repo={repo} stale={facts?.stale ?? 0}
-                  view={view.view} onView={view.setView} localCount={counts.changed}
-                  selectedSha={local ? null : sel} onJump={jump} focused={focusIn && pane === "sidebar"}
+                  view={view.view} onView={v => { floatAway(); view.setView(v); }} localCount={counts.changed}
+                  selectedSha={local ? null : sel} onJump={sha => { floatAway(); jump(sha); }} focused={focusIn && pane === "sidebar"}
                 />
               </div>
               {!sidebarOver && splitter("sidebar", "vertical", "Resize the sidebar", "fk-side", "fk-split-side")}
@@ -1164,6 +1207,15 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               onLook={() => setGitLook("deck")}
               onClose={onClose}
             />
+            {jumpNote && (
+              <p className="fk-note" key={jumpNote.n} aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
+                  <circle cx="7" cy="7" r="5.6" /><path d="M7 6.3v3.6M7 4.3v.1" />
+                </svg>
+                <span title={jumpNote.text}>{jumpNote.text}</span>
+              </p>
+            )}
+            <div className="fk-body" ref={fkBodyRef}>
             <FkBanner collision={collisionNode} detached={detached && !reading ? { short: shortSha, clean: data.entries != null && !data.entries.length } : null} />
             {local ? (
               <section className="fk-local" aria-label="Local Changes" data-gv-pane="files" tabIndex={-1}>
@@ -1179,7 +1231,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                     <GitGraph
                       repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={data.commits} rowLimit={rowLimit} head={head ?? null} defaultBranch={repo?.defaultBranch ?? null}
                       uncommitted={{ files: counts.changed, byFocus: counts.files, label: focusName }} focus={focus} selected={sel}
-                      onSelect={view.setSel} onOpen={() => focusPane(tab === "commit" ? "commit" : "files")}
+                      onSelect={view.setSel} onOpen={() => focusFork(tab === "commit" ? "commit" : "files")}
                       onAgentCard={openCard} liveInsert={liveInsert}
                       agentName={nameOf} look="fork" listFocused={listFocused}
                     />
@@ -1206,8 +1258,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                 </FkInspector>
               </div>
             )}
+            </div>
           </div>
-          <span className="vis-hidden" role="status" aria-live="polite">{jumpNote}</span>
+          <span className="vis-hidden" role="status" aria-live="polite">{jumpNote?.text ?? ""}</span>
         </div>
         {cardNode}
       </>
