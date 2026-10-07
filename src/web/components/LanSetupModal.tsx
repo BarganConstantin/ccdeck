@@ -470,8 +470,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     "accept",
                   )}
                   title={inviteOnly ? PAUSED_TITLE : says
-                    ? "Stop saying yes for you. A deck that asks waits in the panel again."
-                    : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here."}
+                    ? "Stop saying yes for you. A deck that asks waits in the panel again, and adds no login here until somebody here accepts it."
+                    : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here. Each can then add the logins ticked on it to this deck."}
                 >
                   <span className="switch-knob" />
                 </button>

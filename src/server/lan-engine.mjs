@@ -41,7 +41,7 @@
 // anything.
 import {
   addTrusted, ANNOUNCE_MS, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, PRESENT_MS,
-  stillListed, transferChallenge, trustedPeer,
+  sharedWith, stillListed, transferChallenge, trustedPeer,
 } from "./lan-sync.mjs";
 import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { createInviteOffer } from "./lan-invite-offer.mjs";
@@ -1028,13 +1028,25 @@ export function createEngine({
       had.met = had.met || row.met;
       if (row.name && !had.name) had.name = row.name;
     };
+    // WHAT IS TICKED HERE AND NOT OFFERED THAT DECK, so its dialog draws no
+    // lane going out for it: what an arrival ticked, when the accept switch
+    // paired it — see sharedWith in lan-sync.mjs. The page never sees `onward`
+    // or which pin a switch made, so the engine says the difference itself,
+    // and only where there is one, which on most decks is nowhere.
+    const notOfferedTo = id => {
+      const offered = sharedWith(cfg, id);
+      const held = cfg.shared.filter(key => !offered.includes(key));
+      return held.length ? { notOffered: held } : {};
+    };
     // WHAT THE DECK'S OWN DIALOG DRAWS, by identity: the card it sent,
-    // the logins it offered last, and when somebody here said yes. All
-    // three are keyed by the fingerprint that proved itself, so both
-    // halves of a merged row read the same answer.
+    // the logins it offered last, when somebody here said yes, and what
+    // this deck does not offer it. All four are keyed by the fingerprint
+    // that proved itself, so both halves of a merged row read the same
+    // answer.
     const card = id => ({
       ...heardOf(id),
       pairedAt: trustedPeer(cfg.trusted, id)?.at ?? null,
+      ...notOfferedTo(id),
     });
     for (const p of [...beacon.peers.values(), ...dials.rows()]) {
       if (!stillListed(p, now())) continue;

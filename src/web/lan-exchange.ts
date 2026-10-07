@@ -111,7 +111,7 @@ export interface Lane {
   there: "works" | "broken" | "unavailable" | "unknown";
   /** From that deck to this one; null when that deck does not offer it. */
   in: LaneFlow | null;
-  /** From this deck to every paired deck; null when this deck does not offer it. */
+  /** From this deck to that deck; null when this deck does not offer it there. */
   out: "live" | "cut" | null;
   caption: string | null;
   tone: "ok" | "wait" | "bad" | "idle";
@@ -124,6 +124,7 @@ export interface Lane {
 export function exchangeLanes(
   offered: OfferedAccount[] | null,
   accounts: LanAccount[],
+  /** What this deck offers that deck — see notOffered in lan-types.ts. */
   shared: string[],
   /** The key that deck said it is on, or null. The engine only keeps one that
    *  is in the same list, so it can only ever land on a lane it offers. */
