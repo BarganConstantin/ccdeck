@@ -157,6 +157,8 @@ export async function handleGitDiff(req, res, url) {
 }
 
 /** `?session&sha[&path]` — a commit's files, or one file's diff within it.
+ *  The `commit` carries who committed it and when (`committer`) and its
+ *  message after the subject (`body`, `clipped` past 64 KB).
  *  A diff a partial clone holds no content for answers `reason:
  *  "not-downloaded"`: the deck never fetches. */
 export async function handleGitCommit(req, res, url) {

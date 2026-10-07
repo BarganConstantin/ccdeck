@@ -109,6 +109,24 @@ export interface CommitFile {
   binary: boolean;
 }
 
+/** Who committed a commit, and when (strict ISO): the author's twin, which
+ *  differs when someone else applied the commit (a rebase, a cherry-pick, a
+ *  patch). */
+export interface CommitIdentity {
+  name: string;
+  email: string;
+  date: string;
+}
+
+/** What /api/git/commit adds to a commit's record: who committed it and
+ *  when, and the message after its subject (trailers kept, at most 64 KB,
+ *  `clipped` when it was cut). */
+export interface CommitMessage {
+  committer?: CommitIdentity;
+  body?: string;
+  clipped?: boolean;
+}
+
 export interface Edit {
   /** Repository-relative. */
   path: string;
