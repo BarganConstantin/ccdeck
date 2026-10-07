@@ -260,6 +260,20 @@ export function SourceRun({
   );
 }
 
+/** The speaker: a cone, with two waves while sound is on and a cross while it
+ *  is off, on the topbar's one spec (#837). Settings' nav draws this same one
+ *  beside Sounds, so the button and the section it leads to cannot drift. */
+export function SpeakerGlyph({ on }: { on: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z" />
+      {on
+        ? <><path d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2" /><path d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2" /></>
+        : <><path d="M10 5.6l2.6 2.8" /><path d="M12.6 5.6L10 8.4" /></>}
+    </svg>
+  );
+}
+
 /** Sound and Settings: the speaker's quick popover, and the gear that opens
  *  every setting the deck has. */
 export function SettingsRun({
@@ -318,12 +332,7 @@ export function SettingsRun({
           aria-expanded={soundMenuOpen}
           aria-controls={soundMenuOpen ? "sound-menu" : undefined}
         >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z" />
-            {soundOn
-              ? <><path d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2" /><path d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2" /></>
-              : <><path d="M10 5.6l2.6 2.8" /><path d="M12.6 5.6L10 8.4" /></>}
-          </svg>
+          <SpeakerGlyph on={soundOn} />
           <span className="tb-word">Sound</span>
         </button>
         {soundMenuOpen && (

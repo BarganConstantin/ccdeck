@@ -28,6 +28,7 @@ import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
 import MusicSection from "./MusicSection";
 import NotificationsSection from "./NotificationsSection";
+import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import ThemeSection from "./ThemeSection";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -216,7 +217,8 @@ export default function SettingsModal({
                 tabIndex={choice.id === section ? 0 : -1}
                 onClick={() => onSection(choice.id)}
               >
-                {choice.label}
+                <SettingsSectionGlyph section={choice.id} />
+                <span className="settings-tab-label">{choice.label}</span>
               </button>
             ))}
           </div>
