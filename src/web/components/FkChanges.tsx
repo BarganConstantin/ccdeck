@@ -61,9 +61,11 @@ export interface FkChangesHandle {
   focusDiff(): void;
 }
 
-/** The tree's bounds and its share of the pane by default, per mode. */
+/** The tree's bounds and its share of the pane by default, per mode. Fork's
+ *  21.5% is of a whole window; beside the canvas the pane is half that, so a
+ *  commit's tree keeps at least 240px — a file two folders deep still reads. */
 const TREE = {
-  commit: { min: 180, max: 420, share: 0.215 },
+  commit: { min: 240, max: 420, share: 0.215 },
   local: { min: 260, max: 480, share: 0.25 },
 } as const;
 /** The least a diff keeps beside the tree. */

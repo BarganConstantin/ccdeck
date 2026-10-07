@@ -505,12 +505,14 @@
    stand out at full strength, as they lead the list in the deck look. */
 .fkt-row.is-quiet .fkt-name { color: var(--fki-quiet); }
 .fkt-row.is-quiet.is-sel .fkt-name { color: inherit; }
-.fkt-marks { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding-left: 4px; font-size: 11px; }
-.fkt-agent { display: inline-flex; align-items: center; gap: 4px; max-width: 120px; overflow: hidden; }
+/* The marks give way before the name does: a subagent's name shortens to its
+   swatch's side, and the file's own name keeps the room it needs. */
+.fkt-marks { flex: 0 1000 auto; display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding-left: 4px; font-size: 11px; }
+.fkt-agent { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 120px; overflow: hidden; }
 .fkt-swatch { flex: none; width: 7px; height: 7px; border-radius: 2px; background: hsl(var(--session-hue, 200) 70% var(--session-accent-l)); }
 .fkt-agent-name { overflow: hidden; text-overflow: ellipsis; }
 .fkt-other { max-width: 96px; overflow: hidden; color: var(--fk-text-2); text-overflow: ellipsis; }
 .fkt-row.is-sel .fkt-other { color: inherit; }
-.fkt-clash { display: inline-grid; place-items: center; color: var(--err); }
+.fkt-clash { flex: none; display: inline-grid; place-items: center; color: var(--err); }
 
 @keyframes fki-appear { to { opacity: 1; } }
