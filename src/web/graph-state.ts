@@ -42,6 +42,19 @@ export interface GraphState {
    *  write once it is older than `HOOK_REDELIVERY_WINDOW_MS` — past which it
    *  could no longer be the same subagent anyway. */
   subagentTombstones: Map<string, number>;
+  /** Session id → the enrichment that arrived before the session's card did,
+   *  newest value per kind, in the order the card takes them when it is made
+   *  (parked-enrichment.ts).
+   *
+   *  A session's model, name, usage, context, activity line and job are
+   *  last-value-wins and sent when they change, so a page joining a busy deck
+   *  can be handed them ahead of the first surviving event that draws the card
+   *  — and an idle session sends none of them again.
+   *
+   *  Bounded: the newest PARKED_ENRICHMENT_MAX sessions, one value of each kind
+   *  apiece; an entry goes when its card takes it, when its session leaves the
+   *  board, and with the board on a clear. */
+  parkedEnrichment: Map<string, Map<string, import("./types").HookPayload>>;
   /** Model observations that overtook SubagentStart. Only Start creates a node;
    * cap the pending entries so scans of old subagents cannot grow this forever. */
   pendingSubagentModels: Map<string, string>;
@@ -94,6 +107,7 @@ export function initialState(): GraphState {
     toolIndex: new Map(),
     activeSubagentStack: new Map(),
     subagentTombstones: new Map(),
+    parkedEnrichment: new Map(),
     pendingSubagentModels: new Map(),
     parkedGit: new Map(),
     lastSeq: 0,

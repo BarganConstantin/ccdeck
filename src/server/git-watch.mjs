@@ -314,7 +314,7 @@ function seedFromLog(raw, seq, at) {
  * `sessions` the page will draw a card for — the ones the ring still holds an
  * event of — and, for a page that has seen nothing yet, only a branch: it has
  * none to take back. Each as it was sent, its seq and its time, for the page
- * alone (withGitBehind in event-routes.mjs): sending it again would push it
+ * alone (withLostBehind in event-routes.mjs): sending it again would push it
  * to every page open and stamp it as just heard.
  *
  * @param {{ after: number, before: number, sessions: Set<string> }} range

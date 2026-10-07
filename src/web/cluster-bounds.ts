@@ -53,6 +53,11 @@ export interface ClusterNode {
  */
 const LABEL_GUTTER = 240;
 
+/** How far inside its box's left edge the header pill starts, in LAYOUT
+ *  units. cluster-label-room.ts brings it through the camera to find where the
+ *  pill lands on screen, so the two cannot disagree about it. */
+export const LABEL_INDENT = 16;
+
 /**
  * The widest the header pill may draw, in SCREEN px, for a cluster box `w`
  * layout units wide shown at `zoom`.
@@ -150,15 +155,20 @@ export function clusterBoxStyle(c: Cluster, hue: number): React.CSSProperties {
  * all of the next column — to whoever owns them. It costs text only
  * below about 0.58, where the pill would otherwise be reaching across
  * the gap anyway, and `title` still carries the whole header.
+ *
+ * `maxWidth` is that cap unless the caller has less room to give: the
+ * layer passes what cluster-label-room.ts's labelRoom allows, which is the
+ * cap or less — less where the pane's right edge or the chrome over it
+ * comes first.
  */
-export function clusterLabelStyle(c: Cluster, zoom: number, hue: number): React.CSSProperties {
+export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidth?: number): React.CSSProperties {
   return {
     position: "absolute",
-    left: c.x + 16,
+    left: c.x + LABEL_INDENT,
     top: c.y - LABEL_LIFT / (zoom || 1),
     transform: `scale(${1 / (zoom || 1)})`,
     transformOrigin: "left top",
-    maxWidth: labelMaxWidth(c.w, zoom),
+    maxWidth: maxWidth ?? labelMaxWidth(c.w, zoom),
     "--session-hue": hue,
   } as React.CSSProperties;
 }
@@ -239,7 +249,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
     const needsSuffix = peers.length > 1;
     out.push({
       sessionId,
-      ...clusterHeader(b.label, b.name, sessionId, needsSuffix, peers),
+      ...clusterHeader(b.label, b.name, sessionId, needsSuffix, peers, { branch: b.branch, alarm: b.alarm }),
       x: b.minX - PAD,
       y: b.minY - PAD - HEADER_H,
       w: b.maxX - b.minX + PAD * 2,
@@ -301,6 +311,7 @@ export function shallowEqualClusters(a: Cluster[], b: Cluster[]): boolean {
       x.alarm !== y.alarm ||
       x.branch !== y.branch ||
       x.fullLabel !== y.fullLabel ||
+      x.title !== y.title ||
       x.x !== y.x || x.y !== y.y ||
       x.w !== y.w || x.h !== y.h
     ) return false;

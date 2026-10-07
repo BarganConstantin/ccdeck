@@ -174,8 +174,9 @@
   /* A day of the Projects report's chart is a button with no edge, and a quiet
      day's column is a pixel tall: each gets the edge a button has, so the
      targets can be found. The chosen day's accent ring is a shadow, which the
-     theme drops, so it comes back as an outline in the highlight: an outline
-     because account-projects.css, later in the sheet, owns that shadow. */
+     theme drops, so it comes back as an outline in the highlight: an outline,
+     which the theme keeps as written, so the column need not opt out of the
+     theme's colours to keep its ring. */
   .ap-proj-day { outline: 1px solid ButtonBorder; outline-offset: -1px; }
   .ap-proj-day.selected .ap-proj-col { outline: 2px solid Highlight; }
   /* The notch in a thermal track is the panel's ground showing through, and a

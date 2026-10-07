@@ -3,8 +3,10 @@
 .session-clusters {
   position: absolute;
   inset: 0;
-  /* Layer itself ignores pointer events; the clickable label inside opts
-     back in. This keeps the canvas pannable everywhere except on labels. */
+  /* Nothing in this layer is pressed. It is drawn under React Flow's renderer
+     (z-index 4 in React Flow's sheet, and filled by its pane), so no pointer
+     could reach it anyway; the session names that can be pressed are drawn in
+     .cluster-labels below, inside the viewport. */
   pointer-events: none;
   z-index: 0;
   /* The camera lives here now, as one transform, which is exactly how React
@@ -30,6 +32,24 @@
      re-create the whole defect one level up, and this time for the labels too. */
   transform-origin: 0 0;
   will-change: transform;
+}
+/* The session names, drawn inside React Flow's viewport (SessionClusters
+   portals them there). Beside the renderer, in .session-clusters above, they
+   were under the pane: a click on a name hit the empty canvas behind it and
+   its hover never lit. In here they are over the pane and under the cards.
+   React Flow draws a card at z-index 0 and the drag handle behind a session's
+   cards at -1 (session-group-nodes.ts); this layer is appended after its
+   nodes, so at the same -1 it is drawn and hit above the handle and below
+   every card, and a card a name overlaps still takes its own click. The layer
+   lets the pointer through to the pane around the names, and .cluster-label
+   takes it back on the pill alone. No transform: the viewport's own is the
+   camera, so the pills sit where they sat in .session-clusters. */
+.cluster-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  pointer-events: none;
 }
 /* --session-hue is the only thing SessionClusters still sets on these two: the
    fallback exists so a card that somehow renders without one paints a colour
@@ -186,6 +206,17 @@
   color: var(--muted);
 }
 .canvas-wrap[data-lod="overview"] .cluster-label-branch { display: inline; }
+/* A pill with no room to be drawn whole — above the canvas's top edge, under
+   the category filter bar or the canvas's other chrome, past a side of the
+   pane — is not drawn (SessionClusters, cluster-label-room.ts). Under the top
+   bar it was cut through its words, and under the filter bar it was covered;
+   either way it kept its Tab stop and took focus behind the chrome.
+   `visibility: hidden` takes it out of the paint, the hit test, the tab order
+   and the reading order at once. No transition: it leaves and comes back with
+   the pan that moved it, and the canvas gains no motion for it. */
+.cluster-label[data-offpane] {
+  visibility: hidden;
+}
 .cluster-label-said {
   position: absolute;
   width: 1px;

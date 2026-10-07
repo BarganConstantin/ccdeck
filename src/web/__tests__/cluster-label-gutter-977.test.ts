@@ -109,9 +109,11 @@ describe("the header pill is bounded in the unit it is drawn in (#977)", () => {
     for (const zoom of [1, 0.5, 0.38, 0.32, 0.2]) {
       expect(clusterLabelStyle(cluster, zoom, 0).maxWidth, `zoom ${zoom}`).toBe(labelMaxWidth(BOX, zoom));
     }
-    // And the component draws the pill with that style rather than one of its own.
+    // And the component draws the pill with that style rather than one of its
+    // own. The width it passes is the room cluster-label-room.ts allows, which
+    // is this cap or less (cluster-label-room.test.ts).
     expect(component, "labelStyle is not clusterLabelStyle's — the rule below is not the one on screen")
-      .toContain("const labelStyle = clusterLabelStyle(c, zoom, hue);");
+      .toContain("const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);");
   });
 });
 
@@ -124,11 +126,14 @@ describe("the sheet makes the cut read as a cut (#977)", () => {
   });
 
   it("still opts the pill into pointer events, which is why the bound is needed", () => {
-    // `.session-clusters` is `pointer-events: none` and this button turns them
-    // back on. If that ever stops being true the cap is belt without braces —
-    // but it is also what makes a click on a session name work at all.
+    // `.cluster-labels`, the layer the pills are drawn in inside React Flow's
+    // viewport, is `pointer-events: none` and this button turns them back on.
+    // If that ever stops being true the cap is belt without braces — but it is
+    // also what makes a click on a session name work at all
+    // (cluster-label-click.test.ts). The box layer takes none either.
     const rule = /\.cluster-label\s*\{([^}]*)\}/.exec(css)![1];
     expect(rule).toMatch(/pointer-events:\s*auto/);
+    expect(css).toMatch(/\.cluster-labels\s*\{[^}]*pointer-events:\s*none/);
     expect(css).toMatch(/\.session-clusters\s*\{[^}]*pointer-events:\s*none/);
   });
 });
