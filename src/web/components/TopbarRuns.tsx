@@ -404,16 +404,12 @@ export function SettingsRun({
           aria-expanded={appearanceMenuOpen}
           aria-controls={appearanceMenuOpen ? "appearance-menu" : undefined}
         >
-        {theme === "dark" ? (
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <circle cx="7" cy="7" r="2.5" />
-            <path d="M7 1.5v1.2M7 11.3v1.2M1.5 7h1.2M11.3 7h1.2M3.1 3.1l.85.85M10.05 10.05l.85.85M3.1 10.9l.85-.85M10.05 3.95l.85-.85" />
-          </svg>
-        ) : (
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M11.8 8.4A5 5 0 1 1 5.6 2.2a4 4 0 0 0 6.2 6.2Z" />
-          </svg>
-        )}
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M1.5 3h4.3M9.2 3h3.3M1.5 7h1.3M6.2 7h6.3M1.5 11h6.3M11.2 11h1.3" />
+          <circle cx="7.5" cy="3" r="1.7" />
+          <circle cx="4.5" cy="7" r="1.7" />
+          <circle cx="9.5" cy="11" r="1.7" />
+        </svg>
         </button>
         {appearanceMenuOpen && (
           <AppearanceMenu
