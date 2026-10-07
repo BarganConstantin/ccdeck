@@ -27,7 +27,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { cascade, el, mediaApplies, selects, sheetRules, splitTop, type El } from "./sheet-cascade";
 import { openTags } from "./tsx-scan";
 
@@ -245,13 +245,14 @@ function paintedRow(select: El[], row: El[]): { ink: Rgba; bed: Rgba } {
   return { ink: over(ink, bed), bed };
 }
 
-/** Every .tsx under src/web, tests aside, relative to it. */
+/** Every .tsx under src/web, tests aside, relative to it and written with
+ *  forward slashes on every platform, as SELECTS names them. */
 function sources(dir = WEB): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
     if (name === "__tests__" || name === "node_modules") return [];
     if (statSync(path).isDirectory()) return sources(path);
-    return name.endsWith(".tsx") ? [relative(WEB, path)] : [];
+    return name.endsWith(".tsx") ? [relative(WEB, path).split(sep).join("/")] : [];
   });
 }
 
