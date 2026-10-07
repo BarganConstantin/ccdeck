@@ -384,10 +384,17 @@ export default function GitView(props: GitViewProps) {
   focusInsideRef.current = request.focusInside;
   const fileHintRef = useRef(false);
   fileHintRef.current = request.file != null;
+  // The agent the camera last framed, to tell following another agent from
+  // a new width alone.
+  const framedAgent = useRef<string | null>(null);
   useEffect(() => {
     const animate = request.how === "pointer";
     if (want) {
       const opening = !wasWanted.current;
+      // A pointer's open and the agent it follows glide; a new width — `f`, a
+      // divider's keys, the window — reframes at once.
+      const followed = framedAgent.current !== agent?.id;
+      framedAgent.current = agent?.id ?? null;
       // The reader's camera, to give back on close — taken on a sheet too,
       // which leaves the camera alone until a wider window puts the view beside it.
       if (opening) {
@@ -403,7 +410,7 @@ export default function GitView(props: GitViewProps) {
         const measured = canvasBox(canvasRef.current);
         setBox(prev => (sameBox(prev, measured) ? prev : measured));
         coverBehind(true);
-        frame(animate ? 200 : 0);
+        frame(animate && (opening || followed) ? 200 : 0);
         // A glance file row hands focus to that file, a commit row to its row.
         if (opening) raf3 = requestAnimationFrame(() => (focusInsideRef.current ? bodyActions.current.focusPane(fileHintRef.current ? "files" : "graph") : takeLostFocus()));
       }); });
