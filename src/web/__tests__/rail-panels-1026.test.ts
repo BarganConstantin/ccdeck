@@ -165,7 +165,9 @@ describe("the sound menu's reading is described once (#1026)", () => {
     // restating --text at 11px, which lost both and never drew anything.
     expect(decl(".sm-read", "color")).toBeNull();
     expect(decl(".sound-menu .sm-read", "color")).toBe("var(--muted)");
-    expect(decl(".sound-menu .sm-read", "font-size")).toBe("10px");
+    // A value, so monospaced, at the 11px label tier (it was 10px in sans).
+    expect(decl(".sound-menu .sm-read", "font-size")).toBe("11px");
+    expect(decl(".sound-menu .sm-read", "font-family")).toBe("var(--font-mono)");
     // The geometry the dead rule also carried has to survive the merge.
     expect(decl(".sound-menu .sm-read", "min-width")).toBe("34px");
     expect(decl(".sound-menu .sm-read", "text-align")).toBe("right");

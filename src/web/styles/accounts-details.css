@@ -207,8 +207,7 @@
   .sound-menu { animation: fadeIn 140ms ease-out; }
   .appearance-theme,
   .appearance-preview,
-  .appearance-check,
-  .appearance-row { transition: none; }
+  .appearance-check { transition: none; }
 }
 
 

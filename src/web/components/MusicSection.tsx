@@ -13,6 +13,8 @@ import {
   type CustomFmStation, type FmSelection,
 } from "../fm-stations";
 import { isEscapeKey } from "../modal-dismiss";
+import { armedPress } from "../panel-press";
+import { CONFIRM_GAP_MS } from "./LanSyncSection";
 
 const FM_SOURCES = FM_SOURCE_OPTIONS;
 const NAME_MISSING = "Give the station a name.";
@@ -73,6 +75,12 @@ export default function MusicSection({
   const [renamingStation, setRenamingStation] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState("");
+  /** The station whose Remove is armed. Nothing brings a removed station back,
+   *  link and all, so it costs two presses — the danger button's rule, and the
+   *  custom sounds' Delete in the section beside this one. */
+  const [armedRemove, setArmedRemove] = useState<string | null>(null);
+  /** When it was armed, so a double-click cannot be its own confirmation. */
+  const removeArmedAt = useRef(0);
   const sourceTriggerRef = useRef<HTMLButtonElement>(null);
   const stationNameRef = useRef<HTMLInputElement>(null);
   const stationUrlRef = useRef<HTMLInputElement>(null);
@@ -172,6 +180,26 @@ export default function MusicSection({
   // behind the modal, and the picker is where the result of each step reads:
   // the station just added, the name just saved, Claude FM after a removal.
   const backToPicker = () => sourceTriggerRef.current?.focus();
+
+  // An armed Remove stands down on its own, the way the custom sounds' does.
+  useEffect(() => {
+    if (!armedRemove) return;
+    const t = window.setTimeout(() => setArmedRemove(null), 4_000);
+    return () => window.clearTimeout(t);
+  }, [armedRemove]);
+
+  const pressRemove = () => {
+    if (!activeCustomStation) return;
+    const now = Date.now();
+    const press = armedPress({
+      armedFor: armedRemove, target: activeCustomStation.id, armedAt: removeArmedAt.current, now, gapMs: CONFIRM_GAP_MS,
+    });
+    if (press === "arm") { setArmedRemove(activeCustomStation.id); removeArmedAt.current = now; return; }
+    if (press === "ignore") return;
+    setArmedRemove(null);
+    onRemoveFmStation(activeCustomStation.id); backToPicker();
+  };
+  const removeArmed = activeCustomStation !== undefined && armedRemove === activeCustomStation.id;
 
   const addStation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -299,7 +327,13 @@ export default function MusicSection({
             {activeCustomStation && !renamingStation && (
               <span className="appearance-station-edit">
                 <button type="button" className="btn appearance-station-action" onClick={() => { setRenameValue(activeCustomStation.name); setRenameError(""); setRenamingStation(true); }}>Rename</button>
-                <button type="button" className="btn danger appearance-station-action" onClick={() => { onRemoveFmStation(activeCustomStation.id); backToPicker(); }}>Remove</button>
+                <button
+                  type="button"
+                  className={`btn danger appearance-station-action${removeArmed ? " armed" : ""}`}
+                  onClick={pressRemove}
+                  aria-label={removeArmed ? `Confirm removing ${activeCustomStation.name}` : `Remove ${activeCustomStation.name}`}
+                  title={removeArmed ? "Press again to remove this station. It cannot be brought back." : "Remove this station"}
+                >{removeArmed ? "Confirm" : "Remove"}</button>
               </span>
             )}
           </div>
@@ -396,8 +430,8 @@ export default function MusicSection({
       {/* THE CHARACTER, IN ITS OWN GROUP. It was a row under "Music source",
           where it read as a music setting; it is the thing the music plays
           through, which is what its note now says on screen rather than only
-          to a reader. In the same bordered box as Claude FM's controls, so the
-          two groups of the section read as one kind of thing.
+          to a reader. Under the hairline every second subject in a Settings
+          section stands under, and unboxed, as Claude FM's controls are.
           THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
           press anywhere in it to the switch exactly once — a press on the
           switch itself is the switch's own and the label does not repeat it —
