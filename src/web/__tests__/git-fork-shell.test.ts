@@ -84,6 +84,12 @@ describe("the switch between the looks", () => {
   });
 });
 
+describe("the commit card", () => {
+  it("closes when the look switches: its anchor is the row it was opened beside, in the look before", () => {
+    expect(view).toMatch(/useEffect\(\(\) => setCard\(null\), \[agent\.id, request\.seq, prefs\.look\]\);/);
+  });
+});
+
 describe("the Fork layout", () => {
   it("lays the sidebar column, the toolbar, the history and the inspector out as Fork's window", () => {
     expect(view).toMatch(/<div className="fk-side-col" id="fk-side"/);

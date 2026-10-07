@@ -1112,7 +1112,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
 
   // ── the commit card ───────────────────────────────────────────────────
   const [card, setCard] = useState<{ sha: string; anchor: DOMRect | null } | null>(null);
-  useEffect(() => setCard(null), [agent.id, request.seq]);
+  // Its anchor is the row it was opened beside: in the other look that row is elsewhere.
+  useEffect(() => setCard(null), [agent.id, request.seq, prefs.look]);
   const cardFacts = (sha: string): CommitCardFacts | null => {
     const c = data.commits?.find(x => x.sha === sha);
     if (!c) return null;
