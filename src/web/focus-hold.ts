@@ -29,6 +29,21 @@ export interface FocusHold {
   cancel(): void;
 }
 
+/** Every hold with a jump still waiting, so a camera move the deck makes on
+ *  purpose in the meantime can drop them all (cancelHeldFocus). */
+const waiting = new Set<FocusHold>();
+
+/**
+ * Drop every jump a click is still holding. Animated, a camera move the deck
+ * makes after the click — the git view framing for the card just selected, or
+ * giving the camera back as it closes — cuts the click's move short and is
+ * where the camera ends; held, the click's jump would land after it and undo
+ * it. So that move drops it, and both settings end on the same camera.
+ */
+export function cancelHeldFocus(): void {
+  for (const h of [...waiting]) h.cancel();
+}
+
 export function createFocusHold({ focus, setTimeout, clearTimeout, ms = DOUBLE_CLICK_MS }: {
   focus: (id: string) => void;
   setTimeout: (fn: () => void, ms: number) => number;
@@ -37,15 +52,18 @@ export function createFocusHold({ focus, setTimeout, clearTimeout, ms = DOUBLE_C
 }): FocusHold {
   let held: number | null = null;
   const cancel = () => {
+    waiting.delete(api);
     if (held === null) return;
     clearTimeout(held);
     held = null;
   };
-  return {
+  const api: FocusHold = {
     hold(id) {
       cancel();
+      waiting.add(api);
       held = setTimeout(() => {
         held = null;
+        waiting.delete(api);
         // Late, from a timer: a card that has left the board since is not a
         // reason to throw out of one.
         try { focus(id); } catch { /* nothing to bring into view */ }
@@ -53,4 +71,5 @@ export function createFocusHold({ focus, setTimeout, clearTimeout, ms = DOUBLE_C
     },
     cancel,
   };
+  return api;
 }
