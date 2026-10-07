@@ -16,6 +16,7 @@ import { useReactFlow, useStoreApi, type ReactFlowState } from "reactflow";
 import { fitZoomForDrawnLanes } from "./semantic-zoom";
 import { FIT_FILL, FIT_MARGIN, railCover } from "./use-layout-frame";
 import { shouldAnimateViewport } from "./viewport-motion";
+import { guardZoomPath, isViewableViewport } from "./zoom-path";
 
 /** d3-zoom's own transform for the pane — the scale `k`, the translation
  *  `x`/`y`, and the relative builders that compose another one from it.
@@ -28,6 +29,9 @@ type PaneTransform = Extract<
   Parameters<NonNullable<ReactFlowState["d3Zoom"]>["transform"]>[1],
   { k: number }
 >;
+
+/** The pane zoom behaviours whose interpolator is already guarded. */
+const guardedZooms = new WeakSet<object>();
 
 // Matches TOOL_LANE_W in layout-geometry.ts — the burst lane drawn beside each card.
 export const TOOL_LANE_ALLOWANCE = 420;
@@ -74,8 +78,13 @@ export function useCamera() {
    * own copy: `scale` and `translate` on a ZoomTransform are relative, and
    * scaling to `zoom / k` and then translating by the remaining gap lands on
    * exactly (x, y, zoom).
+   *
+   * A target with a NaN or an infinity in it is refused, and the pane keeps the
+   * frame it has: d3-zoom would apply it as given, and the transform it leaves
+   * is one every reader of the store then draws from.
    */
   const applyViewport = useCallback((next: { x: number; y: number; zoom: number }, duration: number) => {
+    if (!isViewableViewport(next)) return;
     if (shouldAnimateViewport({ durationMs: duration, documentHidden: document.hidden })) {
       rf.setViewport(next, { duration });
       return;
@@ -92,6 +101,21 @@ export function useCamera() {
     // still lands, and in a hidden one there was no pane to move regardless.
     rf.setViewport(next, { duration: 0 });
   }, [rf, storeApi]);
+
+  // Every transition the pane runs, the deck's and React Flow's own, draws its
+  // frames through d3-zoom's interpolator, and the stock one comes out NaN on a
+  // zoom about a centre that barely moves, which is what Recenter after the
+  // zoom buttons asks for (zoom-path.ts). So the pane's is wrapped, once per
+  // behaviour: now if React Flow has made it, and when it does otherwise.
+  useEffect(() => {
+    const guard = (zoom: ReactFlowState["d3Zoom"]) => {
+      if (!zoom || guardedZooms.has(zoom)) return;
+      guardedZooms.add(zoom);
+      zoom.interpolate(guardZoomPath(zoom.interpolate()));
+    };
+    guard(storeApi.getState().d3Zoom);
+    return storeApi.subscribe(state => guard(state.d3Zoom));
+  }, [storeApi]);
 
   /** The frame an animation is on its way to, and the moment it should have
    *  arrived by. Null whenever no animated fit is in flight.
