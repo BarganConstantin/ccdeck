@@ -12,7 +12,10 @@
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
-import { notificationsOn } from "./deck-prefs.mjs";
+import { accountNotifySettings, notificationsOn } from "./deck-prefs.mjs";
+// The account notifier — a switch, a quota threshold, a reset — connected below
+// to the same OS call the block notifier uses.
+import { connectAccountNotify } from "./account-watch.mjs";
 // The settings as this process holds them — see prefs-state.mjs.
 import { heldPrefs } from "./prefs-state.mjs";
 // The deck's own token, taken back out of every event before the ring, the
@@ -50,6 +53,13 @@ import { connectEventSink } from "./event-sink.mjs";
 connectEventSink(pushEvent);
 
 /**
+ * Where a notification goes. The desktop app, while it is connected, raises it
+ * itself — under its own name, icon and permission, with a click that opens its
+ * window. Only when no app is listening does the OS helper speak.
+ */
+const deskNotify = (title, body, meta) => (trayClients.size > 0 ? notifyTrays(title, body, meta) : osNotify(title, body));
+
+/**
  * The desktop notifier, built once per process.
  *
  * `enabled` is read here and not per event, so a switch cannot change under a
@@ -65,10 +75,7 @@ connectEventSink(pushEvent);
  * every in-page surface still says everything it said before.
  */
 const blockNotifier = createBlockNotifier({
-  // The desktop app, while it is connected, raises the notification itself —
-  // under its own name, icon and permission, with a click that opens its
-  // window. Only when no app is listening does the OS helper speak.
-  notify: (title, body, meta) => (trayClients.size > 0 ? notifyTrays(title, body, meta) : osNotify(title, body)),
+  notify: deskNotify,
   product: PRODUCT,
   // A function, not a boolean: this is a switch a person flips from the sound
   // menu while the deck is running, and a mute that waited for a restart would
@@ -78,6 +85,21 @@ const blockNotifier = createBlockNotifier({
   // stands for what it held back — see BURST_MAX.
   pages: () => pageCount(),
   onError: err => console.error(`${PRODUCT}: could not raise a desktop notification:`, err?.message ?? err),
+});
+
+/**
+ * The account notifier's half of the same channel. Not gated on a page being
+ * open, as the block notifier is: an open page plays a tone for a blocked
+ * session, so the desktop stays out of its way, but no page says that the deck
+ * moved your account or that a quota window filled — so these go out either
+ * way. Each of its three switches is asked per notification, and the launch
+ * veto still wins inside `accountNotifySettings`.
+ */
+connectAccountNotify({
+  notify: deskNotify,
+  product: PRODUCT,
+  settings: () => accountNotifySettings(heldPrefs.current()),
+  onError: err => console.error(`${PRODUCT}: could not raise an account notification:`, err?.message ?? err),
 });
 
 export function pushEvent(raw, source, opts = {}) {
