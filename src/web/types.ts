@@ -287,10 +287,13 @@ export interface RecentCommit {
   agentId: string | null;
   label: string | null;
   branch: string | null;
+  /** The repository it is in (its common git directory). */
+  repo: string | null;
 }
 
 /** A session's commits of the last half hour, newest first, and the
- *  repository (its common git directory) of the newest one. */
+ *  repository (its common git directory) the session works in now — else,
+ *  with none to read, the newest commit's. */
 export interface RecentCommits {
   repo: string | null;
   commits: RecentCommit[];
@@ -720,7 +723,7 @@ export interface HookPayload {
   /** On the synthetic `GitCollisions`: the session's collisions as they stand. */
   collisions?: GitCollisions;
   /** On the synthetic `GitRecentCommits`: the session's commits of the last
-   *  half hour, newest first, and the repository of the newest. */
+   *  half hour, newest first, and the repository the session works in. */
   commits?: RecentCommit[];
   repo?: string | null;
   /** Claude-only, on the synthetic `ActivityObserved`: what the session's newest

@@ -166,6 +166,7 @@ export function recentCommitsFrom(raw: { commits?: unknown; repo?: unknown }): R
       agentId: str(c.agentId) ?? null,
       label: str(c.label) ?? null,
       branch: str(c.branch) ?? null,
+      repo: str(c.repo) ?? null,
     });
   }
   commits.sort((a, b) => b.at - a.at);

@@ -9,7 +9,8 @@ export const NOW = Date.now();
 export const MIN = 60_000;
 export const sha = (n: number) => n.toString(16).padStart(40, "a");
 export const commit = (n: number, ago: number, over: Partial<RecentCommit> = {}): RecentCommit => ({
-  sha: sha(n), short: sha(n).slice(0, 7), subject: `feat(auth): change ${n}`, at: NOW - ago, agentId: null, label: null, branch: "feature/auth-login", ...over,
+  sha: sha(n), short: sha(n).slice(0, 7), subject: `feat(auth): change ${n}`, at: NOW - ago, agentId: null, label: null, branch: "feature/auth-login",
+  repo: "/w/shop-api/.git", ...over,
 });
 
 let seq = 0;

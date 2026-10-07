@@ -3,7 +3,7 @@
 // last value wins.
 //
 //   { hook_event_name: "GitRecentCommits", session_id, repo,
-//     commits: [{ sha, short, subject, at, agentId, label, branch }, …] }
+//     commits: [{ sha, short, subject, at, agentId, label, branch, repo }, …] }
 //
 // Newest first, at most RECENT_COMMITS_MAX. Only commits the deck saw an agent
 // make: the lines of the commit store (agent-git-store.mjs), which the
@@ -12,9 +12,12 @@
 // printed. `at` is when the deck saw it, `agentId` the subagent (null for the
 // session's main thread) and `label` what the store calls it — a subagent's
 // type — for a page whose card for it has left the board. `branch` is the
-// branch it went to (null on a detached HEAD), and `repo` the repository of the
-// newest one (its common git directory), which the page reads the branch's
-// colour by.
+// branch it went to (null on a detached HEAD), and its `repo` the repository
+// it is in (the common git directory). The lane's own `repo` is the
+// repository the session works in now — what its git view reads, and what the
+// page reads the branch colours by and keeps the main card's rows to, since a
+// commit in a repository the session has left would open the view on a commit
+// that is not there — else, with no repository to read, the newest commit's.
 //
 // An amend takes the place of the commit it amended: that one is no longer on
 // the branch, so the lane does not show it.
@@ -22,7 +25,8 @@
 // WHEN. Never on a timer of its own for the window: the page ages each commit
 // out on its own clock, and the lane goes with the last one. A list is worked
 // out again when the deck records a commit for the session (the tap tells this
-// module, agent-git-tap.mjs `onCommit`); when another deck on this machine is
+// module, agent-git-tap.mjs `onCommit`); when the session is followed into
+// another folder (git-watch.mjs onFollow); when another deck on this machine is
 // the one recording the session, a moment later, from the store the two share;
 // after the boot, from the store, for every session with a commit still inside
 // the window; and when the git view is switched back on. A list that says what
@@ -33,9 +37,12 @@
 // it is LAST_VALUE_WINS in ring-bounds.mjs and handed again to a page that
 // connects after the ring dropped the event that carried it
 // (recentCommitsBehind, through withLostBehind in event-routes.mjs).
+import { realpath } from "node:fs/promises";
 import { agentGit } from "./agent-git-tap.mjs";
 import { pushEvent } from "./event-sink.mjs";
-import { gitEnabled } from "./git-watch.mjs";
+import { sessionFolder } from "./git-sessions.mjs";
+import { repoOf } from "./git-state.mjs";
+import { gitEnabled, onFollow } from "./git-watch.mjs";
 
 /** How long a commit stays in the lane: the page's BAND_WINDOW_MS. */
 export const RECENT_COMMITS_MS = 30 * 60_000;
@@ -67,16 +74,19 @@ const entry = (r) => ({
   agentId: typeof r.agentId === "string" && r.agentId ? r.agentId : null,
   label: typeof r.label === "string" && r.label ? r.label : null,
   branch: typeof r.branch === "string" && r.branch ? r.branch : null,
+  repo: typeof r.repo === "string" && r.repo ? r.repo : null,
 });
 
 /**
  * A session's lane from its store lines, oldest first in: newest first out,
  * an amend in the place of the commit it amended, at most
- * RECENT_COMMITS_MAX. Answers `{ repo, commits }`.
+ * RECENT_COMMITS_MAX. Answers `{ repo, commits }`: `repo` is the one the
+ * session works in when it is given, else the newest commit's.
  *
  * @param {Array<{ sha: string, repo: string, branch?: string | null, amend?: boolean, at: number }>} lines
+ * @param {{ repo?: string | null }} [opts]
  */
-export function laneOf(lines) {
+export function laneOf(lines, { repo = null } = {}) {
   const kept = [];
   for (const r of [...lines].sort((a, b) => a.at - b.at)) {
     if (r.amend) {
@@ -89,7 +99,17 @@ export function laneOf(lines) {
     kept.push(r);
   }
   const newest = kept.slice(-RECENT_COMMITS_MAX).reverse();
-  return { repo: newest[0]?.repo ?? null, commits: newest.map(entry) };
+  return { repo: repo ?? newest[0]?.repo ?? null, commits: newest.map(entry) };
+}
+
+/** The repository the session's git view reads now, as the store names one
+ *  (the realpath of its common git directory), or null. */
+async function workRepo(sid) {
+  const folder = sessionFolder(sid);
+  if (!folder) return null;
+  const r = await repoOf(folder.cwd);
+  if (r.state !== "repo") return null;
+  return realpath(r.commonDir).catch(() => r.commonDir);
 }
 
 /** Every session's lines inside the window, from the store. */
@@ -104,21 +124,36 @@ async function linesBySession() {
   return out;
 }
 
+let queue = Promise.resolve();
 /** Work the lanes of these sessions (all with a commit in the window when
- *  `sids` is null) out again, and send each that changed. */
-async function lookAt(sids) {
+ *  `sids` is null) out again, and send each that changed — one pass at a
+ *  time, so a slower pass never sends after a newer one. */
+function lookAt(sids) {
+  queue = queue.then(() => lookAtNow(sids)).catch(() => {});
+  return queue;
+}
+
+async function lookAtNow(sids) {
   const gen = generation;
   if (!enabled()) return;
   let by;
   try { by = await linesBySession(); } catch { return; }
   if (gen !== generation || !enabled()) return;
-  for (const sid of sids ?? by.keys()) {
-    const lane = laneOf(by.get(sid) ?? []);
+  for (const sid of sids ?? [...by.keys()]) {
+    const lines = by.get(sid) ?? [];
+    if (!lines.length && !sent.has(sid)) continue;
+    const repo = lines.length ? await workRepo(sid) : null;
+    if (gen !== generation || !enabled()) return;
+    const lane = laneOf(lines, { repo });
     const sig = lane.commits.length ? JSON.stringify(lane) : null;
     if (sig === (sent.get(sid) ?? null)) continue;
     send(sid, lane);
   }
 }
+
+// Followed into another folder: the repository its lane is read against may
+// have changed with it.
+onFollow((sid) => { if (enabled()) void lookAt([sid]); });
 
 function send(sid, lane) {
   const evt = pushEvent({ hook_event_name: "GitRecentCommits", session_id: sid, repo: lane.repo, commits: lane.commits }, "internal", { persist: false });
