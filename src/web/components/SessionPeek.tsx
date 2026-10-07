@@ -13,6 +13,7 @@ import { branchLong, stateMarkKind, type BranchSummary } from "../node-face";
 import { promptTime } from "../relative-time";
 import type { AgentNodeData } from "../types";
 import { stateLabel, waitingLabel } from "../agent-copy";
+import { codexApprovalTell } from "../codex-approval";
 import { noteSource, noteTag, type SessionNote } from "../session-note";
 import { NoteMark } from "./RecapMark";
 import { AlertMark, StateMark } from "./StateMark";
@@ -145,6 +146,10 @@ function usePlacedBeside(anchor: Element, bounds: () => { width: number; height:
   const place = useCallback(() => {
     const el = ref.current;
     if (!el || !anchor.isConnected) return;
+    // Measured at its natural height: measured with last time's cap on, a
+    // capped card fits, loses its cap, and runs past the window until the next
+    // render caps it again.
+    el.style.maxHeight = "";
     const p = placeBeside(anchor.getBoundingClientRect(), { width: el.offsetWidth, height: el.offsetHeight }, bounds());
     el.style.top = `${p.top}px`;
     el.style.left = `${p.left}px`;
@@ -203,6 +208,9 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   const cost = agentCost(a, now).total;
   const tokens = a.usage.inputTokens + a.usage.outputTokens;
   const alarm = a.kind === "root" && isAlarming(a.waiting);
+  // What a live Codex session says in the waiting line's slot, as its card does:
+  // the deck cannot see its approval prompts (codex-approval.ts).
+  const blind = codexApprovalTell(a);
   const kind = a.kind === "root" ? "session" : parentLabel ? `subagent of ${parentLabel}` : "subagent";
   const facts = [
     `${a.toolCount} ${a.toolCount === 1 ? "tool" : "tools"}`,
@@ -228,10 +236,12 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
       {a.kind === "root" && a.waiting && (
         <p className={`node-peek-wait${alarm ? " warn" : ""}`}>
           {alarm && <AlertMark />}
-          <span title={waitingLabel(a.waiting)}>{waitingLabel(a.waiting)}</span>
-          <b>{elapsed(a.waiting.since, undefined, now)}</b>
+          {/* The duration first, so it floats at the end of the first line and
+              the clamp, which cuts at the end of the text, never reaches it. */}
+          <span className="node-peek-said" title={waitingLabel(a.waiting)}><span className="node-peek-since"><b>{elapsed(a.waiting.since, undefined, now)}</b></span>{waitingLabel(a.waiting)}</span>
         </p>
       )}
+      {blind && <p className="node-peek-blind"><span className="approval-blind-dot" aria-hidden />{blind.label}</p>}
       <p className="node-peek-facts">
         {facts}
         {failed > 0 && <span className="node-peek-failed"> · {failed} failed</span>}
