@@ -474,6 +474,8 @@ export const GUARDED_READS = new Set([
   "/api/git/commit",
   // Which files each of a session's agents edited, by path in its repository.
   "/api/git/edits",
+  // Its branches, tags, stashes, worktrees and submodules, for the sidebar.
+  "/api/git/refs",
   // Which git client, editor and terminal this machine has, and the picks.
   "/api/git/handoffs",
 ]);

@@ -1,4 +1,4 @@
-// GET /api/git/{repo,log,status,diff,commit,edits} — the git view's reads, each for
+// GET /api/git/{repo,log,status,diff,commit,edits,refs} — the git view's reads, each for
 // one session's repository.
 //
 // A request names a SESSION, never a folder: the folder is the one the deck
@@ -37,6 +37,7 @@ import { isShaLike } from "./git-reads.mjs";
 import { sessionFolder, sessionSubagents } from "./git-sessions.mjs";
 import { gitEnabled } from "./git-watch.mjs";
 import { commitOf, commitFileDiffOf, countedStatusOf, fileDiffOf, logOf, repoOf, statusOf } from "./git-state.mjs";
+import { refsOf } from "./git-refs.mjs";
 
 const AREAS = new Set(["staged", "unstaged", "untracked", "conflict"]);
 const MAX_PARAM = 4096;
@@ -193,4 +194,16 @@ export async function handleGitEdits(req, res, url) {
   if (!found) return;
   const edits = await sessionEdits(found.repo, param(url, "session"), found.folder.agent);
   send(res, 200, { ok: true, state: "repo", repo: found.repo, edits });
+}
+
+/** `?session[&agent]` — the repository's branches, remote-tracking branches,
+ *  tags, stashes, worktrees and submodules, for the sidebar (git-refs.mjs).
+ *  `current` on a branch and a worktree is the session's own worktree's. */
+export async function handleGitRefs(req, res, url) {
+  const found = await sessionRepo(url, res);
+  if (!found) return;
+  const refs = await refsOf(found.repo);
+  if (!refs.ok) return send(res, 200, { ok: false, state: "repo", repo: found.repo, reason: refs.reason });
+  const { ok, ...lists } = refs;
+  send(res, 200, { ok: true, state: "repo", repo: found.repo, ...lists });
 }

@@ -160,7 +160,7 @@ import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStat
 // The usage panel's quota and history reads — see usage-routes.mjs.
 import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota } from "./usage-routes.mjs";
 // The git view's reads of a session's repository — see git-routes.mjs.
-import { handleGitCommit, handleGitDiff, handleGitEdits, handleGitLog, handleGitRepo, handleGitStatus } from "./git-routes.mjs";
+import { handleGitCommit, handleGitDiff, handleGitEdits, handleGitLog, handleGitRefs, handleGitRepo, handleGitStatus } from "./git-routes.mjs";
 import { refreshGit } from "./git-watch.mjs";
 // The git view's hand-offs: which apps this machine has, and opening one on a
 // session's folder — only from a browser on this machine. See git-handoff-routes.mjs.
@@ -392,6 +392,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/git/diff")    return guard(handleGitDiff(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/git/commit")  return guard(handleGitCommit(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/git/edits")   return guard(handleGitEdits(req, res, url), res);
+    if (req.method === "GET"  && url.pathname === "/api/git/refs")    return guard(handleGitRefs(req, res, url), res);
     if (req.method === "GET"  && url.pathname === "/api/git/handoffs") return guard(handleGitHandoffs(req, res, url), res);
     if (req.method === "POST" && url.pathname === "/api/git/open")    return guard(handleGitOpen(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
