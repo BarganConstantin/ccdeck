@@ -88,7 +88,15 @@ describe("a badge, as the markup builds it", () => {
   it("draws a tag with its glyph, a plain branch with none, and +N in neutral colours", () => {
     expect(html({ kind: "tag", name: "v1", label: "v1", title: "t" })).toMatch(/data-kind="tag"[^>]*><svg class="fk-ref-glyph"/);
     expect(html({ kind: "local", name: "x", label: "x", title: "t" })).not.toContain("<svg");
-    expect(renderToStaticMarkup(createElement(FkMoreBadge, { names: ["a", "b"] }))).toBe('<span class="fk-ref" data-kind="more" title="a\nb">+2</span>');
+    expect(renderToStaticMarkup(createElement(FkMoreBadge, { names: ["a", "b"] }))).toBe('<span class="fk-ref" data-kind="more" data-tone="neutral" title="a\nb">+2</span>');
+  });
+  it("draws the Commit tab's refs as the same badge in its neutral colours, each kind said in words", () => {
+    const m = renderToStaticMarkup(createElement(FkRefBadge, { chip: { kind: "remote", name: "origin/x", label: "origin/x", title: "remote branch origin/x" }, tone: "neutral" }));
+    expect(m).toMatch(/^<span class="fk-ref" data-kind="remote" data-tone="neutral" title="remote branch origin\/x"><span class="fk-ref-cell">/);
+    expect(m).toContain('<span class="vis-hidden">remote branch </span>origin/x');
+    const tab = sourceOf("components/FkCommitTab.tsx");
+    expect(tab).toMatch(/import \{ FkRefBadge, type FkChip \} from "\.\/FkRefBadge";/);
+    expect(tab).toMatch(/<FkRefBadge chip=\{chip\} tone="neutral" \/>/);
   });
 });
 
@@ -129,7 +137,15 @@ describe("an author's avatar", () => {
     for (const t of tones) expect(t).toBeLessThan(AVATAR_TONES);
   });
   it("is hidden from screen readers: the name beside it is the words", () => {
-    expect(renderToStaticMarkup(createElement(FkAvatar, { name: "Alex Morgan", email: "a@x" }))).toMatch(/^<span class="fk-avatar" data-size="16" data-tone="\d" aria-hidden="true">AM<\/span>$/);
+    expect(renderToStaticMarkup(createElement(FkAvatar, { name: "Alex Morgan", email: "a@x", size: "row" }))).toMatch(/^<span class="fkm-ava" data-size="row" data-tone="\d" aria-hidden="true">AM<\/span>$/);
+  });
+  it("is the one avatar the rows, the commit strip and the Commit tab draw, so one person is one colour in all three", async () => {
+    const strip = await import("../components/FkCommitStrip");
+    expect(strip.avatarTone).toBe(avatarTone);
+    for (const f of ["components/FkCommitStrip.tsx", "components/FkCommitTab.tsx", "components/GitGraph.tsx"]) {
+      expect(sourceOf(f), f).toMatch(/import \{ FkAvatar \} from "\.\/FkAvatar";/);
+      expect(sourceOf(f), f).not.toMatch(/0x811c9dc5|function initialsOf/);
+    }
   });
 });
 

@@ -200,7 +200,7 @@ describe("the Fork history's words", () => {
     }
   });
 
-  it("keeps a badge's words at 4.5:1 on its own fill in every lane, and the +N's on its neutral one", () => {
+  it("keeps a badge's words at 4.5:1 on its own fill in every lane, and a neutral badge's on its grey", () => {
     for (const theme of themes) {
       const list = beds(theme)[0][1];
       for (const n of LANES) {
@@ -211,8 +211,9 @@ describe("the Fork history's words", () => {
         const cell = ratio(resolve("var(--fk-ref-cell-ink)", theme), resolve("var(--fk-ref-cell)", theme));
         expect(cell, `${theme} remote cloud`).toBeGreaterThanOrEqual(NON_TEXT);
       }
-      const more = ratio(resolve(need(decl(`${F} .fk-ref[data-kind="more"]`, "color"), "+N ink"), theme), resolve(need(decl(`${F} .fk-ref[data-kind="more"]`, "background"), "+N fill"), theme));
-      expect(more, `${theme} +N`).toBeGreaterThanOrEqual(BODY);
+      const neutral = `${F} .fk-ref[data-tone="neutral"]`;
+      const more = ratio(resolve(need(decl(neutral, "color"), "neutral ink"), theme), resolve(need(decl(neutral, "background"), "neutral fill"), theme));
+      expect(more, `${theme} a neutral badge (+N, the Commit tab's refs)`).toBeGreaterThanOrEqual(BODY);
     }
   });
 

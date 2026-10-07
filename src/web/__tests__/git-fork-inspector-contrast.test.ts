@@ -21,7 +21,8 @@ type Rgba = [number, number, number, number];
 
 const part = (path: string) => sheetParts().find(([p]) => p === path)![1].replace(/\/\*[\s\S]*?\*\//g, "");
 const TOKENS = part("styles/tokens.css");
-const OURS = part("styles/git-inspector-fork.css") + part("styles/git-diff-fork.css");
+// The history's sheet too: it draws the ref badge the Commit tab shares.
+const OURS = part("styles/git-inspector-fork.css") + part("styles/git-diff-fork.css") + part("styles/git-graph-fork.css");
 
 /** Top-level rules only (nothing inside an at-rule), each selector list split
  *  at its top-level commas. */
@@ -244,10 +245,10 @@ describe("the tree, the strip and the Commit tab", () => {
         expectAt(ratio(theme, decl(sel, "color"), inspector), BODY, `${theme} ${sel}`);
       }
       expectAt(ratio(theme, decl(".fkc-filter-input::placeholder", "color"), inspector), BODY, `${theme} filter placeholder`);
-      const ref = bed(theme, decl(".fkm-ref", "background"), inspector);
-      expectAt(ratio(theme, decl(".fkm-ref", "color"), ref), BODY, `${theme} a ref badge's name`);
+      const ref = bed(theme, decl('.fk-ref[data-tone="neutral"]', "background"), inspector);
+      expectAt(ratio(theme, decl('.fk-ref[data-tone="neutral"]', "color"), ref), BODY, `${theme} a ref badge's name`);
       // The border shorthand names its width and style before the colour.
-      const edge = decl(".fkm-ref", "border").replace(/^1px solid /, "");
+      const edge = decl('.fk-ref[data-tone="neutral"]', "border").replace(/^1px solid /, "");
       expectAt(contrast(bed(theme, edge, inspector), inspector), NON_TEXT, `${theme} a ref badge's edge`);
     }
   });

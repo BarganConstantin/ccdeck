@@ -350,7 +350,8 @@ describe("the Commit tab", () => {
     ]);
     expect(refBadges({ refs: { local: [], remote: [], tags: [], head: true } }, null)).toEqual([{ kind: "detached", name: "HEAD" }]);
     const html = tab();
-    expect(html).toContain('<span class="fkm-ref" data-kind="remote" title="remote branch origin/feature/bargan/9277"><span class="fkm-ref-cell"');
+    // The history's own badge, in its neutral colours.
+    expect(html).toContain('<span class="fk-ref" data-kind="remote" data-tone="neutral" title="remote branch origin/feature/bargan/9277"><span class="fk-ref-cell"');
     expect(html).not.toContain("origin/HEAD");
   });
 

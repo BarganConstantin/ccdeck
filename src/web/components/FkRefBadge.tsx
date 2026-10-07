@@ -156,27 +156,36 @@ function Tag() {
   );
 }
 
-/** One badge. Its colours come from `--lane`, which the row sets. */
-export function FkRefBadge({ chip }: { chip: FkChip }) {
+/** What kind of ref a badge is, in words, for a screen reader. */
+const KIND_WORD = (x: FkChip) => (x.kind === "head" ? "detached HEAD" : x.kind === "tag" ? "tag" : x.kind === "remote" ? "remote branch" : x.current ? "current branch" : "branch");
+
+/**
+ * One badge. "lane" (a history row's) takes its colours from `--lane`, which
+ * the row sets; "neutral" (the Commit tab's, and the +N) is grey whatever the
+ * lane. Both share one shape.
+ */
+export function FkRefBadge({ chip, tone = "lane" }: { chip: FkChip; tone?: "lane" | "neutral" }) {
+  const neutral = tone === "neutral" ? "neutral" : undefined;
+  const words = <span className="vis-hidden">{KIND_WORD(chip)} </span>;
   if (chip.kind === "remote") {
     return (
-      <span className="fk-ref" data-kind="remote" title={chip.title}>
+      <span className="fk-ref" data-kind="remote" data-tone={neutral} title={chip.title}>
         <span className="fk-ref-cell"><Cloud /></span>
-        <span className="fk-ref-name">{chip.label}</span>
+        <span className="fk-ref-name">{words}{chip.label}</span>
       </span>
     );
   }
   return (
-    <span className="fk-ref" data-kind={chip.kind} data-current={chip.current ? "" : undefined} data-paired={chip.upstream ? "" : undefined} title={chip.title}>
+    <span className="fk-ref" data-kind={chip.kind} data-tone={neutral} data-current={chip.current ? "" : undefined} data-paired={chip.upstream ? "" : undefined} title={chip.title}>
       {chip.upstream && <span className="fk-ref-cloud"><Cloud /></span>}
       {chip.current && <Check />}
       {chip.kind === "tag" && <Tag />}
-      <span className="fk-ref-name">{chip.label}</span>
+      <span className="fk-ref-name">{words}{chip.label}</span>
     </span>
   );
 }
 
 /** The `+N` badge: the refs a row has no room for, in neutral colours. */
 export function FkMoreBadge({ names }: { names: string[] }) {
-  return <span className="fk-ref" data-kind="more" title={names.join("\n")}>+{names.length}</span>;
+  return <span className="fk-ref" data-kind="more" data-tone="neutral" title={names.join("\n")}>+{names.length}</span>;
 }

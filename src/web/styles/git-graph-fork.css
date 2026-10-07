@@ -181,13 +181,17 @@
   background: var(--fk-ref-cell);
   color: var(--fk-ref-cell-ink);
 }
-/* The +N badge and nothing else is neutral. */
-.gv-wide[data-look="fork"] .fk-ref[data-kind="more"] {
-  border-color: var(--fk-ref-neutral-edge);
+/* The neutral badge: the +N in a row, and every ref on the Commit tab. */
+.gv-wide[data-look="fork"] .fk-ref[data-tone="neutral"],
+:root[data-theme="light"] .gv-wide[data-look="fork"] .fk-ref[data-tone="neutral"] {
+  --fk-ref-fill: var(--fk-ref-neutral-fill);
+  --fk-ref-edge: var(--fk-ref-neutral-edge);
+  --fk-ref-ink: var(--fk-ref-neutral-ink);
+  border: 1px solid var(--fk-ref-neutral-edge);
   background: var(--fk-ref-neutral-fill);
   color: var(--fk-ref-neutral-ink);
-  cursor: help;
 }
+.gv-wide[data-look="fork"] .fk-ref[data-kind="more"] { cursor: help; }
 
 /* The agent's name chip: a pill at the end of the subject, so it never reads
    as a ref badge, and the author column keeps the real git author. */
@@ -248,33 +252,17 @@
 .gv-wide[data-look="fork"] .fk-cell-sha,
 .gv-wide[data-look="fork"] .fk-cell-date { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-/* An author's initials on their colour (components/FkAvatar.tsx): 16px in a
-   row, 18px in a commit's strip, 42px on its Commit tab. */
-.fk-avatar {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* An author's initials (components/FkAvatar.tsx, the commit strip's and the
+   Commit tab's too: git-inspector-fork.css draws the square) at a row's 16px,
+   with the row's own shading. */
+.gv-wide[data-look="fork"] .fkm-ava[data-size="row"] {
   width: 16px;
   height: 16px;
   border-radius: 3px;
-  background: linear-gradient(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.22)), var(--fk-avatar);
-  color: #ffffff;
-  font-family: var(--fk-font);
+  background-image: linear-gradient(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.22));
   font-size: 9px;
   font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0;
 }
-.fk-avatar[data-tone="0"] { --fk-avatar: var(--fk-avatar-0); }
-.fk-avatar[data-tone="1"] { --fk-avatar: var(--fk-avatar-1); }
-.fk-avatar[data-tone="2"] { --fk-avatar: var(--fk-avatar-2); }
-.fk-avatar[data-tone="3"] { --fk-avatar: var(--fk-avatar-3); }
-.fk-avatar[data-tone="4"] { --fk-avatar: var(--fk-avatar-4); }
-.fk-avatar[data-size="18"],
-.fk-avatar[data-size="42"] { background: linear-gradient(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.14)), var(--fk-avatar); }
-.fk-avatar[data-size="18"] { width: 18px; height: 18px; border-radius: 2px; font-weight: 700; }
-.fk-avatar[data-size="42"] { width: 42px; height: 42px; font-size: 16px; }
 
 /* Where commits older than the window begin. */
 .gv-wide[data-look="fork"] .fk-older {

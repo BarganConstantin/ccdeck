@@ -560,7 +560,7 @@ const FkHistoryRow = memo(function FkHistoryRow(p: FkRowProps) {
         )}
       </span>
       <span className="fk-cell-author" title={`${c.author.name} <${c.author.email}>`}>
-        <FkAvatar name={c.author.name} email={c.author.email} />
+        <FkAvatar name={c.author.name} email={c.author.email} size="row" />
         <span className="fk-author-name">{c.author.name}</span>
       </span>
       <span className="fk-cell-sha">{short}</span>
