@@ -42,7 +42,7 @@ import type { ToolCall } from "./types";
 
 /**
  * How long an agent, or a block it is waiting on, has been going: "437ms" /
- * "42s" / "3m 07s".
+ * "42s" / "3m 07s" / "1h 44m".
  *
  * `end` is undefined while the thing is still running, in which case `now` is
  * the end — which is what makes this a function of three arguments rather than
@@ -53,6 +53,15 @@ import type { ToolCall } from "./types";
  * The seconds are padded to two digits above a minute and NOT below one, which
  * is not an oversight: "3m 07s" is a pair of columns that stays put as the
  * second ticks, and "7s" on its own has nothing to line up with.
+ *
+ * From a hundred minutes on it reads hours and minutes, "1h 44m", exactly as
+ * the session list and a session's summary print an hour, so a card and its
+ * row in the list say the same thing side by side. "104m 54s" was eight characters,
+ * one more than the header of a card at its widest had room for beside the
+ * context donut, so the clock wrapped onto a second line and the card grew.
+ * Every reading under a hundred hours is seven characters at most. The tier
+ * starts at a hundred minutes rather than at the hour so that every span that
+ * already fitted reads as it always has.
  */
 export function elapsed(start: number, end: number | undefined, now: number): string {
   const ms = (end ?? now) - start;
@@ -60,6 +69,7 @@ export function elapsed(start: number, end: number | undefined, now: number): st
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
+  if (m >= 100) return `${Math.floor(m / 60)}h ${m % 60}m`;
   const rs = s % 60;
   return `${m}m ${String(rs).padStart(2, "0")}s`;
 }

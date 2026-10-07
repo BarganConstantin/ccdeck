@@ -16,7 +16,7 @@ import { presentsDeckToken } from "./request-gates.mjs";
 // The ring the readers walk — see event-ring.mjs.
 import { SEQ_EPOCH, eventBufferStats, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
 // The git state handed to a page connecting behind the ring's head — see
-// withGitBehind.
+// withLostBehind.
 import { gitBehind } from "./git-watch.mjs";
 import { collisionsBehind } from "./git-collisions.mjs";
 // The one door every event comes through — see event-pipeline.mjs.
@@ -26,6 +26,9 @@ import { noteLogWriter } from "./event-log.mjs";
 import { deckProviders } from "./deck-scope.mjs";
 // The names only the server may send — see ring-bounds.mjs.
 import { isReservedEventName } from "./ring-bounds.mjs";
+// The enrichment the ring evicted, handed to a page that connects behind its
+// head — see withLostBehind.
+import { evictedEnrichment } from "./evicted-enrichment.mjs";
 // The SSE subscribers and the backpressure every frame to them is written
 // under — see sse-clients.mjs.
 import { dropSse, sseClients, trayClients, writeResume, writeSse } from "./sse-clients.mjs";
@@ -257,6 +260,11 @@ export function handleSse(req, res) {
   // guard is `env.seq <= state.lastSeq`, so the gap costs it a step forward and
   // nothing else. What the byte budget changed is how often and how far the
   // head moves, not what happens to a client that lands behind it.
+  //
+  // One thing in the gap is not history: the newest model, name, usage and the
+  // rest of each session's last-value-wins enrichment, which an idle session
+  // never sends again, and its branch and collisions, sent once when they
+  // change. Those are put back in front of the replay — see withLostBehind.
   const asked = Number(req.headers["last-event-id"] ?? 0);
   const lastId = Number.isFinite(asked) ? asked : 0;
 
@@ -279,39 +287,21 @@ function isTrayRequest(req) {
 }
 
 /**
- * A replay pass's snapshot, with the git state this page lost to eviction put
- * in front of it.
+ * The git state this page lost to eviction, for `range`.
  *
  * A card's branch (GitObserved) and its collisions (GitCollisions) are sent
  * once, when they change, and an unchanged one is not sent twice — so once the
  * event that carried one has left the ring, a reload or a second tab on a busy
  * deck would draw every card without them, and a collision would stay unmarked
- * for as long as it lasted. When the ring's oldest event is newer than the next
- * one this page needs, the last of each, for every session this snapshot holds
- * an event of (the cards the page will draw), is put in front under its own seq
- * and time, so the loop below sends it as one more replay frame, in order,
- * before the ring. Only to this page: nothing is pushed into the ring or the
- * log, the pages already connected are sent nothing, and none of it reads to
- * the deck or to a page as the session being heard from just now. Every pass
- * asks, against what this page has been sent so far.
+ * for as long as it lasted. The last of each, for every session in `range`, is
+ * handed back under its own seq and time, as an internal envelope. Only to this
+ * page: nothing is pushed into the ring or the log, the pages already connected
+ * are sent nothing, and none of it reads to the deck or to a page as the
+ * session being heard from just now.
  */
-function withGitBehind(batch, sentThrough) {
-  if (batch.length === 0 || batch[0].seq <= sentThrough + 1) return batch;
-  try {
-    const sessions = new Set();
-    for (const e of batch) {
-      const sid = e.payload?.session_id;
-      if (typeof sid === "string" && sid) sessions.add(sid);
-    }
-    const range = { after: sentThrough, before: batch[0].seq, sessions };
-    const lost = [...gitBehind(range), ...collisionsBehind(range)]
-      .map(e => ({ seq: e.seq, epoch: SEQ_EPOCH, receivedAt: e.receivedAt, source: "internal", payload: e.payload }))
-      .sort((a, b) => a.seq - b.seq);
-    return lost.length > 0 ? lost.concat(batch) : batch;
-  } catch {
-    // A page is never refused its replay for this.
-    return batch;
-  }
+function gitLostBehind(range) {
+  return [...gitBehind(range), ...collisionsBehind(range)]
+    .map(e => ({ seq: e.seq, epoch: SEQ_EPOCH, receivedAt: e.receivedAt, source: "internal", payload: e.payload }));
 }
 
 /**
@@ -351,8 +341,9 @@ async function resumeSse(req, res, lastId, { tray = false } = {}) {
     // means a slow resumer pins one ring's worth of envelopes for as long as its
     // pass lasts, which the budget bounds too: that pin used to be unbounded for
     // the same reason the ring was.
-    // Behind the ring's head, the git state that fell off it goes first.
-    const batch = withGitBehind(ringSnapshot(), sentThrough);
+    // Behind the ring's head, what fell off it goes first: the git state and
+    // the enrichment, both measured against this one snapshot.
+    const batch = withLostBehind(ringSnapshot(), sentThrough);
     for (const e of batch) {
       if (e.seq <= sentThrough) continue;
       if (closed || res.destroyed) return;
@@ -412,4 +403,54 @@ async function resumeSse(req, res, lastId, { tray = false } = {}) {
   // it is what eventually reveals the socket as unrecoverable.
   ping = setInterval(() => writeSse(res, `: ping\n\n`), 15000);
   if (!await flushed) dropSse(res);
+}
+
+/**
+ * A replay pass's snapshot, with what this page lost to eviction put in front
+ * of it.
+ *
+ * When the ring's oldest event is newer than the next one this page needs —
+ * a fresh tab on a busy deck, a reload, a laptop waking — everything between
+ * was evicted, and two kinds of thing went with it that are sent only when
+ * they change, so an idle session's card would be drawn without them for as
+ * long as it stayed idle:
+ *   - a session's model, name, usage, context, activity line and job, kept
+ *     folded as the ring evicts them (evicted-enrichment.mjs);
+ *   - a card's branch and its collisions, kept by the git watchers
+ *     (gitLostBehind).
+ * The newest value of each, for every session this snapshot holds an event of
+ * (the cards the page will draw), is put in front under its own seq, so the
+ * loop below sends it as one more replay frame, in order, before the ring.
+ * Every pass asks, against what this page has been sent so far: a slow replay
+ * the head overtook between passes is handed what it lost then too, and one
+ * that is caught up is handed nothing.
+ *
+ * Both are asked for against the SAME snapshot's oldest seq and merged by seq.
+ * Asking one after the other had put its values in front would move the second
+ * one's cut-off to the first one's oldest value, and the second would drop
+ * every value of its own that lies between that and the ring's head. Each is
+ * asked on its own, too, so one that throws costs the page only its own values.
+ *
+ * The page holds a value that arrives before its card and gives it to the
+ * card when the card is made (parked-enrichment.ts, and `parkedGit` in
+ * git-events.ts).
+ */
+function withLostBehind(batch, sentThrough) {
+  if (batch.length === 0 || batch[0].seq <= sentThrough + 1) return batch;
+  const sessions = new Set();
+  for (const e of batch) {
+    const sid = e.payload?.session_id;
+    if (typeof sid === "string" && sid) sessions.add(sid);
+  }
+  const range = { after: sentThrough, before: batch[0].seq, sessions };
+  const lost = [];
+  for (const ask of [evictedEnrichment, gitLostBehind]) {
+    try {
+      lost.push(...ask(range));
+    } catch {
+      // A page is never refused its replay for this.
+    }
+  }
+  if (lost.length === 0) return batch;
+  return lost.sort((a, b) => a.seq - b.seq).concat(batch);
 }

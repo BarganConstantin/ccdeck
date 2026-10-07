@@ -194,15 +194,28 @@ export function whollyCovered(card: { left: number; right: number }, coverLeft: 
 // ── the seam ──────────────────────────────────────────────────────────────
 // While the view is open the camera's fit (use-camera.ts) frames for it, and a
 // focus on one card (use-agent-focus.ts) keeps clear of the panel. Kept outside
-// React like git-open.ts: the camera is made once and asks at call time.
+// React like git-open.ts: the camera is made once and asks at call time. The
+// session names on the canvas are drawn per render, so they subscribe to the
+// cover instead (SessionClusters.tsx): a name under the panel is not drawn.
 
 let reframe: ((durationMs: number) => void) | null = null;
 let coverPx = 0;
+const coverListeners = new Set<() => void>();
 
 /** Installed by the open view; null when it closes. */
 export function setGitViewFrame(fn: ((durationMs: number) => void) | null, cover = 0): void {
   reframe = fn;
-  coverPx = fn ? cover : 0;
+  const next = fn ? cover : 0;
+  if (next === coverPx) return;
+  coverPx = next;
+  for (const listener of [...coverListeners]) listener();
+}
+
+/** Be told when the cover changes: as the view opens, takes a new width, or
+ *  closes. Answers the unsubscribe, for useSyncExternalStore. */
+export function subscribeGitViewCover(listener: () => void): () => void {
+  coverListeners.add(listener);
+  return () => { coverListeners.delete(listener); };
 }
 
 /** The camera's fit, while the view is open: frames for the view and says so. */

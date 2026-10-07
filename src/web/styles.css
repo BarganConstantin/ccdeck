@@ -2,10 +2,15 @@
 
    It was one file of fifteen thousand lines, and it is the same file still: each
    part below is one contiguous stretch of it, cut between two rules and never
-   inside one, and read in this order the parts are the old file byte for byte.
-   So the cascade has not moved. Two rules of equal specificity still resolve
-   the way they did, because a rule's place in the cascade is its part's place in
-   this list and its own place inside that part.
+   inside one, and read in this order the parts are the old file byte for byte,
+   with one move. Claude FM and the Projects report followed the forced-colours
+   block in the old file, and the rating question was added after them; all
+   three now come before local network setup, so that block is last, as it
+   says it is. No winner changed: the one property a rule of theirs and a rule
+   they moved past both set on an element, a Projects day's outline, is decided
+   by specificity. So the cascade has not moved. Two rules of equal specificity
+   still resolve the way they did, because a rule's place in the cascade is its
+   part's place in this list and its own place inside that part.
 
    Where a new rule goes follows from that. It goes in the part whose subject it
    is. If it has to outrank a rule in another part by source order, it goes in a
@@ -47,6 +52,9 @@
 @import "./styles/browser-watch.css";            /* Browser Watch */
 @import "./styles/account-share.css";            /* sharing a set of accounts, and what an import did */
 @import "./styles/machine-history.css";          /* thermal history and the whole process list */
+@import "./styles/claude-fm.css";                /* Claude FM */
+@import "./styles/account-projects.css";         /* the account Projects report */
+@import "./styles/rating.css";                   /* the one question the deck asks about itself */
 @import "./styles/lan-setup.css";                /* local network setup */
 @import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */
@@ -56,6 +64,3 @@
 @import "./styles/git-view.css";                 /* the git view: the widened right panel, its panes, the canvas beside it */
 @import "./styles/git-graph.css";                /* the git view's history: graph, rows, ref chips, agent marks */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */
-@import "./styles/claude-fm.css";                /* Claude FM */
-@import "./styles/account-projects.css";         /* the account Projects report */
-@import "./styles/rating.css";                   /* the one question the deck asks about itself */

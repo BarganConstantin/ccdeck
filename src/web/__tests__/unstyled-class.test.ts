@@ -83,6 +83,17 @@ function classTokens(src: string): string[] {
 
 const files = components(web);
 const styled = (name: string) => new RegExp(`\\.${name}(?![\\w-])`).test(css);
+/**
+ * The classes React Flow reads off the DOM rather than the sheet: its default
+ * noPanClassName, noDragClassName and noWheelClassName, which it looks for with
+ * `closest()` on a gesture's target to leave that gesture alone. The session
+ * names' layer carries `nopan`, so a press on a name is a click and never the
+ * start of a pan (SessionClusters.tsx). Taken from React Flow's own defaults,
+ * so this cannot excuse a name the library does not read.
+ */
+const reactFlowCore = readFileSync(join(web, "../../node_modules/@reactflow/core/dist/esm/index.mjs"), "utf8");
+const READ_BY_REACT_FLOW = ["noPanClassName", "noDragClassName", "noWheelClassName"]
+  .map(prop => new RegExp(`\\b${prop} = '([\\w-]+)'`).exec(reactFlowCore)?.[1] ?? `(no ${prop})`);
 const composed = (name: string) => name.endsWith("-");
 /** A file's name relative to src/web, always with forward slashes. `components`
  *  builds its paths with node:path, so on Windows the key would come out as
@@ -94,8 +105,12 @@ const tokens = new Map(files.map(f => [relative(f), classTokens(readFileSync(f, 
 describe("every class the markup hard-codes", () => {
   it("has a rule in the stylesheet behind it", () => {
     const orphans = [...tokens].flatMap(([file, names]) =>
-      names.filter(n => !composed(n) && !styled(n)).map(n => `${file}: ${n}`));
+      names.filter(n => !composed(n) && !styled(n) && !READ_BY_REACT_FLOW.includes(n)).map(n => `${file}: ${n}`));
     expect(orphans).toEqual([]);
+  });
+
+  it("excuses only the classes React Flow reads off a gesture's target", () => {
+    expect(READ_BY_REACT_FLOW).toEqual(["nopan", "nodrag", "nowheel"]);
   });
 
   it("draws the auto-switch with the shared switch, its state read off aria-checked (#886)", () => {

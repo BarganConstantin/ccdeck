@@ -331,7 +331,7 @@ function send(sid, collisions) {
  * has already left the ring (older than `before`, its oldest). Only for the
  * `sessions` the page will draw a card for, and, for a page that has seen
  * nothing yet, only a collision that holds — it has none to clear. Each as it
- * was sent, its seq and its time, for the page alone (withGitBehind in
+ * was sent, its seq and its time, for the page alone (withLostBehind in
  * event-routes.mjs), never pushed again to every page open.
  *
  * @param {{ after: number, before: number, sessions: Set<string> }} range

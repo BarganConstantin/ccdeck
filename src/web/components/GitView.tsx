@@ -36,6 +36,7 @@ import {
 import { agentNameIn, cardName as cardNameIn, collisionTarget, commitAgentKeys, otherAgentName } from "../git-agent-name";
 import { pressHow } from "../agent-goto";
 import { flashCard } from "../card-flash";
+import { cancelHeldFocus } from "../focus-hold";
 import { elsewhereRows } from "../git-files-model";
 import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
 import { UNREADABLE, madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
@@ -224,6 +225,9 @@ export default function GitView(props: GitViewProps) {
     const bar = canvas.querySelector(".cat-filter-bar")?.getBoundingClientRect();
     const top = bar && bar.height > 0 ? bar.bottom - rect.top : 0;
     const plan = gitViewFrame({ pane: { width: rect.width, height: rect.height }, cover, top, session, alarms, anchor });
+    // A click's jump still held under reduced motion would land after this
+    // frame and undo it; animated, this move cuts the click's short.
+    cancelHeldFocus();
     // The camera the plane is drawn with until this move lands.
     const was = rf.getViewport();
     moveCamera(plan.viewport, duration);
@@ -373,6 +377,7 @@ export default function GitView(props: GitViewProps) {
     setInert([...inertCards], false, inertCards);
     if (savedViewport.current) {
       const duration = animate ? 150 : 0;
+      cancelHeldFocus();
       restoring.current = { to: savedViewport.current, epoch: moveCamera(savedViewport.current, duration) };
     }
     savedViewport.current = null;

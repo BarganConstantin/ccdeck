@@ -346,18 +346,24 @@
   color: var(--muted);
 }
 
-/* What the session is doing, asking or got done. The recap's slot, its three
-   lines and its tier: a row never carries both (session-status.ts, rowLines),
-   and the two are the same kind of sentence. The tag in front is the only
-   colour, and only on the states that already own one — a question wears
-   --warn as the waiting badge does, a failure --err, a finished job --ok.
-   "now" stays muted: a running turn is not an alarm, and --inflight belongs to
-   the tool call, not to the session. */
+/* What the session is doing, asking or got done. The recap's slot and its
+   tier: a row never carries both (SessionList.tsx, buildRows), and the two are
+   the same kind of sentence. The tag in front is the only colour, and only on
+   the states that already own one — a question wears --warn as the waiting
+   badge does, a failure --err, a finished job --ok. "now" stays muted: a
+   running turn is not an alarm, and --inflight belongs to the tool call, not to
+   the session.
+   Two lines for every kind of note, where the recap has three. While a turn
+   runs this text is rewritten every few seconds, and the line held both of its
+   lines then (below), so at three every working session's row would be 111px
+   tall at 1440×900 and seven of them filled the list with the detail rail open;
+   at two a row is 95px and eight fit, which is DESIGN.md's density target. The
+   whole line is the row's tooltip. */
 .session-list .sl-status {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
   overflow-wrap: anywhere;
   font-size: 11px;
@@ -365,6 +371,11 @@
   text-align: left;
   color: var(--text-secondary);
 }
+/* Both lines held while the turn runs, as the canvas note holds its three: a
+   line as tall as each new sentence moved every row under it, 15px or 31px at
+   a time. A note that is not being rewritten keeps the height its text needs,
+   and a row with no note keeps none. */
+.session-list .sl-status.status-now { min-height: calc(2 * 1.4em); }
 .session-list .sl-status-tag {
   /* With the space the markup puts after it, the gap is the recap glyph's. */
   margin-right: 2px;

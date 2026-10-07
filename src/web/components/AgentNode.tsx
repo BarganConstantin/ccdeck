@@ -14,7 +14,7 @@ import { codexApprovalTell } from "../codex-approval";
 import { shortModel, modelFamily } from "../model-label";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { spawnBadgeTitle, stateLabel, waitingLabel, waitingSentence } from "../agent-copy";
+import { spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -198,7 +198,11 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         </div>
       </div>
 
-      <div className="sub">
+      {/* The row ellipsises at the card's width and a subagent's folder can
+          fill it, cutting the model chip away; its tooltip says it whole. The
+          badge and the chip keep their own, which the browser prefers over
+          this one under the pointer. */}
+      <div className="sub" title={subRowTitle(data)}>
         {kindShown && <span className="sub-kind">{data.kind === "root" ? "session" : "subagent"}</span>}
         {data.childCount > 0 && (
           <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>

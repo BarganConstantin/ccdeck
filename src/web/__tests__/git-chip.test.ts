@@ -232,7 +232,7 @@ describe("a tight sub row gives the chip room before the chip gives up its name"
 
   it("draws the row without what it gave, and starts again whenever the row says something else", () => {
     const node = sourceOf("components/AgentNode.tsx");
-    const sub = node.slice(node.indexOf('<div className="sub">'), node.indexOf("</div>", node.indexOf('<div className="sub">')));
+    const sub = node.slice(node.indexOf('<div className="sub" title={subRowTitle(data)}>'), node.indexOf("</div>", node.indexOf('<div className="sub" title={subRowTitle(data)}>')));
     expect(sub).toContain('{kindShown && <span className="sub-kind">{data.kind === "root" ? "session" : "subagent"}</span>}');
     expect(sub).toContain("{shortModel(data.model)}{moreShown ? modelMore : \"\"}");
     expect(sub).toMatch(/<GitChip agentId=\{data\.id\} chip=\{chip\} row=\{rowKey\} given=\{giving\.length\}/);
@@ -274,7 +274,7 @@ describe("pressing the chip", () => {
 
   it("sits last on the card's sub row, and a subagent's replaces its folder name there", () => {
     const node = sourceOf("components/AgentNode.tsx");
-    const sub = node.slice(node.indexOf('<div className="sub">'), node.indexOf("</div>", node.indexOf('<div className="sub">')));
+    const sub = node.slice(node.indexOf('<div className="sub" title={subRowTitle(data)}>'), node.indexOf("</div>", node.indexOf('<div className="sub" title={subRowTitle(data)}>')));
     expect(sub).toContain("<GitChip ");
     expect(sub.indexOf("<GitChip ")).toBeGreaterThan(sub.indexOf("model-chip"));
     expect(sub).toContain('data.kind === "subagent" && !chip ? ` · ${data.cwdBasename}` : ""');

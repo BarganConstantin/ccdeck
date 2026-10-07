@@ -19,6 +19,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { dismissRecap } from "../recap-note";
 import { noteSource, noteTag, type SessionNote } from "../session-note";
+import { faceTitle } from "../node-face";
 import { promptTime } from "../relative-time";
 import { useNow } from "../use-now";
 import { NoteMark } from "./RecapMark";
@@ -46,12 +47,15 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
   // list's line already uses, so a question, a failure and a finished job read
   // in the same colours in both places.
   const cls = isRecap ? "recap-note" : `recap-note is-status status-${note.kind}`;
+  // Who wrote a status note; a recap says so in its mark. The text carries it
+  // too, under the text itself (faceTitle), at both sizes.
+  const tip = isRecap ? undefined : noteSource(note);
   return (
     <div
       className={cls}
       role="note"
       aria-label={isRecap ? "Claude Code's recap" : `Session note: ${noteTag(note.kind)}`}
-      title={isRecap ? undefined : noteSource(note)}
+      title={tip}
       style={{ "--session-hue": data.hue } as React.CSSProperties}
     >
       <div className="recap-note-head">
@@ -67,22 +71,27 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
           onClick={e => { e.stopPropagation(); dismissRecap(data.noteKey); }}
         >×</button>
       </div>
-      <p className="recap-note-text">{note.text}</p>
+      {/* Its whole text on hover, as the face's line carries it: a status
+          note holds three lines here, a running turn often says more, and the
+          hover preview that holds the rest does not open at this zoom. */}
+      <p className="recap-note-text" title={faceTitle(note.text, tip)}>{note.text}</p>
       {/* Claude Code's guess at the answer to the question above, shown as a
-          guess — muted, quoted — and never typed for anybody. */}
-      {note.reply && <p className="recap-note-reply">suggested reply “{note.reply}”</p>}
+          guess — muted, quoted — and never typed for anybody. One line, so a
+          long one is cut, and carries itself whole on hover. */}
+      {note.reply && <p className="recap-note-reply" title={`suggested reply “${note.reply}”`}>suggested reply “{note.reply}”</p>}
       {/* The note at a distance, drawn in screen pixels over its own box the
           way a card's face is (AgentNode's NodeFace): its mark and age, and as
           many lines of the note as the box has room for at 1:1. Without it the
           note below the full card was an empty box around a 3px "recap". The
-          whole text is the peek's, beside the pointer. Hidden from assistive
-          technology, which has the note itself. */}
+          whole text is the peek's, beside the pointer, and the cut line carries
+          it on hover too (faceTitle). Hidden from assistive technology, which
+          has the note itself. */}
       <div className="lod-face recap-face" aria-hidden>
         <div className="lod-id">
           <span className="recap-note-mark"><NoteMark recap={isRecap} />{noteTag(note.kind)}</span>
-          <span className="recap-face-age">{written.label}</span>
+          <span className="recap-face-age" title={faceTitle(written.label, written.title)}>{written.label}</span>
         </div>
-        <p className="recap-face-text">{note.text}</p>
+        <p className="recap-face-text" title={faceTitle(note.text, tip)}>{note.text}</p>
       </div>
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
