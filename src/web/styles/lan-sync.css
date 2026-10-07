@@ -483,6 +483,21 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+/* A live Codex session's line in the same slot: the deck cannot see its
+   approval prompts. The card's own words and its quiet ink — muted, italic, a
+   hollow dot — because it is a limit of the deck, not news about the session,
+   and must never read as the amber line above. */
+.node-peek-blind {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--muted);
+}
+/* Centred in the 10px the state mark above takes, so the dot sits under the
+   dot and the words start under "live". */
+.node-peek-blind .approval-blind-dot { margin-inline: 2.5px; }
 /* Counts and labels, which are what --muted is for; the title above is the
    card's one piece of prose. */
 .node-peek-facts,
