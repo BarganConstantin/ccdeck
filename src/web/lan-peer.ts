@@ -161,6 +161,14 @@ export function peerView({ row, source, status, accounts, now }: {
   const spent = lanes.filter(l => l.in == null && l.out === "cut");
   const taking = lanes.some(l => l.in != null);
   const giving = lanes.some(l => l.out != null);
+  // WHO ELSE IS HANDED WHAT GOES OUT, for the key under the lanes. This deck's
+  // list goes to every paired deck except what an arrival ticked, which a deck
+  // the accept switch paired is not offered — see notOffered. When this dialog
+  // draws one of those going out and such a deck is paired here, "every" is
+  // false; what stays true is the decks somebody here chose, who are handed
+  // all of it. Anywhere else, which is most decks, the key reads as it did.
+  const withheld = new Set((status.peers ?? []).filter(p => p.paired).flatMap(p => p.notOffered ?? []));
+  const givenTo = lanes.some(l => l.out != null && withheld.has(l.key)) ? "decks you chose" : "every paired deck";
   // What the last round moved, on the lane it moved along. Anything it moved
   // that is not a lane any more is listed under the network instead.
   const told = new Map(done.map(d => [d.email, d]));
@@ -191,6 +199,6 @@ export function peerView({ row, source, status, accounts, now }: {
   return {
     peer, stranger, paired, own, canRename, fp, where, about, unsaid, hereRuns, thereRuns, order,
     line, silence, raw, echoed, showRound, how, link, hiddenThere, otherThere,
-    lanes, spent, taking, giving, told, unplaced, unknown, stale,
+    lanes, spent, taking, giving, givenTo, told, unplaced, unknown, stale,
   };
 }

@@ -49,7 +49,7 @@ export default function LanPeerMap({ view, row, status, asking, drawn, onSetting
 }) {
   const {
     peer, paired, where, about, unsaid, hereRuns, thereRuns, order, line, silence, raw, echoed, showRound,
-    how, link, hiddenThere, otherThere, lanes, spent, taking, giving, told, unplaced, unknown, stale,
+    how, link, hiddenThere, otherThere, lanes, spent, taking, giving, givenTo, told, unplaced, unknown, stale,
   } = view;
   return (
     // THE PICTURE: this deck on the left, that one on the right, the
@@ -187,7 +187,8 @@ export default function LanPeerMap({ view, row, status, asking, drawn, onSetting
           {stale && <p className="lan-stale">As of {stale === "now" ? "just now" : stale}, when it last answered.</p>}
           {/* THE KEY TO THE ARROWS, and the scope of this deck's half:
               a dialog about one deck is the one place somebody could
-              take this deck's list to be that deck's alone. */}
+              take this deck's list to be that deck's alone. Who else
+              is handed it is peerView's givenTo. */}
           <div className="lan-legend">
             {taking && (
               <span className="lan-key">
@@ -198,7 +199,7 @@ export default function LanPeerMap({ view, row, status, asking, drawn, onSetting
             {giving ? (
               <span className="lan-key">
                 <span className="lan-key-wire" data-dir="out" aria-hidden><Chevron dir="out" /></span>
-                from this deck, to every paired deck
+                from this deck, to {givenTo}
               </span>
             ) : (
               <span className="lan-key">This deck offers nothing yet.</span>

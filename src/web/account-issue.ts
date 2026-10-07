@@ -184,15 +184,17 @@ export interface AccountIssue {
 
 /** What a dead login's row says when no paired deck can repair it — see
  *  noCopyWorksNearby. The visible line names the one fact that changes what
- *  to do; the hint says why it happens and what a single sign-in repairs. */
+ *  to do; the hint says why it happens and what a single sign-in repairs —
+ *  on a machine that shares the login, since one that does not hands it to
+ *  nobody, and the row can be a login that is not ticked here. */
 const EXPIRED_EVERYWHERE = {
   // "Online", not "every": a deck that is off, or one not paired, may hold a
   // working copy this deck cannot see — see noCopyWorksNearby.
   text: "Login expired on all online decks",
   hint: "Every paired deck online right now that shares this account holds a copy that has expired too, so "
       + "none of them can repair this one. Claude retires a login's other copies each time one machine "
-      + "refreshes it, which is how shared copies expire together. Sign in again on any one machine; the "
-      + "others repair from it on their next round.",
+      + "refreshes it, which is how shared copies expire together. Sign in again on any one machine that "
+      + "shares it; the others repair from it on their next round.",
 };
 
 export function accountIssue(
