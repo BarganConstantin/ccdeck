@@ -644,6 +644,12 @@ const CONTROLS: Control[] = [
   { at: ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
     fillFrom: "button.btn",
     states: [".lan-peer-foot .btn.danger:not(.armed):focus-visible"], beds: ["--bg-soft"] },
+  // The feedback dialog's Discard holds the same line in its own foot: it is
+  // drawn only while there is a draft, keeps its word and loses the edge until
+  // it is pointed at or focused. The foot is the dialog's panel, not a band.
+  { at: ".fb-foot .btn.danger:not(.armed):hover:not(:disabled)",
+    fillFrom: "button.btn",
+    states: [".fb-foot .btn.danger:not(.armed):focus-visible"], beds: ["--panel"] },
   { at: ".ap-fix", states: [".ap-fix:hover"], beds: ["--panel"] },
   // add-account dialog
   { at: ".aa-tab", states: [".aa-tab.on"], beds: ["--panel"] },
@@ -836,8 +842,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // starters went, pill and hover, and a kind no longer frames itself at
     // rest — only the chosen one does — so three rules stopped drawing one.
     // And from 106 to 108 with the one question's scale: a number framed at
-    // rest, and louder under the pointer.
-    expect(EDGED_CONTROLS.length).toBeLessThan(108);
+    // rest, and louder under the pointer. And from 108 to 110 with the
+    // feedback dialog's Discard, which gains an edge under the pointer and the
+    // keyboard the way the LAN dialog's Unpair does.
+    expect(EDGED_CONTROLS.length).toBeLessThan(110);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

@@ -29,6 +29,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { crashReportBody } from "../components/ErrorBoundary";
 import { forwardCaughtError, scrubReport } from "../report-errors";
+import { feedbackSeed } from "../feedback-draft";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -140,8 +141,14 @@ describe("the feedback dialog can be opened filled in", () => {
   it("takes an initial kind and body, defaulting to the empty blank report", () => {
     expect(rules).toMatch(/export interface FeedbackPrefill/);
     expect(feedback).toMatch(/interface Props extends FeedbackPrefill/);
-    expect(feedback).toMatch(/useState<Kind>\(initialKind \?\? "bug"\)/);
-    expect(feedback).toMatch(/useState\(initialBody \?\? ""\)/);
+    // The prefill is the seed the dialog opens on when this door kept no
+    // draft; a kept draft comes first (feedback-draft-kept.test.ts runs both).
+    expect(feedbackSeed({})).toEqual({ kind: "bug", body: "" });
+    expect(feedbackSeed({ initialKind: "other", initialBody: "Account issue: rate limited." }))
+      .toEqual({ kind: "other", body: "Account issue: rate limited." });
+    expect(feedback).toMatch(/const seed = feedbackSeed\(\{ initialKind, initialBody \}\);/);
+    expect(feedback).toMatch(/useState<Kind>\(kept\?\.kind \?\? seed\.kind\)/);
+    expect(feedback).toMatch(/useState\(kept\?\.body \?\? seed\.body\)/);
     // It used to pin that a typed title was never seeded. There is no title
     // to type now — the title is worked out from the message as it is sent
     // (feedback-dialog-form.test.ts) — so a seeded body names a seeded report
