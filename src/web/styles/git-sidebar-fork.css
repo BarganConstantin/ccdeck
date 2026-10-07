@@ -153,6 +153,25 @@
   font-size: 12px;
 }
 
+/* A first read that failed: what, why, and Try again — wrapped, never cut,
+   and the button's focus ring drawn whole. */
+.fk-sb .fk-sb-msg.is-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.fk-sb .fk-sb-msg.is-failed b {
+  color: var(--fk-sidebar-text);
+  font-weight: 600;
+}
+
+.fk-sb button.btn.fk-sb-retry { margin-top: 4px; }
+
 /* ── the tree: rows placed by the component, only those in sight ── */
 .fk-sb .fk-sb-body {
   display: flex;
@@ -337,6 +356,9 @@
 .fk-sb [aria-selected="true"] > .fk-sb-icon,
 .fk-sb [aria-selected="true"] > .fk-sb-held { color: var(--fk-sidebar-glyph-sel); }
 .fk-sb [aria-selected="true"] > .fk-sb-detail { color: var(--fk-sb-detail-sel); }
+/* A gone worktree's dim name takes the selection's ink, grey pill or blue,
+   as the Changes tree's quiet files do: the dim grey fails on both. */
+.fk-sb [aria-selected="true"][data-missing] > .fk-sb-label { color: inherit; }
 
 .fk-sb[data-focused] .fk-sb-tree:focus-within .fk-sb-row[aria-selected="true"],
 .fk-sb[data-focused] .fk-sb-tree:focus-within .fk-sb-folder[aria-selected="true"],

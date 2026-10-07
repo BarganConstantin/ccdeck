@@ -121,7 +121,9 @@ export default function FkCommitTab({ commit, detail, loading, onJump, onOpenFil
       {whole.notDownloaded && (
         <p className="fkm-clipped">This partial clone does not hold these files' content, so their line counts are not known. The deck never fetches.</p>
       )}
-      {files.length === 0 ? (
+      {whole.filesTooLarge ? (
+        <p className="fkm-clipped">This commit changes too many files to list: git's list of them goes past 8 MB.</p>
+      ) : files.length === 0 ? (
         <p className="fkm-clipped">No files in this commit: it changes nothing in the tree.</p>
       ) : (
         <ul className="fkm-files">

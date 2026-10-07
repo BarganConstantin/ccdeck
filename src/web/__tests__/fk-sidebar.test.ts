@@ -9,12 +9,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import FkSidebar from "../components/FkSidebar";
+import FkSidebar, { RefsNote } from "../components/FkSidebar";
 import { FkSidebarTree } from "../components/FkSidebarTree";
 import { SECTIONS, sidebarKey, sidebarRows, stashLabel, visibleSections, withOpen, type SbRow } from "../fk-sidebar-model";
 import { foldRefs, EMPTY_REFS } from "../use-git-refs";
 import type { GitRefs, Repo } from "../git-view-types";
 import { sheetText } from "./sheet-source";
+import { sourceOf } from "./client-source";
 
 let quiet: ReturnType<typeof vi.spyOn>;
 beforeAll(() => { quiet = vi.spyOn(console, "error").mockImplementation(() => {}); });
@@ -139,6 +140,35 @@ describe("sections: order and contents", () => {
     expect(none.find(r => r.key === "section:stashes:none")?.label).toBe("None");
   });
 
+  it("selects in the history only a commit it lists: a stash, a submodule's commit and a tag of a tree keep Copy SHA only", () => {
+    const withTree = { ...REFS, tags: [...REFS.tags, { name: "tree-tag", sha: sha("9"), annotated: true, target: "tree" }] };
+    const rows = sidebarRows({ refs: withTree, topLevel: TOP, open: { "section:stashes": true, "section:submodules": true, "section:tags": true }, query: "" });
+    const stash = rows.find(r => r.kind === "stash")!;
+    const sub = rows.find(r => r.kind === "submodule")!;
+    const treeTag = rows.find(r => r.label === "tree-tag")!;
+    for (const r of [stash, sub, treeTag]) {
+      expect(r.sha, r.label).toBeNull();
+      expect(r.copySha, r.label).toMatch(/^[0-9a-f]{40}$/);
+    }
+    expect(stash.title).toMatch(/not in the history/);
+    expect(sub.title).toMatch(/its own repository/);
+    expect(treeTag.title).toMatch(/a tree, not a commit/);
+    // A branch and a commit's tag still select their commit, and copy it.
+    const develop = rows.find(r => r.kind === "branch" && r.label === "develop")!;
+    expect(develop).toMatchObject({ sha: sha("a"), copySha: sha("a") });
+    expect(rows.find(r => r.label === "v1.2.0")).toMatchObject({ sha: sha("5"), copySha: sha("5") });
+    const at = rows.indexOf(stash);
+    expect(sidebarKey({ key: "Enter", ctrlKey: false, metaKey: false, altKey: false }, rows, at, 5)).toEqual({ kind: "stay" });
+    expect(sidebarKey({ key: "ContextMenu", ctrlKey: false, metaKey: false, altKey: false }, rows, at, 5)).toEqual({ kind: "menu", index: at });
+  });
+
+  it("says the history is still loading for a ref pressed before it lands, not that the commit is old", () => {
+    const view = sourceOf("components/GitView.tsx");
+    const jump = /const jump = \(sha: string\) => \{[\s\S]*?\n {4}\};/.exec(view)?.[0] ?? "";
+    expect(jump).toMatch(/!data\.commits[\s\S]*The history is still loading\./);
+    expect(jump).toContain("is not in the last 100 commits.");
+  });
+
   it("remembers what was opened by key, and nothing else", () => {
     const a = withOpen({}, "section:tags", true);
     expect(a).toEqual({ "section:tags": true });
@@ -185,6 +215,17 @@ describe("keys on the tree", () => {
     expect(k("ArrowLeft", at("auth-login"))).toEqual({ kind: "cursor", index: at("feature") });
     expect(k("ArrowLeft", at("develop"))).toEqual({ kind: "cursor", index: at("Branches") });
     expect(k("ArrowRight", at("develop"))).toEqual({ kind: "stay" });
+  });
+
+  it("steps out of a folder with ← while a filter holds every folder open, and into it with →", () => {
+    const filtered = rowsOf({ query: "ticket" });
+    const kf = (key: string, label: string) => sidebarKey({ key, ctrlKey: false, metaKey: false, altKey: false }, filtered, filtered.findIndex(r => r.label === label), 5, true);
+    expect(kf("ArrowLeft", "ticket-2")).toEqual({ kind: "cursor", index: filtered.findIndex(r => r.label === "bulk") });
+    expect(kf("ArrowLeft", "bulk")).toEqual({ kind: "cursor", index: filtered.findIndex(r => r.label === "Branches") });
+    expect(kf("ArrowLeft", "Branches")).toEqual({ kind: "stay" });
+    expect(kf("ArrowRight", "bulk")).toEqual({ kind: "cursor", index: filtered.findIndex(r => r.label === "bulk") + 1 });
+    // Nothing to open or shut while filtering: Enter on a folder stays.
+    expect(kf("Enter", "bulk")).toEqual({ kind: "stay" });
   });
 
   it("selects a ref's commit with Enter or Space, opens and shuts a folder with them, and opens the row's menu", () => {
@@ -293,6 +334,31 @@ describe("the read", () => {
   });
 });
 
+describe("what the panel says when it has no refs to list", () => {
+  const note = (refs: Parameters<typeof RefsNote>[0]["refs"]) => renderToStaticMarkup(createElement(RefsNote, { refs, onRetry: () => {} }));
+  const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  it("says a first read failed and why, with Try again unless reading again cannot mend it", () => {
+    expect(text(note({ state: "repo", refs: null, reason: "timeout" }))).toBe("Could not read the branches. git took too long to answer. Try again");
+    const big = note({ state: "repo", refs: null, reason: "too-large" });
+    expect(text(big)).toBe("Could not read the branches. The answer was too large.");
+    expect(big).not.toContain("<button");
+  });
+
+  it("calls git timing out or erring on the folder a failed read, not a folder with no repository", () => {
+    expect(text(note({ state: "timeout", refs: null, reason: null }))).toBe("Could not read the branches. git took too long to answer. Try again");
+    expect(text(note({ state: "error", refs: null, reason: "HTTP 500" }))).toMatch(/^Could not read the branches\. HTTP 500\. Try again$/);
+    expect(text(note({ state: "not-a-repo", refs: null, reason: null }))).toBe("No repository here.");
+  });
+
+  it("says nothing while the first read is on its way, or with git switched off, and keeps the last refs through a failed refresh", () => {
+    expect(note({ state: "loading", refs: null, reason: null })).toBe("");
+    expect(note({ state: "off", refs: null, reason: null })).toBe("");
+    expect(text(note({ state: "repo", refs: REFS, reason: "timeout" }))).toBe("Showing the last branches read.");
+    expect(note({ state: "repo", refs: REFS, reason: null })).toBe("");
+  });
+});
+
 // ── contrast (spec 1.3 pairs, both themes) ───────────────────────────────
 
 type Rgba = [number, number, number, number];
@@ -377,4 +443,15 @@ describe("contrast in both themes", () => {
       });
     }
   }
+});
+
+describe("a worktree whose folder is gone, selected", () => {
+  it("writes its name in the selection's own ink, as the Changes tree does a quiet file, not the panel's dim grey", () => {
+    const flat = css.replace(/\s+/g, " ");
+    // The row's ink is the pill's: row text on the grey pill, the select ink
+    // on the focused one — both pairs held above.
+    expect(flat).toMatch(/\.fk-sb \[aria-selected="true"\]\[data-missing\] > \.fk-sb-label \{ color: inherit; \}/);
+    // Later in the sheet than the dim rule it overrides, at the same weight.
+    expect(flat.indexOf('.fk-sb [aria-selected="true"][data-missing] > .fk-sb-label')).toBeGreaterThan(flat.indexOf(".fk-sb .fk-sb-row[data-missing] .fk-sb-label"));
+  });
 });

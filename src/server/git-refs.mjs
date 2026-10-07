@@ -42,6 +42,7 @@ const SMALL_BYTES = 1 << 20;
 const REF_FORMAT = [
   "%(refname)", "%(objectname)", "%(*objectname)", "%(upstream)", "%(upstream:short)",
   "%(upstream:track,nobracket)", "%(HEAD)", "%(symref)", "%(worktreepath)",
+  "%(objecttype)", "%(*objecttype)",
 ].join("%00") + "%00";
 
 const US = "\x1f";
@@ -54,7 +55,7 @@ const insidePath = (p) => typeof p === "string" && p !== "" && !isAbsolute(p) &&
 /** `s` without `prefix`, which the caller has checked it starts with. */
 const after = (s, prefix) => s.slice(prefix.length);
 
-/** Every record of the ref read: `[refname, sha, peeled, upstream, upstreamShort, track, head, symref, worktree]`. */
+/** Every record of the ref read: `[refname, sha, peeled, upstream, upstreamShort, track, head, symref, worktree, type, peeledType]`. */
 export function parseRefRecords(stdout) {
   return String(stdout ?? "").split("\0\n").filter((r) => r.trim() !== "").map((r) => r.replace(/^\n/, "").split("\0"));
 }
@@ -102,7 +103,7 @@ export function refsFrom(records, { remoteNames = [], maxRefs = MAX_REFS, asked 
   const tags = [];
   let listed = 0;
   let clipped = false;
-  for (const [ref, obj, peeled, upstream, upstreamShort, track, head, symref, worktree] of records) {
+  for (const [ref, obj, peeled, upstream, upstreamShort, track, head, symref, worktree, type, peeledType] of records) {
     if (!ref || !/^[0-9a-f]{40,64}$/.test(obj ?? "")) continue;
     // origin/HEAD and its kind point at a branch listed on its own.
     if (symref) continue;
@@ -128,7 +129,10 @@ export function refsFrom(records, { remoteNames = [], maxRefs = MAX_REFS, asked 
       if (!byRemote.has(remote)) byRemote.set(remote, []);
       byRemote.get(remote).push({ name, sha: obj });
     } else if (ref.startsWith("refs/tags/")) {
-      tags.push({ name: after(ref, "refs/tags/"), sha: peeled || obj, annotated: Boolean(peeled) });
+      // A tag of a tree or a blob (or of another tag) names no commit: said,
+      // so the sidebar never asks the history for it.
+      const named = (peeled ? peeledType : type) || "commit";
+      tags.push({ name: after(ref, "refs/tags/"), sha: peeled || obj, annotated: Boolean(peeled), ...(named !== "commit" ? { target: named } : {}) });
     }
   }
   if (records.length >= asked) clipped = true;

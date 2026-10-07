@@ -34,8 +34,12 @@ export interface SbRow {
   label: string;
   /** The whole name and what the row's marks say, for the tooltip. */
   title: string;
-  /** The commit a click selects in the history; null for a folder or a note. */
+  /** The commit a click selects in the history; null for a folder, a note,
+   *  and a ref whose commit the history never lists: a stash, a submodule's
+   *  (its own repository's), a tag of a tree or a blob. */
   sha: string | null;
+  /** What "Copy SHA" copies: the ref's object, a history commit or not. */
+  copySha?: string;
   parent: string | null;
   /** A section, folder or remote: whether it is open, and whether it holds anything. */
   open?: boolean;
@@ -82,6 +86,8 @@ interface Leaf {
   name: string;
   /** What the filter matches, lower-cased. */
   match: string;
+  /** `sha` selects that commit in the history; `copySha`, when the row's
+   *  object is not one of the history's commits, is copied only. */
   row: Partial<SbRow> & { sha: string | null };
 }
 
@@ -194,7 +200,9 @@ export function sidebarRows({ refs, topLevel, defaultBranch = null, open, query 
           split: true,
           leaves: refs.tags.map(t => ({
             kind: "tag", name: t.name, match: t.name.toLowerCase(),
-            row: { sha: t.sha, copy: t.name, title: `${t.name}${t.annotated ? " · annotated" : ""}` },
+            row: t.target
+              ? { sha: null, copySha: t.sha, copy: t.name, title: `${t.name}${t.annotated ? " · annotated" : ""} · names a ${t.target}, not a commit` }
+              : { sha: t.sha, copy: t.name, title: `${t.name}${t.annotated ? " · annotated" : ""}` },
           })),
         };
       case "stashes":
@@ -202,7 +210,7 @@ export function sidebarRows({ refs, topLevel, defaultBranch = null, open, query 
           split: false,
           leaves: refs.stashes.map(s => ({
             kind: "stash", name: stashLabel(s.subject), match: s.subject.toLowerCase(),
-            row: { sha: s.sha, copy: `stash@{${s.index}}`, title: `stash@{${s.index}}: ${s.subject}`, key: `stashes:${s.sha}` },
+            row: { sha: null, copySha: s.sha, copy: `stash@{${s.index}}`, title: `stash@{${s.index}}: ${s.subject} · a stash is not in the history`, key: `stashes:${s.sha}` },
           })),
         };
       case "submodules":
@@ -210,7 +218,7 @@ export function sidebarRows({ refs, topLevel, defaultBranch = null, open, query 
           split: false,
           leaves: [...refs.submodules].sort((a, b) => natural(a.path, b.path)).map(m => ({
             kind: "submodule", name: m.path, match: `${m.path} ${m.name}`.toLowerCase(),
-            row: { key: `submodules:${m.path}`, sha: m.sha, copy: m.path, title: `${m.path} · at ${m.sha.slice(0, 7)}` },
+            row: { key: `submodules:${m.path}`, sha: null, copySha: m.sha, copy: m.path, title: `${m.path} · at ${m.sha.slice(0, 7)}, a commit of its own repository` },
           })),
         };
     }
@@ -231,6 +239,7 @@ export function sidebarRows({ refs, topLevel, defaultBranch = null, open, query 
       const label = l.kind === "stash" || l.kind === "worktree" || l.kind === "submodule" ? l.name : l.name.split("/").filter(Boolean).pop() ?? l.name;
       out.push({
         ...l.row,
+        copySha: l.row.copySha ?? l.row.sha ?? undefined,
         key: l.row.key ?? `${section}:${path}${label}`,
         kind: l.kind, section, depth, level, label, title: l.row.title ?? label, parent,
         setSize: size, posInSet: ++pos,
@@ -316,8 +325,11 @@ export type SidebarMove =
  * an open one, then steps out to its parent; Enter and Space open a folder or
  * select a ref's commit; the menu key (or Shift+F10) opens the row's menu; a
  * printable character goes to the filter. Nothing here animates.
+ *
+ * While `filtering`, every folder is held open, so none opens or shuts: ←
+ * steps out to the parent at once and Enter on a folder stays.
  */
-export function sidebarKey(e: SidebarKey, rows: readonly SbRow[], at: number, page: number): SidebarMove {
+export function sidebarKey(e: SidebarKey, rows: readonly SbRow[], at: number, page: number, filtering = false): SidebarMove {
   if (isBrowserChord(e)) return { kind: "pass" };
   const count = rows.length;
   if (count === 0) return e.key.length === 1 && e.key !== " " ? { kind: "type", text: e.key } : { kind: "pass" };
@@ -340,14 +352,14 @@ export function sidebarKey(e: SidebarKey, rows: readonly SbRow[], at: number, pa
     }
     case "ArrowLeft": {
       if (!row) return { kind: "cursor", index: 0 };
-      if (expandable(row) && row.open) return { kind: "toggle", index: here, open: false };
+      if (expandable(row) && row.open && !filtering) return { kind: "toggle", index: here, open: false };
       const up = row.parent ? rows.findIndex(r => r.key === row.parent) : -1;
       return up >= 0 ? { kind: "cursor", index: up } : { kind: "stay" };
     }
     case "Enter":
     case " ": {
       if (!row) return { kind: "stay" };
-      if (expandable(row)) return { kind: "toggle", index: here, open: !row.open };
+      if (expandable(row)) return filtering ? { kind: "stay" } : { kind: "toggle", index: here, open: !row.open };
       return row.sha ? { kind: "jump", index: here } : { kind: "stay" };
     }
     case "ContextMenu": return row?.copy ? { kind: "menu", index: here } : { kind: "stay" };

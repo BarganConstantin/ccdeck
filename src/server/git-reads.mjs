@@ -795,6 +795,10 @@ export function parseCommitRecord(record) {
  * listed without counts (each `added` and `removed` 0) — renames as renames
  * while git can tell them by the trees alone, else as a delete and an add —
  * and the answer says `notDownloaded: true`.
+ *
+ * A commit whose file list runs past the read's cap (a vendored import of
+ * tens of thousands of files) is still answered whole, with no files and
+ * `filesTooLarge: true`: its message, author and SHA are not lost with them.
  */
 export async function readCommit(topLevel, sha) {
   if (!isShaLike(sha)) return { ok: false, reason: "unknown" };
@@ -814,6 +818,7 @@ export async function readCommit(topLevel, sha) {
       if (readFailure(bare) !== "not-downloaded") { r = bare; break; }
     }
   }
+  if (!r.ok && r.tooLarge) return { ok: true, commit, files: [], filesTooLarge: true };
   if (!r.ok) return { ok: false, reason: readFailure(r) };
   return { ok: true, commit, files: parseCommitFiles(r.stdout) };
 }

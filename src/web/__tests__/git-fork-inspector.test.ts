@@ -383,6 +383,15 @@ describe("the Commit tab", () => {
     expect(words(tab({ detail: many }))).toContain("And 5 more files: the Changes tab lists them all.");
   });
 
+  it("shows a commit whose file list is too long to read, and says so where the files would be", () => {
+    const html = tab({ detail: { ...DETAIL, files: [], filesTooLarge: true } });
+    expect(html).toContain('<h3 class="fkm-subject">feat(ai): trip section screen counts as on the trip</h3>');
+    expect(html).toContain(`<span class="fkm-sha-text">${SHA}</span>`);
+    expect(words(html)).toContain("This commit changes too many files to list: git's list of them goes past 8 MB.");
+    expect(words(html)).not.toContain("No files in this commit");
+    expect(words(html)).not.toContain("Couldn't read");
+  });
+
   it("waits for the commit's own read, and says when it failed", () => {
     expect(words(tab({ detail: null, loading: true }))).toBe("Reading the commit…");
     expect(words(tab({ detail: null, error: "timeout", onRetry: () => {} }))).toContain("Couldn't read this commit. git took too long to answer. Try again");

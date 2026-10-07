@@ -163,7 +163,7 @@ describe("what a floating sidebar covers", () => {
 
 describe("a ref the history does not list", () => {
   it("is said in a short note at the view's foot for a few seconds, and to a screen reader, never a dead press", () => {
-    expect(view).toMatch(/text: `\$\{sha\.slice\(0, 7\)\} is not in the last 100 commits\.`/);
+    expect(view).toMatch(/const text = !data\.commits \? "The history is still loading\." : `\$\{sha\.slice\(0, 7\)\} is not in the last 100 commits\.`;/);
     expect(view).toMatch(/<p className="fk-note" key=\{jumpNote\.n\} aria-hidden="true">/);
     expect(view).toMatch(/const t = window\.setTimeout\(\(\) => setJumpNote\(null\), 5000\);/);
     expect(view).toMatch(/<span className="vis-hidden" role="status" aria-live="polite">\{jumpNote\?\.text \?\? ""\}<\/span>/);

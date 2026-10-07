@@ -192,9 +192,11 @@ export interface SbTreeProps {
   onType: (text: string) => void;
   /** Bumped to send focus to the tab-stop row (from the filter's ↓). */
   focusSeq: number;
+  /** A filter is typed: every folder is held open (sidebarKey). */
+  filtering?: boolean;
 }
 
-export function FkSidebarTree({ rows, selKey, stopKey, label, onCursor, onToggle, onJump, onMenu, onType, focusSeq }: SbTreeProps) {
+export function FkSidebarTree({ rows, selKey, stopKey, label, onCursor, onToggle, onJump, onMenu, onType, focusSeq, filtering = false }: SbTreeProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ top: 0, height: 0 });
   const uid = `fk-sb${useId().replace(/:/g, "")}`;
@@ -266,7 +268,7 @@ export function FkSidebarTree({ rows, selKey, stopKey, label, onCursor, onToggle
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const at = indexOfEvent(e.target);
     const page = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? SB_ROW_H * 10) / SB_ROW_H) - 1);
-    const move = sidebarKey(e, rows, at < 0 ? stopIndex : at, page);
+    const move = sidebarKey(e, rows, at < 0 ? stopIndex : at, page, filtering);
     if (move.kind === "pass") return;
     e.preventDefault();
     if (!keyed) setKeyed(true);

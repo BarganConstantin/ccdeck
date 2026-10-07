@@ -5,21 +5,25 @@
 // Submodules.
 //
 // Read-only like the whole view. A click or Enter on a ref selects its commit
-// in the history; nothing here checks out, creates, deletes or fetches, and
-// the one menu it has, a ref's, only copies its name or its SHA. Opening the
-// repository in an app and copying its path are the toolbar's, once.
+// in the history — a stash, a submodule's commit and a tag of a tree are not
+// in it, and are copied only; nothing here checks out, creates, deletes or
+// fetches, and the one menu it has, a ref's, only copies its name or its SHA.
+// Opening the repository in an app and copying its path are the toolbar's,
+// once.
 //
 // Which sections and folders are open is remembered per repository. The
 // refs come from GET /api/git/refs (use-git-refs.ts), read again when the
-// view's stale counter moves.
+// view's stale counter moves, when the view follows the session to another
+// worktree, and when the panel is shown over an old read.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { copyText } from "../copy-text";
+import { failureLasts, failureLine } from "../git-diff-parse";
 import { isEscapeKey } from "../modal-dismiss";
 import { sidebarRows, withOpen, type OpenState, type SbRow } from "../fk-sidebar-model";
 import type { Repo } from "../git-view-types";
 import { readStored, writeStored } from "../storage";
-import { useGitRefs } from "../use-git-refs";
+import { useGitRefs, type GitRefsData } from "../use-git-refs";
 import { FkSidebarTree } from "./FkSidebarTree";
 
 export interface FkSidebarProps {
@@ -145,8 +149,33 @@ function SbMenu({ menu, onClose }: { menu: MenuState; onClose: (refocus: boolean
   );
 }
 
+/**
+ * What the panel says over its tree when it has no refs to list: a first read
+ * that failed, and why, with Try again unless reading again cannot mend it
+ * (git timing out or erring on the folder is such a read, not a folder with
+ * no repository); a folder with none; the last refs kept through a failed
+ * refresh. Nothing while the first read is on its way or git is switched off.
+ */
+export function RefsNote({ refs, onRetry }: { refs: GitRefsData; onRetry: () => void }) {
+  if (refs.refs) return refs.reason ? <p className="fk-sb-msg" title={refs.reason}>Showing the last branches read.</p> : null;
+  const why = refs.reason ?? (refs.state === "timeout" || refs.state === "error" ? refs.state : null);
+  if (why) {
+    return (
+      <div className="fk-sb-msg is-failed">
+        <b>Could not read the branches.</b>
+        <span>{failureLine(why)}</span>
+        {!failureLasts(why) && <button type="button" className="btn fk-sb-retry" onClick={onRetry}>Try again</button>}
+      </div>
+    );
+  }
+  if (refs.state === "loading" || refs.state === "off" || refs.state === "repo") return null;
+  return <p className="fk-sb-msg">No repository here.</p>;
+}
+
 export default function FkSidebar({ sessionId, agent, repo, stale, view, onView, localCount, selectedSha, onJump, focused }: FkSidebarProps) {
-  const refs = useGitRefs({ sessionId, agent, stale });
+  // The worktree the view reads now, and a panel just shown: both read the
+  // refs again, as the history is read again for them.
+  const refs = useGitRefs({ sessionId, agent, stale, top: repo?.topLevel ?? null, fresh: true });
   const repoKey = repo ? repo.commonDir || repo.topLevel : null;
   const [open, setOpen] = useState<OpenState>(() => readOpenState(repoKey));
   const [openFor, setOpenFor] = useState(repoKey);
@@ -199,7 +228,7 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
   const rowMenu = useCallback((row: SbRow, at: { x: number; y: number }) => {
     const items: MenuItem[] = [];
     if (row.copy) items.push({ id: "name", label: row.kind === "worktree" ? "Copy path" : "Copy name", act: () => copy(row.copy!, row.kind === "worktree" ? "the path" : "the name") });
-    if (row.sha) items.push({ id: "sha", label: "Copy SHA", act: () => copy(row.sha!, "the SHA") });
+    if (row.copySha) items.push({ id: "sha", label: "Copy SHA", act: () => copy(row.copySha!, "the SHA") });
     if (!items.length) return;
     setMenu({ items, x: at.x, y: at.y, label: row.label, back: document.activeElement as HTMLElement | null });
   }, []);
@@ -217,7 +246,7 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
     if ((e.key === "ArrowDown" || e.key === "Enter") && rows.length) {
       e.preventDefault();
       // To the first ref the filter left, else the tree's own stop.
-      const firstRef = rows.find(r => r.sha);
+      const firstRef = rows.find(r => r.copySha);
       if (firstRef && query.trim()) setSelKey(firstRef.key);
       setFocusSeq(n => n + 1);
     }
@@ -234,7 +263,6 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
   };
 
   const name = repo?.name ?? "";
-  const failed = refs.state !== "repo" && refs.state !== "loading" && refs.state !== "off";
 
   return (
     <div className="fk-sb" role="group" aria-label={name ? `${name}: views, branches and refs` : "Views, branches and refs"} data-focused={focused ? "" : undefined}>
@@ -259,13 +287,12 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
           onChange={e => setQuery(e.target.value)} onKeyDown={onFilterKey}
         />
       </div>
-      {failed && <p className="fk-sb-msg">{refs.state === "error" ? "Could not read the branches." : "No repository here."}</p>}
-      {refs.refs && refs.reason && <p className="fk-sb-msg" title={refs.reason}>Showing the last branches read.</p>}
+      <RefsNote refs={refs} onRetry={refs.retry} />
       <div className="fk-sb-body" id={`${uid}-tree`}>
         <FkSidebarTree
           rows={rows} selKey={selKey} stopKey={stopKey} label={name ? `${name}: branches, tags and more` : "Branches, tags and more"}
           onCursor={setSelKey} onToggle={setRowOpen} onJump={row => row.sha && onJump(row.sha)} onMenu={rowMenu} onType={onType}
-          focusSeq={focusSeq}
+          focusSeq={focusSeq} filtering={query.trim() !== ""}
         />
       </div>
       <span className="vis-hidden" role="status" aria-live="polite">{said}</span>

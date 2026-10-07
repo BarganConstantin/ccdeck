@@ -507,6 +507,22 @@ describe("readCommit", () => {
     expect(merge.files.map((f: any) => f.path)).toEqual(["t.txt"]);
   });
 
+  it("answers a commit whose file list passes the cap with its record, its files said to be too many", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    // Thousands of long paths in one commit, made in the index alone: git's
+    // list of them (raw and counts) runs past the 8 MB a read may answer.
+    const blob = sh(dir, ["hash-object", "-w", "--stdin"], "vendored\n").trim();
+    const deep = Array.from({ length: 4 }, (_, i) => `${String.fromCharCode(97 + i)}${"x".repeat(240)}`).join("/");
+    const info = Array.from({ length: 4600 }, (_, i) => `100644 ${blob}\t${deep}/module-file-${String(i).padStart(5, "0")}.js\n`).join("");
+    sh(dir, ["update-index", "--add", "--index-info"], info);
+    const tree = sh(dir, ["write-tree"]).trim();
+    const sha = sh(dir, ["commit-tree", tree, "-p", "HEAD", "-m", "chore(vendor): import thousands of files"]).trim();
+    const r = await readCommit(dir, sha);
+    expect(r).toMatchObject({ ok: true, files: [], filesTooLarge: true });
+    expect(r.commit).toMatchObject({ sha, subject: "chore(vendor): import thousands of files", author: { name: "Ada Lovelace" } });
+    expect(r.commit.committer).toMatchObject({ name: "Ada Lovelace" });
+  });
+
   it("refuses anything that is not a commit id this repository has", async () => {
     const dir = track(repoWith({ "a.txt": "one\n" }));
     for (const bad of ["HEAD", "--output=/tmp/x", "main", "deadbeef".repeat(5), "abc", "", "a b"]) {
