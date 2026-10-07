@@ -41,7 +41,7 @@
 // The log's shapes are the view's (git-view-types.ts); these are the names
 // this module and the list read them by.
 
-import type { CommitAgent, GitHead, LogCommit } from "./git-view-types";
+import type { CommitAgent, GitHead, GitLook, LogCommit } from "./git-view-types";
 
 export type { LogCommit } from "./git-view-types";
 /** The repository's HEAD, as `/api/git/repo` reports it. */
@@ -708,7 +708,7 @@ function leaveDown(xn: number, x2: number, r: number): string {
 // every other branch's stable slot mapped onto the rest of it, so a live
 // commit never repaints a line.
 
-export type GitLook = "deck" | "fork";
+export type { GitLook } from "./git-view-types";
 
 /** What a look draws a row's graph with. */
 export interface GraphGeometry {

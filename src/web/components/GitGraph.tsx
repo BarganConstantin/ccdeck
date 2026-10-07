@@ -3,8 +3,12 @@ import { createPortal } from "react-dom";
 import {
   layoutGraph, graphTones, rowDrawing, onFocusLine, graphColumns, graphWidth, fixedSlot, isSeen, remoteBranch,
   parseSlotMemory, rememberSlots, repoSlots, historyAge, workDuration, conventionalPrefix,
-  WIP_ID, ROW_H, type GraphRow, type LogCommit, type NodeShape, type RepoHead, type Tone,
+  forkRowDrawing, forkLane, lookGraphWidth, DECK_GEOMETRY, FORK_GEOMETRY, FORK_DIAMOND, FORK_CHEVRON, FORK_LANE_OF_SLOT, VISIBLE_LANES,
+  WIP_ID, ROW_H, type GraphLayout, type GraphRow, type LogCommit, type NodeShape, type RepoHead, type Tone,
 } from "../git-graph-layout";
+import { FkRefBadge, FkMoreBadge, fkRefChips, fkChipWords, fkMeasure, FK_REF_ROOM, FK_REF_ROOM_NARROW } from "./FkRefBadge";
+import { FkAvatar } from "./FkAvatar";
+import { forkDate, forkDateLong } from "../git-fork-date";
 import { dismissesCard, historyKey } from "../git-graph-keys";
 import { fitBranch } from "../git-chip";
 import { monoMeasure, type Measure } from "../git-path-fit";
@@ -46,10 +50,11 @@ export interface GitGraphProps {
    *  `defaultBranch`): a trunk HEAD's branch is measured against, ranked
    *  with develop. Optional; the usual trunk names stand without it. */
   defaultBranch?: string | null;
-  /** The view's look: "fork" draws Fork's own rows; the deck's otherwise. */
+  /** "fork" draws Fork's history: its rows, columns, graph, badges and dots,
+   *  and no uncommitted row, pane head or legend. "deck" when omitted. */
   look?: GitLook;
-  /** Whether the history list holds focus: the Fork look's selected row is
-   *  blue while it does, grey while focus is elsewhere. */
+  /** Fork look: the list holds the keyboard in a window that has focus, so
+   *  its selection is the accent pill rather than the grey one. */
   listFocused?: boolean;
 }
 
@@ -378,7 +383,7 @@ const NO_UNCOMMITTED: GitGraphProps["uncommitted"] = { files: 0, byFocus: 0, lab
 
 interface HoverState { sha: string; anchor: Element; instant: boolean }
 
-function HoverCard({ state, commit, agent, id }: { state: HoverState; commit: LogCommit; agent: AgentView; id: string }) {
+function HoverCard({ state, commit, agent, id, look }: { state: HoverState; commit: LogCommit; agent: AgentView; id: string; look: GitLook }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   useLayoutEffect(() => {
@@ -389,7 +394,7 @@ function HoverCard({ state, commit, agent, id }: { state: HoverState; commit: Lo
   }, [state]);
   const level = agent.level === "trailer" ? "from the commit message" : agent.level === "matched" ? "matched" : "seen by ccdeck";
   return createPortal(
-    <div ref={ref} id={id} role="tooltip" className={`gv-pop${pos ? " is-in" : ""}${state.instant ? " is-instant" : ""}`}
+    <div ref={ref} id={id} role="tooltip" className={`gv-pop${pos ? " is-in" : ""}${state.instant ? " is-instant" : ""}`} data-look={look === "fork" ? "fork" : undefined}
       style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }}>
       <div className="gv-pop-head" style={agent.hue !== null ? ({ "--session-hue": agent.hue } as React.CSSProperties) : undefined}>
         {agent.hue !== null ? <i className="gv-swatch" /> : <Mark level="trailer" />}
@@ -414,21 +419,190 @@ function HoverCard({ state, commit, agent, id }: { state: HoverState; commit: Lo
   );
 }
 
+// ─── the Fork look's row ──────────────────────────────────────────────────
+
+/** A node in the Fork look, at (x, y): a filled dot, a ring with a chevron for
+ *  a merge, a filled or hollow diamond for an agent's commit. `cased` draws
+ *  the casing under it instead, the list's own colour 1px wider all round. */
+function forkNode(shape: NodeShape, x: number, y: number, cls: string, lane: number | undefined, cased: boolean): React.ReactNode {
+  const pad = cased ? 1 : 0;
+  if (shape === "merge") {
+    const [ax, ay, bx, by, cx, cy] = FORK_CHEVRON.split(" ").map(Number);
+    return (
+      <>
+        <circle className={`${cls} is-merge`} data-lane={lane} cx={x} cy={y} r={FORK_GEOMETRY.ring} />
+        <path className={`${cls} is-chevron`} data-lane={lane} d={`M${x + ax} ${y + ay}L${x + bx} ${y + by}L${x + cx} ${y + cy}`} />
+      </>
+    );
+  }
+  if (shape === "seen") return <path className={`${cls} is-seen`} data-lane={lane} d={diamond(x, y, FORK_DIAMOND)} />;
+  if (shape === "trailer") return <path className={`${cls} is-trailer`} data-lane={lane} d={diamond(x, y, FORK_DIAMOND)} />;
+  return <circle className={`${cls} is-commit`} data-lane={lane} cx={x} cy={y} r={FORK_GEOMETRY.dot + pad} />;
+}
+
+const FkRowLanes = memo(function FkRowLanes({ row, shape, focusKey, folded, width, noWip, cased, maskId }: {
+  row: GraphRow; shape: NodeShape; focusKey: string | null; folded: number; width: number; noWip: boolean;
+  /** On the selected row's pill every line and node sits on a casing in the
+   *  list's colour, so each keeps its contrast on the list's colour whatever
+   *  the pill under it. */
+  cased: boolean;
+  /** Unique in the page: the mask that keeps lines out of a ring's hollow. */
+  maskId: string;
+}) {
+  const d = useMemo(() => forkRowDrawing(row, shape, focusKey, folded), [row, shape, focusKey, folded]);
+  const strokes = noWip ? d.strokes.filter(s => !s.wip) : d.strokes;
+  const H = FORK_GEOMETRY.rowH;
+  const nx = d.folded ? d.foldX : d.x;
+  const lane = d.folded ? undefined : forkLane(row, focusKey);
+  const nodeCls = d.folded ? "fk-node is-fold" : "fk-node";
+  const ring = shape === "merge";
+  const lines = (cls: string) => (
+    <g className={cls} mask={ring ? `url(#${maskId})` : undefined}>
+      {d.fold && <path className="fk-fold-line" d={d.fold} />}
+      {strokes.map((s, i) => <path key={i} className="fk-e" data-lane={s.focus ? 0 : FORK_LANE_OF_SLOT[s.slot]} d={s.d} />)}
+    </g>
+  );
+  return (
+    <svg className="fk-lanes" width={width} height={H} viewBox={`0 0 ${width} ${H}`} aria-hidden="true" focusable="false">
+      {ring && (
+        <defs>
+          <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width={width} height={H}>
+            <rect width={width} height={H} fill="white" />
+            <circle cx={nx} cy={d.y} r={FORK_GEOMETRY.ring - FORK_GEOMETRY.line / 2} fill="black" />
+          </mask>
+        </defs>
+      )}
+      {cased && <g className="fk-case">{lines("fk-case-lines")}{forkNode(shape, nx, d.y, nodeCls, lane, true)}</g>}
+      {lines("fk-lines")}
+      {forkNode(shape, nx, d.y, nodeCls, lane, false)}
+    </svg>
+  );
+});
+
+function ReturnMark() {
+  return (
+    <svg className="fk-ret" width="9" height="7" viewBox="0 0 9 7" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M8.2.7v2.3c0 .8-.6 1.4-1.4 1.4H1.3M3.2 2.5 1.3 4.4l1.9 1.9" />
+    </svg>
+  );
+}
+
+interface FkRowProps {
+  rowId: string;
+  row: GraphRow;
+  commit: LogCommit;
+  tone: Tone;
+  selected: boolean;
+  tabStop: boolean;
+  isHead: boolean;
+  focusKey: string | null;
+  folded: number;
+  width: number;
+  noWip: boolean;
+  agent: AgentView | null;
+  head: RepoHead | null;
+  refRoom: number;
+  /** Measures a badge's words in its font; null before the page can. */
+  measure: ((text: string, bold: boolean) => number) | null;
+  now: number;
+  fresh: boolean;
+  /** The date column is hidden: its words go in the row's title. */
+  dateInTitle: boolean;
+}
+
+/** A Fork row's words: 13px (git-graph-fork.css). */
+const FK_ROW_PX = 13;
+
+/** The row's dot before its badges, and its words: a commit HEAD has and its
+ *  upstream does not, or one HEAD cannot reach. */
+const DOT_WORDS = { unpushed: "Not pushed yet", incoming: "Not on the checked-out branch's history" } as const;
+
+const FkHistoryRow = memo(function FkHistoryRow(p: FkRowProps) {
+  const { commit: c, row, agent } = p;
+  // A merge keeps Fork's ring whoever made it; its chip says who.
+  const shape: NodeShape = row.kind === "merge" ? "merge" : agent && agent.level !== "trailer" ? "seen" : agent ? "trailer" : "commit";
+  const { chips, more } = fkRefChips(c, p.head, p.refRoom, p.measure);
+  const cc = conventionalPrefix(c.subject);
+  const date = forkDate(c.date, p.now);
+  const long = forkDateLong(c.date);
+  const short = c.sha.slice(0, 7);
+  const dot = p.tone === "off" ? "incoming" : c.unpushed ? "unpushed" : null;
+  const refWords = [...chips.map(fkChipWords), ...more].join(", ");
+  const label = `${c.subject || "No subject"}. ${short}, ${c.author.name}${date ? `, ${date}` : ""}${refWords ? `. ${refWords}` : ""}. ${levelWords(agent)}${dot ? `. ${DOT_WORDS[dot]}` : ""}${row.outside ? ". Older than the history above" : ""}`;
+  const descId = agent ? `${p.rowId}-d` : undefined;
+  return (
+    <div role="option" id={p.rowId} className={`fk-row${p.selected ? " is-sel" : ""}${p.fresh ? " is-new" : ""}${p.isHead ? " is-head" : ""}`}
+      data-id={c.sha} data-tone={p.tone} data-head={p.isHead ? "" : undefined}
+      aria-selected={p.selected} tabIndex={p.tabStop ? 0 : -1} aria-label={label} aria-describedby={descId}
+      title={p.dateInTitle && long ? long : undefined}>
+      <span className="fk-cell-graph">
+        <FkRowLanes row={row} shape={shape} focusKey={p.focusKey} folded={p.folded} width={p.width} noWip={p.noWip} cased={p.selected} maskId={`${p.rowId}-ring`} />
+      </span>
+      <span className="fk-cell-subj">
+        {dot && <i className="fk-dot" data-kind={dot} title={DOT_WORDS[dot]} />}
+        {(chips.length > 0 || more.length > 0) && (
+          <span className="fk-refs" data-lane={forkLane(row, p.focusKey)}>
+            {chips.map(x => <FkRefBadge key={`${x.kind}:${x.name}`} chip={x} />)}
+            {more.length > 0 && <FkMoreBadge names={more} />}
+          </span>
+        )}
+        <span className="fk-subj" title={c.subject}>
+          {cc ? <><b className="fk-cc">{cc.prefix}</b>{cc.rest}</> : c.subject || "No subject"}
+        </span>
+        {c.hasBody && <ReturnMark />}
+        {agent && (
+          <span className="gv-agent-chip fk-chip" data-level={agent.level === "trailer" ? "trailer" : "seen"} data-quiet={agent.quiet ? "" : undefined}
+            data-sha={c.sha} title={agent.level === "trailer" ? `${agent.name}, from the commit message` : `${who(agent)}, ${agent.level === "matched" ? "matched" : "seen by ccdeck"}`}
+            style={agent.hue !== null ? ({ "--session-hue": agent.hue } as React.CSSProperties) : undefined}>
+            {agent.hue !== null && <i className="gv-swatch fk-swatch" />}
+            <span className="gv-agent-name">{who(agent)}</span>
+          </span>
+        )}
+      </span>
+      <span className="fk-cell-author" title={`${c.author.name} <${c.author.email}>`}>
+        <FkAvatar name={c.author.name} email={c.author.email} />
+        <span className="fk-author-name">{c.author.name}</span>
+      </span>
+      <span className="fk-cell-sha">{short}</span>
+      <span className="fk-cell-date" title={long}>{date}</span>
+      {agent && <span id={descId} className="vis-hidden">{agentSentence(agent)}</span>}
+    </div>
+  );
+});
+
+/**
+ * The layout the Fork look draws: lanes where Fork would start them, with no
+ * column held for an uncommitted row — unless that would put HEAD's own line
+ * in the fold of a busy repository, where it would be lost; then the column
+ * is held for it after all, as the deck look always holds it.
+ */
+export function forkLayout(commits: readonly LogCommit[], head: RepoHead | null, slots: ReadonlyMap<string, number>, defaultBranch: string | null): GraphLayout {
+  const bare = layoutGraph(commits, { head, wip: false, slots, defaultBranch });
+  const { folded } = graphColumns(bare.columns);
+  const at = bare.rows.find(r => r.id === head?.sha) ?? bare.rows.find(r => byRefs(commits, r.id));
+  if (!folded || !at || at.col < VISIBLE_LANES) return bare;
+  return layoutGraph(commits, { head, wip: true, slots, defaultBranch });
+}
+const byRefs = (commits: readonly LogCommit[], sha: string) => commits.some(c => c.sha === sha && c.refs.head && !c.outsideWindow);
+
 // ─── the history ──────────────────────────────────────────────────────────
 
 let instance = 0;
 
 export default function GitGraph(props: GitGraphProps) {
-  const { repoKey, commits, head, uncommitted, focus, selected, onSelect, onOpen, onAgentCard, liveInsert, agentName, rowLimit, defaultBranch = null } = props;
+  const { repoKey, commits, head, uncommitted, focus, selected, onSelect, onOpen, onAgentCard, liveInsert, agentName, rowLimit, defaultBranch = null, look = "deck", listFocused } = props;
   const uid = useMemo(() => `gvh${++instance}`, []);
   const listRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
+  const fork = look === "fork";
+  const geo = fork ? FORK_GEOMETRY : DECK_GEOMETRY;
 
   // A detached HEAD with nothing changed has no working-tree row; anything
   // else does, clean or not. The graph is laid out with it either way, so
   // HEAD keeps the first column and never folds away in a busy repository;
-  // without it, the column above HEAD is left blank.
-  const showWip = !(head?.detached && uncommitted.files === 0);
+  // without it, the column above HEAD is left blank. The Fork look has no
+  // such row: the working tree is the sidebar's Local Changes.
+  const showWip = !fork && !(head?.detached && uncommitted.files === 0);
 
   // The colours this repository's branches were given before, read once per
   // repository; what the layout hands out on top is written back below.
@@ -437,9 +611,9 @@ export default function GitGraph(props: GitGraphProps) {
     slotsRef.current = { repo: repoKey, slots: repoSlots(parseSlotMemory(readStored(LANE_MEMORY_KEY)), repoKey) };
   }
   const layout = useMemo(
-    () => layoutGraph(commits, { head, wip: true, slots: slotsRef.current!.slots, defaultBranch }),
+    () => fork ? forkLayout(commits, head, slotsRef.current!.slots, defaultBranch) : layoutGraph(commits, { head, wip: true, slots: slotsRef.current!.slots, defaultBranch }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [commits, head?.sha, head?.branch, head?.detached, repoKey, defaultBranch],
+    [commits, head?.sha, head?.branch, head?.detached, repoKey, defaultBranch, fork],
   );
   useEffect(() => {
     slotsRef.current = { repo: repoKey, slots: layout.slots };
@@ -461,7 +635,7 @@ export default function GitGraph(props: GitGraphProps) {
   // HEAD's own line, detached or not: what it cannot reach is dimmed either way.
   const focusKey = layout.headKey;
   const { drawn, folded } = graphColumns(layout.columns);
-  const width = graphWidth(drawn);
+  const width = fork ? lookGraphWidth(drawn, geo) : graphWidth(drawn);
   const headSha = head?.sha ?? commits.find(c => c.refs.head)?.sha ?? null;
   const agents = useMemo(() => new Map(commits.map(c => [c.sha, agentView(c, focus, agentName)])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -498,18 +672,45 @@ export default function GitGraph(props: GitGraphProps) {
 
   // The room a ref chip's words get, from the pane's width.
   const [refRoom, setRefRoom] = useState(REF_ROOM);
+  // Fork look: under 480px the date column goes, and its words to the row's title.
+  const [paneNarrow, setPaneNarrow] = useState(false);
   useLayoutEffect(() => {
     const el = paneRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(([e]) => setRefRoom(e.contentRect.width <= 560 ? REF_ROOM_NARROW : REF_ROOM));
+    const ro = new ResizeObserver(([e]) => {
+      const w = e.contentRect.width;
+      if (fork) { setRefRoom(w < 680 ? FK_REF_ROOM_NARROW : FK_REF_ROOM); setPaneNarrow(w < 480); }
+      else setRefRoom(w <= 560 ? REF_ROOM_NARROW : REF_ROOM);
+    });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fork]);
 
   // The ref chips' words measured in their own font, on a canvas, as the
   // card's branch chip measures its own (one cached measure per font).
   const [measure, setMeasure] = useState<Measure | null>(null);
   useLayoutEffect(() => { setMeasure(() => monoMeasure(REF_PX, REF_WEIGHT)); }, []);
+  // The Fork look's badges and dates, measured in its UI font on a canvas.
+  const [fkMeasureFn, setFkMeasure] = useState<((text: string, bold: boolean) => number) | null>(null);
+  const [fkRowMeasure, setFkRowMeasure] = useState<((text: string, bold: boolean) => number) | null>(null);
+  useLayoutEffect(() => {
+    if (!fork) return;
+    setFkMeasure(() => fkMeasure());
+    setFkRowMeasure(() => fkMeasure(FK_ROW_PX));
+  }, [fork]);
+  // Fork's date column is sized for its own words (`18 Sep 2026 at 12:53`);
+  // a locale that writes the time longer (`Sep 18, 2026 at 12:53 PM`) widens
+  // it to the widest date listed, one width for the list, rather than cut
+  // every date short.
+  const dateRoom = useMemo(() => {
+    if (!fork || !fkRowMeasure) return 0;
+    let widest = 0;
+    for (const r of drawnRows) {
+      const c = byId.get(r.id);
+      if (c) widest = Math.max(widest, fkRowMeasure(forkDate(c.date, now), c.sha === headSha));
+    }
+    return Math.ceil(widest) + 2;
+  }, [fork, fkRowMeasure, drawnRows, byId, now, headSha]);
 
   const rowEl = useCallback((id: string) => listRef.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`) ?? null, []);
 
@@ -596,9 +797,9 @@ export default function GitGraph(props: GitGraphProps) {
   const tops = useMemo(() => {
     const m = new Map<string, number>();
     let lines = 0;
-    ids.forEach((id, i) => { if (dividers.has(i)) lines++; m.set(id, (i + lines) * ROW_H); });
+    ids.forEach((id, i) => { if (dividers.has(i)) lines++; m.set(id, (i + lines) * geo.rowH); });
     return m;
-  }, [ids, dividers]);
+  }, [ids, dividers, geo.rowH]);
   const prevTops = useRef<Map<string, number> | null>(null);
   // An arrival is told apart by the commits it brought, never by the object
   // that carries them: the view around the list rebuilds that object on every
@@ -634,7 +835,7 @@ export default function GitGraph(props: GitGraphProps) {
     const moved: Array<[HTMLElement, number]> = [];
     for (const [id, top] of tops) {
       const was = before.get(id);
-      if (was === undefined || was === top || top > height || top + ROW_H < 0) continue;
+      if (was === undefined || was === top || top > height || top + geo.rowH < 0) continue;
       const el = rowEl(id);
       if (el) moved.push([el, was - top]);
     }
@@ -673,7 +874,7 @@ export default function GitGraph(props: GitGraphProps) {
     const row = (e.target as HTMLElement).closest<HTMLElement>("[data-id]");
     const current = row?.dataset.id ?? selected;
     const at = ids.indexOf(current);
-    const page = Math.max(1, Math.floor((listRef.current?.clientHeight ?? ROW_H * 10) / ROW_H) - 1);
+    const page = Math.max(1, Math.floor((listRef.current?.clientHeight ?? geo.rowH * 10) / geo.rowH) - 1);
     const move = historyKey(e, at, ids.length, page);
     if (move.kind === "pass") return;
     e.preventDefault();
@@ -689,7 +890,7 @@ export default function GitGraph(props: GitGraphProps) {
       const c = byId.get(current);
       if (c && c.agent) onAgentCard(c.sha);
     }
-  }, [ids, selected, onSelect, onOpen, onAgentCard, byId, focusRow, hideHover]);
+  }, [ids, selected, onSelect, onOpen, onAgentCard, byId, focusRow, hideHover, geo.rowH]);
 
   const onClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
@@ -756,8 +957,8 @@ export default function GitGraph(props: GitGraphProps) {
   const focusHue = sessionHue(focus.sessionId);
 
   return (
-    <div className="gv-hist" ref={paneRef}>
-      <div className="gv-pane-head">
+    <div className="gv-hist" ref={paneRef} data-look={fork ? "fork" : undefined}>
+      {!fork && <div className="gv-pane-head">
         <span className="gv-pane-title">History</span>
         {folded > 0 && (
           <span className="gv-fold-chip" title={`${folded} more lanes folded into the last column; the checked-out branch keeps its own.`}>
@@ -769,7 +970,7 @@ export default function GitGraph(props: GitGraphProps) {
           <span><Mark level="trailer" /><span className="gv-long">from the commit message</span><span className="gv-short">message</span></span>
           <span><Mark level="round" /><span className="gv-long">no agent seen</span><span className="gv-short">none</span></span>
         </span>
-      </div>
+      </div>}
       <div className="gv-graph-wrap">
         {newAbove > 0 && (
           <button type="button" className="gv-new-pill" ref={pillRef} onClick={toTop}>
@@ -780,7 +981,9 @@ export default function GitGraph(props: GitGraphProps) {
           ref={listRef}
           className="gv-graph-scroll"
           role="listbox"
-          aria-label="History"
+          aria-label={fork && folded > 0 ? `History, ${folded} more lanes folded into the last column` : "History"}
+          data-focused={fork && listFocused ? "" : undefined}
+          style={fork ? ({ "--fk-graph-w": `${width}px`, "--fk-date-min": `${dateRoom}px` } as React.CSSProperties) : undefined}
           onKeyDown={onKeyDown}
           onClick={onClick}
           onDoubleClick={onDoubleClick}
@@ -792,7 +995,29 @@ export default function GitGraph(props: GitGraphProps) {
         >
           {drawnRows.map((row, i) => {
             const c = row.id === WIP_ID ? null : byId.get(row.id) ?? null;
-            const el = (
+            const el = fork && c ? (
+              <FkHistoryRow
+                key={row.id}
+                rowId={`${uid}-${row.id.slice(0, 12)}`}
+                row={row}
+                commit={c}
+                tone={tones.get(c.sha) ?? "off"}
+                selected={row.id === selected}
+                tabStop={row.id === tabStopId}
+                isHead={c.sha === headSha}
+                focusKey={focusKey}
+                folded={folded}
+                width={width}
+                noWip={!showWip}
+                agent={agents.get(c.sha) ?? null}
+                head={stableHead}
+                refRoom={refRoom}
+                measure={fkMeasureFn}
+                now={now}
+                fresh={fresh.has(c.sha)}
+                dateInTitle={paneNarrow}
+              />
+            ) : (
               <HistoryRow
                 key={row.id}
                 rowId={`${uid}-${row.id.slice(0, 12)}`}
@@ -822,12 +1047,13 @@ export default function GitGraph(props: GitGraphProps) {
             if (divider === undefined) return el;
             return (
               <React.Fragment key={`older:${row.id}`}>
-                <div className="gv-older" role="presentation">{divider}</div>
+                <div className={fork ? "fk-older" : "gv-older"} role="presentation">{divider}</div>
                 {el}
               </React.Fragment>
             );
           })}
-          {commits.length === 0 && (
+          {commits.length === 0 && fork && <div className="fk-empty" role="presentation">No commits yet</div>}
+          {commits.length === 0 && !fork && (
             <div className="gv-graph-empty" role="presentation">
               <b>No commits yet.</b> {head?.branch ? <>{head.branch} has no history</> : <>This repository has no history</>}; the changed files wait for the first commit.
             </div>
@@ -835,7 +1061,7 @@ export default function GitGraph(props: GitGraphProps) {
         </div>
       </div>
       <span className="vis-hidden" aria-live="polite">{said}</span>
-      {hover && hoverCommit && hoverAgent && <HoverCard state={hover} commit={hoverCommit} agent={hoverAgent} id={`${uid}-pop`} />}
+      {hover && hoverCommit && hoverAgent && <HoverCard state={hover} commit={hoverCommit} agent={hoverAgent} id={`${uid}-pop`} look={look} />}
     </div>
   );
 }

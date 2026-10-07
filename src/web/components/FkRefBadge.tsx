@@ -10,7 +10,7 @@ import { remoteBranch, type LogCommit, type RepoHead } from "../git-graph-layout
 
 /** The most badges a row shows before folding the rest into `+N`. */
 export const FK_REF_BADGES = 3;
-/** A badge's widest box, and the room under a 600px history. */
+/** A badge's widest box, and the room under a 680px history. */
 export const FK_REF_ROOM = 320;
 export const FK_REF_ROOM_NARROW = 160;
 /** A badge's words: 12px in the look's UI font (git-graph-fork.css). */

@@ -1,0 +1,351 @@
+/* The git view's history in the Fork look (components/GitGraph.tsx, look
+   "fork"): Fork's rows, columns, graph, ref badges, dots and marks. Everything
+   here is scoped under .gv-wide[data-look="fork"] and painted in the --fk-*
+   tokens; a Fork row's parts carry fk-* classes of their own, so no rule of
+   the deck look (git-graph.css) reaches them, and none here reaches the deck. */
+
+/* The fold column's dashed line, the one colour the tokens do not carry. */
+.gv-wide[data-look="fork"] .gv-hist {
+  --fk-fold-ink: #5a5a5a;
+  background: var(--fk-list);
+  color: var(--fk-text);
+  font-family: var(--fk-font);
+}
+:root[data-theme="light"] .gv-wide[data-look="fork"] .gv-hist { --fk-fold-ink: #b0b0b0; }
+
+/* The list: no header, no zebra, a thin overlay scrollbar. */
+.gv-wide[data-look="fork"] .gv-graph-scroll {
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fk-scroll-thumb) transparent;
+}
+.gv-wide[data-look="fork"] .gv-graph-scroll:hover { scrollbar-color: var(--fk-scroll-thumb-hover) transparent; }
+
+/* A row: 22px, 10px in from each edge of the pane, which is where its
+   selection pill is drawn; graph | subject | author | SHA | date, the last
+   column ending 16px from the pane's edge. The graph is one width for the
+   whole list (--fk-graph-w, set by the list), so every subject starts at one x. */
+.gv-wide[data-look="fork"] .fk-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--fk-graph-w) minmax(100px, 1fr) 157px 77px max(163px, var(--fk-date-min, 0px));
+  align-items: center;
+  height: 22px;
+  margin: 0 10px;
+  padding-right: 6px;
+  border-radius: 6px;
+  color: var(--fk-text);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 22px;
+  white-space: nowrap;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 22px;
+  cursor: default;
+}
+/* HEAD's row is bold from end to end; a row HEAD cannot reach is muted, its
+   graph and badges still in full colour, unless it is the selected one. */
+.gv-wide[data-look="fork"] .fk-row.is-head { font-weight: 700; }
+.gv-wide[data-look="fork"] .fk-row[data-tone="off"] { color: var(--fk-text-muted); }
+/* The selection: the grey pill, and the accent one while the list holds the
+   keyboard in a window that has focus. Nothing on hover. */
+.gv-wide[data-look="fork"] .fk-row.is-sel { background: var(--fk-select-idle); color: var(--fk-select-idle-ink); }
+.gv-wide[data-look="fork"] .gv-graph-scroll[data-focused] .fk-row.is-sel { background: var(--fk-select); color: var(--fk-select-ink); }
+/* The deck's one keyboard ring, drawn inside the pill's shape. */
+.gv-wide[data-look="fork"] .fk-row:focus-visible { outline-offset: -2px; border-radius: 6px; }
+/* A commit that just arrived glows in the accent for a second. */
+.gv-wide[data-look="fork"] .fk-row.is-new { animation: gv-new-fade 150ms ease-out, fk-glow 1000ms ease-out; }
+@keyframes fk-glow {
+  0%, 25% { background-color: color-mix(in srgb, var(--fk-select) 22%, transparent); }
+  100% { background-color: transparent; }
+}
+
+/* Words sit a pixel above the row's middle, on Fork's baseline. */
+.gv-wide[data-look="fork"] .fk-subj,
+.gv-wide[data-look="fork"] .fk-author-name,
+.gv-wide[data-look="fork"] .fk-cell-sha,
+.gv-wide[data-look="fork"] .fk-cell-date { position: relative; top: -1px; }
+
+/* The graph: one SVG a row, butt caps so rows meet without a bead, every
+   paint reading the Contrast theme's ink first (touch-and-forced-colours.css
+   sets it on .gv-hist). */
+.gv-wide[data-look="fork"] .fk-cell-graph { display: flex; align-self: stretch; align-items: center; min-width: 0; }
+.gv-wide[data-look="fork"] .fk-lanes { display: block; overflow: visible; }
+.gv-wide[data-look="fork"] [data-lane="0"] { --lane: var(--fk-lane-0); }
+.gv-wide[data-look="fork"] [data-lane="1"] { --lane: var(--fk-lane-1); }
+.gv-wide[data-look="fork"] [data-lane="2"] { --lane: var(--fk-lane-2); }
+.gv-wide[data-look="fork"] [data-lane="3"] { --lane: var(--fk-lane-3); }
+.gv-wide[data-look="fork"] [data-lane="4"] { --lane: var(--fk-lane-4); }
+.gv-wide[data-look="fork"] [data-lane="5"] { --lane: var(--fk-lane-5); }
+.gv-wide[data-look="fork"] .fk-e { fill: none; stroke: var(--gv-forced-ink, var(--lane)); stroke-width: 1.6; stroke-linecap: butt; stroke-linejoin: round; }
+.gv-wide[data-look="fork"] .fk-fold-line { fill: none; stroke: var(--gv-forced-ink, var(--fk-fold-ink)); stroke-width: 1.6; stroke-dasharray: 3 3; }
+.gv-wide[data-look="fork"] .fk-node.is-commit,
+.gv-wide[data-look="fork"] .fk-node.is-seen { fill: var(--gv-forced-ink, var(--lane)); }
+.gv-wide[data-look="fork"] .fk-node.is-merge,
+.gv-wide[data-look="fork"] .fk-node.is-chevron { fill: none; stroke: var(--gv-forced-ink, var(--lane)); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.gv-wide[data-look="fork"] .fk-node.is-trailer { fill: none; stroke: var(--gv-forced-ink, var(--lane)); stroke-width: 1.3; stroke-linejoin: miter; }
+.gv-wide[data-look="fork"] .fk-node.is-fold { --lane: var(--fk-text-muted); }
+/* The casing under every line and node of the selected row: the list's own
+   colour 1px out on each side, so a lane keeps its 3:1 on the list's colour
+   on either pill. */
+.gv-wide[data-look="fork"] .fk-case .fk-e,
+.gv-wide[data-look="fork"] .fk-case .fk-fold-line,
+.gv-wide[data-look="fork"] .fk-case .fk-node.is-merge,
+.gv-wide[data-look="fork"] .fk-case .fk-node.is-chevron { stroke: var(--fk-list); stroke-width: 3.6; }
+.gv-wide[data-look="fork"] .fk-case .fk-node.is-commit { fill: var(--fk-list); }
+.gv-wide[data-look="fork"] .fk-case .fk-node.is-seen { fill: var(--fk-list); stroke: var(--fk-list); stroke-width: 2; }
+.gv-wide[data-look="fork"] .fk-case .fk-node.is-trailer { stroke: var(--fk-list); stroke-width: 3.3; }
+
+/* The subject cell: [dot] [badges] subject [↩] … [agent chip]. The subject
+   gives way first; the badges are held to half the cell, a cut edge saying
+   there is more. */
+.gv-wide[data-look="fork"] .fk-cell-subj { display: flex; align-items: center; min-width: 0; height: 22px; padding-right: 8px; overflow: hidden; }
+.gv-wide[data-look="fork"] .fk-subj { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gv-wide[data-look="fork"] .fk-cc { font-weight: 700; }
+/* However short the subject is cut, the chip keeps 8px from it. */
+.gv-wide[data-look="fork"] .fk-cell-subj > :has(+ .fk-chip) { margin-right: 8px; }
+.gv-wide[data-look="fork"] .fk-ret { flex: none; margin-left: 4px; position: relative; top: -2px; color: var(--fk-return-mark); }
+.gv-wide[data-look="fork"] .gv-graph-scroll[data-focused] .fk-row.is-sel .fk-ret { color: color-mix(in srgb, var(--fk-select-ink) 66%, transparent); }
+/* The dot before the badges: not pushed yet, or not on HEAD's history. On
+   the selected row it sits on the list's colour, as the lanes do. */
+.gv-wide[data-look="fork"] .fk-dot { flex: none; width: 5px; height: 5px; margin-right: 8px; border-radius: 50%; background: var(--fk-unpushed-dot); }
+.gv-wide[data-look="fork"] .fk-dot[data-kind="incoming"] { background: var(--fk-incoming-dot); }
+.gv-wide[data-look="fork"] .fk-row.is-sel .fk-dot { box-shadow: 0 0 0 1px var(--fk-list); }
+
+/* Ref badges, in the commit's lane colour: 18px, a 1px edge in the lane, a
+   fill mixed from it, 12px words. The fill, edge and ink are mixed here, on
+   the badge, where --lane is the row's: a token holding var(--lane) is
+   resolved where it is declared, and :root has no lane. */
+.gv-wide[data-look="fork"] .fk-refs { flex: none; display: flex; align-items: center; gap: 4px; max-width: 50%; margin-right: 4px; overflow: hidden; }
+.gv-wide[data-look="fork"] .fk-ref {
+  --fk-ref-fill: color-mix(in srgb, var(--lane) 30%, var(--fk-list));
+  --fk-ref-edge: var(--lane);
+  --fk-ref-ink: #ffffff;
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  box-sizing: border-box;
+  height: 18px;
+  max-width: 320px;
+  padding: 0 5px;
+  border: 1px solid var(--fk-ref-edge);
+  border-radius: 4px;
+  background: var(--fk-ref-fill);
+  color: var(--fk-ref-ink);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+}
+:root[data-theme="light"] .gv-wide[data-look="fork"] .fk-ref {
+  --fk-ref-fill: color-mix(in srgb, var(--lane) 16%, #ffffff);
+  --fk-ref-edge: color-mix(in srgb, var(--lane) 82%, #000000);
+  --fk-ref-ink: color-mix(in srgb, var(--lane) 28%, #141414);
+}
+.gv-wide[data-look="fork"] .fk-ref-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gv-wide[data-look="fork"] .fk-ref[data-current],
+.gv-wide[data-look="fork"] .fk-ref[data-kind="head"] { font-weight: 700; }
+.gv-wide[data-look="fork"] .fk-ref-check { flex: none; margin-right: -1px; }
+.gv-wide[data-look="fork"] .fk-ref-glyph { flex: none; }
+/* A remote-tracking branch: its cloud in a cell of its own, then its name. */
+.gv-wide[data-look="fork"] .fk-ref[data-kind="remote"] { gap: 0; padding-left: 0; }
+.gv-wide[data-look="fork"] .fk-ref-cell {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 19px;
+  margin-right: 5px;
+  border-right: 1px solid var(--fk-ref-edge);
+  border-radius: 3px 0 0 3px;
+  background: var(--fk-ref-cell);
+  color: var(--fk-ref-cell-ink);
+}
+/* A branch with its upstream on the same commit: one badge, the cloud in a
+   box of its own 2px to its left. */
+.gv-wide[data-look="fork"] .fk-ref[data-paired] { margin-left: 22px; }
+.gv-wide[data-look="fork"] .fk-ref-cloud {
+  position: absolute;
+  top: -1px;
+  left: -23px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 18px;
+  border: 1px solid var(--fk-ref-edge);
+  border-radius: 4px;
+  background: var(--fk-ref-cell);
+  color: var(--fk-ref-cell-ink);
+}
+/* The +N badge and nothing else is neutral. */
+.gv-wide[data-look="fork"] .fk-ref[data-kind="more"] {
+  border-color: var(--fk-ref-neutral-edge);
+  background: var(--fk-ref-neutral-fill);
+  color: var(--fk-ref-neutral-ink);
+  cursor: help;
+}
+
+/* The agent's name chip: a pill at the end of the subject, so it never reads
+   as a ref badge, and the author column keeps the real git author. */
+.gv-wide[data-look="fork"] .fk-chip {
+  --fk-chip-fill: rgba(255, 255, 255, 0.08);
+  --fk-chip-edge: rgba(255, 255, 255, 0.14);
+  /* In a tight row the subject gives way first; the chip only at a third of
+     its pace, never below its swatch and five letters; its title holds the
+     whole name. */
+  flex: 0 0.3 auto;
+  min-width: 64px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-sizing: border-box;
+  height: 18px;
+  max-width: 180px;
+  margin-left: auto;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--fk-chip-edge);
+  border-radius: 999px;
+  background: var(--fk-chip-fill);
+  color: var(--fk-text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 16px;
+  transition: none;
+}
+:root[data-theme="light"] .gv-wide[data-look="fork"] .fk-chip {
+  --fk-chip-fill: rgba(0, 0, 0, 0.05);
+  --fk-chip-edge: rgba(0, 0, 0, 0.14);
+}
+.gv-wide[data-look="fork"] .fk-chip:hover { border-color: var(--fk-chip-edge); background: var(--fk-chip-fill); }
+.gv-wide[data-look="fork"] .fk-chip[data-level="trailer"] { padding-left: 8px; border-style: dashed; color: var(--fk-text-2); }
+/* Another session's chip steps back — no fill, a quieter edge, the second
+   text tone — so the focused agent's own commits are the ones that read at
+   a glance. */
+.gv-wide[data-look="fork"] .fk-chip[data-quiet] { --fk-chip-fill: transparent; border-color: var(--fk-line); color: var(--fk-text-2); }
+.gv-wide[data-look="fork"] .fk-swatch { width: 7px; height: 7px; border-radius: 2px; }
+.gv-wide[data-look="fork"] .fk-chip[data-quiet] .fk-swatch { opacity: 0.5; }
+/* On a row HEAD cannot reach the chip steps back with it: the second text
+   tone, since the muted one falls under 4.5:1 on the chip's own fill. */
+.gv-wide[data-look="fork"] .fk-row[data-tone="off"]:not(.is-sel) .fk-chip { color: var(--fk-text-2); }
+.gv-wide[data-look="fork"] .fk-row[data-tone="off"]:not(.is-sel) .fk-swatch { opacity: 0.5; }
+.gv-wide[data-look="fork"] .gv-graph-scroll[data-focused] .fk-row.is-sel .fk-chip {
+  --fk-chip-fill: rgba(255, 255, 255, 0.16);
+  --fk-chip-edge: rgba(255, 255, 255, 0.35);
+  color: var(--fk-select-ink);
+}
+/* Light's accent is lighter: a fainter wash keeps the white words at 4.5:1. */
+:root[data-theme="light"] .gv-wide[data-look="fork"] .gv-graph-scroll[data-focused] .fk-row.is-sel .fk-chip { --fk-chip-fill: rgba(255, 255, 255, 0.08); }
+.gv-wide[data-look="fork"] .fk-row.is-sel .fk-chip { color: inherit; }
+
+/* Author, SHA and date: the subject's own colour, not a muted one. */
+.gv-wide[data-look="fork"] .fk-cell-author { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.gv-wide[data-look="fork"] .fk-author-name,
+.gv-wide[data-look="fork"] .fk-cell-sha,
+.gv-wide[data-look="fork"] .fk-cell-date { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* An author's initials on their colour (components/FkAvatar.tsx): 16px in a
+   row, 18px in a commit's strip, 42px on its Commit tab. */
+.fk-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: linear-gradient(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.22)), var(--fk-avatar);
+  color: #ffffff;
+  font-family: var(--fk-font);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+.fk-avatar[data-tone="0"] { --fk-avatar: var(--fk-avatar-0); }
+.fk-avatar[data-tone="1"] { --fk-avatar: var(--fk-avatar-1); }
+.fk-avatar[data-tone="2"] { --fk-avatar: var(--fk-avatar-2); }
+.fk-avatar[data-tone="3"] { --fk-avatar: var(--fk-avatar-3); }
+.fk-avatar[data-tone="4"] { --fk-avatar: var(--fk-avatar-4); }
+.fk-avatar[data-size="18"],
+.fk-avatar[data-size="42"] { background: linear-gradient(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.14)), var(--fk-avatar); }
+.fk-avatar[data-size="18"] { width: 18px; height: 18px; border-radius: 2px; font-weight: 700; }
+.fk-avatar[data-size="42"] { width: 42px; height: 42px; font-size: 16px; }
+
+/* Where commits older than the window begin. */
+.gv-wide[data-look="fork"] .fk-older {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  margin: 0 10px;
+  padding-left: var(--fk-graph-w);
+  border-top: 1px dashed var(--fk-line);
+  color: var(--fk-text-2);
+  font-size: 11px;
+}
+.gv-wide[data-look="fork"] .fk-empty { padding-left: calc(10px + var(--fk-graph-w)); color: var(--fk-text-2); font-size: 13px; line-height: 22px; }
+
+/* The new-commits pill keeps its accent edge and wash, on the look's own
+   raised surface and in its words. */
+.gv-wide[data-look="fork"] .gv-new-pill { background-color: var(--fk-raised); color: var(--fk-text); font-family: var(--fk-font); }
+
+/* The agent's hover card and its `i` card: unchanged words on the look's
+   raised surface. */
+.gv-pop[data-look="fork"],
+.gv-wide[data-look="fork"] .gv-card {
+  border-color: var(--fk-line);
+  border-radius: 8px;
+  background: var(--fk-raised);
+  font-family: var(--fk-font);
+}
+.gv-pop[data-look="fork"] .gv-pop-head,
+.gv-pop[data-look="fork"] .gv-pop-dl dd,
+.gv-pop[data-look="fork"] .gv-pop-line code,
+.gv-wide[data-look="fork"] .gv-card .gv-pop-head,
+.gv-wide[data-look="fork"] .gv-card .gv-pop-dl dd { color: var(--fk-text); }
+.gv-pop[data-look="fork"] .gv-pop-level,
+.gv-pop[data-look="fork"] .gv-pop-dl dt,
+.gv-pop[data-look="fork"] .gv-pop-line,
+.gv-pop[data-look="fork"] .gv-pop-foot,
+.gv-wide[data-look="fork"] .gv-card .gv-pop-level,
+.gv-wide[data-look="fork"] .gv-card .gv-pop-dl dt,
+.gv-wide[data-look="fork"] .gv-card .gv-pop-line,
+.gv-wide[data-look="fork"] .gv-card .gv-card-sha { color: var(--fk-text-2); }
+.gv-pop[data-look="fork"] .gv-pop-foot { border-top-color: var(--fk-line); }
+/* The look's UI face runs wider than the deck's: the card takes the room its
+   name, its level and its two actions need on one line each. */
+.gv-wide[data-look="fork"] .gv-card { width: 360px; }
+.gv-wide[data-look="fork"] .gv-card .btn.gv-card-btn { white-space: nowrap; }
+
+/* The pane's own widths. The view's pane is narrower than Fork's window, so
+   the subject keeps its room first: the date narrows, then the author keeps
+   its avatar alone, then the SHA goes, then the date (its words move to the
+   row's title). */
+@container gvhist (max-width: 999px) {
+  .gv-wide[data-look="fork"] .fk-row { grid-template-columns: var(--fk-graph-w) minmax(100px, 1fr) 157px 77px max(140px, var(--fk-date-min, 0px)); }
+}
+@container gvhist (max-width: 799px) {
+  .gv-wide[data-look="fork"] .fk-row { grid-template-columns: var(--fk-graph-w) minmax(100px, 1fr) 24px 77px max(140px, var(--fk-date-min, 0px)); }
+  .gv-wide[data-look="fork"] .fk-author-name { display: none; }
+}
+@container gvhist (max-width: 679px) {
+  .gv-wide[data-look="fork"] .fk-row { grid-template-columns: var(--fk-graph-w) minmax(100px, 1fr) 24px max(140px, var(--fk-date-min, 0px)); }
+  .gv-wide[data-look="fork"] .fk-cell-sha { display: none; }
+  .gv-wide[data-look="fork"] .fk-chip { max-width: 96px; }
+}
+@container gvhist (max-width: 479px) {
+  .gv-wide[data-look="fork"] .fk-row { grid-template-columns: var(--fk-graph-w) minmax(100px, 1fr) 24px; }
+  .gv-wide[data-look="fork"] .fk-cell-date { display: none; }
+  /* Another session's chip gives its room to the subject; the diamond in the
+     lane and the row's name still say an agent made it. */
+  .gv-wide[data-look="fork"] .fk-chip[data-quiet] { display: none; }
+  .gv-wide[data-look="fork"] .fk-refs { max-width: 40%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gv-wide[data-look="fork"] .fk-row.is-new { animation: fk-glow 150ms ease-out; }
+}
