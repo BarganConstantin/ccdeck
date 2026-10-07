@@ -1,0 +1,411 @@
+/* The git view's Fork look: the same panel and the same reads, laid out and
+   painted as Fork's own window (Fork for macOS). A sidebar column on the left
+   running the panel's full height, its panel floating 8px in; on the right
+   the 52px toolbar, a banner strip while a collision or a detached HEAD is
+   true, the history over the inspector with its tab bar, or the Local Changes
+   view in their place. Everything here lives under .gv-wide[data-look="fork"]
+   and the --fk-* tokens (tokens.css): the deck look is untouched by it. The
+   history's rows, the sidebar's tree and the inspector's tabs are painted by
+   their own sheets; this one is the frame they sit in.
+
+   Fork changes colour at once and moves nothing: no hover transitions beyond
+   the deck's 120ms colour allowance, no panel motion inside the view. */
+
+.gv-wide[data-look="fork"] {
+  border-left-color: var(--fk-line-chrome);
+  background: var(--fk-chrome);
+  color: var(--fk-text);
+  font-family: var(--fk-font);
+}
+/* The deck's ring, drawn inside: Fork's panes meet edge to edge. */
+.gv-wide[data-look="fork"] :is(.fk-tool, .fk-sidebar-toggle, .fk-close, .fk-tab, .fk-tabbar-tool):focus-visible { outline-offset: -2px; border-radius: 6px; }
+
+.fk-inner { position: relative; flex-direction: row; }
+
+/* ------------------------------------------------------------ the sidebar */
+/* Its column is the floating panel plus 8px on every side; the handle that
+   resizes it is the 8px gap on its right, invisible until focused. */
+.fk-side-col {
+  flex: none;
+  position: relative;
+  display: flex;
+  width: var(--fk-side-w, 264px);
+  padding: 8px;
+  background: var(--fk-chrome);
+}
+.fk-side-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--fk-sidebar);
+  box-shadow: inset 0 0 0 1px var(--fk-sidebar-edge), var(--fk-sidebar-shadow);
+  color: var(--fk-sidebar-text);
+  font-size: 13px;
+}
+.gv-wide[data-look="fork"] .fk-side-panel:focus-visible { outline-offset: -2px; border-radius: 16px; }
+/* Too narrow to sit beside the history (a sheet, a narrow panel): it floats
+   over the history under the toolbar, its shadow parting it from the rows. */
+.fk-side-col[data-over] {
+  position: absolute;
+  z-index: 6;
+  top: 52px;
+  bottom: 0;
+  left: 0;
+  max-width: calc(100% - 48px);
+  background: transparent;
+}
+.fk-split-side {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 7px;
+  margin-right: 0.5px;
+  cursor: col-resize;
+  touch-action: none;
+}
+/* The deck's ring, drawn inside the handle: the keyboard sees where it is. */
+.fk-split-side:focus-visible { outline-offset: -2px; border-radius: 4px; }
+
+/* -------------------------------------------------- the right-hand column */
+.fk-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--fk-list);
+  container: fk / inline-size;
+}
+
+/* ------------------------------------------------------------ the toolbar */
+.fk-toolbar {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(84px, min(316px, 34%)) minmax(0, 1fr);
+  align-items: center;
+  height: 52px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--fk-line-chrome);
+  background: var(--fk-chrome);
+}
+.fk-tb-start, .fk-tb-end { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.fk-tb-end { justify-content: flex-end; }
+/* A tool: an 18px glyph over an 11px word in a 43px column. */
+.fk-tool {
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 64px;
+  height: 43px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fk-chrome-icon);
+  font: 400 11px/13px var(--fk-font);
+  cursor: default;
+  transition: background-color 120ms ease-out;
+}
+.fk-tool:hover { background: var(--fk-tool-hover); }
+.fk-tool:active { background: var(--fk-tool-press); transition: none; }
+.fk-tool-icon { position: relative; display: inline-flex; align-items: center; height: 18px; }
+.fk-tool-label { color: var(--fk-chrome-label); white-space: nowrap; }
+.fk-tool-back { min-width: 80px; }
+.fk-tool-sep { flex: none; width: 1px; height: 18px; margin: 0 5px; background: var(--fk-tool-sep); }
+.fk-sidebar-toggle,
+.fk-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  margin: 0 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fk-chrome-icon);
+  cursor: default;
+  transition: background-color 120ms ease-out;
+}
+.fk-close { margin-right: 6px; }
+.fk-sidebar-toggle:hover, .fk-close:hover { background: var(--fk-tool-hover); }
+.fk-sidebar-toggle:active, .fk-close:active { background: var(--fk-tool-press); transition: none; }
+
+/* The agent the view is about, as a tool column that does nothing: its
+   session's swatch and name over its counts. */
+.fk-agent {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  height: 43px;
+  padding: 0 10px;
+}
+.fk-agent-line { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--fk-text); font-size: 12px; font-weight: 600; line-height: 15px; }
+.fk-agent-swatch { flex: none; width: 10px; height: 10px; border-radius: 2px; background: hsl(var(--session-hue, 200) 70% var(--session-accent-l)); }
+.fk-agent-name { min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fk-agent-counts { overflow: hidden; color: var(--fk-chrome-label); font-size: 11px; line-height: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.gv-wide[data-look="fork"] .fk-agent-x { width: 16px; height: 16px; color: var(--fk-chrome-label); }
+.gv-wide[data-look="fork"] .fk-agent-x:hover { background: var(--fk-tool-hover); color: var(--fk-text); }
+
+/* The repository box: name over branch, ahead and behind at its right. Not a
+   button: it never answers the pointer. */
+.fk-repo {
+  position: relative;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: calc(100% - 16px);
+  max-width: 300px;
+  height: 40px;
+  margin: 6px 8px;
+  padding: 0 40px;
+  border-radius: 6px;
+  background: var(--fk-field);
+  cursor: default;
+}
+.fk-repo-line { display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
+.fk-repo-name { min-width: 0; overflow: hidden; color: var(--fk-text-strong); font-size: 13px; font-weight: 700; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.fk-repo-of { flex: none; color: var(--fk-text-2); font-size: 10px; line-height: 16px; white-space: nowrap; }
+.fk-repo-branch { display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; color: var(--fk-branch-line); font-size: 12px; line-height: 15px; }
+.fk-repo-glyph { flex: none; }
+.fk-repo-branch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fk-repo-counts {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  margin-top: -8px;
+  color: var(--fk-branch-line);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  white-space: nowrap;
+}
+/* A read on its way: Fork's refresh spinner, beside the name. */
+.fk-spin {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-left: 4px;
+  border: 1.5px solid color-mix(in srgb, var(--fk-text-2) 35%, transparent);
+  border-top-color: var(--fk-text-2);
+  border-radius: 50%;
+  animation: fk-spin 800ms linear infinite;
+}
+@keyframes fk-spin { to { transform: rotate(360deg); } }
+
+/* --------------------------------------------- the banner under the toolbar */
+.fk-banner { flex: none; display: flex; flex-direction: column; }
+.gv-wide[data-look="fork"] .fk-banner :is(.gv-collide-line, .gv-quiet-line),
+.fk-banner-line {
+  min-height: 28px;
+  margin: 0;
+  padding: 0 12px;
+  gap: 8px;
+  border-bottom: 1px solid var(--fk-line);
+  background: var(--fk-banner);
+  color: var(--fk-text);
+  font-size: 12px;
+  line-height: 16px;
+}
+.fk-banner-line { display: flex; align-items: center; }
+.fk-banner-line > svg { flex: none; color: var(--fk-text-2); }
+.fk-banner-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fk-banner-line b { font-weight: 600; }
+.gv-wide[data-look="fork"] .fk-banner .gv-collide-line > svg { width: 14px; height: 14px; color: var(--err); }
+.gv-wide[data-look="fork"] .fk-banner .gv-quiet-line .gv-g-quiet { padding: 0 4px; color: var(--fk-text-2); font-size: 12px; }
+
+/* ------------------------------------- the history over the inspector */
+.fk-panes { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.fk-history {
+  flex: 0 1 var(--gv-graph-h, 35%);
+  min-height: 110px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--fk-list);
+}
+.fk-panes[data-collapsed] .fk-history { flex: 1 1 auto; }
+/* The divider is the tab bar's top edge: a 7px handle centred on it, no line
+   of its own and no hover paint; the keyboard sees the deck's ring in it. */
+.fk-split-h {
+  flex: none;
+  position: relative;
+  z-index: 2;
+  height: 7px;
+  margin: -3px 0 -4px;
+  cursor: row-resize;
+  touch-action: none;
+}
+.fk-split-h:focus-visible { outline-offset: -2px; border-radius: 4px; }
+/* While a divider is dragged the whole page keeps its cursor and selects nothing. */
+.gv-wide[data-look="fork"]:has(.is-dragging) { user-select: none; }
+.gv-wide[data-look="fork"]:has(.fk-split-h.is-dragging) { cursor: row-resize; }
+.gv-wide[data-look="fork"]:has(:is(.fk-split-side, .gv-edge).is-dragging) { cursor: col-resize; }
+
+/* The inspector: its tab bar, then the tab on show. */
+.fk-inspector { flex: 1 1 0; min-height: 160px; display: flex; flex-direction: column; min-width: 0; background: var(--fk-inspector); }
+.fk-inspector[data-collapsed] { flex: none; min-height: 0; }
+.fk-tabbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-top: 1px solid var(--fk-line);
+  border-bottom: 1px solid var(--fk-line);
+  background: var(--fk-inspector-bar);
+}
+.fk-inspector[data-collapsed] .fk-tabbar { border-bottom: 0; }
+.fk-tabs { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.fk-tab {
+  flex: none;
+  min-width: 82px;
+  height: 18px;
+  padding: 0 8px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fk-tab-ink);
+  font: 600 13px/16px var(--fk-font);
+  cursor: default;
+  transition: color 120ms ease-out;
+}
+.fk-tab:hover { color: var(--fk-text); }
+.fk-tab[aria-selected="true"] { background: var(--fk-inspector-pill); color: var(--fk-tab-ink-active); }
+.fk-tabbar-tool {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 20px;
+  margin: 0 4px 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fk-tab-ink);
+  cursor: default;
+  transition: color 120ms ease-out;
+}
+.fk-tabbar-tool:hover { color: var(--fk-text); }
+.fk-inspector-body { flex: 1; min-height: 0; display: flex; flex-direction: column; min-width: 0; }
+.fk-inspector-body[hidden] { display: none; }
+.fk-commit, .fk-changes { flex: 1; min-height: 0; display: flex; flex-direction: column; min-width: 0; }
+.fk-commit { overflow: auto; }
+
+/* --------------------------------------------- Local Changes, in their place */
+.fk-local { flex: 1; min-height: 0; display: flex; flex-direction: column; min-width: 0; background: var(--fk-inspector); }
+
+/* The deck's one-line state of a folder with no repository, in Fork's ink. */
+.gv-wide[data-look="fork"] .gv-pane-empty { color: var(--fk-text-2); }
+.gv-wide[data-look="fork"] .gv-pane-empty b { color: var(--fk-text); }
+
+/* ------------------------------------- stand-ins until their parts arrive */
+.fk-ph-side { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; }
+.fk-ph-repo { margin: 0 0 8px 19px; overflow: hidden; font-size: 13px; font-weight: 700; line-height: 22px; text-overflow: ellipsis; white-space: nowrap; }
+.fk-ph-nav {
+  height: 22px;
+  padding: 0 8px 0 24px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fk-sidebar-text);
+  font: 400 13px/22px var(--fk-font);
+  text-align: left;
+  cursor: default;
+}
+.fk-ph-nav[aria-current="true"] { background: var(--fk-sidebar-select); }
+.fk-ph-commit { padding: 12px 20px 16px; }
+.fk-ph-subject { margin: 0 0 4px; color: var(--fk-text); font-size: 16px; font-weight: 600; line-height: 21px; }
+.fk-ph-note { margin: 0; padding: 4px 0; color: var(--fk-text-2); font-size: 13px; line-height: 17px; overflow-wrap: anywhere; }
+.fk-ph-files { margin: 8px 0 0; padding: 0; list-style: none; }
+.fk-ph-files li { display: flex; }
+.fk-ph-file {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fk-text);
+  font: 400 13px/22px var(--fk-font);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+.fk-ph-file[aria-selected="true"] { background: var(--fk-select-idle); color: var(--fk-select-idle-ink); }
+.fk-ph-list:focus-within .fk-ph-file[aria-selected="true"] { background: var(--fk-select); color: var(--fk-select-ink); }
+.fk-ph-changes { flex: 1; min-height: 0; display: flex; min-width: 0; }
+.fk-ph-list { flex: 0 0 clamp(180px, 25%, 420px); overflow: auto; padding: 4px 0; border-right: 1px solid var(--fk-line); background: var(--fk-tree); }
+.fk-ph-list .fk-ph-note { padding: 8px 12px; }
+.fk-ph-diff { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--fk-diff); container: gvdiff / inline-size; }
+
+/* ------------------------------------- the deck look's way to the Fork look */
+.gv-look svg { display: block; }
+
+/* ------------------------------------- Settings › Appearance › Git view look */
+.appearance-git-look {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 10px 0 2px;
+}
+.appearance-git-looks { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--r-ctl); background: var(--ctl-fill); }
+.appearance-git-look-pick {
+  min-height: 24px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-tag);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out, transform 140ms var(--gv-ease);
+}
+.appearance-git-look-pick:hover { color: var(--text); }
+.appearance-git-look-pick:active { transform: scale(0.97); }
+.appearance-git-look-pick[aria-checked="true"] { border-color: var(--ctl-edge); background: var(--panel); color: var(--text); }
+
+/* ------------------------------------------------- the container's widths */
+@container fk (max-width: 760px) {
+  .fk-agent-counts { display: none; }
+  .fk-tool .fk-tool-label { display: none; }
+  .fk-tool { min-width: 36px; height: 36px; padding: 0 8px; }
+}
+@container fk (max-width: 520px) {
+  .fk-repo { padding: 0 8px; }
+  .fk-repo-counts, .fk-repo-of { display: none; }
+  .fk-agent-name { max-width: 96px; }
+}
+
+/* ------------------------------------------------- reduced motion */
+/* The spinner stands still as a three-quarter ring; the words beside it
+   (its status label) still say a read is on its way. */
+@media (prefers-reduced-motion: reduce) {
+  .fk-spin { animation: none; }
+  .appearance-git-look-pick:active { transform: none; }
+}
