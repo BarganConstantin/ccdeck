@@ -42,6 +42,8 @@ const BIG_CONTEXT_PATTERNS: RegExp[] = [
 // is available; these only cover first paint.
 const CODEX_CONTEXT_DEFAULTS: Array<{ match: RegExp; window: number }> = [
   { match: /^gpt[-_]6[-_]astra/i,                 window: 1_050_000 },
+  { match: /^gpt[-_]6[-_.]1[-_]sol/i,             window: 1_050_000 },
+  { match: /^gpt[-_]6[-_](?:sol|luna)/i,          window: 1_050_000 },
   { match: /^gpt[-_]5[-_.]6[-_]cyber/i,           window:   400_000 },
   { match: /^gpt[-_]5[-_.]6/i,                    window: 1_050_000 },
   { match: /^gpt[-_]5[-_.]5/i,                    window: 1_050_000 },
