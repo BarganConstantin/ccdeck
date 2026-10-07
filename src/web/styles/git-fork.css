@@ -117,6 +117,8 @@
 .fk-tool:active { background: var(--fk-tool-press); transition: none; }
 .fk-tool-icon { position: relative; display: inline-flex; align-items: center; height: 18px; }
 .fk-tool-label { color: var(--fk-chrome-label); white-space: nowrap; }
+/* The press fill takes the label under 4.5:1 in dark: the word lifts with it. */
+.fk-tool:active .fk-tool-label { color: var(--fk-text); }
 .fk-tool-back { min-width: 80px; }
 .fk-tool-sep { flex: none; width: 1px; height: 18px; margin: 0 5px; background: var(--fk-tool-sep); }
 .fk-sidebar-toggle,
@@ -139,6 +141,23 @@
 .fk-close { margin-right: 6px; }
 .fk-sidebar-toggle:hover, .fk-close:hover { background: var(--fk-tool-hover); }
 .fk-sidebar-toggle:active, .fk-close:active { background: var(--fk-tool-press); transition: none; }
+
+/* The hand-offs as two tools, Open in ▾ and Copy ▾ (GitHandoffs.tsx), each
+   with Fork's 7px chevron 4px right of its glyph; their menus on Fork's
+   raised surface. */
+.gv-wide[data-look="fork"] .gv-handoffs[data-tools] { flex-wrap: nowrap; gap: 2px; min-height: 0; }
+.fk-tool-chev { flex: none; margin-left: 4px; color: var(--fk-chrome-label); }
+.fk-tool[data-failed] .fk-tool-icon { color: var(--err); }
+.gv-wide[data-look="fork"] .gv-ho-menu {
+  border-color: var(--fk-line);
+  border-radius: 8px;
+  background: var(--fk-raised);
+  color: var(--fk-text);
+  font-family: var(--fk-font);
+}
+.gv-wide[data-look="fork"] .gv-ho-launch { grid-template-columns: 14px minmax(0, 1fr); align-items: center; }
+.gv-wide[data-look="fork"] .gv-ho-launch .gv-ho-val { font-family: var(--fk-font); font-size: 12px; }
+.gv-wide[data-look="fork"] .gv-ho-launch[aria-busy="true"] { cursor: progress; }
 
 /* The agent the view is about, as a tool column that does nothing: its
    session's swatch and name over its counts. */
@@ -170,17 +189,20 @@
   justify-content: center;
   gap: 2px;
   width: calc(100% - 16px);
+  min-width: 0;
   max-width: 300px;
   height: 40px;
+  overflow: hidden;
   margin: 6px 8px;
   padding: 0 40px;
   border-radius: 6px;
   background: var(--fk-field);
   cursor: default;
 }
-.fk-repo-line { display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
-.fk-repo-name { min-width: 0; overflow: hidden; color: var(--fk-text-strong); font-size: 13px; font-weight: 700; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
-.fk-repo-of { flex: none; color: var(--fk-text-2); font-size: 10px; line-height: 16px; white-space: nowrap; }
+.fk-repo-line { position: relative; display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
+.fk-repo-name { flex: 0 0 auto; max-width: 100%; min-width: 0; overflow: hidden; color: var(--fk-text-strong); font-size: 13px; font-weight: 700; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+/* "of main" gives way before the name does. */
+.fk-repo-of { flex: 0 100 auto; min-width: 0; overflow: hidden; color: var(--fk-text-2); font-size: 10px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .fk-repo-branch { display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; color: var(--fk-branch-line); font-size: 12px; line-height: 15px; }
 .fk-repo-glyph { flex: none; }
 .fk-repo-branch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -197,7 +219,9 @@
 }
 /* A read on its way: Fork's refresh spinner, beside the name. */
 .fk-spin {
-  flex: none;
+  position: absolute;
+  top: 2px;
+  left: 100%;
   width: 12px;
   height: 12px;
   margin-left: 4px;
@@ -227,6 +251,10 @@
 .fk-banner-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fk-banner-line b { font-weight: 600; }
 .gv-wide[data-look="fork"] .fk-banner .gv-collide-line > svg { width: 14px; height: 14px; color: var(--err); }
+/* Its way to the other agent, in Fork's link colour. */
+.gv-wide[data-look="fork"] .fk-banner .gv-link { color: var(--fk-link); }
+/* Fork's links underline under the pointer rather than taking a fill. */
+.gv-wide[data-look="fork"] .fk-banner .gv-link:hover { background: none; text-decoration: underline 2px; text-underline-offset: 2px; }
 .gv-wide[data-look="fork"] .fk-banner .gv-quiet-line .gv-g-quiet { padding: 0 4px; color: var(--fk-text-2); font-size: 12px; }
 
 /* ------------------------------------- the history over the inspector */
@@ -392,14 +420,20 @@
 
 /* ------------------------------------------------- the container's widths */
 @container fk (max-width: 760px) {
-  .fk-agent-counts { display: none; }
+  .fk-agent-counts, .fk-repo-of { display: none; }
   .fk-tool .fk-tool-label { display: none; }
   .fk-tool { min-width: 36px; height: 36px; padding: 0 8px; }
 }
+/* A phone's width: the two groups keep what they hold and the repository
+   box gives way, down to its 84px. Nothing folds into a menu: what is left
+   (back, sidebar, agent, open in, copy, look) fits at 390px. */
 @container fk (max-width: 520px) {
-  .fk-repo { padding: 0 8px; }
-  .fk-repo-counts, .fk-repo-of { display: none; }
-  .fk-agent-name { max-width: 96px; }
+  .fk-toolbar { grid-template-columns: auto minmax(84px, 1fr) auto; }
+  .fk-repo { width: calc(100% - 8px); margin: 6px 4px; padding: 0 8px; }
+  .fk-repo-counts { display: none; }
+  .fk-agent { padding: 0 6px; }
+  .fk-agent-name { max-width: 72px; }
+  .fk-tool { min-width: 32px; padding: 0 6px; }
 }
 
 /* ------------------------------------------------- reduced motion */

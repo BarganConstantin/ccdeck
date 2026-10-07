@@ -63,13 +63,16 @@ function useMiddleFit(name: string, short: string | null) {
     const el = ref.current;
     const text = el?.firstChild;
     if (!el || !text || text.nodeType !== 3) return;
+    // Measured to the fraction of a pixel: scrollWidth rounds, and a name
+    // 0.4px too wide would keep the browser's own ellipsis at its end.
+    const range = document.createRange();
+    const wide = () => { range.selectNodeContents(el); return range.getBoundingClientRect().width; };
     const fit = () => {
       text.nodeValue = name;
-      const room = el.clientWidth;
-      if (el.scrollWidth <= room + 1 || !name.length) return;
+      const room = el.getBoundingClientRect().width;
+      if (wide() <= room + 0.01 || !name.length) return;
       if (short) { text.nodeValue = short; return; }
-      const fitted = fitBranch(name, t => { text.nodeValue = t; return el.scrollWidth <= room + 1; });
-      text.nodeValue = fitted;
+      text.nodeValue = fitBranch(name, t => { text.nodeValue = t; return wide() <= room + 0.01; });
     };
     const raf = requestAnimationFrame(fit);
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
@@ -149,7 +152,8 @@ export default function FkToolbar({ headRef, sheet, onBack, sidebarShown, onTogg
         <span className="fk-repo-line">
           <b className="fk-repo-name">{repo.name}</b>
           {repo.mainName && <span className="fk-repo-of">of {repo.mainName}</span>}
-          {repo.loading && <span className="fk-spin" role="status" aria-label="Reading the repository" />}
+          {/* Beside the line, never in it: the name does not move when a read starts. */}
+          {repo.loading && <span className="fk-spin" aria-hidden="true" />}
         </span>
         <span className="fk-repo-branch" title={repo.detached ? `HEAD is detached at ${repo.shortSha}` : branchWords}>
           {repo.detached ? COMMIT : BRANCH}

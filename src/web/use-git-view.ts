@@ -39,11 +39,13 @@ export interface GitData {
   treeSeq: number;
   /** When the last read was asked for. */
   at: number;
+  /** How many of the last read's answers are still on their way. */
+  pending: number;
 }
 
 export const EMPTY_GIT_DATA: GitData = {
   state: "loading", repo: null, entries: null, counts: null, commits: null, edits: null, subagents: null, reason: null,
-  newShas: [], treeSeq: 0, at: 0,
+  newShas: [], treeSeq: 0, at: 0, pending: 0,
 };
 
 /** A read's answer, as the routes send it. */
@@ -158,13 +160,14 @@ function read(key: string, sessionId: string, agent: string | null, stale: numbe
   e.top = top;
   e.data = moved ? { ...EMPTY_GIT_DATA, at: Date.now() } : { ...e.data, at: Date.now() };
   const kinds = agent ? READS : [...READS, "repo"] as const;
+  publish(e, { ...e.data, pending: kinds.length });
   for (const kind of kinds) {
     fetch(`/api/git/${kind}?${gitQuery(sessionId, kind === "edits" ? editsAgent : agent)}`)
       .then(async r => ({ status: r.status, body: (await r.json().catch(() => ({}))) as Answer }))
       .catch(() => ({ status: 0, body: { error: "the deck did not answer" } as Answer }))
       .then(({ status, body }) => {
         if (e.generation !== generation) return;
-        publish(e, foldAnswer(e.data, kind, body, status));
+        publish(e, { ...foldAnswer(e.data, kind, body, status), pending: Math.max(0, e.data.pending - 1) });
       });
   }
 }

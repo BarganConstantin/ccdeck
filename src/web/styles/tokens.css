@@ -526,7 +526,9 @@
      are its colours, measured off Fork for macOS (dark) and its light
      screenshots, used only under .gv-wide[data-look="fork"]. Where Fork's
      own colour misses a contrast floor the deck holds, the floor-safe value
-     is the one here. */
+     is the one here: in light the lanes, the secondary text, the filter
+     placeholder, the incoming dot, the scroll thumb, the upstream-gone mark
+     and the modifier tone (git-fork-contrast.test.ts holds them). */
   /* Fork look: surfaces */
   --fk-chrome: #f5f5f5;
   --fk-list: #ffffff;
@@ -552,7 +554,7 @@
   --fk-select-idle-ink: var(--fk-text);
   --fk-tree-hover: rgba(38, 38, 38, 0.08);
   --fk-banner: #f2f2f2;
-  --fk-scroll-thumb: #9a9a9a;
+  --fk-scroll-thumb: #8f8f8f;
   --fk-scroll-thumb-hover: #7a7a7a;
   /* lines */
   --fk-line: #e1e1e1;
@@ -574,15 +576,15 @@
   --fk-sidebar-glyph-sel: #6e6e6e;
   --fk-sidebar-check: #3a3a3a;
   --fk-sidebar-count: #262626;
-  --fk-sidebar-dim: #8a8a8a;
+  --fk-sidebar-dim: #636363;
   --fk-return-mark: #7a7a7a;
   --fk-link: #0068da;
   /* accent, focus, marks */
   --fk-accent: #007aff;
   --fk-focus: #0062d6;
   --fk-unpushed-dot: #007aff;
-  --fk-incoming-dot: #999999;
-  --fk-warn: #e0a100;
+  --fk-incoming-dot: #8f8f8f;
+  --fk-warn: #946400;
   /* lanes, in the order Fork hands them out (light: darkened to hold 3:1 on white) */
   --fk-lane-0: #c96e00;
   --fk-lane-1: #a37f00;
@@ -616,7 +618,7 @@
   --fk-syn-kw: #0b4fb3;
   --fk-syn-str: #953020;
   --fk-syn-com: #4b5260;
-  --fk-syn-mod: #b3135a;
+  --fk-syn-mod: #a81255;
   /* file status, file icons, avatars */
   --fk-st-modified: #ffcc00;
   --fk-st-added: #20c537;
