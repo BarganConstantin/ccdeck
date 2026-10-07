@@ -512,6 +512,9 @@
 }
 .appearance-station-edit { display: inline-flex; gap: 6px; margin-left: auto; }
 button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
+/* Remove's second press, in the error colour for the four seconds it waits —
+   the custom sounds' Delete (.sm-custom-icon.armed), the same act. */
+button.btn.danger.appearance-station-action.armed { color: var(--bg); background: var(--err); }
 .appearance-station-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

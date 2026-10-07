@@ -180,7 +180,18 @@ describe("the station form in Settings › Music & character (#1208)", () => {
   it("reuses the swept button and field instead of a third copy of each", () => {
     expect(menu).not.toContain("appearance-station-button");
     expect(menu).toContain('<button type="submit" className="btn primary">Add</button>');
-    expect(menu).toContain('className="btn danger appearance-station-action"');
+    // Remove is the deck's danger button, and armed for its second press.
+    expect(menu).toContain('className={`btn danger appearance-station-action${removeArmed ? " armed" : ""}`}');
+    // Never one press: a removed station does not come back, link and all, so
+    // the first press arms and only a second, past the double-click gap,
+    // removes — the custom sounds' Delete, one section over.
+    const remove = menu.slice(menu.indexOf("const pressRemove = () => {"));
+    expect(remove).toContain("armedPress({");
+    expect(remove).toContain("gapMs: CONFIRM_GAP_MS");
+    expect(remove.indexOf('if (press === "arm")')).toBeGreaterThan(-1);
+    expect(remove.indexOf('if (press === "ignore") return;')).toBeLessThan(remove.indexOf("onRemoveFmStation("));
+    expect(remove.indexOf('if (press === "arm")')).toBeLessThan(remove.indexOf("onRemoveFmStation("));
+    expect(menu).toContain("onClick={pressRemove}");
     expect(menu.match(/className="ap-manage-input"/g)).toHaveLength(3);
   });
 
