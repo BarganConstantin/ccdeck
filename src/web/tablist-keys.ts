@@ -40,6 +40,15 @@ export interface TabStripKey extends ChordModifiers {
   key: string;
 }
 
+/** Which way the strip runs. A HORIZONTAL strip owns Left and Right, and
+ *  leaves Up and Down to the browser, which scrolls the dialog with them. A
+ *  VERTICAL one — the Settings nav down the side of its dialog — owns Up and
+ *  Down, the APG's keys for it, and Left and Right as well: at a phone's width
+ *  the same nav is laid out as a row, and there a reader reaches for the
+ *  horizontal arrows. Nothing scrolls sideways in that dialog for them to take
+ *  from. */
+export type TabStripOrientation = "horizontal" | "vertical";
+
 /** What a keystroke that arrived on a tab strip is for. */
 export type TabStripMove =
   /** Not the strip's key. Leave it entirely alone — no preventDefault, which
@@ -64,18 +73,21 @@ export type TabStripMove =
  * and a keyboard user who cannot get back to the first tab without Home is a
  * keyboard user who has been given a dead end.
  */
-export function tabStripMove(e: TabStripKey, current: number, count: number): TabStripMove {
+export function tabStripMove(
+  e: TabStripKey, current: number, count: number, orientation: TabStripOrientation = "horizontal",
+): TabStripMove {
   // Ctrl+Right jumps a word, Cmd+Left goes back a page, Alt+Home is the
   // browser's home. The deck stands aside for the same chords everywhere, and
   // through the same rule so there is only ever one answer to "is this the
   // browser's keystroke".
   if (count <= 0 || isBrowserChord(e)) return { kind: "pass" };
   const at = current >= 0 && current < count ? current : -1;
+  const vertical = orientation === "vertical";
+  const forward = e.key === "ArrowRight" || (vertical && e.key === "ArrowDown");
+  const back = e.key === "ArrowLeft" || (vertical && e.key === "ArrowUp");
+  if (forward) return { kind: "select", index: at === -1 ? 0 : (at + 1) % count };
+  if (back) return { kind: "select", index: at === -1 ? count - 1 : (at - 1 + count) % count };
   switch (e.key) {
-    case "ArrowRight":
-      return { kind: "select", index: at === -1 ? 0 : (at + 1) % count };
-    case "ArrowLeft":
-      return { kind: "select", index: at === -1 ? count - 1 : (at - 1 + count) % count };
     case "Home":
       return { kind: "select", index: 0 };
     case "End":
