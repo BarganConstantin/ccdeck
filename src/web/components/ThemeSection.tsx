@@ -63,7 +63,7 @@ export default function ThemeSection({ theme, onTheme }: Props) {
           <p className="settings-caption-note">Choose how the dashboard looks.</p>
         </div>
         {/* The key App already answers anywhere on the deck. Shown where the
-            choice is, the way the sound popover shows M; named to assistive
+            choice is, the way Settings › Sounds shows M; named to assistive
             tech by aria-keyshortcuts on the group rather than by a stray
             letter. */}
         <kbd className="settings-key" aria-hidden title="Press T anywhere to switch themes">T</kbd>

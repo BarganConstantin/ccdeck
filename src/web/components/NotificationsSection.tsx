@@ -4,8 +4,8 @@
 // Lifted out of the sound popover (#711), where it was the top half: that
 // popover was "how loudly does this deck interrupt me", and notifications were
 // the only channel with no off switch anywhere in the app. They have their own
-// section now, and on a machine with no Claude Code — where the speaker is not
-// drawn — Settings is still the way to them, because the gear always is.
+// section now, and Settings is the way to them on every machine, because the
+// gear is always on the bar.
 import { useRef } from "react";
 import { useFocusRescue } from "./use-focus-rescue";
 import {

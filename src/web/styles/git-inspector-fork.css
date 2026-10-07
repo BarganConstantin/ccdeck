@@ -457,7 +457,7 @@
 }
 
 /* ── the changed-file tree ──────────────────────────────────────────────── */
-.fkt { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; background: var(--fk-tree); }
+.fkt { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; background: var(--fk-tree); container: fkt / inline-size; }
 .fkt.is-empty { display: grid; place-items: center; }
 .fkt-empty { margin: 0; padding: 16px; color: var(--fk-text-2); font-size: 13px; text-align: center; }
 .fkt-scroll {
@@ -507,7 +507,15 @@
 .fkt-row.is-quiet.is-sel .fkt-name { color: inherit; }
 /* The marks give way before the name does: a subagent's name shortens to its
    swatch's side, and the file's own name keeps the room it needs. */
-.fkt-marks { flex: 0 1000 auto; display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding-left: 4px; font-size: 11px; }
+.fkt-marks { flex: 0 1000 auto; display: inline-flex; align-items: center; gap: 6px; min-width: 11px; margin-left: auto; padding-left: 4px; font-size: 11px; }
+/* Its floor is the swatch, and the clash mark beside it when there is one:
+   the subagent's name is what shortens, never the marks that say who. */
+.fkt-marks:has(.fkt-clash) { min-width: 29px; }
+/* A tree under 320px keeps the file's name and lets the subagent's go: its
+   swatch stays, and the row's title still says who edited it. */
+@container fkt (max-width: 320px) {
+  .fkt-agent-name { display: none; }
+}
 .fkt-agent { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 120px; overflow: hidden; }
 .fkt-swatch { flex: none; width: 7px; height: 7px; border-radius: 2px; background: hsl(var(--session-hue, 200) 70% var(--session-accent-l)); }
 .fkt-agent-name { overflow: hidden; text-overflow: ellipsis; }

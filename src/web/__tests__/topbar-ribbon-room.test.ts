@@ -2,7 +2,7 @@
 //
 // Under 480px the ribbon naming the selected agent leaves the bar, and History,
 // Browser watch and Feedback fold into the ⋯ (topbar-phone-width.test.ts). At
-// 481 all nine controls are back, and so was the ribbon, at its floor — a
+// 481 all nine controls were back (eight since the speaker left the bar), and so was the ribbon, at its floor — a
 // state, a name ellipsed to nothing and its × — with no room for it: the
 // readout gives first, so the waiting pill lost up to 5px of its left edge
 // from 481 to 499, and with a running agent's cost in the ribbon up to 15px,
@@ -41,7 +41,7 @@ const RUNS: { run: El; controls: El[][] }[] = [
   { run, controls: [[button()], [button()], [button("tb-fold")]] },
   { run, controls: [[button()], [button()], [button("bw-btn", "tb-fold")]] },
   { run: utility, controls: [
-    [el("div", ["sound-slot"]), button()], [button()],                                    // Sound, Settings
+    [button()],                                                                          // Settings
     [button("tb-fold")], [button("tb-more")],
   ] },
 ];

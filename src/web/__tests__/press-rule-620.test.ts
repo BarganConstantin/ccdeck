@@ -270,21 +270,11 @@ describe("no control in the client disables itself on press (#620)", () => {
 
 /** file, what to look for, and how far past it the spread may be. */
 const SITES: Array<[name: string, rel: string, anchor: RegExp, spread: RegExp]> = [
-  // #704 took the request out from under this one: the toggle writes a
-  // localStorage flag, so there is no in-flight state and nothing to be busy
-  // for. It keeps its place in this list rather than leaving it, because the
-  // rule is about what the control does to itself under a press and the answer
-  // has to stay "nothing" — a future handler that reintroduces a request must
-  // not reintroduce `disabled={...}` with it.
-  // #711 turned this from a toggle into a disclosure — the click opens the
-  // sound menu — and that makes the rule matter MORE here, not less. A
-  // disclosure that disabled itself under its own press would drop focus off
-  // the very control the popover's Escape is supposed to hand focus back to, so
-  // the user would land on `<body>` with the menu gone. The anchor moves with
-  // the handler; the two attributes it must carry do not.
-  ["the topbar sound-menu button", "components/TopbarRuns.tsx",
-    /onClick=\{\(\) => setSoundMenuOpen\(o => !o\)\}/,
-    /\{\.\.\.selfPressProps\(false\)\}/],
+  // The topbar speaker was the first of the nine — a toggle until #704, then
+  // the disclosure that opened the sound menu (#711), for which the rule
+  // mattered more: Escape hands focus back to the opener. It left the bar
+  // (2026-10-07), so it leaves this list; the sweep above still holds every
+  // control the deck draws, Settings › Sounds' switch included.
   ["the version banner's Restart now", "components/VersionBanner.tsx",
     /onClick=\{\(\) => askRestart\(\)\}/,
     /\{\.\.\.selfPressProps\(restarting\)\}/],
@@ -312,8 +302,8 @@ const SITES: Array<[name: string, rel: string, anchor: RegExp, spread: RegExp]> 
 ];
 
 describe("each of the nine, by name", () => {
-  it("is nine sites and no fewer", () => {
-    expect(SITES.length).toBe(9);
+  it("is eight sites and no fewer, since the topbar speaker left with its button", () => {
+    expect(SITES.length).toBe(8);
   });
 
   for (const [name, rel, anchor, spread] of SITES) {

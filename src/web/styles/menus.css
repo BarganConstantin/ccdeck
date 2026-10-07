@@ -1,52 +1,3 @@
-/* ---------------- the sound menu (#711) ---------------- */
-
-/* The deck's first popover, and the only thing in the topbar that hangs
-   something off a button. The slot is what gives the menu something to be
-   absolute against; it adds no box and no gap of its own, so the run's 8px
-   rhythm is unchanged and the button sits exactly where it always did. */
-.sound-slot { position: relative; display: flex; }
-
-/* Right-aligned to the button rather than centred on it, because this button is
-   near the right edge of a bar it can never overhang. 268px is the width the
-   longest row needs — a label, a range that can still be dragged, and a reading
-   wide enough for "100%" — and it is a fixed number rather than a min/max
-   because a popover that resizes as its own values change would move under the
-   pointer that is changing them.
-   z-index 40 sits above the canvas and its controls (the highest of those is
-   20) and below every dialog and its scrim (100), which is the honest order: a
-   modal opening over this must cover it, and it must cover the canvas.
-   Surface, edge and shadow are .modal's, one tier softer — 10px and --shadow-2
-   rather than 12px and the accent hairline — because a popover is attached to
-   something and a dialog is not. */
-.sound-menu {
-  position: absolute;
-  /* popIn's scale grows out of the corner the speaker is at, not the middle. */
-  transform-origin: top right;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 40;
-  width: 268px;
-  /* Custom sounds (#1207) made the menu taller than a short window, and a
-     popover whose bottom is off-screen has controls no one can reach. It
-     scrolls rather than widening: 268px is the width the comment above
-     defends, and the appearance menu beside it keeps. */
-  max-height: calc(100vh - 76px);
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  /* Two layers rather than one. The tight, nearly opaque first line is what a
-     surface sitting ON something reads as; the wide soft second is the height
-     it sits at. One 24px blur alone had to be dark enough to do both jobs and
-     ended up reading as a drop shadow on a sticker. They are --shadow-3. */
-  box-shadow: var(--shadow-3);
-  animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
-  text-align: left;
-}
 /* ---------------- Settings ---------------- */
 
 /* THE ONE SETTINGS SURFACE (SettingsModal.tsx): `.modal`'s shell, a nav down
@@ -172,8 +123,8 @@
   font-size: 11px;
   line-height: 16px;
 }
-/* The sound popover's key cap (.sm-key-note kbd), in the caption's right-hand
-   slot where the panels put a caption's one piece of metadata. */
+/* A key cap in the caption's right-hand slot, where the panels put a
+   caption's one piece of metadata — the shape .sm-key-note kbd draws inline. */
 .settings-key {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -744,7 +695,7 @@ button.btn.sm-channel-action {
    one primary action wears — and counting the selects there are four of those
    in a 268px card. A faint fill plus the quieter edge says pressable at a
    fraction of the ink.
-   Written at `button.btn.sm-hear` and not scoped under `.sound-menu`, which
+   Written at `button.btn.sm-hear` and not scoped under `.settings-modal`, which
    would be one specificity step higher and would therefore beat
    `button.btn:hover`'s accent border — leaving a control that got quieter under
    the pointer. Same weight, declared earlier, so hover still wins. */
@@ -820,7 +771,7 @@ button.btn.sm-hear {
    INPUT rather than on the thumb, so it survives `appearance: none` where a
    UA thumb ring would not.
    What `appearance: none` does cost is `accent-color`, and with it the filled
-   half — so the fill is painted here from `--sm-level`, which SoundMenu.tsx
+   half — so the fill is painted here from `--sm-level`, which VolumeRow.tsx
    sets on the same render that sets `value`. Behind `@supports` on the
    pseudo-element itself: a browser that does not style the track keeps the
    native widget and `accent-color`, rather than being handed a bare bar with
@@ -883,11 +834,10 @@ button.btn.sm-hear {
    `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
    so both declarations were dead and its comment described a span that has
    never been drawn that way. Reading either rule alone gave the wrong answer
-   about what ships. Descendant-scoped on purpose, to the two surfaces that
-   draw it: the sound popover (SoundMenu.tsx) and Settings, whose Sounds and
-   Music sections both carry volume rows — the same reading in the same shape,
-   so the same rule. */
-.sound-menu .sm-read,
+   about what ships. Descendant-scoped on purpose, to the surface that draws
+   it: Settings, whose Sounds and Music sections both carry volume rows — the
+   same reading in the same shape, so the same rule. The speaker's popover drew
+   it too until it left the topbar (2026-10-07). */
 .settings-modal .sm-read {
   min-width: 34px;
   text-align: right;
@@ -1042,12 +992,13 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .sm-custom-error { margin: 0; color: var(--err); font-size: 11px; line-height: 1.4; }
 
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no
-   Notification — said next to the control it applies to rather than only in a
-   tooltip on the button that opened this. */
+   Notification — said next to the control it applies to, which since the
+   topbar speaker and its tooltip went (2026-10-07) is the only place it is
+   said. */
 .sm-note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text-dim); }
-/* The key, kept visible under the switch it flips (SoundSwitch.tsx): the
-   topbar button stopped toggling when it started opening the popover, so the
-   sentence that says where the toggle went belongs where the user is looking.
+/* The key, kept visible under the switch it flips (SoundSwitch.tsx): M is the
+   one-press route to silence from anywhere, and the sentence that says so
+   belongs where the user is looking.
    An `.sm-note` — the quietest readable tier, --text-dim (#1788) — with the
    cap drawn in it. */
 /* The shortcuts sheet's cap, without the 38px column width that sheet's grid
@@ -1064,20 +1015,4 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
   padding: 1px 5px;
   margin-right: 7px;
 }
-/* THE QUICK POPOVER'S TWO VOLUMES (SoundMenu.tsx), under a rule like the one
-   that used to open the tone groups. Each row says which tone it sets, on a
-   line of its own over the slider: at 268px a "Claude is asking" beside the
-   track would leave the track too short to drag. */
-.sm-levels {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-.sm-levels .sm-row { flex-wrap: wrap; row-gap: 4px; }
-.sm-levels .sm-row label { flex-basis: 100%; }
-/* The way to the rest, as wide as the popover so it reads as its last line
-   rather than one more control competing with the switch. */
-button.btn.sm-all-settings { justify-content: center; font-size: 12px; }
 

@@ -59,10 +59,10 @@ export interface DeckShortcuts {
   setUsagePanelOpen: Toggle;
   setMachinePanelOpen: Toggle;
   setBrowserWatchOpen: Toggle;
-  setSoundMenuOpen: Toggle;
   setKeyHelpOpen: Toggle;
   setTheme: Dispatch<SetStateAction<Theme>>;
-  /** The door into Settings that the gear and the sound popover use too. */
+  /** The door into Settings that the gear uses too: Cmd/Ctrl+, opens it where
+   *  it was left, V at Sounds. */
   openSettings: (section?: SettingsSection) => void;
   // ── the git view ──
   /** Whether the git view is open (components/GitView.tsx). */
@@ -78,7 +78,7 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme, openSettings,
+  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
   gitViewOpenRef, toggleGitView, closeGitView,
 }: DeckShortcuts): void {
   // keyboard shortcuts
@@ -138,8 +138,7 @@ export function useDeckShortcuts({
       // the two gates every key here answers to: a field somebody is typing
       // in keeps its keystrokes, and nothing opens behind a dialog that covers
       // the canvas — Settings over a clear prompt would be two things waiting
-      // on one Escape. A popover covers nothing, so the sound popover gives
-      // way to it instead (openSettings closes it).
+      // on one Escape.
       if (e.key === "," && isSettingsChord(e)) {
         if (isTypingTarget(target)) return;
         if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
@@ -322,14 +321,17 @@ export function useDeckShortcuts({
         if (soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
       }
       // #826: the three topbar panels that were pointer-only. S for this
-      // machine (the system's readings), B for Browser Watch, V for the
-      // speaker's quick popover — the switch and the two volumes. V is guarded
-      // the way the speaker is drawn: only where Claude Code is.
+      // machine (the system's readings), B for Browser Watch, and V, which
+      // opened the speaker's quick popover until the speaker left the topbar
+      // (2026-10-07). V opens Settings at Sounds now — the switch, each
+      // tone's volume and sound, the custom sounds — through the gear's own
+      // door, and held to every gate above: not while typing, not behind a
+      // dialog, once per press. Not to Claude Code any more, for M's reason:
+      // the section is in Settings on every machine, and a Codex turn plays
+      // the finish tone too.
       if (e.key === "s" || e.key === "S") setMachinePanelOpen(o => !o);
       if (e.key === "b" || e.key === "B") setBrowserWatchOpen(o => !o);
-      if (e.key === "v" || e.key === "V") {
-        if (providersRef.current.claude && soundOnRef.current !== null) setSoundMenuOpen(o => !o);
-      }
+      if (e.key === "v" || e.key === "V") openSettings("sounds");
       // The way in that does not depend on already knowing the way in. `?` is
       // the convention, it was unbound, and it is the one key on this list that
       // a user who knows nothing about the deck might still try. Everything it

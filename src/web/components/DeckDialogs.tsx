@@ -146,8 +146,8 @@ export default function DeckDialogs({
         />
       )}
       {/* Settings, the last of the dialogs the reader opens: opened by the
-          topbar's gear, by Cmd/Ctrl+, and by the sound popover's "All sound
-          settings…" — use-settings-menus.ts. Here rather than beside the gear,
+          topbar's gear, by Cmd/Ctrl+, and by V at Sounds —
+          use-settings-menus.ts. Here rather than beside the gear,
           so it is mounted from the top of the tree like every dialog App
           opens, and ahead of everything that arrives on its own, which may
           paint over it. */}

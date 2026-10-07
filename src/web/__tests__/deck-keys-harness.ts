@@ -90,7 +90,6 @@ export function mountDeckKeys({ claude = true }: DeckKeysOptions = {}) {
     setUsagePanelOpen: usage.set,
     setMachinePanelOpen: vi.fn(),
     setBrowserWatchOpen: vi.fn(),
-    setSoundMenuOpen: vi.fn(),
     setKeyHelpOpen: keyHelp.set,
     setTheme: theme.set,
     gitViewOpenRef: { get current() { return gitView.value; } },

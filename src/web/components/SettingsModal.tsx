@@ -2,9 +2,10 @@
 //
 // The preferences used to live in two places of two different shapes — a
 // popover under the speaker and a modal under a sliders button — and on a
-// machine with no Claude Code the speaker is not drawn, so the notification
+// machine with no Claude Code the speaker was not drawn, so the notification
 // switches inside its popover could not be reached at all. This is the one
-// home familiar apps give them: a gear that is always on the bar, Cmd/Ctrl+,
+// home familiar apps give them, and since the speaker left the topbar
+// (2026-10-07) the only one: a gear that is always on the bar, Cmd/Ctrl+,
 // from anywhere, a nav down the side, and every control applying the moment it
 // moves, with nothing to save.
 //

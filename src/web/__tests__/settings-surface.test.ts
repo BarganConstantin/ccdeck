@@ -1,7 +1,7 @@
 // The deck's one Settings surface: the dialog behind the gear, the section a
-// door opens it at, the nav's arrow keys, the sound popover's way into it, a
-// Codex-only machine's way to its notifications — and that moving every
-// control into it reset nobody's settings. The chord that opens it is
+// door opens it at, the nav's arrow keys, V's way into Sounds, a Codex-only
+// machine's way to its notifications — and that moving every control into it
+// reset nobody's settings. The chord that opens it is
 // settings-chord.test.ts's, which drives the deck's keydown handler.
 //
 // No DOM in this suite, so the markup is drawn with renderToStaticMarkup and
@@ -13,8 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { focusedTabToFollow, openedAt, sectionIndex, SETTINGS_CLOSED, SETTINGS_SECTIONS, type SettingsSection } from "../settings";
 import { tabStripMove } from "../tablist-keys";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
-import SoundMenu from "../components/SoundMenu";
-import { SettingsRun, SpeakerGlyph } from "../components/TopbarRuns";
+import { SettingsRun } from "../components/TopbarRuns";
 import SettingsSectionGlyph from "../components/SettingsSectionGlyph";
 import { CODEX_ONLY_SOUNDS_NOTE } from "../components/SoundsSection";
 import { DEFAULT_PREFS, FIGURE_KEYS, LEVEL_KEYS } from "../sound";
@@ -117,10 +116,15 @@ describe("a door into Settings opens it at the section it names", () => {
     expect(sourceOf("components/SettingsModal.tsx")).toMatch(/useModalDismiss\(onClose, \{ focusRef: selectedTabRef \}\)/);
   });
 
-  it("is opened at Sounds by the sound popover, and by nothing else in particular", () => {
-    const runs = (sourceOf("components/TopbarRuns.tsx"));
-    expect(runs).toContain('onAllSettings={() => openSettings("sounds")}');
-    expect(runs).toContain("onClick={() => openSettings()}");
+  it("is opened at Sounds by V, and by nothing else in particular", () => {
+    // The sound popover's "All sound settings…" was the door that named Sounds
+    // until the popover left with the topbar speaker (2026-10-07); V, which
+    // opened the popover, names it now. The gear and the chord name nothing.
+    const keys = sourceOf("use-deck-shortcuts.ts");
+    expect(keys).toContain('if (e.key === "v" || e.key === "V") openSettings("sounds");');
+    expect(keys).toContain("if (!e.repeat) openSettings();");
+    expect(sourceOf("components/TopbarRuns.tsx")).toContain("onClick={() => openSettings()}");
+    expect(sourceOf("components/TopbarRuns.tsx")).not.toContain("onAllSettings");
   });
 });
 
@@ -164,9 +168,15 @@ describe("each section in the nav carries its glyph", () => {
     }
   });
 
-  it("gives Sounds the topbar's own speaker and General the sliders, never the gear", () => {
-    expect(glyphOf("sounds")).toBe(renderToStaticMarkup(createElement(SpeakerGlyph, { on: true })));
-    expect(sourceOf("components/TopbarRuns.tsx")).toContain("<SpeakerGlyph on={soundOn} />");
+  it("gives Sounds the speaker and General the sliders, never the gear", () => {
+    // The speaker the topbar's sound button wore — a cone and two waves, the
+    // drawing for sound on — kept here alone since that button left the bar.
+    const sounds = glyphOf("sounds");
+    expect(sounds).toContain('d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z"');
+    expect(sounds).toContain('d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2"');
+    expect(sounds).toContain('d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2"');
+    expect(sounds.match(/<path\b/g)).toHaveLength(3);
+    expect(sourceOf("components/TopbarRuns.tsx")).not.toMatch(/SpeakerGlyph|M3\.2 5\.2h2/);
     const general = glyphOf("general");
     expect(general).toContain('d="M1.5 3h4.3M9.2 3h3.3M1.5 7h1.3M6.2 7h6.3M1.5 11h6.3M11.2 11h1.3"');
     expect(general.match(/<circle\b/g)).toHaveLength(3);
@@ -241,33 +251,34 @@ describe("the arrow keys walk the nav", () => {
   });
 });
 
-// ── the sound popover ───────────────────────────────────────────────────────
+// ── what the popover held ───────────────────────────────────────────────────
 
-describe("the sound popover keeps the quick things and links to the rest", () => {
-  const draw = () => renderToStaticMarkup(createElement(SoundMenu, {
-    onClose: noop, soundOn: true, onToggleSound: noop, prefs: DEFAULT_PREFS, onLevel: noop,
-    onAllSettings: noop, openerRef: { current: null },
-  }));
+describe("Settings › Sounds holds everything the topbar's sound popover did", () => {
+  // The popover held the switch, a volume for each tone named for its tone,
+  // and a link here; it went with the topbar speaker (2026-10-07), so the
+  // guarantee it carried — those controls one door away — is pinned where
+  // they are now.
+  const html = drawSettings({ section: "sounds" });
 
-  it("holds the switch, a volume for each tone named for its tone, and the way to all of it", () => {
-    const html = draw();
+  it("draws the switch, with M named under it, and a volume for each tone under the tone's name", () => {
     expect(html.match(/role="switch"/g)).toHaveLength(1);
+    expect(html).toMatch(/role="switch" aria-checked="true"/);
+    expect(html).toMatch(/<kbd>M<\/kbd>Mute or unmute sounds anywhere\./);
     expect(html.match(/type="range"/g)).toHaveLength(2);
-    expect(html).toMatch(/<label for="sm-quick-level-done">Turn finished<\/label>/);
-    expect(html).toMatch(/<label for="sm-quick-level-needs-input">Claude is asking<\/label>/);
-    expect(html).toMatch(/<button type="button" class="btn sm-all-settings">All sound settings…<\/button>/);
+    expect(html).toMatch(/id="sm-level-done"/);
+    expect(html).toMatch(/id="sm-level-needs-input"/);
+    expect(html).toMatch(/>Turn finished</);
+    expect(html).toMatch(/>Claude is asking</);
   });
 
-  it("no longer carries what moved to Settings", () => {
-    const html = draw();
-    for (const gone of ["Notifications while closed", "Account auto-switched", "Custom sounds", "Hear it", ">Tone<", "Spoken voice"]) {
-      expect(html, gone).not.toContain(gone);
-    }
-  });
-
-  it("sends the link through the one door into Settings, which closes the popover", () => {
-    expect((sourceOf("components/SoundMenu.tsx"))).toContain("onClick={onAllSettings}");
-    expect(sourceOf("components/TopbarRuns.tsx")).toContain('onAllSettings={() => openSettings("sounds")}');
+  it("draws the switch off when the deck is silenced, with nothing below it dimmed or disabled", () => {
+    const off = drawSettings({
+      section: "sounds",
+      sound: { soundOn: false, toggleSound: noop, activateSoundRef: { current: noop }, soundOnRef: { current: false } },
+    } as unknown as Partial<SettingsModalProps>);
+    expect(off).toMatch(/role="switch" aria-checked="false"/);
+    expect(off.match(/type="range"/g)).toHaveLength(2);
+    expect(off).not.toMatch(/type="range"[^>]*disabled/);
   });
 });
 
@@ -294,17 +305,15 @@ describe("Import audio is a button like the deck's others", () => {
 describe("a Codex-only machine reaches every setting", () => {
   const codexOnly = { kind: "reported" as const, claude: false, codex: true };
 
-  it("draws the gear where the speaker is not drawn", () => {
+  it("draws the gear, and no speaker, whatever the machine runs", () => {
+    // The run takes no providers since the speaker left it: the gear is the
+    // way to every setting on every machine.
     const html = renderToStaticMarkup(createElement(SettingsRun, {
-      providers: codexOnly,
-      sound: { soundOn: true, toggleSound: noop },
-      tones: { tonePrefs: DEFAULT_PREFS, changeTone: noop },
-      chimeState: "ready",
-      menus: { soundMenuOpen: false, setSoundMenuOpen: noop, soundButtonRef: { current: null }, openSettings: noop },
-      onFeedback: noop, watchUnseen: 0, setUsageHistoryOpen: noop, setBrowserWatchOpen: noop,
-    } as unknown as Parameters<typeof SettingsRun>[0]));
+      openSettings: noop, onFeedback: noop, watchUnseen: 0, setUsageHistoryOpen: noop, setBrowserWatchOpen: noop,
+    }));
     expect(html).toMatch(/aria-label="Settings"/);
     expect(html).not.toMatch(/aria-label="Sound settings/);
+    expect(html).not.toMatch(/M3\.2 5\.2h2/);
   });
 
   it("reaches the notification switches through Settings", () => {
@@ -415,7 +424,7 @@ describe("moving every control into Settings resets no setting", () => {
     for (const rel of [
       "settings.ts", "use-settings-menus.ts", "components/SettingsModal.tsx", "components/ThemeSection.tsx",
       "components/NotificationsSection.tsx", "components/SoundsSection.tsx", "components/SoundSwitch.tsx",
-      "components/MusicSection.tsx", "components/SoundMenu.tsx", "components/GitSection.tsx",
+      "components/MusicSection.tsx", "components/GitSection.tsx",
       "components/GitHandoffPicks.tsx",
     ]) {
       const src = sourceOf(rel);

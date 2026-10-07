@@ -170,15 +170,15 @@ function Inner() {
   const customTones = useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewTone });
   const { customSelectionsRef, fallbackCustomRef } = customTones;
 
-  // The speaker's quick popover and the Settings dialog, and the door into
-  // Settings every way in shares — use-settings-menus.ts.
+  // The Settings dialog, and the door into it every way in shares —
+  // use-settings-menus.ts.
   const menus = useSettingsMenus();
-  const { setSoundMenuOpen, openSettings } = menus;
+  const { openSettings } = menus;
 
   // The player behind the deck's own two tones, built once on mount and woken by
   // the first gesture anywhere — use-chime-player.ts. It reads every setting
   // through a ref at play time, so it never has to be rebuilt.
-  const { chimeState } = useChimePlayer({ chimesRef, soundOnRef, tonePrefsRef, customSelectionsRef, fallbackCustomRef });
+  useChimePlayer({ chimesRef, soundOnRef, tonePrefsRef, customSelectionsRef, fallbackCustomRef });
 
   // ── version drift ─────────────────────────────────────────────────────────
   // The stream of hook events from the server, and what it says about the
@@ -574,7 +574,7 @@ function Inner() {
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-    setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme, openSettings,
+    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
     gitViewOpenRef: { get current() { return gitViewRequest().open; } }, toggleGitView, closeGitView,
   });
 
@@ -679,8 +679,8 @@ function Inner() {
               The first two runs open things: your sessions and what they
               spend (Session list, Usage and its History), then who spends it,
               on what, and what it watched (Accounts, Machine, Browser watch).
-              The third changes how the deck behaves: the speaker's quick
-              popover, and the gear that opens Settings.
+              The third is the utilities: the gear that opens Settings, and
+              Feedback.
               Re-layout, Clear and now Pause are gone from here entirely. All
               three are canvas verbs and they are on the canvas, in the React
               Flow control stack beside Recenter — the same place `F` already
@@ -705,11 +705,10 @@ function Inner() {
             watchOn={watchOn} watchUnseen={watchUnseen} setBrowserWatchOpen={setBrowserWatchOpen}
             toggles={panelReturn.toggles}
           />
-          {/* The speaker's quick popover and the gear that opens Settings —
+          {/* The gear that opens Settings, and Feedback —
               components/TopbarRuns.tsx. */}
           <SettingsRun
-            providers={providers} sound={sound} tones={tones}
-            chimeState={chimeState} menus={menus}
+            openSettings={openSettings}
             onFeedback={() => dialogs.openFeedback()}
             watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen} setBrowserWatchOpen={setBrowserWatchOpen}
           />

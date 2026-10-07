@@ -416,14 +416,22 @@
 .appearance-git-look-pick[aria-checked="true"] { border-color: var(--ctl-edge); background: var(--panel); color: var(--text); }
 
 /* ------------------------------------------------- the container's widths */
-/* The tools' words go where the end of the toolbar is too narrow for them
-   beside the close (264px of it); the box's quieter words a little later. */
-@container fk (max-width: 840px) {
-  .fk-tool .fk-tool-label { display: none; }
-  .fk-tool { min-width: 36px; height: 36px; padding: 0 8px; }
+/* Under 900px the repository box gives way first, so the tools keep their
+   words beside the close as long as they can: the box stays centred, so each
+   side column must hold the end group's 264px, and the box takes what is left
+   between them (its quieter words go at 760px). The tools' words go at 700px,
+   and the box has its third of the bar back. */
+@container fk (max-width: 900px) {
+  .fk-toolbar { grid-template-columns: minmax(0, 1fr) minmax(84px, min(240px, calc(100% - 536px))) minmax(0, 1fr); }
+  .fk-repo { padding: 0 24px; }
 }
 @container fk (max-width: 760px) {
   .fk-agent-counts, .fk-repo-of { display: none; }
+}
+@container fk (max-width: 700px) {
+  .fk-tool .fk-tool-label { display: none; }
+  .fk-tool { min-width: 36px; height: 36px; padding: 0 8px; }
+  .fk-toolbar { grid-template-columns: minmax(0, 1fr) minmax(84px, min(316px, 34%)) minmax(0, 1fr); }
 }
 /* A phone's width: the two groups keep what they hold and the repository
    box gives way, down to its 84px. Nothing folds into a menu: what is left

@@ -1,17 +1,16 @@
 // Settings › Sounds: the switch, the two tones and everything each can be set
 // to, and the custom sounds either can play.
 //
-// The sound popover's bottom half until Settings existed (#711). The popover
-// keeps the switch and the two volumes, the things pressed often; this is the
-// whole of it, and the popover's "All sound settings…" opens it here.
+// The sound popover's bottom half until Settings existed (#711), and the whole
+// of it since the popover left the topbar with its speaker (2026-10-07): the
+// gear opens it, and V opens Settings straight at this section.
 import { CHIME_ORDER, type TonePrefs } from "../sound";
 import { sameCustomSelection } from "../notification-audio";
 import CustomSoundsSection, { type CustomSoundsProps } from "./CustomSoundsSection";
 import SoundSwitch from "./SoundSwitch";
 import ToneSection, { type SharedToneProps } from "./ToneSection";
 
-/** Said at the top of the section on a machine with no Claude Code, where the
- *  speaker is not drawn and Settings is the only way here. True to what the
+/** Said at the top of the section on a machine with no Claude Code. True to what the
  *  deck does rather than to what the section's names suggest: a Codex rollout
  *  ends its turn with a Stop like Claude Code's, so the finish tone plays for
  *  it, and Codex has no Notification, so the asking tone never does. */

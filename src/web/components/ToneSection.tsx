@@ -6,7 +6,7 @@
 // tones, and drawn by SoundsSection.tsx since Settings. The section hands each
 // group its tone, what the tone is set to and the callbacks that change it; the
 // group owns the two lines of copy that say which tone it is. Its volume is
-// VolumeRow.tsx, which the quick sound popover and Claude FM draw too.
+// VolumeRow.tsx, which Claude FM draws too.
 import { FIGURE_SETS, type Chime, type ToneSettings } from "../sound";
 import { type CustomAssetSummary, type CustomSelections } from "../notification-audio";
 import { customIdOf, customOptionValue } from "../tone-option";

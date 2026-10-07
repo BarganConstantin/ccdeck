@@ -46,11 +46,12 @@ const WORDS: Array<[word: string, name: RegExp]> = [
   ["Accounts", /aria-label="Toggle accounts panel"/],
   ["Machine", /aria-label="Toggle machine detail"/],
   ["Browser watch", /aria-label=\{`Browser watch, /],
-  ["Sound", /aria-label=\{`Sound settings, /],
 ];
 
 describe("each topbar button can say its name (#836)", () => {
-  it("gives seven a word, inside the accessible name they already have", () => {
+  it("gives six a word, inside the accessible name they already have", () => {
+    // Seven until the speaker left the bar (2026-10-07), its "Sound" with it.
+    expect(app).not.toMatch(/className="tb-word">Sound</);
     for (const [word, name] of WORDS) {
       const button = buttonOf(word);
       expect(button, word).toMatch(/className=\{?[`"]btn icon-btn/);
@@ -62,7 +63,7 @@ describe("each topbar button can say its name (#836)", () => {
     expect(app.match(/className="tb-word"/g)).toHaveLength(WORDS.length);
   });
 
-  it("gives the gear its word only from the width the busiest bar holds it, not with these seven", () => {
+  it("gives the gear its word only from the width the busiest bar holds it, not with these six", () => {
     // The Appearance button stood here glyph-only; the gear that replaced it
     // says "Settings", but on its own later tier (`tb-word-wider`), measured
     // below, rather than from 1440 with the seven: at 1440 the busiest bar has
@@ -116,7 +117,12 @@ describe("each topbar button can say its name (#836)", () => {
 // word is 62 of it: the button is 92px with the word and a 30px square
 // without. The 40px of headroom is #737's, for faces wider than the one
 // measured.
-const BUSIEST_BAR_PX = 1302;
+// The speaker left the controls on 2026-10-07. Measured in Chromium on a demo
+// deck at 1440 before and after, the controls came down from 735.3px to
+// 658.1px — the speaker's button with its word, 73.1, and the 4px gap after
+// it — so the bar is 77px narrower, everything else in it unchanged.
+const SOUND_BUTTON_PX = 77;
+const BUSIEST_BAR_PX = 1302 - SOUND_BUTTON_PX;
 const FEEDBACK_WORD_PX = 62;
 const HEADROOM_PX = 40;
 
@@ -163,7 +169,7 @@ describe("Feedback says its word only where the busiest bar still fits", () => {
   });
 
   it("rests, without its word, at the tone the labelled controls rest at, never a fainter one", () => {
-    // The glyph alone could not be found beside the words. Under 1784 it is
+    // The glyph alone could not be found beside the words. Under 1707 it is
     // the glyph alone again, so what it may not do is sink below them: it is
     // the toolbar's own button, drawn by the rule that draws the seven, and
     // nothing in the sheet quietens it.
@@ -244,15 +250,15 @@ describe("the toolbar is quiet: no chrome at rest, a neutral pressed look when o
     expect(body("button.btn:hover")).not.toMatch(/--accent/);
   });
 
-  it("draws an open panel, and Sound with its menu out, as pressed: fill, edge, foreground", () => {
+  it("draws an open panel as pressed: fill, edge, foreground", () => {
     const open = body('.topbar button.btn.icon-btn[aria-expanded="true"]');
     expect(open).toMatch(/border-color: var\(--ctl-edge\);/);
     expect(open).toMatch(/background: var\(--ctl-fill\);/);
     expect(open).toMatch(/color: var\(--text\);/);
-    // No cyan line under it, and no second look for the popover opener.
+    // No cyan line under it, and no second look for a popover's opener — the
+    // phone bar's ⋯ is one, as the speaker was until it left the bar.
     expect(css).not.toMatch(/aria-expanded="true"\][^{]*::after/);
     expect(css).not.toMatch(/\[aria-haspopup\]\[aria-expanded="true"\]/);
-    expect(app).toMatch(/aria-haspopup="dialog"\s+aria-expanded=\{soundMenuOpen\}/);
   });
 
   it("groups the panels in two runs and stands the settings apart, by spacing alone", () => {
@@ -268,7 +274,7 @@ describe("the toolbar is quiet: no chrome at rest, a neutral pressed look when o
     expect(body(".topbar .actions")).toMatch(/gap: 12px;/);
     expect(css).toMatch(/\.topbar \.action-run-utility \{ margin-left: 12px; \}/);
     // The runs are Session list, Usage, History | Accounts, Machine, Browser
-    // watch | Sound, theme.
+    // watch | Settings, Feedback.
     const second = runs.indexOf('<div className="action-run">', runs.indexOf('<div className="action-run">') + 1);
     expect(runs.indexOf('aria-label="Open usage history"')).toBeLessThan(second);
     expect(runs.indexOf('aria-label="Toggle accounts panel"')).toBeGreaterThan(second);

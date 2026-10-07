@@ -148,7 +148,7 @@ describe("every arm-then-confirm press asks armedPress", () => {
     // press lives in use-account-menu.ts now, and a sweep of the component alone
     // would pass over it.
     const panel = withoutComments(accountsSurface());
-    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx and its lifted files", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx and its lifted files", dialog], ["SoundMenu.tsx and its lifted files", soundMenu]]) {
+    for (const [name, src] of [["AccountsPanel.tsx and its lifted files", panel], ["LanSyncSection.tsx and its lifted files", section], ["LanDeckList.tsx", list], ["LanPeerModal.tsx and its lifted files", dialog], ["the sound menu's lifted files (Settings › Sounds and Notifications)", soundMenu]]) {
       expect(`${name}: ${/Date\.now\(\) - \w*[aA]rmedAt/.test(src)}`).toBe(`${name}: false`);
       expect(`${name}: ${/[aA]rmedAt\.current < CONFIRM_GAP_MS/.test(src)}`).toBe(`${name}: false`);
     }

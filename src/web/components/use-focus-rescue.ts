@@ -1,7 +1,7 @@
 // A press whose answer takes its own control away, arriving later as a render
 // rather than as a promise the press can wait on (#1762).
 //
-// The sound menu's "Enable" becomes a status word once the browser's prompt is
+// Settings › Notifications' "Enable" becomes a status word once the browser's prompt is
 // answered, and Usage history's "Try again" leaves with the error branch it
 // sits in once a retry works. Both unmounted under the reader: focus fell to
 // <body>, the dialog's trap sent the next Tab to its first stop, and a screen

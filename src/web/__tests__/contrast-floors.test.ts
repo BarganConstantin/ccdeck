@@ -1604,18 +1604,16 @@ describe("words quietened with an opacity, measured as what they composite to (#
 
 describe("small secondary text on the beds it is drawn on (#1788)", () => {
   const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
-  /** The popover the sound menu's lines sit in. */
-  const menu = (theme: Theme) => bedOf(".sound-menu", theme, panel(theme));
   /** The dialog Settings' lines sit in — the tone headings and the custom
-   *  sounds left the popover for Settings › Sounds (2026-10-07). */
+   *  sounds left the popover for Settings › Sounds (2026-10-07), and the
+   *  popover itself left with the topbar speaker the same day. */
   const settings = (theme: Theme) => bedOf(".modal", theme, panel(theme));
   /** The canvas the trash zone floats over. */
   const canvas = (theme: Theme) => bedOf(".canvas-wrap", theme, parseColor(TOK[theme]["--bg"]));
   const LINES: Array<[string, string[], (theme: Theme) => Rgba]> = [
     ["the tone headings", [".sm-tone-name", ".settings-modal"], settings],
-    // The footer's line about M became the note under the Sounds switch, in
-    // the popover and in Settings alike: the same quietest readable tier.
-    ["the key note under the Sounds switch", [".sm-key-note", ".sm-note", ".sound-menu"], menu],
+    // The footer's line about M became the note under the Sounds switch, at
+    // the quietest readable tier — in Settings, the one place it is drawn.
     ["the key note under the Sounds switch, in Settings", [".sm-key-note", ".sm-note", ".settings-modal"], settings],
     ["a custom-sound card's caption", [".sm-custom-card-copy > span", ".sm-custom-card"],
       theme => bedOf(".sm-custom-card", theme, settings(theme))],

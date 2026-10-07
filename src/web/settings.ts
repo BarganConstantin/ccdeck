@@ -4,10 +4,11 @@
 //
 // Before it, the deck's preferences lived in a speaker popover and a sliders
 // modal side by side, with different shapes, and on a machine with no Claude
-// Code the speaker is not drawn, so the notification switches inside it could
+// Code the speaker was not drawn, so the notification switches inside it could
 // not be reached at all. One modal, opened by a gear that is always on the bar
 // and by Cmd/Ctrl+, the way every desktop app opens its settings, holds them
-// now. The speaker keeps a quick popover for the things pressed often.
+// now. The speaker kept a quick popover for the things pressed often until it
+// left the topbar (2026-10-07); V opens this at Sounds instead.
 
 import { isApplePlatform } from "./platform";
 
@@ -50,9 +51,9 @@ export interface SettingsDoor {
 
 export const SETTINGS_CLOSED: SettingsDoor = { open: false, section: "general" };
 
-/** Settings opened through a door. A door that names a section — the quick
- *  sound popover's "All sound settings…" names Sounds — opens it there; the gear
- *  and the chord name none, and get the section last shown. */
+/** Settings opened through a door. A door that names a section — V names
+ *  Sounds — opens it there; the gear and the chord name none, and get the
+ *  section last shown. */
 export function openedAt(door: SettingsDoor, section?: SettingsSection): SettingsDoor {
   return { open: true, section: section ?? door.section };
 }
