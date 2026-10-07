@@ -698,6 +698,158 @@ function leaveDown(xn: number, x2: number, r: number): string {
   return `M${xn} ${n(y0)}C${xn} ${n(y0 + 4)} ${x2} ${ROW_H - 4} ${x2} ${ROW_H}`;
 }
 
+// ─── the Fork look ────────────────────────────────────────────────────────
+//
+// The same layout drawn the way Fork draws it: 22px rows, lanes 11px apart,
+// 1.6px lines, a filled 5px dot for a commit and a ring with a chevron for a
+// merge, every turn a circular quarter arc and never a diagonal. Every edge
+// still crosses a row's top and bottom edges vertically at a lane's x, so the
+// rows meet seamlessly. Colour is Fork's palette: HEAD's own line orange, and
+// every other branch's stable slot mapped onto the rest of it, so a live
+// commit never repaints a line.
+
+export type GitLook = "deck" | "fork";
+
+/** What a look draws a row's graph with. */
+export interface GraphGeometry {
+  look: GitLook;
+  /** A row's height; the node sits on its middle. */
+  rowH: number;
+  /** Between two lanes' centres. */
+  laneW: number;
+  /** The first lane's centre, from the row's own left edge. */
+  laneX0: number;
+  /** Every line's width. */
+  line: number;
+  /** A commit's dot. */
+  dot: number;
+  /** A merge's ring (Fork) or dot (deck). */
+  ring: number;
+  /** The widest a line turns. */
+  elbow: number;
+  /** From the rightmost lane's centre to the subject. */
+  textGap: number;
+}
+
+export const DECK_GEOMETRY: GraphGeometry = { look: "deck", rowH: ROW_H, laneW: LANE_W, laneX0: LANE_X0, line: 1.5, dot: 3.4, ring: 4.2, elbow: BEND, textGap: 8 };
+
+/** A Fork row stands 10px in from each edge of the pane, the room its
+ *  selection pill is drawn in, so its first lane — 22.5px from the pane's
+ *  edge — is 12.5px inside the row. */
+export const FORK_ROW_INSET = 10;
+export const FORK_GEOMETRY: GraphGeometry = { look: "fork", rowH: 22, laneW: 11, laneX0: 12.5, line: 1.6, dot: 2.5, ring: 6, elbow: 7, textGap: 10.5 };
+
+/** Half a diamond's diagonal, ◆ or ◇, and the hollow one's stroke. */
+export const FORK_DIAMOND = 4;
+export const FORK_DIAMOND_STROKE = 1.3;
+/** The chevron inside a merge's ring, from its centre. */
+export const FORK_CHEVRON = "-2.75 -1.25 0 1.5 2.75 -1.25";
+
+/** The graph cell's width for that many drawn columns, in a look. */
+export const lookGraphWidth = (drawn: number, geo: GraphGeometry): number => geo.laneX0 + (drawn - 1) * geo.laneW + geo.textGap;
+
+/** How far a Fork edge stops short of a node's centre: under a filled dot or
+ *  diamond, at a hollow diamond's outline, at a ring's inner edge. */
+export function forkNodeReach(shape: NodeShape): number {
+  switch (shape) {
+    case "seen": return FORK_DIAMOND - FORK_GEOMETRY.line;
+    case "trailer": return FORK_DIAMOND + FORK_DIAMOND_STROKE / 2;
+    case "merge": return FORK_GEOMETRY.ring - FORK_GEOMETRY.line / 2;
+    default: return FORK_GEOMETRY.dot - 1;
+  }
+}
+
+/** The palette index (`--fk-lane-0` … `--fk-lane-5`) each deck slot paints in
+ *  the Fork look: develop yellow, main red, the three others green, blue and
+ *  tan. Index 0, orange, is HEAD's own line alone. */
+export const FORK_LANE_OF_SLOT = [1, 2, 5, 4, 3] as const;
+
+/** The Fork palette index a node or an edge paints in. */
+export const forkLane = (x: { key: string; slot: number; onHead?: boolean }, focusKey: string | null): number =>
+  onFocusLine(x, focusKey) ? 0 : FORK_LANE_OF_SLOT[x.slot] ?? 1;
+
+/**
+ * One row's strokes in the Fork look, in its own 0…22 box, the row's node at
+ * its centre. The same edges as rowDrawing, drawn with Fork's shapes; nothing
+ * is dimmed (`dim` is always false), and edges between two folded columns are
+ * not drawn, the fold column's line standing for them.
+ */
+export function forkRowDrawing(row: GraphRow, shape: NodeShape, focusKey: string | null, folded: number): RowDrawing {
+  const G = FORK_GEOMETRY;
+  const H = G.rowH, M = H / 2;
+  const lastVisible = folded ? VISIBLE_LANES - 1 : Infinity;
+  const hidden = (c: number) => c > lastVisible;
+  const x = (c: number) => G.laneX0 + Math.min(c, folded ? VISIBLE_LANES : c) * G.laneW;
+  const foldX = G.laneX0 + VISIBLE_LANES * G.laneW;
+  const r = forkNodeReach(shape);
+  const strokes: Stroke[] = [];
+  const add = (d: string, e: Edge) => strokes.push({ d, slot: e.slot, kind: e.kind, wip: !!e.wip, dim: false, focus: !e.wip && onFocusLine(e, focusKey) });
+  for (const e of row.edges) {
+    const a = e.kind === "pass" || e.kind === "in" ? e.from : row.col;
+    const b = e.kind === "in" ? row.col : e.to;
+    if (hidden(a) && hidden(b)) continue;
+    const xa = x(a), xb = x(b);
+    if (e.kind === "pass") add(xa === xb ? `M${xa} 0V${H}` : forkThrough(xa, xb), e);
+    else if (e.kind === "in") add(xa === xb ? `M${xa} 0V${n(M - r)}` : forkInto(xa, xb, r), e);
+    else if (e.kind === "fp") add(xa === xb ? `M${xa} ${n(M + r)}V${H}` : forkLeave(xa, xb, r), e);
+    else if (e.joins && xa !== xb) add(forkOut(xa, xb, r, false), e);
+    else add(xa === xb ? `M${xa} ${n(M + r)}V${H}` : forkOut(xa, xb, r, true), e);
+  }
+  const top = row.input.some((l, i) => l && hidden(i));
+  const bottom = row.output.some((l, i) => l && hidden(i));
+  const fold = top || bottom ? `M${foldX} ${top ? 0 : M}V${bottom ? H : M}` : null;
+  return { strokes, x: x(row.col), y: M, folded: hidden(row.col), fold, foldX };
+}
+
+const FH = FORK_GEOMETRY.rowH;
+const FM = FH / 2;
+/** A quarter arc's sweep: turning from down to `dir`, or from `dir` to down. */
+const sweepDownTo = (dir: number) => (dir > 0 ? 0 : 1);
+const sweepToDown = (dir: number) => (dir > 0 ? 1 : 0);
+const arc = (r: number, sweep: number, x: number, y: number) => `A${n(r)} ${n(r)} 0 0 ${sweep} ${n(x)} ${n(y)}`;
+
+/** A lane moving a column on its way through: down to the row's middle, a
+ *  quarter turn, a short run, a quarter turn, then a 1px tail so the bottom
+ *  edge is crossed vertically. The turn sits in the lower half, clear of the
+ *  row's node and its runs. */
+function forkThrough(x1: number, x2: number): string {
+  const dir = x2 > x1 ? 1 : -1;
+  const r = Math.min(FORK_GEOMETRY.elbow, Math.abs(x2 - x1) / 2, (FH - 2) / 4);
+  const run = FH - 1 - r;
+  return `M${x1} 0V${n(run - r)}${arc(r, sweepDownTo(dir), x1 + dir * r, run)}H${n(x2 - dir * r)}${arc(r, sweepToDown(dir), x2, run + r)}V${FH}`;
+}
+
+/** A lane from the top ending at the node to its side: down, a quarter turn,
+ *  and in along the row's middle to the node's outline. When the turn already
+ *  reaches the outline the run is left out; a ring's hollow is masked by the
+ *  row, so nothing shows inside it. */
+function forkInto(x1: number, xn: number, reach: number): string {
+  const dir = xn > x1 ? 1 : -1;
+  const r = Math.min(FORK_GEOMETRY.elbow, Math.abs(xn - x1), FM);
+  const run = Math.abs(xn - x1) - r > reach ? `H${n(xn - dir * reach)}` : "";
+  return `M${x1} 0V${n(FM - r)}${arc(r, sweepDownTo(dir), x1 + dir * r, FM)}${run}`;
+}
+
+/** A run from the node out to a lane at its side, a quarter turn and down
+ *  to the bottom — or, joining a lane already drawn down that column, only to
+ *  where it meets it. */
+function forkOut(xn: number, x2: number, reach: number, down: boolean): string {
+  const dir = x2 > xn ? 1 : -1;
+  const r = Math.min(FORK_GEOMETRY.elbow, Math.abs(x2 - xn), FM);
+  const turn = x2 - dir * r;
+  const start = Math.abs(x2 - xn) - r > reach ? xn + dir * reach : turn;
+  return `M${n(start)} ${FM}${start === turn ? "" : `H${n(turn)}`}${arc(r, sweepToDown(dir), x2, FM + r)}${down ? `V${FH}` : ""}`;
+}
+
+/** The node's own line moving a column on its way down: it leaves the node
+ *  straight down, and turns below it, never beside it. */
+function forkLeave(xn: number, x2: number, reach: number): string {
+  const dir = x2 > xn ? 1 : -1;
+  const b = Math.min(FORK_GEOMETRY.elbow, Math.abs(x2 - xn) / 2, (FH - FM - reach - 1) / 2);
+  const run = FH - 1 - b;
+  return `M${xn} ${n(FM + reach)}V${n(run - b)}${arc(b, sweepDownTo(dir), xn + dir * b, run)}H${n(x2 - dir * b)}${arc(b, sweepToDown(dir), x2, run + b)}V${FH}`;
+}
+
 // ─── slot memory ──────────────────────────────────────────────────────────
 
 /** Branches remembered per repository, newest use last. */
