@@ -215,6 +215,8 @@ export interface RefTag {
   name: string;
   sha: string;
   annotated: boolean;
+  /** What it names when that is not a commit: "tree", "blob" or "tag". */
+  target?: string;
 }
 
 /** One entry of the stash, newest first: `stash@{index}`. */

@@ -5,9 +5,11 @@
 // Submodules.
 //
 // Read-only like the whole view. A click or Enter on a ref selects its commit
-// in the history; nothing here checks out, creates, deletes or fetches, and
-// the one menu it has, a ref's, only copies its name or its SHA. Opening the
-// repository in an app and copying its path are the toolbar's, once.
+// in the history — a stash, a submodule's commit and a tag of a tree are not
+// in it, and are copied only; nothing here checks out, creates, deletes or
+// fetches, and the one menu it has, a ref's, only copies its name or its SHA.
+// Opening the repository in an app and copying its path are the toolbar's,
+// once.
 //
 // Which sections and folders are open is remembered per repository. The
 // refs come from GET /api/git/refs (use-git-refs.ts), read again when the
@@ -226,7 +228,7 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
   const rowMenu = useCallback((row: SbRow, at: { x: number; y: number }) => {
     const items: MenuItem[] = [];
     if (row.copy) items.push({ id: "name", label: row.kind === "worktree" ? "Copy path" : "Copy name", act: () => copy(row.copy!, row.kind === "worktree" ? "the path" : "the name") });
-    if (row.sha) items.push({ id: "sha", label: "Copy SHA", act: () => copy(row.sha!, "the SHA") });
+    if (row.copySha) items.push({ id: "sha", label: "Copy SHA", act: () => copy(row.copySha!, "the SHA") });
     if (!items.length) return;
     setMenu({ items, x: at.x, y: at.y, label: row.label, back: document.activeElement as HTMLElement | null });
   }, []);
@@ -244,7 +246,7 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
     if ((e.key === "ArrowDown" || e.key === "Enter") && rows.length) {
       e.preventDefault();
       // To the first ref the filter left, else the tree's own stop.
-      const firstRef = rows.find(r => r.sha);
+      const firstRef = rows.find(r => r.copySha);
       if (firstRef && query.trim()) setSelKey(firstRef.key);
       setFocusSeq(n => n + 1);
     }

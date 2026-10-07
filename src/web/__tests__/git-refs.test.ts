@@ -99,6 +99,9 @@ beforeAll(async () => {
   sh(repo, ["tag", "-a", "v1.1.0", "-m", "release 1.1"]);
   annotatedTarget = mainSha;
   sh(repo, ["tag", "deploy/staging"]);
+  // Tags of what is not a commit: a tree (annotated) and a blob (lightweight).
+  sh(repo, ["tag", "-a", "tree-tag", "-m", "a tag of a tree", "main^{tree}"]);
+  sh(repo, ["tag", "blob-tag", "main:a.txt"]);
   // Two stashes: one named, one with git's own message.
   write(repo, { "a.txt": "stash me\n" });
   sh(repo, ["stash", "push", "-q", "-m", "tidy the parser"]);
@@ -192,9 +195,16 @@ describe("the lists", () => {
   it("lists tags with the commit each names, saying which are annotated", async () => {
     const { body } = await refs({ session: "R-repo" });
     const tags = Object.fromEntries(body.tags.map((t: any) => [t.name, t]));
-    expect(Object.keys(tags).sort()).toEqual(["deploy/staging", "v1.0.0", "v1.1.0"]);
+    expect(Object.keys(tags).sort()).toEqual(["blob-tag", "deploy/staging", "tree-tag", "v1.0.0", "v1.1.0"]);
     expect(tags["v1.1.0"]).toEqual({ name: "v1.1.0", sha: annotatedTarget, annotated: true });
     expect(tags["v1.0.0"]).toEqual({ name: "v1.0.0", sha: annotatedTarget, annotated: false });
+  });
+
+  it("says which tags name no commit, so the sidebar never sends one to the history", async () => {
+    const { body } = await refs({ session: "R-repo" });
+    const tags = Object.fromEntries(body.tags.map((t: any) => [t.name, t]));
+    expect(tags["tree-tag"]).toEqual({ name: "tree-tag", sha: sh(repo, ["rev-parse", "tree-tag^{}"]).trim(), annotated: true, target: "tree" });
+    expect(tags["blob-tag"]).toEqual({ name: "blob-tag", sha: sh(repo, ["rev-parse", "blob-tag"]).trim(), annotated: false, target: "blob" });
   });
 
   it("lists the stash newest first, with git's own subject", async () => {

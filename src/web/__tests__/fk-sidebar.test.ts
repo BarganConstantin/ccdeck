@@ -15,6 +15,7 @@ import { SECTIONS, sidebarKey, sidebarRows, stashLabel, visibleSections, withOpe
 import { foldRefs, EMPTY_REFS } from "../use-git-refs";
 import type { GitRefs, Repo } from "../git-view-types";
 import { sheetText } from "./sheet-source";
+import { sourceOf } from "./client-source";
 
 let quiet: ReturnType<typeof vi.spyOn>;
 beforeAll(() => { quiet = vi.spyOn(console, "error").mockImplementation(() => {}); });
@@ -137,6 +138,35 @@ describe("sections: order and contents", () => {
     expect(rows.find(r => r.key === "section:tags:clipped")?.title).toMatch(/first 2,000/);
     const none = sidebarRows({ refs: { ...REFS, stashes: [] }, topLevel: TOP, open: { "section:stashes": true }, query: "" });
     expect(none.find(r => r.key === "section:stashes:none")?.label).toBe("None");
+  });
+
+  it("selects in the history only a commit it lists: a stash, a submodule's commit and a tag of a tree keep Copy SHA only", () => {
+    const withTree = { ...REFS, tags: [...REFS.tags, { name: "tree-tag", sha: sha("9"), annotated: true, target: "tree" }] };
+    const rows = sidebarRows({ refs: withTree, topLevel: TOP, open: { "section:stashes": true, "section:submodules": true, "section:tags": true }, query: "" });
+    const stash = rows.find(r => r.kind === "stash")!;
+    const sub = rows.find(r => r.kind === "submodule")!;
+    const treeTag = rows.find(r => r.label === "tree-tag")!;
+    for (const r of [stash, sub, treeTag]) {
+      expect(r.sha, r.label).toBeNull();
+      expect(r.copySha, r.label).toMatch(/^[0-9a-f]{40}$/);
+    }
+    expect(stash.title).toMatch(/not in the history/);
+    expect(sub.title).toMatch(/its own repository/);
+    expect(treeTag.title).toMatch(/a tree, not a commit/);
+    // A branch and a commit's tag still select their commit, and copy it.
+    const develop = rows.find(r => r.kind === "branch" && r.label === "develop")!;
+    expect(develop).toMatchObject({ sha: sha("a"), copySha: sha("a") });
+    expect(rows.find(r => r.label === "v1.2.0")).toMatchObject({ sha: sha("5"), copySha: sha("5") });
+    const at = rows.indexOf(stash);
+    expect(sidebarKey({ key: "Enter", ctrlKey: false, metaKey: false, altKey: false }, rows, at, 5)).toEqual({ kind: "stay" });
+    expect(sidebarKey({ key: "ContextMenu", ctrlKey: false, metaKey: false, altKey: false }, rows, at, 5)).toEqual({ kind: "menu", index: at });
+  });
+
+  it("says the history is still loading for a ref pressed before it lands, not that the commit is old", () => {
+    const view = sourceOf("components/GitView.tsx");
+    const jump = /const jump = \(sha: string\) => \{[\s\S]*?\n {4}\};/.exec(view)?.[0] ?? "";
+    expect(jump).toMatch(/!data\.commits[\s\S]*The history is still loading\./);
+    expect(jump).toContain("is not in the last 100 commits.");
   });
 
   it("remembers what was opened by key, and nothing else", () => {

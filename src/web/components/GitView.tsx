@@ -1148,7 +1148,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     const listFocused = winFocused && focusIn && pane === "graph";
     const jump = (sha: string) => {
       if (data.commits?.some(c => c.sha === sha)) { setJumpNote(null); view.setSel(sha); return; }
-      setJumpNote(n => ({ text: `${sha.slice(0, 7)} is not in the last 100 commits.`, n: (n?.n ?? 0) + 1 }));
+      const text = !data.commits ? "The history is still loading." : `${sha.slice(0, 7)} is not in the last 100 commits.`;
+      setJumpNote(n => ({ text, n: (n?.n ?? 0) + 1 }));
     };
     const collisionNode = collision && (
       <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
