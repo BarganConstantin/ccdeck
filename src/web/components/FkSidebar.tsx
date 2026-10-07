@@ -11,15 +11,17 @@
 //
 // Which sections and folders are open is remembered per repository. The
 // refs come from GET /api/git/refs (use-git-refs.ts), read again when the
-// view's stale counter moves.
+// view's stale counter moves, when the view follows the session to another
+// worktree, and when the panel is shown over an old read.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { copyText } from "../copy-text";
+import { failureLasts, failureLine } from "../git-diff-parse";
 import { isEscapeKey } from "../modal-dismiss";
 import { sidebarRows, withOpen, type OpenState, type SbRow } from "../fk-sidebar-model";
 import type { Repo } from "../git-view-types";
 import { readStored, writeStored } from "../storage";
-import { useGitRefs } from "../use-git-refs";
+import { useGitRefs, type GitRefsData } from "../use-git-refs";
 import { FkSidebarTree } from "./FkSidebarTree";
 
 export interface FkSidebarProps {
@@ -145,8 +147,33 @@ function SbMenu({ menu, onClose }: { menu: MenuState; onClose: (refocus: boolean
   );
 }
 
+/**
+ * What the panel says over its tree when it has no refs to list: a first read
+ * that failed, and why, with Try again unless reading again cannot mend it
+ * (git timing out or erring on the folder is such a read, not a folder with
+ * no repository); a folder with none; the last refs kept through a failed
+ * refresh. Nothing while the first read is on its way or git is switched off.
+ */
+export function RefsNote({ refs, onRetry }: { refs: GitRefsData; onRetry: () => void }) {
+  if (refs.refs) return refs.reason ? <p className="fk-sb-msg" title={refs.reason}>Showing the last branches read.</p> : null;
+  const why = refs.reason ?? (refs.state === "timeout" || refs.state === "error" ? refs.state : null);
+  if (why) {
+    return (
+      <div className="fk-sb-msg is-failed">
+        <b>Could not read the branches.</b>
+        <span>{failureLine(why)}</span>
+        {!failureLasts(why) && <button type="button" className="btn fk-sb-retry" onClick={onRetry}>Try again</button>}
+      </div>
+    );
+  }
+  if (refs.state === "loading" || refs.state === "off" || refs.state === "repo") return null;
+  return <p className="fk-sb-msg">No repository here.</p>;
+}
+
 export default function FkSidebar({ sessionId, agent, repo, stale, view, onView, localCount, selectedSha, onJump, focused }: FkSidebarProps) {
-  const refs = useGitRefs({ sessionId, agent, stale });
+  // The worktree the view reads now, and a panel just shown: both read the
+  // refs again, as the history is read again for them.
+  const refs = useGitRefs({ sessionId, agent, stale, top: repo?.topLevel ?? null, fresh: true });
   const repoKey = repo ? repo.commonDir || repo.topLevel : null;
   const [open, setOpen] = useState<OpenState>(() => readOpenState(repoKey));
   const [openFor, setOpenFor] = useState(repoKey);
@@ -234,7 +261,6 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
   };
 
   const name = repo?.name ?? "";
-  const failed = refs.state !== "repo" && refs.state !== "loading" && refs.state !== "off";
 
   return (
     <div className="fk-sb" role="group" aria-label={name ? `${name}: views, branches and refs` : "Views, branches and refs"} data-focused={focused ? "" : undefined}>
@@ -259,8 +285,7 @@ export default function FkSidebar({ sessionId, agent, repo, stale, view, onView,
           onChange={e => setQuery(e.target.value)} onKeyDown={onFilterKey}
         />
       </div>
-      {failed && <p className="fk-sb-msg">{refs.state === "error" ? "Could not read the branches." : "No repository here."}</p>}
-      {refs.refs && refs.reason && <p className="fk-sb-msg" title={refs.reason}>Showing the last branches read.</p>}
+      <RefsNote refs={refs} onRetry={refs.retry} />
       <div className="fk-sb-body" id={`${uid}-tree`}>
         <FkSidebarTree
           rows={rows} selKey={selKey} stopKey={stopKey} label={name ? `${name}: branches, tags and more` : "Branches, tags and more"}

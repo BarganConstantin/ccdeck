@@ -2,11 +2,14 @@
 // branches, remotes, tags, stashes, worktrees and submodules.
 //
 // One read per session (and subagent), asked for when the sidebar first shows
-// it and again only when the stale counter the view passes in moves — the
-// same counter every other read of the repository answers to. Nothing polls.
-// The last answer stays on screen while the next one is read, so the tree
-// never empties and refills under the reader; a failed refresh keeps it too.
-import { useEffect, useState } from "react";
+// it and again when the stale counter the view passes in moves — the same
+// counter every other read of the repository answers to — when the view
+// follows the session to another worktree, and when a sidebar just shown
+// would open on an answer older than REFS_FRESH_MS, as the history does.
+// Nothing polls. The last answer stays on screen while the next one is read,
+// so the tree never empties and refills under the reader; a failed refresh
+// keeps it too. Another worktree's answer is never shown for this one.
+import { useCallback, useEffect, useState } from "react";
 
 import type { GitReadState, GitRefs } from "./git-view-types";
 import { gitQuery } from "./use-git-view";
@@ -44,29 +47,70 @@ export function foldRefs(prev: GitRefsData, status: number, a: Partial<GitRefs> 
   };
 }
 
+/** Whether an answer stands until the counter moves. A failure, or git
+ *  timing out or erring on the folder itself, is asked again by the next
+ *  sidebar to show it, and by Try again. */
+export const refsAnswered = (status: number, next: GitRefsData) =>
+  status === 200 && !next.reason && next.state !== "timeout" && next.state !== "error";
+
+/** A sidebar just shown reads again over an answer older than this (ms):
+ *  the history's own rule for a view just opened. */
+export const REFS_FRESH_MS = 10_000;
+
+/** The last answer for one session and subagent: the stale counter it
+ *  answered for (-1 when it failed), the worktree it was read in, and when. */
+export interface KeptRefs { stale: number; top: string | null; at: number; data: GitRefsData }
+
+/**
+ * Whether the sidebar reads the refs again over what it kept: nothing kept
+ * yet, the counter moved, the view now reads another worktree than the one
+ * the answer came from, or a sidebar just shown would open on an old answer.
+ * A worktree not known yet on either side is not a move.
+ */
+export function refsWanted(was: KeptRefs | undefined, { stale, top, fresh, now }: { stale: number; top: string | null; fresh: boolean; now: number }): boolean {
+  if (!was || was.data.state === "loading" || was.stale !== stale) return true;
+  if (top && was.top && was.top !== top) return true;
+  return fresh && now - was.at > REFS_FRESH_MS;
+}
+
 /** The last answer per session and subagent, so a sidebar shown again opens
  *  on it rather than on nothing. A few repositories' worth. */
-const kept = new Map<string, { stale: number; data: GitRefsData }>();
+const kept = new Map<string, KeptRefs>();
 const KEEP = 8;
 
-export function useGitRefs({ sessionId, agent, stale, enabled = true }: {
+/** What is kept for `key` that can be shown for worktree `top`. */
+const shownFor = (key: string | null, top: string | null) => {
+  const was = key ? kept.get(key) : undefined;
+  return was && !(top && was.top && was.top !== top) ? was.data : EMPTY_REFS;
+};
+
+export function useGitRefs({ sessionId, agent, stale, top = null, fresh = false, enabled = true }: {
   sessionId: string | null;
   agent: string | null;
   stale: number;
+  /** The worktree the view reads now (its repo answer's top level): another
+   *  one than the kept answer's reads again, and that answer is not shown. */
+  top?: string | null;
+  /** The sidebar was just shown: an answer older than REFS_FRESH_MS is read again. */
+  fresh?: boolean;
   enabled?: boolean;
-}): GitRefsData {
+}): GitRefsData & { retry: () => void } {
   const key = sessionId ? `${sessionId}|${agent ?? ""}` : null;
-  const [data, setData] = useState<GitRefsData>(() => (key ? kept.get(key)?.data : null) ?? EMPTY_REFS);
-  // Another session: what it last said, or nothing yet.
-  const [shownKey, setShownKey] = useState(key);
-  if (shownKey !== key) {
-    setShownKey(key);
-    setData((key ? kept.get(key)?.data : null) ?? EMPTY_REFS);
+  const [data, setData] = useState<GitRefsData>(() => shownFor(key, top));
+  // Another session, or the view moved to another worktree: what was last
+  // read there, or nothing yet.
+  const at = `${key}\n${top ?? ""}`;
+  const [shownAt, setShownAt] = useState(at);
+  if (shownAt !== at) {
+    setShownAt(at);
+    setData(shownFor(key, top));
   }
+  // Try again: bumped to ask once more after a failed read.
+  const [again, setAgain] = useState(0);
+  const retry = useCallback(() => setAgain(n => n + 1), []);
   useEffect(() => {
     if (!enabled || !key || !sessionId) return;
-    const was = kept.get(key);
-    if (was && was.stale === stale && was.data.state !== "loading") return;
+    if (!refsWanted(kept.get(key), { stale, top, fresh, now: Date.now() })) return;
     let gone = false;
     fetch(`/api/git/refs?${gitQuery(sessionId, agent)}`)
       .then(async r => ({ status: r.status, body: await r.json().catch(() => ({})) }))
@@ -75,15 +119,18 @@ export function useGitRefs({ sessionId, agent, stale, enabled = true }: {
         if (gone) return;
         setData(prev => {
           const next = foldRefs(prev, status, body ?? {});
-          // A read that failed is asked again by the next sidebar to show it.
-          const answered = status === 200 && !next.reason;
           kept.delete(key);
-          kept.set(key, { stale: answered ? stale : -1, data: next });
+          kept.set(key, {
+            stale: refsAnswered(status, next) ? stale : -1,
+            top: typeof body?.repo?.topLevel === "string" ? body.repo.topLevel : null,
+            at: Date.now(),
+            data: next,
+          });
           while (kept.size > KEEP) kept.delete(kept.keys().next().value!);
           return next;
         });
       });
     return () => { gone = true; };
-  }, [enabled, key, stale]);
-  return data;
+  }, [enabled, key, stale, top, fresh, again]);
+  return { ...data, retry };
 }

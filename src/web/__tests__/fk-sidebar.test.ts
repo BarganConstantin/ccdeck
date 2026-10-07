@@ -9,7 +9,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import FkSidebar from "../components/FkSidebar";
+import FkSidebar, { RefsNote } from "../components/FkSidebar";
 import { FkSidebarTree } from "../components/FkSidebarTree";
 import { SECTIONS, sidebarKey, sidebarRows, stashLabel, visibleSections, withOpen, type SbRow } from "../fk-sidebar-model";
 import { foldRefs, EMPTY_REFS } from "../use-git-refs";
@@ -290,6 +290,31 @@ describe("the read", () => {
     expect(foldRefs(ok, 409, {})).toEqual({ state: "off", refs: null, reason: null });
     expect(foldRefs(ok, 200, { ok: true, state: "not-a-repo" })).toEqual({ state: "not-a-repo", refs: null, reason: null });
     expect(foldRefs(EMPTY_REFS, 500, { error: "boom" }).state).toBe("error");
+  });
+});
+
+describe("what the panel says when it has no refs to list", () => {
+  const note = (refs: Parameters<typeof RefsNote>[0]["refs"]) => renderToStaticMarkup(createElement(RefsNote, { refs, onRetry: () => {} }));
+  const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  it("says a first read failed and why, with Try again unless reading again cannot mend it", () => {
+    expect(text(note({ state: "repo", refs: null, reason: "timeout" }))).toBe("Could not read the branches. git took too long to answer. Try again");
+    const big = note({ state: "repo", refs: null, reason: "too-large" });
+    expect(text(big)).toBe("Could not read the branches. The answer was too large.");
+    expect(big).not.toContain("<button");
+  });
+
+  it("calls git timing out or erring on the folder a failed read, not a folder with no repository", () => {
+    expect(text(note({ state: "timeout", refs: null, reason: null }))).toBe("Could not read the branches. git took too long to answer. Try again");
+    expect(text(note({ state: "error", refs: null, reason: "HTTP 500" }))).toMatch(/^Could not read the branches\. HTTP 500\. Try again$/);
+    expect(text(note({ state: "not-a-repo", refs: null, reason: null }))).toBe("No repository here.");
+  });
+
+  it("says nothing while the first read is on its way, or with git switched off, and keeps the last refs through a failed refresh", () => {
+    expect(note({ state: "loading", refs: null, reason: null })).toBe("");
+    expect(note({ state: "off", refs: null, reason: null })).toBe("");
+    expect(text(note({ state: "repo", refs: REFS, reason: "timeout" }))).toBe("Showing the last branches read.");
+    expect(note({ state: "repo", refs: REFS, reason: null })).toBe("");
   });
 });
 
