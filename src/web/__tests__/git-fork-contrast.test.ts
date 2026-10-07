@@ -3,7 +3,10 @@
 // marks and lines at 3:1, in both themes. Fork's own colours miss a floor in a
 // few places; there the token is the floor-safe value, and this file is what
 // keeps a later palette edit from walking one back. Computed from the token
-// blocks themselves, as contrast-floors.test.ts does for the deck look.
+// blocks themselves, as contrast-floors.test.ts does for the deck look. A lane
+// badge's colours are worked out on the badge from its row's lane, and held
+// there (git-graph-fork-contrast.test.ts); the lanes where they cross a
+// selected row's blue or grey pill are Fork's own and not held to 3:1.
 import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
 
@@ -50,7 +53,7 @@ function operands(inner: string): Array<{ colour: string; pct: number | null }> 
   });
 }
 
-/** var() all the way down, color-mix() in srgb, and `--lane` (set per row) as given. */
+/** var() all the way down and color-mix() in srgb. */
 function resolve(value: string, theme: Theme, lane = "#000000"): Rgba {
   const v = value.trim();
   if (v === "transparent") return [0, 0, 0, 0];
@@ -139,17 +142,6 @@ describe("its marks and lines hold 3:1", () => {
   });
 });
 
-describe("its ref badges", () => {
-  for (const theme of THEMES) {
-    it(`write their names at 4.5:1 or more on their own fill, and draw an edge that stands off the list, in ${theme}`, () => {
-      for (const lane of LANES) {
-        expect(ratio(v("ref-ink"), v("ref-fill"), theme, { lane }), `${lane} badge`).toBeGreaterThanOrEqual(theme === "dark" ? 7.5 : BODY);
-        expect(ratio(v("ref-edge"), v("list"), theme, { lane }), `${lane} edge`).toBeGreaterThanOrEqual(NON_TEXT);
-      }
-    });
-  }
-});
-
 describe("its diff", () => {
   for (const theme of THEMES) {
     it(`numbers its lines, heads its hunks and signs its changes legibly, in ${theme}`, () => {
@@ -163,7 +155,7 @@ describe("its diff", () => {
     });
 
     it(`colours code on unchanged lines at 4.5:1, in ${theme}`, () => {
-      for (const tone of ["syn-kw", "syn-str", "syn-com", "syn-mod"]) expect(ratio(v(tone), v("diff"), theme), tone).toBeGreaterThanOrEqual(BODY);
+      for (const tone of ["syn-kw", "syn-str", "syn-com"]) expect(ratio(v(tone), v("diff"), theme), tone).toBeGreaterThanOrEqual(BODY);
     });
 
     it(`writes changed lines and their changed words at 4.5:1, in ${theme}`, () => {
@@ -176,7 +168,7 @@ describe("its diff", () => {
   it("drops the syntax tones on changed lines in dark, where they fall under the floor, and keeps them in light", () => {
     // Which is the rule the diff follows: dark changed lines in --fk-text.
     expect(Math.min(...["syn-kw", "syn-str", "syn-com"].flatMap(t => ["diff-add", "diff-del"].map(b => ratio(v(t), v(b), "dark"))))).toBeLessThan(BODY);
-    for (const tone of ["syn-kw", "syn-str", "syn-com", "syn-mod"]) {
+    for (const tone of ["syn-kw", "syn-str", "syn-com"]) {
       for (const bed of ["diff-add", "diff-del", "diff-add-word", "diff-del-word"]) {
         expect(ratio(v(tone), v(bed), "light"), `${tone} on ${bed}`).toBeGreaterThanOrEqual(BODY);
       }
@@ -187,7 +179,7 @@ describe("its diff", () => {
 describe("every Fork token is declared for both themes", () => {
   it("names the same --fk-* set in the dark and the light block", () => {
     const names = (t: Theme) => Object.keys(TOK[t]).filter(n => n.startsWith("--fk-")).sort();
-    expect(names("dark").length).toBeGreaterThan(100);
+    expect(names("dark").length).toBeGreaterThan(90);
     expect(names("light")).toEqual(names("dark"));
   });
 });

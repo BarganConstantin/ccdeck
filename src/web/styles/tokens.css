@@ -278,7 +278,6 @@
   --fk-link: #009fff;
   /* accent, focus, marks */
   --fk-accent: #0a84ff;
-  --fk-focus: #3d95ff;
   --fk-unpushed-dot: #0491fe;
   --fk-incoming-dot: #787878;
   --fk-warn: #ffc500;
@@ -289,10 +288,8 @@
   --fk-lane-3: #a2835d;
   --fk-lane-4: #64da3a;
   --fk-lane-5: #2f9df4;
-  /* ref badges (--lane is set per row) */
-  --fk-ref-fill: color-mix(in srgb, var(--lane) 30%, var(--fk-list));
-  --fk-ref-edge: var(--lane);
-  --fk-ref-ink: #ffffff;
+  /* ref badges: the neutral ones and the remote cell (a lane badge's own
+     colours are worked out on the badge, from its row's --lane) */
   --fk-ref-cell: #1e1e1e;
   --fk-ref-cell-ink: #bdbdbd;
   --fk-ref-neutral-fill: #505050;
@@ -303,19 +300,15 @@
   --fk-diff-del: #633e3e;
   --fk-diff-add-word: #2f6b37;
   --fk-diff-del-word: #8f3a40;
-  --fk-diff-gutter: var(--fk-diff);
   --fk-diff-ln: #9e9e9e;
   --fk-diff-gutter-line: #3c3c3c;
   --fk-diff-hunk-ink: #959595;
   --fk-diff-hunk-bg: transparent;
   --fk-diff-sign-add: #64da3a;
   --fk-diff-sign-del: #ff6b63;
-  --fk-diff-ruler-add: #45854b;
-  --fk-diff-ruler-del: #953d3a;
   --fk-syn-kw: #649bd1;
   --fk-syn-str: #c99480;
   --fk-syn-com: #959ba5;
-  --fk-syn-mod: #ec6390;
   /* file status, file icons, avatars */
   --fk-st-modified: #ffcc00;
   --fk-st-added: #20c537;
@@ -528,7 +521,7 @@
      own colour misses a contrast floor the deck holds, the floor-safe value
      is the one here: in light the lanes, the secondary text, the filter
      placeholder, the incoming dot, the scroll thumb, the upstream-gone mark
-     and the modifier tone (git-fork-contrast.test.ts holds them). */
+     (git-fork-contrast.test.ts holds them). */
   /* Fork look: surfaces */
   --fk-chrome: #f5f5f5;
   --fk-list: #ffffff;
@@ -581,7 +574,6 @@
   --fk-link: #0068da;
   /* accent, focus, marks */
   --fk-accent: #007aff;
-  --fk-focus: #0062d6;
   --fk-unpushed-dot: #007aff;
   --fk-incoming-dot: #8f8f8f;
   --fk-warn: #946400;
@@ -592,10 +584,8 @@
   --fk-lane-3: #8a7454;
   --fk-lane-4: #3f9a2a;
   --fk-lane-5: #1f86c9;
-  /* ref badges (--lane is set per row) */
-  --fk-ref-fill: color-mix(in srgb, var(--lane) 16%, #ffffff);
-  --fk-ref-edge: color-mix(in srgb, var(--lane) 82%, #000000);
-  --fk-ref-ink: color-mix(in srgb, var(--lane) 28%, #141414);
+  /* ref badges: the neutral ones and the remote cell (a lane badge's own
+     colours are worked out on the badge, from its row's --lane) */
   --fk-ref-cell: #f4f4f4;
   --fk-ref-cell-ink: #4d4d4d;
   --fk-ref-neutral-fill: #ececec;
@@ -606,19 +596,15 @@
   --fk-diff-del: #ffe5e6;
   --fk-diff-add-word: #b9f4be;
   --fk-diff-del-word: #ffc4c6;
-  --fk-diff-gutter: var(--fk-diff);
   --fk-diff-ln: #6e6e6e;
   --fk-diff-gutter-line: #e8e8e8;
   --fk-diff-hunk-ink: #737373;
   --fk-diff-hunk-bg: transparent;
   --fk-diff-sign-add: #136b2f;
   --fk-diff-sign-del: #b42323;
-  --fk-diff-ruler-add: #3f8a46;
-  --fk-diff-ruler-del: #b04a46;
   --fk-syn-kw: #0b4fb3;
   --fk-syn-str: #953020;
   --fk-syn-com: #4b5260;
-  --fk-syn-mod: #a81255;
   /* file status, file icons, avatars */
   --fk-st-modified: #ffcc00;
   --fk-st-added: #20c537;
