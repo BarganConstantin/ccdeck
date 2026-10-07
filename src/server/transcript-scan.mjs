@@ -230,13 +230,15 @@ const USAGE_TOTAL_FIELDS = [...USAGE_BLOCK_FIELDS, ...CACHE_SPLIT_FIELDS];
  *  into both, read once, so the split and the total it splits go on summing
  *  to each other. A request billed at a speed other than standard is charged
  *  to that speed's share of the bucket as well, which is a subset of the
- *  bucket and not an addition to it. */
-function chargeUsage(state, bucket, blob, fields, speedBucket) {
+ *  bucket and not an addition to it. What was charged is added to `charged`,
+ *  so a request's bill can be taken back when its final record replaces it. */
+function chargeUsage(state, bucket, blob, fields, speedBucket, charged) {
   for (const k of fields) {
     const n = grabUsageField(blob, k);
     state.usage[k] += n;
     if (bucket) bucket[k] += n;
     if (speedBucket) speedBucket[k] += n;
+    charged[k] += n;
   }
 }
 
@@ -328,6 +330,9 @@ function newTranscriptState() {
     // mirror of it. Costs no extra read: `message.model` and the `"usage"` block
     // are on the same line, and this pass already parses both.
     usageByModel: {},
+    // The request billed from a snapshot whose final record has not been read
+    // yet, and what it was charged — see requestBilling. Null between requests.
+    streamingRequest: null,
     ctx: newContextBreakdown(),
   };
 }
@@ -440,25 +445,80 @@ function foldModelLine(state, obj) {
 }
 
 /**
- * Does this record repeat the usage an earlier line of the same API request
- * already carried?
+ * Is this record a later content block of a reply an earlier line began?
  *
  * Claude Code writes one assistant line per content block of a response —
- * thinking, text, each tool call — and every one of them carries the whole
- * request's `usage`. Only the first, `apiBlockIndex` 0, bills it (#1641).
- * Measured across the forty most recent transcripts on one machine: 6,765 of
- * 14,138 assistant usage records were such repeats, identical to the block 0
- * before them, and summing them all came to 1.94x the request-by-request
- * total. This is the rule the Projects report (account-projects.mjs) and
- * ccusage count by, and the Projects report asks this function. A record
- * without the field was written before Claude Code marked its blocks, and is
- * counted as it always was.
- *
- * The same lines are one reply, so the context breakdown asks this too before
- * it counts an assistant message (#1650).
+ * thinking, text, each tool call — and marks each with `apiBlockIndex`, 0 for
+ * the first. They are one reply, so the context breakdown counts block 0 and
+ * not the rest (#1650). A record without the field was written before Claude
+ * Code marked its blocks, and is counted as it always was.
  */
-function repeatsRequestUsage(record) {
+function continuesRequest(record) {
   return record?.apiBlockIndex !== undefined && record.apiBlockIndex !== 0;
+}
+
+// How a record's usage enters the bill — see requestBilling.
+const BILL_LINE = "line";
+const BILL_REQUEST = "request";
+const REBILL_REQUEST = "rebill";
+const SKIP_LINE = "skip";
+
+/**
+ * How one record's usage is billed, given the request this file is still
+ * waiting on a final record for (`streamingId`, or null).
+ *
+ * Every content block's line carries a usage block, and summing them all
+ * counted a request once per block: 1.94x the request-by-request total across
+ * forty real transcripts (#1641). Which of those lines holds the request's
+ * usage depends on the file. In the main transcript every line restates the
+ * final usage. In a subagent's `subagents/agent-*.jsonl` Claude Code writes the
+ * first line while the response is still streaming — `stop_reason: null`, the
+ * output counted so far, no `usage.speed` — and the final record follows,
+ * often after the tool results of the call it streamed (#1883). Billing block 0
+ * charged one machine's 19,659 subagent requests 102K output tokens against
+ * the 22.9M their final records carry, and priced every fast-mode subagent
+ * turn at the standard rate, the snapshot naming no speed.
+ *
+ * So a request is billed from its final record, the first that carries a
+ * `stop_reason`. A snapshot is billed when it arrives, so a live card does not
+ * wait for the reply, and every later record of that request takes the bill's
+ * place rather than adding to it; a request whose final record never came (an
+ * interrupted agent) stays billed from its last snapshot. The scan remembers
+ * the request it is waiting on, so the two can arrive in different passes,
+ * which for a live subagent is the usual case.
+ *
+ *   BILL_LINE       a record from before Claude Code marked its blocks, billed
+ *                   line by line as it always was
+ *   BILL_REQUEST    the first record of a request
+ *   REBILL_REQUEST  a later record of the request still streaming: it replaces
+ *                   that request's bill
+ *   SKIP_LINE       a later block of a request already billed from its final
+ *                   record, which restates it
+ *
+ * The Projects report (account-projects.mjs) bills its own pass of the same
+ * lines by this rule.
+ */
+function requestBilling(record, streamingId) {
+  if (record?.apiBlockIndex === undefined) return BILL_LINE;
+  const id = requestIdOf(record);
+  if (id !== null && id === streamingId && isUsageRecord(record)) return REBILL_REQUEST;
+  return record.apiBlockIndex === 0 ? BILL_REQUEST : SKIP_LINE;
+}
+
+/** The request a record belongs to while its final record has yet to come —
+ *  the id requestBilling is next asked with — or null once it is final. */
+function streamingRequestId(record) {
+  return typeof record?.message?.stop_reason === "string" ? null : requestIdOf(record);
+}
+
+function requestIdOf(record) {
+  const id = record?.requestId ?? record?.message?.id;
+  return typeof id === "string" && id ? id : null;
+}
+
+function isUsageRecord(record) {
+  const usage = record?.message?.usage;
+  return !!usage && typeof usage === "object";
 }
 
 /** The usage blocks a line was billed for, charged to the file's totals and to
@@ -466,9 +526,11 @@ function repeatsRequestUsage(record) {
  *  below for why the order is the attribution. `record` is the line parsed,
  *  or null when it names no model. */
 function foldUsageLine(state, line, record) {
-  // A later content block of a request already charged — see
-  // repeatsRequestUsage.
-  if (repeatsRequestUsage(record)) return;
+  // A request is billed once, from its final record — see requestBilling.
+  const streaming = state.streamingRequest;
+  const billing = requestBilling(record, streaming?.id ?? null);
+  if (billing === SKIP_LINE) return;
+  if (billing === REBILL_REQUEST) refundUsage(state, streaming);
   // Usage totals sum every block in the file, resets included — every block the
   // model was actually billed for, which is why the `toolUseResult` tail is cut
   // off first (see billedUsageText) — and are summed a second time into the
@@ -491,11 +553,28 @@ function foldUsageLine(state, line, record) {
   const billed = billedUsageText(line);
   const bucket = usageBucketFor(state, state.lastModel);
   const speedBucket = speedBucketFor(bucket, billedSpeed(record));
+  const charged = newUsageTotals();
   for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
-    chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS, speedBucket);
+    chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS, speedBucket, charged);
   }
   for (const m of billed.replace(ITERATIONS_ARRAY_RE, "").matchAll(CACHE_CREATION_BLOCK_RE)) {
-    chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS, speedBucket);
+    chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS, speedBucket, charged);
+  }
+  if (billing === BILL_LINE) return;
+  // What this request was charged, and where, kept until its final record
+  // replaces it.
+  const id = streamingRequestId(record);
+  state.streamingRequest = id === null ? null : { id, bucket, speedBucket, charged };
+}
+
+/** Take back what a request was charged, from every counter it was charged
+ *  to, for its later record to charge in its place. */
+function refundUsage(state, { bucket, speedBucket, charged }) {
+  for (const k of USAGE_TOTAL_FIELDS) {
+    const n = charged[k];
+    state.usage[k] -= n;
+    if (bucket) bucket[k] -= n;
+    if (speedBucket) speedBucket[k] -= n;
   }
 }
 
@@ -514,8 +593,8 @@ function foldContextLine(state, line, record) {
   ctx.msgsUser += (ctxText.match(TYPE_USER_RE) ?? []).length;
   // One reply is one message, however many content blocks it was written in:
   // a later block's line is a reply block 0 has already counted — see
-  // repeatsRequestUsage. Its tool call is its own, and is counted below.
-  if (!repeatsRequestUsage(record)) ctx.msgsAssistant += (ctxText.match(TYPE_ASSISTANT_RE) ?? []).length;
+  // continuesRequest. Its tool call is its own, and is counted below.
+  if (!continuesRequest(record)) ctx.msgsAssistant += (ctxText.match(TYPE_ASSISTANT_RE) ?? []).length;
   ctx.toolUses += (ctxText.match(TYPE_TOOL_USE_RE) ?? []).length;
   ctx.toolResults += (ctxText.match(TYPE_TOOL_RESULT_RE) ?? []).length;
   ctx.systemReminders += (ctxText.match(SYSTEM_REMINDER_RE) ?? []).length;
@@ -673,12 +752,13 @@ function scanTranscript(path) {
 }
 
 // What session-enrichment.mjs calls, and the rules the Projects report
-// (account-projects.mjs) reads its own pass of the transcripts by: which lines
-// billed anything, and the speed each was billed at with the cap on how many
-// speeds one model keeps apart. Listed here rather than marked at each
-// declaration so that every declaration above reads exactly as it did where it
-// came from.
+// (account-projects.mjs) reads its own pass of the transcripts by: which record
+// of a request it is billed from, which lines billed anything, and the speed
+// each was billed at with the cap on how many speeds one model keeps apart.
+// Listed here rather than marked at each declaration so that every declaration
+// above reads exactly as it did where it came from.
 export {
-  scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, copyUsageBucket, repeatsRequestUsage,
+  scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, copyUsageBucket,
+  requestBilling, streamingRequestId, BILL_LINE, REBILL_REQUEST, SKIP_LINE,
   billedSpeed, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
 };
