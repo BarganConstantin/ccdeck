@@ -223,7 +223,7 @@
   .settings-pane { padding: 14px 14px 16px; }
 }
 /* Half of a 320px screen holds "Music & character" or its glyph beside it,
-   not both, so under 360px the names keep the room and all four glyphs go
+   not both, so under 360px the names keep the room and all five glyphs go
    together: one tab without its glyph would read as a different kind. */
 @media (max-width: 359px) {
   .settings-tab > svg { display: none; }
