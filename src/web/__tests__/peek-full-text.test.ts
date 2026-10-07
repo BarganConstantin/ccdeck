@@ -10,6 +10,10 @@
 // Local network's machines and the account fold's accounts. Each of them now
 // carries its whole text in a `title`, the way a card's own name and second
 // row already do.
+//
+// The waiting line has since grown to two lines before it cuts anything
+// (peek-wait-wrap.test.ts): the hover card cannot show a tooltip, so a title is
+// only the last resort there, for a question longer than two lines.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -38,15 +42,15 @@ describe("the hover cards' cut lines", () => {
       ".ap-fold-name",
       ".ap-peek-who > span",
       ".node-peek-name",
+      ".node-peek-said",
       ".node-peek-title",
-      ".node-peek-wait > span",
     ]);
   });
 
   it("carry their whole text on the canvas card's hover card", () => {
     expect(peek).toContain('<span className="node-peek-name" title={a.label}>{a.label}</span>');
     expect(peek).toContain('<p className="node-peek-title" title={naming.face}>{naming.face}</p>');
-    expect(peek).toContain("<span title={waitingLabel(a.waiting)}>{waitingLabel(a.waiting)}</span>");
+    expect(peek).toContain('<span className="node-peek-said" title={waitingLabel(a.waiting)}>');
   });
 
   it("carry their whole text on Local network's card, with the route the line draws", () => {
