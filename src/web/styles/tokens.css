@@ -687,6 +687,26 @@ html, body, #root {
   overscroll-behavior: none;
 }
 
+/* THE LIST A NATIVE SELECT OPENS, in the deck's theme. On Windows and Linux
+   Chromium draws that list as a page of its own whose body is white in every
+   theme, lays the select's own background over it, and paints an option or a
+   group on top only when it carries a background of its own. Every select here
+   fills itself with a wash mixed toward transparent (--sm-fill, --ctl-fill,
+   the order picker's none), which over that white is white, and the words came
+   through in the select's colour: the dark theme's light grey, at 1.38:1. So
+   each row paints the surface the menus are drawn on, with the theme's words
+   over it, and both follow data-theme because the tokens do. The page takes
+   its color-scheme from the select, which inherits the theme block's, so its
+   scrollbar and highlight are the deck's choice too, not the OS's. macOS draws
+   a menu of its own and ignores all of this. The order picker carried this
+   rule for itself; it is every select's now. select-popup-colours.test.ts
+   paints every select's list the way that page does, in both themes. */
+option,
+optgroup {
+  background-color: var(--panel);
+  color: var(--text);
+}
+
 /* Custom scrollbars — quieter, theme-aware, and absent until the pointer is in
    the box that scrolls.
    THE TRACK KEEPS ITS WIDTH, ALWAYS, and that is the whole reason this is safe

@@ -199,9 +199,6 @@
    draws everything it is showing as the last thing rather than the current
    one (the incident chip's stale edge, a stale card's). */
 .ap-rest-sort select[data-held] { border-style: dashed; border-color: var(--ctl-edge); }
-/* The menu the platform draws, in the panel's colours rather than the page's
-   default white. */
-.ap-rest-sort option { background: var(--panel); color: var(--text); }
 .ap-rest-sort svg {
   position: absolute;
   right: 6px;
