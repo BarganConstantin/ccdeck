@@ -246,6 +246,11 @@ export interface LayoutOptions {
   head?: Pick<RepoHead, "sha" | "detached" | "branch"> | null;
   /** Lay out the uncommitted row above the history, joined to HEAD. */
   wip?: boolean;
+  /** With `wip`, for a look that does not draw the uncommitted row or its
+   *  held lane: a merge taking HEAD in turns that lane into its own line
+   *  from there down, so the run reaches HEAD rather than meeting a lane
+   *  that is not drawn. */
+  wipHidden?: boolean;
   /** What this repository's branches were given before. */
   slots?: ReadonlyMap<string, number>;
   /** The branch the remote calls its default, which ranks with develop. */
@@ -443,8 +448,14 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
     for (const [j, to] of placed) edges.push(laneEdge("pass", j, to));
     if (fpAt >= 0) edges.push({ kind: "fp", from: col, to: fpAt, key, slot, onHead, ...(n.wip ? { wip: true } : {}) });
     for (const { at } of joins) {
-      const target = output[placed.get(at)!]!;
-      edges.push({ kind: "merge", from: col, to: placed.get(at)!, key: target.key, slot: target.slot, onHead, joins: true });
+      const to = placed.get(at)!;
+      const target = output[to]!;
+      const takesHidden = !!target.wip && !!opts.wipHidden;
+      if (takesHidden) {
+        const { wip: _held, ...line } = target;
+        output[to] = line;
+      }
+      edges.push({ kind: "merge", from: col, to, key: target.key, slot: target.slot, onHead, ...(takesHidden ? {} : { joins: true }) });
     }
     opens.forEach((p, i) => {
       const at = openFrom + i;

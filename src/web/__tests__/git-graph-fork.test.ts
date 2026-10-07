@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import GitGraph, { forkLayout, type GitGraphProps } from "../components/GitGraph";
-import { layoutGraph, VISIBLE_LANES, WIP_ID, type LogCommit } from "../git-graph-layout";
+import { layoutGraph, forkRowDrawing, graphColumns, FORK_GEOMETRY, VISIBLE_LANES, WIP_ID, type LogCommit } from "../git-graph-layout";
 import { shopHistory, HISTORY_HEAD } from "./git-graph-history";
 import { sourceOf } from "./client-source";
 import { sheetText } from "./sheet-source";
@@ -43,6 +43,37 @@ describe("the Fork look's layout", () => {
     expect(bare.rows.find(r => r.id === "h")!.col).toBeGreaterThanOrEqual(VISIBLE_LANES);
     const layout = forkLayout(list, head, new Map(), null);
     expect(layout.rows.find(r => r.id === "h")!.col).toBe(0);
+  });
+
+  it("runs a merge that takes HEAD in down the held column into HEAD, with no gap", () => {
+    // Seven branches newer than HEAD fold its lane, and develop's merge above
+    // HEAD took HEAD's branch in.
+    const topics = Array.from({ length: 7 }, (_, i) => c(`t${i}`, ["b0"], [`topic/t${i}`]));
+    const list = [
+      ...topics,
+      c("m", ["x", "h"], ["develop"], { subject: "Merge pull request #9 from someone/feature/mine" }),
+      c("h", ["b0"], [], { refs: { local: ["feature/mine"], remote: [], tags: [], head: true } }),
+      c("x", ["b0"]),
+      c("b0"),
+    ];
+    const head = { sha: "h", branch: "feature/mine", detached: false, short: "h", unborn: false };
+    const layout = forkLayout(list, head, new Map(), null);
+    const { folded } = graphColumns(layout.columns);
+    const row = (id: string) => layout.rows.find(r => r.id === id)!;
+    // What the look draws: no uncommitted row, so none of its held lane.
+    const drawn = (id: string, kind: string) => forkRowDrawing(row(id), row(id).kind === "merge" ? "merge" : "commit", layout.headKey, folded)
+      .strokes.filter(s => !s.wip && s.kind === kind).map(s => s.d);
+    const { laneX0: x0, rowH: H } = FORK_GEOMETRY;
+    expect(row("h").col).toBe(0);
+    // The merge's run reaches its row's foot in HEAD's column, and HEAD's
+    // line comes in from the top of HEAD's row.
+    expect(drawn("m", "merge")).toEqual([expect.stringMatching(new RegExp(` ${x0} [\\d.]+V${H}$`))]);
+    expect(drawn("h", "in").some(d => d.startsWith(`M${x0} 0V`))).toBe(true);
+    // The deck look still draws the held lane dashed to HEAD, the merge meeting it.
+    const deck = layoutGraph(list, { head, wip: true });
+    const deckMerge = deck.rows.find(r => r.id === "m")!;
+    expect(deckMerge.edges.find(e => e.kind === "merge")).toMatchObject({ to: 0, joins: true });
+    expect(deckMerge.output[0]).toMatchObject({ id: "h", wip: true });
   });
 });
 

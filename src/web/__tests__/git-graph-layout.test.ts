@@ -640,9 +640,12 @@ describe("worst cases", () => {
     for (let seed = 1; seed <= 30; seed++) {
       const list = randomHistory(seed, 60 + (seed % 5) * 20);
       const tip = list.find(x => x.refs.local.length)!;
-      const layout = layoutGraph(list, { head: { sha: tip.sha, branch: tip.refs.local[0], detached: false }, wip: seed % 2 === 0 });
+      const head = { sha: tip.sha, branch: tip.refs.local[0], detached: false };
+      const layout = layoutGraph(list, { head, wip: seed % 2 === 0 });
       const broken = violations(layout, list);
       expect(broken, `seed ${seed}`).toEqual([]);
+      // As the Fork look lays it out when it holds HEAD's column.
+      expect(violations(layoutGraph(list, { head, wip: true, wipHidden: true }), list), `seed ${seed}, held`).toEqual([]);
     }
   });
 });
