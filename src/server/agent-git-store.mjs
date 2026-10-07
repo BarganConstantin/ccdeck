@@ -362,6 +362,12 @@ export function createCommitStore({ path, maxBytes = COMMIT_STORE_MAX_BYTES }) {
       return enqueue(async () => { await refresh(); return index.values().filter(r => r.repo === repo).sort(byAt); });
     },
 
+    /** The commits made at or after `since` (ms), oldest first: what the lane
+     *  of recent commits under a card is rebuilt from (git-recent-commits.mjs). */
+    since(since) {
+      return enqueue(async () => { await refresh(); return index.values().filter(r => r.at >= since).sort(byAt); });
+    },
+
     /** The newest commit a session made — no later than `before` (ms), when
      *  given — or null. */
     lastForSession(sessionId, before = Infinity) {
