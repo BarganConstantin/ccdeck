@@ -47,6 +47,7 @@ import FeedbackKinds from "./FeedbackKinds";
 import FeedbackDetails, { DetailsToggle } from "./FeedbackDetails";
 import FeedbackShots, { AddScreenshot, ImageGlyph } from "./FeedbackShots";
 import { carriesFiles, shouldAttachPaste } from "../feedback-images";
+import { platformName } from "../platform";
 import { useFeedbackImages } from "../use-feedback-images";
 import { useFeedbackFacts } from "../use-feedback-facts";
 import { useCloseWhenSent, useFeedbackSend } from "../use-feedback-send";
@@ -59,12 +60,6 @@ import {
   BODY_MAX, FACTS_SUFFIX, FACTS_UNKNOWN, MESSAGE_MISSING, SENT_LINE, factsLabel, hasMessage, isSendShortcut,
   isSymbolCap, kindCopy, outcomeAnnouncement, sendShortcutCaps, type FeedbackPrefill, type Kind,
 } from "../feedback";
-
-function platformName(): string {
-  if (typeof navigator === "undefined") return "";
-  const hinted = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
-  return hinted || navigator.platform || "";
-}
 
 interface Props extends FeedbackPrefill {
   onClose: () => void;

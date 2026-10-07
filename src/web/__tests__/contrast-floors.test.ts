@@ -1606,13 +1606,19 @@ describe("small secondary text on the beds it is drawn on (#1788)", () => {
   const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
   /** The popover the sound menu's lines sit in. */
   const menu = (theme: Theme) => bedOf(".sound-menu", theme, panel(theme));
+  /** The dialog Settings' lines sit in — the tone headings and the custom
+   *  sounds left the popover for Settings › Sounds (2026-10-07). */
+  const settings = (theme: Theme) => bedOf(".modal", theme, panel(theme));
   /** The canvas the trash zone floats over. */
   const canvas = (theme: Theme) => bedOf(".canvas-wrap", theme, parseColor(TOK[theme]["--bg"]));
   const LINES: Array<[string, string[], (theme: Theme) => Rgba]> = [
-    ["the tone headings", [".sm-tone-name", ".sound-menu"], menu],
-    ["the menu's footer", [".sm-foot", ".sound-menu"], menu],
+    ["the tone headings", [".sm-tone-name", ".settings-modal"], settings],
+    // The footer's line about M became the note under the Sounds switch, in
+    // the popover and in Settings alike: the same quietest readable tier.
+    ["the key note under the Sounds switch", [".sm-key-note", ".sm-note", ".sound-menu"], menu],
+    ["the key note under the Sounds switch, in Settings", [".sm-key-note", ".sm-note", ".settings-modal"], settings],
     ["a custom-sound card's caption", [".sm-custom-card-copy > span", ".sm-custom-card"],
-      theme => bedOf(".sm-custom-card", theme, menu(theme))],
+      theme => bedOf(".sm-custom-card", theme, settings(theme))],
     ["the Projects report's Copy and Show buttons", [".ap-proj-copy"],
       theme => bedOf(".ap-proj-copy", theme, bedOf(".modal", theme, panel(theme)))],
     ["the trash zone's hint", [".drag-trash-hint", ".drag-trash-zone"],

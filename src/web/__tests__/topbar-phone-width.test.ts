@@ -38,7 +38,7 @@ const RUNS: { run: El; controls: El[][] }[] = [
   { run, controls: [[button()], [button()], [button("tb-fold")]] },                     // Session list, Usage, History
   { run, controls: [[button()], [button()], [button("bw-btn", "tb-fold")]] },           // Accounts, Machine, Browser watch
   { run: utility, controls: [
-    [el("div", ["sound-slot"]), button()], [el("div", ["appearance-slot"]), button()],   // Sound, Appearance
+    [el("div", ["sound-slot"]), button()], [button()],                                    // Sound, Settings
     [button("tb-fold")], [button("tb-more")],                                            // Feedback, ⋯
   ] },
 ];

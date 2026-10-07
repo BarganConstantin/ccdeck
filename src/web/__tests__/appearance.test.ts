@@ -40,65 +40,74 @@ describe("character appearance preference", () => {
     expect(app).toContain("source={fmSource}");
   });
 
-  it("uses a dismissible, accessible centered modal for the two appearance settings", () => {
-    const menu = read("components/AppearanceMenu.tsx");
+  // The Appearance modal became two sections of Settings (2026-10-07): the
+  // theme is General's (ThemeSection.tsx), Claude FM and the character are
+  // Music & character's (MusicSection.tsx), and the dialog round them is
+  // SettingsModal.tsx. Each guarantee below is the one these three cases held
+  // the Appearance modal to, read where the code now lives.
+  const modal = () => read("components/SettingsModal.tsx");
+  const themes = () => read("components/ThemeSection.tsx");
+  const music = () => read("components/MusicSection.tsx");
+
+  it("uses a dismissible, accessible centered modal for the appearance settings", () => {
     const styles = sheetText();
-    expect(menu).toContain("useModalDismiss");
-    expect(menu).toContain('role="dialog"');
-    expect(menu).toContain('aria-modal="true"');
-    expect(menu).toContain('className="modal-backdrop appearance-backdrop"');
-    expect(menu).toContain('className="modal appearance-menu appearance-modal"');
-    expect(menu).toContain('aria-haspopup="listbox"');
-    expect(menu).toContain('role="listbox"');
-    expect(menu).toContain('role="option"');
-    expect(menu).toContain('aria-labelledby="appearance-title"');
-    expect(menu).toContain('role="radiogroup"');
-    expect(menu).toContain('role="radio"');
-    expect(menu).toContain('role="switch"');
-    expect(menu).toContain('onClick={onClose}');
-    expect(styles).toContain(".modal.appearance-modal");
-    expect(styles).toContain("max-height: calc(100vh - 32px)");
-    expect(styles).toContain("overflow: auto");
-    expect(menu).toContain("onKeyDown={moveTheme}");
-    expect(menu).toContain('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"');
+    expect(modal()).toContain("useModalDismiss");
+    expect(modal()).toContain('role="dialog"');
+    expect(modal()).toContain('aria-modal="true"');
+    expect(modal()).toContain('className="modal-backdrop"');
+    expect(modal()).toContain('className="modal settings-modal"');
+    expect(music()).toContain('aria-haspopup="listbox"');
+    expect(music()).toContain('role="listbox"');
+    expect(music()).toContain('role="option"');
+    expect(modal()).toContain('aria-labelledby="settings-title"');
+    expect(themes()).toContain('role="radiogroup"');
+    expect(themes()).toContain('role="radio"');
+    expect(music()).toContain('role="switch"');
+    expect(modal()).toContain("onClick={onClose}");
+    // Inside the viewport, and the section scrolls rather than the page.
+    expect(styles).toContain(".modal.settings-modal");
+    expect(styles).toContain("height: min(640px, calc(100vh - 32px))");
+    expect(styles).toMatch(/\.settings-pane \{[^}]*overflow-y: auto;/);
+    expect(themes()).toContain("onKeyDown={moveTheme}");
+    expect(themes()).toContain('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"');
   });
 
-  it("is titled for both settings, and names each control from the words on screen", () => {
-    const menu = read("components/AppearanceMenu.tsx");
-    expect(menu).toContain('<h2 id="appearance-title" className="appearance-title">Appearance</h2>');
+  it("is titled, and names each control from the words on screen", () => {
+    expect(modal()).toContain('<span id="settings-title" className="modal-tool-name">Settings</span>');
     // The pair is named by its visible caption, and the key that switches it
     // from anywhere is declared on it.
-    expect(menu).toMatch(/role="radiogroup"\s+aria-labelledby="appearance-theme-caption"\s+aria-keyshortcuts="T"/);
+    expect(themes()).toMatch(/role="radiogroup"\s+aria-labelledby="appearance-theme-caption"\s+aria-keyshortcuts="T"/);
     // One tab stop in the pair, on the theme that is set; the arrows walk it.
-    expect(menu).toContain("tabIndex={theme === choice ? 0 : -1}");
+    expect(themes()).toContain("tabIndex={theme === choice ? 0 : -1}");
     // The previews are pictures; the name is the word under each.
-    expect(menu).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
-    expect(menu).toContain('aria-labelledby="appearance-character-label"');
-    expect(menu).toContain('aria-describedby="appearance-character-note"');
-    expect(menu).toContain('aria-describedby="appearance-fm-source-note"');
-    expect(menu).toContain('aria-describedby="appearance-fm-volume-note"');
-    expect(menu).toContain(">Show character on minimap<");
+    expect(themes()).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
+    expect(music()).toContain('aria-labelledby="appearance-character-label"');
+    expect(music()).toContain('aria-describedby="appearance-character-note"');
+    expect(music()).toContain('aria-describedby="appearance-fm-source-note"');
+    expect(music()).toContain('aria-describedby="appearance-fm-volume-note"');
+    expect(music()).toContain(">Show character on minimap<");
+    // Its own group now, not a row under the music source.
+    expect(music()).toMatch(/<h3 id="appearance-character-caption">Character<\/h3>[\s\S]*?>Show character on minimap</);
   });
 
-  it("keeps the whole Claude FM row one control, and Space and T working inside the menu", () => {
-    const menu = read("components/AppearanceMenu.tsx");
+  it("keeps the whole Claude FM row one control, and Space and T working inside Settings", () => {
     const styles = sheetText();
-    expect(menu).toContain('aria-haspopup="listbox"');
-    expect(menu).toContain("aria-activedescendant");
-    expect(menu).toContain('role="listbox"');
-    expect(menu).toContain('role="option"');
-    expect(menu).toContain('role="combobox"');
-    expect(menu).toContain("scrollIntoView");
+    expect(music()).toContain('aria-haspopup="listbox"');
+    expect(music()).toContain("aria-activedescendant");
+    expect(music()).toContain('role="listbox"');
+    expect(music()).toContain('role="option"');
+    expect(music()).toContain('role="combobox"');
+    expect(music()).toContain("scrollIntoView");
     expect(styles).toContain(".appearance-source-list");
     expect(styles).toContain("max-height: min(196px, 24vh)");
     expect(styles).toContain("overflow-y: auto");
     expect(styles).toContain("overscroll-behavior: auto");
     // The row is a <label> round the switch: a press anywhere in it reaches the
     // switch once, and there is still one tab stop.
-    expect(menu).toMatch(/<label className="appearance-row">[\s\S]*?role="switch"[\s\S]*?<\/label>/);
-    // React Flow cancels Space on the document; the menu keeps it for its own
+    expect(music()).toMatch(/<label className="appearance-row">[\s\S]*?role="switch"[\s\S]*?<\/label>/);
+    // React Flow cancels Space on the document; Settings keeps it for its own
     // controls. T switches the theme here too, and only without a modifier.
-    expect(menu).toContain('if (event.key === " ") { event.stopPropagation(); return; }');
-    expect(menu).toContain('event.ctrlKey || event.metaKey || event.altKey) return;');
+    expect(modal()).toContain('if (event.key === " ") { event.stopPropagation(); return; }');
+    expect(modal()).toContain('event.ctrlKey || event.metaKey || event.altKey) return;');
   });
 });

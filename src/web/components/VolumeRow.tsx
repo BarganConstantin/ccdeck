@@ -1,7 +1,8 @@
-// A volume, as a slider with its reading: the row each tone's section in the
-// sound menu draws, and the one the appearance menu borrows for Claude FM.
+// A volume, as a slider with its reading: the row each tone's section in
+// Settings › Sounds draws, the two the quick sound popover draws, and the one
+// Settings › Music & character borrows for Claude FM.
 //
-// Lifted out of ToneSection.tsx. AppearanceMenu had copied the row whole —
+// Lifted out of ToneSection.tsx. The Appearance menu had copied the row whole —
 // `.sm-row`, the native range, the `--sm-level` fill arithmetic and the
 // `.sm-read` percentage — so the sheet's one shape for "a level with a reading"
 // was written twice, and a change to how the fill is painted would have had to
@@ -11,8 +12,12 @@ import { type CSSProperties } from "react";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
 
 interface Props {
-  /** The range's id, which the "Volume" label points at. */
+  /** The range's id, which the label points at. */
   id: string;
+  /** The words the label says. "Volume" wherever the row sits under the name
+   *  of the thing it is the volume of; the quick sound popover's two rows have
+   *  no such heading, so each says which tone it sets. */
+  label?: string;
   /** The level, LEVEL_MIN to LEVEL_MAX in steps of LEVEL_STEP. */
   value: number;
   onLevel: (level: number) => void;
@@ -21,10 +26,10 @@ interface Props {
   "aria-describedby"?: string;
 }
 
-export default function VolumeRow({ id, value, onLevel, "aria-describedby": describedBy }: Props) {
+export default function VolumeRow({ id, label = "Volume", value, onLevel, "aria-describedby": describedBy }: Props) {
   return (
     <div className="sm-row">
-      <label htmlFor={id}>Volume</label>
+      <label htmlFor={id}>{label}</label>
       {/* Native, and left native on purpose. A custom track and thumb
           would have to re-earn the arrow keys, Home and End, the drag,
           the announced percentage and the focus ring — all of which the

@@ -1,11 +1,12 @@
-// One tone's row in the sound menu (#711): its name and preview, its volume,
-// and which sound it plays — a built-in figure or one of the custom sounds.
+// One tone's group in Settings › Sounds (#711): its name and preview, its
+// volume, and which sound it plays — a built-in figure or one of the custom
+// sounds.
 //
 // Lifted out of SoundMenu.tsx, where it was the body of the loop over the two
-// tones. The menu hands each row its tone, what the tone is set to and the
-// callbacks that change it; the row owns the two lines of copy that say which
-// tone it is. Its volume is VolumeRow.tsx, which the appearance menu draws
-// too.
+// tones, and drawn by SoundsSection.tsx since Settings. The section hands each
+// group its tone, what the tone is set to and the callbacks that change it; the
+// group owns the two lines of copy that say which tone it is. Its volume is
+// VolumeRow.tsx, which the quick sound popover and Claude FM draw too.
 import { FIGURE_SETS, type Chime, type ToneSettings } from "../sound";
 import { type CustomAssetSummary, type CustomSelections } from "../notification-audio";
 import { customIdOf, customOptionValue } from "../tone-option";
@@ -13,7 +14,7 @@ import VolumeRow from "./VolumeRow";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
-const TONE_LABEL: Record<Chime, string> = {
+export const TONE_LABEL: Record<Chime, string> = {
   done: "Turn finished",
   "needs-input": "Claude is asking",
 };

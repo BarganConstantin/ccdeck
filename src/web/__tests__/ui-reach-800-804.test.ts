@@ -31,6 +31,14 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
 const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../components/TopbarRuns.tsx");
 const soundMenu = read("../components/SoundMenu.tsx");
+// The notification switches and the browser channel left the sound popover for
+// Settings › Notifications (2026-10-07), whole; Settings mounts them with what
+// they are handed. The Sounds switch both the popover and Settings › Sounds
+// draw is SoundSwitch.tsx, and the tone groups are SoundsSection.tsx's.
+const notifications = read("../components/NotificationsSection.tsx");
+const settings = read("../components/SettingsModal.tsx");
+const soundsSection = read("../components/SoundsSection.tsx");
+const soundSwitch = read("../components/SoundSwitch.tsx");
 // The menu and every file lifted out of it, so the negatives below still see
 // the custom sounds, which moved to CustomSoundsSection.tsx.
 const soundMenuAll = soundMenuSurface();
@@ -82,12 +90,14 @@ describe("#801 — what the Notifications switch is saying", () => {
   //            rather than a condition attached to the first.
 
   it("keeps the switch answering exactly one question, and answering it alone", () => {
-    expect(soundMenu).toContain("aria-checked={notifyOn}");
-    expect(app).toContain('notifyPermission={notifySupported ? notifyPermission : "unsupported"}');
+    expect(notifications).toContain("aria-checked={notifyOn}");
+    // One home: the speaker's popover no longer draws it.
+    expect(soundMenu).not.toMatch(/notifyOn|onToggleNotify/);
+    expect(settings).toContain('notifyPermission={notifySupported ? notifyPermission : "unsupported"}');
     // Nothing about the browser reaches the switch or its note. That is what
     // "on" over "needs permission" was, and a control cannot contradict itself
     // if it never mentions the other question.
-    const setting = soundMenu.slice(soundMenu.indexOf('<div className="sm-setting">'));
+    const setting = notifications.slice(notifications.indexOf('<div className="sm-setting">'));
     const own = setting.slice(0, setting.indexOf("</div>"));
     expect(own).not.toContain("notifyPermission");
     expect(own).not.toContain("channel");
@@ -98,7 +108,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // is the reason this note exists: they fire on the same moments, and the
     // difference is WHEN — sound while a tab is open, this once none is.
     expect(NOTIFY_NOTE).toBe("With no deck tab open, get a notification wherever a sound would have played.");
-    expect(soundMenu).toContain("{notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}");
+    expect(notifications).toContain("{notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}");
   });
 
   it("finishes the job on the press, rather than reporting that it did not", () => {
@@ -116,15 +126,15 @@ describe("#801 — what the Notifications switch is saying", () => {
     expect(app).toContain("askNotifyRef.current = askForNotifications;");
   });
 
-  it("draws the channel below the switches and above the rule, at neither rank", () => {
+  it("draws the channel under the switch it serves, at neither rank", () => {
     // A named group with one control beside its name — the shape TURN FINISHED
     // already has — but NOT its caps heading. All caps in this menu belongs to
     // the two event groups, which are what structure it; a third one here would
     // give a capability report the rank of a section the user configures.
-    const chan = soundMenu.slice(soundMenu.indexOf('aria-labelledby="sm-channel-name"'));
+    const chan = notifications.slice(notifications.indexOf('aria-labelledby="sm-channel-name"'));
     expect(chan).toContain('<h3 className="sm-channel-name" id="sm-channel-name">Browser notifications</h3>');
     expect(chan).toContain('<div className="sm-channel-head">');
-    expect(soundMenu).toContain('<section className="sm-channel" aria-labelledby="sm-channel-name">');
+    expect(notifications).toContain('<section className="sm-channel" aria-labelledby="sm-channel-name">');
     const chanName = css.slice(css.indexOf(".sm-channel-name {"));
     expect(chanName.slice(0, chanName.indexOf("}"))).not.toContain("text-transform");
     const toneName = css.slice(css.lastIndexOf(".sm-tone-name {"));
@@ -139,7 +149,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // Above it: does this deck interrupt me, and can it. Below it: what each
     // interruption sounds like. The caps headings separate the event groups
     // from each other, not the whole set of them from what comes before.
-    expect(soundMenu).toContain('<div className="sm-tones">');
+    expect(soundsSection).toContain('<div className="sm-tones">');
     expect(css).toMatch(/\.sm-tones \{[^}]*border-top: 1px solid var\(--line\)/);
   });
 
@@ -147,7 +157,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // The switch said "Sound" and the per-tone <select> under it said "Sound"
     // too — one meaning on/off, the other which of three figures plays. The
     // switch is plural now and the picker is the thing it picks.
-    expect(soundMenu).toContain('id="sm-sound-label">Sounds<');
+    expect(soundSwitch).toContain("id={labelId}>Sounds<");
     expect(read("../components/ToneSection.tsx")).toContain("<label htmlFor={figureId}>Tone</label>");
     expect(soundMenuAll).not.toMatch(/>Sound</);
   });
@@ -200,13 +210,13 @@ describe("#801 — what the Notifications switch is saying", () => {
     for (const p of ["granted", "denied", "unsupported"] as const) {
       expect(browserChannel(p).ask, p).toBe(false);
     }
-    expect(soundMenu).toContain("{channel.ask ? (");
+    expect(notifications).toContain("{channel.ask ? (");
     // Its own class, not `.sm-hear`: same small button in the same slot, but
     // "hear" is what the other one does, and a shared name would make every
     // `.sm-hear` lookup return a button that plays nothing.
     // The press also arms the focus hand-off its answer needs (#1762).
-    expect(soundMenu).toContain('<button type="button" className="btn sm-channel-action" onClick={() => { rescueChannel(); onAskNotify(); }}>');
-    expect(app).toContain("onAskNotify={askForNotifications}");
+    expect(notifications).toContain('<button type="button" className="btn sm-channel-action" onClick={() => { rescueChannel(); onAskNotify(); }}>');
+    expect(settings).toContain("onAskNotify={askForNotifications}");
   });
 
   it("hides the channel whenever it cannot deliver, rather than asking for nothing", () => {
@@ -215,12 +225,12 @@ describe("#801 — what the Notifications switch is saying", () => {
     // silences BOTH notifiers, so the channel is moot either way — and the
     // note above has already said what happened. In the desktop app: its
     // notifications are its own, and the browser permission is never asked.
-    expect(soundMenu).toContain("const showChannel = notifyOn && !notifyVetoed && !inApp;");
-    expect(soundMenu).toContain("{showChannel && (");
+    expect(notifications).toContain("const showChannel = notifyOn && !notifyVetoed && !inApp;");
+    expect(notifications).toContain("{showChannel && (");
     expect(NOTIFY_VETO_NOTE).toContain("saved for the next start");
     // The switch still moves under a veto, because the preference is still the
     // user's to record for the next launch.
-    expect(soundMenu).toContain("onClick={onToggleNotify}");
+    expect(notifications).toContain("onClick={onToggleNotify}");
   });
 
   it("styles every class it renders", () => {

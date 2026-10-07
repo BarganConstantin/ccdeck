@@ -69,7 +69,10 @@ describe("the deck's elevations are tokens, in both themes (#1287)", () => {
 
   it("puts the menus on --shadow-3 and the popovers on the contact line over --shadow-2", () => {
     const shadowOf = (sel: string) => DECLS.find(d => d.sel === sel)?.value;
-    for (const menu of [".sound-menu", ".appearance-menu"]) expect(shadowOf(menu), menu).toBe("var(--shadow-3)");
+    // `.appearance-menu` left with the Appearance modal (2026-10-07), which
+    // drew as a `.modal` over it anyway; Settings is a `.modal` too, on the
+    // dialogs' --shadow-2.
+    for (const menu of [".sound-menu"]) expect(shadowOf(menu), menu).toBe("var(--shadow-3)");
     for (const pop of [".anchored-popover", ".appearance-source-list", ".ap-peek"]) {
       expect(shadowOf(pop), pop).toBe("var(--shadow-contact), var(--shadow-2)");
     }

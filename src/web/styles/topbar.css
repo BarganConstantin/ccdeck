@@ -287,6 +287,18 @@
   .topbar .tb-word-wide { display: inline; font-size: 12px; line-height: 1; }
   .topbar button.btn.icon-btn:has(.tb-word-wide) { width: auto; gap: 6px; padding: 0 8px; }
 }
+/* SETTINGS' WORD, ONE STEP LATER STILL. The gear took the sliders' place
+   glyph for glyph, so the busiest bar is the bar Feedback's width was argued
+   from, and the word "Settings" is one more word on it: measured on a real
+   deck, the word costs its button 54px, and the busiest bar holds both
+   words with the ribbon at its full 380 and #737's 40px of headroom from
+   1838. Under that it is the gear alone, named in its tooltip and its
+   accessible name, as Feedback is under its own width. */
+.tb-word-wider { display: none; }
+@media (min-width: 1838px) {
+  .topbar .tb-word-wider { display: inline; font-size: 12px; line-height: 1; }
+  .topbar button.btn.icon-btn:has(.tb-word-wider) { width: auto; gap: 6px; padding: 0 8px; }
+}
 /* Two providers in an incident at once (#1311). The readout gives from the
    left, so two chips in full — Claude's and Codex's, about 280px — cost the
    wordmark on a 1440px screen with a session waiting, and the stream pill

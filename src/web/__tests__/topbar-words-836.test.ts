@@ -62,10 +62,16 @@ describe("each topbar button can say its name (#836)", () => {
     expect(app.match(/className="tb-word"/g)).toHaveLength(WORDS.length);
   });
 
-  it("leaves the appearance button without one, since its icon opens a compact menu", () => {
-    const at = app.indexOf("aria-label={`Appearance settings");
+  it("gives the gear its word only from the width the busiest bar holds it, not with these seven", () => {
+    // The Appearance button stood here glyph-only; the gear that replaced it
+    // says "Settings", but on its own later tier (`tb-word-wider`), measured
+    // below, rather than from 1440 with the seven: at 1440 the busiest bar has
+    // no room for one more word.
+    const at = app.indexOf('aria-label="Settings"');
     expect(at).toBeGreaterThan(-1);
-    expect(app.slice(at, app.indexOf("</button>", at))).not.toMatch(/tb-word/);
+    const button = app.slice(app.lastIndexOf("<button", at), app.indexOf("</button>", at));
+    expect(button).not.toMatch(/className="tb-word"/);
+    expect(button).toMatch(/<span className="tb-word-wider">Settings<\/span>/);
   });
 
   it("ends no word in an ellipsis", () => {
@@ -169,6 +175,52 @@ describe("Feedback says its word only where the busiest bar still fits", () => {
     expect(body(".topbar button.btn.icon-btn")).toMatch(/color: var\(--muted\);/);
     const aimed = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .filter(([, sel]) => /tb-word-wide|Send feedback/.test(sel));
+    expect(aimed.length).toBeGreaterThan(0);
+    for (const [, sel, decls] of aimed) {
+      expect(decls, sel.trim()).not.toMatch(/(?:^|;)\s*(?:color|opacity|filter|visibility)\s*:/);
+    }
+  });
+});
+
+/** The word "Settings" on the gear, measured in Chromium on a live deck: the
+ *  gear's button with the word less the button with the glyph alone. */
+const SETTINGS_WORD_PX = 54;
+
+describe("Settings says its word only where the busiest bar still fits it, beside Feedback's", () => {
+  /** Where the word is drawn from: the min-width of the block that shows it. */
+  const shownFrom = (() => {
+    const at = [...css.matchAll(/@media \(min-width: (\d+)px\) \{([^@]*)/g)]
+      .find(m => m[2].includes(".topbar .tb-word-wider { display: inline;"));
+    return at ? Number(at[1]) : null;
+  })();
+  const feedbackFrom = BUSIEST_BAR_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX;
+  const reserve = Number(/@media \(min-width: 1440px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, calc\(100vw - (\d+)px\)\); \}/.exec(css)?.[1]);
+
+  it("never draws it where both words would push the busiest bar past its width", () => {
+    expect(shownFrom, "the breakpoint that shows it").not.toBeNull();
+    // Feedback's word is up from its own width, so this one counts both.
+    expect(shownFrom!).toBeGreaterThanOrEqual(feedbackFrom);
+    for (let w = shownFrom!; w <= 2560; w++) {
+      const ribbon = Math.min(380, w - reserve);
+      expect(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + SETTINGS_WORD_PX + ribbon + HEADROOM_PX, `at ${w}px`).toBeLessThanOrEqual(w);
+    }
+  });
+
+  it("draws it from the first width that holds it, and no later", () => {
+    expect(shownFrom).toBe(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + SETTINGS_WORD_PX + 380 + HEADROOM_PX);
+    expect(css).toMatch(/\n\.tb-word-wider \{ display: none; \}/);
+    const wide = media(`min-width: ${shownFrom}px`);
+    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word-wider\) \{ width: auto; gap: 6px; padding: 0 8px; \}/);
+    expect(app.match(/className="tb-word-wider"/g)).toHaveLength(1);
+  });
+
+  it("says a word its accessible name is, and rests at the labelled controls' tone without it", () => {
+    const at = app.indexOf('<span className="tb-word-wider">Settings</span>');
+    const button = app.slice(app.lastIndexOf("<button", at), at);
+    expect(button).toMatch(/aria-label="Settings"/);
+    expect(button).toMatch(/^<button\s+className="btn icon-btn"\s/);
+    expect(button).not.toMatch(/style=/);
+    const aimed = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, sel]) => /tb-word-wider/.test(sel));
     expect(aimed.length).toBeGreaterThan(0);
     for (const [, sel, decls] of aimed) {
       expect(decls, sel.trim()).not.toMatch(/(?:^|;)\s*(?:color|opacity|filter|visibility)\s*:/);

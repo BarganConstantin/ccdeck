@@ -57,7 +57,7 @@ const BOUND = [...HANDLER.matchAll(/e\.key === "((?:[^"\\]|\\.)*)"/g)].map(m => 
 /** The keys that have one spelling rather than two. Every letter is bound as
  *  both cases, because a Caps-locked keyboard sends the upper one for the same
  *  press; Space, `?` and Escape have no other case to bind. */
-const SINGLE_CASE = [" ", "?", "escape", "delete"];
+const SINGLE_CASE = [" ", "?", "escape", "delete", ","];
 
 const lower = (s: string) => s.toLowerCase();
 
@@ -81,8 +81,10 @@ describe("every key the deck binds is written down where a user can find it", ()
       // W since #825: the session waiting on you. B, S and V since #826: the
       // three topbar panels that were pointer-only. Z with the adaptive graph:
       // the selected card and its session, framed at a readable zoom. Delete
-      // since Remove from board left the topbar for the detail panel.
-      .toEqual([" ", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
+      // since Remove from board left the topbar for the detail panel. The
+      // comma since Settings: Cmd+, or Ctrl+, opens it, the one chord the deck
+      // claims.
+      .toEqual([" ", ",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {
@@ -230,11 +232,16 @@ describe("the sound switch, which had a control and no key", () => {
     expect(mouse.rows.some(r => /speaker/i.test(r.action) && /settings/i.test(r.action))).toBe(true);
   });
 
-  it("guards M the way it guards A, plus the state the button waits for", () => {
-    // No Claude Code, no button to draw; no sound state read back out of
-    // localStorage yet, no state to invert. The button is not drawn in either
-    // case and the key must not fire in either case.
-    expect(app).toMatch(/providersRef\.current\.claude && soundOnRef\.current !== null/);
+  it("guards M by the state the switch waits for, and V the way it guards A", () => {
+    // No sound state read back out of localStorage yet, no state to invert:
+    // the key must not fire. M used to be guarded by Claude Code as well,
+    // because without it no switch was drawn; Settings draws the switch on
+    // every machine, and a Codex turn plays the finish tone, so M answers on a
+    // Codex-only deck too (settings-chord.test.ts drives it there). V opens
+    // the popover under the speaker, which is still drawn only where Claude
+    // Code is, so V keeps both guards.
+    expect(app).toMatch(/if \(e\.key === "m" \|\| e\.key === "M"\) \{\s*if \(soundOnRef\.current !== null\) activateSoundRef\.current\(e\.shiftKey\);/);
+    expect(app).toMatch(/if \(e\.key === "v" \|\| e\.key === "V"\) \{\s*if \(providersRef\.current\.claude && soundOnRef\.current !== null\) setSoundMenuOpen/);
   });
 });
 
