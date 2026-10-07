@@ -3,7 +3,7 @@
 // card can keep its full face, and a marker for each one that could not be.
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  boxesOverlap, clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, setGitViewFrame, stackMarkers, whollyCovered,
+  boxesOverlap, clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, outOfSight, setGitViewFrame, stackMarkers,
   MARKER_H,
 } from "../git-view-fit";
 import { LABEL_LIFT } from "../session-chrome";
@@ -144,7 +144,9 @@ describe("the edge markers beside the cluster name tags", () => {
 
   it("are placed clear of the tags the frame put in the canvas, measured as drawn", () => {
     const view = sourceOf("components/GitView.tsx");
-    expect(view).toMatch(/const tagTop = labelTopAt\(r\.top - rect\.top, was, plan\.viewport\);/);
+    // Where the frame's camera puts each tag: the frame asks with its own move's target.
+    expect(view).toMatch(/const tagTop = labelTopAt\(r\.top - rect\.top, was, at\);/);
+    expect(view).toMatch(/const boxes = takeOutOfSight\(plan\.viewport, was\);/);
     expect(view).toMatch(/setLabelBoxes\(plan\.leftOut\.length \? boxes : NO_BOXES\);/);
     const edge = view.slice(view.indexOf("function EdgeMarkers("), view.indexOf("// ── the panel"));
     expect(edge).toMatch(/clearOfLabels\(/);
@@ -171,10 +173,26 @@ describe("the canvas's filter bar beside the open view", () => {
   });
 });
 
-describe("cards under the panel", () => {
-  it("leave the Tab order only when wholly covered", () => {
-    expect(whollyCovered({ left: 700, right: 960 }, 576)).toBe(true);
-    expect(whollyCovered({ left: 500, right: 760 }, 576)).toBe(false);
+describe("cards the reader cannot see while the view is open", () => {
+  // The canvas from x 72 to the panel's edge at 576, y 52 to 900, in screen px.
+  const view = { left: 72, right: 576, top: 52, bottom: 900 };
+  const at = (left: number, top: number) => ({ left, right: left + 260, top, bottom: top + 120 });
+
+  it("leave the Tab order only when wholly under the panel", () => {
+    expect(outOfSight(at(700, 200), view)).toBe(true);
+    expect(outOfSight(at(576, 200), view)).toBe(true);
+    expect(outOfSight(at(500, 200), view)).toBe(false);
+  });
+
+  it("and when wholly off the canvas's left, top or bottom edge, as a pan or the frame leaves them", () => {
+    // Off the left: the cards a frame beside the view leaves of the sessions to its left.
+    expect(outOfSight(at(-400, 200), view)).toBe(true);
+    expect(outOfSight(at(-188, 200), view)).toBe(true);
+    expect(outOfSight(at(-187, 200), view)).toBe(false);
+    expect(outOfSight(at(200, -68), view)).toBe(true);
+    expect(outOfSight(at(200, -67), view)).toBe(false);
+    expect(outOfSight(at(200, 900), view)).toBe(true);
+    expect(outOfSight(at(200, 899), view)).toBe(false);
   });
 });
 

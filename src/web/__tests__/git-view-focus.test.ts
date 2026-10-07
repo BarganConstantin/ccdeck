@@ -68,8 +68,9 @@ describe("a history asked for focus before its selected row is drawn", () => {
 describe("an edge marker activated", () => {
   it("hands focus to its agent's card once the frame has made it a Tab stop: the marker itself is gone", () => {
     expect(view).toMatch(/onGo=\{id => \{ focusAfterFrame\.current = id; onSelectAgent\(id\); \}\}/);
-    // In the frame, after the cards under the panel were made inert or released.
-    const at = view.indexOf("setInert(under, true, inertCards);");
+    // In the frame, after the cards out of sight were made inert or released.
+    const at = view.indexOf("const boxes = takeOutOfSight(plan.viewport, was);");
+    expect(at).toBeGreaterThan(-1);
     const after = view.slice(at, view.indexOf("}, [moveCamera]);", at));
     expect(after).toMatch(/if \(focusAfterFrame\.current === a\.id\) \{\s*focusAfterFrame\.current = null;\s*document\.querySelector<HTMLElement>\(`\.react-flow__node\[data-id="\$\{CSS\.escape\(a\.id\)\}"\]`\)\?\.focus\(\{ preventScroll: true \}\);/);
   });

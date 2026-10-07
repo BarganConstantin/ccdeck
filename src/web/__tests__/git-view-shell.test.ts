@@ -43,8 +43,30 @@ describe("what it covers while open", () => {
     expect(view).toMatch(/"\.app > :is\(main, \.detail, \.session-list, \.accounts-panel, \.usage-panel, \.sysdetail\)"\s*:\s*"\.app > \.detail"/);
   });
 
-  it("takes a card wholly under the panel out of the Tab order", () => {
-    expect(view).toMatch(/whollyCovered\(\{ left, right: left \+ \(m\?\.width \?\? 0\) \* zoom \}, coverLeft\) \? under : clear/);
+  it("takes a card wholly under the panel, or wholly off the canvas it leaves, out of the Tab order", () => {
+    // The canvas the panel leaves: the canvas's own box, less the panel over its right.
+    expect(view).toMatch(/const sight: PaneBox = \{ left: rect\.left, right: Math\.min\(rect\.right, window\.innerWidth - w\), top: rect\.top, bottom: rect\.bottom \};/);
+    expect(view).toMatch(/const card: PaneBox = \{ left, right: left \+ \(m\?\.width \?\? 0\) \* zoom, top, bottom: top \+ \(m\?\.height \?\? 0\) \* zoom \};\s*\(outOfSight\(card, sight\) \? under : clear\)\.add\(el\);/);
+    // A session's name tag by the same rule, where the frame's camera puts it.
+    expect(view).toMatch(/const covered = outOfSight\(\{ left, right: left \+ r\.width, top: rect\.top \+ tagTop, bottom: rect\.top \+ tagTop \+ r\.height \}, sight\);/);
+  });
+
+  it("asks again where a pan or a zoom leaves the camera, once it has stopped, and lets the frame's own move land first", () => {
+    // The effect that holds the subscription, from its guard to its deps.
+    const at = view.lastIndexOf("if (!want || sheet) return;", view.indexOf("store.subscribe("));
+    const effect = view.slice(at, view.indexOf("}, [want, sheet]);", at));
+    expect(at).toBeGreaterThan(-1);
+    expect(effect).toMatch(/if \(!want \|\| sheet\) return;/);
+    expect(effect).toMatch(/store\.subscribe\(\(s, prev\) => \{\s*if \(s\.transform === prev\.transform\) return;/);
+    expect(effect).toMatch(/const wait = framedUntil\.current - performance\.now\(\);\s*if \(wait > 0\) \{ timer = window\.setTimeout\(settle, wait\); return; \}/);
+    expect(effect).toMatch(/const now = rf\.getViewport\(\);\s*takeOutOfSight\(now, now\);/);
+    expect(effect).toMatch(/return \(\) => \{ unsubscribe\(\); window\.clearTimeout\(timer\); \};/);
+    // The frame says how long its own move takes to land.
+    expect(view).toMatch(/moveCamera\(plan\.viewport, duration\);\s*framedUntil\.current = performance\.now\(\) \+ duration \+ SETTLE_MS;/);
+  });
+
+  it("gives every card it took back when it closes", () => {
+    expect(view).toMatch(/coverBehind\(false\);\s*setInert\(\[\.\.\.inertCards\], false, inertCards\);/);
   });
 
   it("hides what it covers whole, marked on the root rather than found by :has()", () => {
