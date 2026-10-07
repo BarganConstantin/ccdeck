@@ -1,0 +1,397 @@
+/* The git view's sidebar in the Fork look (FkSidebar.tsx), inside the
+   floating panel the view's layout draws for it (git-fork.css .fk-side-panel):
+   the repository's name, the two views, a filter, and the refs as a tree of
+   24px rows, 6px of indent a level. Only the Fork look renders .fk-sb, so the
+   deck look never meets a rule here.
+
+   Colours are the --fk-* tokens. Where one of Fork's own misses a floor the
+   deck holds, the floor-safe value is declared here, for this panel only:
+   light's placeholder and "None" grey (#8a8a8a is 2.66:1 on the panel), the
+   worktree branch beside a worktree's name (the glyph grey is 3.94:1 as
+   text in light, and 4.16:1 on the dark selection), the filter's rim, and
+   the upstream-gone triangle (Fork's light amber is 1.75:1 on the panel).
+
+   Focus is the deck's one ring (tokens.css :focus-visible), as everywhere in
+   the Fork look, drawn inside the row. Hover changes nothing here, as in
+   Fork. */
+
+.fk-sb {
+  /* Floor-safe for this panel; the dark values are Fork's own. */
+  --fk-sb-dim: var(--fk-sidebar-dim);
+  --fk-sb-detail: var(--fk-sidebar-glyph);
+  --fk-sb-detail-sel: #b8b8b8;
+  --fk-sb-field-line: var(--fk-sidebar-field-line);
+  --fk-sb-warn: var(--fk-warn);
+  --fk-sb-on-select: color-mix(in srgb, var(--fk-select-ink) 85%, transparent);
+  --fk-sb-ring-on-select: color-mix(in srgb, var(--fk-select-ink) 75%, transparent);
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--fk-sidebar-text);
+}
+
+:root[data-theme="light"] .fk-sb {
+  --fk-sb-dim: #636363;
+  --fk-sb-detail: #5c5c5c;
+  --fk-sb-detail-sel: #4a4a4a;
+  --fk-sb-field-line: #8f8f8f;
+  --fk-sb-warn: #8a6400;
+}
+
+/* ── the repository's name ── */
+.fk-sb .fk-sb-repo {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 22px;
+  margin: 12px 0 0 27px;
+  padding: 0 18px 0 0;
+}
+
+.fk-sb .fk-sb-repo-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ── Local Changes / All Commits ── */
+.fk-sb .fk-sb-nav {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--fk-sidebar-line);
+}
+
+.fk-sb .fk-sb-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  margin: 0 8px 0 10px;
+  padding: 0 8px 0 24px;
+  border: 0;
+  border-radius: 8px;
+  outline-offset: -2px;
+  background: transparent;
+  color: var(--fk-sidebar-text);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.fk-sb .fk-sb-nav-icon {
+  flex: none;
+  margin-right: 1px;
+  color: var(--fk-sidebar-glyph);
+}
+
+.fk-sb .fk-sb-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fk-sb .fk-sb-nav-item[aria-pressed="true"] { background: var(--fk-sidebar-select); }
+.fk-sb .fk-sb-nav-item[aria-pressed="true"] .fk-sb-nav-icon { color: var(--fk-sidebar-glyph-sel); }
+
+/* ── the filter: the field draws the rim, the input fills it ── */
+.fk-sb .fk-sb-filter {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  height: 22px;
+  margin: 5px 3px 9px 4px;
+  border: 1px solid var(--fk-sb-field-line);
+  border-radius: 6px;
+  background: var(--fk-sidebar-field);
+}
+
+.fk-sb .fk-sb-lens {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  color: var(--fk-sidebar-glyph);
+  pointer-events: none;
+}
+
+.fk-sb .fk-sb-filter-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 0 6px 0 20px;
+  border: 0;
+  border-radius: inherit;
+  outline-offset: 0;
+  background: transparent;
+  color: var(--fk-sidebar-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.fk-sb .fk-sb-filter-input::placeholder { color: var(--fk-sb-dim); opacity: 1; }
+
+.fk-sb .fk-sb-msg {
+  flex: none;
+  margin: 0 12px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fk-sb-dim);
+  font-size: 12px;
+}
+
+/* ── the tree: rows placed by the component, only those in sight ── */
+.fk-sb .fk-sb-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.fk-sb .fk-sb-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fk-scroll-thumb) transparent;
+}
+
+.fk-sb .fk-sb-tree {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.fk-sb .fk-sb-head,
+.fk-sb .fk-sb-row,
+.fk-sb .fk-sb-folder,
+.fk-sb .fk-sb-note {
+  --fk-sb-surface: var(--fk-sidebar);
+  position: absolute;
+  left: 10px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 24px;
+  border-radius: 8px;
+  outline-offset: -2px;
+  white-space: nowrap;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.fk-sb .fk-sb-head {
+  gap: 5px;
+  padding: 0 8px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fk-sb .fk-sb-head-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fk-sb .fk-sb-chev {
+  flex: none;
+  color: var(--fk-sidebar-glyph);
+  transition: transform 120ms ease-out;
+}
+
+.fk-sb [data-open] > .fk-sb-chev { transform: translate(-0.8px, 0.5px) rotate(90deg); }
+
+/* A folder opened from the keyboard turns its chevron at once. */
+.fk-sb .fk-sb-tree[data-keyed] .fk-sb-chev { transition: none; }
+
+.fk-sb .fk-sb-chev-gap { flex: none; width: 14px; }
+
+.fk-sb .fk-sb-row {
+  gap: 6px;
+  padding: 2px 24px 0 calc(25px + var(--fk-sb-depth) * 6px);
+}
+
+.fk-sb .fk-sb-folder {
+  padding: 2px 8px 0 calc(8.4px + var(--fk-sb-depth) * 6px);
+}
+
+.fk-sb .fk-sb-icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: 1px;
+  color: var(--fk-sidebar-glyph);
+}
+
+.fk-sb .fk-sb-folder .fk-sb-icon { margin: 0 7px 0 2.7px; }
+
+.fk-sb .fk-sb-row[data-kind="submodule"] .fk-sb-icon {
+  align-items: center;
+  justify-content: center;
+}
+
+.fk-sb .fk-sb-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-right: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fk-sb .fk-sb-row[data-kind="branch"][data-current] { font-weight: 700; }
+.fk-sb .fk-sb-row[data-current] .fk-sb-icon { color: var(--fk-sidebar-check); }
+
+.fk-sb .fk-sb-held {
+  flex: none;
+  margin-left: -2px;
+  color: var(--fk-sidebar-glyph);
+}
+
+.fk-sb .fk-sb-count {
+  flex: none;
+  margin-left: auto;
+  color: var(--fk-sidebar-count);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.fk-sb .fk-sb-arrow {
+  margin-left: 1.4px;
+  vertical-align: baseline;
+}
+
+/* The worktree's branch takes what the name leaves, so it yields first and
+   the name is never cut while there is room for it. */
+.fk-sb .fk-sb-detail {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  color: var(--fk-sb-detail);
+  font-size: 11px;
+}
+
+.fk-sb .fk-sb-row[data-missing] .fk-sb-icon { opacity: 0.55; }
+.fk-sb .fk-sb-row[data-missing] .fk-sb-label { color: var(--fk-sb-dim); }
+
+/* The upstream-gone mark, ringed in the row's own surface: a cut-out. */
+.fk-sb .fk-sb-gone {
+  position: absolute;
+  right: -2px;
+  bottom: -1px;
+  overflow: visible;
+}
+
+.fk-sb .fk-sb-gone-tri {
+  fill: var(--fk-sb-warn);
+  stroke: var(--fk-sb-surface);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+.fk-sb .fk-sb-gone-bang {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+.fk-sb .fk-sb-note {
+  left: 58px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fk-sb-dim);
+  font-size: 12px;
+}
+
+.fk-sb .fk-sb-note[aria-level="1"] { left: 12px; }
+
+/* ── selection: the grey pill; the focused colour while the tree has focus ── */
+.fk-sb .fk-sb-row[aria-selected="true"],
+.fk-sb .fk-sb-folder[aria-selected="true"] {
+  --fk-sb-surface: var(--fk-sidebar-select);
+  background: var(--fk-sidebar-select);
+}
+
+.fk-sb [aria-selected="true"] > .fk-sb-chev,
+.fk-sb [aria-selected="true"] > .fk-sb-icon,
+.fk-sb [aria-selected="true"] > .fk-sb-held { color: var(--fk-sidebar-glyph-sel); }
+.fk-sb [aria-selected="true"] > .fk-sb-detail { color: var(--fk-sb-detail-sel); }
+
+.fk-sb[data-focused] .fk-sb-tree:focus-within .fk-sb-row[aria-selected="true"],
+.fk-sb[data-focused] .fk-sb-tree:focus-within .fk-sb-folder[aria-selected="true"],
+.fk-sb[data-focused] .fk-sb-nav-item[aria-pressed="true"]:focus {
+  --fk-sb-surface: var(--fk-select);
+  outline-color: var(--fk-sb-ring-on-select);
+  outline-offset: -1px;
+  background: var(--fk-select);
+  color: var(--fk-select-ink);
+}
+
+.fk-sb[data-focused] .fk-sb-tree:focus-within [aria-selected="true"] > .fk-sb-chev,
+.fk-sb[data-focused] .fk-sb-tree:focus-within [aria-selected="true"] > .fk-sb-icon,
+.fk-sb[data-focused] .fk-sb-tree:focus-within [aria-selected="true"] > .fk-sb-held,
+.fk-sb[data-focused] .fk-sb-tree:focus-within [aria-selected="true"] > .fk-sb-detail,
+.fk-sb[data-focused] .fk-sb-tree:focus-within [aria-selected="true"] > .fk-sb-count,
+.fk-sb[data-focused] .fk-sb-nav-item[aria-pressed="true"]:focus .fk-sb-nav-icon { color: var(--fk-sb-on-select); }
+
+/* ── a ref's menu: Copy name, Copy SHA ── */
+.fk-sb .fk-sb-menu {
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 5px;
+  border: 1px solid var(--fk-line);
+  border-radius: 8px;
+  background: var(--fk-raised);
+  box-shadow: var(--fk-sidebar-shadow);
+  font-size: 13px;
+}
+
+.fk-sb .fk-sb-menu-item {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 24px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  outline-offset: -2px;
+  background: transparent;
+  color: var(--fk-text);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fk-sb .fk-sb-menu-item:hover,
+.fk-sb .fk-sb-menu-item:focus {
+  outline-color: var(--fk-sb-ring-on-select);
+  background: var(--fk-select);
+  color: var(--fk-select-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fk-sb .fk-sb-chev { transition: none; }
+}

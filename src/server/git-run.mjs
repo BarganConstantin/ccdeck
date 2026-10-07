@@ -109,8 +109,11 @@ const PER_SUBCOMMAND = {
  *  process exists, so a later caller cannot reach a command that writes. */
 const READS = new Set([
   "rev-parse", "symbolic-ref", "for-each-ref", "config", "status", "diff",
-  "diff-tree", "log", "show", "cat-file", "rev-list",
+  "diff-tree", "log", "show", "cat-file", "rev-list", "ls-files",
 ]);
+/** Subcommands that also write, started only with the one argument that
+ *  lists: `worktree list`, never `worktree add`, `remove` or `prune`. */
+const LIST_ONLY = new Map([["worktree", "list"]]);
 
 /** A driver name as git's config keys spell it: anything but a newline, and
  *  never empty. Checked because each one becomes part of a config key. */
@@ -149,7 +152,7 @@ export function gitEnv(base = process.env, platform = process.platform) {
  * it without spawning. `filters` are the clean/smudge driver names to empty.
  */
 export function gitArgv(sub, args = [], { filters = [] } = {}) {
-  if (!READS.has(sub)) throw new Error(`git ${sub} is not a read`);
+  if (!READS.has(sub) && !(LIST_ONLY.has(sub) && args[0] === LIST_ONLY.get(sub))) throw new Error(`git ${sub} is not a read`);
   const neutral = [];
   for (const name of driverNames(filters)) {
     if (!DASH_C_DRIVER.test(name)) continue;
