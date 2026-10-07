@@ -16,13 +16,14 @@
 //   { hook_event_name: "GitObserved", session_id, provider?: "codex",
 //     git: { subagent?, state, stale, topLevel?, name?, mainName?, folderName?,
 //            nameDiffers?, linkedWorktree?, branch?, detached?, sha?, unborn?,
-//            empty?, fromLog? } }
+//            empty?, fromLog?, followed?, sameAsRoot? } }
 //
 // for the session's root and for each subagent whose folder is not the
-// root's (`git.subagent` is its key). `state` is "repo" or why there is none
-// ("not-a-repo", "gone", "no-git", "bare", "unsafe") — sent only to take back
-// a branch the page was already shown, since a card without one needs no
-// event. The exception is a root whose folder is "gone": its own log still
+// root's (`git.subagent` is its key) — and for a subagent that had a folder of
+// its own and is back in the root's, one `sameAsRoot: true` to take that back.
+// `state` is "repo" or why there is none ("not-a-repo", "gone", "no-git",
+// "bare", "unsafe") — sent only to take back a branch the page was already
+// shown, since a card without one needs no event. The exception is a root whose folder is "gone": its own log still
 // names a branch (the transcript's `gitBranch`, a Codex rollout's
 // session_meta), sent as `branch` with `fromLog: true`. A read that timed out
 // or failed sends nothing, so a slow disk never takes a branch off a card.
@@ -50,8 +51,11 @@
 //   - an edit says so more quietly: a session follows its edits to another
 //     worktree after EDITS_TO_FOLLOW calls there in a row, so one stray file
 //     written elsewhere (a note, a memory file) moves nothing.
-// A folder outside every repository says nothing. The worktree it moved to
-// rides on its GitObserved, which the log keeps, so a restarted deck puts the
+// A folder outside every repository says nothing. A worktree it was followed
+// to and that has since been deleted is let go of, back to the folder it
+// started in while that is still there (letGoOfGone, before each look and
+// each route's read). The worktree it moved to rides on its GitObserved,
+// marked `followed`, which the log keeps, so a restarted deck puts the
 // session back where it was working (seedFromLog).
 //
 // AFTER A BOOT, the sessions the replay put back are looked at once
@@ -76,7 +80,7 @@ import { pushEvent } from "./event-sink.mjs";
 import { codexCwdInWorkspace } from "./log-election.mjs";
 import { gitOn } from "./deck-prefs.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
-import { followFolder, recentSessions, sessionFolder, sessionSubagents, sessionTranscript } from "./git-sessions.mjs";
+import { followFolder, noteLiveFolder, recentSessions, sessionFolder, sessionSubagents, sessionTranscript, takeMove } from "./git-sessions.mjs";
 import { markStale, repoOf } from "./git-state.mjs";
 // What a call edited and the folders its commands name.
 import { digestToolCall } from "./agent-git-digest.mjs";
@@ -101,7 +105,7 @@ export const FIRST_LOOK_MS = 250;
 export const AFTER_COMMAND_MS = 600;
 export const AFTER_EDIT_MS = 2_000;
 
-const watched = new Map(); // sid -> { timer, due, seen: Set<key>, sent: Map<key, { sig, stale, top, state, drawn, payload, seq, at }>, cwds: Map<key, cwd>, pending: Map<key, { top, n }>, following: Promise }
+const watched = new Map(); // sid -> { timer, due, seen: Set<key>, sent: Map<key, { sig, stale, top, state, drawn, payload, seq, at }>, pending: Map<key, { top, n }>, following: Promise }
 /** The Settings switch: off, the deck runs no git at all. */
 let enabled = () => gitOn(heldPrefs.current());
 /** How many of the most recently heard sessions a refresh looks at — every
@@ -127,7 +131,7 @@ export const gitEnabled = () => enabled();
 function watching(sid) {
   let w = watched.get(sid);
   if (!w) {
-    w = { timer: null, due: Infinity, seen: new Set(), sent: new Map(), cwds: new Map(), pending: new Map(), following: Promise.resolve() };
+    w = { timer: null, due: Infinity, seen: new Set(), sent: new Map(), pending: new Map(), following: Promise.resolve() };
     watched.set(sid, w);
     while (watched.size > MAX_WATCHED) forgetGitSession(watched.keys().next().value);
   }
@@ -148,9 +152,12 @@ export function noteGitEvent(raw, { replay = false, seq = null, at = null } = {}
       if (raw.hook_event_name === "GitObserved") seedFromLog(raw, seq, at);
       return;
     }
-    if (!enabled()) return;
     const sid = raw.session_id;
     if (typeof sid !== "string" || sid === "" || typeof raw.cwd !== "string" || raw.cwd === "") return;
+    // The folder it is in, heard with the reads switched off too: a move made
+    // meanwhile is followed once they are on again.
+    noteLiveFolder(sid, subagentKeyOf(raw), raw.cwd);
+    if (!enabled()) return;
     const w = watching(sid);
     if (changesRepo(raw)) {
       const marked = mark(raw, w);
@@ -164,7 +171,7 @@ export function noteGitEvent(raw, { replay = false, seq = null, at = null } = {}
         }
       }
     }
-    const evidence = whereItWorks(raw, w);
+    const evidence = whereItWorks(raw, sid);
     if (evidence.moves.length || evidence.edits.length) {
       const key = subagentKeyOf(raw) ?? "";
       w.following = w.following.then(() => follow(sid, key, evidence, w)).catch(() => {});
@@ -213,18 +220,18 @@ function mark(raw, w) {
 
 /**
  * What one event says about where its agent works: `moves`, the folders it
- * went to — its own folder when that changed, then each folder its commands
+ * went to — its own folder when that changed since the last live event heard
+ * from it (git-sessions.mjs takeMove, which also keeps a change heard while
+ * the reads were off or the session was let go), then each folder its commands
  * `cd` or `git -C` into, in order — and `edits`, the folders of the files it
  * edited. A Claude call counts once it finished; a Codex call as it starts,
  * since its outcome names no tool.
  */
-function whereItWorks(raw, w) {
-  const key = subagentKeyOf(raw) ?? "";
+function whereItWorks(raw, sid) {
   const moves = [];
   const edits = [];
-  const before = w.cwds.get(key);
-  w.cwds.set(key, raw.cwd);
-  if (before !== undefined && before !== raw.cwd) moves.push(raw.cwd);
+  const moved = takeMove(sid, subagentKeyOf(raw));
+  if (moved) moves.push(moved);
   const codex = raw.provider === "codex";
   if (codex ? raw.hook_event_name === "PreToolUse" : FINISHED.has(raw.hook_event_name) && CHANGING_TOOLS.has(raw.tool_name)) {
     const call = digestToolCall(raw.tool_name, raw.tool_input, raw.cwd);
@@ -268,7 +275,56 @@ async function follow(sid, key, { moves, edits }, w) {
   // Back where it would be with nothing followed: forget the followed folder,
   // so the folder it started in reads as it always did.
   const home = await worktreeOf(here.start);
-  if (followFolder(sid, key || null, home === top ? null : top)) schedule(sid, w, FIRST_LOOK_MS);
+  if (followFolder(sid, key || null, home === top ? null : top)) workMoved(sid, w);
+}
+
+/** Where `sid` works has just changed: look at it now, and tell whoever
+ *  reads that folder too (git-collisions.mjs, git-recent-commits.mjs). */
+function workMoved(sid, w) {
+  if (w) schedule(sid, w, FIRST_LOOK_MS);
+  for (const fn of followers) {
+    try { fn(sid); } catch { /* a listener never breaks the event path */ }
+  }
+}
+
+/**
+ * Let go of a followed worktree that is gone — for the root of `sid` and each
+ * of its subagents — when the folder it started in is still there: it can
+ * only be working there now, and nothing else would bring it back while it
+ * runs plain commands at home. Answers whether anything changed.
+ */
+async function letGoOfGone(sid) {
+  let changed = false;
+  for (const key of [null, ...sessionSubagents(sid).map(([k]) => k)]) {
+    const f = sessionFolder(sid, key);
+    if (!f || f.cwd === f.start) continue;
+    if ((await repoOf(f.cwd)).state !== "gone" || (await repoOf(f.start)).state === "gone") continue;
+    if (followFolder(sid, f.agent, null)) changed = true;
+  }
+  return changed;
+}
+
+/**
+ * The folder `sid` — its subagent `agent`, when one is named — works in, as
+ * sessionFolder answers it, after letting go of a followed worktree that is
+ * gone (and then looking at the session again, so its card hears it too). What
+ * the routes read, so a view opened before the session's next call is not
+ * told the folder is gone while the agent works at home.
+ */
+export async function workingFolder(sid, agent = null) {
+  if (enabled() && sessionFolder(sid) && await letGoOfGone(sid)) workMoved(sid, watched.get(sid));
+  return sessionFolder(sid, agent);
+}
+
+const followers = new Set();
+/**
+ * Call `fn(sid)` each time a live call moves the folder a session (or one of
+ * its subagents) works in — the folder the collision check and the lane read
+ * too, which nothing else would tell them changed. Answers the way to stop.
+ */
+export function onFollow(fn) {
+  followers.add(fn);
+  return () => followers.delete(fn);
 }
 
 function schedule(sid, w, delay) {
@@ -283,6 +339,9 @@ function schedule(sid, w, delay) {
   }, delay);
   w.timer.unref?.();
 }
+
+/** The signature of a subagent taken back into its session's folder. */
+const SAME_AS_ROOT = "same-as-root";
 
 /** The identity part of an observation: what a card would draw differently. */
 function signature(git) {
@@ -331,19 +390,45 @@ export function describeRepo(repo) {
 /** Look at a session's repositories now and send what changed. */
 async function look(sid) {
   const w = watched.get(sid);
+  if (!w || !sessionFolder(sid) || !enabled()) return;
+  if (await letGoOfGone(sid)) workMoved(sid, null);
   const root = sessionFolder(sid);
-  if (!w || !root || !enabled()) return;
+  if (!root || watched.get(sid) !== w) return;
   const targets = [["", root.cwd]];
   w.seen.add("");
   for (const [key, cwd] of sessionSubagents(sid)) {
     w.seen.add(key);
     if (cwd !== root.cwd) targets.push([key, cwd]);
   }
+  // A subagent that worked in a folder of its own and is back in the
+  // session's: what it was told of its own is taken back, so its card reads
+  // the session's again (`sameAsRoot`). Logged like any change of identity,
+  // so a restart does not follow it back out (seedFromLog).
+  const here = new Set(targets.map(([key]) => key));
+  for (const [key, prev] of w.sent) {
+    if (key === "" || here.has(key) || prev.sameAsRoot) continue;
+    const entry = { sig: SAME_AS_ROOT, stale: 0, top: null, state: "repo", drawn: false, sameAsRoot: true, payload: null, seq: null, at: null };
+    w.sent.set(key, entry);
+    if (!prev.payload) continue;
+    entry.payload = {
+      hook_event_name: "GitObserved",
+      session_id: sid,
+      ...(root.provider === "codex" ? { provider: "codex" } : {}),
+      git: { subagent: key, state: "repo", sameAsRoot: true, stale: 0 },
+    };
+    const evt = pushEvent(entry.payload, "internal");
+    entry.seq = evt?.seq ?? null;
+    entry.at = evt?.receivedAt ?? null;
+  }
   const moved = new Set();
   for (const [key, cwd] of targets) {
     const repo = await repoOf(cwd);
     if (!DEFINITE.has(repo.state) || watched.get(sid) !== w) continue;
     const git = describeRepo(repo);
+    // Read somewhere other than the folder it started in: said, so a restart
+    // follows it there again (seedFromLog) whatever the two folders' paths.
+    const own = key ? sessionFolder(sid, key) : root;
+    if (git.state === "repo" && own && own.cwd !== own.start) git.followed = true;
     // A deleted folder still names the branch its session last ran on, from
     // the session's own log — the root's only; a subagent keeps no log of one.
     if (git.state === "gone" && !key) {
@@ -351,7 +436,8 @@ async function look(sid) {
       if (branch) Object.assign(git, { branch, fromLog: true });
     }
     const sig = signature(git);
-    const prev = w.sent.get(key);
+    const told = w.sent.get(key);
+    const prev = told?.sameAsRoot ? undefined : told;
     if (prev && prev.sig === sig && prev.stale === git.stale) continue;
     const identity = !prev || prev.sig !== sig;
     if (identity && prev && git.topLevel) moved.add(git.topLevel);
@@ -385,11 +471,23 @@ function seedFromLog(raw, seq, at) {
   const git = raw.git;
   if (typeof sid !== "string" || sid === "" || !git || typeof git !== "object" || typeof git.state !== "string") return;
   const key = typeof git.subagent === "string" ? git.subagent : "";
+  // A subagent back in its session's folder: nothing of its own followed.
+  if (key && git.sameAsRoot === true) {
+    followFolder(sid, key, null);
+    watching(sid).sent.set(key, {
+      sig: SAME_AS_ROOT, stale: 0, top: null, state: "repo", drawn: false, sameAsRoot: true,
+      payload: raw, seq: typeof seq === "number" ? seq : null, at: typeof at === "number" ? at : null,
+    });
+    return;
+  }
   // Where it was working when this was sent: a worktree away from the folder
   // it started in is followed again, so a restart does not send it home.
+  // `followed` says so; a line from before it was written is judged by its
+  // path — the folder it started in outside the worktree named.
   if (git.state === "repo" && typeof git.topLevel === "string" && git.topLevel) {
     const start = sessionFolder(sid, key || null)?.start;
-    if (start) followFolder(sid, key || null, codexCwdInWorkspace(start, git.topLevel) ? null : git.topLevel);
+    const away = git.followed === true || (start && !codexCwdInWorkspace(start, git.topLevel));
+    if (start) followFolder(sid, key || null, away ? git.topLevel : null);
   }
   // The counter is this process's own and starts at nought.
   watching(sid).sent.set(key, {

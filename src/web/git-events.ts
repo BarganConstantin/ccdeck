@@ -36,9 +36,18 @@ export function gitFactsFrom(raw: unknown): GitFacts | null {
 }
 
 export function applyGitObserved(state: GraphState, p: HookPayload, sessionId: string): void {
+  const key = str(p.git?.subagent);
+  // A subagent back in its session's folder: what it was told of its own goes,
+  // so its card reads the session's again — no chip, no lane of its own.
+  if (key && p.git?.sameAsRoot === true) {
+    const id = subagentIdFor(sessionId, key);
+    const agent = state.agents.get(id);
+    if (agent) delete agent.git;
+    else state.parkedGit.delete(id);
+    return;
+  }
   const facts = gitFactsFrom(p.git);
   if (!facts) return;
-  const key = str(p.git?.subagent);
   const id = key ? subagentIdFor(sessionId, key) : rootAgentId(sessionId);
   const agent = state.agents.get(id);
   if (agent) agent.git = facts;

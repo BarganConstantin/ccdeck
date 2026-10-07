@@ -26,18 +26,21 @@
 //
 // WHERE AND WHAT. Each agent's repository and branch are read the way
 // GitObserved reads them (git-state.mjs, from the agent's own folder); its
-// edits are the edit tracker's (agent-git-edits.mjs), placed in that
-// repository (git-edits.mjs); "still changed" is the repository's cached
-// status, which the agents' own tool calls mark stale — and, for a changed
-// file two agents edited, its last commit since the earlier edit: an agent
-// that committed the file and moved on does not collide with one that edited
-// it afterwards.
+// edits are the edit tracker's (agent-git-edits.mjs), each placed in the
+// worktree that holds it (git-edits.mjs) — the agent's own, or for an edit
+// outside it the one its folder is in, so an agent followed into another
+// worktree still holds what it left uncommitted in the first; "still
+// changed" is the repository's cached status, which the agents' own tool
+// calls mark stale — and, for a changed file two agents edited, its last
+// commit since the earlier edit: an agent that committed the file and moved
+// on does not collide with one that edited it afterwards.
 //
 // WHEN. Never on a timer of its own: a recompute is scheduled by the events
 // that can change the answer — a call that can change a repository (the same
 // test git-watch.mjs marks the repository stale on), a session or subagent
-// starting or ending, an agent seen for the first time — and runs once for a
-// burst of them. The one clock is the staleness above: when a session in a
+// starting or ending, an agent seen for the first time, an agent followed
+// into another folder (git-watch.mjs onFollow) — and runs once for a burst of
+// them. The one clock is the staleness above: when a session in a
 // collision would go quiet past STALE_SESSION_MS, one recompute is set for that
 // moment. A change in the answer is sent; the same answer is not sent again.
 //
@@ -47,7 +50,7 @@
 // GitObserved it is LAST_VALUE_WINS in ring-bounds.mjs — and like it, sent
 // again to a page that connects after the ring dropped the event that carried
 // it (collisionsBehind), since an unchanged answer is never sent twice.
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { collisionFacts } from "./agent-git-collisions.mjs";
 import { agentGit, editsFor } from "./agent-git-tap.mjs";
 import { pushEvent } from "./event-sink.mjs";
@@ -55,7 +58,7 @@ import { placeInRepo } from "./git-edits.mjs";
 import { sessionFolder, sessionSubagents } from "./git-sessions.mjs";
 import { readLastCommitTime } from "./git-reads.mjs";
 import { repoOf, statusOf } from "./git-state.mjs";
-import { changesRepo, gitEnabled } from "./git-watch.mjs";
+import { changesRepo, gitEnabled, onFollow } from "./git-watch.mjs";
 
 /** A session nothing has been heard from for this long is over — the page's
  *  STALE_SESSION_MS (src/web/board-sweeps.ts), so a card the board has
@@ -67,6 +70,9 @@ const MAX_SESSIONS = 2048;
 const MAX_AGENTS_PER_SESSION = 512;
 /** The most files whose last commit one recompute reads. */
 const MAX_COMMIT_READS = 64;
+/** The most folders one recompute asks the repository of — the folders of
+ *  edits outside their agent's own worktree. */
+const MAX_FOLDER_READS = 64;
 /** A commit time no edit can follow: what a file git reports unchanged is
  *  given, so it is never sharp. */
 const NEVER = Number.MAX_SAFE_INTEGER;
@@ -96,6 +102,15 @@ let enabled = () => gitEnabled();
 let now = () => Date.now();
 
 const subagentKeyOf = (p) => [p.agent_id, p.parent_tool_use_id].find((k) => typeof k === "string" && k) ?? null;
+const groupBy = (list, keyOf) => {
+  const out = new Map();
+  for (const x of list) {
+    const k = keyOf(x);
+    if (out.has(k)) out.get(k).push(x);
+    else out.set(k, [x]);
+  }
+  return out;
+};
 
 /**
  * One event, from pushEvent — live or replayed. Never throws, never waits.
@@ -177,6 +192,21 @@ async function compute() {
   const repos = new Map();   // top level -> the resolved repository
   const placed = new Map();  // edited path (canonical, folded) -> { top, rel }
   const holders = new Map(); // edited path (canonical, folded) -> how many agents
+  const folderRepo = new Map(); // folder of an edit outside its agent's worktree -> its repository, or null
+  let folderReads = 0;
+  /** Put `rows` that are inside `repo` on `target`'s edits; answer the rest. */
+  const placeRows = async (repo, rows, target) => {
+    const where = await placeInRepo(repo.topLevel, rows.map((r) => r.path));
+    const rest = [];
+    for (const r of rows) {
+      const rel = where.get(r.path);
+      if (!rel) { rest.push(r); continue; }
+      const path = join(repo.topLevel, rel);
+      target.edits.push({ path, at: r.at });
+      placed.set(fold(path), { top: repo.topLevel, rel });
+    }
+    return rest;
+  };
 
   for (const [sid, s] of sessions) {
     if (!live(s, t)) continue;
@@ -201,15 +231,27 @@ async function compute() {
     for (const [member, rows] of members) {
       const target = member.foldInto ?? member;
       if (!member.foldInto) agents.push(target);
-      if (!member.repo || !rows.length) continue;
-      const where = await placeInRepo(member.repo.topLevel, rows.map((r) => r.path));
-      if (gen !== generation) return;
-      for (const r of rows) {
-        const rel = where.get(r.path);
-        if (!rel) continue;
-        const path = join(member.repo.topLevel, rel);
-        target.edits.push({ path, at: r.at });
-        placed.set(fold(path), { top: member.repo.topLevel, rel });
+      if (!rows.length) continue;
+      // Each edit in the worktree that holds it: the agent's own first, then,
+      // for an edit outside it, the worktree its folder is in — an agent
+      // followed into another worktree leaves its edits where it made them.
+      let left = rows;
+      if (member.repo) {
+        left = await placeRows(member.repo, rows, target);
+        if (gen !== generation) return;
+      }
+      for (const [dir, list] of groupBy(left, (r) => dirname(r.path))) {
+        if (!folderRepo.has(dir)) {
+          if (folderReads >= MAX_FOLDER_READS) continue;
+          folderReads++;
+          folderRepo.set(dir, await repoFor(dir));
+          if (gen !== generation) return;
+        }
+        const repo = folderRepo.get(dir);
+        if (!repo || repo.topLevel === member.repo?.topLevel) continue;
+        repos.set(repo.topLevel, repo);
+        await placeRows(repo, list, target);
+        if (gen !== generation) return;
       }
     }
   }
@@ -350,11 +392,13 @@ export function collisionsBehind({ after, before, sessions }) {
   return out;
 }
 
-/** Work everything out again soon — after the boot replay, and when the git
- *  view is switched back on. */
+/** Work everything out again soon — after the boot replay, when the git
+ *  view is switched back on, and when a session is followed into another
+ *  folder by a call that changed nothing (git-watch.mjs onFollow). */
 export function refreshCollisions() {
   if (enabled()) schedule(RECOMPUTE_MS);
 }
+onFollow(() => refreshCollisions());
 
 /** The switch was pressed. Off takes back every mark the page holds and stops;
  *  on works them out again. */

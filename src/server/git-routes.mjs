@@ -37,7 +37,7 @@ import { attributeHistory } from "./git-attribution.mjs";
 import { agentLabel, sessionEdits } from "./git-edits.mjs";
 import { isShaLike } from "./git-reads.mjs";
 import { sessionFolder, sessionSubagents } from "./git-sessions.mjs";
-import { gitEnabled } from "./git-watch.mjs";
+import { gitEnabled, workingFolder } from "./git-watch.mjs";
 import { commitOf, commitFileDiffOf, countedStatusOf, fileDiffOf, logOf, repoOf, statusOf } from "./git-state.mjs";
 import { refsOf } from "./git-refs.mjs";
 
@@ -58,7 +58,7 @@ async function sessionRepo(url, res) {
   if (!gitEnabled()) { send(res, 409, { error: "git is switched off in Settings" }); return null; }
   const sid = param(url, "session");
   if (!sid) { send(res, 400, { error: "session required" }); return null; }
-  const folder = sessionFolder(sid, param(url, "agent"));
+  const folder = await workingFolder(sid, param(url, "agent"));
   if (!folder) { send(res, 404, { error: "unknown session" }); return null; }
   const repo = await repoOf(folder.cwd);
   if (repo.state !== "repo") { send(res, 200, { ok: true, state: repo.state, repo: null }); return null; }

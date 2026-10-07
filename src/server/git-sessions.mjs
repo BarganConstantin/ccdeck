@@ -25,7 +25,7 @@ import { isClaudeTranscriptPath } from "./transcript-gate.mjs";
  *  times the server's session cap, which is forty times the page's. */
 export const MAX_GIT_SESSIONS = 2048;
 
-const sessions = new Map(); // sid -> { cwd, work, provisional, provider, transcript, subagents: Map<key, { cwd, work }> }
+const sessions = new Map(); // sid -> { cwd, work, heard, moved, provisional, provider, transcript, subagents: Map<key, { cwd, work, heard, moved }> }
 
 const subagentKey = (p) => [p.agent_id, p.parent_tool_use_id].find((k) => typeof k === "string" && k) ?? null;
 
@@ -37,13 +37,13 @@ export function noteSessionFolder(raw) {
   if (typeof sid !== "string" || sid === "" || typeof cwd !== "string" || cwd === "") return;
   let s = sessions.get(sid);
   if (s) sessions.delete(sid);
-  else s = { cwd: null, work: null, provisional: true, provider: "claude", transcript: null, subagents: new Map() };
+  else s = { cwd: null, work: null, heard: null, moved: null, provisional: true, provider: "claude", transcript: null, subagents: new Map() };
   sessions.set(sid, s);
   if (raw.provider === "codex") s.provider = "codex";
   if (!s.transcript && isClaudeTranscriptPath(raw.transcript_path)) s.transcript = raw.transcript_path;
   const key = subagentKey(raw);
   if (key) {
-    if (!s.subagents.has(key)) s.subagents.set(key, { cwd, work: null });
+    if (!s.subagents.has(key)) s.subagents.set(key, { cwd, work: null, heard: null, moved: null });
     // A session first heard through a subagent still needs a folder; the
     // root's own first event replaces it.
     if (!s.cwd) { s.cwd = cwd; s.provisional = true; }
@@ -90,6 +90,32 @@ export function followFolder(sid, key, folder) {
   if (target.work === next) return false;
   target.work = next;
   return true;
+}
+
+/**
+ * The folder a LIVE event of `sid` — of its subagent `key`, when one is named
+ * — says it is in; never a replayed one. A folder that differs from the last
+ * one heard is kept as where it moved until takeMove asks, so a move heard
+ * while the git reads were switched off, or after the page let the session
+ * go, is still followed once they look again.
+ */
+export function noteLiveFolder(sid, key, cwd) {
+  const s = typeof sid === "string" ? sessions.get(sid) : undefined;
+  const target = s && (typeof key === "string" && key ? s.subagents.get(key) : s);
+  if (!target || typeof cwd !== "string" || !cwd) return;
+  if (target.heard !== null && target.heard !== cwd) target.moved = cwd;
+  target.heard = cwd;
+}
+
+/** The folder `sid` (its subagent `key`) moved to since this was last asked,
+ *  or null; asking takes it. */
+export function takeMove(sid, key) {
+  const s = typeof sid === "string" ? sessions.get(sid) : undefined;
+  const target = s && (typeof key === "string" && key ? s.subagents.get(key) : s);
+  if (!target) return null;
+  const moved = target.moved;
+  target.moved = null;
+  return moved;
 }
 
 /** The transcript the deck heard `sid` write to, or null. */
