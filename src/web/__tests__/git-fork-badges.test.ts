@@ -37,6 +37,13 @@ describe("a row's ref badges", () => {
     expect(all(wide(refs({ remote: ["origin/HEAD", "fork/HEAD", "origin/main"] })))).toEqual(["origin/main"]);
   });
 
+  it("shows a real branch whose name ends in HEAD, paired with its local branch", () => {
+    const r = wide(refs({ local: ["fix/HEAD"], remote: ["origin/fix/HEAD"], upstream: { "fix/HEAD": "origin/fix/HEAD" } }));
+    expect(all(r)).toEqual(["fix/HEAD · origin/fix/HEAD"]);
+    expect(r.chips[0].title).toContain("origin/fix/HEAD is here too");
+    expect(all(wide(refs({ remote: ["origin/fix/HEAD"] })))).toEqual(["origin/fix/HEAD"]);
+  });
+
   it("pairs a branch with its configured upstream in one badge", () => {
     const r = wide(refs({ local: ["feature/x"], remote: ["origin/feature/x", "fork/feature/x"], upstream: { "feature/x": "fork/feature/x" } }));
     expect(all(r)).toEqual(["feature/x · fork/feature/x", "origin/feature/x"]);
@@ -95,7 +102,7 @@ describe("a badge, as the markup builds it", () => {
     expect(m).toMatch(/^<span class="fk-ref" data-kind="remote" data-tone="neutral" title="remote branch origin\/x"><span class="fk-ref-cell">/);
     expect(m).toContain('<span class="vis-hidden">remote branch </span>origin/x');
     const tab = sourceOf("components/FkCommitTab.tsx");
-    expect(tab).toMatch(/import \{ FkRefBadge, type FkChip \} from "\.\/FkRefBadge";/);
+    expect(tab).toMatch(/import \{ FkRefBadge, isRemoteHead, type FkChip \} from "\.\/FkRefBadge";/);
     expect(tab).toMatch(/<FkRefBadge chip=\{chip\} tone="neutral" \/>/);
   });
 });

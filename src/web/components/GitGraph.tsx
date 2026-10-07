@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   layoutGraph, graphTones, rowDrawing, onFocusLine, graphColumns, graphWidth, fixedSlot, isSeen, remoteBranch,
   parseSlotMemory, rememberSlots, repoSlots, historyAge, workDuration, conventionalPrefix,
-  forkRowDrawing, forkLane, lookGraphWidth, DECK_GEOMETRY, FORK_GEOMETRY, FORK_DIAMOND, FORK_CHEVRON, FORK_LANE_OF_SLOT, VISIBLE_LANES,
+  forkRowDrawing, forkLane, forkDrawsFold, lookGraphWidth, DECK_GEOMETRY, FORK_GEOMETRY, FORK_DIAMOND, FORK_CHEVRON, FORK_LANE_OF_SLOT, VISIBLE_LANES,
   WIP_ID, ROW_H, type GraphLayout, type GraphRow, type LogCommit, type NodeShape, type RepoHead, type Tone,
 } from "../git-graph-layout";
 import { FkRefBadge, FkMoreBadge, fkRefChips, fkChipWords, fkMeasure, FK_REF_ROOM, FK_REF_ROOM_NARROW } from "./FkRefBadge";
@@ -535,7 +535,7 @@ const FkHistoryRow = memo(function FkHistoryRow(p: FkRowProps) {
       data-id={c.sha} data-tone={p.tone} data-head={p.isHead ? "" : undefined}
       aria-selected={p.selected} tabIndex={p.tabStop ? 0 : -1} aria-label={label} aria-describedby={descId}
       title={p.dateInTitle && long ? long : undefined}>
-      <span className="fk-cell-graph">
+      <span className="fk-cell-graph" title={forkDrawsFold(row, p.folded) ? `${p.folded} more lanes folded into this column; the checked-out branch keeps its own` : undefined}>
         <FkRowLanes row={row} shape={shape} focusKey={p.focusKey} folded={p.folded} width={p.width} noWip={p.noWip} cased={p.selected} maskId={`${p.rowId}-ring`} />
       </span>
       <span className="fk-cell-subj">
@@ -585,6 +585,14 @@ export function forkLayout(commits: readonly LogCommit[], head: RepoHead | null,
   return layoutGraph(commits, { head, wip: true, wipHidden: true, slots, defaultBranch });
 }
 const byRefs = (commits: readonly LogCommit[], sha: string) => commits.some(c => c.sha === sha && c.refs.head && !c.outsideWindow);
+
+/** What the agent card a key brings up stands by: the row's agent chip while
+ *  it is drawn, else the row. A narrow history hides another session's chip,
+ *  and a hidden chip has no box to stand by. */
+export function hoverAnchor(row: Element): Element {
+  const chip = row.querySelector(".gv-agent-chip");
+  return chip && chip.getClientRects().length > 0 ? chip : row;
+}
 
 // ─── the history ──────────────────────────────────────────────────────────
 
@@ -950,7 +958,7 @@ export default function GitGraph(props: GitGraphProps) {
     let visible = false;
     try { visible = row.matches(":focus-visible"); } catch { visible = false; }
     if (!visible || !keyed.current) return;
-    showHoverSoon(sha, row.querySelector(".gv-agent-chip") ?? row, true);
+    showHoverSoon(sha, hoverAnchor(row), true);
   }, [byId, showHoverSoon, hideHover]);
 
   const hoverCommit = hover ? byId.get(hover.sha) : undefined;

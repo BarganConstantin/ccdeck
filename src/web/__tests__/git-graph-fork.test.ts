@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import GitGraph, { forkLayout, type GitGraphProps } from "../components/GitGraph";
+import GitGraph, { forkLayout, hoverAnchor, type GitGraphProps } from "../components/GitGraph";
 import { layoutGraph, forkRowDrawing, graphColumns, FORK_GEOMETRY, VISIBLE_LANES, WIP_ID, type LogCommit } from "../git-graph-layout";
 import { shopHistory, HISTORY_HEAD } from "./git-graph-history";
 import { sourceOf } from "./client-source";
@@ -77,6 +77,25 @@ describe("the Fork look's layout", () => {
   });
 });
 
+// ─── the card a key brings up ─────────────────────────────────────────────
+
+describe("the agent card a key brings up", () => {
+  /** An element with `boxes` client rects, holding `chip`. */
+  const el = (boxes: number, chip: Element | null = null) =>
+    ({ querySelector: () => chip, getClientRects: () => ({ length: boxes }) }) as unknown as Element;
+
+  it("stands by the row's agent chip while it is drawn, and by the row when a narrow history hides it", () => {
+    const drawn = el(1);
+    const withChip = el(1, drawn);
+    expect(hoverAnchor(withChip)).toBe(drawn);
+    // Under 480px another session's chip is display:none: it has no box.
+    const withHidden = el(1, el(0));
+    expect(hoverAnchor(withHidden)).toBe(withHidden);
+    const bare = el(1);
+    expect(hoverAnchor(bare)).toBe(bare);
+  });
+});
+
 // ─── the row, as the markup builds it ─────────────────────────────────────
 
 function render(props: Partial<GitGraphProps> & Pick<GitGraphProps, "commits" | "head">): string {
@@ -97,6 +116,25 @@ function rows(html: string): Map<string, string> {
   for (const p of parts) out.set(/data-id="([^"]+)"/.exec(p)![1], p);
   return out;
 }
+
+describe("the Fork look's fold, in words", () => {
+  it("says on each row drawing the fold how many lanes it holds", () => {
+    // Nine branches newer than a detached HEAD: four lanes fold.
+    const topics = Array.from({ length: 9 }, (_, i) => c(`t${i}`, ["b0"], [`topic/t${i}`]));
+    const list = [...topics, c("h", ["b0"], [], { refs: { local: [], remote: [], tags: [], head: true } }), c("b0")];
+    const head = { sha: "h", branch: null, detached: true, short: "h", unborn: false };
+    const html = render({ commits: list, head, selected: "h" });
+    const drawn = rows(html);
+    expect(html).toMatch(/aria-label="History, 4 more lanes folded into the last column"/);
+    const words = '<span class="fk-cell-graph" title="4 more lanes folded into this column; the checked-out branch keeps its own">';
+    // t5 onwards sit in the fold, and every row below draws its line.
+    for (const id of ["t5", "t8", "h", "b0"]) expect(drawn.get(id), id).toContain(words);
+    for (const id of ["t0", "t4"]) {
+      expect(drawn.get(id), id).toContain('<span class="fk-cell-graph">');
+      expect(drawn.get(id), id).not.toContain("lanes folded");
+    }
+  });
+});
 
 describe("a Fork history row", () => {
   const seen = { sessionId: "s", agentId: null, label: "api-fix", agentType: null, kind: "claude" as const, model: "claude-opus-5-5", durationMs: 60_000, confidence: "seen" as const };
