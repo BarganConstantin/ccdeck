@@ -679,6 +679,62 @@
    rather than an auto margin of its own: two autos split the free space and float the setting
    into the middle of the row. */
 .ap-policy .ap-auto-state { margin-left: 4px; }
+/* THE CUSTOM VALUE. `Custom…` puts a number field where the picker was, at the
+   picker's own size so nothing else on the row moves: 24px tall, 11px type set
+   right, and its `%` standing where the chevron stood. The field is the
+   panel's text field, `.ap-manage-input` — its fill, edge, hover and ring — and
+   these rules only fit it to the row. It arrives the way `save` does, since it
+   is the other control here that comes and goes.
+
+   ONE WIDTH FOR BOTH. A native select is as wide as its widest option, and
+   `Custom…` is twice the width of `90%`, so the picker would rest with a blank
+   half on its left. 64px holds `99.9%`, the widest value the store accepts. */
+.ap-policy .ap-field select,
+.ap-policy .ap-threshold-input { width: 64px; }
+.ap-threshold-form { display: flex; margin: 0; }
+.ap-threshold-field {
+  position: relative;
+  display: inline-block;
+  animation: ap-commit-in 160ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+.ap-policy .ap-threshold-input {
+  min-height: 24px;
+  padding: 2px 18px 2px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* The unit is not typed, so it wears the field's placeholder ink: --muted is
+   4.05:1 on --ctl-fill in dark (#1789), so dark takes the tier above it, and
+   light keeps --text-dim. */
+.ap-threshold-unit {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+:root[data-theme="light"] .ap-threshold-unit { color: var(--text-dim); }
+/* A refused value is said in words under the row; the edge says which control
+   the words are about. Scoped past `.ap-manage-input:hover`, so the pointer
+   resting on the field does not take the error out of its edge. */
+.ap-policy .ap-threshold-input[aria-invalid="true"] { border-color: var(--err); }
+/* What the field takes, and in its place why a value was refused. Set right,
+   under the field it is about, in the row's quiet tier — and in the error ink
+   once it is a refusal, at the size the ⋯ menu's own refusal (.ap-pop-error)
+   is said in. */
+.ap-threshold-note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: right;
+}
+.ap-threshold-note[data-tone="err"] { color: var(--err); }
 
 .ap-dot {
   width: 5px;

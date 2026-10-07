@@ -605,8 +605,14 @@ const CONTROLS: Control[] = [
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
   // The feedback message pressed empty takes the error colour on its edge, a
   // mark beside the line that says so (#1853): measured as a state of the
-  // field, so it can never be fainter than the field at rest.
-  { at: ".ap-manage-input", states: [".ap-manage-input:hover", '.ap-manage-input.fb-message[aria-invalid="true"]'], beds: ACCOUNTS },
+  // field, so it can never be fainter than the field at rest. The auto-switch
+  // threshold's custom field holding a value it refused does the same, beside
+  // the words under its row that say why.
+  { at: ".ap-manage-input", states: [
+    ".ap-manage-input:hover",
+    '.ap-manage-input.fb-message[aria-invalid="true"]',
+    '.ap-policy .ap-threshold-input[aria-invalid="true"]',
+  ], beds: ACCOUNTS },
   { at: ".ap-proj-copy", states: [".ap-proj-copy:hover"], beds: ["--panel"] },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
   { at: ".ap-manage-btn.danger", fillFrom: ".ap-manage-btn",
