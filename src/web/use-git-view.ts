@@ -317,8 +317,12 @@ const GONE = { directory: true } as DiffResult;
 
 type DiffAnswer = {
   ok?: boolean; diff?: DiffResult & { ok?: boolean }; reason?: string; error?: string; files?: CommitFile[];
-  commit?: LogCommit; notDownloaded?: boolean;
+  commit?: LogCommit; notDownloaded?: boolean; filesTooLarge?: boolean;
 };
+
+/** A commit whose file list ran past the cap, as its files are read: the
+ *  Changes tab says why it lists none, the Commit tab shows the commit. */
+const FILES_TOO_LARGE: ReadFailure = { error: "too-large" };
 
 const sameDiff = (a: DiffResult | null, b: DiffResult | null) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -362,7 +366,7 @@ export function startPick(of: string, seq: number, initial: { sel?: string | nul
 interface CommitReads {
   of: string;
   files: Map<string, CommitFile[] | ReadFailure>;
-  heads: Map<string, { commit: LogCommit; notDownloaded?: boolean }>;
+  heads: Map<string, { commit: LogCommit; notDownloaded?: boolean; filesTooLarge?: boolean }>;
 }
 
 /**
@@ -436,7 +440,7 @@ export function useGitSelection({ data, sessionId, agent, top = null, focus, ini
         if (gone) return;
         setReads(r => {
           const base = forOwner(r);
-          const heads = a.ok && a.commit ? new Map(base.heads).set(sel, { commit: a.commit, ...(a.notDownloaded ? { notDownloaded: true } : {}) }) : base.heads;
+          const heads = a.ok && a.commit ? new Map(base.heads).set(sel, { commit: a.commit, ...(a.notDownloaded ? { notDownloaded: true } : {}), ...(a.filesTooLarge ? { filesTooLarge: true } : {}) }) : base.heads;
           return { of: owner, files: new Map(base.files).set(sel, a.ok && a.files ? a.files : { error: failureOf(a, status) }), heads };
         });
       })
@@ -454,11 +458,13 @@ export function useGitSelection({ data, sessionId, agent, top = null, focus, ini
   });
   useEffect(() => { dropFailures(); }, [data.treeSeq]);
   const retryCommit = useCallback(() => { dropFailures(); }, []);
-  const files = read;
   const head = sel === UNCOMMITTED ? undefined : own?.heads.get(sel);
+  const files = head?.filesTooLarge ? FILES_TOO_LARGE : read;
   const commitDetail = useMemo<CommitDetail | null>(
-    () => (head && Array.isArray(files) ? { commit: head.commit, files, ...(head.notDownloaded ? { notDownloaded: true } : {}) } : null),
-    [head, files],
+    () => (head && Array.isArray(read)
+      ? { commit: head.commit, files: read, ...(head.notDownloaded ? { notDownloaded: true } : {}), ...(head.filesTooLarge ? { filesTooLarge: true } : {}) }
+      : null),
+    [head, read],
   );
 
   // The file the view opens on, once there is something to open.

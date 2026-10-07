@@ -164,6 +164,8 @@ export interface CommitDetail {
   files: CommitFile[];
   /** A partial clone without this commit's contents: no line counts, no diffs. */
   notDownloaded?: boolean;
+  /** Its file list ran past the deck's cap: `files` is empty, the commit is whole. */
+  filesTooLarge?: boolean;
 }
 
 /** Whose work the view is about: a session's whole team, or one subagent. */

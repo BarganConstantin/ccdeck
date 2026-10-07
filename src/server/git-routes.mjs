@@ -178,7 +178,14 @@ export async function handleGitCommit(req, res, url) {
   }
   // `notDownloaded`: a partial clone without this commit's file contents —
   // its files are listed without line counts, and their diffs are not there.
-  if (!path) return send(res, 200, { ok: true, state: "repo", repo: found.repo, commit: c.commit, files: c.files, ...(c.notDownloaded ? { notDownloaded: true } : {}) });
+  // `filesTooLarge`: its file list ran past the cap; the commit is answered
+  // with none.
+  if (!path) {
+    return send(res, 200, {
+      ok: true, state: "repo", repo: found.repo, commit: c.commit, files: c.files,
+      ...(c.notDownloaded ? { notDownloaded: true } : {}), ...(c.filesTooLarge ? { filesTooLarge: true } : {}),
+    });
+  }
   const file = c.files.find((f) => f.path === path);
   if (!file) return send(res, 404, { error: "no such file in this commit" });
   const diff = await commitFileDiffOf(found.repo, c.commit, file);
