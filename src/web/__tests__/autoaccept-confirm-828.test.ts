@@ -34,6 +34,9 @@ const button = (label: string): string => {
   return MODAL.slice(open, MODAL.indexOf("<span className=\"switch-knob\"", at));
 };
 const yes = button("Say yes to every deck that asks");
+/** The switch's title while it is off, and while it is on. */
+const TURN_ON = "Say yes for you. Every deck on this network that asks is paired without anybody being asked here. Each can then add the logins ticked on it to this deck.";
+const TURN_OFF = "Stop saying yes for you. A deck that asks waits in the panel again, and adds no login here until somebody here accepts it.";
 const ask = button("Ask every deck this one finds");
 
 describe("one press, in both directions (#828, reversed)", () => {
@@ -80,7 +83,16 @@ describe("it still looks and reads like what it does (#828)", () => {
     // marks it as the one that costs something, and the title says the rest.
     expect(yes).toMatch(/aria-label="Say yes to every deck that asks"/);
     expect(yes).toMatch(/data-tone="warn"/);
-    expect(yes).toMatch(/paired without anybody being asked here\."\}/);
+    expect(yes).toContain(`"${TURN_ON}"`);
+  });
+
+  it("says on the control that a deck it pairs can add logins here (3.38.1)", () => {
+    // Since 3.38.1 a login ticked on a deck the switch paired arrives here,
+    // added where it is missing — so the switch lets something in as well as
+    // giving something away, and both of its titles say so, in the README's
+    // words: such a deck can add the logins ticked on it to this machine.
+    expect(yes).toContain(`"${TURN_ON}"`);
+    expect(yes).toContain(`"${TURN_OFF}"`);
   });
 
   it("names the gate that the default rests on, where the default is written", () => {
