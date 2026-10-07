@@ -239,6 +239,16 @@ describe("the trees' sizes", () => {
   });
 });
 
+describe("who edited a file, in a narrow tree", () => {
+  it("keeps the file's name whole: the marks shorten first, and under 320px the subagent's name goes, its swatch and title staying", () => {
+    const css = part("styles/git-inspector-fork.css");
+    expect(css).toMatch(/\.fkt-marks \{ flex: 0 1000 auto;[^}]*min-width: 11px;/);
+    expect(css).toMatch(/\.fkt-marks:has\(\.fkt-clash\) \{ min-width: 29px; \}/);
+    expect(css).toMatch(/\.fkt \{[^}]*container: fkt \/ inline-size;/);
+    expect(css).toMatch(/@container fkt \(max-width: 320px\) \{\s*\.fkt-agent-name \{ display: none; \}/);
+  });
+});
+
 describe("the Changes tab", () => {
   const COMMIT = { sha: "65fecee0c1d2e3f405162738495a6b7c8d9e0f1a", author: { name: "Ada Lovelace", email: "ada@example.com" }, date: "2026-10-05T16:15:00Z", subject: "feat(auth): add login route" };
   it("leads with the commit's strip and lists its files as one tree", () => {
