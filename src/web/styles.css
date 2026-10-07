@@ -66,4 +66,5 @@
 @import "./styles/git-fork.css";                 /* the git view's Fork look: its layout, toolbar, banner and inspector tab bar */
 @import "./styles/git-inspector-fork.css";       /* the git view's Fork look: Commit tab, Changes tab, the file tree */
 @import "./styles/git-diff-fork.css";            /* the git view's Fork look: path bar and diff */
+@import "./styles/git-sidebar-fork.css";         /* the git view's sidebar in the Fork look: refs, filter, the two views */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */
