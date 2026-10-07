@@ -144,11 +144,19 @@ export function setGitLook(look: GitLook): void {
 
 export const isSheet = (windowW: number): boolean => windowW < SHEET_BELOW;
 
-/** Whether the Fork sidebar is shown: the reader's choice when they made one,
- *  else only where the panel is wide enough for it beside the history. A
- *  sheet starts with it hidden, and the reader's ≡ there lasts the open. */
-export function sidebarShownFor(prefs: Pick<GitViewPrefs, "sidebarShown">, panelW: number, sheet: boolean, sheetChoice: boolean | null): boolean {
-  if (sheet) return sheetChoice ?? false;
+/** Whether the Fork sidebar floats over the history rather than sitting
+ *  beside it: on a sheet, and wherever the history beside it would be left
+ *  under 600px. */
+export function isSidebarFloating(panelW: number, sidebarW: number, sheet: boolean): boolean {
+  return sheet || panelW - sidebarW < 600;
+}
+
+/** Whether the Fork sidebar is shown. Beside the history: the reader's choice
+ *  when they made one, else only where the panel is 1000px or wider.
+ *  Floating: only while the reader has it out (`floatShown`), which starts
+ *  false on every open and is never remembered. */
+export function sidebarShownFor(prefs: Pick<GitViewPrefs, "sidebarShown">, panelW: number, floating: boolean, floatShown: boolean): boolean {
+  if (floating) return floatShown;
   return prefs.sidebarShown ?? panelW >= SIDEBAR_AUTO_BELOW;
 }
 

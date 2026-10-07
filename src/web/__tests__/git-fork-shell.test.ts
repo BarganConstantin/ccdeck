@@ -122,3 +122,16 @@ describe("the Fork toolbar", () => {
     expect(toolbar).toMatch(/\{!sheet && \(/);
   });
 });
+
+describe("a floating sidebar", () => {
+  it("is out only while it is needed: a pick in it, Esc or a press outside it puts it away", () => {
+    expect(view).toMatch(/onView=\{v => \{ floatAway\(\); view\.setView\(v\); \}\}/);
+    expect(view).toMatch(/onJump=\{sha => \{ floatAway\(\); jump\(sha\); \}\}/);
+    expect(view).toMatch(/if \(fork && p !== "sidebar"\) floatAway\(\);/);
+    expect(view).toMatch(/if \(t\?\.closest\?\.\("\.fk-side-col, \.fk-sidebar-toggle"\)\) return;\s*setFloatSide\(false\);/);
+  });
+
+  it("opens a folded inspector when the history is asked into it", () => {
+    expect(view).toMatch(/if \(fork && collapsed && view\.view === "all" && \(p === "files" \|\| p === "diff" \|\| p === "commit"\)\) \{\s*patchPrefs\(\{ inspectorCollapsed: false \}\);/);
+  });
+});
