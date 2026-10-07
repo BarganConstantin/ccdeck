@@ -107,7 +107,10 @@ describe("motion", () => {
   });
 
   it("animates only what landed, never what was there when the card was drawn, nor a key press", () => {
-    expect(band).toMatch(/if \(drawn\.current == null\) \{\s*if \(rows\.length\) drawn\.current = new Set\(rows\.map\(r => r\.sha\)\);/);
+    // The first draw is the baseline whatever it holds: a card drawn with no
+    // lane yet still animates its first commit.
+    expect(band).toMatch(/if \(drawn\.current == null\) drawn\.current = new Set\(rows\.map\(r => r\.sha\)\);\s*else \{/);
+    expect(band).not.toMatch(/if \(rows\.length\) drawn\.current =/);
     expect(band).toMatch(/if \(Date\.now\(\) - r\.at < LANDING_MS\) landed\.current\.set\(r\.sha, Date\.now\(\)\);/);
     const keys = band.slice(band.indexOf("const onKeyDown"), band.indexOf("const earlier"));
     expect(keys).not.toMatch(/animate|data-landed/);

@@ -68,14 +68,14 @@ export function CommitBand({ band, agentId }: { band: CardBand | null; agentId: 
   else if (leftAt.current == null) leftAt.current = Date.now();
   else if (Date.now() - leftAt.current >= 1_000) setLast(null);
 
-  // Which rows are landing now. Not on the first draw, and not a commit
-  // older than LANDING_MS: those were already there.
+  // Which rows are landing now. Not what the first draw holds — an empty one
+  // too, so a card drawn before its first commit animates that commit — and
+  // not a commit older than LANDING_MS: those were already there.
   const drawn = useRef<Set<string> | null>(null);
   const landed = useRef(new Map<string, number>());
   const rows = shown?.rows ?? [];
-  if (drawn.current == null) {
-    if (rows.length) drawn.current = new Set(rows.map(r => r.sha));
-  } else {
+  if (drawn.current == null) drawn.current = new Set(rows.map(r => r.sha));
+  else {
     for (const r of rows) {
       if (drawn.current.has(r.sha)) continue;
       drawn.current.add(r.sha);
