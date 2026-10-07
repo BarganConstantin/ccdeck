@@ -62,7 +62,9 @@ import GitGraph from "./GitGraph";
 import FkBanner from "./FkBanner";
 import FkInspector, { FK_TABS, shownTab } from "./FkInspector";
 import FkToolbar, { FkGlyph } from "./FkToolbar";
-import { FkChanges, FkCommitTab, FkSidebar } from "./FkPlaceholders";
+import FkChanges from "./FkChanges";
+import FkCommitTab from "./FkCommitTab";
+import { FkSidebar } from "./FkPlaceholders";
 
 export type { GitViewHow, GitViewRequest } from "../git-view-request";
 
@@ -1101,6 +1103,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
       file: view.diff.file ?? file, diff: view.diff.loading ? null : view.diff.diff, loading: view.diff.loading,
       stale: view.diff.stale, onShowLatest: view.showLatest,
       wrap, onToggleWrap: () => { writeDiffWrap(!wrap); setWrap(!wrap); },
+      name: focusName, cardName, error: view.diff.error, gone: view.diff.gone, onRetry: view.showLatest,
+      diffKey: view.diff.file && view.diff.sel ? `${view.diff.sel}:${view.diff.file.area}:${view.diff.file.path}` : undefined,
+      onReload: view.showLatest, editorFor: { sessionId: agent.sessionId, agentId: agentParam },
     };
     return (
       <>
@@ -1163,7 +1168,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             {local ? (
               <section className="fk-local" aria-label="Local Changes" data-gv-pane="files" tabIndex={-1}>
                 {reading || !data.entries ? (reading && <ReadStateLine state={data.state} folder={folder} />) : (
-                  <FkChanges mode="local" entries={data.entries} selected={file} onOpen={() => focusPane("diff")} {...changesProps} />
+                  <FkChanges mode="local" entries={data.entries} selected={file} onOpen={() => focusPane("diff")}
+                    emptyReason={data.entries.length ? "unselected" : "clean"} {...changesProps} />
                 )}
               </section>
             ) : (
@@ -1186,11 +1192,15 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                       <FkCommitTab
                         commit={selectedCommit} detail={view.commitDetail} loading={view.commitFiles == null}
                         onJump={jump} onOpenFile={f => { view.pickFile(f); setTab("changes"); requestAnimationFrame(() => focusPane("files")); }}
+                        headBranch={detached ? null : branch}
+                        error={view.commitFiles && !Array.isArray(view.commitFiles) ? view.commitFiles.error : null} onRetry={view.retryCommit}
                       />
                     </div>
                   ) : (
                     <div className="fk-changes" data-gv-pane="files" tabIndex={-1}>
-                      <FkChanges mode="commit" entries={Array.isArray(view.commitFiles) ? view.commitFiles : []} selected={file} onOpen={() => focusPane("diff")} {...changesProps} />
+                      <FkChanges mode="commit" entries={Array.isArray(view.commitFiles) ? view.commitFiles : []} selected={file} onOpen={() => focusPane("diff")}
+                        commit={selectedCommit} reading={view.commitFiles == null ? "loading" : Array.isArray(view.commitFiles) ? null : view.commitFiles}
+                        onRetryFiles={view.retryCommit} {...changesProps} />
                     </div>
                   )}
                 </FkInspector>

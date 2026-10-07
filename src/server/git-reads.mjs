@@ -669,8 +669,41 @@ export function parseCommitFiles(out) {
   return files;
 }
 
+/** The most of a commit message's body one commit read answers with, in
+ *  bytes; past it the body is cut and the commit says `clipped: true`. */
+export const BODY_MAX = 64 << 10;
+
+// LOG_FORMAT's fields with the committer's name, email and date (strict ISO)
+// after the author's. The body is last for the same reason.
+const COMMIT_FORMAT = ["%H", "%P", "%an", "%ae", "%aI", "%cn", "%ce", "%cI", "%s", "%b"].join("%x1f");
+
 /**
- * One commit: its record (as readLog builds one, without refs) and its files
+ * One record of COMMIT_FORMAT: the record readLog builds (parseLogRecord's
+ * shape, trailers included) plus who committed it and when, and the message
+ * after its subject — trailing blank lines dropped, at most BODY_MAX bytes,
+ * `clipped: true` when it was cut. Null for a record that is not one.
+ */
+export function parseCommitRecord(record) {
+  const parts = String(record ?? "").replace(/^\n+/, "").split(US);
+  if (parts.length < 10) return null;
+  const [sha, parents, name, email, date, cName, cEmail, cDate, subject, ...rest] = parts;
+  const raw = rest.join(US);
+  const commit = parseLogRecord([sha, parents, name, email, date, subject, raw].join(US));
+  if (!commit) return null;
+  let body = raw.replace(/\s+$/, "");
+  let clipped = false;
+  if (Buffer.byteLength(body) > BODY_MAX) {
+    // Cut on a character, never inside one: a sequence the cut split decodes
+    // to U+FFFD at the end, which is dropped.
+    body = Buffer.from(body).subarray(0, BODY_MAX).toString("utf8").replace(/�+$/, "");
+    clipped = true;
+  }
+  return { ...commit, committer: { name: cName, email: cEmail, date: cDate }, body, ...(clipped ? { clipped } : {}) };
+}
+
+/**
+ * One commit: its record (as readLog builds one, without refs, plus its
+ * `committer` and its message `body`, parseCommitRecord) and its files
  * against its first parent — a merge is shown as what it brought into the
  * branch, a root commit as everything added. `sha` must already look like one
  * (isShaLike); a commit the repository does not have answers `{ ok: false,
@@ -686,9 +719,9 @@ export async function readCommit(topLevel, sha) {
   if (!isShaLike(sha)) return { ok: false, reason: "unknown" };
   const full = await resolveCommit(topLevel, sha);
   if (!full) return { ok: false, reason: "unknown" };
-  const head = await git("log", ["-z", "--max-count=1", `--format=${LOG_FORMAT}`, full, "--"], { cwd: topLevel });
+  const head = await git("log", ["-z", "--max-count=1", `--format=${COMMIT_FORMAT}`, full, "--"], { cwd: topLevel });
   if (!head.ok) return { ok: false, reason: readFailure(head) };
-  const commit = parseLogRecord(head.stdout.split("\0")[0] ?? "");
+  const commit = parseCommitRecord(head.stdout.split("\0")[0] ?? "");
   if (!commit) return { ok: false, reason: "error" };
   const range = commit.parents.length ? [commit.parents[0], full] : ["--root", full];
   const tree = (how) => git("diff-tree", ["-r", "-z", ...how, "--no-commit-id", ...range], { cwd: topLevel });

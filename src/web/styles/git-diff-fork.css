@@ -1,0 +1,240 @@
+/* The git view's diff in the Fork look (GitDiff.tsx with look="fork", and
+   FkPathBar.tsx): a 19px path bar with ▲ ▼ over 17px rows, one sticky number
+   gutter as wide as the largest line number, a 2ch +/− column on the pane's
+   colour (the glyph carries the meaning, not the tint), the hunk's header as a
+   plain muted row, word highlights without a radius.
+
+   Dark changed lines carry no syntax tones: Fork's own tones measure 1.7–3.6:1
+   on its tints, so the code there is drawn in the text colour. Context lines,
+   and every line in light, keep them. The deck look's diff (git-diff.css) is
+   untouched; every rule here is scoped to the Fork look. */
+.gv-wide[data-look="fork"] {
+  --fki-step-ink: #cbcbcb;
+}
+:root[data-theme="light"] .gv-wide[data-look="fork"] {
+  --fki-step-ink: #3c3c3c;
+}
+
+/* ── the path bar ───────────────────────────────────────────────────────── */
+.fkd-bar {
+  box-sizing: border-box;
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(44px, 1fr) minmax(0, auto) minmax(44px, 1fr);
+  align-items: center;
+  height: 19px;
+  padding: 0 2px;
+  border-bottom: 1px solid var(--fk-line);
+  background: var(--fk-inspector);
+  color: var(--fk-text);
+  font: 12px/18px var(--fk-font);
+  white-space: nowrap;
+}
+.fkd-bar-steps { display: flex; margin-left: 2px; }
+.fkd-step {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fki-step-ink);
+  cursor: default;
+}
+.fkd-step svg { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.fkd-step:hover:not(:disabled) { background: color-mix(in srgb, var(--fk-text) 12%, transparent); }
+.fkd-step:disabled { opacity: var(--dim-off); cursor: default; }
+.fkd-bar-path { display: flex; align-items: center; justify-content: center; gap: 3px; min-width: 0; overflow: hidden; }
+.fkd-bar-path > .fk-ft { margin-left: -3px; }
+.fkd-bar-text { display: flex; min-width: 0; overflow: hidden; }
+.fkd-bar-from,
+.fkd-bar-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; color: var(--fk-text-2); text-overflow: ellipsis; }
+.fkd-bar-arrow { flex: none; margin: 0 4px; color: var(--fk-text-2); }
+.fkd-bar-base { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--fk-text); text-overflow: ellipsis; }
+.fkd-bar-tools { display: flex; align-items: center; justify-content: flex-end; gap: 1px; min-width: 0; }
+.fkd-tool {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fk-text-2);
+  cursor: default;
+}
+.fkd-tool svg { width: 12px; height: 12px; }
+.fkd-tool:hover { color: var(--fk-text); }
+.fkd-tool[aria-pressed="true"] { background: var(--fk-tool-hover); color: var(--fk-text); }
+.fkd-step:active:not(:disabled),
+.fkd-tool:active { background: var(--fk-tool-press); }
+.fkd-step:focus-visible,
+.fkd-tool:focus-visible { outline-offset: -2px; border-radius: 3px; }
+.fkd-pill:focus-visible { outline-offset: 1px; border-radius: 999px; }
+/* The file changed since this diff was read: Show latest, until it is pressed.
+   A filled capsule, as the inspector's chosen tab is: its words name it. */
+.fkd-pill {
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 16px;
+  margin-right: 4px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fk-inspector-pill);
+  color: var(--fk-text);
+  font: 11px/16px var(--fk-font);
+  cursor: default;
+}
+.fkd-pill-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--fk-unpushed-dot); }
+@container gvd (max-width: 520px) {
+  .fkd-pill-long { display: none; }
+}
+
+/* ── the diff ───────────────────────────────────────────────────────────── */
+.gv-wide[data-look="fork"] .gvd { background: var(--fk-diff); color: var(--fk-text); }
+.gv-wide[data-look="fork"] .gvd-scroll {
+  background: var(--fk-diff);
+  font: 11px/17px var(--font-mono);
+  scrollbar-width: thin;
+  scrollbar-color: var(--fk-scroll-thumb) transparent;
+}
+.gv-wide[data-look="fork"] .gvd-scroll:focus-visible { outline-offset: -2px; border-radius: 0; }
+/* The gutter: 3px · old number · 5px · new number · 3px · 1px rule, each number
+   column as wide as the largest number's digits at 10px — measured here in the
+   11px line's own ch. Set where the digit count is, so it resolves there. */
+.gv-wide[data-look="fork"] .gvd-diff {
+  --fkd-num: calc(var(--fkd-digits, 3) * 1ch * 10 / 11);
+  --fkd-n1: calc(3px + var(--fkd-num));
+  --fkd-n2: calc(5px + var(--fkd-num) + 4px);
+  --fkd-sign: 2ch;
+}
+.gv-wide[data-look="fork"] .gvd .gvd-line { grid-template-columns: var(--fkd-n1) var(--fkd-n2) var(--fkd-sign) auto; min-height: 17px; }
+.gv-wide[data-look="fork"] .gvd[data-wrap] .gvd-line { grid-template-columns: var(--fkd-n1) var(--fkd-n2) var(--fkd-sign) auto; }
+.gv-wide[data-look="fork"] .gvd[data-wrap="true"] .gvd-line { grid-template-columns: var(--fkd-n1) var(--fkd-n2) var(--fkd-sign) minmax(0, 1fr); }
+.gv-wide[data-look="fork"] .gvd-line .gvd-ln {
+  box-sizing: border-box;
+  display: block;
+  padding: 1px 0 0;
+  background: var(--fk-diff);
+  color: var(--fk-diff-ln);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: right;
+}
+.gv-wide[data-look="fork"] .gvd-line .gvd-ln.n1 { left: 0; padding-left: 3px; }
+.gv-wide[data-look="fork"] .gvd-line .gvd-ln.n2 { left: var(--fkd-n1); padding-right: 3px; padding-left: 5px; border-right: 1px solid var(--fk-diff-gutter-line); }
+.gv-wide[data-look="fork"] .gvd-line .gvd-glyph {
+  left: calc(var(--fkd-n1) + var(--fkd-n2));
+  background: var(--fk-diff);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.gv-wide[data-look="fork"] .gvd-line[data-kind="add"] .gvd-glyph { color: var(--fk-diff-sign-add); }
+.gv-wide[data-look="fork"] .gvd-line[data-kind="del"] .gvd-glyph { color: var(--fk-diff-sign-del); }
+.gv-wide[data-look="fork"] .gvd-line[data-kind="del"] .gvd-ln.n2::before { content: none; }
+/* A new or deleted file: one number column, the width of both. */
+.gv-wide[data-look="fork"] .gvd .gvd-diff[data-one] .gvd-line { grid-template-columns: calc(var(--fkd-n1) + var(--fkd-n2)) var(--fkd-sign) auto; }
+.gv-wide[data-look="fork"] .gvd[data-wrap="true"] .gvd-diff[data-one] .gvd-line { grid-template-columns: calc(var(--fkd-n1) + var(--fkd-n2)) var(--fkd-sign) minmax(0, 1fr); }
+.gv-wide[data-look="fork"] .gvd-diff[data-one] .gvd-line .gvd-ln.n1 { display: none; }
+.gv-wide[data-look="fork"] .gvd-diff[data-one] .gvd-line .gvd-ln.n2 { left: 0; }
+.gv-wide[data-look="fork"] .gvd-diff[data-one="old"] .gvd-line[data-kind="del"] .gvd-ln.n2::before { content: attr(data-old); }
+.gv-wide[data-look="fork"] .gvd-line .gvd-code { padding: 0 24px 0 4px; color: var(--fk-text); }
+.gv-wide[data-look="fork"] .gvd-line[data-kind="add"] { background: var(--fk-diff-add); }
+.gv-wide[data-look="fork"] .gvd-line[data-kind="del"] { background: var(--fk-diff-del); }
+.gv-wide[data-look="fork"] .gvd-word { padding: 2px 0; border-radius: 0; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.gv-wide[data-look="fork"] .gvd-line[data-kind="add"] .gvd-word { background: var(--fk-diff-add-word); }
+.gv-wide[data-look="fork"] .gvd-line[data-kind="del"] .gvd-word { background: var(--fk-diff-del-word); }
+.gv-wide[data-look="fork"] .syn-kw { color: var(--fk-syn-kw); }
+.gv-wide[data-look="fork"] .syn-str { color: var(--fk-syn-str); }
+.gv-wide[data-look="fork"] .syn-com { color: var(--fk-syn-com); font-style: normal; }
+:root:not([data-theme="light"]) .gv-wide[data-look="fork"] .gvd-line[data-kind="add"] .gvd-code span,
+:root:not([data-theme="light"]) .gv-wide[data-look="fork"] .gvd-line[data-kind="del"] .gvd-code span { color: inherit; }
+.gv-wide[data-look="fork"] .gvd-noeol,
+.gv-wide[data-look="fork"] .gvd-cr { color: var(--fk-diff-hunk-ink); }
+.gv-wide[data-look="fork"] .gvd-line[data-kind="add"] .gvd-noeol,
+.gv-wide[data-look="fork"] .gvd-line[data-kind="add"] .gvd-cr,
+.gv-wide[data-look="fork"] .gvd-line[data-kind="del"] .gvd-noeol,
+.gv-wide[data-look="fork"] .gvd-line[data-kind="del"] .gvd-cr { color: var(--fk-text); }
+.gv-wide[data-look="fork"] .gvd-ctl { background: var(--fk-diff); color: var(--fk-text); }
+.gv-wide[data-look="fork"] .gvd-line[data-fresh] .gvd-code { animation: fkd-glow 1000ms ease-out; }
+@keyframes fkd-glow {
+  0%, 25% { background-color: color-mix(in srgb, var(--fk-accent) 22%, transparent); }
+  100% { background-color: transparent; }
+}
+
+/* The hunk's header: one more 17px row, its words where the code starts, the
+   gutter's rule running through it. */
+.gv-wide[data-look="fork"] .gvd-hunk {
+  grid-template-columns: calc(var(--fkd-n1) + var(--fkd-n2)) var(--fkd-sign) auto minmax(0, 1fr);
+  min-height: 17px;
+  margin: 0;
+  padding-right: 14px;
+  border: 0;
+  background: var(--fk-diff-hunk-bg);
+  color: var(--fk-diff-hunk-ink);
+  font-size: 11px;
+  line-height: 17px;
+}
+.gv-wide[data-look="fork"] .gvd-hunk::before {
+  content: "";
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: stretch;
+  border-right: 1px solid var(--fk-diff-gutter-line);
+  background: var(--fk-diff);
+}
+.gv-wide[data-look="fork"] .gvd-hunk-range { left: calc(var(--fkd-n1) + var(--fkd-n2) + var(--fkd-sign)); grid-column: 3; padding-left: 4px; color: var(--fk-diff-hunk-ink); }
+.gv-wide[data-look="fork"] .gvd-hunk-ctx { grid-column: 4; padding-left: 6px; }
+
+.gv-wide[data-look="fork"] .gvd-more {
+  height: 28px;
+  border-top: 1px solid var(--fk-line-soft);
+  color: var(--fk-text-2);
+  font: 11px/1 var(--fk-font);
+}
+.gv-wide[data-look="fork"] .gvd-more::before { width: 60px; }
+.gv-wide[data-look="fork"] .gvd-link { color: var(--fk-link); }
+.gv-wide[data-look="fork"] .gvd-link:hover { background: color-mix(in srgb, var(--fk-link) 12%, transparent); }
+
+/* What is not a diff says so in the middle of the pane, with no box. */
+.gv-wide[data-look="fork"] .gvd-placeholder {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+  border-radius: 0;
+  color: var(--fk-text-2);
+  font: 13px/18px var(--fk-font);
+  text-align: center;
+}
+.gv-wide[data-look="fork"] .gvd-placeholder b { color: var(--fk-text); font-size: 13px; font-weight: 600; }
+.gv-wide[data-look="fork"] .gvd-loading { padding: 32px 24px 0; color: var(--fk-text-2); font: 12px/18px var(--fk-font); text-align: center; }
+.gv-wide[data-look="fork"] .gvd-note {
+  min-height: 24px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--fk-line);
+  background: var(--fk-banner);
+  color: var(--fk-text);
+  font: 12px/16px var(--fk-font);
+}
+.gv-wide[data-look="fork"] .gvd-note b { color: var(--fk-text); }
+.gv-wide[data-look="fork"] .gvd-note[data-tone="info"] svg { color: var(--fk-text-2); }
+.fkd-empty { flex: 1 1 auto; display: grid; place-items: center; min-height: 0; padding: 24px; background: var(--fk-diff); }
+.fkd-empty-line { color: var(--fk-text-2); font: 12px/16px var(--fk-font); }
