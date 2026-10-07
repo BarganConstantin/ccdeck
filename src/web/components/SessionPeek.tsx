@@ -228,8 +228,9 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
       {a.kind === "root" && a.waiting && (
         <p className={`node-peek-wait${alarm ? " warn" : ""}`}>
           {alarm && <AlertMark />}
-          <span title={waitingLabel(a.waiting)}>{waitingLabel(a.waiting)}</span>
-          <b>{elapsed(a.waiting.since, undefined, now)}</b>
+          {/* The duration first, so it floats at the end of the first line and
+              the clamp, which cuts at the end of the text, never reaches it. */}
+          <span className="node-peek-said" title={waitingLabel(a.waiting)}><span className="node-peek-since"><b>{elapsed(a.waiting.since, undefined, now)}</b></span>{waitingLabel(a.waiting)}</span>
         </p>
       )}
       <p className="node-peek-facts">
