@@ -115,7 +115,8 @@ const MARKS: Array<[fg: string, bg: string, under?: string]> = [
   ...LANES.map(l => [l, v("list")] as [string, string]),
   [v("chrome-icon"), v("chrome")], [v("chrome-icon"), v("tool-hover"), v("chrome")],
   [v("sidebar-glyph"), v("sidebar")], [v("sidebar-glyph-sel"), v("sidebar-select")], [v("sidebar-check"), v("sidebar")],
-  [v("warn"), v("sidebar")], [v("warn"), v("sidebar-select")],
+  // The upstream-gone triangle is the glyph grey (amber is the deck's "waiting on you"), on the pill too.
+  [v("sidebar-glyph"), v("sidebar-select")],
   [v("return-mark"), v("list")], [v("unpushed-dot"), v("list")], [v("incoming-dot"), v("list")],
   [v("ref-cell-ink"), v("ref-cell")], [v("ref-neutral-edge"), v("list")],
   [v("scroll-thumb"), v("list")], [v("scroll-thumb-hover"), v("list")],

@@ -8,8 +8,11 @@
    deck holds, the floor-safe value is declared here, for this panel only:
    light's placeholder and "None" grey (#8a8a8a is 2.66:1 on the panel), the
    worktree branch beside a worktree's name (the glyph grey is 3.94:1 as
-   text in light, and 4.16:1 on the dark selection), the filter's rim, and
-   the upstream-gone triangle (Fork's light amber is 1.75:1 on the panel).
+   text in light, and 4.16:1 on the dark selection), and the filter's rim.
+
+   The upstream-gone triangle is grey, not Fork's amber: amber is the deck's
+   colour for an agent waiting on you, and nothing else wears it. The shape
+   and the row's "upstream gone" words carry it.
 
    Focus is the deck's one ring (tokens.css :focus-visible), as everywhere in
    the Fork look, drawn inside the row. Hover changes nothing here, as in
@@ -21,7 +24,7 @@
   --fk-sb-detail: var(--fk-sidebar-glyph);
   --fk-sb-detail-sel: #b8b8b8;
   --fk-sb-field-line: var(--fk-sidebar-field-line);
-  --fk-sb-warn: var(--fk-warn);
+  --fk-sb-warn: var(--fk-sidebar-glyph);
   --fk-sb-on-select: color-mix(in srgb, var(--fk-select-ink) 85%, transparent);
   --fk-sb-ring-on-select: color-mix(in srgb, var(--fk-select-ink) 75%, transparent);
   position: relative;
@@ -40,7 +43,7 @@
   --fk-sb-detail: #5c5c5c;
   --fk-sb-detail-sel: #4a4a4a;
   --fk-sb-field-line: #8f8f8f;
-  --fk-sb-warn: #8a6400;
+  --fk-sb-warn: #5c5c5c;
 }
 
 /* ── the repository's name ── */
@@ -308,7 +311,7 @@
 
 .fk-sb .fk-sb-gone-bang {
   fill: none;
-  stroke: #ffffff;
+  stroke: var(--fk-sb-surface);
   stroke-width: 1.2;
   stroke-linecap: round;
 }
