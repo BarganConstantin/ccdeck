@@ -403,3 +403,14 @@ describe("contrast in both themes", () => {
     }
   }
 });
+
+describe("a worktree whose folder is gone, selected", () => {
+  it("writes its name in the selection's own ink, as the Changes tree does a quiet file, not the panel's dim grey", () => {
+    const flat = css.replace(/\s+/g, " ");
+    // The row's ink is the pill's: row text on the grey pill, the select ink
+    // on the focused one — both pairs held above.
+    expect(flat).toMatch(/\.fk-sb \[aria-selected="true"\]\[data-missing\] > \.fk-sb-label \{ color: inherit; \}/);
+    // Later in the sheet than the dim rule it overrides, at the same weight.
+    expect(flat.indexOf('.fk-sb [aria-selected="true"][data-missing] > .fk-sb-label')).toBeGreaterThan(flat.indexOf(".fk-sb .fk-sb-row[data-missing] .fk-sb-label"));
+  });
+});
