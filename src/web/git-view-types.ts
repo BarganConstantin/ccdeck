@@ -172,3 +172,77 @@ export interface GitFileRef {
   area: string;
   from?: string;
 }
+
+// ── the sidebar's lists (GET /api/git/refs) ──────────────────────────────
+
+/** A local branch: `current` is the one checked out in the session's own
+ *  worktree, `upstream` the branch it tracks (null for none), `ahead` and
+ *  `behind` how far it is from it as of the last fetch anybody made, `gone` an
+ *  upstream the remote no longer has, `worktree` the folder holding it checked
+ *  out (null when none does). `sha` is null only for a branch with no commit. */
+export interface RefBranch {
+  name: string;
+  sha: string | null;
+  current: boolean;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  gone: boolean;
+  worktree: string | null;
+}
+
+/** A remote and its remote-tracking branches, named without the remote. */
+export interface RefRemote {
+  name: string;
+  branches: Array<{ name: string; sha: string }>;
+}
+
+/** A tag, with the commit it names (an annotated tag's, peeled). */
+export interface RefTag {
+  name: string;
+  sha: string;
+  annotated: boolean;
+}
+
+/** One entry of the stash, newest first: `stash@{index}`. */
+export interface RefStash {
+  index: number;
+  sha: string;
+  subject: string;
+  date: string;
+}
+
+/** A worktree of the repository; `current` is the session's own. */
+export interface RefWorktree {
+  path: string;
+  name: string;
+  branch: string | null;
+  sha: string | null;
+  current: boolean;
+  locked: boolean;
+  prunable: boolean;
+  missing: boolean;
+}
+
+/** A submodule, at the commit the index pins it to. */
+export interface RefSubmodule {
+  path: string;
+  name: string;
+  sha: string;
+}
+
+/** The lists a list name in `clipped` or `unread` can be. */
+export type RefsList = "refs" | "stashes" | "worktrees" | "submodules";
+
+export interface GitRefs {
+  branches: RefBranch[];
+  remotes: RefRemote[];
+  tags: RefTag[];
+  stashes: RefStash[];
+  worktrees: RefWorktree[];
+  submodules: RefSubmodule[];
+  /** Lists cut at their cap: "refs" is branches, remote branches and tags together. */
+  clipped: RefsList[];
+  /** Lists git could not be asked for. */
+  unread: RefsList[];
+}
