@@ -74,6 +74,16 @@
     "3.38.1",
     "3.38.2"
   ],
+  "3.38.5": [
+    {
+      "title": "🔧 Settings are in one place now",
+      "body": "The theme, the sounds, notifications, Claude FM and the minimap character are all in Settings, behind the gear at the right of the topbar, or Cmd+, (Ctrl+, on Windows and Linux). The speaker beside it keeps the quick things one click away: sounds on or off, and how loud each tone is. Nothing you had set has changed, it has only moved, and T still switches the theme. The auto-switch threshold also takes a custom value now: pick Custom… and type a whole percent from 50 to 99."
+    },
+    {
+      "title": "Windows: no more temperature stuck at 28 °C",
+      "body": "On many Windows laptops the only temperature Windows offers is a thermal zone wired to nothing, which reads a fixed 28 °C however hot the CPU is, and the machine panel showed it as a reading. A thermal zone is now drawn only once its value has changed. Until then the panel shows LibreHardwareMonitor's readings if its web server is running, and otherwise no Thermal section at all: the deck never invents a reading."
+    }
+  ],
   "3.38.4": [
     {
       "title": "🔔 A notification when Auto-switch changes your account",
