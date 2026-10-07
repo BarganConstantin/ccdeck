@@ -33,3 +33,21 @@ describe("the appearance button names the settings it opens (#855)", () => {
     expect(menu).toMatch(/onClick=\{\(\) => onTheme\(choice\)\}/);
   });
 });
+
+describe("the appearance button reads as settings, not as a theme switch", () => {
+  const at = run.indexOf('title="Appearance settings"');
+  const button = run.slice(run.lastIndexOf("<button", at), run.indexOf("</button>", at));
+
+  it("draws one sliders glyph that does not follow the theme", () => {
+    expect(button.match(/<svg/g)).toHaveLength(1);
+    expect(button).not.toMatch(/theme\s*===/);
+    expect(button).not.toMatch(/M11\.8 8\.4A5 5 0 1 1 5\.6 2\.2/);
+    expect(button).not.toMatch(/M7 1\.5v1\.2M7 11\.3v1\.2/);
+    expect(button.match(/<circle\b/g)).toHaveLength(3);
+    expect(button).toMatch(/M1\.5 3h4\.3M9\.2 3h3\.3M1\.5 7h1\.3M6\.2 7h6\.3M1\.5 11h6\.3M11\.2 11h1\.3/);
+  });
+
+  it("keeps the topbar's one icon spec", () => {
+    expect(button).toMatch(/width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1\.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden/);
+  });
+});
