@@ -14,6 +14,7 @@ import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
 // The git view's reads, which the switch starts and stops — see git-watch.mjs.
 import { gitSwitched } from "./git-watch.mjs";
 import { collisionsSwitched } from "./git-collisions.mjs";
+import { recentCommitsSwitched } from "./git-recent-commits.mjs";
 import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
 
@@ -85,6 +86,7 @@ export async function handlePrefsWrite(req, res) {
   if (typeof patch.git === "boolean") {
     gitSwitched(patch.git);
     collisionsSwitched(patch.git);
+    recentCommitsSwitched(patch.git);
   }
   return send(res, 200, prefsPayload());
 }

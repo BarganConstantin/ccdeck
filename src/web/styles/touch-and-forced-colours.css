@@ -142,6 +142,12 @@
   .gv-g-collide,
   .agent-node .git-mark[data-level="sharp"] { border-color: CanvasText; }
   .gv-collide-line { border-bottom-color: CanvasText; }
+  /* The lane under a card: its line and its diamonds are backgrounds, which
+     the theme would paint as Canvas, so they keep the text colour. Which
+     branch is which is said by the card's branch chip. */
+  .git-band-dot,
+  .git-band-row::before,
+  .git-band-fold::before { forced-color-adjust: none; background: CanvasText; }
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,

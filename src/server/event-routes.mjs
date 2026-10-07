@@ -19,6 +19,7 @@ import { SEQ_EPOCH, eventBufferStats, ringHoldsNewerThan, ringSnapshot } from ".
 // withLostBehind.
 import { gitBehind } from "./git-watch.mjs";
 import { collisionsBehind } from "./git-collisions.mjs";
+import { recentCommitsBehind } from "./git-recent-commits.mjs";
 // The one door every event comes through — see event-pipeline.mjs.
 import { pushEvent } from "./event-pipeline.mjs";
 import { noteLogWriter } from "./event-log.mjs";
@@ -289,8 +290,9 @@ function isTrayRequest(req) {
 /**
  * The git state this page lost to eviction, for `range`.
  *
- * A card's branch (GitObserved) and its collisions (GitCollisions) are sent
- * once, when they change, and an unchanged one is not sent twice — so once the
+ * A card's branch (GitObserved), its collisions (GitCollisions) and the lane
+ * of its recent commits (GitRecentCommits) are sent once, when they change,
+ * and an unchanged one is not sent twice — so once the
  * event that carried one has left the ring, a reload or a second tab on a busy
  * deck would draw every card without them, and a collision would stay unmarked
  * for as long as it lasted. The last of each, for every session in `range`, is
@@ -300,7 +302,7 @@ function isTrayRequest(req) {
  * session being heard from just now.
  */
 function gitLostBehind(range) {
-  return [...gitBehind(range), ...collisionsBehind(range)]
+  return [...gitBehind(range), ...collisionsBehind(range), ...recentCommitsBehind(range)]
     .map(e => ({ seq: e.seq, epoch: SEQ_EPOCH, receivedAt: e.receivedAt, source: "internal", payload: e.payload }));
 }
 

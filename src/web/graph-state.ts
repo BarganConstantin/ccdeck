@@ -3,13 +3,14 @@
 // Here rather than in reducer.ts so that the modules the reducer applies events
 // through can read the same shape without importing the file that imports
 // them. reducer.ts re-exports what the rest of the client reads.
-import type { AgentNodeData, GitCollisions, GitFacts, ToolCall } from "./types";
+import type { AgentNodeData, GitCollisions, GitFacts, RecentCommits, ToolCall } from "./types";
 
-/** What the server last said about an agent's repository and collisions,
- *  held until the agent's card exists. See `parkedGit`. */
+/** What the server last said about an agent's repository, its collisions and
+ *  its recent commits, held until the agent's card exists. See `parkedGit`. */
 export interface ParkedGit {
   observed?: GitFacts;
   collisions?: GitCollisions;
+  recent?: RecentCommits;
 }
 
 export interface GraphState {
@@ -58,8 +59,9 @@ export interface GraphState {
   /** Model observations that overtook SubagentStart. Only Start creates a node;
    * cap the pending entries so scans of old subagents cannot grow this forever. */
   pendingSubagentModels: Map<string, string>;
-  /** Agent id → the GitObserved / GitCollisions that arrived before that
-   *  agent's card did, applied when the card is created (git-events.ts).
+  /** Agent id → the GitObserved / GitCollisions / GitRecentCommits that
+   *  arrived before that agent's card did, applied when the card is created
+   *  (git-events.ts).
    *
    *  Both are last-value-wins state, which the server's ring keeps past the
    *  hook events it evicts. A page opened on a busy deck is therefore handed a

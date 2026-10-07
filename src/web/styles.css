@@ -68,4 +68,5 @@
 @import "./styles/git-diff-fork.css";            /* the git view's Fork look: path bar and diff */
 @import "./styles/git-sidebar-fork.css";         /* the git view's sidebar in the Fork look: refs, filter, the two views */
 @import "./styles/git-graph-fork.css";           /* the git view's history in the Fork look: rows, graph, badges, dots */
+@import "./styles/git-band.css";                 /* the lane of recent commits under a card */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

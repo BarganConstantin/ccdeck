@@ -25,6 +25,7 @@ import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
 import { NODE_W } from "./layout-geometry";
 import { cardMarks, type CardMark } from "./git-card-mark";
+import { bandRoomFor, cardBands, type CardBand } from "./git-commit-band";
 import { subagentTails } from "./git-agent-name";
 import { gitOnNow } from "./git-pref";
 import { branchSummaries, type BranchSummary } from "./node-face";
@@ -46,9 +47,10 @@ export const RECAP_NOTE_GAP = 160;
 
 /** `branch` is on a root only, and only while it has subagents on the canvas:
  *  what they add up to, for the faces too small to show them one by one.
- *  `gitMark` is the card's collision mark, when it has one (git-card-mark.ts). */
+ *  `gitMark` is the card's collision mark, when it has one (git-card-mark.ts),
+ *  and `gitBand` the lane of its recent commits (git-commit-band.ts). */
 export type FlowNodeData = AgentNodeData & {
-  onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark;
+  onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark; gitBand?: CardBand;
   /** A subagent's key's tail after its type, when its session has another of
    *  that type: what the git surfaces name it by (git-agent-name.ts). */
   nameTail?: string;
@@ -76,6 +78,9 @@ const NODE_DATA = new WeakMap<GraphState, {
    *  roots' collisions; a mark that says what it said last revision keeps its
    *  identity. */
   marks: Map<string, CardMark>;
+  /** Every card's lane of recent commits, worked out once per revision from
+   *  the roots' commits; a lane that says what it said keeps its identity. */
+  bands: Map<string, CardBand>;
   /** The subagents' title tails, worked out once per revision. */
   tails: Map<string, string>;
 }>();
@@ -85,18 +90,23 @@ export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string
   if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
     entry = {
       revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()),
-      marks: cardMarks(state.agents.values(), entry?.marks), tails: subagentTails(state.agents.values()),
+      marks: cardMarks(state.agents.values(), entry?.marks), bands: cardBands(state.agents.values(), entry?.bands),
+      tails: subagentTails(state.agents.values()),
     };
     NODE_DATA.set(state, entry);
   }
-  const { byId, branches, marks, tails } = entry;
+  const { byId, branches, marks, bands, tails } = entry;
   return a => {
     let d = byId.get(a.id);
     if (!d) {
       const branch = a.kind === "root" ? branches.get(a.sessionId) : undefined;
       const gitMark = marks.get(a.id);
       const nameTail = tails.get(a.id);
-      d = { ...a, onOpenContext, ...(branch ? { branch } : null), ...(gitMark ? { gitMark } : null), ...(nameTail ? { nameTail } : null) };
+      const gitBand = bands.get(a.id);
+      d = {
+        ...a, onOpenContext, ...(branch ? { branch } : null), ...(gitMark ? { gitMark } : null), ...(gitBand ? { gitBand } : null),
+        ...(nameTail ? { nameTail } : null),
+      };
       byId.set(a.id, d);
     }
     return d;
@@ -467,7 +477,11 @@ export function snapshotToFlow(
         if (!root) continue;
         const nw = measured.get(n.id)?.width ?? RECAP_NOTE_W;
         const nh = measured.get(n.id)?.height ?? RECAP_NOTE_H;
-        const rh = measured.get(rootId)?.height ?? RECAP_NOTE_H;
+        // Centred on the card, not on the card and the lane of commits under
+        // it, which its node's measured height takes in (git-commit-band.ts).
+        const rootCard = state.agents.get(rootId);
+        const rm = measured.get(rootId)?.height;
+        const rh = rm != null && rootCard ? rm - bandRoomFor(state.agents, rootCard, now, gitOnNow()) : rm ?? RECAP_NOTE_H;
         recordPlacement(n.id, { x: root.x - RECAP_NOTE_GAP - nw, y: root.y + (rh - nh) / 2 }, positions, provisional);
       }
     }

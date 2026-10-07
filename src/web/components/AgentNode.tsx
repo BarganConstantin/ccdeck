@@ -46,6 +46,10 @@ import GitChip from "./GitChip";
 // Who this card can step on in git right now — git-card-mark.ts.
 import type { CardMark } from "../git-card-mark";
 import { GitMarkRow } from "./GitCardMark";
+// The commits its agent was seen making in the last half hour, as a lane
+// under the card — git-commit-band.ts.
+import type { CardBand } from "../git-commit-band";
+import { CommitBand } from "./CommitBand";
 import { GvIcon } from "./GitViewParts";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
@@ -53,7 +57,7 @@ import { GvIcon } from "./GitViewParts";
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
-function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark; nameTail?: string }>) {
+function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; gitMark?: CardMark; gitBand?: CardBand; nameTail?: string }>) {
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
@@ -144,9 +148,10 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   const moreShown = !giving.includes("more");
 
   return (
-    // --accent itself is built in styles.css from this hue: the token that
-    // reads well on a #14161b node is not the one that reads on a white one,
-    // and .tokens-meta / .spawn-badge are text.
+    <>
+    {/* --accent itself is built in styles.css from this hue: the token that
+        reads well on a #14161b node is not the one that reads on a white one,
+        and .tokens-meta / .spawn-badge are text. */}
     <div className={cls} style={{ "--session-hue": hue } as React.CSSProperties}>
       <span className="accent-stripe" />
       <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none" }} />
@@ -347,6 +352,12 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
 
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
+    {/* The lane of the commits its agent was seen making in the last half
+        hour: under the card, in the card's node and outside its box, so the
+        node is measured with it and the layout makes room (CommitBand.tsx).
+        None at all while the git view is switched off in Appearance. */}
+    {gitOn && <CommitBand band={data.gitBand ?? null} agentId={data.id} />}
+    </>
   );
 }
 

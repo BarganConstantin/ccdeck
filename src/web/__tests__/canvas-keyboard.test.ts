@@ -344,7 +344,8 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
 
 /** The git view's parts, which may set a tabIndex (see below). */
 // The Fork look's parts (Fk*.tsx) are the same view in another look: its panes and lists.
-const GIT_VIEW_PARTS = /^components\/(Git(View|ViewStandIns|Graph|Files|Diff)|Fk[A-Z]\w*)\.tsx$/;
+// The lane of recent commits under a card (CommitBand) is one stop whose rows the arrows move between.
+const GIT_VIEW_PARTS = /^components\/(Git(View|ViewStandIns|Graph|Files|Diff)|Fk[A-Z]\w*|CommitBand)\.tsx$/;
 
 describe("nothing else in the deck invents a focus stop", () => {
   /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
@@ -381,6 +382,8 @@ describe("nothing else in the deck invents a focus stop", () => {
     // with Enter, and its dividers are window splitters, which are focusable
     // separators by definition. Those parts — and only those — may set one;
     // `GIT_VIEW_PARTS` names them, and every other component is held as before.
+    // The lane of commits under a card is the same list pattern: its rows and
+    // its fold are one tab stop that ↑ and ↓ move along (CommitBand.tsx).
     const offenders = components(web)
       .filter(p => !GIT_VIEW_PARTS.test(p.slice(web.length).replaceAll("\\", "/")))
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))

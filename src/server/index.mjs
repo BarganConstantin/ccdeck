@@ -166,6 +166,8 @@ import { refreshGit } from "./git-watch.mjs";
 // session's folder — only from a browser on this machine. See git-handoff-routes.mjs.
 import { handleGitHandoffs, handleGitOpen } from "./git-handoff-routes.mjs";
 import { refreshCollisions } from "./git-collisions.mjs";
+// The lane of recent commits under each card — see git-recent-commits.mjs.
+import { connectRecentCommits, refreshRecentCommits } from "./git-recent-commits.mjs";
 // Commit recording: the repository's word on each commit an agent's shell
 // output reports — see git-confirm.mjs.
 import { connectCommitRecording, scheduleReplayRecording } from "./git-confirm.mjs";
@@ -219,6 +221,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // The commits agents make are recorded from here on, by the deck writing
   // the log (agent-git-tap.mjs) and only while the git view is switched on.
   connectCommitRecording();
+  // And every one this deck records, or another deck records for a session it
+  // shows, changes that session's lane of recent commits.
+  connectRecentCommits();
   if (persist) {
     // `deckWorkspace()`, not `workspace`: setDeckScope has normalised the
     // field above, and the replay has to answer the same question the live
@@ -235,6 +240,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     refreshGit();
     // And who collides with whom, worked out afresh: it is never logged.
     refreshCollisions();
+    // And each session's lane of recent commits, from the commit store: it is
+    // never logged either.
+    refreshRecentCommits();
     // The agent commits the replay found that the commit store does not hold
     // yet, recorded a few seconds from now by the deck writing the log.
     scheduleReplayRecording();

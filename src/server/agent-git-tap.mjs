@@ -32,6 +32,13 @@
 // held for another repository — the same history cloned or moved elsewhere —
 // is recorded for this one too.
 //
+// WHO HEARS OF A COMMIT. `onCommit` listeners are told of every line this
+// deck's recorder adds — live, kept in memory only, or found in the replay —
+// and, when another deck is the one recording a session (this one is not
+// writing its events to the log), of the session a commit was spotted in, so
+// they can read the other deck's line from the shared store a moment later.
+// The lane of recent commits under a card listens (git-recent-commits.mjs).
+//
 // Nothing here runs git. Recording needs the repository a folder is in and,
 // ideally, the repo's word that the commit exists; both come in through
 // `connectAgentGit` (see agent-git-record.mjs for the two hooks). Until
@@ -69,6 +76,13 @@ export function createAgentGitTap({
 } = {}) {
   const joiner = createCallJoiner();
   const recorder = createCommitRecorder({ store, resolveRepo, confirm });
+  /** Who is told of each commit — see `onCommit`. */
+  const listeners = new Set();
+  const tell = (heard) => {
+    for (const fn of listeners) {
+      try { fn(heard); } catch { /* a listener's fault is its own */ }
+    }
+  };
   /** Commits the boot replay found, oldest first: `{ candidate, facts }`. */
   let replayed = [];
 
@@ -110,10 +124,16 @@ export function createAgentGitTap({
         if (replayed.length > replayMax * 2) replayed = replayed.slice(-replayMax);
         return;
       }
-      if (!opts.persisting && !opts.ramOnly) return;
+      if (!opts.persisting && !opts.ramOnly) {
+        // Another deck records this session: its line reaches the shared
+        // store in a moment.
+        for (const sid of new Set(commitCandidates(call).map((c) => c.sessionId))) tell({ elsewhere: sid });
+        return;
+      }
       for (const candidate of commitCandidates(call)) {
         // The spend and names as they stand now, not after the async lookups.
-        void recorder.record(candidate, facts.snapshot(candidate.sessionId, candidate.agentId), { memoryOnly: !opts.persisting });
+        void recorder.record(candidate, facts.snapshot(candidate.sessionId, candidate.agentId), { memoryOnly: !opts.persisting })
+          .then((line) => { if (line) tell({ line }); });
       }
     },
 
@@ -133,9 +153,22 @@ export function createAgentGitTap({
         // Held for this repository already: no need to ask git about it.
         if (await recorder.held(candidate)) { done.known++; continue; }
         const line = await recorder.record(candidate, snapshot, { replay: true });
-        if (line) done.recorded++;
+        if (line) { done.recorded++; tell({ line }); }
       }
       return done;
+    },
+
+    /**
+     * Be told of every commit: `{ line }` for each line this deck's recorder
+     * added (live, in memory only, or found in the replay), `{ elsewhere:
+     * sessionId }` for a commit spotted in a session another deck records.
+     * Answers the way to stop.
+     *
+     * @param {(heard: { line?: object, elsewhere?: string }) => void} fn
+     */
+    onCommit(fn) {
+      listeners.add(fn);
+      return () => { listeners.delete(fn); };
     },
 
     /** Forget the commits the replay set aside, unrecorded. */

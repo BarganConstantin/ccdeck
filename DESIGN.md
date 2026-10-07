@@ -594,6 +594,7 @@ rather than scattered through the sections above.
 | Commit seen by ccdeck | its lane's colour; `--muted` in the legend | ◆ a filled diamond in the lane, and the agent's chip with its swatch | `seen by ccdeck`; `matched` after an amend or a rebase | none |
 | Commit known from its message | its lane's colour; `--muted` in the legend | ◇ a hollow diamond, and a dashed chip naming the CLI | `from the commit message` | none |
 | No agent seen | its lane's colour; `--muted` in the legend | ○ a hollow ring | `no agent seen` — never "made by a human" | none |
+| Recent commits | its branch's lane colour; `--muted` ages | a thin line hanging under the card, ◆ per commit its agent was seen making in the last half hour, newest on top, at most five rows; no box, no edge; not on a zoomed-out face | the subject, `↳ test-writer` for a subagent's, `2m`; `+3 earlier · g`; `seen by ccdeck` in the tooltip | a landing row slides in from the top over 200ms while the rows under it move down, its ◆ grows in and glows once (1s); the lane fades out over 150ms with its last commit; fades only under reduced motion |
 
 A new state adds a row here, and it needs a **mark and a word** — never colour
 alone.

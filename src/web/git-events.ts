@@ -10,7 +10,7 @@
 // or a subagent the board does not hold yet waits for that card instead
 // (`parkedGit` in graph-state.ts) and lands on it when it is created.
 import { rootAgentId, subagentIdFor, type GraphState, type ParkedGit } from "./graph-state";
-import type { AgentNodeData, GitCollisionRef, GitCollisions, GitFacts, HookPayload } from "./types";
+import type { AgentNodeData, GitCollisionRef, GitCollisions, GitFacts, HookPayload, RecentCommit, RecentCommits } from "./types";
 
 const STATES = new Set<GitFacts["state"]>(["repo", "not-a-repo", "gone", "no-git", "bare", "unsafe"]);
 
@@ -57,8 +57,9 @@ export const PARKED_GIT_MAX = 256;
 function park(state: GraphState, id: string, value: ParkedGit): void {
   const next: ParkedGit = { ...state.parkedGit.get(id), ...value };
   if (!next.collisions) delete next.collisions;
+  if (!next.recent) delete next.recent;
   state.parkedGit.delete(id);
-  if (next.observed || next.collisions) state.parkedGit.set(id, next);
+  if (next.observed || next.collisions || next.recent) state.parkedGit.set(id, next);
   while (state.parkedGit.size > PARKED_GIT_MAX) {
     const oldest = state.parkedGit.keys().next().value;
     if (oldest === undefined) break;
@@ -74,6 +75,7 @@ export function adoptParkedGit(state: GraphState, agent: AgentNodeData): void {
   state.parkedGit.delete(agent.id);
   if (parked.observed) agent.git = parked.observed;
   if (parked.collisions && agent.kind === "root") agent.gitCollisions = parked.collisions;
+  if (parked.recent && agent.kind === "root") agent.gitRecent = parked.recent;
 }
 
 /** A session left the board: nothing it was waiting for may land on a card
@@ -132,4 +134,50 @@ export function applyGitCollisions(state: GraphState, p: HookPayload, sessionId:
   if (!root) { park(state, rootAgentId(sessionId), { collisions: any ? collisions : undefined }); return; }
   if (any) root.gitCollisions = collisions;
   else delete root.gitCollisions;
+}
+
+const SHA = /^[0-9a-f]{7,64}$/;
+
+/** A GitRecentCommits payload's lane, typed and with nothing else in it —
+ *  newest first, each commit at most once — or null for one this client
+ *  cannot read. */
+export function recentCommitsFrom(raw: { commits?: unknown; repo?: unknown }): RecentCommits | null {
+  if (!Array.isArray(raw.commits)) return null;
+  const commits: RecentCommit[] = [];
+  const seen = new Set<string>();
+  for (const c of raw.commits as Array<Record<string, unknown>>) {
+    if (!c || typeof c !== "object" || typeof c.sha !== "string" || !SHA.test(c.sha) || seen.has(c.sha)) continue;
+    if (typeof c.at !== "number" || !Number.isFinite(c.at)) continue;
+    seen.add(c.sha);
+    commits.push({
+      sha: c.sha,
+      short: typeof c.short === "string" && SHA.test(c.short) ? c.short : c.sha.slice(0, 7),
+      subject: typeof c.subject === "string" ? c.subject : "",
+      at: c.at,
+      agentId: str(c.agentId) ?? null,
+      label: str(c.label) ?? null,
+      branch: str(c.branch) ?? null,
+    });
+  }
+  commits.sort((a, b) => b.at - a.at);
+  return { repo: str(raw.repo) ?? null, commits };
+}
+
+/**
+ * GitRecentCommits: the commits a session's agents were seen making in the
+ * last half hour (src/server/git-recent-commits.mjs), kept on the session's
+ * root card for the lane under it and under a subagent card of its own
+ * (git-commit-band.ts). The server's word like the two above: it never clears
+ * a waiting block, never marks the session as heard from and never creates a
+ * card — for a session not on the board yet it waits for the card. Last value
+ * wins; an empty one takes the lane away.
+ */
+export function applyGitRecentCommits(state: GraphState, p: HookPayload, sessionId: string): void {
+  const recent = recentCommitsFrom(p as { commits?: unknown; repo?: unknown });
+  if (!recent) return;
+  const any = recent.commits.length > 0;
+  const root = state.agents.get(rootAgentId(sessionId));
+  if (!root) { park(state, rootAgentId(sessionId), { recent: any ? recent : undefined }); return; }
+  if (any) root.gitRecent = recent;
+  else delete root.gitRecent;
 }
