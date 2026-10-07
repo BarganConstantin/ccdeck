@@ -344,7 +344,7 @@
 .gv-wide[data-look="fork"] .gv-pane-empty { color: var(--fk-text-2); }
 .gv-wide[data-look="fork"] .gv-pane-empty b { color: var(--fk-text); }
 
-/* ------------------------------------- stand-ins until their parts arrive */
+/* ------------------------------------- the sidebar's stand-in until it arrives */
 .fk-ph-side { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; }
 .fk-ph-repo { margin: 0 0 8px 19px; overflow: hidden; font-size: 13px; font-weight: 700; line-height: 22px; text-overflow: ellipsis; white-space: nowrap; }
 .fk-ph-nav {
@@ -359,33 +359,6 @@
   cursor: default;
 }
 .fk-ph-nav[aria-current="true"] { background: var(--fk-sidebar-select); }
-.fk-ph-commit { padding: 12px 20px 16px; }
-.fk-ph-subject { margin: 0 0 4px; color: var(--fk-text); font-size: 16px; font-weight: 600; line-height: 21px; }
-.fk-ph-note { margin: 0; padding: 4px 0; color: var(--fk-text-2); font-size: 13px; line-height: 17px; overflow-wrap: anywhere; }
-.fk-ph-files { margin: 8px 0 0; padding: 0; list-style: none; }
-.fk-ph-files li { display: flex; }
-.fk-ph-file {
-  display: block;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--fk-text);
-  font: 400 13px/22px var(--fk-font);
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: default;
-}
-.fk-ph-file[aria-selected="true"] { background: var(--fk-select-idle); color: var(--fk-select-idle-ink); }
-.fk-ph-list:focus-within .fk-ph-file[aria-selected="true"] { background: var(--fk-select); color: var(--fk-select-ink); }
-.fk-ph-changes { flex: 1; min-height: 0; display: flex; min-width: 0; }
-.fk-ph-list { flex: 0 0 clamp(180px, 25%, 420px); overflow: auto; padding: 4px 0; border-right: 1px solid var(--fk-line); background: var(--fk-tree); }
-.fk-ph-list .fk-ph-note { padding: 8px 12px; }
-.fk-ph-diff { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--fk-diff); container: gvdiff / inline-size; }
 
 /* ------------------------------------- the deck look's way to the Fork look */
 .gv-look svg { display: block; }
