@@ -29,6 +29,8 @@ describe("the event, on the page", () => {
     expect(read!.repo).toBe("/r/.git");
     expect(read!.commits.map(c => c.sha)).toEqual([sha(2), sha(5), sha(1)]);
     expect(read!.commits[1]).toMatchObject({ short: sha(5).slice(0, 7), agentId: null, label: null });
+    expect(read!.commits[0].repo).toBe("/w/shop-api/.git");
+    expect(recentCommitsFrom({ commits: [{ ...commit(6, MIN), repo: 3 }] })!.commits[0].repo).toBeNull();
     expect(recentCommitsFrom({ commits: "nope" })).toBeNull();
   });
 
@@ -104,6 +106,20 @@ describe("whose commits a lane holds", () => {
     expect(bands.has(`${API}::tw1`)).toBe(false);
     // In a worktree of its own: its own commit, not named twice.
     expect(bands.get(`${API}::dw1`)!.commits.map(c => [c.sha, c.who])).toEqual([[sha(3), null]]);
+  });
+
+  it("on a main card, only the commits in the repository its git view reads, and its room with them", () => {
+    const other = "/w/billing/.git";
+    const s = board([commit(1, MIN), commit(2, 2 * MIN, { repo: other }), commit(3, 3 * MIN)]);
+    const bands = cardBands(s.agents.values());
+    expect(bands.get(API)!.commits.map(c => c.sha)).toEqual([sha(1), sha(3)]);
+    expect(bandRoomFor(s.agents, s.agents.get(API)!, NOW, true)).toBe(BAND_TOP + 2 * BAND_ROW_H);
+    // Followed to the other repository with no commit there yet: no lane at all.
+    const moved = send(s, lane(API, s.agents.get(API)!.gitRecent!.commits, other));
+    expect(cardBands(moved.agents.values()).get(API)!.commits.map(c => c.sha)).toEqual([sha(2)]);
+    const gone = send(s, lane(API, [commit(1, MIN), commit(3, 3 * MIN)], other));
+    expect(cardBands(gone.agents.values()).has(API)).toBe(false);
+    expect(bandRoomFor(gone.agents, gone.agents.get(API)!, NOW, true)).toBe(0);
   });
 
   it("keeps a lane's identity while it says the same thing, so its card does not draw again", () => {

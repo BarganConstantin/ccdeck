@@ -15,6 +15,12 @@
 // are on its session's lane, and drawing them twice side by side would say
 // two branches moved where one did.
 //
+// WHICH REPOSITORY. A row opens its card's git view on its commit, and that
+// view reads the repository the session works in now. A main card draws only
+// the commits in that repository (the lane's `repo`): one made in a repository
+// the session has since left would open the view on a commit it does not
+// hold, coloured by another repository's branches.
+//
 // HOW LONG. A commit stays for BAND_WINDOW_MS after it was made, and the lane
 // goes with the last of them; the card works that out on the deck's shared
 // clock (use-now.ts), so nothing keeps a timer of its own. At most BAND_ROWS
@@ -72,11 +78,15 @@ export function drawsLane(a: Pick<AgentNodeData, "kind" | "git" | "cwd">): boole
 }
 
 /** The commits a card's lane is made of, newest first: the whole team's on a
- *  main card, a subagent's own on its card, nothing for a card with no lane. */
+ *  main card, in the repository its view reads; a subagent's own on its card;
+ *  nothing for a card with no lane. */
 export function laneCommits(a: BandAgent, root: Pick<AgentNodeData, "gitRecent"> | undefined): readonly RecentCommit[] {
   const all = root?.gitRecent?.commits;
   if (!all?.length || !drawsLane(a)) return [];
-  if (a.kind !== "subagent") return all;
+  if (a.kind !== "subagent") {
+    const repo = root?.gitRecent?.repo;
+    return repo ? all.filter(c => !c.repo || c.repo === repo) : all;
+  }
   const key = subKey(a);
   return key ? all.filter(c => c.agentId === key) : [];
 }
