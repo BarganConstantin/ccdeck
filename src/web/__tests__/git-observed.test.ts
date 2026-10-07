@@ -441,6 +441,24 @@ describe("the worktree a session works in", () => {
     expect(await repoTop("F8")).toBe(wt);
   });
 
+  it("puts a session started in a nested worktree back in the checkout it was followed to, after a restart", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }, "ccdeck-git-follow-nest-"));
+    const nested = join(dir, ".nested", "wt-n");
+    sh(dir, ["worktree", "add", "-q", "-b", "wt/nested", nested]);
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F9", cwd: nested });
+    await next("F9", since);
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "F9", cwd: nested, tool_name: "Bash", tool_input: { command: `cd '${dir}' && git status` } });
+    const moved = await next("F9", since, g => g.topLevel === dir);
+    expect(await repoTop("F9")).toBe(dir);
+    // What a restarted deck replays for it, under a session it heard start in
+    // the same nested folder.
+    noteSessionFolder({ session_id: "F9r", cwd: nested, hook_event_name: "SessionStart" });
+    noteGitEvent({ ...moved.payload, session_id: "F9r" }, { replay: true, seq: 1, at: 1 });
+    expect(sessionFolder("F9r")).toMatchObject({ cwd: dir, start: nested });
+  });
+
   it("puts a restarted deck's session back in the worktree its last GitObserved named", () => {
     const { dir, wt } = repoAndWorktree("replay");
     noteSessionFolder({ session_id: "F6", cwd: dir, hook_event_name: "SessionStart" });

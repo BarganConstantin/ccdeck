@@ -16,7 +16,7 @@
 //   { hook_event_name: "GitObserved", session_id, provider?: "codex",
 //     git: { subagent?, state, stale, topLevel?, name?, mainName?, folderName?,
 //            nameDiffers?, linkedWorktree?, branch?, detached?, sha?, unborn?,
-//            empty?, fromLog? } }
+//            empty?, fromLog?, followed? } }
 //
 // for the session's root and for each subagent whose folder is not the
 // root's (`git.subagent` is its key). `state` is "repo" or why there is none
@@ -51,8 +51,8 @@
 //     worktree after EDITS_TO_FOLLOW calls there in a row, so one stray file
 //     written elsewhere (a note, a memory file) moves nothing.
 // A folder outside every repository says nothing. The worktree it moved to
-// rides on its GitObserved, which the log keeps, so a restarted deck puts the
-// session back where it was working (seedFromLog).
+// rides on its GitObserved, marked `followed`, which the log keeps, so a
+// restarted deck puts the session back where it was working (seedFromLog).
 //
 // AFTER A BOOT, the sessions the replay put back are looked at once
 // (refreshGit), and the GitObserved lines the replay found are taken as sent,
@@ -367,6 +367,10 @@ async function look(sid) {
     const repo = await repoOf(cwd);
     if (!DEFINITE.has(repo.state) || watched.get(sid) !== w) continue;
     const git = describeRepo(repo);
+    // Read somewhere other than the folder it started in: said, so a restart
+    // follows it there again (seedFromLog) whatever the two folders' paths.
+    const own = key ? sessionFolder(sid, key) : root;
+    if (git.state === "repo" && own && own.cwd !== own.start) git.followed = true;
     // A deleted folder still names the branch its session last ran on, from
     // the session's own log — the root's only; a subagent keeps no log of one.
     if (git.state === "gone" && !key) {
@@ -410,9 +414,12 @@ function seedFromLog(raw, seq, at) {
   const key = typeof git.subagent === "string" ? git.subagent : "";
   // Where it was working when this was sent: a worktree away from the folder
   // it started in is followed again, so a restart does not send it home.
+  // `followed` says so; a line from before it was written is judged by its
+  // path — the folder it started in outside the worktree named.
   if (git.state === "repo" && typeof git.topLevel === "string" && git.topLevel) {
     const start = sessionFolder(sid, key || null)?.start;
-    if (start) followFolder(sid, key || null, codexCwdInWorkspace(start, git.topLevel) ? null : git.topLevel);
+    const away = git.followed === true || (start && !codexCwdInWorkspace(start, git.topLevel));
+    if (start) followFolder(sid, key || null, away ? git.topLevel : null);
   }
   // The counter is this process's own and starts at nought.
   watching(sid).sent.set(key, {
