@@ -16,6 +16,10 @@ import { invalidateQuotaCache } from "./quota.mjs";
 // The one store mutex. A tick is the only thing in the deck that moves the live
 // account with nobody watching, which is why it of all writers must queue.
 import { withStoreLock } from "./store-lock.mjs";
+// Told about every finished tick and about the switch itself, so a tick that
+// moved the account is said once on the desktop (account-notify.mjs). Both
+// doors return at once and never throw.
+import { noteAutoSwitch, noteAutoTick } from "./account-watch.mjs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -239,7 +243,10 @@ async function runTick() {
  */
 function tick() {
   if (_ticking) return _ticking;
-  _ticking = runTick().finally(() => { _ticking = null; });
+  // The notifier hears what every tick did, the ones that switched nothing
+  // included: a threshold notice it is holding waits for exactly that answer.
+  // Not awaited, and caught inside: a notification never delays a tick.
+  _ticking = runTick().then(() => { noteAutoTick(_lastTick); }).finally(() => { _ticking = null; });
   return _ticking;
 }
 
@@ -332,6 +339,7 @@ export function lastTick() {
 /** Turn the deck-managed loop on or off, persisting the choice. */
 export async function setAutoEnabled(enabled) {
   _enabled = Boolean(enabled);
+  noteAutoSwitch(_enabled);
   await saveState({ ...(await loadState()), enabled: _enabled });
   if (_enabled) await startLoop(); else stopLoop();
   return { ok: true, enabled: _enabled };
@@ -351,5 +359,5 @@ export async function setAutoEnabled(enabled) {
 export async function initCswapAuto({ after = null } = {}) {
   _toolQuiet = Promise.resolve(after).then(() => {}, () => {});
   const state = await loadState();
-  if (state.enabled) { _enabled = true; await startLoop(); }
+  if (state.enabled) { _enabled = true; noteAutoSwitch(true); await startLoop(); }
 }

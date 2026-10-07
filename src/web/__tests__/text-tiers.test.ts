@@ -172,7 +172,7 @@ describe("what was migrated to the secondary tier", () => {
       // stays on the metadata tiers.
       ".ap-report-held",
       ".ap-report-how-body",
-      // Appearance's git view look: the look not chosen, in a segmented track
+      // Settings › Git's view look: the look not chosen, in a segmented track
       // whose fill takes --muted under its floor in dark, as the feedback
       // dialog's kinds below.
       ".appearance-git-look-pick",

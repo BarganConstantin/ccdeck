@@ -179,7 +179,7 @@ export default function GitView(props: GitViewProps) {
 
   const win = useWindowWidth();
   const sheet = isSheet(win);
-  // Shared with Settings › Appearance, which switches the look too.
+  // Shared with Settings › Git, which switches the look too.
   const prefs = useGitViewPrefs();
   const savePrefs = setGitViewPrefs;
   const fork = prefs.look === "fork";

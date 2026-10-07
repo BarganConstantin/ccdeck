@@ -476,9 +476,12 @@ describe("what each of the four toggles announces", () => {
     // rather than an oversight: the canvas-edge tab that used to reopen the
     // detail panel was removed at the owner's request after the #800 trade-off
     // was put to them, and `D` in the shortcuts sheet is the route that
-    // replaced it.
+    // replaced it. `appearanceMenuOpen` left with the Appearance button
+    // (2026-10-07): the gear that replaced it opens Settings, a modal, and says
+    // aria-haspopup="dialog" with no state, the shape the usage-history button
+    // below has and for its reason.
     const expandeds = [...app.matchAll(/aria-expanded=\{(\w+)\}/g)].map(m => m[1]).sort();
-    expect(expandeds).toEqual(["accountsPanelOpen", "appearanceMenuOpen", "machinePanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
+    expect(expandeds).toEqual(["accountsPanelOpen", "machinePanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
   });
 
   it("leaves the session list a way in and a way out, which is what the button was", () => {
@@ -538,8 +541,12 @@ describe("what each of the four toggles announces", () => {
     const menu = markup("components", "SoundMenu.tsx");
     // The menu and every file lifted out of it, for the negatives.
     const menuSurface = markupOf(soundMenuSurface());
-    expect(menu).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
-    expect(menu).toMatch(/aria-labelledby="sm-sound-label"/);
+    // The switch is SoundSwitch.tsx's since Settings › Sounds draws it too;
+    // the popover draws that one switch.
+    const soundSwitch = markup("components", "SoundSwitch.tsx");
+    expect(menu).toMatch(/<SoundSwitch soundOn=\{soundOn\}/);
+    expect(soundSwitch).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
+    expect(soundSwitch).toMatch(/aria-labelledby=\{labelId\}/);
     expect(menuSurface).not.toMatch(/aria-pressed/);
     // Non-modal on purpose: nothing behind it is inert and there is no scrim,
     // so claiming aria-modal would be the lie #518 removed from the modals that

@@ -379,14 +379,16 @@
 /* ------------------------------------- the deck look's way to the Fork look */
 .gv-look svg { display: block; }
 
-/* ------------------------------------- Settings › Appearance › Git view look */
+/* ------------------------------------- Settings › Git: the view's look */
+/* A row of the section's switch group, drawn as the switch row above it is
+   (.appearance-row): the name at the left, the pair at the right on the
+   name's line, the note under both, 5px off it. */
 .appearance-git-look {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 12px;
-  row-gap: 2px;
-  padding: 10px 0 2px;
+  row-gap: 5px;
 }
 .appearance-git-looks { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--r-ctl); background: var(--ctl-fill); }
 .appearance-git-look-pick {

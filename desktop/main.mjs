@@ -531,10 +531,14 @@ function discoverSoon(ms = 2000) {
  *  rather than by a copy of it: a copy that drifted would name a sound macOS
  *  cannot find, and the notification would arrive in silence. Loaded with the
  *  tray model, before any deck can ask for a notification. */
-function showNotification({ title, body, chime }) {
+function showNotification({ title, body, chime, silent }) {
   if (!Notification.isSupported()) return;
+  // Quiet when the deck says so — the account notifications, which are
+  // operational news rather than a tone standing in for one — and otherwise as
+  // before: with no file to name, Electron plays the system's default sound.
+  const quiet = silent === true;
   const sound = process.platform === "darwin" ? chimeFiles[chime] : undefined;
-  const n = new Notification({ title: String(title ?? "ccdeck"), body: String(body ?? ""), sound, silent: false });
+  const n = new Notification({ title: String(title ?? "ccdeck"), body: String(body ?? ""), sound: quiet ? undefined : sound, silent: quiet });
   n.on("click", () => openWindow());
   n.show();
 }

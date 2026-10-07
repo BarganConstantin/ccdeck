@@ -114,7 +114,7 @@ export const writeGitViewPrefs = (p: GitViewPrefs): void => {
 };
 
 // ── one value for the page ──────────────────────────────────────────────
-// The view and Settings › Appearance read and write the same preferences, so
+// The view and Settings › Git read and write the same preferences, so
 // the look switched in one is the look the other shows, at once.
 let current: GitViewPrefs | null = null;
 const listeners = new Set<() => void>();

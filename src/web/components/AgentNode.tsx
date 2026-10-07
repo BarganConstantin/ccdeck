@@ -124,7 +124,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   const cost = costChip(data);
   // The branch chip, last on the sub row. A subagent's takes the place of its
   // folder name, which moves into the chip's tooltip.
-  // None at all while the git view is switched off in Appearance.
+  // None at all while the git view is switched off in Settings › Git.
   const gitOn = useGitOn();
   const chip = gitOn ? branchChip(data) : null;
   // The collision mark, with the chip and for the same switch.
@@ -355,7 +355,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
     {/* The lane of the commits its agent was seen making in the last half
         hour: under the card, in the card's node and outside its box, so the
         node is measured with it and the layout makes room (CommitBand.tsx).
-        None at all while the git view is switched off in Appearance. */}
+        None at all while the git view is switched off in Settings › Git. */}
     {gitOn && <CommitBand band={data.gitBand ?? null} agentId={data.id} />}
     </>
   );

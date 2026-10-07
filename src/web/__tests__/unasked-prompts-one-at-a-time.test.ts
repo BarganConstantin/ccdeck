@@ -57,6 +57,7 @@ const props = (pending: LanStranger[], rows: AttentionRow[]) => ({
   attention: attention(rows),
   clearFlow: { clearConfirmOpen: false },
   watchBadge: {}, announcements: {}, appearance: { palette: {} }, providers: {}, stateRef: { current: {} }, agentCount: 0,
+  menus: { settingsOpen: false, settingsSection: "general" },
 }) as unknown as Parameters<typeof DeckDialogs>[0];
 
 /** The prompts' components, wherever DeckDialogs draws them, run for what

@@ -75,7 +75,7 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   }],
   "components/GitHandoffPicks.tsx": [{
     name: "a git hand-off's app",
-    chain: [el("body"), el("div", ["modal-backdrop", "appearance-backdrop"]), el("div", ["modal", "appearance-menu", "appearance-modal"]), el("section", ["appearance-section"]), el("div", ["appearance-controls"]), el("div", ["appearance-git-picks"]), el("div", ["appearance-git-pick"]), el("select", ["sm-select"])],
+    chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["appearance-git-picks"]), el("div", ["appearance-git-pick"]), el("select", ["sm-select"])],
   }],
 };
 

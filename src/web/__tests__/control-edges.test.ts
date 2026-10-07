@@ -572,7 +572,12 @@ const CONTROLS: Control[] = [
   // panel with the control edge round it, which is the mark that says which
   // one is chosen, so that edge is measured. The track sits on the panel.
   { at: ".fb-kind:has(input:checked)", fillFrom: ".fb-kind:has(input:checked)", beds: ["--panel"] },
-  // Appearance › Git view look: the same segmented pair, two buttons in a track,
+  // Settings' nav, on the same terms: a section's name at rest draws no
+  // boundary — the word names it — and the section on show is raised onto the
+  // panel with the control edge round it, which is the mark that says which,
+  // so that edge is measured. The nav sits a surface down, on --bg-soft.
+  { at: '.settings-tab[aria-selected="true"]', fillFrom: '.settings-tab[aria-selected="true"]', beds: ["--bg-soft"] },
+  // Settings › Git's view look: the same segmented pair, two buttons in a track,
   // the chosen one raised onto the panel with the control edge round it.
   { at: '.appearance-git-look-pick[aria-checked="true"]', fillFrom: '.appearance-git-look-pick[aria-checked="true"]', beds: ["--panel"] },
   // Its two quiet buttons under the message, Add screenshot and Add details:
@@ -676,6 +681,12 @@ const CONTROLS: Control[] = [
   { at: ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
     fillFrom: "button.btn",
     states: [".lan-peer-foot .btn.danger:not(.armed):focus-visible"], beds: ["--bg-soft"] },
+  // The feedback dialog's Discard holds the same line in its own foot: it is
+  // drawn only while there is a draft, keeps its word and loses the edge until
+  // it is pointed at or focused. The foot is the dialog's panel, not a band.
+  { at: ".fb-foot .btn.danger:not(.armed):hover:not(:disabled)",
+    fillFrom: "button.btn",
+    states: [".fb-foot .btn.danger:not(.armed):focus-visible"], beds: ["--panel"] },
   { at: ".ap-fix", states: [".ap-fix:hover"], beds: ["--panel"] },
   // add-account dialog
   { at: ".aa-tab", states: [".aa-tab.on"], beds: ["--panel"] },
@@ -836,9 +847,6 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".react-flow__node:focus-visible .lod-face",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
-      // The sound menu's import card: the focused thing is a 1px file input,
-      // so the card it stands for draws the ring.
-      ".sm-file:has(input:focus-visible)",
       ".switch:focus-visible",
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",
@@ -876,8 +884,12 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // And from 114 to 116 with the git view's diff: its Show latest pill,
     // framed in the accent at rest, and the keycap inside it; and to 118 with
     // the glance's sharp collision line and its Open under the pointer. And
-    // to 119 with Appearance's git view look, whose chosen look is framed.
-    expect(EDGED_CONTROLS.length).toBeLessThan(119);
+    // to 119 with the git view look in Settings › Git, whose chosen look is
+    // framed. And to 122 with the feedback dialog's Discard, which gains an
+    // edge under the pointer and the keyboard the way the LAN dialog's Unpair
+    // does, and Settings' nav, whose chosen section is raised with the control
+    // edge round it, as the feedback dialog's chosen kind is.
+    expect(EDGED_CONTROLS.length).toBeLessThan(122);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

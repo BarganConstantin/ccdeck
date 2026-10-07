@@ -37,19 +37,23 @@ export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
  * stays alive. When all of them have lost, the round finds nothing alive to
  * copy and says nothing, and the row said only "login expired" for hours.
  *
- * True only on evidence: the network is on, this deck shares the account, at
- * least one paired deck that is on offers it, and every one that does offers
- * it dead. A deck that does not offer it, or has not said, proves nothing
- * either way — and nor does a deck that has gone quiet: what it offered then
- * is its last word, not its current one, and it may have been signed in
- * again since.
+ * True only on evidence: the network is on, at least one paired deck that is
+ * on offers it, and every one that does offers it dead. A deck that does not
+ * offer it, or has not said, proves nothing either way — and nor does a deck
+ * that has gone quiet: what it offered then is its last word, not its current
+ * one, and it may have been signed in again since.
+ *
+ * WHATEVER IS TICKED HERE, as lanRepairExpected below. A round repairs a login
+ * from any paired deck that offers a live copy, ticked here or not, so a login
+ * not ticked here waits on the same copies. This still asked for the tick, and
+ * such a login said only "login expired" with every copy nearby dead too.
  */
 export function noCopyWorksNearby(
   key: string,
-  status: Pick<LanStatus, "enabled" | "shared" | "peers"> | null,
+  status: Pick<LanStatus, "enabled" | "peers"> | null,
   now: number,
 ): boolean {
-  if (!status?.enabled || !(status.shared ?? []).includes(key)) return false;
+  if (!status?.enabled) return false;
   const copies = (status.peers ?? [])
     .filter(p => p.paired && isOnline(p, now))
     .map(p => p.offers?.accounts?.find(o => o.key === key))

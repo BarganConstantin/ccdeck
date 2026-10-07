@@ -3,7 +3,7 @@
 // (src/server/git-watch.mjs), and the page hides every branch chip.
 //
 // One value for the whole page, kept outside React so the cards and the
-// Appearance dialog read the same answer without it being handed down through
+// Settings dialog read the same answer without it being handed down through
 // every node's data. On until the prefs read says otherwise, which is the
 // server's own default. A press is optimistic and the server's answer settles
 // it, as the auto-update switch does (use-auto-restart.ts); once pressed, a
@@ -36,7 +36,7 @@ export function loadGitPrefs(d: { prefs?: { git?: unknown } }): void {
   if (!pressed) set(d.prefs?.git !== false);
 }
 
-/** The Appearance switch was pressed. */
+/** The switch in Settings › Git was pressed. */
 export function toggleGit(): void {
   const next = !on;
   pressed = true;

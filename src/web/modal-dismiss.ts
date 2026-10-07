@@ -212,7 +212,7 @@ export function shouldRestoreFocus(opener: FocusNode | null | undefined, active:
  *  caught by the same sweep. Whether a match is really tabbable — disabled,
  *  removed from the order, not drawn — is isTabbable's question, not the
  *  selector's, so there is one rule and not two half-rules. */
-export const TABBABLE_SELECTOR = "a[href], button, input, select, textarea, [tabindex]";
+export const TABBABLE_SELECTOR = "a[href], button, input, select, textarea, summary, [tabindex]";
 
 /** The properties of a candidate control the tabbability rule reads. Structural
  *  rather than an Element, for the same reason FocusTarget and FocusNode are. */

@@ -417,11 +417,12 @@ const PRESSES: Press[] = [
   // #820's Resume, the one pressable part of the auto-fit strip. A labelled
   // control, so 0.97 like every other one.
   [".autofit-resume:active", "0.97", "transform"],
-  // The sound menu's import card, a <label> the size of a card that opens the
-  // file picker, and the spoken-voice disclosure under it: a full-width row,
-  // like `.up-disclose`. Both are labelled controls, so 0.97.
-  [".sm-file:active", "0.97", "transform"],
+  // The spoken-voice disclosure under the custom-sound cards: a full-width
+  // row, like `.up-disclose`. A labelled control, so 0.97.
   [".sm-voice summary:active", "0.97", "transform"],
+  // A section of Settings, in the nav down its side: a labelled row the width
+  // of the nav, pressed like every other labelled control — 0.97.
+  [".settings-tab:active", "0.97", "transform"],
   // The Other accounts list's expand-all (#1579): a glyph in a 24px box, but a
   // labelled control by its name, like the header's icon buttons — 0.97.
   [".ap-rest-all:active", "0.97", "transform"],
@@ -533,7 +534,7 @@ const EXEMPT: string[] = [
   // answered by the platform's own list opening over it; scaling the control
   // in the same instant would shift the words the list is drawn against.
   ".ap-rest-sort select",
-  // The appearance menu's Claude FM row: a <label> round the switch, the same
+  // Settings' Claude FM and character rows: a <label> round the switch, the same
   // argument as `.bw-switch` — the knob travelling and the switch's own 0.97
   // answer the press, and a scaled row would slide the words out from under it.
   ".appearance-row",

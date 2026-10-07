@@ -142,7 +142,13 @@ describe("a subagent's request", () => {
   it("still bills a request whose final record never came, from the snapshots written for it", async () => {
     const { main } = session(record("1", 0, 4) + record("1", 1, 9) + SNAPSHOT("2") + toolResult() + FINAL("2"));
     const twice = Object.fromEntries(Object.entries(billed(0)).map(([k, v]) => [k, v * 2]));
-    expect(await sessionUsageTotals(main)).toEqual({ ...twice, output_tokens: 374 });
+    // Request 1 keeps the 9 output tokens its last snapshot had streamed.
+    expect(await sessionUsageTotals(main)).toEqual({ ...twice, output_tokens: 9 + 374 });
+  });
+
+  it("counts the output a snapshot has streamed so far, while its final record has not come", async () => {
+    const { agent } = session(SNAPSHOT("1") + toolResult());
+    expect((await readUsageFromTranscript(agent))?.output_tokens).toBe(6);
   });
 
   it("is still one reply in the context breakdown", async () => {
@@ -200,7 +206,11 @@ describe("the Projects report", () => {
     const { agent, rollup } = await projectsTree();
     await writeFile(agent, SNAPSHOT("1") + toolResult(), "utf8");
     await rollup().tick();
-    await appendFile(agent, FINAL("1") + SNAPSHOT("2") + FINAL("2"), "utf8");
+    // Request 2 is dated after request 1, as Claude Code writes it: a record
+    // older than one the file has already read is a resumed subagent restating
+    // its history, and is not billed again (subagent-resume-replay.test.ts).
+    const second = record("2", 0, 6, { at: "2026-10-03T12:00:03.000Z" }) + record("2", 1, 374, { stop: "tool_use", at: "2026-10-03T12:00:05.000Z" });
+    await appendFile(agent, FINAL("1") + second, "utf8");
     const restarted = rollup();
     await restarted.tick();
     const rep = await restarted.report(KEY, 0);

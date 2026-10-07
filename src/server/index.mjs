@@ -129,6 +129,9 @@ export { markDeckReady, releaseRestart } from "./lifecycle.mjs";
 // The settings as this process holds them, and every write that changes them —
 // see prefs-state.mjs.
 import { prefsRead } from "./prefs-state.mjs";
+// Quota read for the account notifications while no page reads it — only while
+// one of their quota switches is on (account-watch.mjs).
+import { startAccountWatch } from "./account-watch.mjs";
 // This deck's LAN engine, what the settings may tell it, and the probe that
 // asks whether other decks can reach it — see lan-deck.mjs. startServer hands
 // it the prefs at boot; the settings route does after every write.
@@ -551,6 +554,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // being installed or upgraded underneath them (#1043) — null from every
       // caller with nothing to wait for.
       cswapAutoModule().then(m => m.initCswapAuto({ after: cswapQuiet })).catch(() => {});
+      // The account notifications' own quota reads, for the providers this deck
+      // watches. Idle — a check of two switches every couple of minutes — unless
+      // the threshold or the reset notification is on.
+      startAccountWatch({ providers: deckProviders });
       // The account-projects rollup: fold Claude transcripts into a per-account,
       // per-project token tally, incrementally. Claude only — it reads Claude
       // transcripts — best effort, and its timer is unref'd so it never holds

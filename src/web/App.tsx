@@ -170,10 +170,10 @@ function Inner() {
   const customTones = useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewTone });
   const { customSelectionsRef, fallbackCustomRef } = customTones;
 
-  // The topbar's Sound and Appearance menus, and the rule that one closes the
-  // other — use-settings-menus.ts.
+  // The speaker's quick popover and the Settings dialog, and the door into
+  // Settings every way in shares — use-settings-menus.ts.
   const menus = useSettingsMenus();
-  const { setSoundMenuOpen } = menus;
+  const { setSoundMenuOpen, openSettings } = menus;
 
   // The player behind the deck's own two tones, built once on mount and woken by
   // the first gesture anywhere — use-chime-player.ts. It reads every setting
@@ -534,7 +534,7 @@ function Inner() {
   // under the card, on that commit.
   const openGitViewFromChip = useCallback((agentId: string, how: GitViewHow, hints?: { sel?: string | null }) =>
     openGitView(how, { agentId, ...(hints?.sel ? { sel: hints.sel } : null) }), [openGitView]);
-  // Settings › Appearance › Git switched off, or nothing selected any more:
+  // Settings › Git switched off, or nothing selected any more:
   // the view has nothing to be about.
   const gitOn = useGitOn();
   useEffect(() => { if (!gitOn) closeGitView("key"); }, [gitOn, closeGitView]);
@@ -574,7 +574,7 @@ function Inner() {
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-    setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme,
+    setBrowserWatchOpen, setSoundMenuOpen, setKeyHelpOpen, setTheme, openSettings,
     gitViewOpenRef: { get current() { return gitViewRequest().open; } }, toggleGitView, closeGitView,
   });
 
@@ -679,10 +679,8 @@ function Inner() {
               The first two runs open things: your sessions and what they
               spend (Session list, Usage and its History), then who spends it,
               on what, and what it watched (Accounts, Machine, Browser watch).
-              The third changes how the deck behaves: Sound and the theme.
-              Sound left the panels as a setting written to disk rather than a
-              panel that opens, and it stays with the theme now that its click
-              opens a menu, because the menu is still about that one setting.
+              The third changes how the deck behaves: the speaker's quick
+              popover, and the gear that opens Settings.
               Re-layout, Clear and now Pause are gone from here entirely. All
               three are canvas verbs and they are on the canvas, in the React
               Flow control stack beside Recenter — the same place `F` already
@@ -707,11 +705,11 @@ function Inner() {
             watchOn={watchOn} watchUnseen={watchUnseen} setBrowserWatchOpen={setBrowserWatchOpen}
             toggles={panelReturn.toggles}
           />
-          {/* Sound and Appearance, each a button that opens its menu —
+          {/* The speaker's quick popover and the gear that opens Settings —
               components/TopbarRuns.tsx. */}
           <SettingsRun
-            providers={providers} sound={sound} tones={tones} customTones={customTones} notify={notify}
-            chimeState={chimeState} menus={menus} appearance={appearance} fm={fm}
+            providers={providers} sound={sound} tones={tones}
+            chimeState={chimeState} menus={menus}
             onFeedback={() => dialogs.openFeedback()}
             watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen} setBrowserWatchOpen={setBrowserWatchOpen}
           />
@@ -847,6 +845,7 @@ function Inner() {
         dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
         lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
+        menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify} fm={fm}
       />
     </div>
   );

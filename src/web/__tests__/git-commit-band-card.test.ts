@@ -1,6 +1,6 @@
 // The lane under a card, as the card draws it: under the card, in its node and
 // outside its box, one row a commit with its subject, who made it and its age,
-// a fold for what does not fit, nothing while Appearance › Git is off or at a
+// a fold for what does not fit, nothing while Settings › Git is off or at a
 // distance; the motion when a commit lands and its reduced-motion answer.
 import { afterEach, describe, expect, it } from "vitest";
 import { createElement } from "react";
@@ -54,7 +54,7 @@ describe("the lane on the card", () => {
     expect(html).toContain("+2 earlier");
   });
 
-  it("is not there with no commits, nor while Appearance › Git is off", () => {
+  it("is not there with no commits, nor while Settings › Git is off", () => {
     expect(card(board(), API)).not.toContain("git-band");
     loadGitPrefs({ prefs: { git: false } });
     expect(card(board([commit(1, MIN)]), API)).not.toContain("git-band");

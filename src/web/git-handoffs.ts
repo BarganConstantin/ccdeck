@@ -5,9 +5,9 @@
 // slot opens (the deck's prefs, `gitApps`).
 //
 // One answer for the whole page, kept outside React the way git-pref.ts keeps
-// the switch, so every glance, the wide view's header and Appearance read the
+// the switch, so every glance, the wide view's header and Settings › Git read the
 // same thing from one request. Asked for the first time something wants it,
-// and again when Appearance opens, because an app installed since then should
+// and again when Settings › Git opens, because an app installed since then should
 // turn up there.
 import { useEffect, useSyncExternalStore } from "react";
 import { useGitOn } from "./git-pref";
@@ -122,7 +122,7 @@ export async function openHandoff(
   }
 }
 
-/** Appearance's pick for a slot: shown at once, written to the deck's prefs,
+/** Settings › Git's pick for a slot: shown at once, written to the deck's prefs,
  *  and settled by the server's next answer. */
 export function pickHandoff(slot: HandoffSlot, id: string): void {
   const cur = snap.slots[slot];

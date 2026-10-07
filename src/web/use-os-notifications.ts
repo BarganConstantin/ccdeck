@@ -33,8 +33,26 @@ export interface OsNotificationsDeps {
 
 /** What /api/prefs answers, as far as this hook reads it. */
 export interface NotifyPrefsAnswer {
-  prefs?: { notifications?: boolean };
+  prefs?: { notifications?: boolean; notifySwap?: boolean; notifyQuota?: boolean; notifyReset?: boolean };
   notificationsVetoed?: boolean;
+}
+
+/** The three account notifications (src/server/account-notify.mjs), one switch
+ *  each, by the name the prefs file keeps them under. */
+export type AccountNotifyKind = "notifySwap" | "notifyQuota" | "notifyReset";
+export type AccountNotify = Record<AccountNotifyKind, boolean>;
+
+/** What the server starts with (deck-prefs.mjs DEFAULTS), drawn until the first
+ *  read answers: the swap on, the two quota ones off. */
+export const ACCOUNT_NOTIFY_DEFAULTS: Readonly<AccountNotify> = Object.freeze({
+  notifySwap: true, notifyQuota: false, notifyReset: false,
+});
+
+/** The three switches out of a prefs answer, each on its default when the
+ *  answer does not hold a real boolean for it. */
+export function accountNotifyFrom(prefs: NotifyPrefsAnswer["prefs"]): AccountNotify {
+  const pick = (k: AccountNotifyKind) => (typeof prefs?.[k] === "boolean" ? prefs[k] as boolean : ACCOUNT_NOTIFY_DEFAULTS[k]);
+  return { notifySwap: pick("notifySwap"), notifyQuota: pick("notifyQuota"), notifyReset: pick("notifyReset") };
 }
 
 export function useOsNotifications({ waitingSessions, liveSince, focusSession }: OsNotificationsDeps) {
@@ -93,6 +111,22 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
    *  different sentence for each: one is the user's own press, the other is
    *  somebody else's decision the press cannot undo until the next launch. */
   const [notifyVetoed, setNotifyVetoed] = useState(false);
+  /** The three account notifications, each its own switch, held server-side
+   *  beside `notifications` for the same reason: the server raises them. */
+  const [accountNotify, setAccountNotify] = useState<AccountNotify>(ACCOUNT_NOTIFY_DEFAULTS);
+  const toggleAccountNotify = useCallback((kind: AccountNotifyKind) => {
+    // Optimistic and corrected by the answer, like the switch above.
+    const want = !accountNotify[kind];
+    setAccountNotify(prev => ({ ...prev, [kind]: want }));
+    fetch("/api/prefs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ [kind]: want }),
+    }).then(r => (r.ok ? r.json() : null)).then(d => {
+      if (!d?.ok) return;
+      setAccountNotify(accountNotifyFrom(d.prefs));
+    }).catch(() => {});
+  }, [accountNotify]);
   const askNotifyRef = useRef<() => void>(() => {});
   const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
   const waitingSessionsRef = useMirroredRef(waitingSessions);
@@ -291,8 +325,9 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
   const loadNotifyPrefs = useCallback((d: NotifyPrefsAnswer) => {
     setNotifyOn(d.prefs?.notifications === true);
     setNotifyVetoed(d.notificationsVetoed === true);
+    setAccountNotify(accountNotifyFrom(d.prefs));
   }, []);
 
   return { notifyPermission, notifySaid, notifyOn, notifyVetoed, toggleNotify,
-           notifySupported, askForNotifications, loadNotifyPrefs };
+           notifySupported, askForNotifications, loadNotifyPrefs, accountNotify, toggleAccountNotify };
 }

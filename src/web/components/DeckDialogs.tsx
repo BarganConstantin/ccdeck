@@ -1,7 +1,7 @@
 // The dialogs at the end of the deck's markup, in the order they paint over one
 // another: the tool inspector, Usage history, Browser Watch, the context
-// breakdown and the session recap; then the two that arrive without being asked
-// for, the release notes, a LAN pairing request and an account that needs
+// breakdown, the feedback dialog, the session recap and Settings; then the ones
+// that arrive without being asked for, the release notes, a LAN pairing request and an account that needs
 // signing in again; then the shortcuts sheet and the tour; and last the clear
 // prompt, which is waiting for an answer.
 //
@@ -18,12 +18,18 @@ import type { GraphState } from "../reducer";
 import type { useAppearance } from "../use-appearance";
 import type { useAutoRestart } from "../use-auto-restart";
 import type { useBrowserWatchBadge } from "../use-browser-watch-badge";
+import type { useClaudeFm } from "../use-claude-fm";
 import type { useClearFlow } from "../use-clear-flow";
+import type { useCustomTones } from "../use-custom-tones";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useDialogs } from "../use-dialogs";
 import type { useLanPairRequests } from "../use-lan-pair-requests";
 import type { AccountAttention as Attention } from "../use-account-attention";
 import type { useLiveAnnouncements } from "../use-live-announcements";
+import type { useOsNotifications } from "../use-os-notifications";
+import type { useSettingsMenus } from "../use-settings-menus";
+import type { useSoundSwitch } from "../use-sound-switch";
+import type { useTonePrefs } from "../use-tone-prefs";
 import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
 import ClearConfirm from "./ClearConfirm";
@@ -37,6 +43,7 @@ import { usePairRequestDialog } from "./LanPairRequestModal";
 import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
+import SettingsModal from "./SettingsModal";
 import ToolModal from "./ToolModal";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
@@ -49,7 +56,7 @@ const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), "Brows
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, lanPairs, attention, clearFlow, watchBadge, announcements,
-  appearance, providers, stateRef, agentCount,
+  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, fm,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -66,6 +73,14 @@ export default function DeckDialogs({
   stateRef: MutableRefObject<GraphState>;
   /** How many agents a Clear would take off the board. */
   agentCount: number;
+  /** Whether Settings is up and at which section, and the door into it. */
+  menus: ReturnType<typeof useSettingsMenus>;
+  /** Everything Settings sets, each hook's return whole. */
+  sound: ReturnType<typeof useSoundSwitch>;
+  tones: ReturnType<typeof useTonePrefs>;
+  customTones: ReturnType<typeof useCustomTones>;
+  notify: ReturnType<typeof useOsNotifications>;
+  fm: ReturnType<typeof useClaudeFm>;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
@@ -78,6 +93,7 @@ export default function DeckDialogs({
   const { setWatchOn, markWatchSeen } = watchBadge;
   const { setWatchSaid } = announcements;
   const { palette } = appearance;
+  const { settingsOpen, settingsSection, showSection, closeSettings } = menus;
   return (
     <>
       {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
@@ -127,6 +143,26 @@ export default function DeckDialogs({
           state={stateRef.current}
           sessionId={summaryFor}
           onClose={() => setSummaryFor(null)}
+        />
+      )}
+      {/* Settings, the last of the dialogs the reader opens: opened by the
+          topbar's gear, by Cmd/Ctrl+, and by the sound popover's "All sound
+          settings…" — use-settings-menus.ts. Here rather than beside the gear,
+          so it is mounted from the top of the tree like every dialog App
+          opens, and ahead of everything that arrives on its own, which may
+          paint over it. */}
+      {settingsOpen && (
+        <SettingsModal
+          section={settingsSection}
+          onSection={showSection}
+          onClose={closeSettings}
+          providers={providers}
+          sound={sound}
+          tones={tones}
+          customTones={customTones}
+          notify={notify}
+          appearance={appearance}
+          fm={fm}
         />
       )}
       {/* Ahead of the shortcuts sheet and the clear prompt, which is where a
