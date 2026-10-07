@@ -213,7 +213,7 @@ describe("the incremental scan", () => {
 
     // The tally persisted to disk.
     const disk = JSON.parse(await readFile(stateFile, "utf8"));
-    expect(disk.version).toBe(4);
+    expect(disk.version).toBe(5);
     expect(disk.tally[KEY_A]["/Users/c/agents-deck"]).toBeTruthy();
     expect(disk.cursors[file]).toBeGreaterThan(0);
   });
@@ -405,7 +405,7 @@ describe("a session counts under the folder it started in (#1278)", () => {
     await rollup.tick();
     expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [ws]: 3 });   // and only once
     const disk = JSON.parse(await readFile(stateFile, "utf8"));
-    expect(disk.version).toBe(4);
+    expect(disk.version).toBe(5);
     expect(disk.folders[slug]).toBe(ws);
     // The heartbeat survived the rebuild: the hour down is fenced from it.
     const stop = (await readSwapLog(swapLog)).find((e: { source: string }) => e.source === "stop");
