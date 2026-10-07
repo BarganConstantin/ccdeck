@@ -1,0 +1,154 @@
+/* THE LANE UNDER A CARD (git-commit-band.ts, CommitBand.tsx): the commits its
+   agent was seen making in the last half hour, the way a git client draws one
+   branch — a thin line hanging from the card, a filled diamond per commit in
+   the branch's colour (the history's own lane slots, git-graph.css), the
+   subject, who made it when it was a subagent, and its age. At most five
+   rows; the rest fold into one line.
+
+   No box and no edge: the lane sits on the canvas under the card, in the
+   card's node and outside its box, so the node is measured with it and the
+   layout makes room for it. Its geometry is stated in git-commit-band.ts too
+   (BAND_TOP, BAND_ROW_H, BAND_FOLD_H), which the layout reads without a
+   render; git-commit-band.test.ts holds the two together.
+
+   `contain: inline-size` keeps a long subject out of the node's width: the
+   card is as wide as its own rows make it, and the lane gives way inside. */
+.git-band {
+  --lane-x: 21px;
+  --lane: var(--gv-lane-4);
+  position: relative;
+  contain: inline-size;
+  padding-top: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 20px;
+}
+.git-band-rows { list-style: none; margin: 0; padding: 0; }
+.git-band-row { position: relative; height: 20px; }
+.git-band [data-slot="1"] { --lane: var(--gv-lane-1); }
+.git-band [data-slot="2"] { --lane: var(--gv-lane-2); }
+.git-band [data-slot="3"] { --lane: var(--gv-lane-3); }
+.git-band [data-slot="4"] { --lane: var(--gv-lane-4); }
+.git-band [data-slot="5"] { --lane: var(--gv-lane-5); }
+
+/* The line: each row draws its own stretch of it, so a row moving carries its
+   stretch with it. The first reaches up to the card's edge; without a fold,
+   the last stops at its diamond. */
+.git-band-row::before,
+.git-band-fold::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--lane-x) - 0.75px);
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--lane);
+  opacity: 0.7;
+}
+.git-band-row:first-child::before { top: -8px; }
+.git-band-rows:not([data-fold]) .git-band-row:last-child::before { bottom: 50%; }
+/* The fold's stretch is a stub: the branch goes on, out of the lane. */
+.git-band-fold::before { bottom: auto; height: 6px; }
+
+/* ◆, "seen by ccdeck" — the git view's own mark for a commit the deck saw an
+   agent make. */
+.git-band-dot {
+  position: absolute;
+  left: calc(var(--lane-x) - 3.5px);
+  top: 6.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--lane);
+  transform: rotate(45deg);
+}
+
+.git-band-commit,
+.git-band-fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  padding: 0 2px 0 32px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.git-band-fold { position: relative; gap: 0; color: var(--muted); font-size: 10px; }
+.git-band-subject {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Who made it keeps its name up to half the row; the subject gives way
+   first, its whole text in the tooltip. */
+.git-band-who {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 10px;
+}
+.git-band-age {
+  flex: none;
+  min-width: 3ch;
+  text-align: right;
+  color: var(--muted);
+  font: 10px/20px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.git-band-key kbd { font: inherit; }
+
+/* Hover is colour alone, and quick. The ring is pulled inside the row: the
+   rows touch, and a ring outside one would sit on its neighbours. */
+.git-band-commit:hover,
+.git-band-fold:hover { color: var(--text); }
+.git-band-commit:focus-visible,
+.git-band-fold:focus-visible { outline-offset: -2px; }
+
+/* At a distance the card draws its face (agent-node.css), and the lane is not
+   on it: it keeps its room, as the card's own rows do, so zooming never
+   reflows the board. */
+.canvas-wrap[data-lod="compact"] .git-band,
+.canvas-wrap[data-lod="overview"] .git-band { visibility: hidden; }
+
+/* LIVE. A commit that lands slides in from the top while the rows under it
+   move down (a FLIP from CommitBand.tsx), its diamond grows in, and the
+   newest glows once and settles. The lane leaves with its last commit in a
+   150ms fade, and with its card when the card leaves. */
+.git-band-row[data-landed] { animation: git-band-row-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.git-band-row[data-landed] .git-band-dot { animation: git-band-dot-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.git-band-row[data-glow] .git-band-dot {
+  animation: git-band-dot-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both, git-band-glow 1000ms ease-out;
+}
+.git-band[data-leaving] { pointer-events: none; animation: git-band-out 150ms cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+.react-flow__node.rf-exiting .git-band { animation: git-band-out 600ms cubic-bezier(0.55, 0, 0.55, 1) forwards; }
+@keyframes git-band-row-in { from { opacity: 0; transform: translateY(-8px); } }
+@keyframes git-band-dot-in { from { transform: rotate(45deg) scale(0); } }
+@keyframes git-band-glow {
+  0%, 25% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--lane) 30%, transparent), 0 0 10px 1px var(--lane); }
+  100% { box-shadow: 0 0 0 3px transparent, 0 0 10px 1px transparent; }
+}
+@keyframes git-band-out { to { opacity: 0; } }
+@keyframes git-band-fade { from { opacity: 0; } }
+
+/* Reduced motion: a landing row fades in and nothing travels — no slide, no
+   growing diamond, no rows moving down (CommitBand.tsx skips its FLIP). The
+   glow is a halo fading, not a movement, and stays. */
+@media (prefers-reduced-motion: reduce) {
+  .git-band-row[data-landed] { animation: git-band-fade 150ms ease-out both; }
+  .git-band-row[data-landed] .git-band-dot { animation: none; }
+  .git-band-row[data-glow] .git-band-dot { animation: git-band-glow 1000ms ease-out; }
+  .react-flow__node.rf-exiting .git-band { animation: git-band-out 600ms linear forwards; }
+}

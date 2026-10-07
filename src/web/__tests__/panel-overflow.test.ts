@@ -278,6 +278,11 @@ describe("a percentage width under a horizontal margin", () => {
       // margin.
       "ap-report-table",
       "bw-ep-head", "bw-radar", "cost-bar",
+      // A commit in the lane under a card, and the lane's fold: <button>s laid
+      // out as flex rows, which shrink to their words without the declaration,
+      // so the subject would not give way before the age at the row's end. Named
+      // here so they enter the margin check below; their own rule zeroes it.
+      "git-band-commit", "git-band-fold",
       // The guides' drawings: an SVG with a viewBox and no width of its own,
       // which the browser would otherwise size to its 300x150 default. Named
       // here so it enters the margin check below, which is what the list is

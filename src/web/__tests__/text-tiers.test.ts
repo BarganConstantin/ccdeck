@@ -213,6 +213,10 @@ describe("what was migrated to the secondary tier", () => {
       // issue from it, never with the contact or the images. Read once, to
       // decide what to write.
       ".fb-where",
+      // The lane under a card: each commit's subject, the line a reader reads
+      // to know what an agent just committed. Its age, who made it and the
+      // fold's count stay on the metadata tier beside it.
+      ".git-band",
       // The git view's note over a detached HEAD: the sentence that says HEAD
       // is on no branch, and whether the folder has changes.
       ".gv-detached-note",

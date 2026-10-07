@@ -9,6 +9,10 @@
 import type { AgentNodeData, ToolCall } from "./types";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import { cutSubLabel, primaryDisplayFor, skinFor } from "./tool-skin";
+// The lane of commits under a card is inside its node, so the node is taller
+// than the card by its room — see git-commit-band.ts.
+import { bandRoomFor } from "./git-commit-band";
+import { gitOnNow } from "./git-pref";
 
 const FADE_MS = 600;
 const MAX_PER_AGENT = 4;
@@ -158,7 +162,8 @@ export function collectBursts(
     // Floor to the CSS min-width so we never under-estimate the card's
     // right edge and end up positioning a bubble inside it.
     const aW = Math.max(size?.width ?? AGENT_W_MIN, AGENT_W_MIN);
-    const aH = size?.height ?? 130;
+    // The card's own height: its node's, less the lane of commits under it.
+    const aH = (size?.height ?? 130) - (size ? bandRoomFor(agents, a, now, gitOnNow()) : 0);
     const aX = pos.x;
     const aY = pos.y;
     const anchorX = aX + aW;

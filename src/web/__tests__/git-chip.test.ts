@@ -267,9 +267,11 @@ describe("pressing the chip", () => {
     expect(chip).toMatch(/onClick=\{e => \{ e\.stopPropagation\(\); openGitFor\(agentId, pressHow\(e\)\); \}\}/);
     expect(chip).toContain('className="git-chip"');
     const opener = sourceOf("use-git-opener.ts");
-    expect(opener).toMatch(/selectAgent\(id, false\);\s*openGitView\(id, how\);/);
+    // The chip names no commit; the lane under a card (CommitBand.tsx) names
+    // one through the same door, as `hints`.
+    expect(opener).toMatch(/selectAgent\(id, false\);\s*openGitView\(id, how, hints\);/);
     expect(sourceOf("App.tsx")).toContain("useGitOpener({ selectAgent, openGitView: openGitViewFromChip })");
-    expect(sourceOf("App.tsx")).toMatch(/\(agentId: string, how: GitViewHow\) => openGitView\(how, \{ agentId \}\)/);
+    expect(sourceOf("App.tsx")).toMatch(/\(agentId: string, how: GitViewHow, hints\?: \{ sel\?: string \| null \}\) =>\s*openGitView\(how, \{ agentId, \.\.\.\(hints\?\.sel \? \{ sel: hints\.sel \} : null\) \}\)/);
   });
 
   it("sits last on the card's sub row, and a subagent's replaces its folder name there", () => {
