@@ -1,10 +1,11 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useStore, useViewport, type ReactFlowState } from "reactflow";
 import { sessionHue } from "../reducer";
 import { SEP } from "../cluster-header";
 import { clusterBounds, clusterBoxStyle, clusterLabelStyle, shallowEqualClusters, type Cluster } from "../cluster-bounds";
-import { labelRoom, paneChrome, sameBoxes, type PaneBox } from "../cluster-label-room";
+import { labelRoom, paneChrome, sameBoxes, withGitViewCover, type PaneBox } from "../cluster-label-room";
+import { gitViewCover, subscribeGitViewCover } from "../git-view-fit";
 import { createFocusHold } from "../focus-hold";
 import { prefersReducedMotion } from "../viewport-motion";
 import { AlertMark } from "./StateMark";
@@ -45,10 +46,13 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
   const layerRef = useRef<HTMLDivElement | null>(null);
   const viewport = useStore(selectViewport);
   const [chrome, setChrome] = useState<PaneBox[]>([]);
+  // The open git view covers the pane's right edge as chrome does, by the
+  // width it settles at rather than a box measured while it slides.
+  const gitCover = useSyncExternalStore(subscribeGitViewCover, gitViewCover, gitViewCover);
   useLayoutEffect(() => {
     const host = layerRef.current?.parentElement;
     if (!host) return;
-    const next = paneChrome(host);
+    const next = withGitViewCover(paneChrome(host), pane, gitCover);
     setChrome(prev => (sameBoxes(prev, next) ? prev : next));
   });
   // Under reduced motion the camera jumps rather than travels, so a jump made

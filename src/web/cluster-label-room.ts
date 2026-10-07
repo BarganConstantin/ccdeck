@@ -56,7 +56,8 @@ export const LABEL_MIN_W = 64;
  * minimap), the auto-fit chip, and the panels that float over the canvas —
  * usage, machine, and the detail panel where a narrow window floats it. A
  * selector that matches beside the pane rather than over it measures to
- * nothing and drops out.
+ * nothing and drops out. The open git view counts too, by the width it covers
+ * rather than by a measure (withGitViewCover).
  */
 export const PANE_CHROME = ".cat-filter-bar, .react-flow__panel, .autofit-chip, .usage-panel, .sysdetail, .detail";
 
@@ -109,6 +110,19 @@ export function paneChrome(pane: Element): PaneBox[] {
     out.push({ left: Math.round(left), top: Math.round(top), right: Math.round(right), bottom: Math.round(bottom) });
   }
   return out;
+}
+
+/**
+ * `chrome` with the open git view's panel as one more piece of it: a band
+ * `cover` px wide down the pane's right edge, the width the view settles at
+ * (gitViewCover in git-view-fit.ts). The panel is mounted outside the pane and
+ * slides in and out, so a box measured off it would be taken mid-slide, and
+ * kept after it has gone; the width it covers once settled says where a name
+ * is hidden by it. Nothing is added while the view is shut.
+ */
+export function withGitViewCover(chrome: PaneBox[], pane: { width: number; height: number }, cover: number): PaneBox[] {
+  if (!(cover > 0) || pane.width <= 0 || pane.height <= 0) return chrome;
+  return [...chrome, { left: Math.max(0, Math.round(pane.width - cover)), top: 0, right: Math.round(pane.width), bottom: Math.round(pane.height) }];
 }
 
 /** Whether two measures are the same boxes in the same order. */
