@@ -172,6 +172,10 @@ describe("what was migrated to the secondary tier", () => {
       // stays on the metadata tiers.
       ".ap-report-held",
       ".ap-report-how-body",
+      // The auto-switch threshold's custom field's `%`: the part of the field
+      // nobody types, so it wears the placeholder's ink beside it, and for the
+      // same reason — --muted on --ctl-fill is 4.05:1 in dark.
+      ".ap-threshold-unit",
       // Settings › Git's view look: the look not chosen, in a segmented track
       // whose fill takes --muted under its floor in dark, as the feedback
       // dialog's kinds below.

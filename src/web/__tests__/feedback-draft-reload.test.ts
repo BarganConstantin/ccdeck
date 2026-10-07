@@ -91,6 +91,24 @@ describe("a feedback draft through a reload of the tab", () => {
     expect(after.lostLine(again.tree)).toBeNull();
   });
 
+  it("describes the message, which has the focus, by that line until an image is added again", async () => {
+    // Seen under the field and heard on arriving in it: the line changes what
+    // Send will send, and a screen reader is told so where the caret is.
+    const before = await loadPage();
+    const view = before.open();
+    (before.message(view.tree).props.onChange as (ev: unknown) => void)({ target: { value: "The usage chart is empty" } });
+    await before.paste(view.tree, png("chart.png"));
+    expect(before.message(view.tree).props["aria-describedby"]).toBeUndefined();
+
+    const after = await loadPage();
+    const again = after.open();
+    expect(after.lostLine(again.tree)?.props.id).toBe("fb-images-lost");
+    expect(after.message(again.tree).props["aria-describedby"]).toBe("fb-images-lost");
+
+    await after.paste(again.tree, png("chart-again.png"));
+    expect(after.message(again.tree).props["aria-describedby"]).toBeUndefined();
+  });
+
   it("opens empty after a reload when nothing was written", async () => {
     await loadPage();
     const after = await loadPage();

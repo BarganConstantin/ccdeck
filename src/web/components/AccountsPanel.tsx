@@ -190,7 +190,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
   // that stores it — see use-threshold-draft.ts.
   const {
     threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
-    proposeThreshold, doThreshold,
+    thresholdCustom, thresholdRefusal, thresholdFieldRef,
+    proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
   } = useThresholdDraft({ auto, post, load });
 
 
@@ -451,7 +452,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
     <AutoSwitchPolicy auto={auto} threshold={threshold} thresholdPick={thresholdPick}
       thresholdCtl={thresholdCtl} thresholdSaved={thresholdSaved}
       thresholdRef={thresholdRef} thresholdSaveRef={thresholdSaveRef}
-      proposeThreshold={proposeThreshold} doThreshold={doThreshold}
+      thresholdCustom={thresholdCustom} thresholdRefusal={thresholdRefusal} thresholdFieldRef={thresholdFieldRef}
+      proposeThreshold={proposeThreshold} typeThreshold={typeThreshold}
+      cancelThreshold={cancelThreshold} leaveThreshold={leaveThreshold} doThreshold={doThreshold}
       pressProps={pressProps} post={post} load={load} />
   ) : null;
   return (
