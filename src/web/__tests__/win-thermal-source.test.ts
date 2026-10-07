@@ -27,8 +27,11 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 
+import { sampleThermal, stopSystemMetrics } from "../../server/system-metrics.mjs";
+import { thermalSnapshot } from "../../server/thermal-sampler.mjs";
+
 // @ts-expect-error — a plain .mjs module, no types
-const { parseWinThermal, tempFromPerfCounterJson, zoneLabel, WIN_THERMAL_PS } =
+const { parseWinThermal, readWindowsThermal, tempFromPerfCounterJson, zoneLabel, WIN_THERMAL_PS } =
   await import("../../server/thermal-metrics.mjs");
 
 /** 313.15 K = 40 °C, in the tenths of a Kelvin both sources report. */
@@ -272,5 +275,102 @@ describe("tempFromPerfCounterJson on its own", () => {
     // handled the list would fail the day somebody removed the `@()`.
     expect(tempFromPerfCounterJson({ i: "\\_tz.tz00", v: K10(42) }))
       .toEqual([{ label: "Thermal zone", celsius: 42, warnAt: 75, critAt: 90 }]);
+  });
+});
+
+// A zone that never moves is not a reading.
+//
+// On a laptop whose zone answers a constant, the Thermal section drew one row,
+// "Thermal zone 28 °C", while a hardware monitor on the same machine showed the
+// CPU far hotter. 28 °C is 3010 tenths of a Kelvin, and 3010 is not a
+// measurement. Intel's client reference firmware — the ACPI source most
+// laptop BIOSes are built from — ends the package zone's `_TMP` with
+//
+//   // Return a static value if no source is available.
+//   Return(3010)
+//
+// and returns a static 3000 when legacy thermal management is off, which is the
+// usual state on a machine whose cooling Intel DTT runs. Where the zone does
+// have a source, it is the embedded controller's "max platform temperature",
+// whole degrees on top of 2732 — never the die. The same 3010 has been reported
+// against other tools from a Lenovo LOQ laptop and an i7-13700KF desktop, flat
+// under load.
+//
+// The rule is Microsoft's own test of a zone. Its thermal design guide: "Each
+// thermal zone must report actual temperature on the sensor (_TMP). The test
+// runs a varying workload on the PC, and the temperature is expected to
+// change." A zone is drawn once it has been seen to change, and from then on
+// for as long as the deck runs. That cannot hide a real sensor for longer than
+// it holds one value; it does hide one that never moves, which is the point.
+describe("a Windows zone that has never moved", () => {
+  /** What the deck's PowerShell prints for one zone per entry of `tenths`. */
+  const printed = (...tenths: number[]) => JSON.stringify({
+    perf: tenths.map((v, n) => ({ i: `\\_tz.tz0${n}`, v })),
+  });
+  const nothingListening = async () => ({});
+
+  /** One reading per output, each handed the last non-null one exactly as
+   *  sampleThermal hands it back. */
+  async function readings(outputs: string[], hwMonitor = nothingListening) {
+    const out: any[] = [];
+    let since: unknown = null;
+    for (const text of outputs) {
+      const r = await readWindowsThermal(since, { powershell: async () => text, hwMonitor });
+      out.push(r);
+      if (r) since = r;
+    }
+    return out;
+  }
+  const rowsOf = (r: any) => (r?.celsius ?? []).map((row: any) => `${row.label} ${row.celsius}`);
+
+  it("draws no row for a zone that reads 28 °C on every sample", async () => {
+    const seen = await readings(Array(6).fill(printed(3010)));
+    expect(seen.map(rowsOf)).toEqual([[], [], [], [], [], []]);
+  });
+
+  it("draws a zone from the sample it first changes on, and keeps it when it holds still again", async () => {
+    // An embedded controller reports whole degrees, so a real zone at idle can
+    // sit on one value for a while. Once it has moved it is a sensor, and the
+    // row stays however long it then holds a value.
+    const seen = await readings([K10(40), K10(40), K10(41), K10(41), K10(41)].map(v => printed(v)));
+    expect(seen.map(rowsOf)).toEqual([[], [], ["Thermal zone 41"], ["Thermal zone 41"], ["Thermal zone 41"]]);
+  });
+
+  it("draws the zone that moves and not its neighbour that never does", async () => {
+    const seen = await readings([printed(3010, K10(44)), printed(3010, K10(47))]);
+    expect(seen.map(rowsOf)).toEqual([[], ["TZ01 47"]]);
+  });
+
+  it("lets a running LibreHardwareMonitor answer while the zone has not moved", async () => {
+    // The stuck zone used to answer first, so the one source on this machine
+    // that reads the CPU itself was never asked.
+    const lhm = async () => ({ cpu: 71, gpu: 52 });
+    const seen = await readings(Array(3).fill(printed(3010)), lhm);
+    expect(seen.map(rowsOf)).toEqual(Array(3).fill(["CPU 71", "GPU 52"]));
+  });
+
+  it("keeps asking a machine whose only zone has not moved, and shows nothing until it does", async () => {
+    // Through the real sampler. A zone that has not moved yet is not an empty
+    // machine: the sampler must not give up on it after three readings, or a
+    // real zone that idles on one value for half a minute would never be drawn
+    // for the life of the process. And the route must not hand the panel a
+    // reading with nothing in it, which would draw an empty section.
+    stopSystemMetrics();
+    let asked = 0;
+    const values = [3010, 3010, 3010, 3010, 3010, K10(36)];
+    const read = (_platform: string, since: unknown) =>
+      readWindowsThermal(since, {
+        powershell: async () => printed(values[Math.min(asked++, values.length - 1)]),
+        hwMonitor: nothingListening,
+      });
+    const shown: unknown[] = [];
+    for (let i = 0; i < values.length; i++) {
+      await sampleThermal({ read });
+      shown.push(thermalSnapshot()?.celsius.map((r: any) => `${r.label} ${r.celsius}`) ?? null);
+    }
+    expect(asked).toBe(values.length);
+    expect(shown).toEqual([null, null, null, null, null, ["Thermal zone 36"]]);
+    expect(thermalSnapshot()).not.toHaveProperty("zonesSeen");
+    stopSystemMetrics();
   });
 });

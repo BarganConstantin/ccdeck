@@ -521,9 +521,15 @@ describe("the live reader, on whichever machine is running this", () => {
       expect(pct).toBeGreaterThanOrEqual(0);
       expect(pct).toBeLessThanOrEqual(100);
     }
-    // Null is the answer for "nothing to say". An object with nothing in it is
-    // what would draw an empty section.
-    expect(t.celsius.length > 0 || t.throttle != null).toBe(true);
+    // Null is the answer for "nothing to say". The one object with nothing to
+    // draw is a Windows reading whose zones have not moved yet: it carries
+    // their first values so the next reading can tell, and thermalSnapshot
+    // keeps it off the panel — an empty object there would draw an empty
+    // section, which win-thermal-source.test.ts checks through the sampler.
+    if (t.celsius.length === 0 && t.throttle == null) {
+      expect(process.platform).toBe("win32");
+      expect(Object.keys(t.zonesSeen ?? {}).length).toBeGreaterThan(0);
+    }
   });
 
   it("answers a throttle on the second read where the kernel counts one", async () => {

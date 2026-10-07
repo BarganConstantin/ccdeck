@@ -161,7 +161,7 @@ The machine panel shows a **Thermal** section only where the machine actually an
 | | reads | needs |
 | --- | --- | --- |
 | Linux | `/sys/class/hwmon`, then `/sys/class/thermal/thermal_zone*`; on Intel, `thermal_throttle/package_throttle_total_time_ms` for throttling — the share of time the clock was held down | nothing |
-| Windows | the `Thermal Zone Information` performance counter, then `MSAcpi_ThermalZoneTemperature`, then LibreHardwareMonitor's web server if it happens to be running | nothing — where the machine has an ACPI thermal zone. Many do not; see below |
+| Windows | an ACPI thermal zone, through the `Thermal Zone Information` performance counter, then `MSAcpi_ThermalZoneTemperature` — drawn only once its value has changed; then LibreHardwareMonitor's web server if it happens to be running | nothing — where the machine has an ACPI thermal zone that measures something. Many do not; see below |
 | macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
 | macOS, Apple Silicon | `macmon`, which the deck fetches for you | nothing |
 
@@ -184,9 +184,11 @@ Windows is the platform where this most often shows nothing, and that is not a d
 
 That is a class of machine, not a fault: modern Intel laptops moved thermal management into Intel DTT and stopped declaring the ACPI zones that Windows exposes to ordinary programs. There is no standard user-mode Windows API for CPU temperature — which is why HWiNFO, Core Temp and LibreHardwareMonitor all install a kernel driver, and why this deck does not.
 
-Where the counter does have instances — many desktop boards, servers, and older laptops — it is read without any privileges at all. Its path is currently English-only; see [#747](https://github.com/BarganConstantin/ccdeck/issues/747).
+Where the counter does have instances — many desktop boards, servers, and older laptops — it is read without any privileges at all. A Windows in another language names the counter in that language, and the deck looks the local name up when the English one answers nothing; that lookup has not yet been run on a non-English Windows.
 
-One thing does work on the machines above, and it costs you nothing to have: if **LibreHardwareMonitor** happens to be running with its web server on, the deck reads its numbers over plain HTTP on localhost, which needs no privileges. That is a read, not a request — the deck does not install it, will not ask you to, and shows no section if it is not there. It is mentioned only so nobody is surprised to see degrees appear on a machine that had none.
+**A thermal zone is not the CPU, and not always a sensor.** A zone measures whatever the machine's firmware wired it to — the case surface, the board, or the embedded controller's hottest reading — and on many laptops it is wired to nothing. Intel's reference firmware, which most laptop BIOSes start from, answers a fixed 27.85 °C when the zone has no source, so the counter reads 28 °C on every sample however hot the CPU is. The deck therefore draws a zone only once its value has changed — Microsoft's own test of a working zone is that its temperature changes under a varying workload — and names the row *Thermal zone*, or `TZ00`, `TZ01` when there are two, never *CPU*. The cost is a short wait: a real zone that holds one value from the moment the deck starts appears when it first changes, and stays from then on.
+
+One thing does work on the machines above, and on the ones whose zone never moves, and it costs you nothing to have: if **LibreHardwareMonitor** happens to be running with its web server on, the deck reads its numbers over plain HTTP on localhost, which needs no privileges. That is a read, not a request — the deck does not install it, will not ask you to, and shows no section if it is not there. It is mentioned only so nobody is surprised to see degrees appear on a machine that had none.
 
 ## How it works
 
