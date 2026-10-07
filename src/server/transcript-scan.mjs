@@ -233,13 +233,36 @@ const USAGE_TOTAL_FIELDS = [...USAGE_BLOCK_FIELDS, ...CACHE_SPLIT_FIELDS];
  *  bucket and not an addition to it. What was charged is added to `charged`,
  *  so a request's bill can be taken back when its final record replaces it. */
 function chargeUsage(state, bucket, blob, fields, speedBucket, charged) {
-  for (const k of fields) {
-    const n = grabUsageField(blob, k);
-    state.usage[k] += n;
-    if (bucket) bucket[k] += n;
-    if (speedBucket) speedBucket[k] += n;
-    charged[k] += n;
-  }
+  for (const k of fields) chargeTokens(state, bucket, speedBucket, charged, k, grabUsageField(blob, k));
+}
+
+/** Charge a request's record from its parsed `message.usage`, the same way.
+ *
+ *  Not off the text, as chargeUsage reads a line: USAGE_BLOCK_RE's `[^}]+`
+ *  stops at the first `}`, and a subagent's streaming snapshot writes its
+ *  `cache_creation` sub-object before `output_tokens` (all 49,046 snapshots on
+ *  one machine), so the output a snapshot had streamed read as 0 until the
+ *  final record came, and stayed 0 for a request that never finished. A
+ *  request's record names its model, so the line is parsed already; the
+ *  Projects report reads the same object (countersFrom in account-projects.mjs). */
+function chargeRequestUsage(state, bucket, usage, speedBucket, charged) {
+  const split = usage?.cache_creation;
+  for (const k of USAGE_BLOCK_FIELDS) chargeTokens(state, bucket, speedBucket, charged, k, tokenCount(usage?.[k]));
+  for (const k of CACHE_SPLIT_FIELDS) chargeTokens(state, bucket, speedBucket, charged, k, tokenCount(split?.[k]));
+}
+
+/** Add `n` tokens of counter `k` to every place one charge goes. */
+function chargeTokens(state, bucket, speedBucket, charged, k, n) {
+  state.usage[k] += n;
+  if (bucket) bucket[k] += n;
+  if (speedBucket) speedBucket[k] += n;
+  charged[k] += n;
+}
+
+/** A usage counter as a token count: a whole number of tokens, or 0 for
+ *  anything else, as USAGE_FIELD_RE reads one off the text. */
+function tokenCount(v) {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.trunc(v) : 0;
 }
 
 /** Add one bucket's counters, and its speed shares, into `dst`. */
@@ -592,17 +615,20 @@ function foldUsageLine(state, line, record) {
   // text: a split that read a wider stretch of the line than the total it splits
   // would re-introduce #685's double count on one side of the arithmetic only,
   // and the two would stop summing to each other.
-  const billed = billedUsageText(line);
   const bucket = usageBucketFor(state, state.lastModel);
   const speedBucket = speedBucketFor(bucket, billedSpeed(record));
   const charged = newUsageTotals();
-  for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
-    chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS, speedBucket, charged);
+  if (billing === BILL_LINE) {
+    const billed = billedUsageText(line);
+    for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
+      chargeUsage(state, bucket, m[1], USAGE_BLOCK_FIELDS, speedBucket, charged);
+    }
+    for (const m of billed.replace(ITERATIONS_ARRAY_RE, "").matchAll(CACHE_CREATION_BLOCK_RE)) {
+      chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS, speedBucket, charged);
+    }
+    return;
   }
-  for (const m of billed.replace(ITERATIONS_ARRAY_RE, "").matchAll(CACHE_CREATION_BLOCK_RE)) {
-    chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS, speedBucket, charged);
-  }
-  if (billing === BILL_LINE) return;
+  chargeRequestUsage(state, bucket, record.message?.usage, speedBucket, charged);
   // What this request was charged, and where, kept until its final record
   // replaces it.
   const id = streamingRequestId(record);
