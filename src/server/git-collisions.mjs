@@ -38,8 +38,9 @@
 // WHEN. Never on a timer of its own: a recompute is scheduled by the events
 // that can change the answer — a call that can change a repository (the same
 // test git-watch.mjs marks the repository stale on), a session or subagent
-// starting or ending, an agent seen for the first time — and runs once for a
-// burst of them. The one clock is the staleness above: when a session in a
+// starting or ending, an agent seen for the first time, an agent followed
+// into another folder (git-watch.mjs onFollow) — and runs once for a burst of
+// them. The one clock is the staleness above: when a session in a
 // collision would go quiet past STALE_SESSION_MS, one recompute is set for that
 // moment. A change in the answer is sent; the same answer is not sent again.
 //
@@ -57,7 +58,7 @@ import { placeInRepo } from "./git-edits.mjs";
 import { sessionFolder, sessionSubagents } from "./git-sessions.mjs";
 import { readLastCommitTime } from "./git-reads.mjs";
 import { repoOf, statusOf } from "./git-state.mjs";
-import { changesRepo, gitEnabled } from "./git-watch.mjs";
+import { changesRepo, gitEnabled, onFollow } from "./git-watch.mjs";
 
 /** A session nothing has been heard from for this long is over — the page's
  *  STALE_SESSION_MS (src/web/board-sweeps.ts), so a card the board has
@@ -391,11 +392,13 @@ export function collisionsBehind({ after, before, sessions }) {
   return out;
 }
 
-/** Work everything out again soon — after the boot replay, and when the git
- *  view is switched back on. */
+/** Work everything out again soon — after the boot replay, when the git
+ *  view is switched back on, and when a session is followed into another
+ *  folder by a call that changed nothing (git-watch.mjs onFollow). */
 export function refreshCollisions() {
   if (enabled()) schedule(RECOMPUTE_MS);
 }
+onFollow(() => refreshCollisions());
 
 /** The switch was pressed. Off takes back every mark the page holds and stops;
  *  on works them out again. */

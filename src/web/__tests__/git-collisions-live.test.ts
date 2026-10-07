@@ -225,6 +225,24 @@ describe("GitCollisions", () => {
     expect((await next("L-x", since, c => c.quiet.length === 0)).sharp).toEqual([{ agentId: null, with: { sessionId: "L-y", agentId: null }, files: ["a.txt"] }]);
   });
 
+  it("works the marks out again when a session is followed into another worktree by a call that changes nothing", async () => {
+    const repo = track(repoWith({ "a.txt": "a\n" }, "ccdeck-collide-move-"));
+    const wt = join(track(tempDir("ccdeck-collide-movewt-")), "side");
+    sh(repo, ["worktree", "add", "-q", "-b", "side", wt]);
+    let since = await lastSeq();
+    await start("M-p", repo);
+    await start("M-q", repo);
+    await start("M-x", wt);
+    await next("M-p", since, c => c.quiet.length === 1);
+    since = await lastSeq();
+    // Its folder changes (it entered the worktree): no edit, no command.
+    await event({ hook_event_name: "UserPromptSubmit", session_id: "M-p", cwd: wt, prompt: "go on" });
+    expect(await next("M-p", since, c => c.quiet.some((q: any) => q.with.sessionId === "M-x"))).toEqual({
+      quiet: [{ agentId: null, with: { sessionId: "M-x", agentId: null }, reason: "same-worktree", branch: "side" }], sharp: [],
+    });
+    expect(await next("M-q", since, empty)).toEqual({ quiet: [], sharp: [] });
+  });
+
   it("clears for a session the page let go of, and when the git view is switched off", async () => {
     const repo = track(repoWith({ "a.txt": "a\n" }, "ccdeck-collide-forget-"));
     let since = await lastSeq();

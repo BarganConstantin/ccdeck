@@ -268,7 +268,27 @@ async function follow(sid, key, { moves, edits }, w) {
   // Back where it would be with nothing followed: forget the followed folder,
   // so the folder it started in reads as it always did.
   const home = await worktreeOf(here.start);
-  if (followFolder(sid, key || null, home === top ? null : top)) schedule(sid, w, FIRST_LOOK_MS);
+  if (followFolder(sid, key || null, home === top ? null : top)) moved(sid, w);
+}
+
+/** Where `sid` works has just changed: look at it now, and tell whoever
+ *  reads that folder too (git-collisions.mjs, git-recent-commits.mjs). */
+function moved(sid, w) {
+  schedule(sid, w, FIRST_LOOK_MS);
+  for (const fn of followers) {
+    try { fn(sid); } catch { /* a listener never breaks the event path */ }
+  }
+}
+
+const followers = new Set();
+/**
+ * Call `fn(sid)` each time a live call moves the folder a session (or one of
+ * its subagents) works in — the folder the collision check and the lane read
+ * too, which nothing else would tell them changed. Answers the way to stop.
+ */
+export function onFollow(fn) {
+  followers.add(fn);
+  return () => followers.delete(fn);
 }
 
 function schedule(sid, w, delay) {
