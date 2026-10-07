@@ -130,9 +130,14 @@ describe("where the surface sits", () => {
     expect(popover).toMatch(/useModalDismiss<HTMLDivElement>\(/);
   });
 
-  it("sits on the sound menu's layer and wears its radius", () => {
-    expect(decl(".anchored-popover", "z-index")).toBe(decl(".sound-menu", "z-index"));
-    expect(decl(".anchored-popover", "border-radius")).toBe(decl(".sound-menu", "border-radius"));
+  it("sits on the popover layer, under every dialog, and wears a dialog's radius", () => {
+    // It sat on the sound menu's layer and wore its radius until that menu
+    // left the topbar with its speaker (2026-10-07); the layer and the radius
+    // are the ones the menu had — 40, above the canvas and under the scrim,
+    // and the panel radius every dialog draws.
+    expect(decl(".anchored-popover", "z-index")).toBe("40");
+    expect(Number(decl(".anchored-popover", "z-index"))).toBeLessThan(Number(decl(".modal-backdrop", "z-index")));
+    expect(decl(".anchored-popover", "border-radius")).toBe(decl(".modal", "border-radius"));
   });
 
   it("arrives in under 160ms without growing, and only fades when motion is reduced", () => {

@@ -100,14 +100,13 @@
   --gv-syn-com: #adb2ba;
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
-  /* THE THIRD ELEVATION, and the line that seats a surface ON something
-     (#1287). Both were literals, each said once per theme in a rule of its
-     own: the topbar's two menus carried the contact line over a lift of their
-     own, 14px/34px, and the three anchored popovers the same contact line over
-     --shadow-2 — five light overrides that existed only to repeat a shadow in
-     slate. A menu is --shadow-3; a popover is --shadow-contact under --shadow-2.
-     The values are the ones those rules wrote, so nothing moves. */
-  --shadow-3: 0 1px 2px rgba(0,0,0,0.30), 0 14px 34px rgba(0,0,0,0.34);
+  /* THE LINE THAT SEATS A SURFACE ON SOMETHING (#1287). It was a literal,
+     said once per theme in a rule of its own: the topbar's two menus carried
+     it over a lift of their own, 14px/34px, and the three anchored popovers
+     over --shadow-2 — five light overrides that existed only to repeat a
+     shadow in slate. A popover is --shadow-contact under --shadow-2. The
+     menus' third elevation, --shadow-3, went with the last of them, the
+     topbar speaker's popover (2026-10-07). */
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
   --node-grad: linear-gradient(180deg, var(--panel), var(--bg-soft));
   --topbar-grad: linear-gradient(to bottom, var(--panel), var(--bg-soft));
@@ -419,10 +418,9 @@
   --gv-syn-com: #4b5260;
   --shadow-1: 0 4px 14px rgba(15,23,42,0.10);
   --shadow-2: 0 10px 28px rgba(15,23,42,0.16);
-  /* The same two layers on white, in the light theme's slate and at its own
-     shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
-     third stayed black at a third on the white page (#876). */
-  --shadow-3: 0 1px 2px rgba(15,23,42,0.10), 0 14px 34px rgba(15,23,42,0.16);
+  /* The contact line on white, in the light theme's slate and at its own
+     shadow weight (0.10, --shadow-1's). Black at a third stayed black at a
+     third on the white page (#876). */
   --shadow-contact: 0 1px 2px rgba(15,23,42,0.10);
   --node-grad: linear-gradient(180deg, #ffffff, #f2f5fa);
   --topbar-grad: linear-gradient(to bottom, #ffffff, #eef1f6);

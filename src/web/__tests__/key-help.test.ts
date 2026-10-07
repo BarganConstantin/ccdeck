@@ -27,8 +27,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { KEY_HELP, KEY_HELP_NOTE, documentedKeys } from "../key-help";
-import { finishSoundTitle } from "../provider-copy";
-import { ASSUMED } from "../providers";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
@@ -188,10 +186,11 @@ describe("the way in", () => {
 });
 
 describe("the sound switch, which had a control and no key", () => {
-  it("names its key the way every other control on the bar does", () => {
-    for (const on of [true, false]) {
-      expect(finishSoundTitle(ASSUMED, { on, clash: 0, parked: 0 })).toContain("(M)");
-    }
+  it("names its key where the switch is", () => {
+    // The topbar speaker named M in its tooltip, the way every control on the
+    // bar names its key. The speaker left the bar (2026-10-07), and the switch
+    // is Settings › Sounds' — which draws the key under it, as a key.
+    expect(read("components/SoundSwitch.tsx")).toContain("<kbd>M</kbd>Mute or unmute sounds anywhere.");
   });
 
   it("sends both ways to the switch through one door", () => {
@@ -200,18 +199,21 @@ describe("the sound switch, which had a control and no key", () => {
     // exactly how the shift-click ended up undocumented in the first place.
     //
     // WHICH two devices changed in #711 and the rule did not. The topbar button
-    // stopped toggling — it opens the menu — so the two routes to the switch
-    // are now M and the menu's own control, and both still land on toggleSound.
-    // A second setter, on either of them, is what this refuses.
+    // stopped toggling — it opened a menu — so the two routes to the switch
+    // became M and the menu's own control, and both still land on toggleSound.
+    // A second setter, on either of them, is what this refuses. Since the
+    // speaker left the bar (2026-10-07) the control is Settings › Sounds',
+    // which DeckDialogs.tsx hands the switch whole.
     // The switch itself lives in use-sound-switch.ts; the key that reaches it
-    // is use-deck-shortcuts.ts's and the menu's control SettingsRun's, which
-    // App.tsx hands the switch whole. The door is all of them together.
-    const door = app + "\n" + read("use-sound-switch.ts");
+    // is use-deck-shortcuts.ts's and the control SettingsModal's. The door is
+    // all of them together.
+    const settings = read("components/SettingsModal.tsx");
+    const door = app + "\n" + settings + "\n" + read("use-sound-switch.ts");
     expect(app).toMatch(/activateSoundRef\.current\(e\.shiftKey\)/);
     expect(door).toMatch(/const activateSound = useCallback\(\(_withShift: boolean\) => \{ toggleSound\(\); \}/);
-    expect(app).toMatch(/<SettingsRun\b[^>]*\bsound=\{sound\}/);
-    expect(app).toMatch(/const \{ soundOn, toggleSound \} = sound;/);
-    expect(app).toMatch(/onToggleSound=\{toggleSound\}/);
+    expect(app).toMatch(/<SettingsModal\b[^>]*\bsound=\{sound\}/);
+    expect(settings).toMatch(/const \{ soundOn, toggleSound \} = sound;/);
+    expect(settings).toMatch(/onToggleSound=\{toggleSound\}/);
     // Two writers of the flag and no more: the effect that reads the stored
     // value back on mount, and the toggle itself. A third would be a second
     // door — the exact thing this case exists to refuse. Counted across both
@@ -220,29 +222,37 @@ describe("the sound switch, which had a control and no key", () => {
     expect(door).toMatch(/const toggleSound = useCallback\(\(\) => \{\s*\n\s*setSoundOn\(prev => \{/);
   });
 
-  it("keeps a one-press route to silence now that the click opens a menu", () => {
+  it("keeps a one-press route to silence, and the way to the rest beside it", () => {
     // The half of #711 that had to survive the redesign: a keyboard user must
     // still be able to shut the deck up without opening anything. M is that,
     // and the sheet is where it is promised.
-    const row = KEY_HELP.flatMap(g => g.rows).find(r => /^m$/i.test(r.cap));
+    const settings = KEY_HELP.find(g => g.title === "Settings")!.rows;
+    const row = settings.find(r => /^m$/i.test(r.cap));
     expect(row!.action).toMatch(/sound on or off/);
-    // And the divergence is written down rather than left to be discovered,
-    // which is the whole reason #709 removed Shift+M: the click and M no longer
-    // agree, so the sheet says what each one does.
+    // V, beside it, opens Settings at Sounds: the switch, and each tone's
+    // volume and sound.
+    const v = settings.find(r => /^v$/i.test(r.cap));
+    expect(v!.action).toMatch(/^sound settings/);
+    expect(v!.binds).toEqual(["v", "V"]);
+    // The click that once disagreed with M — the topbar speaker opened a menu
+    // where M toggled, and the Mouse group wrote the divergence down — went
+    // with the speaker (2026-10-07). No row describes a control the bar does
+    // not draw.
     const mouse = KEY_HELP.find(g => g.title === "Mouse")!;
-    expect(mouse.rows.some(r => /speaker/i.test(r.action) && /settings/i.test(r.action))).toBe(true);
+    expect(mouse.rows.some(r => /speaker/i.test(r.action))).toBe(false);
   });
 
-  it("guards M by the state the switch waits for, and V the way it guards A", () => {
+  it("guards M by the state the switch waits for, and V by nothing but the shared gates", () => {
     // No sound state read back out of localStorage yet, no state to invert:
     // the key must not fire. M used to be guarded by Claude Code as well,
     // because without it no switch was drawn; Settings draws the switch on
     // every machine, and a Codex turn plays the finish tone, so M answers on a
-    // Codex-only deck too (settings-chord.test.ts drives it there). V opens
-    // the popover under the speaker, which is still drawn only where Claude
-    // Code is, so V keeps both guards.
+    // Codex-only deck too (settings-chord.test.ts drives it there). V opened
+    // the popover under the speaker, drawn only where Claude Code was; it
+    // opens Settings now, which is drawn everywhere, so it carries neither
+    // guard (settings-chord.test.ts drives the gates it does answer to).
     expect(app).toMatch(/if \(e\.key === "m" \|\| e\.key === "M"\) \{\s*if \(soundOnRef\.current !== null\) activateSoundRef\.current\(e\.shiftKey\);/);
-    expect(app).toMatch(/if \(e\.key === "v" \|\| e\.key === "V"\) \{\s*if \(providersRef\.current\.claude && soundOnRef\.current !== null\) setSoundMenuOpen/);
+    expect(app).toMatch(/if \(e\.key === "v" \|\| e\.key === "V"\) openSettings\("sounds"\);/);
   });
 });
 

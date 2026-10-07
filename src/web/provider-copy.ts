@@ -23,7 +23,6 @@
 // branches can then be read and tested without rendering React, and the branch
 // that matters most is the one nobody exercises by hand — a Codex-only machine.
 import type { Providers } from "./providers";
-import { clampLevel, DEFAULT_PREFS, type TonePrefs } from "./sound";
 import { ownRow } from "./own-row";
 
 /**
@@ -202,96 +201,4 @@ export function captureHints(p: Providers): CaptureHint[] {
       };
 
   return [claude, codex];
-}
-
-/** What the finish-sound switch knows about itself. Read from localStorage
- *  and from the AudioContext, since #704 — there is no endpoint behind it. */
-export interface FinishSoundState {
-  /** Whether this tab is set to play the tones. Local to the tab since #704 —
-   *  the deck plays them itself, so there is no settings.json entry to report. */
-  on: boolean;
-  /** True while the browser has not yet let this page make a sound. The
-   *  autoplay rules hold an AudioContext suspended until the page has been
-   *  interacted with, and a switch that says "on" over silence is the report
-   *  this feature exists to stop generating. */
-  locked: boolean;
-  /** What the two tones are set to (#711), so the tooltip can report the
-   *  volumes without the menu being open. Optional, and absent means the
-   *  defaults: a caller that has not read the store back yet is a real render —
-   *  the on/off flag arrives in an effect — and "undefined%" is not a report. */
-  prefs?: TonePrefs;
-}
-
-/**
- * The finish-sound switch's tooltip — including the turns it does NOT cover.
- *
- * The switch used to be one line in Claude Code's settings.json: a `Stop` hook
- * running a script the deck installed, which Claude Code executed at the end of
- * a turn. Nothing about that reached Codex — the deck installs no Codex hooks,
- * it tails the rollout JSONL files instead — so a Codex user turned this on,
- * watched turn after turn finish in silence, and had nothing anywhere to read it
- * against (#394). An unqualified "Sound on turn finish" was the whole of the
- * problem: the silence was correct behaviour and indistinguishable from a broken
- * toggle, so the sentence had to name the mechanism and not just the limit.
- *
- * #704 replaced the mechanism, and the limit moved with it. The tones are
- * synthesized in the tab from the envelopes the deck already receives, so what
- * they follow is the EVENT: a Codex `task_complete` is mapped to a synthetic
- * `Stop` (#395) and gets the finish tone like any other. Codex has no
- * `Notification` equivalent, so the second tone — Claude is waiting for you —
- * stays Claude Code's, and that asymmetry is said out loud rather than left for
- * a user to infer from a sound that never comes.
- *
- * What the change costs is one line and it is stated where the switch is: the
- * hook fired with no browser open, because it ran on the machine. A tab cannot.
- * For a dashboard whose normal state is left open that is a good trade, it was
- * weighed rather than overlooked (see finish-sound-scope.test.ts, which used to
- * argue the other side), and the same tab brings a second limit with it —
- * autoplay policy keeps an AudioContext suspended until the page has been
- * interacted with, so "on" over silence is a real state the copy has to name.
- */
-export function finishSoundTitle(p: Providers, s: FinishSoundState): string {
-  // The key in parentheses is how every other control on this bar names its own
-  // — and here it is load-bearing rather than conventional, because the CLICK
-  // no longer toggles since #711. A user reading this tooltip is being told the
-  // press opens settings and the key is the fast way to silence.
-  const prefs = s.prefs ?? DEFAULT_PREFS;
-  const done = clampLevel(prefs.done.level);
-  const asking = clampLevel(prefs["needs-input"].level);
-  // Both figures at one number reads as one setting, which is the common case
-  // and the one a two-number sentence would make look complicated.
-  const levels = done === asking ? `${done}%` : `${done}% and ${asking}%`;
-  const lead = s.on
-    ? `Sound: on at ${levels} — a tone when a turn finishes, another when Claude asks for you (M)`
-    : "Sound: off — press M, or use the switch in here, for a tone when a turn finishes (M)";
-
-  // Since #704 the deck plays the tones itself, from the events it already
-  // receives, so this no longer says "Claude Code turns only" — a Codex rollout
-  // emits a Stop the same way and gets the same tone. What Codex has no
-  // equivalent of is Notification, so the asking tone stays Claude Code's, and
-  // that is worth saying on a machine that runs both rather than leaving the
-  // user to notice the asymmetry on their own.
-  const scope = p.codex
-    ? "\n\nBoth CLIs get the finish tone. The second tone — Claude is waiting for you — " +
-      "has no Codex equivalent to fire on, so it only ever plays for Claude Code."
-    : "";
-
-  // The autoplay rules, stated where the switch is rather than left as silence
-  // the user has to explain to themselves. A browser will not make a sound
-  // until the page has been interacted with, so a reloaded tab nobody has
-  // touched is armed and mute — and "on, but nothing happened" is exactly the
-  // report that used to arrive about the old hook.
-  const locked = s.on && s.locked
-    ? "\n\nWaiting for a click: this browser plays no sound until the page has been " +
-      "used at least once. Anything you press unlocks it."
-    : "";
-
-  // #711. What a press does, said out loud, because the press changed meaning:
-  // this control used to toggle and now discloses. A tooltip that only reported
-  // the state would leave the user to discover that by pressing — which is
-  // exactly the "a gesture you could not discover" complaint #709 was about,
-  // pointed the other way round.
-  const opens = "\n\nClick to set the volume and the sound of each tone, and to hear either one.";
-
-  return lead + scope + locked + opens;
 }

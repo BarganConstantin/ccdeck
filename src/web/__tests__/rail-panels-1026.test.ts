@@ -27,7 +27,7 @@
 // and usage's right edge at 832 was 32px underneath a detail panel starting at
 // 800.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { machinePanelSurface } from "./machine-panel-surface";
 import { sheetText } from "./sheet-source";
@@ -35,7 +35,6 @@ import { sheetText } from "./sheet-source";
 const at = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const raw = sheetText();
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
-const soundMenu = at("../components/SoundMenu.tsx");
 const toneSection = at("../components/ToneSection.tsx");
 // A tone's volume row, lifted out of ToneSection.tsx.
 const volumeRow = at("../components/VolumeRow.tsx");
@@ -162,27 +161,33 @@ describe("the sound menu's reading is described once (#1026)", () => {
   it("has one rule, so what ships is what the comment beside it says", () => {
     // Two rules seven lines apart made opposite arguments about the same span:
     // `.sound-menu .sm-read` (0,2,0) dim at 10px, and a bare `.sm-read` (0,1,0)
-    // restating --text at 11px, which lost both and never drew anything.
+    // restating --text at 11px, which lost both and never drew anything. The
+    // popover went with the topbar speaker (2026-10-07); the one rule is
+    // Settings' now, and holds everything the merged rule held.
     expect(decl(".sm-read", "color")).toBeNull();
-    expect(decl(".sound-menu .sm-read", "color")).toBe("var(--muted)");
+    expect(decl(".sound-menu .sm-read", "color")).toBeNull();
+    expect(decl(".settings-modal .sm-read", "color")).toBe("var(--muted)");
     // A value, so monospaced, at the 11px label tier (it was 10px in sans).
-    expect(decl(".sound-menu .sm-read", "font-size")).toBe("11px");
-    expect(decl(".sound-menu .sm-read", "font-family")).toBe("var(--font-mono)");
+    expect(decl(".settings-modal .sm-read", "font-size")).toBe("11px");
+    expect(decl(".settings-modal .sm-read", "font-family")).toBe("var(--font-mono)");
     // The geometry the dead rule also carried has to survive the merge.
-    expect(decl(".sound-menu .sm-read", "min-width")).toBe("34px");
-    expect(decl(".sound-menu .sm-read", "text-align")).toBe("right");
+    expect(decl(".settings-modal .sm-read", "min-width")).toBe("34px");
+    expect(decl(".settings-modal .sm-read", "text-align")).toBe("right");
   });
 
   it("is rendered only where that descendant selector reaches", () => {
     // The merge is only safe because the span has one render site, VolumeRow,
     // and every place that draws a VolumeRow is inside a surface the rule
-    // names: the sound popover (`.sound-menu`) draws its two volumes, and
-    // Settings (`.settings-modal`) draws each tone's row through Sounds and
-    // Claude FM's through Music & character.
+    // names: Settings (`.settings-modal`) draws each tone's row through Sounds
+    // and Claude FM's through Music & character. The sound popover drew two
+    // more until it left with the topbar speaker (2026-10-07), so nothing
+    // outside Settings draws one now — a new caller elsewhere would draw its
+    // reading unstyled, and this is where that is caught.
     expect(volumeRow).toMatch(/className="sm-read"/);
     expect(toneSection).toMatch(/<VolumeRow\b/);
-    expect(soundMenu).toMatch(/<VolumeRow\b/);
-    expect(soundMenu).toMatch(/className="sound-menu"/);
+    const callers = readdirSync(fileURLToPath(new URL("../components/", import.meta.url)))
+      .filter(f => /\.tsx$/.test(f) && /<VolumeRow\b/.test(at(`../components/${f}`)));
+    expect(callers.sort()).toEqual(["MusicSection.tsx", "ToneSection.tsx"]);
     const settings = at("../components/SettingsModal.tsx");
     expect(at("../components/SoundsSection.tsx")).toMatch(/<ToneSection\b/);
     expect(at("../components/MusicSection.tsx")).toMatch(/<VolumeRow\b/);

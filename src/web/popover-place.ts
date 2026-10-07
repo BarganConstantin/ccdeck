@@ -1,7 +1,7 @@
 // Where a popover hung off a control goes.
 //
-// The deck's first popover, the sound menu, never had to ask. Its button sits
-// in the topbar, there is always room under it, and `top: calc(100% + 8px)` in
+// The deck's first popover, the topbar speaker's sound menu (gone since
+// 2026-10-07), never had to ask. Its button sat in the topbar, there is always room under it, and `top: calc(100% + 8px)` in
 // the sheet was the whole of its placement. The accounts panel's `⋯` is
 // different on both counts: it sits on a row that can be anywhere in a column
 // that scrolls — the last account is a menu's height from the bottom of the

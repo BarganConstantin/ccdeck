@@ -3,9 +3,11 @@
 // rgba(0,0,0,0.34)` on the topbar's two menus, repeated in slate by a light rule
 // for each. The three anchored popovers wrote the same contact line over
 // --shadow-2, with a light rule each to repeat it. Five rules existed only to
-// say a shadow a second time. They are --shadow-3 and --shadow-contact now, and
+// say a shadow a second time. They were --shadow-3 and --shadow-contact, and
 // this file keeps a named shadow from being written out again — and does the
 // same for the gradients two rules shared or a theme retuned, further down.
+// --shadow-3 went with the last menu that read it, the topbar speaker's sound
+// popover (2026-10-07): a token nobody reads is dead-css.test.ts's to refuse.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -40,14 +42,12 @@ const DECLS = [...rules.matchAll(/([^{}]+)\{([^{}]*)\}/g)].flatMap(m =>
 describe("the deck's elevations are tokens, in both themes (#1287)", () => {
   const SHADOWS = { dark: tokens(blocks.dark, "--shadow-"), light: tokens(blocks.light, "--shadow-") };
 
-  it("names the third elevation and the contact line in both theme blocks", () => {
+  it("names the contact line in both theme blocks, beside the two elevations", () => {
     for (const theme of ["dark", "light"] as const) {
       expect(Object.keys(SHADOWS[theme]).sort(), theme)
-        .toEqual(["--shadow-1", "--shadow-2", "--shadow-3", "--shadow-contact"]);
-    }
-    // One family: the third elevation IS the contact line over a lift of its own.
-    for (const theme of ["dark", "light"] as const) {
-      expect(layers(SHADOWS[theme]["--shadow-3"])[0], theme).toBe(layers(SHADOWS[theme]["--shadow-contact"])[0]);
+        .toEqual(["--shadow-1", "--shadow-2", "--shadow-contact"]);
+      // A line, not a lift: one tight layer.
+      expect(layers(SHADOWS[theme]["--shadow-contact"]), theme).toHaveLength(1);
     }
   });
 
@@ -67,12 +67,12 @@ describe("the deck's elevations are tokens, in both themes (#1287)", () => {
     expect(overrides.map(d => d.sel)).toEqual([]);
   });
 
-  it("puts the menus on --shadow-3 and the popovers on the contact line over --shadow-2", () => {
+  it("puts the popovers on the contact line over --shadow-2", () => {
     const shadowOf = (sel: string) => DECLS.find(d => d.sel === sel)?.value;
-    // `.appearance-menu` left with the Appearance modal (2026-10-07), which
-    // drew as a `.modal` over it anyway; Settings is a `.modal` too, on the
-    // dialogs' --shadow-2.
-    for (const menu of [".sound-menu"]) expect(shadowOf(menu), menu).toBe("var(--shadow-3)");
+    // The two menus on --shadow-3 are gone: `.appearance-menu` with the
+    // Appearance modal and `.sound-menu` with the topbar speaker (both
+    // 2026-10-07). Settings is a `.modal`, on the dialogs' --shadow-2.
+    expect(DECLS.some(d => /--shadow-3/.test(d.value))).toBe(false);
     for (const pop of [".anchored-popover", ".appearance-source-list", ".ap-peek"]) {
       expect(shadowOf(pop), pop).toBe("var(--shadow-contact), var(--shadow-2)");
     }

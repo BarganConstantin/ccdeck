@@ -327,13 +327,12 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     expect((app.match(/<div className="action-run">/g) ?? [])).toHaveLength(2);
     expect(app).toMatch(/<div className="action-run action-run-utility">/);
     expect(app).toMatch(/aria-label="Toggle usage panel"/);
-    // #711 renamed this one. The button used to toggle the sound and now opens
-    // a menu that holds the switch, two volumes, two sound choices and two
-    // previews, so its name says what the press does rather than what it used
-    // to do. What this case is about is unchanged and is why it still names a
-    // control in the second run: the settings run still exists and still has
-    // something in it. The name ends in the setting's state now as well.
-    expect(app).toMatch(/aria-label=\{`Sound settings, \$\{soundOn \? "on" : "off"\}`\}/);
+    // This named the speaker, the settings run's first control, until the
+    // speaker left the bar (2026-10-07). What this case is about is unchanged
+    // and is why it still names a control in that run: the settings run still
+    // exists and still has something in it — the gear, first now.
+    expect(app).toMatch(/aria-label="Settings"/);
+    expect(app).not.toMatch(/Sound settings/);
   });
 
   it("is drawn the way the four glyphs beside it are drawn", () => {

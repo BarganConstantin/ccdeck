@@ -78,8 +78,8 @@
    surface into the one small form it needs. AnchoredPopover owns the placement
    and the dismissals.
 
-   The surface is the sound menu's, the deck's other popover: the panel's own
-   ground, its hairline, a tight line for sitting ON something under a soft one
+   The surface was the sound menu's, the deck's first popover, until that
+   left the topbar (2026-10-07): the panel's own ground, its hairline, a tight line for sitting ON something under a soft one
    for its height, and the same z-index 40 — above the canvas and its controls,
    below every dialog and its scrim. Both layers are theme tokens —
    --shadow-contact under --shadow-2 — so each theme block tunes them for its

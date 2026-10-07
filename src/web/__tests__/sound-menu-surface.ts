@@ -1,13 +1,15 @@
 // The sound menu as one text, for the assertions that say what it does NOT do —
-// the popover and every file lifted out of it, Settings' two sound sections
-// included.
+// every file lifted out of the topbar speaker's popover, Settings' two sound
+// sections included.
 //
-// SoundMenu.tsx is being taken apart one concern at a time, and the pieces land
-// in the files listed below. A positive assertion reads the file that owns the
-// code. A negative, a count or a list cannot: "nothing in the menu is
-// disabled", asked of SoundMenu.tsx alone, passes vacuously the moment the
-// controls move out of it. So those read this instead — the menu and every file
-// lifted out of it, in one string — for the reason accounts-surface.ts gives.
+// SoundMenu.tsx was taken apart one concern at a time, and the pieces landed in
+// the files listed below; the popover itself went with the speaker
+// (2026-10-07), so what is left of the menu is Settings › Sounds and Settings ›
+// Notifications. A positive assertion reads the file that owns the code. A
+// negative, a count or a list cannot: "nothing in the menu is disabled", asked
+// of one file alone, passes vacuously the moment the controls move out of it.
+// So those read this instead — every file of the menu, in one string — for the
+// reason accounts-surface.ts gives.
 //
 // Raw rather than comment-stripped, as the other surfaces are: the tests that
 // read the menu each strip it their own way. Joined by a newline and nothing
@@ -17,14 +19,12 @@ import { readFileSync } from "node:fs";
 
 import { WEB_DIR } from "./client-source";
 
-/** The menu and what was lifted out of it, relative to `src/web`, the menu
- *  first. A file extracted from SoundMenu.tsx, or from a file lifted out of
- *  it, is added here in the same change. */
+/** What was lifted out of the menu, relative to `src/web`. A file extracted
+ *  from one of these is added here in the same change. */
 export const SOUND_MENU_FILES = [
-  "components/SoundMenu.tsx",
   // Settings › Sounds and Settings › Notifications are the menu's two halves,
   // lifted out whole when Settings took everything but the quick things; the
-  // switch both the popover and Sounds draw is its own file.
+  // switch Sounds draws is its own file.
   "components/SoundsSection.tsx",
   "components/NotificationsSection.tsx",
   "components/SoundSwitch.tsx",
