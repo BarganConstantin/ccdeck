@@ -3,8 +3,8 @@
 // keyboard, and a remembered choice that survives a bad value in the store.
 import { describe, expect, it } from "vitest";
 import {
-  CANVAS_MIN, GIT_VIEW_DEFAULTS, PANE_MIN, PANEL_MIN, SPLIT_BAND, edgeBounds, filesBounds, graphBounds, isSheet,
-  panelWidth, parseGitViewPrefs, splitterTarget,
+  CANVAS_MIN, FK_HISTORY_MIN, FK_INSPECTOR_MIN, GIT_VIEW_DEFAULTS, PANE_MIN, PANEL_MIN, SIDEBAR_MAX, SIDEBAR_MIN, SPLIT_BAND, edgeBounds,
+  filesBounds, fkGraphBounds, graphBounds, isSheet, panelWidth, parseGitViewPrefs, sidebarBounds, sidebarShownFor, splitterTarget,
 } from "../git-view-sizes";
 
 describe("the panel's width", () => {
@@ -66,7 +66,7 @@ describe("a divider from the keyboard", () => {
 describe("the remembered sizes", () => {
   it("reads what was stored", () => {
     expect(parseGitViewPrefs(JSON.stringify({ w: 0.5, graphH: 0.3, filesW: 0.35 })))
-      .toEqual({ w: 0.5, graphH: 0.3, filesW: 0.35 });
+      .toEqual({ ...GIT_VIEW_DEFAULTS, w: 0.5, graphH: 0.3, filesW: 0.35 });
   });
 
   it("falls back per field, and on a store that is not JSON at all", () => {
@@ -74,5 +74,49 @@ describe("the remembered sizes", () => {
       .toEqual({ ...GIT_VIEW_DEFAULTS, filesW: 0.3 });
     expect(parseGitViewPrefs("{not json")).toEqual(GIT_VIEW_DEFAULTS);
     expect(parseGitViewPrefs(null)).toEqual(GIT_VIEW_DEFAULTS);
+  });
+});
+
+describe("the Fork look's sizes", () => {
+  it("opens in the deck look, and remembers the Fork look once chosen", () => {
+    expect(GIT_VIEW_DEFAULTS.look).toBe("deck");
+    expect(parseGitViewPrefs(JSON.stringify({ look: "fork" })).look).toBe("fork");
+    expect(parseGitViewPrefs(JSON.stringify({ look: "bogus" })).look).toBe("deck");
+  });
+
+  it("takes 72% of the window and gives the history 35% of its height, without moving the deck look's sizes", () => {
+    expect(panelWidth(GIT_VIEW_DEFAULTS.fkW, 1440, 1440)).toBe(1037);
+    expect(GIT_VIEW_DEFAULTS.fkGraphH).toBe(0.35);
+    const p = parseGitViewPrefs(JSON.stringify({ w: 0.5, fkW: 0.8 }));
+    expect([p.w, p.fkW]).toEqual([0.5, 0.8]);
+  });
+
+  it("keeps the history over 110px and the inspector over 160px", () => {
+    expect(fkGraphBounds(700)).toEqual({ min: FK_HISTORY_MIN, max: 700 - FK_INSPECTOR_MIN });
+    expect(fkGraphBounds(200)).toEqual({ min: FK_HISTORY_MIN, max: FK_HISTORY_MIN });
+  });
+
+  it("draws a 264px sidebar column, resizable between 176 and 436px, never leaving the history under 360px", () => {
+    expect(GIT_VIEW_DEFAULTS.sidebarW).toBe(264);
+    expect(sidebarBounds(1200)).toEqual({ min: SIDEBAR_MIN, max: SIDEBAR_MAX });
+    expect(sidebarBounds(700)).toEqual({ min: SIDEBAR_MIN, max: 340 });
+    expect(parseGitViewPrefs(JSON.stringify({ sidebarW: 9000 })).sidebarW).toBe(SIDEBAR_MAX);
+  });
+
+  it("starts the sidebar hidden under a 1000px panel and on a sheet, and keeps the reader's choice", () => {
+    expect(sidebarShownFor({ sidebarShown: null }, 1037, false, null)).toBe(true);
+    expect(sidebarShownFor({ sidebarShown: null }, 999, false, null)).toBe(false);
+    expect(sidebarShownFor({ sidebarShown: true }, 800, false, null)).toBe(true);
+    expect(sidebarShownFor({ sidebarShown: false }, 1300, false, null)).toBe(false);
+    // A sheet starts hidden whatever was remembered; ≡ there lasts the open.
+    expect(sidebarShownFor({ sidebarShown: true }, 1000, true, null)).toBe(false);
+    expect(sidebarShownFor({ sidebarShown: true }, 1000, true, true)).toBe(true);
+  });
+
+  it("remembers the inspector's tab and whether it is folded, and opens on Changes", () => {
+    expect(GIT_VIEW_DEFAULTS.inspectorTab).toBe("changes");
+    expect(parseGitViewPrefs(JSON.stringify({ inspectorTab: "commit", inspectorCollapsed: true })))
+      .toMatchObject({ inspectorTab: "commit", inspectorCollapsed: true });
+    expect(parseGitViewPrefs(JSON.stringify({ inspectorTab: 3 })).inspectorTab).toBe("changes");
   });
 });
