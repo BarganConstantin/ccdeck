@@ -72,6 +72,16 @@ export { prefsPath };
  */
 export const DEFAULTS = Object.freeze({
   notifications: false,
+  // ACCOUNT NOTIFICATIONS, one switch each (account-notify.mjs). Not part of
+  // `notifications` above, which is about a deck nobody is looking at: these
+  // are said whether a page is open or not, because no page says them. The
+  // swap is ON — it fires only when the deck itself moved the live Claude
+  // account, which is rare and which nothing else announces; the quota two are
+  // OFF, because turning either on is also what starts the deck reading quota
+  // with no page open (account-watch.mjs). The owner's choice, 2026-10-07.
+  notifySwap: true,
+  notifyQuota: false,
+  notifyReset: false,
   // The Electron window can open on a new localhost port after an update.
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
@@ -304,6 +314,9 @@ export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
     notifications: flagOr(src.notifications, DEFAULTS.notifications),
+    notifySwap: flagOr(src.notifySwap, DEFAULTS.notifySwap),
+    notifyQuota: flagOr(src.notifyQuota, DEFAULTS.notifyQuota),
+    notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     reports: flagOr(src.reports, DEFAULTS.reports),
@@ -688,7 +701,7 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "tourSeen", "autoUpdate"]),
+  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
@@ -719,6 +732,18 @@ export function pagePatch(body) {
 export function notificationsOn(prefs, env = process.env) {
   if (notificationsVetoed(env)) return false;
   return normalise(prefs).notifications;
+}
+
+/**
+ * Which account notifications may go out right now: the three switches, each
+ * on its own, and all three off when the machine vetoed notifications at
+ * launch — AGENTS_DECK_NO_NOTIFY=1 keeps the deck off the desktop whatever
+ * else it was told, and these are desktop notifications too.
+ */
+export function accountNotifySettings(prefs, env = process.env) {
+  if (notificationsVetoed(env)) return { swap: false, quota: false, reset: false };
+  const p = normalise(prefs);
+  return { swap: p.notifySwap, quota: p.notifyQuota, reset: p.notifyReset };
 }
 
 /**

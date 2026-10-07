@@ -42,7 +42,11 @@ import { CHIME_ORDER, type TonePrefs } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { useOutsidePress } from "./use-outside-press";
 import { useFocusRescue } from "./use-focus-rescue";
-import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
+import {
+  ACCOUNT_NOTIFY_NOTE, ACCOUNT_NOTIFY_SWITCHES, ACCOUNT_NOTIFY_VETO_NOTE, browserChannel, notifyNote, NOTIFY_VETO_NOTE,
+  type NotifyPermission,
+} from "../notify-reach";
+import type { AccountNotify, AccountNotifyKind } from "../use-os-notifications";
 import { inDesktopApp } from "../in-app";
 import CustomSoundsSection, { type CustomSoundsProps } from "./CustomSoundsSection";
 import ToneSection, { type SharedToneProps } from "./ToneSection";
@@ -77,6 +81,12 @@ interface Props extends CustomSoundsProps, SharedToneProps {
    *  is still askable — a refusal cannot be re-asked by any page, which is why
    *  the row says where the switch is instead. */
   onAskNotify: () => void;
+  /** The three account notifications — the deck moved the live Claude account,
+   *  a quota window reached 90% or 100%, a high window reset — each its own
+   *  switch, and none of them tied to the one above: they are raised whether a
+   *  page is open or not, because no page says any of them. */
+  accountNotify: AccountNotify;
+  onToggleAccountNotify: (kind: AccountNotifyKind) => void;
   /** The button that opened this, so the outside-press rule can leave it alone
    *  — its own onClick is what closes the menu on a second press. */
   openerRef: RefObject<HTMLElement | null>;
@@ -86,7 +96,7 @@ export default function SoundMenu({
   onClose, soundOn, onToggleSound, prefs, onLevel, onFigure, onPreview, openerRef,
   customAssets, customSelections, onBuiltInSelected, onCustomSelected, onImportCustom,
   onCreateVoice, onRenameCustom, onPreviewCustom, onDeleteCustom,
-  notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify,
+  notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify, accountNotify, onToggleAccountNotify,
 }: Props) {
   /* The channel, and whether it is worth drawing at all. A veto silences both
      notifiers, so there is no channel to report on; the switch's own note says
@@ -193,6 +203,31 @@ export default function SoundMenu({
             </button>
           </label>
           <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}</p>
+        </div>
+
+        {/* THREE MORE, AND NOT UNDER THE ONE ABOVE. That switch is about a
+            deck nobody is looking at; these are said whether a page is open or
+            not, so each is its own switch and none waits on it. One group with
+            one note, because the note is the same for all three: whose
+            accounts, and that the deck need not be closed. */}
+        <div className="sm-setting">
+          {ACCOUNT_NOTIFY_SWITCHES.map(({ kind, label, title }) => (
+            <label className="sm-switch" key={kind}>
+              <span className="sm-switch-label" id={`sm-${kind}-label`}>{label}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={accountNotify[kind]}
+                aria-labelledby={`sm-${kind}-label`}
+                className="switch"
+                onClick={() => onToggleAccountNotify(kind)}
+                title={title}
+              >
+                <span className="switch-knob" />
+              </button>
+            </label>
+          ))}
+          <p className="sm-note">{notifyVetoed ? ACCOUNT_NOTIFY_VETO_NOTE : ACCOUNT_NOTIFY_NOTE}</p>
         </div>
       </div>
 

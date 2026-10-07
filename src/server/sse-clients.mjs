@@ -25,9 +25,12 @@ function pageCount() {
 
 /** A notification for the desktop app to raise as itself, instead of the OS
  *  helper raising it as Script Editor (osascript) or PowerShell. */
-function notifyTrays(title, body, { chime = null, who = null } = {}) {
+function notifyTrays(title, body, { chime = null, who = null, silent = false } = {}) {
   // The app names itself above the notification, so the title is the session.
-  const line = `event: notify\ndata: ${JSON.stringify({ title: who ?? title, body, chime })}\n\n`;
+  // `silent` only when asked for: the account notifications make no sound, and
+  // an app that did not send it would get the system's default one.
+  const frame = silent === true ? { title: who ?? title, body, chime, silent: true } : { title: who ?? title, body, chime };
+  const line = `event: notify\ndata: ${JSON.stringify(frame)}\n\n`;
   for (const res of trayClients) writeSse(res, line);
   return true;
 }

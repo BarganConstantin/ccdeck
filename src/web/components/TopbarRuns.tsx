@@ -288,7 +288,8 @@ export function SettingsRun({
   const { tonePrefs, previewTone, changeTone } = tones;
   const { customSelections, customAssets, clearCustomOnly, selectCustomTone, importNotificationAudio,
           createNotificationVoice, renameCustomAsset, deleteCustomAsset, previewCustomAsset } = customTones;
-  const { notifyPermission, notifyOn, notifyVetoed, toggleNotify, notifySupported, askForNotifications } = notify;
+  const { notifyPermission, notifyOn, notifyVetoed, toggleNotify, notifySupported, askForNotifications,
+          accountNotify, toggleAccountNotify } = notify;
   const { soundMenuOpen, setSoundMenuOpen, soundButtonRef, appearanceMenuOpen, setAppearanceMenuOpen,
           appearanceButtonRef } = menus;
   const { theme, setTheme, characterEnabled, setCharacterEnabled } = appearance;
@@ -385,6 +386,8 @@ export function SettingsRun({
             notifyVetoed={notifyVetoed}
             notifyPermission={notifySupported ? notifyPermission : "unsupported"}
             onAskNotify={askForNotifications}
+            accountNotify={accountNotify}
+            onToggleAccountNotify={toggleAccountNotify}
             openerRef={soundButtonRef}
           />
         )}
