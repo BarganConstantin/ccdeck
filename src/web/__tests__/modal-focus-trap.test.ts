@@ -173,6 +173,14 @@ describe("isTabbable", () => {
     // of one rule cannot answer differently.
     expect(TABBABLE_SELECTOR).not.toMatch(/disabled/);
   });
+
+  it("names a disclosure's summary, which Tab lands on like a button", () => {
+    // Settings › Sounds ends on one: Spoken voice is a <details>. Left out of
+    // the sweep, the trap did not know the dialog's last stop was there, so it
+    // wrapped from the control before it and never let Tab reach it — or, as it
+    // stood, let Tab off the end of the dialog from it.
+    expect(TABBABLE_SELECTOR.split(/,\s*/)).toContain("summary");
+  });
 });
 
 describe("isScrollStop", () => {
@@ -278,7 +286,10 @@ describe("the deck's ten overlays", () => {
     // The twenty-first is the feedback dialog, opened from Appearance (#1853).
     // The twenty-second is the re-sign-in prompt over the canvas (#1893).
     // The twenty-third stands in for a lazy dialog whose chunk did not arrive.
-    expect(MODALS.length).toBe(23);
+    // The twenty-fourth is Settings, behind the gear and Cmd/Ctrl+,. The
+    // Appearance modal it replaced was never counted here: its backdrop wore
+    // two classes, which the sweep's one-class pattern does not match.
+    expect(MODALS.length).toBe(24);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -354,7 +365,12 @@ describe("the deck's ten overlays", () => {
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.
-      "SessionSummary.tsx", "ShareAccountsDialog.tsx", "UsageHistoryModal.tsx",
+      "SessionSummary.tsx",
+      // Settings names the tab of the section it opened at: the nav is what it
+      // is walked by, and a door that opened it at Sounds lands the reader on
+      // "Sounds", which says where they are. Its × is a Shift+Tab away.
+      "SettingsModal.tsx",
+      "ShareAccountsDialog.tsx", "UsageHistoryModal.tsx",
     ]);
     expect(hook).toMatch(/\(focusRef\?\.current \?\? tabbablesIn\(dialogRef\.current\)\[0\]\)\?\.focus\(\)/);
   });
@@ -436,6 +452,18 @@ describe("useModalDismiss", () => {
     expect(hook).toMatch(/dialog\.querySelectorAll<HTMLElement>\("\*"\)/);
     expect(hook).toMatch(/if \(el\.matches\(TABBABLE_SELECTOR\)\)/);
     expect(hook).toMatch(/overflow: getComputedStyle\(el\)\.overflowY/);
+  });
+
+  it("does not count a control a closed disclosure hides, though it still has boxes", () => {
+    // What a closed <details> holds is skipped, not unrendered: Chromium keeps
+    // its boxes (getClientRects is not empty) behind content-visibility, so a
+    // rect count called the voice form's five fields tabbable. From Spoken
+    // voice, the dialog's last real stop, the trap then saw stops after it and
+    // stood aside, and Tab walked out of a dialog that says aria-modal onto the
+    // page's skip link; Shift+Tab from the × wrapped onto a field nobody can
+    // see. checkVisibility() answers for display: none and skipped content
+    // both; the rect count stays as the fallback for an engine without it.
+    expect(hook).toMatch(/rendered: el\.checkVisibility \? el\.checkVisibility\(\) : el\.getClientRects\(\)\.length > 0/);
   });
 
   it("keeps a stop the browser offers that the sweep did not name", () => {

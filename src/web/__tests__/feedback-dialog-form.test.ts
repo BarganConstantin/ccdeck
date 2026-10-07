@@ -190,8 +190,10 @@ describe("the kinds, as one compact control", () => {
   });
 
   it("changes the question and nothing else, so what was typed stays", () => {
-    // The message is the dialog's state, keyed to nothing the kind changes.
-    expect(dialog).toMatch(/const \[body, setBody\] = useState\(initialBody \?\? ""\);/);
+    // The message is the dialog's state, keyed to nothing the kind changes. It
+    // opens on the kept draft's message when there is one, and on the seed's
+    // otherwise (feedback-draft-kept.test.ts runs that).
+    expect(dialog).toMatch(/const \[body, setBody\] = useState\(kept\?\.body \?\? seed\.body\);/);
     expect(kinds).not.toMatch(/setBody|body/);
   });
 });
@@ -278,7 +280,10 @@ describe("what Send needs: a message, and nothing else", () => {
     const submit = flatDialog.slice(flatDialog.indexOf("function submit("), flatDialog.indexOf("void send("));
     expect(submit).toMatch(/if \(!hasMessage\(body\)\) \{ setTriedToSend\(true\); bodyRef\.current\?\.focus\(\); return; \}/);
     expect(dialog).toMatch(/const bodyMissing = triedToSend && !hasMessage\(body\);/);
-    expect(flatDialog).toMatch(/aria-describedby=\{bodyMissing \? "fb-body-error" : undefined\}/);
+    // Described by the line while it shows, joined with the one other line
+    // that can describe the message (a reload's lost screenshots).
+    expect(flatDialog).toMatch(/const messageDescribedBy = \[bodyMissing && "fb-body-error", imagesLostShown && "fb-images-lost"\] \.filter\(Boolean\)\.join\(" "\) \|\| undefined;/);
+    expect(flatDialog).toMatch(/aria-describedby=\{messageDescribedBy\}/);
     // Outside the label, so it is read once, as the description.
     expect(flatDialog).toMatch(/\{bodyMissing && <p id="fb-body-error" className="fb-error">\{MESSAGE_MISSING\}<\/p>\}/);
   });
@@ -364,7 +369,7 @@ describe("Add details", () => {
   });
 
   it("keeps what was typed across folding and unfolding: always drawn, its value held by the dialog", () => {
-    expect(dialog).toMatch(/const \[contact, setContact\] = useState\(""\);/);
+    expect(dialog).toMatch(/const \[contact, setContact\] = useState\(kept\?\.contact \?\? ""\);/);
     expect(flatDialog).toMatch(/<FeedbackDetails open=\{detailsOpen\} contact=\{contact\} onContact=\{setContact\} \/>/);
     // Never mounted on a condition, which would throw the field away.
     expect(flatDialog).not.toMatch(/detailsOpen &&/);
@@ -450,7 +455,9 @@ describe("once it is sent", () => {
     expect(outcomeAnnouncement("failed")).toBe("");
     expect(outcomeAnnouncement("sending")).toBe("Sending…");
     expect(outcomeAnnouncement("sent")).toBe(SENT_LINE);
-    const region = dialog.indexOf('<p className="vis-hidden" role="status">{outcomeAnnouncement(outcome.state)}</p>');
+    // The same region says what an armed Discard will do while it is armed
+    // (feedback-draft-kept.test.ts), and the outcome otherwise.
+    const region = dialog.indexOf('<p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : outcomeAnnouncement(outcome.state)}</p>');
     expect(region, "no persistent live region").toBeGreaterThan(-1);
     expect(region).toBeLessThan(dialog.indexOf("{sent && ("));
   });
@@ -490,5 +497,53 @@ describe("once it is sent", () => {
     expect(feedbackFailure(400, "invalid", {})).toBe("The server did not accept the message. It is still here; check it and send again.");
     expect(feedbackFailure(502, "unavailable")).toMatch(/your text is still here/);
     expect(feedbackFailure(0, null)).toMatch(/Nothing was sent/);
+  });
+});
+
+// ── the design pass (2026-10-07) ────────────────────────────────────────────
+
+describe("the design pass: what each state shows, and where Send stays", () => {
+  it("keeps Send under the pointer that pressed it when a send fails", () => {
+    // The dialog is centred, so it grows about its middle and Send moves half
+    // of whatever it grows by. The failure the reader answers by pressing Send
+    // again sits 6px under the facts line, on one line, so Send moves 11px —
+    // inside its own 30px height, and a second press lands on it.
+    const gap = px(value(".modal-body.fb-body", "gap")) + px(value(".fb-facts + .fb-error", "margin-top"));
+    expect(gap).toBe(6);
+    const grows = gap + px(value(".fb-error", "line-height"));
+    expect(grows / 2).toBeLessThan(30 / 2);
+    // One line at the dialog's 508px measure: about six pixels a character
+    // at 12px. The words that matter stay — nothing went, and the text is
+    // still in the field.
+    const unreachable = feedbackFailure(0, null);
+    expect(unreachable).toBe("ccdeck's server could not be reached. Nothing was sent; your text is still here.");
+    expect(unreachable.length).toBeLessThanOrEqual(82);
+  });
+
+  it("shows how long an armed Discard stays armed, the way the accounts panel does", async () => {
+    const { DISCARD_ARMED_MS } = await import("../use-feedback-draft");
+    expect(value(".fb-foot .btn.danger.armed::after", "animation")).toBe(`ap-disarm ${DISCARD_ARMED_MS}ms linear forwards`);
+    expect(value(".fb-foot .btn.danger.armed", "overflow")).toBe("hidden");
+    // Under reduced motion the fill and the words stay and the bar does not travel.
+    expect(sheet).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.fb-foot \.btn\.danger\.armed::after \{ animation: none; transform: scaleX\(0\); \}/);
+  });
+
+  it("marks a message sent empty with its edge as well as its line", () => {
+    expect(value('.ap-manage-input.fb-message[aria-invalid="true"]', "border-color")).toBe("var(--err)");
+  });
+
+  it("draws each image's edge as the control it is, with its count beside it", () => {
+    expect(value(".fb-shot-img", "border")).toBe("1px solid var(--ctl-edge)");
+    expect(value(".fb-shot-pick:hover .fb-shot-img", "border-color")).toBe("var(--text)");
+    expect(/\.fb-shots-count \{([^}]*)\}/.exec(sheet)?.[1]).not.toMatch(/margin-left/);
+  });
+
+  it("sets the facts line nearer Send than the buttons above it", () => {
+    expect(px(value(".modal-body.fb-body", "padding-bottom"))).toBeLessThan(px(value(".modal-body.fb-body", "gap")));
+  });
+
+  it("gives a fingertip the deck's 32px floor on every small control in the dialog", () => {
+    expect(sheet).toMatch(/@media \(pointer: coarse\) \{[^@]*\.fb-kind,\s*\.fb-tool,\s*\.fb-foot \.btn \{ min-height: 32px; \}/);
+    expect(sheet).toMatch(/@media \(pointer: coarse\) \{[^@]*\.fb-shot > \.fb-shot-remove::after \{ inset: -6px; \}/);
   });
 });

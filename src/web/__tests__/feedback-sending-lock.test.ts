@@ -30,10 +30,12 @@ const images = {
   shots: [], problem: "", announcement: "",
   add: vi.fn(), replace: vi.fn(), remove: vi.fn(), sayFull: vi.fn(),
   ready: () => new Promise<Blob[]>(resolve => { finishFits = resolve; }),
+  kept: () => ({ ready: [], waiting: [] }), clear: vi.fn(),
 };
 vi.mock("../use-feedback-images", () => ({ useFeedbackImages: (): FeedbackImages => images as unknown as FeedbackImages }));
 
 const { default: FeedbackDialog } = await import("../components/FeedbackDialog");
+const { draftKey, feedbackDrafts, feedbackSeed } = await import("../feedback-draft");
 
 /** A node the document holds: where it sits, whether it is inert, focus. */
 interface Node { tagName: string; inside: Node[]; inert?: boolean; focus(): void; contains(n: unknown): boolean }
@@ -71,6 +73,8 @@ function commit(tree: unknown) {
 let posts: Array<(ok: boolean) => void>;
 
 beforeEach(() => {
+  // A draft the last test left is not this one's to open on.
+  feedbackDrafts.forget(draftKey(feedbackSeed({})));
   page = { activeElement: BODY };
   for (const n of [form, fields, field, send]) n.inert = false;
   posts = [];

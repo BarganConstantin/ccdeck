@@ -120,6 +120,8 @@ log in. **`ccdeck --stop` is the off switch**; `Ctrl+C` only cancels a start tha
 is still printing. `ccdeck --status` says what is running, and `--foreground`
 holds the terminal the way every version before 3.20 did.
 
+Everything the page lets you set — the theme, the sounds, notifications, Claude FM and the minimap character — is in **Settings**, behind the gear at the right of the topbar, or `Cmd+,` (`Ctrl+,` on Windows and Linux). A change applies the moment you make it. The speaker beside the gear keeps the quick things one click away: sounds on or off, and how loud each tone is. `?` lists every key.
+
 No config file. No account. What your sessions contain — your prompts, the replies, the files they touch — is never reported anywhere. The deck does send usage reports, on by default: its version, your system, your IP address and a device fingerprint, rough counts such as how many sessions ran in a day, and the errors it hits. It has no switch for them; `AGENTS_DECK_NO_REPORTS=1` keeps them off from the first start.
 
 **The deck cannot steer your agent.** The hook it installs is a one-way forwarder: it POSTs the event, exits `0`, and writes nothing to stdout. Those are the two channels Claude Code's hook protocol gives a hook for allowing, denying, deferring or rewriting the tool call it was told about, and this one uses neither — it has no way to answer at all. `src/web/__tests__/hook-read-only.test.ts` pins both halves, over the source and by running the real script.
@@ -161,7 +163,7 @@ The machine panel shows a **Thermal** section only where the machine actually an
 | | reads | needs |
 | --- | --- | --- |
 | Linux | `/sys/class/hwmon`, then `/sys/class/thermal/thermal_zone*`; on Intel, `thermal_throttle/package_throttle_total_time_ms` for throttling — the share of time the clock was held down | nothing |
-| Windows | the `Thermal Zone Information` performance counter, then `MSAcpi_ThermalZoneTemperature`, then LibreHardwareMonitor's web server if it happens to be running | nothing — where the machine has an ACPI thermal zone. Many do not; see below |
+| Windows | an ACPI thermal zone, through the `Thermal Zone Information` performance counter, then `MSAcpi_ThermalZoneTemperature` — drawn only once its value has changed; then LibreHardwareMonitor's web server if it happens to be running | nothing — where the machine has an ACPI thermal zone that measures something. Many do not; see below |
 | macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
 | macOS, Apple Silicon | `macmon`, which the deck fetches for you | nothing |
 
@@ -184,9 +186,11 @@ Windows is the platform where this most often shows nothing, and that is not a d
 
 That is a class of machine, not a fault: modern Intel laptops moved thermal management into Intel DTT and stopped declaring the ACPI zones that Windows exposes to ordinary programs. There is no standard user-mode Windows API for CPU temperature — which is why HWiNFO, Core Temp and LibreHardwareMonitor all install a kernel driver, and why this deck does not.
 
-Where the counter does have instances — many desktop boards, servers, and older laptops — it is read without any privileges at all. Its path is currently English-only; see [#747](https://github.com/BarganConstantin/ccdeck/issues/747).
+Where the counter does have instances — many desktop boards, servers, and older laptops — it is read without any privileges at all. A Windows in another language names the counter in that language, and the deck looks the local name up when the English one answers nothing; that lookup has not yet been run on a non-English Windows.
 
-One thing does work on the machines above, and it costs you nothing to have: if **LibreHardwareMonitor** happens to be running with its web server on, the deck reads its numbers over plain HTTP on localhost, which needs no privileges. That is a read, not a request — the deck does not install it, will not ask you to, and shows no section if it is not there. It is mentioned only so nobody is surprised to see degrees appear on a machine that had none.
+**A thermal zone is not the CPU, and not always a sensor.** A zone measures whatever the machine's firmware wired it to — the case surface, the board, or the embedded controller's hottest reading — and on many laptops it is wired to nothing. Intel's reference firmware, which most laptop BIOSes start from, answers a fixed 27.85 °C when the zone has no source, so the counter reads 28 °C on every sample however hot the CPU is. The deck therefore draws a zone only once its value has changed — Microsoft's own test of a working zone is that its temperature changes under a varying workload — and names the row *Thermal zone*, or `TZ00`, `TZ01` when there are two, never *CPU*. The cost is a short wait: a real zone that holds one value from the moment the deck starts appears when it first changes, and stays from then on.
+
+One thing does work on the machines above, and on the ones whose zone never moves, and it costs you nothing to have: if **LibreHardwareMonitor** happens to be running with its web server on, the deck reads its numbers over plain HTTP on localhost, which needs no privileges. That is a read, not a request — the deck does not install it, will not ask you to, and shows no section if it is not there. It is mentioned only so nobody is surprised to see degrees appear on a machine that had none.
 
 ## How it works
 
@@ -233,7 +237,7 @@ The deck installs that package itself, so it installs it **bounded**: `claude-sw
 
 **Switch** on an account's row makes it the active one. New sessions start on it; sessions already running are not restarted, and pick it up on their next message — up to about 30 seconds later on macOS. **Auto-switch**, off until you turn it on, does the same without a press: about once a minute the deck runs claude-swap's own engine, which, once the active account passes your threshold (90% unless you choose another) of its 5-hour or 7-day window, moves Claude Code to the account with the most room left. Every account keeps its own limits; when no other account is under the threshold, nothing switches.
 
-**Account notifications** are three switches in the sound settings (the speaker in the topbar), each on its own and none of them tied to **Notifications while closed**: they are sent whether the deck is open or not, because nothing on the page says them. The desktop app shows them as ccdeck, without a sound.
+**Account notifications** are three switches in **Settings › Notifications** (the gear in the topbar, or `Cmd+,`; `Ctrl+,` on Windows and Linux), each on its own and none of them tied to **Notifications while closed**: they are sent whether the deck is open or not, because nothing on the page says them. The desktop app shows them as ccdeck, without a sound.
 
 - **Account auto-switched**, on unless you turn it off. When Auto-switch moves Claude Code to another account, one notification says where to and, when the engine's own reading shows it, why: `Switched to work · personal@example.com reached 90%`, with an account's alias when it has one. A switch you make yourself is not announced.
 - **Quota at 90% and 100%**, off until you turn it on. When a window of the Claude or Codex account you are on reaches 90%, and once more at 100%: Claude's 5-hour, 7-day and per-model windows, and every Codex window the Usage panel shows, the extra limits included — `5-hour usage reached 90% · resets in 2h 14m`. Only the account in use is watched, not every account you have stored. When reaching it is what makes Auto-switch move the account, the switch notification says it and this one is not sent, unless the switch notification is off.

@@ -201,12 +201,22 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // wrap them.
     for (const body of handlers(surfaceCode, "onChange")) {
       expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|onSwitch|makeShare|pressRemove|load|fetch)\s*\(/);
-      // A setter, or one of the three drafts written by name — the ⋯ menu's
-      // two and the threshold's — and each of those is one setter call and
-      // nothing else.
-      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot|proposeThreshold)\(/);
+      // A setter, or one of the four drafts written by name — the ⋯ menu's
+      // two and the threshold's two, its picker and its custom field — and
+      // each of those is one state write and nothing else.
+      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot|proposeThreshold|typeThreshold)\(/);
     }
-    expect(clientText()).toMatch(/const proposeThreshold = \(pick: string\) => setThresholdDraft\(pick\);/);
+    // The threshold's draft is a reducer since the picker grew `Custom…`, so
+    // its two writers are one dispatch each, and what a dispatch can do is
+    // editThreshold's — a pure function of the draft, with nothing in reach
+    // that could make a request.
+    expect(clientText()).toMatch(/const proposeThreshold = \(pick: string\) => edit\(\{ kind: "pick", pick \}\);/);
+    expect(clientText()).toMatch(/const typeThreshold = \(text: string\) => edit\(\{ kind: "type", text \}\);/);
+    expect(clientText()).toMatch(/const \[draft, edit\] = useReducer\(editThreshold, NO_DRAFT\);/);
+    const thresholdCode = withoutComments(readFileSync(fileURLToPath(new URL("../auto-switch-threshold.ts", import.meta.url)), "utf8"));
+    const reducer = /export function editThreshold\([\s\S]*?\n\}/.exec(thresholdCode)?.[0] ?? "";
+    expect(reducer).toMatch(/switch \(edit\.kind\)/);
+    expect(reducer).not.toMatch(/\b(admin|post|load|fetch|commitThreshold)\s*\(/);
     expect(accountMenuCode).toMatch(/const typeAlias = \(text: string\) => setAliasDraft\(text\);/);
     expect(accountMenuCode).toMatch(/const pickSlot = \(slot: number\) => setSlotDraft\(slot\);/);
   });

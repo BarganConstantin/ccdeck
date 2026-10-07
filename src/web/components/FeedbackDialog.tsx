@@ -31,6 +31,14 @@
 // dropped anywhere on the dialog, which says so while a file is over it — or
 // through the picker. What is checked and redrawn before it goes is
 // feedback-images.ts's. With no image, Send posts the JSON it always did.
+//
+// CLOSING IT KEEPS WHAT WAS WRITTEN. The ×, Escape, the scrim and Cancel all
+// close the dialog and keep the draft — the kind, the message, the contact and
+// the images — and the dialog opens on it again, until the report is sent.
+// How long, and where, is feedback-draft.ts's. Throwing a draft away is its
+// own press: Discard, in the foot's far corner whenever there is something to
+// discard, armed by the first press and done by a second, which empties the
+// form and leaves it open with the caret in the message.
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped, selfPressProps } from "../panel-press";
@@ -39,19 +47,19 @@ import FeedbackKinds from "./FeedbackKinds";
 import FeedbackDetails, { DetailsToggle } from "./FeedbackDetails";
 import FeedbackShots, { AddScreenshot, ImageGlyph } from "./FeedbackShots";
 import { carriesFiles, shouldAttachPaste } from "../feedback-images";
+import { platformName } from "../platform";
 import { useFeedbackImages } from "../use-feedback-images";
 import { useFeedbackFacts } from "../use-feedback-facts";
 import { useCloseWhenSent, useFeedbackSend } from "../use-feedback-send";
+import { useArmedDiscard, useKeepDraft } from "../use-feedback-draft";
+import {
+  DISCARD_ARMED_LABEL, DISCARD_ARMED_TITLE, DISCARD_LABEL, DISCARD_TITLE, draftKey, feedbackDrafts, feedbackSeed,
+  holdsSomething, imagesLostLine,
+} from "../feedback-draft";
 import {
   BODY_MAX, FACTS_SUFFIX, FACTS_UNKNOWN, MESSAGE_MISSING, SENT_LINE, factsLabel, hasMessage, isSendShortcut,
   isSymbolCap, kindCopy, outcomeAnnouncement, sendShortcutCaps, type FeedbackPrefill, type Kind,
 } from "../feedback";
-
-function platformName(): string {
-  if (typeof navigator === "undefined") return "";
-  const hinted = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
-  return hinted || navigator.platform || "";
-}
 
 interface Props extends FeedbackPrefill {
   onClose: () => void;
@@ -64,25 +72,49 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const formRef = useRef<HTMLFormElement>(null);
   const fieldsRef = useRef<HTMLElement>(null);
   const sendRef = useRef<HTMLButtonElement>(null);
+  const discardRef = useRef<HTMLButtonElement>(null);
   const lockedFrom = useRef<HTMLElement | null>(null);
   const dragDepth = useRef(0);
   const dialogRef = useModalDismiss(onClose, { focusRef: bodyRef });
   // Only a press of the scrim itself: a selection dragged out of the message
   // and let go over it would otherwise close the dialog and lose the report.
   const scrimPress = useScrimDismiss(onClose);
-  const [kind, setKind] = useState<Kind>(initialKind ?? "bug");
-  const [body, setBody] = useState(initialBody ?? "");
-  const [contact, setContact] = useState("");
+  // What the dialog opens on: the draft this door kept, or what it was seeded with.
+  const seed = feedbackSeed({ initialKind, initialBody });
+  const key = draftKey(seed);
+  const [kept] = useState(() => feedbackDrafts.read(key));
+  const [kind, setKind] = useState<Kind>(kept?.kind ?? seed.kind);
+  const [body, setBody] = useState(kept?.body ?? seed.body);
+  const [contact, setContact] = useState(kept?.contact ?? "");
+  const [imagesLost, setImagesLost] = useState(kept?.imagesLost ?? 0);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [triedToSend, setTriedToSend] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const images = useFeedbackImages();
+  const images = useFeedbackImages(kept?.images);
   const facts = factsLabel(useFeedbackFacts());
-  const { outcome, sending, send } = useFeedbackSend(images);
+  const { outcome, sending, send, clearFailure } = useFeedbackSend(images);
   const sent = outcome.state === "sent";
   const leaving = useCloseWhenSent(sent, onClose);
+  useKeepDraft(key, seed, { kind, body, contact }, images, sent);
+  const discardable = holdsSomething({ body, contact, images: images.shots.length }, seed);
+  const discard = useArmedDiscard(() => {
+    setKind(seed.kind);
+    setBody(seed.body);
+    setContact("");
+    setImagesLost(0);
+    setTriedToSend(false);
+    images.clear();
+    clearFailure();
+    bodyRef.current?.focus();
+  });
   const copy = kindCopy(kind);
   const bodyMissing = triedToSend && !hasMessage(body);
+  // A draft brought back by a reload whose screenshots stayed behind says so
+  // under the message, and the message, which has the focus, is described by
+  // it, so it is heard as well as seen.
+  const imagesLostShown = imagesLost > 0 && images.shots.length === 0;
+  const messageDescribedBy = [bodyMissing && "fb-body-error", imagesLostShown && "fb-images-lost"]
+    .filter(Boolean).join(" ") || undefined;
   const [capA, capB] = sendShortcutCaps(platformName());
 
   // Sent, the form stays drawn under the thanks, so the dialog keeps its
@@ -97,26 +129,30 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
     if (sent && held) closeRef.current?.focus();
   }, [sent]);
 
-  // Sending, the message, the kinds, the images and the details go inert
-  // until the answer. The request was built from them when Send was pressed,
-  // so an edit made now would not be in it: a screenshot removed would go
-  // anyway, one pasted would not, and words typed would close with the
-  // dialog. Cancel and Send stay live. Focus in there would go down with it,
-  // so it moves to Send, which says it is working, and comes back if the send
-  // fails, to be put right where it was left — from Send, or from nowhere,
-  // when a press on the inert part dropped it; never from where the reader
-  // has since put it.
+  // Sending, the message, the kinds, the images, the details and Discard go
+  // inert until the answer. The request was built from them when Send was
+  // pressed, so an edit made now would not be in it: a screenshot removed
+  // would go anyway, one pasted would not, and words typed would close with
+  // the dialog. Cancel and Send stay live. Focus in there would go down with
+  // it, so it moves to Send, which says it is working, and comes back if the
+  // send fails, to be put right where it was left — from Send, or from
+  // nowhere, when a press on the inert part dropped it; never from where the
+  // reader has since put it.
   useEffect(() => {
     const fields = fieldsRef.current;
     if (!fields) return;
+    const discardButton = discardRef.current;
     if (sending) {
       const active = document.activeElement as HTMLElement | null;
-      lockedFrom.current = active && fields.contains(active) ? active : null;
+      const held = active != null && (fields.contains(active) || active === discardButton);
+      lockedFrom.current = held ? active : null;
       fields.inert = true;
+      if (discardButton) discardButton.inert = true;
       if (lockedFrom.current) sendRef.current?.focus();
       return;
     }
     fields.inert = false;
+    if (discardButton) discardButton.inert = false;
     const back = lockedFrom.current;
     lockedFrom.current = null;
     const waiting = document.activeElement === sendRef.current || focusDropped(document.activeElement?.tagName ?? null);
@@ -209,7 +245,10 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
             <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
           </div>
         </header>
-        <p className="vis-hidden" role="status">{outcomeAnnouncement(outcome.state)}</p>
+        {/* The one live region, which also says what an armed Discard will
+            do: the button's new name alone is not reliably read out while it
+            has the focus, and its tooltip is where the warning lived. */}
+        <p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : outcomeAnnouncement(outcome.state)}</p>
         <div className="fb-stage">
           <form
             ref={formRef}
@@ -236,13 +275,14 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
                   placeholder={copy.placeholder}
                   onChange={e => setBody(e.target.value)}
                   aria-invalid={bodyMissing || undefined}
-                  aria-describedby={bodyMissing ? "fb-body-error" : undefined}
+                  aria-describedby={messageDescribedBy}
                   required
                 />
                 {/* A sibling of the field rather than inside its label: inside,
                     it would join the field's name and be read twice. */}
                 {bodyMissing && <p id="fb-body-error" className="fb-error">{MESSAGE_MISSING}</p>}
                 <FeedbackShots images={images} addRef={addRef} />
+                {imagesLostShown && <p id="fb-images-lost" className="fb-hint">{imagesLostLine(imagesLost)}</p>}
                 <div className="fb-tools">
                   <AddScreenshot images={images} buttonRef={addRef} />
                   <DetailsToggle open={detailsOpen} onToggle={() => setDetailsOpen(open => !open)} />
@@ -255,6 +295,20 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
               {outcome.state === "failed" && <p className="fb-error" role="alert">{outcome.message}</p>}
             </section>
             <div className="fb-foot">
+              {discardable && (
+                <button
+                  ref={discardRef}
+                  type="button"
+                  className={`btn danger fb-discard${discard.armed ? " armed" : ""}`}
+                  // A held key repeats past the gap while the finger has never
+                  // come up: one decision, not two.
+                  onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+                  onClick={discard.press}
+                  title={discard.armed ? DISCARD_ARMED_TITLE : DISCARD_TITLE}
+                >
+                  {discard.armed ? DISCARD_ARMED_LABEL : DISCARD_LABEL}
+                </button>
+              )}
               <span className="fb-shortcut" aria-hidden="true">
                 <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> to send
               </span>

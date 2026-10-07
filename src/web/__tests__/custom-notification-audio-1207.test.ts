@@ -361,7 +361,7 @@ describe("the custom section of the sound menu (#1207)", () => {
     // The recording refuses before the microphone is asked for, and the voice
     // form stays shut rather than being filled in for nothing.
     expect(recorder).toMatch(/const startRecording = async \(\) => \{\s*if \(full\) return;/);
-    expect(customSounds).toMatch(/onClick=\{e => \{ if \(full\) e\.preventDefault\(\); \}\}/);
+    expect(customSounds).toContain("onClick={() => { if (!full) pickerRef.current?.click(); }}");
     expect(voiceForm).toMatch(/if \(full && details && !details\.open\) e\.preventDefault\(\);/);
     // Four controls carry the refusal: import, record, the form, Add voice.
     expect([...menuSurface.matchAll(/\{\.\.\.fullProps\}/g)]).toHaveLength(4);
@@ -376,7 +376,7 @@ describe("the custom section of the sound menu (#1207)", () => {
   it("hands focus on from a deleted row, unless the person has already moved it", () => {
     expect(customSounds).toMatch(/const next = deleteFocusTarget\(customAssets\.map\(asset => asset\.id\), id\);/);
     expect(customSounds).toMatch(/await onDeleteCustom\(id\);\s*const active = document\.activeElement;\s*if \(active !== pressed && !focusDropped\(active\?\.tagName \?\? null\)\) return;\s*\(next \? deleteRefs\.current\.get\(next\) : importRef\.current\)\?\.focus\(\);/);
-    expect(customSounds).toMatch(/<input\s+ref=\{importRef\}\s+type="file"/);
+    expect(customSounds).toMatch(/<button\s+ref=\{importRef\}\s+type="button"\s+className="btn sm-custom-action"/);
   });
 
   it("asks twice before deleting, and says which sound the second press is for", () => {

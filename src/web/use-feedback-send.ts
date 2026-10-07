@@ -31,6 +31,8 @@ export interface FeedbackSend {
   outcome: Outcome;
   sending: boolean;
   send(draft: FeedbackDraft): Promise<void>;
+  /** Takes a failure's words down, once what they were about has been discarded. */
+  clearFailure(): void;
 }
 
 export function useFeedbackSend(images: FeedbackImages): FeedbackSend {
@@ -65,7 +67,9 @@ export function useFeedbackSend(images: FeedbackImages): FeedbackSend {
     }
   }
 
-  return { outcome, sending: outcome.state === "sending", send };
+  const clearFailure = () => setOutcome(now => (now.state === "failed" ? { state: "idle" } : now));
+
+  return { outcome, sending: outcome.state === "sending", send, clearFailure };
 }
 
 /** Once `sent`, true after the hold — the cue for the fade out — and then

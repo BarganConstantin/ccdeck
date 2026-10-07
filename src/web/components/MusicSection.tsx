@@ -1,7 +1,11 @@
+// Settings › Music & character: Claude FM's station, its volume and its mute,
+// and the minimap character the music plays through.
+//
+// Lifted out of the Appearance modal when that became the General section of
+// Settings. The character had been filed under "Music source"; it is its own
+// group here, with the sentence that ties the two together on screen — the
+// music plays through the character, so hiding it stops the music.
 import { type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import type { Theme } from "../theme";
-import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import VolumeRow from "./VolumeRow";
 import { FM_SOURCE_OPTIONS } from "../appearance";
 import {
@@ -9,48 +13,14 @@ import {
   type CustomFmStation, type FmSelection,
 } from "../fm-stations";
 import { isEscapeKey } from "../modal-dismiss";
-import { isTypingTarget } from "../shortcuts";
+import { armedPress } from "../panel-press";
+import { CONFIRM_GAP_MS } from "./LanSyncSection";
 
-const THEMES: Theme[] = ["light", "dark"];
-const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
 const FM_SOURCES = FM_SOURCE_OPTIONS;
 const NAME_MISSING = "Give the station a name.";
 const LINK_UNUSABLE = "Use an https YouTube live or channel link, or a .mp3, .aac, .ogg or .m3u8 stream.";
 
-/**
- * The deck at a distance, in one theme's own colours: the top bar, the
- * accounts column, a session on the canvas and a floating panel with its quota
- * bar — the four shapes that say "ccdeck" before a word is read, and the only
- * accent is the bar, where the deck puts it too. Nothing that reads as text.
- * Drawn rather than screenshotted, like guide-art.tsx, so it cannot go stale
- * or show anybody's addresses.
- *
- * The palette is the swatch's and not the page's: a Light preview has to be
- * light while the page is dark, so `data-swatch` scopes the theme's values
- * onto it, and appearance-swatch.test.ts holds them to the tokens they copy.
- */
-function ThemePreview({ theme }: { theme: Theme }) {
-  return (
-    <span className="appearance-preview" data-swatch={theme}>
-      <svg viewBox="0 0 112 56" aria-hidden focusable="false">
-        <rect className="tp-canvas" width="112" height="56" />
-        <rect className="tp-surface" width="112" height="7" />
-        <rect className="tp-rule" y="7" width="112" height="1" />
-        <rect className="tp-surface" y="8" width="25" height="48" />
-        <rect className="tp-rule" x="25" y="8" width="1" height="48" />
-        <rect className="tp-card" x="36.5" y="27.5" width="28" height="14" rx="2.5" />
-        <rect className="tp-tag" x="39.5" y="25.5" width="13" height="4" rx="2" />
-        <rect className="tp-card" x="76.5" y="14.5" width="29" height="20" rx="2.5" />
-        <rect className="tp-rule" x="81" y="23" width="20" height="2" rx="1" />
-        <rect className="tp-accent" x="81" y="23" width="12" height="2" rx="1" />
-      </svg>
-    </span>
-  );
-}
-
-interface Props {
-  theme: Theme;
-  onTheme: (theme: Theme) => void;
+export interface MusicProps {
   characterEnabled: boolean;
   onToggleCharacter: () => void;
   /** The stream's loudness, as the slider's own 0–100 level. */
@@ -65,16 +35,13 @@ interface Props {
   onAddFmStation: (station: CustomFmStation) => void;
   onRenameFmStation: (id: string, name: string) => void;
   onRemoveFmStation: (id: string) => void;
-  onClose: () => void;
 }
 
-export default function AppearanceMenu({
-  theme, onTheme, characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmMuted, onFmMuted,
+export default function MusicSection({
+  characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmMuted, onFmMuted,
   fmSource, onFmSource, customFmStations, unavailableFmStations,
-  onAddFmStation, onRenameFmStation, onRemoveFmStation, onClose,
-}: Props) {
-  const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
-  const scrimPress = useScrimDismiss(onClose);
+  onAddFmStation, onRenameFmStation, onRemoveFmStation,
+}: MusicProps) {
   const fmSources = [
     ...FM_SOURCES.map(source => ({
       ...source,
@@ -108,6 +75,12 @@ export default function AppearanceMenu({
   const [renamingStation, setRenamingStation] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState("");
+  /** The station whose Remove is armed. Nothing brings a removed station back,
+   *  link and all, so it costs two presses — the danger button's rule, and the
+   *  custom sounds' Delete in the section beside this one. */
+  const [armedRemove, setArmedRemove] = useState<string | null>(null);
+  /** When it was armed, so a double-click cannot be its own confirmation. */
+  const removeArmedAt = useRef(0);
   const sourceTriggerRef = useRef<HTMLButtonElement>(null);
   const stationNameRef = useRef<HTMLInputElement>(null);
   const stationUrlRef = useRef<HTMLInputElement>(null);
@@ -208,6 +181,26 @@ export default function AppearanceMenu({
   // the station just added, the name just saved, Claude FM after a removal.
   const backToPicker = () => sourceTriggerRef.current?.focus();
 
+  // An armed Remove stands down on its own, the way the custom sounds' does.
+  useEffect(() => {
+    if (!armedRemove) return;
+    const t = window.setTimeout(() => setArmedRemove(null), 4_000);
+    return () => window.clearTimeout(t);
+  }, [armedRemove]);
+
+  const pressRemove = () => {
+    if (!activeCustomStation) return;
+    const now = Date.now();
+    const press = armedPress({
+      armedFor: armedRemove, target: activeCustomStation.id, armedAt: removeArmedAt.current, now, gapMs: CONFIRM_GAP_MS,
+    });
+    if (press === "arm") { setArmedRemove(activeCustomStation.id); removeArmedAt.current = now; return; }
+    if (press === "ignore") return;
+    setArmedRemove(null);
+    onRemoveFmStation(activeCustomStation.id); backToPicker();
+  };
+  const removeArmed = activeCustomStation !== undefined && armedRemove === activeCustomStation.id;
+
   const addStation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     // Each refusal puts focus in the field it is about. The message is read out
@@ -249,41 +242,6 @@ export default function AppearanceMenu({
     backToPicker();
   };
 
-  const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
-    event.preventDefault();
-    const current = THEMES.indexOf(theme);
-    const next = (current + (event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1) + THEMES.length) % THEMES.length;
-    onTheme(THEMES[next]);
-    (event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next])?.focus();
-  };
-
-  // THE MENU'S OWN KEYS, answered here and stopped here.
-  // Space belongs to the control it is pressed on. React Flow reads Space on
-  // the document as its pan key and cancels it wherever focus is, so a Space on
-  // the switch or a theme never pressed it; stopped at this edge, the way
-  // AnchoredPopover stops its keys, it reaches the control.
-  // T is the key the caption advertises. App answers it anywhere on the deck,
-  // but not in here — a focused control keeps its letters and an open popover
-  // holds the shortcuts — so the hint would have named a dead key in the one
-  // place it is shown. Stopped after, so a pointer-focused control that hands
-  // letters back to App (#851) cannot switch it twice.
-  // A field somebody is typing into keeps every letter, T included: the
-  // station form made this the first menu with text in it, and without this
-  // typing "https://" switched the theme twice and left "hps://" in the box.
-  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === " ") { event.stopPropagation(); return; }
-    if (isTypingTarget(event.target as HTMLElement)) return;
-    if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    onTheme(next);
-    if ((event.target as Element).getAttribute("role") === "radio") {
-      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[THEMES.indexOf(next)]?.focus();
-    }
-  };
-
   const sourceOption = (index: number) => {
     const source = fmSources[index];
     const unavailable = "unavailable" in source && source.unavailable;
@@ -305,79 +263,14 @@ export default function AppearanceMenu({
     );
   };
 
-  return createPortal(
-    (
-    <div className="modal-backdrop appearance-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        id="appearance-menu"
-        className="modal appearance-menu appearance-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="appearance-title"
-        onClick={event => event.stopPropagation()}
-        onKeyDown={onMenuKey}
-      >
-      <div className="appearance-head">
-        <div className="appearance-heading">
-          <h2 id="appearance-title" className="appearance-title">Appearance</h2>
-          <p className="appearance-subtitle">Tune the deck to your workspace.</p>
-        </div>
-        <button
-          type="button"
-          className="glyph-btn appearance-close"
-          onClick={onClose}
-          aria-label="Close appearance settings"
-          title="Close (Esc)"
-        >×</button>
-      </div>
-
-      <section className="appearance-section" aria-labelledby="appearance-theme-caption">
-        <div className="appearance-caption">
+  return (
+    <>
+      <section className="settings-group" aria-labelledby="appearance-fm-caption">
+        <div className="settings-caption">
           <div>
-            <h3 id="appearance-theme-caption">Color theme</h3>
-            <p className="appearance-section-note">Choose how the dashboard looks.</p>
+            <h3 id="appearance-fm-caption">Claude FM</h3>
+            <p className="settings-caption-note">Music for the character to play while you work.</p>
           </div>
-          {/* The key App already answers anywhere on the deck. Shown where the
-              choice is, the way the sound menu shows M; named to assistive tech
-              by aria-keyshortcuts on the group rather than by a stray letter. */}
-          <kbd className="appearance-key" aria-hidden title="Press T anywhere to switch themes">T</kbd>
-        </div>
-        {/* One tab stop, on the theme that is set — the radio pattern. The
-            arrows walk the pair and switch as they go, as a click does. The
-            preview is aria-hidden: the name is the word under it. */}
-        <div
-          className="appearance-themes"
-          role="radiogroup"
-          aria-labelledby="appearance-theme-caption"
-          aria-keyshortcuts="T"
-          onKeyDown={moveTheme}
-        >
-          {THEMES.map(choice => (
-            <button
-              key={choice}
-              type="button"
-              className="appearance-theme"
-              role="radio"
-              aria-checked={theme === choice}
-              tabIndex={theme === choice ? 0 : -1}
-              onClick={() => onTheme(choice)}
-            >
-              <ThemePreview theme={choice} />
-              <span className="appearance-theme-name">
-                {THEME_NAME[choice]}
-                <svg className="appearance-check" viewBox="0 0 12 12" aria-hidden focusable="false">
-                  <path d="M2.5 6.4 4.9 8.7 9.5 3.6" />
-                </svg>
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="appearance-section" aria-labelledby="appearance-fm-caption">
-        <div className="appearance-caption">
-          <h3 id="appearance-fm-caption">Music source</h3>
         </div>
         <div className="appearance-controls">
           <div className="appearance-source-row">
@@ -434,7 +327,13 @@ export default function AppearanceMenu({
             {activeCustomStation && !renamingStation && (
               <span className="appearance-station-edit">
                 <button type="button" className="btn appearance-station-action" onClick={() => { setRenameValue(activeCustomStation.name); setRenameError(""); setRenamingStation(true); }}>Rename</button>
-                <button type="button" className="btn danger appearance-station-action" onClick={() => { onRemoveFmStation(activeCustomStation.id); backToPicker(); }}>Remove</button>
+                <button
+                  type="button"
+                  className={`btn danger appearance-station-action${removeArmed ? " armed" : ""}`}
+                  onClick={pressRemove}
+                  aria-label={removeArmed ? `Confirm removing ${activeCustomStation.name}` : `Remove ${activeCustomStation.name}`}
+                  title={removeArmed ? "Press again to remove this station. It cannot be brought back." : "Remove this station"}
+                >{removeArmed ? "Confirm" : "Remove"}</button>
               </span>
             )}
           </div>
@@ -500,35 +399,9 @@ export default function AppearanceMenu({
               {renameError && <p id="appearance-rename-error" className="appearance-station-error" role="alert">{renameError}</p>}
             </form>
           )}
-        {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
-            press anywhere in it to the switch exactly once — a press on the
-            switch itself is the switch's own and the label does not repeat it —
-            so there is one tab stop and no second toggle. The switch shares the
-            label's line; the note hangs under both. Showing the character and
-            playing the stream are two things, and the note says which is which. */}
-          <label className="appearance-row">
-            <span className="appearance-row-label" id="appearance-character-label">Show character on minimap</span>
-            <button
-              type="button"
-              className="switch"
-              role="switch"
-              aria-checked={characterEnabled}
-              aria-labelledby="appearance-character-label"
-              aria-describedby="appearance-character-note"
-              onClick={onToggleCharacter}
-            >
-              <span className="switch-knob" />
-            </button>
-            <span id="appearance-character-note" className="vis-hidden">
-              Shows the animated minimap character and enables music playback.
-            </span>
-          </label>
-        {/* The sound menu's own volume row, borrowed rather than respelled:
-            VolumeRow is what each tone's section draws, and the range in it
-            stays native for the reasons that file argues. It lives OUTSIDE the
-            theme radiogroup on purpose — the arrow keys that walk the themes
-            are handled on that group's own onKeyDown, and a slider's arrows
-            belong to the slider. */}
+          {/* The sound section's own volume row, borrowed rather than
+              respelled: VolumeRow is what each tone's section draws, and the
+              range in it stays native for the reasons that file argues. */}
           <VolumeRow
             id="appearance-fm-volume"
             value={fmVolume}
@@ -553,9 +426,40 @@ export default function AppearanceMenu({
           Controls live music volume.
         </span>
       </section>
-      </div>
-    </div>
-    ),
-    document.body,
+
+      {/* THE CHARACTER, IN ITS OWN GROUP. It was a row under "Music source",
+          where it read as a music setting; it is the thing the music plays
+          through, which is what its note now says on screen rather than only
+          to a reader. Under the hairline every second subject in a Settings
+          section stands under, and unboxed, as Claude FM's controls are.
+          THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
+          press anywhere in it to the switch exactly once — a press on the
+          switch itself is the switch's own and the label does not repeat it —
+          so there is one tab stop and no second toggle. */}
+      <section className="settings-group" aria-labelledby="appearance-character-caption">
+        <div className="settings-caption">
+          <h3 id="appearance-character-caption">Character</h3>
+        </div>
+        <div className="appearance-controls">
+        <label className="appearance-row">
+          <span className="appearance-row-label" id="appearance-character-label">Show character on minimap</span>
+          <button
+            type="button"
+            className="switch"
+            role="switch"
+            aria-checked={characterEnabled}
+            aria-labelledby="appearance-character-label"
+            aria-describedby="appearance-character-note"
+            onClick={onToggleCharacter}
+          >
+            <span className="switch-knob" />
+          </button>
+          <span id="appearance-character-note" className="appearance-row-note">
+            Claude FM plays through the character, so hiding it also stops the music.
+          </span>
+        </label>
+        </div>
+      </section>
+    </>
   );
 }

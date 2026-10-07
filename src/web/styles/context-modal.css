@@ -355,8 +355,9 @@
    Clipped downward only: a mark wider than the narrowest face still runs into
    its padding as it did. And left-aligned at every width, where the card's
    narrowest face centres its mark: that is a lone shape, and this one is a
-   word that sits at the left at every other distance. The moment the age
-   stands for is its tooltip, with the age above it. */
+   word that sits at the left at every other distance. It takes no tooltip:
+   the hover card that opens over this face says it, and the full note's age
+   carries the moment it stands for. */
 .recap-face .lod-id {
   flex-wrap: wrap;
   align-content: flex-start;

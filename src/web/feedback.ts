@@ -11,6 +11,8 @@
 // up to 200, and the version and platform this deck's server adds itself.
 // Nothing else is sent, and nothing here adds a field.
 
+import { isApplePlatform } from "./platform";
+
 export type Kind = "bug" | "idea" | "other";
 
 /** How a caller seeds the dialog — the error boundary opens it as a filled-in
@@ -193,7 +195,7 @@ export function isPlainEnter(e: EnterKey): boolean {
 /** The caps the footer draws for the send shortcut: the one this platform's
  *  keyboard says. Both chords work everywhere; this only picks which to show. */
 export function sendShortcutCaps(platform: string): [string, string] {
-  return /mac|iphone|ipad/i.test(platform) ? ["⌘", "Enter"] : ["Ctrl", "Enter"];
+  return isApplePlatform(platform) ? ["⌘", "Enter"] : ["Ctrl", "Enter"];
 }
 
 /** A cap that is one symbol rather than a word — ⌘ — and is drawn a size up in
@@ -225,7 +227,10 @@ export function feedbackFailure(status: number, reason: unknown, errors?: unknow
     return `The server did not accept an image. ${imageError[0]} Remove it and send again; your text is still here.`;
   }
   if (status === 400) return "The server did not accept the message. It is still here; check it and send again.";
-  return "ccdeck's server could not be reached. Nothing was sent; your text is still here, so try again in a moment.";
+  // One line at the dialog's width, so the failure that invites pressing Send
+  // again grows the dialog by one line and Send stays under the pointer that
+  // just pressed it. Send, still there and still named Send, is the retry.
+  return "ccdeck's server could not be reached. Nothing was sent; your text is still here.";
 }
 
 /** What the dialog's live region says for each outcome. The region is drawn from

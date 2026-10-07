@@ -51,7 +51,8 @@ export default function CustomSoundsSection({
   /** Each row's Delete, and the import field, for where focus goes once a row
    *  is gone (deleteFocusTarget). */
   const deleteRefs = useRef(new Map<string, HTMLButtonElement>());
-  const importRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLInputElement>(null);
   // An armed delete stands down on its own, the way the unpairs do.
   useEffect(() => {
     if (!armedDelete) return;
@@ -96,27 +97,32 @@ export default function CustomSoundsSection({
       </div>
       {full && <p className="sm-note" id="sm-custom-full">{fullReason}</p>}
       <div className="sm-custom-actions">
-        <label className="sm-custom-card sm-file">
+        <div className="sm-custom-card">
           <span className="sm-custom-card-copy">
             <strong>Import audio</strong>
             <span>WAV, MP3 or OGG</span>
           </span>
-          <span className="btn sm-custom-action" aria-hidden="true">Choose file</span>
-          <input
+          <button
             ref={importRef}
-            type="file"
-            accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
+            type="button"
+            className="btn sm-custom-action"
             {...fullProps}
-            // A click that would open the picker, from the card or its
-            // caption, opens nothing while the library is full.
-            onClick={e => { if (full) e.preventDefault(); }}
+            onClick={() => { if (!full) pickerRef.current?.click(); }}
+          >
+            Choose file
+          </button>
+          <input
+            ref={pickerRef}
+            type="file"
+            hidden
+            accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
             onChange={e => {
               const file = e.target.files?.[0];
               e.currentTarget.value = "";
               if (file && !full) void runCustom(() => onImportCustom(file));
             }}
           />
-        </label>
+        </div>
 
         <div className="sm-custom-card">
           <span className="sm-custom-card-copy">

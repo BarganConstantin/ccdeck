@@ -59,7 +59,7 @@
      arrives there without travelling. */
   .ap-lan-chev { transition: none; }
   .ap-manage-btn.danger.armed::after { animation: none; transform: scaleX(0); }
-  .ap-policy > .ap-manage-btn { animation: none; }
+  .ap-policy > .ap-manage-btn, .ap-threshold-field { animation: none; }
   /* Every press in the app lands here, not just this panel's — the scale is one
      convention and it has to switch off in one place, or the next control to
      adopt it quietly reintroduces the motion. */
@@ -204,11 +204,10 @@
      shape, only through a selector actually written down. It carries the same
      popIn — a 4px lift and a scale — over whatever the reader was looking at,
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
-  .sound-menu, .appearance-menu { animation: fadeIn 140ms ease-out; }
+  .sound-menu { animation: fadeIn 140ms ease-out; }
   .appearance-theme,
   .appearance-preview,
-  .appearance-check,
-  .appearance-row { transition: none; }
+  .appearance-check { transition: none; }
 }
 
 

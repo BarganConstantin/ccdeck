@@ -13,7 +13,6 @@
   z-index: 100;
   animation: fadeIn 140ms ease-out;
 }
-.appearance-backdrop { z-index: 101; }
 :root[data-theme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
 
 .modal {
@@ -214,7 +213,10 @@
    them instead of overflowing the 82vh the modal allows. */
 .fb-stage { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .fb-form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-.modal-body.fb-body { gap: 14px; }
+/* 8px under the body rather than the shared 16: the facts line, the last thing
+   in it, says what is "sent with it", and sits nearer the Send it is about than
+   the buttons it follows (14px). */
+.modal-body.fb-body { gap: 14px; padding-bottom: 8px; }
 
 /* THE KINDS. Three words in a track: the control fill as the track, the chosen
    one raised onto the panel with the control edge round it, which is the mark
@@ -291,8 +293,12 @@
   resize: vertical;
   field-sizing: content;
 }
-.fb-error { margin: 0; color: var(--err); font-size: 12px; line-height: 16px; }
-.fb-hint { margin: 0; color: var(--text-dim); font-size: 11px; line-height: 16px; }
+/* Pressed with nothing written, the field says so with its edge as well as
+   the line under it: a state has a mark and a word. The focus ring, which it
+   has at that moment, stays the accent's. */
+.ap-manage-input.fb-message[aria-invalid="true"] { border-color: var(--err); }
+.fb-error { margin: 0; color: var(--err); font-size: 12px; line-height: 16px; text-wrap: pretty; }
+.fb-hint { margin: 0; color: var(--text-dim); font-size: 11px; line-height: 16px; text-wrap: pretty; }
 
 /* THE TWO QUIET BUTTONS under the message — Add screenshot, Add details — a
    glyph or a chevron and their words, edgeless at rest like the other quiet
@@ -397,6 +403,11 @@
    in the data face, the words in the body face, both at the annotation tier. */
 .fb-facts { margin: 0; color: var(--text-dim); font-size: 11px; line-height: 16px; }
 .fb-facts-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+/* A send that failed says so right under the facts line, 6px off it rather
+   than the body's 14: the dialog is centred, so every pixel it grows moves
+   Send half as far, and the pointer that pressed Send is about to press it
+   again. One line of failure moves Send 11px, inside its own height. */
+.fb-facts + .fb-error { margin-top: -8px; }
 
 /* IMAGES. The strip between the message and its buttons, once there is one:
    the thumbnails and their count on one line, what a screenshot can show under
@@ -430,15 +441,22 @@
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .fb-shot-pick:active { transform: scale(0.97); }
+/* The thumbnail is the button that replaces it, so its edge is a control's
+   (--ctl-edge), not a panel's rule, and lifts to --text under the pointer as
+   every control's does. A dark screenshot on the dark panel kept no outline
+   on --line. */
 .fb-shot-img {
   display: block;
   width: 64px;
   height: 48px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
   background: var(--bg);
   object-fit: cover;
+  transition: border-color 120ms ease-out;
 }
+.fb-shot-pick:hover .fb-shot-img,
+.fb-shot-pick:focus-visible .fb-shot-img { border-color: var(--text); }
 /* The words on the image's own box — what a press does, and that a fit is
    under way — so neither is carried by a dimmed picture alone. */
 .fb-shot-cue,
@@ -473,8 +491,8 @@
   border: 1px solid var(--ctl-edge);
   background: var(--panel);
 }
+/* Beside the images it counts, not across the dialog from them. */
 .fb-shots-count {
-  margin-left: auto;
   color: var(--text-dim);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -527,25 +545,64 @@
 
 /* The foot is part of the panel rather than a band of its own — no ground, no
    rule — and sits outside the body's scroll, so a long message grows the body
-   and never pushes Send off the dialog. The shortcut sits on the left, as
-   quiet as a line can be and still be read. */
+   and never pushes Send off the dialog. The shortcut sits beside Cancel and
+   the Send it names, as quiet as a line can be and still be read. Discard,
+   drawn only while there is a draft to discard, takes the far corner, the
+   furthest it can be from the press somebody makes most — the LAN dialog's
+   rule for its own irreversible verb — so its arrival moves nothing else.
+   In a window too narrow for all four on one line, the last of them wrap to
+   a second line, still at the right, rather than run off the dialog. */
 .fb-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding: 0 16px 16px;
 }
+/* 8px more than the foot's gap before Cancel, so Cancel and Send read as the
+   pair and the hint as a note on both, not as Cancel's. */
 .fb-shortcut {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-right: auto;
+  margin-right: 8px;
   color: var(--text-dim);
   font-size: 11px;
 }
-/* The sound menu's cap (.sm-foot kbd), on the canvas tier so it stands off
-   the panel the foot now sits on. */
+/* Edgeless and in the quiet ink until it is pointed at, the way the LAN
+   dialog's Unpair is (.lan-peer-foot .btn.danger), and in the error colour
+   only once armed, the moment the colour is about something. */
+.fb-discard { margin-right: auto; }
+.fb-foot .btn.danger:not(.armed) {
+  border-color: transparent;
+  color: var(--muted);
+}
+.fb-foot .btn.danger:not(.armed):hover:not(:disabled),
+.fb-foot .btn.danger:not(.armed):focus-visible {
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  color: var(--err);
+}
+.fb-foot .btn.danger.armed { position: relative; overflow: hidden; color: var(--bg); background: var(--err); }
+/* The armed window is real (DISCARD_ARMED_MS), so it is visible: the accounts
+   panel's drain bar (.ap-manage-btn.danger.armed), linear and exactly as long,
+   because nothing about a countdown should ease. It starts with the arming and
+   is gone with it. */
+.fb-foot .btn.danger.armed::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  transform-origin: left center;
+  animation: ap-disarm 4000ms linear forwards;
+}
+/* The sound popover's cap (.sm-key-note kbd), on the canvas tier so it stands off
+   the panel the foot now sits on. Its ink is the buttons' resting --muted: in
+   --text the two caps were the brightest words in the foot, louder than the
+   Cancel and Send they annotate. */
 .fb-shortcut kbd {
   /* A box with its own height, so a cap whose glyph is drawn larger stands
      exactly as tall as its neighbour: an inline box is as tall as its font,
@@ -557,7 +614,7 @@
   font-weight: 600;
   line-height: 14px;
   text-align: center;
-  color: var(--text);
+  color: var(--muted);
   background: var(--bg);
   border: 1px solid var(--line);
   border-bottom-width: 2px;
@@ -639,6 +696,9 @@
      something changed, and lose their scale. */
   .fb-drop-frame { transform: none; transition: none; }
   .fb-shot { transition: opacity 140ms ease-out; }
+  /* The armed Discard keeps its fill and its words, and loses the bar that
+     travels, as the accounts panel's does. */
+  .fb-foot .btn.danger.armed::after { animation: none; transform: scaleX(0); }
 }
 
 /* ---------------- keyboard shortcuts sheet ---------------- */

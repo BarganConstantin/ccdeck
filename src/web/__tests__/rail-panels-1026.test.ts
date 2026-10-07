@@ -165,20 +165,31 @@ describe("the sound menu's reading is described once (#1026)", () => {
     // restating --text at 11px, which lost both and never drew anything.
     expect(decl(".sm-read", "color")).toBeNull();
     expect(decl(".sound-menu .sm-read", "color")).toBe("var(--muted)");
-    expect(decl(".sound-menu .sm-read", "font-size")).toBe("10px");
+    // A value, so monospaced, at the 11px label tier (it was 10px in sans).
+    expect(decl(".sound-menu .sm-read", "font-size")).toBe("11px");
+    expect(decl(".sound-menu .sm-read", "font-family")).toBe("var(--font-mono)");
     // The geometry the dead rule also carried has to survive the merge.
     expect(decl(".sound-menu .sm-read", "min-width")).toBe("34px");
     expect(decl(".sound-menu .sm-read", "text-align")).toBe("right");
   });
 
   it("is rendered only where that descendant selector reaches", () => {
-    // The merge is only safe because the span has exactly one render site, and
-    // it is inside `.sound-menu`: a tone's row, which the menu renders. The
-    // span is VolumeRow's now, and a tone's row draws it.
+    // The merge is only safe because the span has one render site, VolumeRow,
+    // and every place that draws a VolumeRow is inside a surface the rule
+    // names: the sound popover (`.sound-menu`) draws its two volumes, and
+    // Settings (`.settings-modal`) draws each tone's row through Sounds and
+    // Claude FM's through Music & character.
     expect(volumeRow).toMatch(/className="sm-read"/);
     expect(toneSection).toMatch(/<VolumeRow\b/);
-    expect(soundMenu).toMatch(/<ToneSection\b/);
+    expect(soundMenu).toMatch(/<VolumeRow\b/);
     expect(soundMenu).toMatch(/className="sound-menu"/);
+    const settings = at("../components/SettingsModal.tsx");
+    expect(at("../components/SoundsSection.tsx")).toMatch(/<ToneSection\b/);
+    expect(at("../components/MusicSection.tsx")).toMatch(/<VolumeRow\b/);
+    expect(settings).toMatch(/<SoundsSection\b/);
+    expect(settings).toMatch(/<MusicSection\b/);
+    expect(settings).toMatch(/className="modal settings-modal"/);
+    expect(decl(".settings-modal .sm-read", "color")).toBe("var(--muted)");
     const others = ["../App.tsx", "../components/MachinePanel.tsx", "../components/ProcessListModal.tsx"];
     for (const f of others) expect(at(f), f).not.toMatch(/className="[^"]*\bsm-read\b/);
   });

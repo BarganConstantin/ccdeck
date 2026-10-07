@@ -572,6 +572,11 @@ const CONTROLS: Control[] = [
   // panel with the control edge round it, which is the mark that says which
   // one is chosen, so that edge is measured. The track sits on the panel.
   { at: ".fb-kind:has(input:checked)", fillFrom: ".fb-kind:has(input:checked)", beds: ["--panel"] },
+  // Settings' nav, on the same terms: a section's name at rest draws no
+  // boundary — the word names it — and the section on show is raised onto the
+  // panel with the control edge round it, which is the mark that says which,
+  // so that edge is measured. The nav sits a surface down, on --bg-soft.
+  { at: '.settings-tab[aria-selected="true"]', fillFrom: '.settings-tab[aria-selected="true"]', beds: ["--bg-soft"] },
   // Its two quiet buttons under the message, Add screenshot and Add details:
   // no boundary at rest, since their words name them, and the control edge
   // under the pointer and the keyboard, as Other accounts' expand-all draws one.
@@ -579,6 +584,10 @@ const CONTROLS: Control[] = [
   // And each image's remove: a disc on the panel's own fill at the corner of a
   // thumbnail, framed at rest because a picture of anything may be under it.
   { at: ".fb-shot > .fb-shot-remove", fillFrom: ".fb-shot > .fb-shot-remove", beds: ["--panel"] },
+  // And each image itself, which is the button that replaces it: its edge is
+  // the control edge at rest, so a dark screenshot keeps an outline on the
+  // dark panel, and --text under the pointer and the keyboard.
+  { at: ".fb-shot-img", states: [".fb-shot-pick:hover .fb-shot-img", ".fb-shot-pick:focus-visible .fb-shot-img"], beds: ["--panel"] },
   { at: ".appearance-source-trigger", states: [".appearance-source-trigger:hover", ".appearance-source-picker.is-open .appearance-source-trigger"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
@@ -594,7 +603,16 @@ const CONTROLS: Control[] = [
   // The overview's help disclosure — a 16px circle whose border IS the control,
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
-  { at: ".ap-manage-input", states: [".ap-manage-input:hover"], beds: ACCOUNTS },
+  // The feedback message pressed empty takes the error colour on its edge, a
+  // mark beside the line that says so (#1853): measured as a state of the
+  // field, so it can never be fainter than the field at rest. The auto-switch
+  // threshold's custom field holding a value it refused does the same, beside
+  // the words under its row that say why.
+  { at: ".ap-manage-input", states: [
+    ".ap-manage-input:hover",
+    '.ap-manage-input.fb-message[aria-invalid="true"]',
+    '.ap-policy .ap-threshold-input[aria-invalid="true"]',
+  ], beds: ACCOUNTS },
   { at: ".ap-proj-copy", states: [".ap-proj-copy:hover"], beds: ["--panel"] },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
   { at: ".ap-manage-btn.danger", fillFrom: ".ap-manage-btn",
@@ -644,6 +662,12 @@ const CONTROLS: Control[] = [
   { at: ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
     fillFrom: "button.btn",
     states: [".lan-peer-foot .btn.danger:not(.armed):focus-visible"], beds: ["--bg-soft"] },
+  // The feedback dialog's Discard holds the same line in its own foot: it is
+  // drawn only while there is a draft, keeps its word and loses the edge until
+  // it is pointed at or focused. The foot is the dialog's panel, not a band.
+  { at: ".fb-foot .btn.danger:not(.armed):hover:not(:disabled)",
+    fillFrom: "button.btn",
+    states: [".fb-foot .btn.danger:not(.armed):focus-visible"], beds: ["--panel"] },
   { at: ".ap-fix", states: [".ap-fix:hover"], beds: ["--panel"] },
   // add-account dialog
   { at: ".aa-tab", states: [".aa-tab.on"], beds: ["--panel"] },
@@ -804,9 +828,6 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".react-flow__node:focus-visible .lod-face",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
-      // The sound menu's import card: the focused thing is a 1px file input,
-      // so the card it stands for draws the ring.
-      ".sm-file:has(input:focus-visible)",
       ".switch:focus-visible",
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",
@@ -836,8 +857,15 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // starters went, pill and hover, and a kind no longer frames itself at
     // rest — only the chosen one does — so three rules stopped drawing one.
     // And from 106 to 108 with the one question's scale: a number framed at
-    // rest, and louder under the pointer.
-    expect(EDGED_CONTROLS.length).toBeLessThan(108);
+    // rest, and louder under the pointer. And from 108 to 110 with the
+    // feedback dialog's Discard, which gains an edge under the pointer and the
+    // keyboard the way the LAN dialog's Unpair does. And from 110 to 112 with
+    // Settings' nav, whose chosen section is raised with the control edge round
+    // it, as the feedback dialog's chosen kind is. And from 112 to 115 with the
+    // feedback dialog's design pass: each image, the button that replaces it,
+    // lifting its edge under the pointer and the keyboard, and the message
+    // taking the error colour on its edge when Send was pressed with it empty.
+    expect(EDGED_CONTROLS.length).toBeLessThan(115);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
