@@ -200,7 +200,11 @@ describe("the Projects report", () => {
     const { agent, rollup } = await projectsTree();
     await writeFile(agent, SNAPSHOT("1") + toolResult(), "utf8");
     await rollup().tick();
-    await appendFile(agent, FINAL("1") + SNAPSHOT("2") + FINAL("2"), "utf8");
+    // Request 2 is dated after request 1, as Claude Code writes it: a record
+    // older than one the file has already read is a resumed subagent restating
+    // its history, and is not billed again (subagent-resume-replay.test.ts).
+    const second = record("2", 0, 6, { at: "2026-10-03T12:00:03.000Z" }) + record("2", 1, 374, { stop: "tool_use", at: "2026-10-03T12:00:05.000Z" });
+    await appendFile(agent, FINAL("1") + second, "utf8");
     const restarted = rollup();
     await restarted.tick();
     const rep = await restarted.report(KEY, 0);

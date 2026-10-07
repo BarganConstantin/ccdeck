@@ -329,9 +329,10 @@ function newTranscriptState() {
     // mirror of it. Costs no extra read: `message.model` and the `"usage"` block
     // are on the same line, and this pass already parses both.
     usageByModel: {},
-    // The request billed from a snapshot whose final record has not been read
-    // yet, and what it was charged — see requestBilling. Null between requests.
-    streamingRequest: null,
+    // What this file has read of its requests: the newest request record, and
+    // the request billed from a snapshot whose final record has not been read
+    // yet, with what it was charged — see requestBilling.
+    requests: newRequestLedger(),
     ctx: newContextBreakdown(),
   };
 }
@@ -469,22 +470,80 @@ const SKIP_LINE = "skip";
  * the request it is waiting on, so the two can arrive in different passes,
  * which for a live subagent is the usual case.
  *
+ * A resumed subagent writes its history into its file again before the new
+ * turn: the same records, with the same `uuid`, `requestId` and `timestamp`,
+ * usually byte for byte. Billed as they came, every request in that history was
+ * charged once more per replay — on one machine 98 requests in two files, 821
+ * times over. A restated record is told apart by its timestamp, which is older
+ * than the newest request record the file has already read: nothing Claude
+ * Code writes fresh is, none of 162,790 request records on that machine. Telling
+ * them apart by request id would need every id a file has billed, kept for as
+ * long as the file can grow and persisted with the Projects tally; the newest
+ * timestamp is one number. See restatesEarlierRecord.
+ *
+ * A file that starts in the middle of a request — a fork's file opens with its
+ * parent's turn, a resumed agent's with the one it stopped in — has no block 0
+ * for it, and that request is not billed here. It is not this file's: on that
+ * machine 36 of 38 such openings were requests the parent's or the earlier
+ * agent's transcript bills in full, block 0 and final record. The other two
+ * were workflow agents whose transcript continued in a second file mid-request,
+ * the snapshot billed at the end of the first and the final record opening the
+ * second; billing that record here would need to know what the other file
+ * charged for it.
+ *
  *   BILL_LINE       a record from before Claude Code marked its blocks, billed
  *                   line by line as it always was
  *   BILL_REQUEST    the first record of a request
  *   REBILL_REQUEST  a later record of the request still streaming: it replaces
  *                   that request's bill
  *   SKIP_LINE       a later block of a request already billed from its final
- *                   record, which restates it
+ *                   record, which restates it, or a record restated by a replay
  *
- * The Projects report (account-projects.mjs) bills its own pass of the same
- * lines by this rule.
+ * `ledger` is what the file has read of its requests so far (newRequestLedger),
+ * or null for none; noteRequestRecord adds each record to it. The Projects
+ * report (account-projects.mjs) bills its own pass of the same lines by this
+ * rule.
  */
-function requestBilling(record, streamingId) {
+function requestBilling(record, ledger) {
   if (record?.apiBlockIndex === undefined) return BILL_LINE;
+  if (restatesEarlierRecord(record, ledger)) return SKIP_LINE;
   const id = requestIdOf(record);
-  if (id !== null && id === streamingId && isUsageRecord(record)) return REBILL_REQUEST;
+  if (id !== null && id === ledger?.streaming?.id && isUsageRecord(record)) return REBILL_REQUEST;
   return record.apiBlockIndex === 0 ? BILL_REQUEST : SKIP_LINE;
+}
+
+/** What one file has read of its requests, for requestBilling: when the newest
+ *  request record was written and which request it was, and the request still
+ *  streaming — `{ id, … }` with whatever its caller needs to take its charge
+ *  back — or null. Plain data, so the Projects report can persist it. */
+function newRequestLedger() {
+  return { newestAt: null, newestId: null, streaming: null };
+}
+
+/** Is `record` a copy of one the file has already read, written again by a
+ *  resumed subagent restating its history? The copy keeps its original
+ *  timestamp, so it is older than the newest request record read — or, written
+ *  at that same moment, it is block 0 of the very request that record belongs
+ *  to, which a request has only one of. A later block at that moment is not a
+ *  copy: Claude Code writes two blocks of one request within a millisecond
+ *  often enough (38 times on that machine). A record without a timestamp is
+ *  never taken for a copy. */
+function restatesEarlierRecord(record, ledger) {
+  const at = Date.parse(record.timestamp);
+  const newest = ledger?.newestAt ?? null;
+  if (newest === null || !Number.isFinite(at)) return false;
+  if (at !== newest) return at < newest;
+  const id = requestIdOf(record);
+  return record.apiBlockIndex === 0 && id !== null && id === ledger.newestId;
+}
+
+/** Add a request record to the file's ledger, once it has been billed by
+ *  requestBilling — skipped or not, it is a record the file has read. */
+function noteRequestRecord(ledger, record) {
+  const at = Date.parse(record.timestamp);
+  if (!Number.isFinite(at) || (ledger.newestAt !== null && at < ledger.newestAt)) return;
+  ledger.newestAt = at;
+  ledger.newestId = requestIdOf(record);
 }
 
 /** The request a record belongs to while its final record has yet to come —
@@ -509,10 +568,11 @@ function isUsageRecord(record) {
  *  or null when it names no model. */
 function foldUsageLine(state, line, record) {
   // A request is billed once, from its final record — see requestBilling.
-  const streaming = state.streamingRequest;
-  const billing = requestBilling(record, streaming?.id ?? null);
+  const ledger = state.requests;
+  const billing = requestBilling(record, ledger);
+  if (billing !== BILL_LINE) noteRequestRecord(ledger, record);
   if (billing === SKIP_LINE) return;
-  if (billing === REBILL_REQUEST) refundUsage(state, streaming);
+  if (billing === REBILL_REQUEST) refundUsage(state, ledger.streaming);
   // Usage totals sum every block in the file, resets included — every block the
   // model was actually billed for, which is why the `toolUseResult` tail is cut
   // off first (see billedUsageText) — and are summed a second time into the
@@ -546,7 +606,7 @@ function foldUsageLine(state, line, record) {
   // What this request was charged, and where, kept until its final record
   // replaces it.
   const id = streamingRequestId(record);
-  state.streamingRequest = id === null ? null : { id, bucket, speedBucket, charged };
+  ledger.streaming = id === null ? null : { id, bucket, speedBucket, charged };
 }
 
 /** Take back what a request was charged, from every counter it was charged
@@ -741,6 +801,6 @@ function scanTranscript(path) {
 // above reads exactly as it did where it came from.
 export {
   scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, copyUsageBucket,
-  requestBilling, streamingRequestId, BILL_LINE, REBILL_REQUEST, SKIP_LINE,
-  billedSpeed, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
+  requestBilling, newRequestLedger, noteRequestRecord, streamingRequestId,
+  BILL_LINE, REBILL_REQUEST, SKIP_LINE, billedSpeed, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
 };
