@@ -19,13 +19,18 @@
 // commit in a repository the session has left would open the view on a commit
 // that is not there — else, with no repository to read, the newest commit's.
 //
-// An amend takes the place of the commit it amended: that one is no longer on
-// the branch, so the lane does not show it.
+// ONLY WHAT IS STILL THERE. A commit no branch, tag, remote-tracking branch
+// or HEAD reaches any more — what an amend, a rebase or a reset left behind,
+// whoever made it, the deck watching or not — leaves the lane. Git is asked
+// once per worktree the commits were made in, each time a lane is worked out.
+// When git cannot say (the worktree is gone, the read failed), an amend the
+// deck saw takes the place of the newest commit before it on the same branch.
 //
 // WHEN. Never on a timer of its own for the window: the page ages each commit
 // out on its own clock, and the lane goes with the last one. A list is worked
-// out again when the deck records a commit for the session (the tap tells this
-// module, agent-git-tap.mjs `onCommit`); when the session is followed into
+// out again when the deck records a commit for the session — with every lane
+// holding a commit in that repository, which the new commit may have rewritten
+// (the tap tells this module, agent-git-tap.mjs `onCommit`); when the session is followed into
 // another folder (git-watch.mjs onFollow); when another deck on this machine is
 // the one recording the session, a moment later, from the store the two share;
 // after the boot, from the store, for every session with a commit still inside
@@ -40,6 +45,7 @@
 import { realpath } from "node:fs/promises";
 import { agentGit } from "./agent-git-tap.mjs";
 import { pushEvent } from "./event-sink.mjs";
+import { readCommitsBySha } from "./git-reads.mjs";
 import { sessionFolder } from "./git-sessions.mjs";
 import { repoOf } from "./git-state.mjs";
 import { gitEnabled, onFollow } from "./git-watch.mjs";
@@ -52,6 +58,8 @@ export const RECENT_COMMITS_MAX = 24;
 /** How long after another deck spotted a commit its line is looked for. */
 export const ELSEWHERE_MS = 3_000;
 const MAX_SESSIONS = 2048;
+/** The most worktrees one pass asks which commits are still reached. */
+const MAX_REACH_READS = 16;
 
 // sid -> the commits last sent for it, serialized; absent once they are empty
 const sent = new Map();
@@ -79,21 +87,27 @@ const entry = (r) => ({
 
 /**
  * A session's lane from its store lines, oldest first in: newest first out,
- * an amend in the place of the commit it amended, at most
- * RECENT_COMMITS_MAX. Answers `{ repo, commits }`: `repo` is the one the
- * session works in when it is given, else the newest commit's.
+ * without the commits git says nothing reaches any more (`reachable`, SHA →
+ * whether it is), an amend in the place of the commit it amended where git
+ * could not say, at most RECENT_COMMITS_MAX. Answers `{ repo, commits }`:
+ * `repo` is the one the session works in when it is given, else the newest
+ * commit's.
  *
  * @param {Array<{ sha: string, repo: string, branch?: string | null, amend?: boolean, at: number }>} lines
- * @param {{ repo?: string | null }} [opts]
+ * @param {{ repo?: string | null, reachable?: Map<string, boolean> | null }} [opts]
  */
-export function laneOf(lines, { repo = null } = {}) {
+export function laneOf(lines, { repo = null, reachable = null } = {}) {
+  const known = (r) => reachable?.get(r.sha);
   const kept = [];
   for (const r of [...lines].sort((a, b) => a.at - b.at)) {
+    if (known(r) === false) continue;
     if (r.amend) {
-      // The commit it rewrote: the newest before it on the same branch of the
-      // same repository.
+      // The commit it rewrote, when git could not say: the newest before it
+      // on the same branch of the same repository.
       for (let i = kept.length - 1; i >= 0; i--) {
-        if (kept[i].repo === r.repo && (kept[i].branch ?? null) === (r.branch ?? null)) { kept.splice(i, 1); break; }
+        if (kept[i].repo !== r.repo || (kept[i].branch ?? null) !== (r.branch ?? null)) continue;
+        if (known(kept[i]) === undefined) kept.splice(i, 1);
+        break;
       }
     }
     kept.push(r);
@@ -124,27 +138,63 @@ async function linesBySession() {
   return out;
 }
 
+/**
+ * Which of these lines' commits a branch, tag, remote-tracking branch or HEAD
+ * still reaches, SHA → boolean, asked once per worktree they were made in. A
+ * line whose worktree cannot be read, or is another repository by now, is
+ * left out: not known.
+ */
+async function stillReached(lines) {
+  const out = new Map();
+  const byTop = new Map();
+  for (const r of lines) {
+    const top = (typeof r.top === "string" && r.top) || (typeof r.cwd === "string" && r.cwd) || null;
+    if (!top || typeof r.sha !== "string") continue;
+    if (byTop.has(top)) byTop.get(top).push(r);
+    else byTop.set(top, [r]);
+  }
+  for (const [top, rows] of [...byTop].slice(0, MAX_REACH_READS)) {
+    const repo = await repoOf(top);
+    if (repo.state !== "repo") continue;
+    const common = await realpath(repo.commonDir).catch(() => repo.commonDir);
+    const mine = rows.filter((r) => r.repo === common);
+    if (!mine.length) continue;
+    const read = await readCommitsBySha(repo.topLevel, mine.map((r) => r.sha), repo.head).catch(() => null);
+    if (!read?.ok) continue;
+    for (const r of mine) out.set(r.sha, read.commits.some((c) => c.sha.startsWith(r.sha)));
+  }
+  return out;
+}
+
 let queue = Promise.resolve();
 /** Work the lanes of these sessions (all with a commit in the window when
- *  `sids` is null) out again, and send each that changed — one pass at a
- *  time, so a slower pass never sends after a newer one. */
-function lookAt(sids) {
-  queue = queue.then(() => lookAtNow(sids)).catch(() => {});
+ *  `sids` is null) out again — with `shared`, also every lane holding a
+ *  commit in a repository theirs are in — and send each that changed; one
+ *  pass at a time, so a slower pass never sends after a newer one. */
+function lookAt(sids, opts) {
+  queue = queue.then(() => lookAtNow(sids, opts)).catch(() => {});
   return queue;
 }
 
-async function lookAtNow(sids) {
+async function lookAtNow(sids, { shared = false } = {}) {
   const gen = generation;
   if (!enabled()) return;
   let by;
   try { by = await linesBySession(); } catch { return; }
   if (gen !== generation || !enabled()) return;
-  for (const sid of sids ?? [...by.keys()]) {
+  const targets = new Set(sids ?? by.keys());
+  if (sids && shared) {
+    const repos = new Set([...targets].flatMap((sid) => (by.get(sid) ?? []).map((r) => r.repo)));
+    for (const [sid, lines] of by) if (lines.some((r) => repos.has(r.repo))) targets.add(sid);
+  }
+  const reachable = await stillReached([...targets].flatMap((sid) => by.get(sid) ?? []));
+  if (gen !== generation || !enabled()) return;
+  for (const sid of targets) {
     const lines = by.get(sid) ?? [];
     if (!lines.length && !sent.has(sid)) continue;
     const repo = lines.length ? await workRepo(sid) : null;
     if (gen !== generation || !enabled()) return;
-    const lane = laneOf(lines, { repo });
+    const lane = laneOf(lines, { repo, reachable });
     const sig = lane.commits.length ? JSON.stringify(lane) : null;
     if (sig === (sent.get(sid) ?? null)) continue;
     send(sid, lane);
@@ -175,7 +225,7 @@ export function noteAgentCommit(heard) {
   try {
     if (!heard || !enabled()) return;
     const sid = heard.line?.sessionId;
-    if (typeof sid === "string" && sid) { void lookAt([sid]); return; }
+    if (typeof sid === "string" && sid) { void lookAt([sid], { shared: true }); return; }
     if (typeof heard.elsewhere !== "string" || !heard.elsewhere) return;
     elsewhere.add(heard.elsewhere);
     if (elsewhereTimer) return;
@@ -183,7 +233,7 @@ export function noteAgentCommit(heard) {
       elsewhereTimer = null;
       const sids = [...elsewhere];
       elsewhere.clear();
-      void lookAt(sids);
+      void lookAt(sids, { shared: true });
     }, ELSEWHERE_MS);
     elsewhereTimer.unref?.();
   } catch { /* the event path must never fail for this */ }

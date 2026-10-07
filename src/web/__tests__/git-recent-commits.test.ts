@@ -166,6 +166,37 @@ describe("GitRecentCommits", () => {
     expect((await next("RC-hop", back)).payload.repo).toBe(realpathSync(join(a, ".git")));
   });
 
+  it("drops a commit no branch reaches any more: another session's amend of it, and one the deck never saw", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }, "ccdeck-recent-amend-"));
+    let since = await lastSeq();
+    for (const sid of ["RX", "RY", "RZ"]) await event({ hook_event_name: "SessionStart", session_id: sid, cwd: dir });
+    const mine = await agentCommits("RX", dir, "x.txt", "feat: x's own change");
+    const theirs = await agentCommits("RY", dir, "y.txt", "feat: y's change");
+    await next("RY", since, p => p.commits.length === 1);
+    // RX amends the commit on top, which is RY's: RX's own stays, RY's is gone.
+    since = await lastSeq();
+    write(dir, { "x2.txt": "more\n" });
+    sh(dir, ["add", "x2.txt"]);
+    const stdout = sh(dir, ["commit", "--amend", "-m", "feat: y's change, amended"]);
+    const command = `git add x2.txt && git commit --amend -m "feat: y's change, amended"`;
+    await event({ hook_event_name: "PreToolUse", session_id: "RX", cwd: dir, tool_name: "Bash", tool_input: { command }, tool_use_id: "toolu_rx_amend" });
+    await event({ hook_event_name: "PostToolUse", session_id: "RX", cwd: dir, tool_name: "Bash", tool_input: { command }, tool_response: { stdout, stderr: "", interrupted: false }, tool_use_id: "toolu_rx_amend" });
+    await agentGit.settled();
+    const amended = sh(dir, ["rev-parse", "HEAD"]).trim();
+    expect((await next("RX", since, p => p.commits.length === 2)).payload.commits.map((c: any) => c.sha)).toEqual([amended, mine]);
+    expect((await next("RY", since, p => p.commits.length === 0)).payload.commits).toEqual([]);
+    expect(theirs).not.toBe(amended);
+    // RZ commits, and somebody amends that in their own terminal: on the next
+    // look its lane lets the old one go.
+    since = await lastSeq();
+    await agentCommits("RZ", dir, "z.txt", "feat: z's change");
+    await next("RZ", since, p => p.commits.length === 1);
+    sh(dir, ["commit", "--amend", "-q", "-m", "feat: z's change, reworded"]);
+    since = await lastSeq();
+    refreshRecentCommits();
+    expect((await next("RZ", since, p => p.commits.length === 0)).payload.commits).toEqual([]);
+  });
+
   it("is never written to the events log: a restarted deck works it out from the commit store", async () => {
     await sleep(200);
     expect(readFileSync(LOG, "utf8")).not.toContain("GitRecentCommits");
@@ -247,9 +278,25 @@ describe("a session's lane", () => {
     expect(laneOf([])).toEqual({ repo: null, commits: [] });
   });
 
-  it("puts an amend in the place of the commit it amended, on the same branch only", () => {
+  it("puts an amend in the place of the commit it amended, on the same branch only, when git cannot say", () => {
     const lane = laneOf([line(1), line(2, { branch: "other" }), line(3, { amend: true, subject: "s1 amended" })]);
     expect(lane.commits.map((c: any) => c.subject)).toEqual(["s1 amended", "s2"]);
+  });
+
+  it("keeps exactly the commits git says a branch, tag, remote or HEAD still reaches", () => {
+    const reached = (pairs: Array<[number, boolean]>) => new Map(pairs.map(([n, yes]) => [line(n).sha, yes]));
+    // An amend of somebody else's commit: this session's own earlier one is still reached.
+    const own = laneOf([line(1), line(3, { amend: true })], { reachable: reached([[1, true], [3, true]]) });
+    expect(own.commits.map((c: any) => c.subject)).toEqual(["s3", "s1"]);
+    // A commit rewritten where the deck could not see it.
+    const lost = laneOf([line(1), line(2)], { reachable: reached([[1, false], [2, true]]) });
+    expect(lost.commits.map((c: any) => c.subject)).toEqual(["s2"]);
+    // Only a commit git could not answer for is taken for the one an amend
+    // rewrote; one it says is reached never is.
+    const guessed = laneOf([line(1), line(2), line(3, { amend: true })], { reachable: reached([[1, true], [3, true]]) });
+    expect(guessed.commits.map((c: any) => c.subject)).toEqual(["s3", "s1"]);
+    const kept = laneOf([line(1), line(2), line(3, { amend: true })], { reachable: reached([[2, true], [3, true]]) });
+    expect(kept.commits.map((c: any) => c.subject)).toEqual(["s3", "s2", "s1"]);
   });
 });
 
