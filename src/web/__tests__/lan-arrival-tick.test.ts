@@ -12,6 +12,9 @@ import { describe, it, expect, afterEach } from "vitest";
 import { DEFAULTS, normalise, publicPrefs, withShared } from "../../server/deck-prefs.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
+import { deckRows, rowSource } from "../lan-roster";
+import { peerView } from "../lan-peer";
+import type { LanStatus } from "../lan-types";
 import { announce, rigDeck, stopAll, type RigDeck } from "./lan-engine-rig";
 
 afterEach(stopAll);
@@ -109,6 +112,37 @@ describe("an account ticked because it arrived", () => {
 
     expect(await roundsUntil(laptop, stranger, X)).toMatchObject([{ key: X, action: "add", ok: true }]);
     expect(stranger.imported).toEqual(["ccdeck2:slot-7"]);
+  }, 60_000);
+});
+
+/** The keys `here`'s dialog about the deck `fp` draws going out from this deck,
+ *  read from the status the engine serves, the way the panel reads it. */
+function drawnOut(here: RigDeck, fp: string) {
+  const status = here.e.status() as LanStatus;
+  const now = Date.now();
+  const row = deckRows(status, now).find(r => r.fp === fp);
+  expect(row?.kind, `${fp} is not a paired row here`).toBe("paired");
+  const accounts = [{ key: X, email: EMAIL, alive: true, shareable: true }];
+  const { lanes } = peerView({ row: row!, source: rowSource(status, row!), status, accounts, now });
+  return lanes.filter(l => l.out != null).map(l => l.key);
+}
+
+describe("what the deck's dialog draws of an arrival's tick", () => {
+  it("draws no lane going out to a deck the accept switch paired", async () => {
+    const laptop = await laptopWithArrival();
+    await laptop.e.apply({ autoAccept: true });
+    const stranger = await strangerOf(laptop);
+    await roundsUntil(laptop, stranger, X);
+    const pin = (laptop.trustWrites.at(-1) ?? []).find(t => t.fp === stranger.id.fp);
+    expect(pin?.auto, "the case never reached a pairing the switch made").toBe(true);
+
+    expect(drawnOut(laptop, stranger.id.fp), "drawn as offered to a deck it is not offered to").toEqual([]);
+  }, 60_000);
+
+  it("still draws it going out to a deck somebody here chose", async () => {
+    const laptop = await laptopWithArrival();
+    const [desk] = (laptop.e.status() as LanStatus).peers.filter(p => p.paired);
+    expect(drawnOut(laptop, desk.peerFp ?? desk.fp)).toEqual([X]);
   }, 60_000);
 });
 

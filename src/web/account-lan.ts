@@ -63,9 +63,14 @@ export function noCopyWorksNearby(
  * A round heals a quarantined account from a paired deck's live copy, and the
  * person should not be asked to sign in while that is on its way. So this is
  * true only when a repair can actually come: the network is on and running,
- * this deck shares the account (a round takes only what is ticked here), and a
- * paired deck that is online offers a live copy it can hand over — unless that
- * deck's last round already tried to heal this account.
+ * and a paired deck that is online offers a live copy it can hand over —
+ * unless that deck's last round already tried to heal this account.
+ *
+ * WHATEVER IS TICKED HERE. A round repairs a login from any paired deck that
+ * offers it, ticked here or not — from a deck somebody chose since 3.37.1, and
+ * from one the accept switch paired since 3.38.1 (see roundWith in
+ * lan-engine.mjs). This still asked for the tick, and so asked somebody to
+ * sign in again to a login the network was about to repair.
  *
  * TRIED AT ALL, NOT TRIED AND FAILED. A heal that took clears claude-swap's
  * failure on the slot as it lands (its import lifts the dead-token quarantine),
@@ -81,10 +86,10 @@ export function noCopyWorksNearby(
 export function lanRepairExpected(
   key: string,
   email: string | null | undefined,
-  status: Pick<LanStatus, "enabled" | "running" | "shared" | "peers"> | null,
+  status: Pick<LanStatus, "enabled" | "running" | "peers"> | null,
   now: number,
 ): boolean {
-  if (!status?.enabled || status.running === false || !(status.shared ?? []).includes(key)) return false;
+  if (!status?.enabled || status.running === false) return false;
   const who = String(email ?? "").trim().toLowerCase();
   return (status.peers ?? []).some(p => {
     if (!p.paired || !isOnline(p, now)) return false;

@@ -338,12 +338,22 @@ describe("which accounts the prompt names", () => {
     expect(attentionRows([account(1, WORK)], { lan: lanWith([peer()]), now: NOW, closed: NONE })).toEqual([]);
   });
 
+  // A round repairs an expired login from any paired deck that offers a live
+  // copy, whatever is ticked here: from a deck somebody chose since 3.37.1,
+  // and from one the switch paired since 3.38.1 — see roundWith. This read
+  // "not shared here" as no repair coming, and asked somebody to sign in to a
+  // login the network was about to repair.
+  it("lets Local network repair a login that is not ticked here", () => {
+    const key = accountKey(WORK, "");
+    expect(lanRepairExpected(key, WORK, lanWith([peer()], []), NOW)).toBe(true);
+    expect(attentionRows([account(1, WORK)], { lan: lanWith([peer()], []), now: NOW, closed: NONE })).toEqual([]);
+  });
+
   it("asks when no repair can come", () => {
     const key = accountKey(WORK, "");
     const cases: Array<[string, LanStatus]> = [
       ["network off", lanOff],
       ["not running", { ...lanWith([peer()]), running: false }],
-      ["not shared here", lanWith([peer()], [])],
       ["its copy is dead too", lanWith([peer({}, { alive: false })])],
       ["its copy cannot be handed over", lanWith([peer({}, { alive: true, shareable: false })])],
       ["the deck is offline", lanWith([peer({ lastSeen: NOW - 60 * MIN, last: null })])],
