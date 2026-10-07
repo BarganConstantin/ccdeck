@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import { copyText } from "../copy-text";
 import { failureLasts, failureLine, groupDigits } from "../git-diff-parse";
 import type { CommitDetail, CommitFile, CommitMessage, GitFileRef, LogCommit } from "../git-view-types";
-import { FkInitials, longDate } from "./FkCommitStrip";
+import { longDate } from "./FkCommitStrip";
+import { FkAvatar } from "./FkAvatar";
+import { FkRefBadge, type FkChip } from "./FkRefBadge";
 import FkFileTypeLabel from "./FkFileTypeLabel";
 import FkStatusBadge from "./FkStatusBadge";
 import { CheckGlyph, CopyGlyph } from "./GitDiffIcons";
@@ -142,7 +144,7 @@ export const sameIdentity = (a: Who, b: Who) => a.name === b.name && a.email ===
 function Identity({ role, who }: { role: string; who: Who }) {
   return (
     <div className="fkm-id">
-      <FkInitials name={who.name} email={who.email} size="card" />
+      <FkAvatar name={who.name} email={who.email} size="card" />
       <div className="fkm-id-text">
         <span className="fkm-id-role">{role}</span>
         <span className="fkm-id-line" title={`${who.name} <${who.email}>`}>
@@ -201,29 +203,10 @@ const REF_WORD: Record<RefItem["kind"], string> = {
   head: "current branch", local: "branch", remote: "remote branch", tag: "tag", detached: "detached HEAD",
 };
 
-/** One ref, Fork's badge shape in the neutral colours. */
+/** One ref: the history's badge (FkRefBadge.tsx) in its neutral colours. */
 export function RefBadge({ r }: { r: RefItem }) {
-  return (
-    <span className="fkm-ref" data-kind={r.kind} title={`${REF_WORD[r.kind]} ${r.name}`}>
-      {r.kind === "remote" && (
-        <span className="fkm-ref-cell" aria-hidden="true">
-          <svg width="13" height="11" viewBox="0 0 13 11" focusable="false">
-            <path d="M3.6 9.4h6a2.3 2.3 0 0 0 .3-4.6 3.2 3.2 0 0 0-6.2-.7A2.6 2.6 0 0 0 3.6 9.4z" />
-          </svg>
-        </span>
-      )}
-      <span className="fkm-ref-name">
-        {r.kind === "head" && (
-          <svg className="fkm-ref-check" width="10" height="9" viewBox="0 0 10 9" aria-hidden="true" focusable="false"><path d="m1.2 4.8 2.4 2.5L8.8 1.4" /></svg>
-        )}
-        {r.kind === "tag" && (
-          <svg className="fkm-ref-tag" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
-            <path d="M1.4 1.4h3.8l4.4 4.4-3.8 3.8-4.4-4.4z" /><circle cx="3.7" cy="3.7" r=".6" />
-          </svg>
-        )}
-        <span className="vis-hidden">{REF_WORD[r.kind]} </span>
-        {r.name}
-      </span>
-    </span>
-  );
+  const chip: FkChip = r.kind === "detached" ? { kind: "head", name: "HEAD", label: "HEAD", title: `${REF_WORD.detached} ${r.name}` }
+    : r.kind === "head" ? { kind: "local", name: r.name, label: r.name, title: `${REF_WORD.head} ${r.name}`, current: true }
+    : { kind: r.kind, name: r.name, label: r.name, title: `${REF_WORD[r.kind]} ${r.name}` };
+  return <FkRefBadge chip={chip} tone="neutral" />;
 }

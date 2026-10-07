@@ -210,44 +210,6 @@
 .fkm-meta dd { min-width: 0; margin: 0; font-size: 13px; line-height: 17px; }
 .fkm-refs { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; min-height: 19px; }
 .fkm-meta dt:first-child { line-height: 19px; }
-.fkm-ref {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: stretch;
-  max-width: 320px;
-  height: 18px;
-  overflow: hidden;
-  border: 1px solid var(--fk-ref-neutral-edge);
-  border-radius: 4px;
-  background: var(--fk-ref-neutral-fill);
-  color: var(--fk-ref-neutral-ink);
-  font-size: 12px;
-  line-height: 16px;
-}
-.fkm-ref-cell {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 19px;
-  border-right: 1px solid var(--fk-ref-neutral-edge);
-  background: var(--fk-ref-cell);
-  color: var(--fk-ref-cell-ink);
-}
-.fkm-ref-cell svg { fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linejoin: round; }
-.fkm-ref-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
-  padding: 0 5px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.fkm-ref[data-kind="head"] .fkm-ref-name,
-.fkm-ref[data-kind="detached"] .fkm-ref-name { font-weight: 700; }
-.fkm-ref-check { flex: none; margin-right: -1px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.fkm-ref-tag { flex: none; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
 .fkm-sha { display: flex; align-items: center; gap: 4px; }
 .fkm-sha-text { min-width: 0; overflow-wrap: anywhere; user-select: text; }
 .fkm-copy {

@@ -52,8 +52,15 @@ export interface LogCommit {
   date: string;
   subject: string;
   trailers: Array<{ key: string; value: string }>;
-  refs: { local: string[]; remote: string[]; tags: string[]; head: boolean };
+  /** `upstream`: each local branch here that has one configured, by name,
+   *  with the remote-tracking branch it follows (`origin/develop`). */
+  refs: { local: string[]; remote: string[]; tags: string[]; head: boolean; upstream?: Record<string, string> };
   agent: CommitAgent | null;
+  /** The message has more than its subject line. */
+  hasBody?: boolean;
+  /** HEAD has it and HEAD's upstream does not: not pushed yet. Only ever
+   *  `true`, and only when HEAD's branch has an upstream to measure by. */
+  unpushed?: boolean;
   outsideWindow?: boolean;
   /** On HEAD's line past the window: whether the branch HEAD is measured
    *  against already has the commit — git's answer, since the commits that

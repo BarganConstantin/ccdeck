@@ -22,8 +22,10 @@
 // The log's commits each carry `agent` — who made it, and how the deck knows
 // (git-attribution.mjs) — and after the window, with `outsideWindow: true`,
 // come HEAD's own line when HEAD is older than the window (git-reads.mjs),
-// then the session's own agent commits older than it. The repository carries
-// `defaultBranch`, the branch its remote calls its default.
+// then the session's own agent commits older than it. Each says whether its
+// message has a body (`hasBody`), and the ones HEAD has not pushed to its
+// upstream carry `unpushed: true`. The repository carries `defaultBranch`,
+// the branch its remote calls its default.
 //
 // The repo answer for a session (not narrowed to one subagent) also lists the
 // session's subagents that work in another folder — another worktree, another
