@@ -10,8 +10,8 @@
 //
 // The Fork look keeps sizes of its own, so switching looks never moves the
 // other's dividers: a wider panel (72% of the window), a sidebar column on the
-// left (264px, shown by default only where the panel has room for it beside a
-// readable history), the history over the inspector at 35%, the inspector's
+// left (264px, beside the history wherever the history keeps 600px, floating
+// over it elsewhere), the history over the inspector at 35%, the inspector's
 // tab and whether it is folded away.
 //
 // The fractions are of the box each divider actually resizes — the panel of the
@@ -64,9 +64,9 @@ export const SPLIT_BAND = 9;
 /** The Fork look's sidebar column: its floating panel plus 8px each side. */
 export const SIDEBAR_MIN = 176;
 export const SIDEBAR_MAX = 436;
-/** Under this panel width the Fork sidebar starts hidden: the history beside
- *  it needs 600px. */
-export const SIDEBAR_AUTO_BELOW = 1000;
+/** The least the history keeps beside the Fork sidebar; with less the
+ *  sidebar floats over it, hidden until asked for. */
+export const SIDE_HISTORY_MIN = 600;
 /** The Fork look's floors: the history over the inspector. */
 export const FK_HISTORY_MIN = 110;
 export const FK_INSPECTOR_MIN = 160;
@@ -148,16 +148,17 @@ export const isSheet = (windowW: number): boolean => windowW < SHEET_BELOW;
  *  beside it: on a sheet, and wherever the history beside it would be left
  *  under 600px. */
 export function isSidebarFloating(panelW: number, sidebarW: number, sheet: boolean): boolean {
-  return sheet || panelW - sidebarW < 600;
+  return sheet || panelW - sidebarW < SIDE_HISTORY_MIN;
 }
 
-/** Whether the Fork sidebar is shown. Beside the history: the reader's choice
- *  when they made one, else only where the panel is 1000px or wider.
- *  Floating: only while the reader has it out (`floatShown`), which starts
- *  false on every open and is never remembered. */
-export function sidebarShownFor(prefs: Pick<GitViewPrefs, "sidebarShown">, panelW: number, floating: boolean, floatShown: boolean): boolean {
+/** Whether the Fork sidebar is shown. Beside the history — wherever the
+ *  history keeps its 600px — it is, unless the reader hid it: it holds the
+ *  only way between Local Changes and All Commits. Floating: only while the
+ *  reader has it out (`floatShown`), which starts false on every open and is
+ *  never remembered. */
+export function sidebarShownFor(prefs: Pick<GitViewPrefs, "sidebarShown">, floating: boolean, floatShown: boolean): boolean {
   if (floating) return floatShown;
-  return prefs.sidebarShown ?? panelW >= SIDEBAR_AUTO_BELOW;
+  return prefs.sidebarShown ?? true;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));

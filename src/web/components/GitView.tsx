@@ -746,15 +746,15 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
 
   // ── the Fork look ─────────────────────────────────────────────────────
   const fork = prefs.look === "fork";
-  // Its sidebar: beside the history, the reader's remembered choice, else
-  // shown where the panel is 1000px or wider. Too narrow to sit beside the
-  // history (a sheet, a narrow panel) it floats over it instead: hidden at
-  // first, shown by ≡ for as long as it is needed, and out of the way again
-  // once a view or a ref is picked in it, on Esc, or on a press outside it.
+  // Its sidebar: beside the history wherever the history keeps 600px, shown
+  // unless the reader hid it (remembered). Too narrow for that (a sheet, a
+  // narrow panel) it floats over the history instead: hidden at first, out
+  // while the reader has it out, and out of the way again once a view or a
+  // ref is picked in it, on Esc, or on a press outside it.
   const sidebarOver = isSidebarFloating(width, prefs.sidebarW, sheet);
   const [floatSide, setFloatSide] = useState(false);
   useEffect(() => setFloatSide(false), [request.seq, sidebarOver]);
-  const sidebarShown = sidebarShownFor(prefs, width, sidebarOver, floatSide);
+  const sidebarShown = sidebarShownFor(prefs, sidebarOver, floatSide);
   // Two changes in one press (a tab chosen on a folded inspector) must both
   // land: each one is laid over what the store holds now.
   const patchPrefs = (patch: Partial<GitViewPrefs>) => savePrefs({ ...gitViewPrefsNow(), ...patch });

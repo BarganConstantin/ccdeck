@@ -103,14 +103,13 @@ describe("the Fork look's sizes", () => {
     expect(parseGitViewPrefs(JSON.stringify({ sidebarW: 9000 })).sidebarW).toBe(SIDEBAR_MAX);
   });
 
-  it("starts the sidebar hidden under a 1000px panel and on a sheet, and keeps the reader's choice", () => {
-    expect(sidebarShownFor({ sidebarShown: null }, 1037, false, false)).toBe(true);
-    expect(sidebarShownFor({ sidebarShown: null }, 999, false, false)).toBe(false);
-    expect(sidebarShownFor({ sidebarShown: true }, 900, false, false)).toBe(true);
-    expect(sidebarShownFor({ sidebarShown: false }, 1300, false, false)).toBe(false);
+  it("shows the sidebar beside a history that keeps 600px unless the reader hid it, and keeps that choice", () => {
+    expect(sidebarShownFor({ sidebarShown: null }, false, false)).toBe(true);
+    expect(sidebarShownFor({ sidebarShown: false }, false, false)).toBe(false);
+    expect(sidebarShownFor({ sidebarShown: true }, false, false)).toBe(true);
     // Floating, it is out only while the reader has it out, whatever was remembered.
-    expect(sidebarShownFor({ sidebarShown: true }, 1000, true, false)).toBe(false);
-    expect(sidebarShownFor({ sidebarShown: false }, 1000, true, true)).toBe(true);
+    expect(sidebarShownFor({ sidebarShown: true }, true, false)).toBe(false);
+    expect(sidebarShownFor({ sidebarShown: false }, true, true)).toBe(true);
   });
 
   it("floats the sidebar over the history on a sheet and wherever the history beside it would be under 600px", () => {
