@@ -813,6 +813,14 @@ export function forkRowDrawing(row: GraphRow, shape: NodeShape, focusKey: string
   return { strokes, x: x(row.col), y: M, folded: hidden(row.col), fold, foldX };
 }
 
+/** Whether a Fork row draws the fold column, as forkRowDrawing draws it: its
+ *  node in a folded column, or a line crossing one. */
+export function forkDrawsFold(row: GraphRow, folded: number): boolean {
+  if (!folded) return false;
+  const inFold = (l: Lane | null, i: number) => !!l && i >= VISIBLE_LANES;
+  return row.col >= VISIBLE_LANES || row.input.some(inFold) || row.output.some(inFold);
+}
+
 const FH = FORK_GEOMETRY.rowH;
 const FM = FH / 2;
 /** A quarter arc's sweep: turning from down to `dir`, or from `dir` to down. */
