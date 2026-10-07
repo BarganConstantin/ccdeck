@@ -3,7 +3,8 @@
 // one of them on a session's folder.
 //
 // A launch names a SESSION and a slot, never a folder or a program. The folder
-// is the one the deck heard that session run in (git-sessions.mjs); the program
+// is the one the deck heard that session work in (git-watch.mjs
+// workingFolder, from git-sessions.mjs); the program
 // is the slot's app as detection found it (git-handoff-apps.mjs), the one picked
 // in Appearance or else the first; the command line is a fixed vector
 // (git-handoff-launch.mjs). An editor may be handed one file, as a path inside
@@ -32,9 +33,8 @@ import { runDetached } from "./exec.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { isLoopbackHost } from "./request-gates.mjs";
-import { sessionFolder } from "./git-sessions.mjs";
 import { repoOf } from "./git-state.mjs";
-import { gitEnabled } from "./git-watch.mjs";
+import { gitEnabled, workingFolder } from "./git-watch.mjs";
 import { SLOTS, chooseApp, detectApps, pathExists } from "./git-handoff-apps.mjs";
 import { REFUSALS, launchEnv, launchSpec, viewerIsLocal } from "./git-handoff-launch.mjs";
 
@@ -159,7 +159,7 @@ export async function handleGitOpen(req, res) {
   }
   const agent = str(body.agent);
 
-  const folder = sessionFolder(sid, agent);
+  const folder = await workingFolder(sid, agent);
   if (!folder) return send(res, 404, { error: "unknown session" });
   // A folder that is gone, or one that was never a real place — the session's
   // own cwd is absolute, and a relative one would resolve against the deck's.

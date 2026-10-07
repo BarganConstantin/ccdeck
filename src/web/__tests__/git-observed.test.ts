@@ -29,7 +29,7 @@ const { changesRepo, noteGitEvent } = await import("../../server/git-watch.mjs")
 // @ts-expect-error — plain .mjs server module, no types
 const { noteSessionFolder, sessionFolder } = await import("../../server/git-sessions.mjs");
 // @ts-expect-error — plain .mjs server module, no types
-const { staleCount } = await import("../../server/git-state.mjs");
+const { MAX_AGE_MS, setGitClock, staleCount } = await import("../../server/git-state.mjs");
 
 const made: string[] = [];
 const track = (d: string) => { made.push(d); return d; };
@@ -436,6 +436,39 @@ describe("the worktree a session works in", () => {
     noteSessionFolder({ session_id: "F10r", cwd: dir, agent_id: "fr-1", hook_event_name: "PreToolUse" });
     lines.forEach((p: any, i: number) => noteGitEvent({ ...p, session_id: "F10r" }, { replay: true, seq: i + 1, at: i + 1 }));
     expect(sessionFolder("F10r", "fr-1")).toMatchObject({ cwd: dir });
+  });
+
+  it("goes back to the folder a session started in when the worktree it was followed to is gone", async () => {
+    const one = repoAndWorktree("gone");
+    const two = repoAndWorktree("gone2");
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F11", cwd: one.dir });
+    await event({ hook_event_name: "SessionStart", session_id: "F12", cwd: two.dir });
+    await next("F11", since);
+    await next("F12", since);
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "F11", cwd: one.dir, tool_name: "Bash", tool_input: { command: `cd '${one.wt}' && npm test` } });
+    await event({ hook_event_name: "PostToolUse", session_id: "F12", cwd: two.dir, tool_name: "Bash", tool_input: { command: `cd '${two.wt}' && npm test` } });
+    await next("F11", since, g => g.topLevel === one.wt);
+    await next("F12", since, g => g.topLevel === two.wt);
+    // Both worktrees are deleted, and each agent goes on in its own folder.
+    rmTempDir(one.wt);
+    rmTempDir(two.wt);
+    since = await lastSeq();
+    // F11 runs a command there, with no `cd`: its card is told home.
+    await event({ hook_event_name: "PostToolUse", session_id: "F11", cwd: one.dir, tool_name: "Bash", tool_input: { command: "npm run lint" } });
+    expect((await next("F11", since)).payload.git).toMatchObject({ state: "repo", topLevel: one.dir, branch: "main" });
+    expect(await repoTop("F11")).toBe(one.dir);
+    // F12 says nothing; a view opened once the worktree's last read is stale
+    // reads home, and its card is told so too.
+    setGitClock(() => Date.now() + MAX_AGE_MS + 1_000);
+    try {
+      expect(await repoTop("F12")).toBe(two.dir);
+    } finally {
+      setGitClock(null);
+    }
+    expect((await next("F12", since)).payload.git).toMatchObject({ state: "repo", topLevel: two.dir, branch: "main" });
+    expect((await observed("F11", since)).concat(await observed("F12", since)).filter(e => e.payload.git.state !== "repo")).toEqual([]);
   });
 
   it("follows a folder change made while git was switched off, once it is on again", async () => {

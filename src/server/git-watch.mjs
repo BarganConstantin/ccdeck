@@ -51,9 +51,12 @@
 //   - an edit says so more quietly: a session follows its edits to another
 //     worktree after EDITS_TO_FOLLOW calls there in a row, so one stray file
 //     written elsewhere (a note, a memory file) moves nothing.
-// A folder outside every repository says nothing. The worktree it moved to
-// rides on its GitObserved, marked `followed`, which the log keeps, so a
-// restarted deck puts the session back where it was working (seedFromLog).
+// A folder outside every repository says nothing. A worktree it was followed
+// to and that has since been deleted is let go of, back to the folder it
+// started in while that is still there (letGoOfGone, before each look and
+// each route's read). The worktree it moved to rides on its GitObserved,
+// marked `followed`, which the log keeps, so a restarted deck puts the
+// session back where it was working (seedFromLog).
 //
 // AFTER A BOOT, the sessions the replay put back are looked at once
 // (refreshGit), and the GitObserved lines the replay found are taken as sent,
@@ -272,16 +275,45 @@ async function follow(sid, key, { moves, edits }, w) {
   // Back where it would be with nothing followed: forget the followed folder,
   // so the folder it started in reads as it always did.
   const home = await worktreeOf(here.start);
-  if (followFolder(sid, key || null, home === top ? null : top)) moved(sid, w);
+  if (followFolder(sid, key || null, home === top ? null : top)) workMoved(sid, w);
 }
 
 /** Where `sid` works has just changed: look at it now, and tell whoever
  *  reads that folder too (git-collisions.mjs, git-recent-commits.mjs). */
-function moved(sid, w) {
-  schedule(sid, w, FIRST_LOOK_MS);
+function workMoved(sid, w) {
+  if (w) schedule(sid, w, FIRST_LOOK_MS);
   for (const fn of followers) {
     try { fn(sid); } catch { /* a listener never breaks the event path */ }
   }
+}
+
+/**
+ * Let go of a followed worktree that is gone — for the root of `sid` and each
+ * of its subagents — when the folder it started in is still there: it can
+ * only be working there now, and nothing else would bring it back while it
+ * runs plain commands at home. Answers whether anything changed.
+ */
+async function letGoOfGone(sid) {
+  let changed = false;
+  for (const key of [null, ...sessionSubagents(sid).map(([k]) => k)]) {
+    const f = sessionFolder(sid, key);
+    if (!f || f.cwd === f.start) continue;
+    if ((await repoOf(f.cwd)).state !== "gone" || (await repoOf(f.start)).state === "gone") continue;
+    if (followFolder(sid, f.agent, null)) changed = true;
+  }
+  return changed;
+}
+
+/**
+ * The folder `sid` — its subagent `agent`, when one is named — works in, as
+ * sessionFolder answers it, after letting go of a followed worktree that is
+ * gone (and then looking at the session again, so its card hears it too). What
+ * the routes read, so a view opened before the session's next call is not
+ * told the folder is gone while the agent works at home.
+ */
+export async function workingFolder(sid, agent = null) {
+  if (enabled() && sessionFolder(sid) && await letGoOfGone(sid)) workMoved(sid, watched.get(sid));
+  return sessionFolder(sid, agent);
 }
 
 const followers = new Set();
@@ -358,8 +390,10 @@ export function describeRepo(repo) {
 /** Look at a session's repositories now and send what changed. */
 async function look(sid) {
   const w = watched.get(sid);
+  if (!w || !sessionFolder(sid) || !enabled()) return;
+  if (await letGoOfGone(sid)) workMoved(sid, null);
   const root = sessionFolder(sid);
-  if (!w || !root || !enabled()) return;
+  if (!root || watched.get(sid) !== w) return;
   const targets = [["", root.cwd]];
   w.seen.add("");
   for (const [key, cwd] of sessionSubagents(sid)) {
