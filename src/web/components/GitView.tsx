@@ -759,8 +759,10 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // land: each one is laid over what the store holds now.
   const patchPrefs = (patch: Partial<GitViewPrefs>) => savePrefs({ ...gitViewPrefsNow(), ...patch });
   const toggleSidebar = () => {
-    if (sidebarOver) setFloatSide(!sidebarShown);
-    else patchPrefs({ sidebarShown: !sidebarShown });
+    if (!sidebarOver) { patchPrefs({ sidebarShown: !sidebarShown }); return; }
+    setFloatSide(!sidebarShown);
+    // Brought out over the history, it takes focus: what it covers is inert.
+    if (!sidebarShown) requestAnimationFrame(() => focusPane("sidebar"));
   };
   const floatAway = () => { if (sidebarOver) setFloatSide(false); };
   useEffect(() => {
@@ -787,8 +789,24 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     window.addEventListener("blur", off);
     return () => { window.removeEventListener("focus", on); window.removeEventListener("blur", off); };
   }, []);
-  // A ref the sidebar asked for that the history does not list, said once.
-  const [jumpNote, setJumpNote] = useState("");
+  // A ref the sidebar (or a parent link) asked for that the history does not
+  // list: said in a short note at the view's foot for a few seconds, and to a
+  // screen reader once, so a press on an old tag never looks dead.
+  const [jumpNote, setJumpNote] = useState<{ text: string; n: number } | null>(null);
+  useEffect(() => {
+    if (!jumpNote) return;
+    const t = window.setTimeout(() => setJumpNote(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [jumpNote]);
+  useEffect(() => setJumpNote(null), [sel, request.seq]);
+  // What a floating sidebar covers is out of reach while it is out: no press
+  // and no Tab stop lands under it, as the canvas's covered cards are.
+  const fkBodyRef = useRef<HTMLDivElement>(null);
+  const covering = fork && sidebarOver && sidebarShown;
+  useLayoutEffect(() => {
+    const el = fkBodyRef.current as (HTMLDivElement & { inert: boolean }) | null;
+    if (el) el.inert = covering;
+  });
 
   const panesRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<HTMLElement>(null);
@@ -1112,8 +1130,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     const local = view.view === "local";
     const listFocused = winFocused && focusIn && pane === "graph";
     const jump = (sha: string) => {
-      if (data.commits?.some(c => c.sha === sha && !c.outsideWindow)) { setJumpNote(""); view.setSel(sha); return; }
-      setJumpNote("Not in the last 100 commits.");
+      if (data.commits?.some(c => c.sha === sha)) { setJumpNote(null); view.setSel(sha); return; }
+      setJumpNote(n => ({ text: `${sha.slice(0, 7)} is not in the last 100 commits.`, n: (n?.n ?? 0) + 1 }));
     };
     const collisionNode = collision && (
       <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
@@ -1189,6 +1207,15 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               onLook={() => setGitLook("deck")}
               onClose={onClose}
             />
+            {jumpNote && (
+              <p className="fk-note" key={jumpNote.n} aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
+                  <circle cx="7" cy="7" r="5.6" /><path d="M7 6.3v3.6M7 4.3v.1" />
+                </svg>
+                <span title={jumpNote.text}>{jumpNote.text}</span>
+              </p>
+            )}
+            <div className="fk-body" ref={fkBodyRef}>
             <FkBanner collision={collisionNode} detached={detached && !reading ? { short: shortSha, clean: data.entries != null && !data.entries.length } : null} />
             {local ? (
               <section className="fk-local" aria-label="Local Changes" data-gv-pane="files" tabIndex={-1}>
@@ -1231,8 +1258,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
                 </FkInspector>
               </div>
             )}
+            </div>
           </div>
-          <span className="vis-hidden" role="status" aria-live="polite">{jumpNote}</span>
+          <span className="vis-hidden" role="status" aria-live="polite">{jumpNote?.text ?? ""}</span>
         </div>
         {cardNode}
       </>

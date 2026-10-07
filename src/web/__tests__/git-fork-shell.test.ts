@@ -135,3 +135,22 @@ describe("a floating sidebar", () => {
     expect(view).toMatch(/if \(fork && collapsed && view\.view === "all" && \(p === "files" \|\| p === "diff" \|\| p === "commit"\)\) \{\s*patchPrefs\(\{ inspectorCollapsed: false \}\);/);
   });
 });
+
+describe("what a floating sidebar covers", () => {
+  it("is inert while it is out, and the sidebar takes focus when brought out", () => {
+    expect(view).toMatch(/const covering = fork && sidebarOver && sidebarShown;/);
+    expect(view).toMatch(/if \(el\) el\.inert = covering;/);
+    expect(view).toMatch(/<div className="fk-body" ref=\{fkBodyRef\}>/);
+    expect(view).toMatch(/if \(!sidebarShown\) requestAnimationFrame\(\(\) => focusPane\("sidebar"\)\);/);
+  });
+});
+
+describe("a ref the history does not list", () => {
+  it("is said in a short note at the view's foot for a few seconds, and to a screen reader, never a dead press", () => {
+    expect(view).toMatch(/text: `\$\{sha\.slice\(0, 7\)\} is not in the last 100 commits\.`/);
+    expect(view).toMatch(/<p className="fk-note" key=\{jumpNote\.n\} aria-hidden="true">/);
+    expect(view).toMatch(/const t = window\.setTimeout\(\(\) => setJumpNote\(null\), 5000\);/);
+    expect(view).toMatch(/<span className="vis-hidden" role="status" aria-live="polite">\{jumpNote\?\.text \?\? ""\}<\/span>/);
+    expect(fork).toMatch(/\.fk-note \{[^}]*pointer-events: none;/);
+  });
+});
