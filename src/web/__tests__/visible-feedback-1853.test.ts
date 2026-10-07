@@ -29,11 +29,18 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { crashReportBody } from "../components/ErrorBoundary";
 import { forwardCaughtError, scrubReport } from "../report-errors";
+import { feedbackSeed } from "../feedback-draft";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
 const runs = read("../components/TopbarRuns.tsx");
-const appearanceMenu = read("../components/AppearanceMenu.tsx");
+// The Appearance menu became Settings (2026-10-07): the dialog and each
+// section in it, read as one, so the negatives below still see every control
+// that used to be Appearance's and every one that joined it.
+const settingsSurface = [
+  "../components/SettingsModal.tsx", "../components/ThemeSection.tsx", "../components/MusicSection.tsx",
+  "../components/NotificationsSection.tsx", "../components/SoundsSection.tsx", "../components/SoundSwitch.tsx",
+].map(read).join("\n");
 const reportsHook = read("../use-reports.ts");
 const dialogs = read("../use-dialogs.ts");
 const deckDialogs = read("../components/DeckDialogs.tsx");
@@ -140,8 +147,14 @@ describe("the feedback dialog can be opened filled in", () => {
   it("takes an initial kind and body, defaulting to the empty blank report", () => {
     expect(rules).toMatch(/export interface FeedbackPrefill/);
     expect(feedback).toMatch(/interface Props extends FeedbackPrefill/);
-    expect(feedback).toMatch(/useState<Kind>\(initialKind \?\? "bug"\)/);
-    expect(feedback).toMatch(/useState\(initialBody \?\? ""\)/);
+    // The prefill is the seed the dialog opens on when this door kept no
+    // draft; a kept draft comes first (feedback-draft-kept.test.ts runs both).
+    expect(feedbackSeed({})).toEqual({ kind: "bug", body: "" });
+    expect(feedbackSeed({ initialKind: "other", initialBody: "Account issue: rate limited." }))
+      .toEqual({ kind: "other", body: "Account issue: rate limited." });
+    expect(feedback).toMatch(/const seed = feedbackSeed\(\{ initialKind, initialBody \}\);/);
+    expect(feedback).toMatch(/useState<Kind>\(kept\?\.kind \?\? seed\.kind\)/);
+    expect(feedback).toMatch(/useState\(kept\?\.body \?\? seed\.body\)/);
     // It used to pin that a typed title was never seeded. There is no title
     // to type now — the title is worked out from the message as it is sent
     // (feedback-dialog-form.test.ts) — so a seeded body names a seeded report
@@ -209,23 +222,23 @@ describe("the topbar's Feedback button", () => {
 
 // ── Appearance no longer holds a reports switch or a second feedback door ─────
 
-describe("the Appearance menu has no Help improve ccdeck section (2026-10-01)", () => {
-  /** The <AppearanceMenu … /> element as the settings run mounts it. */
+describe("Settings, which the Appearance menu became, has no Help improve ccdeck section (2026-10-01)", () => {
+  /** The <SettingsModal … /> element as the dialog stack mounts it. */
   const mounted = (() => {
-    const at = runs.indexOf("<AppearanceMenu");
-    expect(at, "no AppearanceMenu in TopbarRuns.tsx").toBeGreaterThan(-1);
-    return runs.slice(at, runs.indexOf("/>", runs.indexOf("onClose=", at)));
+    const at = deckDialogs.indexOf("<SettingsModal");
+    expect(at, "no SettingsModal in DeckDialogs.tsx").toBeGreaterThan(-1);
+    return deckDialogs.slice(at, deckDialogs.indexOf("/>", at));
   })();
 
   it("draws no reports switch, no note about reports and no Send feedback button", () => {
     for (const gone of ["Help improve ccdeck", "appearance-improve", "Send usage reports", "appearance-reports", "Send feedback"]) {
-      expect(appearanceMenu, gone).not.toContain(gone);
+      expect(settingsSurface, gone).not.toContain(gone);
     }
   });
 
   it("takes no reports or feedback props, and is handed none", () => {
     for (const prop of ["reportsOn", "reportsVetoed", "onToggleReports", "onFeedback"]) {
-      expect(appearanceMenu, prop).not.toMatch(new RegExp(`\\b${prop}\\b`));
+      expect(settingsSurface, prop).not.toMatch(new RegExp(`\\b${prop}\\b`));
       expect(mounted, prop).not.toMatch(new RegExp(`\\b${prop}\\b`));
     }
     expect(app).not.toMatch(/reports=\{reports\}/);

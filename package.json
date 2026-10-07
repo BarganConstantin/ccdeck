@@ -1,6 +1,6 @@
 {
   "name": "ccdeck",
-  "version": "3.38.3",
+  "version": "3.38.4",
   "description": "Local dashboard for Claude Code and Codex CLI sessions: which Claude Code session needs input, every tool call and Claude Code subagent live, token cost and quota, several Claude accounts. Run npx ccdeck.",
   "type": "module",
   "bin": {

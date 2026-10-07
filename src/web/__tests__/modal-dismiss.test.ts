@@ -212,6 +212,10 @@ describe("the modals themselves", () => {
       // above: this is how it joins the loop below.
       "SectionHistoryModal.tsx",
       "SessionSummary.tsx",
+      // Settings, behind the gear and Cmd/Ctrl+, — the one home of the deck's
+      // preferences, which replaced the Appearance modal (whose two-class
+      // backdrop this sweep never matched) and most of the sound popover.
+      "SettingsModal.tsx",
       // #723's share picker, named here for the same reason as the three
       // above: this is how it joins the loop below, not how it leaves it.
       "ShareAccountsDialog.tsx",

@@ -135,14 +135,13 @@ button.btn.gv-hand[data-failed] { color: var(--err); }
 }
 
 
-/* Appearance › Git: which app each hand-off button opens, under the switch,
-   for the slots that have more than one. The station picker's label column,
-   widened for "Git client", and the sound menu's select. */
+/* Settings › Git › Open in: which app each hand-off button opens, for the
+   slots that have more than one. A group of its own, so the hairline over it
+   is the section's (menus.css). The label column every row in Settings shares,
+   widened for "Git client", and the Sounds section's select. */
 .appearance-git-picks {
   display: grid;
   gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
 }
 .appearance-git-pick {
   display: grid;

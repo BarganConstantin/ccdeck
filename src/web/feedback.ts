@@ -11,6 +11,8 @@
 // up to 200, and the version and platform this deck's server adds itself.
 // Nothing else is sent, and nothing here adds a field.
 
+import { isApplePlatform } from "./platform";
+
 export type Kind = "bug" | "idea" | "other";
 
 /** How a caller seeds the dialog — the error boundary opens it as a filled-in
@@ -193,7 +195,7 @@ export function isPlainEnter(e: EnterKey): boolean {
 /** The caps the footer draws for the send shortcut: the one this platform's
  *  keyboard says. Both chords work everywhere; this only picks which to show. */
 export function sendShortcutCaps(platform: string): [string, string] {
-  return /mac|iphone|ipad/i.test(platform) ? ["⌘", "Enter"] : ["Ctrl", "Enter"];
+  return isApplePlatform(platform) ? ["⌘", "Enter"] : ["Ctrl", "Enter"];
 }
 
 /** A cap that is one symbol rather than a word — ⌘ — and is drawn a size up in

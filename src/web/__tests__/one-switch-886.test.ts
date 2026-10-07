@@ -36,9 +36,12 @@ describe("every switch is the one switch (#886)", () => {
     // fifteen since invite-only pairing (#1236), which was two native radios
     // before it was made one of these.
     // Sixteen with #1853's "Send usage reports" in Appearance, and fifteen
-    // again since that switch went with its section (2026-10-01). Sixteen
-    // again with the git view's switch in Appearance.
-    expect(switches, "the sixteen switches in the app").toBe(16);
+    // again since that switch went with its section (2026-10-01).
+    // Sixteen in the source again with the sound menu's account notifications
+    // (#1312), which are three switches drawn by one `role="switch"` from one
+    // list — this counts the markup that draws them, not what it draws.
+    // Seventeen with the git view's switch, in Settings › Git.
+    expect(switches, "the seventeen switches in the source").toBe(17);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

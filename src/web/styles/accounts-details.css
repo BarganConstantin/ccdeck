@@ -204,11 +204,10 @@
      shape, only through a selector actually written down. It carries the same
      popIn — a 4px lift and a scale — over whatever the reader was looking at,
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
-  .sound-menu, .appearance-menu { animation: fadeIn 140ms ease-out; }
+  .sound-menu { animation: fadeIn 140ms ease-out; }
   .appearance-theme,
   .appearance-preview,
-  .appearance-check,
-  .appearance-row { transition: none; }
+  .appearance-check { transition: none; }
 }
 
 

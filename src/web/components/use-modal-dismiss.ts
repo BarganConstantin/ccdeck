@@ -56,10 +56,12 @@ function tabbablesIn(dialog: HTMLElement | null): HTMLElement[] {
       return isTabbable({
         disabled: (el as HTMLElement & { disabled?: boolean }).disabled,
         tabIndex: el.tabIndex,
-        // Nothing in these dialogs is hidden by CSS today; this is here because
-        // a selector cannot see a `display: none` ancestor and a trap that wraps
-        // onto an invisible control is a trap that loses the user.
-        rendered: el.getClientRects().length > 0,
+        // A selector cannot see a `display: none` ancestor, and a trap that
+        // wraps onto an invisible control is a trap that loses the user. Nor
+        // can a rect count see a closed <details>: what it holds keeps its
+        // boxes, skipped behind content-visibility, and Settings › Sounds ends
+        // on one. checkVisibility() answers both; the count is the fallback.
+        rendered: el.checkVisibility ? el.checkVisibility() : el.getClientRects().length > 0,
       });
     }
     const overflowing = el.scrollHeight > el.clientHeight;

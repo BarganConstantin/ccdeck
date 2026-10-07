@@ -30,6 +30,21 @@ describe("with focus inside the git view", () => {
     }
   });
 
+  it("lets the one chord the deck claims through, and opens Settings from inside the view", () => {
+    deck.gitView.value = true;
+    deck.press(",", { target: IN_VIEW, metaKey: true });
+    deck.press(",", { target: IN_VIEW, ctrlKey: true });
+    expect(deck.props.openSettings).toHaveBeenCalledTimes(2);
+    // A bare comma and every other chord stay inside the view.
+    deck.press(",", { target: IN_VIEW });
+    deck.press("r", { target: IN_VIEW, metaKey: true });
+    expect(deck.props.openSettings).toHaveBeenCalledTimes(2);
+    expect(deck.props.handleRelayout).not.toHaveBeenCalled();
+    // A field inside the view keeps it, as a field anywhere does.
+    deck.press(",", { target: { tagName: "INPUT", type: "text", inKeyScope: true }, metaKey: true });
+    expect(deck.props.openSettings).toHaveBeenCalledTimes(2);
+  });
+
   it("is held by the view's own handler too, which stops every key but Tab", () => {
     const view = sourceOf("components/GitView.tsx");
     expect(view).toMatch(/data-key-scope="git"/);

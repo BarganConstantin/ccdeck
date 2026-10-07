@@ -34,11 +34,19 @@ describe("whether any paired deck holds a working copy of a shared account", () 
     expect(noCopyWorksNearby(KEY, status([{ alive: false }, { alive: true }]), NOW)).toBe(false);
   });
 
-  it("says nothing when no deck offers it at all, or the account is not shared, or the network is off", () => {
+  it("says nothing when no deck offers it at all, or the network is off", () => {
     expect(noCopyWorksNearby(KEY, status([null, null]), NOW)).toBe(false);
-    expect(noCopyWorksNearby(KEY, status([{ alive: false }], { shared: [] }), NOW)).toBe(false);
     expect(noCopyWorksNearby(KEY, status([{ alive: false }], { enabled: false }), NOW)).toBe(false);
     expect(noCopyWorksNearby(KEY, null, NOW)).toBe(false);
+  });
+
+  // A round repairs a login from any paired deck that offers a live copy,
+  // ticked here or not — see lanRepairExpected. This still asked for the tick,
+  // so a login not ticked here, whose every copy nearby had expired too, said
+  // only "Login expired" and waited for a repair that could not come.
+  it("says none does for a login that is not ticked here, too", () => {
+    expect(noCopyWorksNearby(KEY, status([{ alive: false }, { alive: false }], { shared: [] }), NOW)).toBe(true);
+    expect(noCopyWorksNearby(KEY, status([{ alive: false }, { alive: true }], { shared: [] }), NOW)).toBe(false);
   });
 
   it("does not count a deck that has gone quiet: what it offered then may not be true now", () => {
@@ -67,6 +75,14 @@ describe("the row of an expired account that no paired deck can repair", () => {
     expect(issue.hint).toMatch(/Sign in again on any one machine/);
     expect(issue.fix).toBe("Sign in again");
     expect(issue.tone).toBe("warn");
+  });
+
+  // Said now about a login that is not ticked here as well, and a sign-in on
+  // a machine that does not share the login repairs nobody else: only one that
+  // shares it hands its copy to the others.
+  it("promises the others a repair only from a machine that shares the login", () => {
+    const issue = accountIssue(expired, 0, { noCopyWorksNearby: true })!;
+    expect(issue.hint).toMatch(/Sign in again on any one machine that shares it; the others repair from it on their next round\.$/);
   });
 
   it("says it for a quarantined slot the collector stopped on, too", () => {

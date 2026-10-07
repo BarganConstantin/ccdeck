@@ -115,7 +115,7 @@ export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string
 
 /** What a card's accessible name says of its git: a file another live agent
  *  also edited, as the zoomed-out face marks it (the card's own, not its
- *  session's), and nothing while Appearance › Git is off. */
+ *  session's), and nothing while Settings › Git is off. */
 function gitWords(d: FlowNodeData): string | null {
   return d.gitMark?.level === "sharp" && !d.gitMark.session && gitOnNow() ? d.gitMark.words : null;
 }

@@ -16,7 +16,9 @@ const app = clientText();
 // The player's component and the files lifted out of it, read as one: the
 // probe, the pick counter and the direct stream live in use-fm-player.ts now.
 const player = claudeFmSurface();
-const menu = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
+// The station picker and its custom-station controls moved with Claude FM from
+// the Appearance modal to Settings › Music & character (2026-10-07), unchanged.
+const menu = readFileSync(fileURLToPath(new URL("../components/MusicSection.tsx", import.meta.url)), "utf8");
 const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../../../package.json", import.meta.url)), "utf8"));
 
 describe("custom FM stations (#1208)", () => {
@@ -154,10 +156,14 @@ describe("custom FM stations (#1208)", () => {
   });
 });
 
-describe("the station form in the Appearance menu (#1208)", () => {
-  it("lets a field keep the T the menu otherwise spends on the theme", () => {
-    const handler = menu.slice(menu.indexOf("const onMenuKey"), menu.indexOf("return createPortal("));
-    const typing = handler.indexOf("if (isTypingTarget(event.target as HTMLElement)) return;");
+describe("the station form in Settings › Music & character (#1208)", () => {
+  it("lets a field keep the T the dialog otherwise spends on the theme", () => {
+    // The T that switches the theme is answered by the Settings dialog round
+    // the form now (SettingsModal.tsx), and it still stands aside for a field
+    // somebody is typing into before it reads the letter.
+    const dialog = readFileSync(fileURLToPath(new URL("../components/SettingsModal.tsx", import.meta.url)), "utf8");
+    const handler = dialog.slice(dialog.indexOf("const onDialogKey"), dialog.indexOf("const { soundOn, toggleSound }"));
+    const typing = handler.indexOf("if (isTypingTarget(target)");
     expect(typing).toBeGreaterThan(-1);
     expect(typing).toBeLessThan(handler.indexOf('event.key !== "t"'));
   });
@@ -174,7 +180,18 @@ describe("the station form in the Appearance menu (#1208)", () => {
   it("reuses the swept button and field instead of a third copy of each", () => {
     expect(menu).not.toContain("appearance-station-button");
     expect(menu).toContain('<button type="submit" className="btn primary">Add</button>');
-    expect(menu).toContain('className="btn danger appearance-station-action"');
+    // Remove is the deck's danger button, and armed for its second press.
+    expect(menu).toContain('className={`btn danger appearance-station-action${removeArmed ? " armed" : ""}`}');
+    // Never one press: a removed station does not come back, link and all, so
+    // the first press arms and only a second, past the double-click gap,
+    // removes — the custom sounds' Delete, one section over.
+    const remove = menu.slice(menu.indexOf("const pressRemove = () => {"));
+    expect(remove).toContain("armedPress({");
+    expect(remove).toContain("gapMs: CONFIRM_GAP_MS");
+    expect(remove.indexOf('if (press === "arm")')).toBeGreaterThan(-1);
+    expect(remove.indexOf('if (press === "ignore") return;')).toBeLessThan(remove.indexOf("onRemoveFmStation("));
+    expect(remove.indexOf('if (press === "arm")')).toBeLessThan(remove.indexOf("onRemoveFmStation("));
+    expect(menu).toContain("onClick={pressRemove}");
     expect(menu.match(/className="ap-manage-input"/g)).toHaveLength(3);
   });
 
@@ -321,7 +338,7 @@ describe("the deck's music off switch, whatever link a station was given as", ()
 });
 
 describe("a silent station says why (#1267)", () => {
-  const menuSource = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
+  const menuSource = readFileSync(fileURLToPath(new URL("../components/MusicSection.tsx", import.meta.url)), "utf8");
   const playerSource = claudeFmSurface();
 
   it("keeps a built-in station's availability under its own value and a custom one's under its id", () => {

@@ -247,6 +247,10 @@ function notYet(now) {
  * long as the store has nothing to say about the new account.
  */
 function publish(gen, result, at, { good = false, who = null } = {}) {
+  // Tagged before the generation check: a read that finished after a switch is
+  // still a true reading of the account it was taken for, and whoever asked is
+  // still handed it.
+  if (who?.account) _accountOfQuota.set(result, who.account);
   if (gen !== _generation) return result;
   _cache   = result;
   _cacheAt = at;
@@ -301,6 +305,20 @@ async function storeQuota() {
   } catch {
     return null;
   }
+}
+
+// Which account a published reading was taken for, as `{ email,
+// organizationUuid }` — beside the reading, like `_accountOfReading` below, so
+// the panel is not sent an identity it has no use for. Only readings taken this
+// time are tagged: one held over and re-served as `stale` is a copy, and says
+// nothing new about anybody.
+const _accountOfQuota = new WeakMap();
+
+/** The account a reading fetchClaudeQuota returned was taken for, or null when
+ *  the deck could not tell — for account-watch.mjs, whose notifications are
+ *  about one account and must never land on another. */
+export function quotaAccount(reading) {
+  return (reading && typeof reading === "object" && _accountOfQuota.get(reading)) || null;
 }
 
 // Which account a store reading is about, for the inventory read it starts.

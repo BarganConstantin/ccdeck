@@ -207,6 +207,26 @@
   .appearance-preview svg { forced-color-adjust: none; }
   .appearance-theme[aria-checked="true"] .appearance-preview { forced-color-adjust: none; border-color: Highlight; box-shadow: 0 0 0 1px Highlight; }
 
+  /* The Settings section on show is raised onto the panel, and a Contrast
+     theme paints the panel and the nav one Canvas: it fills with the highlight
+     instead, the way a chosen option in a system list does. */
+  .settings-tab[aria-selected="true"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+
+  /* The volume sliders (Settings, the sound popover). Their track and thumb
+     are repainted backgrounds (menus.css), which a Contrast theme turned into
+     Canvas on Canvas — a label and a percentage with nothing between them. The
+     filled half and the thumb take Highlight, the way an on switch does, and
+     the rest of the track GrayText, a resting mark. One rule per engine: a
+     selector list naming the other engine's pseudo-element is dropped whole. */
+  .sm-row input[type="range"] { forced-color-adjust: none; }
+  .sm-row input[type="range"]::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, Highlight 0 var(--sm-level, 0%), GrayText var(--sm-level, 0%) 100%);
+  }
+  .sm-row input[type="range"]::-webkit-slider-thumb { background: Highlight; }
+  .sm-row input[type="range"]::-moz-range-track { background: GrayText; }
+  .sm-row input[type="range"]::-moz-range-progress { background: Highlight; }
+  .sm-row input[type="range"]::-moz-range-thumb { background: Highlight; }
+
   /* The git history's lanes and nodes are SVG paint, which a Contrast theme
      does not repaint: lane colours would stay on a ground chosen for other
      colours. The graph reads these two before its own colours
@@ -233,4 +253,9 @@
   .gvd-line[data-kind="add"] .gvd-word,
   .gvd-line[data-kind="del"] .gvd-word { forced-color-adjust: none; background: Mark; color: MarkText; }
   .gvf-stage, .gvf-who.is-other, .gvd-area, .gvd-placeholder, .gvd-pill { border-color: CanvasText; }
+
+  /* Settings › Git's look: the chosen one is raised onto the panel, which a
+     Contrast theme paints the same Canvas as its track, so it fills with the
+     highlight instead, as the Settings section on show does. */
+  .appearance-git-look-pick[aria-checked="true"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
 }

@@ -1,5 +1,5 @@
 // The git view's switch on the page: read with the rest of the deck's prefs,
-// pressed in Appearance, written back to the server — which stops its reads
+// pressed in Settings › Git, written back to the server — which stops its reads
 // when it is off — and honoured by every card, which then shows no branch.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sourceOf } from "./client-source";
@@ -47,9 +47,10 @@ describe("where the switch reaches", () => {
     expect(node).toContain("const chip = gitOn ? branchChip(data) : null;");
   });
 
-  it("is a switch in Appearance with the words that say what it reads and never does", () => {
-    const menu = sourceOf("components/AppearanceMenu.tsx");
-    expect(menu).toContain('<h3 id="appearance-git-caption">Git</h3>');
+  it("is a switch in Settings › Git with the words that say what it reads and never does", () => {
+    const menu = sourceOf("components/GitSection.tsx");
+    expect(sourceOf("settings.ts")).toContain('{ id: "git", label: "Git" }');
+    expect(sourceOf("components/SettingsModal.tsx")).toMatch(/case "git":\s*return <GitSection \/>;/);
     expect(menu).toContain('id="appearance-git-label">Git: branch on cards and the git view</span>');
     expect(menu).toContain('id="appearance-git-note" className="appearance-row-note">Reads your repos locally; never changes them.</span>');
     const sw = menu.slice(menu.indexOf('aria-labelledby="appearance-git-label"') - 200, menu.indexOf('aria-labelledby="appearance-git-label"') + 200);

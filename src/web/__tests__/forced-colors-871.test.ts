@@ -109,6 +109,22 @@ describe("the deck under a Windows Contrast theme (#871)", () => {
     expect(background(".switch[aria-checked=\"true\"]:hover:not(:disabled) .switch-knob")).toBe("HighlightText");
   });
 
+  it("keeps the volume sliders: the track, its filled half and the thumb", () => {
+    // Settings' and the sound popover's volumes are native ranges with a
+    // repainted track and thumb (menus.css), and both are backgrounds: a
+    // Contrast theme painted them Canvas on Canvas, so each volume row was a
+    // label and a percentage with nothing between them to drag or to read.
+    const RANGE = '.sm-row input[type="range"]';
+    expect(opts(RANGE)).toBe(true);
+    const track = bodyOf(`${RANGE}::-webkit-slider-runnable-track`);
+    expect(track).toMatch(/Highlight 0 var\(--sm-level, 0%\)/);
+    expect(track).toMatch(/GrayText var\(--sm-level, 0%\) 100%/);
+    expect(background(`${RANGE}::-webkit-slider-thumb`)).toBe("Highlight");
+    expect(background(`${RANGE}::-moz-range-track`)).toBe("GrayText");
+    expect(background(`${RANGE}::-moz-range-progress`)).toBe("Highlight");
+    expect(background(`${RANGE}::-moz-range-thumb`)).toBe("Highlight");
+  });
+
   it("names only selectors the sheet already draws, and outranks nothing by force", () => {
     for (const r of rules) for (const sel of r.sels) expect(outside, sel).toContain(sel);
     expect(block).not.toMatch(/!important/);

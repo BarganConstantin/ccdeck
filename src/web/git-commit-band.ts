@@ -129,7 +129,7 @@ export function bandRoom(view: { rows: readonly unknown[]; earlier: number }): n
 }
 
 /** The room the lane under this agent's card takes at `now` — none while Git
- *  is switched off in Appearance (`on`), when the card does not draw it. */
+ *  is switched off in Settings › Git (`on`), when the card does not draw it. */
 export function bandRoomFor(agents: ReadonlyMap<string, AgentNodeData>, a: AgentNodeData, now: number, on: boolean): number {
   if (!on) return 0;
   const root = a.kind === "root" ? a : agents.get(a.sessionId);

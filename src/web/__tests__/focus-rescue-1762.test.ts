@@ -132,8 +132,10 @@ describe("useFocusRescue", () => {
   });
 });
 
-describe("the sound menu's Enable", () => {
-  const menu = sourceOf("components/SoundMenu.tsx");
+// The channel and its Enable moved with the notification switches from the
+// sound popover to Settings › Notifications (2026-10-07), unchanged.
+describe("Settings › Notifications' Enable", () => {
+  const menu = sourceOf("components/NotificationsSection.tsx");
 
   it("arms the hand-off on its press", () => {
     expect(menu).toMatch(/<button type="button" className="btn sm-channel-action" onClick=\{\(\) => \{ rescueChannel\(\); onAskNotify\(\); \}\}>/);

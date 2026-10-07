@@ -138,6 +138,12 @@ describe("POST /api/prefs and the fields the deck writes itself", () => {
 // LanAddDeckModal.tsx and LanSetupModal.tsx.
 const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifications", { notifications: true }, p => p.notifications, true],
+  // The three account notifications, each from its own switch in the sound
+  // menu (use-os-notifications.ts toggleAccountNotify), each to the opposite
+  // of what it starts as.
+  ["notifySwap", { notifySwap: false }, p => p.notifySwap, false],
+  ["notifyQuota", { notifyQuota: true }, p => p.notifyQuota, true],
+  ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["git", { git: false }, p => p.git, false],
@@ -182,7 +188,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "tourSeen", "autoUpdate", "git", "gitApps"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "git", "gitApps"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

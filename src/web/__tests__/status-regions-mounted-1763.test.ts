@@ -20,7 +20,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { ReadoutGroup } from "../components/TopbarReadouts";
-import SoundMenu from "../components/SoundMenu";
+import SoundsSection from "../components/SoundsSection";
 import { DEFAULT_PREFS } from "../sound";
 
 type ReadoutProps = Parameters<typeof ReadoutGroup>[0];
@@ -80,18 +80,19 @@ describe("the topbar's word on the browser's answer", () => {
   });
 });
 
-const menu = (done: string | null, needsInput: string | null) => renderToStaticMarkup(createElement(SoundMenu, {
-  onClose: () => {}, soundOn: true, onToggleSound: () => {}, prefs: DEFAULT_PREFS,
-  onLevel: () => {}, onFigure: () => {}, onPreview: () => {}, openerRef: { current: null },
+// The tones and their shared note left the sound popover for Settings › Sounds
+// (2026-10-07), whole; this draws that section.
+const menu = (done: string | null, needsInput: string | null) => renderToStaticMarkup(createElement(SoundsSection, {
+  soundOn: true, onToggleSound: () => {}, prefs: DEFAULT_PREFS, claudeHere: true,
+  onLevel: () => {}, onFigure: () => {}, onPreview: () => {},
   customAssets: [{ id: "clip-1", name: "Chime", kind: "audio", mime: "audio/wav", duration: 1.5, normalizationGain: 1 }],
   customSelections: { done, "needs-input": needsInput },
   onBuiltInSelected: () => {}, onCustomSelected: () => {},
   onImportCustom: async () => {}, onCreateVoice: async () => {}, onRenameCustom: async () => {},
   onPreviewCustom: () => {}, onDeleteCustom: async () => {},
-  notifyOn: false, onToggleNotify: () => {}, notifyVetoed: false, notifyPermission: "default", onAskNotify: () => {},
-} as Parameters<typeof SoundMenu>[0]));
+} as Parameters<typeof SoundsSection>[0]));
 
-describe("the sound menu's note on a shared custom sound", () => {
+describe("Settings › Sounds' note on a shared custom sound", () => {
   it("has its region in place before both tones share one", () => {
     const before = regions(menu("clip-1", null));
     const after = regions(menu("clip-1", "clip-1"));

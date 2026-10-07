@@ -41,7 +41,13 @@ export interface KeyTarget {
 export const BODY: KeyTarget = { tagName: "BODY" };
 export const button = (): KeyTarget => ({ tagName: "BUTTON" });
 
-export function mountDeckKeys() {
+/** What a deck mounts with, where a test needs other than the default. */
+export interface DeckKeysOptions {
+  /** Whether Claude Code is on the machine; it is, unless a test says not. */
+  claude?: boolean;
+}
+
+export function mountDeckKeys({ claude = true }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   vi.stubGlobal("window", {
     addEventListener: (type: string, fn: (e: KeyboardEvent) => void) => { if (type === "keydown") onKey = fn; },
@@ -59,7 +65,7 @@ export function mountDeckKeys() {
     nodesRef: { current: [] },
     stateRef: { current: initialState() },
     primarySelectedIdRef: { current: "s1" },
-    providersRef: { current: { claude: true } },
+    providersRef: { current: { claude } },
     soundOnRef: { current: true },
     // Mirrored from the flag, the way App mirrors its state into the ref.
     keyHelpOpenRef: { get current() { return keyHelp.value; } },
@@ -90,16 +96,21 @@ export function mountDeckKeys() {
     gitViewOpenRef: { get current() { return gitView.value; } },
     toggleGitView: vi.fn(() => { gitView.value = !gitView.value; }),
     closeGitView: vi.fn(() => { gitView.value = false; }),
+    openSettings: vi.fn(),
   };
   useDeckShortcuts(props);
   if (!onKey) throw new Error("useDeckShortcuts put no keydown listener on window");
   const listener: (e: KeyboardEvent) => void = onKey;
 
   /** One keydown. `pointer` marks the target as focused by a pointer press (#851). */
-  function press(key: string, o: { target?: KeyTarget; repeat?: boolean; shiftKey?: boolean; pointer?: boolean } = {}) {
+  function press(key: string, o: {
+    target?: KeyTarget; repeat?: boolean; shiftKey?: boolean; pointer?: boolean;
+    ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean;
+  } = {}) {
     const target = o.target ?? BODY;
     const e = {
-      key, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false, ctrlKey: false, metaKey: false, altKey: false,
+      key, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false,
+      ctrlKey: o.ctrlKey ?? false, metaKey: o.metaKey ?? false, altKey: o.altKey ?? false,
       target: {
         ...target,
         getAttribute: (name: string) => (name === "role" ? target.role ?? null : null),

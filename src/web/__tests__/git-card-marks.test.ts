@@ -370,7 +370,7 @@ describe("the quiet mark on the card", () => {
     expect(after).not.toContain("git-mark");
   });
 
-  it("is gone with every other git mark while Appearance › Git is off", () => {
+  it("is gone with every other git mark while Settings › Git is off", () => {
     loadGitPrefs({ prefs: { git: false } });
     try {
       expect(card(webApp(quiet(BUG)), UI)).not.toContain("git-mark");

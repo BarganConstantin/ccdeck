@@ -9,7 +9,7 @@ import { forkCommitPick, forkOpening, viewOf, EMPTY_GIT_DATA } from "../use-git-
 
 const view = sourceOf("components/GitView.tsx");
 const toolbar = sourceOf("components/FkToolbar.tsx");
-const appearance = sourceOf("components/AppearanceMenu.tsx");
+const appearance = sourceOf("components/GitSection.tsx");
 const fork = sheetParts().find(([path]) => path === "styles/git-fork.css")![1];
 
 const commit = (sha: string, date: string, agent: LogCommit["agent"] = null, extra: Partial<LogCommit> = {}): LogCommit => ({
@@ -70,7 +70,7 @@ describe("the switch between the looks", () => {
     for (const m of fork.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/(^|\})\s*([^{}@]+)\{/g)) {
       const sel = m[2].trim();
       if (!sel || /^(from|to|\d+%)/.test(sel)) continue;
-      // Every rule is the Fork frame's own (fk-*), scoped under the look, or the Appearance row's.
+      // Every rule is the Fork frame's own (fk-*), scoped under the look, or Settings › Git's look row.
       expect(sel, sel).toMatch(/\.fk-|data-look="fork"|\.appearance-git-look|\.gv-look/);
     }
   });

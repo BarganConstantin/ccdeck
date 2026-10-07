@@ -159,19 +159,21 @@ describe("the row", () => {
   });
 });
 
-describe("Appearance", () => {
-  const menu = sourceOf("components/AppearanceMenu.tsx");
+describe("Settings › Git", () => {
+  const menu = sourceOf("components/GitSection.tsx");
   const picks = sourceOf("components/GitHandoffPicks.tsx");
 
-  it("draws the picks under the Git switch, before the next section", () => {
+  it("draws the picks under the Git switch, as the section's last group, captioned as the view's menu is", () => {
     const at = menu.indexOf("<GitHandoffPicks />");
     expect(at).toBeGreaterThan(menu.indexOf('id="appearance-git-note"'));
-    expect(at).toBeLessThan(menu.indexOf('id="appearance-fm-caption"'));
+    expect(menu.slice(at)).toMatch(/^<GitHandoffPicks \/>\s*<\/>/);
+    expect(picks).toContain('<section className="settings-group" aria-labelledby="appearance-git-picks-caption">');
+    expect(picks).toContain('<h3 id="appearance-git-picks-caption">Open in</h3>');
   });
 
-  it("asks for a pick only for a slot with more than one app, with the sound menu's select", () => {
+  it("asks for a pick only for a slot with more than one app, with the Sounds section's select", () => {
     expect(picks).toContain("HANDOFF_SLOTS.filter(slot => handoffs.slots[slot].apps.length > 1)");
-    expect(picks).toContain('className="sm-select"\n            value={handoffs.slots[slot].chosen ?? ""}');
+    expect(picks).toContain('className="sm-select"\n              value={handoffs.slots[slot].chosen ?? ""}');
     expect(picks).toContain("onChange={e => pickHandoff(slot, e.target.value)}");
     expect(picks).toContain('{ git: "Git client", editor: "Editor", terminal: "Terminal" }');
     expect(picks).toContain("Only apps found on this machine are listed.");

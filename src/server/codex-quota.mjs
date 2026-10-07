@@ -498,6 +498,19 @@ async function doFetchCodexQuota() {
   };
 
   result.resetCredits = await fetchResetCredits(base, auth);
+  _accountOfQuota.set(result, { accountId: auth.accountId ?? null, email: result.email });
 
   return finish(result);
+}
+
+// Which account a reading was taken for — the ChatGPT account id and the
+// address — kept beside it rather than on it, as quota.mjs keeps Claude's, so
+// the panel is sent nothing new. A reading held over and re-served as stale is
+// a copy and is not tagged.
+const _accountOfQuota = new WeakMap();
+
+/** The account a fetchCodexQuota reading was taken for, or null — for
+ *  account-watch.mjs, whose notifications are about one account at a time. */
+export function codexQuotaAccount(reading) {
+  return (reading && typeof reading === "object" && _accountOfQuota.get(reading)) || null;
 }
