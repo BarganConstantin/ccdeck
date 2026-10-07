@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import GitGraph, { forkLayout, type GitGraphProps } from "../components/GitGraph";
+import GitGraph, { forkLayout, hoverAnchor, type GitGraphProps } from "../components/GitGraph";
 import { layoutGraph, forkRowDrawing, graphColumns, FORK_GEOMETRY, VISIBLE_LANES, WIP_ID, type LogCommit } from "../git-graph-layout";
 import { shopHistory, HISTORY_HEAD } from "./git-graph-history";
 import { sourceOf } from "./client-source";
@@ -74,6 +74,25 @@ describe("the Fork look's layout", () => {
     const deckMerge = deck.rows.find(r => r.id === "m")!;
     expect(deckMerge.edges.find(e => e.kind === "merge")).toMatchObject({ to: 0, joins: true });
     expect(deckMerge.output[0]).toMatchObject({ id: "h", wip: true });
+  });
+});
+
+// ─── the card a key brings up ─────────────────────────────────────────────
+
+describe("the agent card a key brings up", () => {
+  /** An element with `boxes` client rects, holding `chip`. */
+  const el = (boxes: number, chip: Element | null = null) =>
+    ({ querySelector: () => chip, getClientRects: () => ({ length: boxes }) }) as unknown as Element;
+
+  it("stands by the row's agent chip while it is drawn, and by the row when a narrow history hides it", () => {
+    const drawn = el(1);
+    const withChip = el(1, drawn);
+    expect(hoverAnchor(withChip)).toBe(drawn);
+    // Under 480px another session's chip is display:none: it has no box.
+    const withHidden = el(1, el(0));
+    expect(hoverAnchor(withHidden)).toBe(withHidden);
+    const bare = el(1);
+    expect(hoverAnchor(bare)).toBe(bare);
   });
 });
 

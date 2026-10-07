@@ -586,6 +586,14 @@ export function forkLayout(commits: readonly LogCommit[], head: RepoHead | null,
 }
 const byRefs = (commits: readonly LogCommit[], sha: string) => commits.some(c => c.sha === sha && c.refs.head && !c.outsideWindow);
 
+/** What the agent card a key brings up stands by: the row's agent chip while
+ *  it is drawn, else the row. A narrow history hides another session's chip,
+ *  and a hidden chip has no box to stand by. */
+export function hoverAnchor(row: Element): Element {
+  const chip = row.querySelector(".gv-agent-chip");
+  return chip && chip.getClientRects().length > 0 ? chip : row;
+}
+
 // ─── the history ──────────────────────────────────────────────────────────
 
 let instance = 0;
@@ -950,7 +958,7 @@ export default function GitGraph(props: GitGraphProps) {
     let visible = false;
     try { visible = row.matches(":focus-visible"); } catch { visible = false; }
     if (!visible || !keyed.current) return;
-    showHoverSoon(sha, row.querySelector(".gv-agent-chip") ?? row, true);
+    showHoverSoon(sha, hoverAnchor(row), true);
   }, [byId, showHoverSoon, hideHover]);
 
   const hoverCommit = hover ? byId.get(hover.sha) : undefined;

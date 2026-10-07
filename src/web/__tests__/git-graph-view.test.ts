@@ -62,7 +62,8 @@ describe("the history list, as the markup builds it", () => {
   it("shows a card a key brought at once, and takes it away on the first Esc without closing the view", () => {
     // Nothing the keyboard does animates: the focus path asks for the card instantly.
     expect(src).toMatch(/instant: byKey \|\| reducedMotion\(\)/);
-    expect(src).toMatch(/showHoverSoon\(sha, row\.querySelector\("\.gv-agent-chip"\) \?\? row, true\);/);
+    expect(src).toMatch(/showHoverSoon\(sha, hoverAnchor\(row\), true\);/);
+    expect(src).toMatch(/const chip = row\.querySelector\("\.gv-agent-chip"\);\s*return chip && chip\.getClientRects\(\)\.length > 0 \? chip : row;/);
     // WCAG 1.4.13: dismissible without moving the pointer or the focus. The
     // listener runs before the view's own Esc (capture, on the window) and
     // only while a card is up.
