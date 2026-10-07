@@ -37,7 +37,10 @@ describe("every switch is the one switch (#886)", () => {
     // before it was made one of these.
     // Sixteen with #1853's "Send usage reports" in Appearance, and fifteen
     // again since that switch went with its section (2026-10-01).
-    expect(switches, "the fifteen switches in the app").toBe(15);
+    // Sixteen in the source again with the sound menu's account notifications
+    // (#1312), which are three switches drawn by one `role="switch"` from one
+    // list — this counts the markup that draws them, not what it draws.
+    expect(switches, "the sixteen switches in the source").toBe(16);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

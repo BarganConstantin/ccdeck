@@ -89,6 +89,7 @@ const menu = (done: string | null, needsInput: string | null) => renderToStaticM
   onImportCustom: async () => {}, onCreateVoice: async () => {}, onRenameCustom: async () => {},
   onPreviewCustom: () => {}, onDeleteCustom: async () => {},
   notifyOn: false, onToggleNotify: () => {}, notifyVetoed: false, notifyPermission: "default", onAskNotify: () => {},
+  accountNotify: { notifySwap: true, notifyQuota: false, notifyReset: false }, onToggleAccountNotify: () => {},
 } as Parameters<typeof SoundMenu>[0]));
 
 describe("the sound menu's note on a shared custom sound", () => {
