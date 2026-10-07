@@ -117,8 +117,10 @@ interface BodyActions {
   /** The Fork look's layout as the keys need it; null in the deck look. */
   fork: { sidebar: boolean; local: boolean; tab: "commit" | "changes" } | null;
   tab: (index: number) => void;
+  /** Focus fell to the page from a row that is gone: its pane takes it back. */
+  lost: () => void;
 }
-const NO_ACTIONS: BodyActions = { focusPane: () => {}, newest: () => {}, fork: null, tab: () => {} };
+const NO_ACTIONS: BodyActions = { focusPane: () => {}, newest: () => {}, fork: null, tab: () => {}, lost: () => {} };
 
 /** What a waiting or failed agent left out of the frame is marked with. The
  *  last marker of a column too long for the canvas counts the agents it
@@ -475,6 +477,9 @@ export default function GitView(props: GitViewProps) {
     setInert([...inertCards], false, inertCards);
     document.documentElement.removeAttribute("data-git-view");
   }, []);
+  // The deck rendered (a dialog over the view closing among the reasons):
+  // focus that fell to the page from a row that is gone goes back in.
+  useLayoutEffect(() => { if (want) bodyActions.current.lost(); });
 
   // The selection moved to an agent whose folder git cannot read: the view
   // has nothing to show for it, so it steps back.
@@ -913,14 +918,18 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // file committed or put back, a commit amended away, the Uncommitted row of
   // a detached HEAD gone clean — and focus would fall to the page, where every
   // deck key acts again. Its pane takes focus back in the same frame.
+  // Asked after every render of the panel, and of the deck around it
+  // (`lost`): a dialog over the view that closes — Settings, which can switch
+  // the look under it — renders the deck, not the panel.
   const lostFrom = useRef<{ el: HTMLElement; pane: GitViewPane | null } | null>(null);
-  useLayoutEffect(() => {
+  const takeBackLost = () => {
     const was = lostFrom.current;
     if (!request.open || !was) return;
     const active = document.activeElement;
     const p = paneForLostFocus({ connected: was.el.isConnected, pane: was.pane }, !active || active === document.body);
     if (p) { lostFrom.current = null; focusPane(p); }
-  });
+  };
+  useLayoutEffect(takeBackLost);
   // Into the inspector from the history (Enter, →): a folded inspector opens
   // first, so the key always lands somewhere. Out of a floating sidebar
   // (Esc, ←…): it steps aside.
@@ -934,7 +943,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     focusPane(p);
   };
   actions.current = {
-    focusPane: focusFork, newest: view.showLatest,
+    focusPane: focusFork, newest: view.showLatest, lost: takeBackLost,
     fork: fork ? { sidebar: sidebarShown, local: view.view === "local", tab: tab === "commit" ? "commit" : "changes" } : null,
     // 1 2 3: a tab the bar draws, and the inspector opened if it was folded.
     tab: index => {

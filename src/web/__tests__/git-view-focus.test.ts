@@ -42,11 +42,20 @@ describe("a row that held focus and is gone", () => {
 
   it("hands focus back to that pane after the render that removed it, while the view is open", () => {
     const at = view.indexOf("const lostFrom = useRef");
-    const body = view.slice(at, view.indexOf("actions.current = { focusPane", at));
-    expect(body).toMatch(/useLayoutEffect\(\(\) => \{\s*const was = lostFrom\.current;/);
+    const body = view.slice(at, view.indexOf("actions.current = {", at));
+    expect(body).toMatch(/const takeBackLost = \(\) => \{\s*const was = lostFrom\.current;/);
     expect(body).toMatch(/if \(!request\.open \|\| !was\) return;/);
     expect(body).toMatch(/paneForLostFocus\(\{ connected: was\.el\.isConnected, pane: was\.pane \}, !active \|\| active === document\.body\)/);
     expect(body).toMatch(/if \(p\) \{ lostFrom\.current = null; focusPane\(p\); \}/);
+    expect(body).toMatch(/useLayoutEffect\(takeBackLost\);/);
+  });
+
+  it("asks again on the deck's own renders: a dialog closing over a row a look switch removed renders no view", () => {
+    // Settings opened from the view with Ctrl+, switches the look under the
+    // dialog: the element that opened it is gone, Settings cannot give focus
+    // back, and focus fell to the page, where every deck key acts again.
+    expect(view).toMatch(/lost: takeBackLost,/);
+    expect(view).toMatch(/useLayoutEffect\(\(\) => \{ if \(want\) bodyActions\.current\.lost\(\); \}\);/);
   });
 });
 
