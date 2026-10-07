@@ -222,10 +222,11 @@
   --gv-lane-4-node-dim: color-mix(in srgb, var(--gv-lane-4) 82%, var(--panel));
   --gv-lane-5-node-dim: color-mix(in srgb, var(--gv-lane-5) 82%, var(--panel));
   /* FORK LOOK. The git view's second look draws Fork's own window: these
-     are its colours, measured off Fork for macOS (dark) and its light
-     screenshots, used only under .gv-wide[data-look="fork"]. Where Fork's
-     own colour misses a contrast floor the deck holds, the floor-safe value
-     is the one here. */
+     are its colours, measured off Fork for macOS 26 in both appearances
+     (the light chrome — a near-white floating sidebar, a white toolbar —
+     from captures of Fork 2.6x on macOS 26), used only under
+     .gv-wide[data-look="fork"]. Where Fork's own colour misses a contrast
+     floor the deck holds, the floor-safe value is the one here. */
   /* Fork look: surfaces */
   --fk-chrome: #1e1e1e;
   --fk-list: #1e1e1e;
@@ -515,26 +516,27 @@
   --gv-lane-4-node-dim: color-mix(in srgb, var(--gv-lane-4) 75%, var(--panel));
   --gv-lane-5-node-dim: color-mix(in srgb, var(--gv-lane-5) 75%, var(--panel));
   /* FORK LOOK. The git view's second look draws Fork's own window: these
-     are its colours, measured off Fork for macOS (dark) and its light
-     screenshots, used only under .gv-wide[data-look="fork"]. Where Fork's
+     are its colours, measured off Fork for macOS 26 in both appearances
+     (the light chrome — a near-white floating sidebar, a white toolbar —
+     from captures of Fork 2.6x on macOS 26), used only under .gv-wide[data-look="fork"]. Where Fork's
      own colour misses a contrast floor the deck holds, the floor-safe value
      is the one here: in light the lanes, the secondary text, the filter
      placeholder, the incoming dot, the scroll thumb (git-fork-contrast.test.ts
      holds them). */
   /* Fork look: surfaces */
-  --fk-chrome: #f5f5f5;
+  --fk-chrome: #ffffff;
   --fk-list: #ffffff;
-  --fk-sidebar: #e2e2e2;
+  --fk-sidebar: #fbfbfa;
   --fk-sidebar-edge: rgba(0, 0, 0, 0.12);
   --fk-sidebar-shadow: 0 0 12px rgba(0, 0, 0, 0.14), 0 0 36px rgba(0, 0, 0, 0.1);
-  --fk-sidebar-select: #c9c9c9;
-  --fk-sidebar-line: #d0d0d0;
+  --fk-sidebar-select: #dddddd;
+  --fk-sidebar-line: #e0e0e0;
   --fk-sidebar-field-line: #b8b8b8;
   --fk-sidebar-field: #ffffff;
-  --fk-field: #e9e9e9;
+  --fk-field: #e6e6e6;
   --fk-tool-hover: rgba(0, 0, 0, 0.06);
   --fk-tool-press: rgba(0, 0, 0, 0.1);
-  --fk-inspector-bar: #ffffff;
+  --fk-inspector-bar: #fbfbfb;
   --fk-inspector-pill: #d9d9d9;
   --fk-inspector: #ffffff;
   --fk-tree: #ffffff;
