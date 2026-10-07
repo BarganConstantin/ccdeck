@@ -206,6 +206,38 @@ describe("readLog", () => {
   });
 });
 
+describe("readCommitsBySha", () => {
+  it("says which commits HEAD has, whether its base has them too, and which it has not pushed", async () => {
+    // main pushed; a feature branch off it, pushed after its first commit;
+    // another branch HEAD does not have.
+    const origin = track(tempDir("ccdeck-git-reads-origin-"));
+    sh(origin, ["init", "-q", "--bare", "-b", "main", "."]);
+    const dir = track(repoWith({ "a.txt": "0\n" }));
+    sh(dir, ["remote", "add", "origin", origin]);
+    write(dir, { "a.txt": "m1\n" });
+    const m1 = commitAll(dir, "m1");
+    sh(dir, ["push", "-q", "-u", "origin", "main"]);
+    sh(dir, ["checkout", "-q", "-b", "other"]);
+    write(dir, { "o.txt": "o1\n" });
+    const o1 = commitAll(dir, "o1");
+    sh(dir, ["checkout", "-q", "-b", "feature", "main"]);
+    write(dir, { "f.txt": "f1\n" });
+    const f1 = commitAll(dir, "f1");
+    sh(dir, ["push", "-q", "-u", "origin", "feature"]);
+    write(dir, { "f.txt": "f2\n" });
+    const f2 = commitAll(dir, "f2");
+    const r = await reads.readCommitsBySha(dir, [m1, f1, f2, o1], await headOf(dir), { defaultBranch: "main" });
+    expect(r.ok).toBe(true);
+    const by = new Map(r.commits.map((c: any) => [c.sha, c]));
+    expect(by.get(m1)).toMatchObject({ onHead: true, base: true });
+    expect(by.get(m1).unpushed).toBeUndefined();
+    expect(by.get(f1)).toMatchObject({ onHead: true, base: false });
+    expect(by.get(f1).unpushed).toBeUndefined();
+    expect(by.get(f2)).toMatchObject({ onHead: true, base: false, unpushed: true });
+    for (const key of ["onHead", "base", "unpushed"]) expect(by.get(o1)[key], key).toBeUndefined();
+  });
+});
+
 describe("readStatus", () => {
   it("keeps a file staged and then changed again as two entries", async () => {
     const dir = track(repoWith({ "a.txt": "one\n" }));

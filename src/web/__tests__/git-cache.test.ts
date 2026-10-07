@@ -209,6 +209,55 @@ describe("status and history", () => {
     expect(staleCount(wt)).toBe(1);
   });
 
+  // The history's ref marks (which row is HEAD, which branch is checked out,
+  // what is unpushed) come from the HEAD it was read with, so a history read
+  // for an older HEAD must never answer beside a newer one.
+  const headRow = (log: any) => log.commits.find((c: any) => c.refs.head);
+
+  it("never pairs a HEAD moved by a checkout with a history read before it, once the repository is read again", async () => {
+    let t = 1_000_000;
+    setGitClock(() => t);
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    await repoOf(dir);
+    t += 8_000;
+    expect(headRow(await logOf(await repoOf(dir))).refs.local).toEqual(["main"]);
+    // In the user's own terminal: no agent marks it.
+    sh(dir, ["switch", "-q", "-c", "by-hand"]);
+    t += MAX_AGE_MS - 8_000 + 500;
+    const repo = await repoOf(dir);
+    expect(repo.head.branch).toBe("by-hand");
+    expect(headRow(await logOf(repo)).refs.local.sort()).toEqual(["by-hand", "main"]);
+  });
+
+  it("never pairs a HEAD moved by a checkout with a history read before it, for a second folder in the same worktree", async () => {
+    const dir = track(repoWith({ "src/a.txt": "one\n" }));
+    const first = await repoOf(dir);
+    expect(headRow(await logOf(first)).refs.local).toEqual(["main"]);
+    sh(dir, ["switch", "-q", "-c", "by-hand"]);
+    const second = await repoOf(join(dir, "src"));
+    expect(second.head.branch).toBe("by-hand");
+    expect(headRow(await logOf(second)).refs.local.sort()).toEqual(["by-hand", "main"]);
+  });
+
+  it.skipIf(process.platform === "win32")("never hands a history read still running for an older HEAD to an asker with a newer one", async () => {
+    const dir = track(repoWith({ "src/a.txt": "one\n" }));
+    const first = await repoOf(dir);
+    const held = holdingGit("log");
+    try {
+      const early = logOf(first);
+      expect(await held.ran()).toBe(true);
+      sh(dir, ["switch", "-q", "-c", "by-hand"]);
+      const second = await repoOf(join(dir, "src"));
+      expect(second.head.branch).toBe("by-hand");
+      const late = logOf(second);
+      held.release();
+      expect(headRow(await early).refs.local).toEqual(["main"]);
+      expect(headRow(await late).refs.local.sort()).toEqual(["by-hand", "main"]);
+    } finally {
+      held.restore();
+    }
+  });
+
   it("can be told the session's own worktree when the folder it names is spelled differently", async () => {
     const dir = track(repoWith({ "a.txt": "one\n" }));
     await repoOf(dir);

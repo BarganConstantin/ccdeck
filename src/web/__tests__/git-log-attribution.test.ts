@@ -158,6 +158,8 @@ describe("the agent on each commit", () => {
     expect(after.map((x: any) => x.sha).sort()).toEqual([sha.oldL1, sha.oldSub].sort());
     expect(after.find((x: any) => x.sha === sha.oldSub).agent).toMatchObject({ sessionId: "L1", agentId: "ag-old", label: "archaeologist", agentType: "archaeologist", confidence: "seen" });
     expect(after[0]).toMatchObject({ subject: expect.stringMatching(/^feat: old work/), parents: [expect.any(String)], refs: { local: [], remote: [], tags: [], head: false } });
+    // HEAD has them, though the commits joining them to the window are not listed.
+    expect(after.every((x: any) => x.onHead === true)).toBe(true);
     // Never twice, never another session's, never one a reset took away.
     expect(new Set(r.body.commits.map((x: any) => x.sha)).size).toBe(r.body.commits.length);
     expect(r.body.commits.some((x: any) => x.sha === sha.oldL2 || x.sha === sha.lost)).toBe(false);

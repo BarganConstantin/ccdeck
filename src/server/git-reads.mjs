@@ -331,11 +331,13 @@ const STORED_SHA = /^[0-9a-f]{7,64}$/;
  * own (`--no-walk`, so no parent is followed), newest first, with refs as
  * readLog attaches them. A SHA the repository does not hold is skipped, and so
  * is a commit no branch, remote-tracking branch, tag or HEAD reaches any more —
- * what an amend or a rebase left behind, kept only by the reflog.
+ * what an amend or a rebase left behind, kept only by the reflog. Each says
+ * whether HEAD has it, and how it stands against HEAD's base and upstream
+ * (withReach), since the commits joining it to the window are not listed.
  *
  * `{ ok: true, commits }`, or `{ ok: false, reason }` for a read that failed.
  */
-export async function readCommitsBySha(topLevel, shas, head) {
+export async function readCommitsBySha(topLevel, shas, head, { defaultBranch = null } = {}) {
   const list = [...new Set((Array.isArray(shas) ? shas : []).filter((s) => typeof s === "string" && STORED_SHA.test(s)))];
   if (!list.length) return { ok: true, commits: [] };
   const ends = ["--branches", "--remotes", "--tags", ...(head?.sha ? ["HEAD"] : [])];
@@ -347,7 +349,37 @@ export async function readCommitsBySha(topLevel, shas, head) {
   const refs = await refsByCommit(topLevel);
   const r = await git("log", ["-z", "--no-walk", "--ignore-missing", `--format=${LOG_FORMAT}`, ...list, "--"], { cwd: topLevel });
   if (!r.ok) return { ok: false, reason: readFailure(r) };
-  return { ok: true, commits: withRefs(r.stdout, refs, head).filter((c) => !gone.has(c.sha)) };
+  const kept = withRefs(r.stdout, refs, head).filter((c) => !gone.has(c.sha));
+  return { ok: true, commits: await withReach(topLevel, kept, refs, head, defaultBranch) };
+}
+
+const shaSet = (stdout) => new Set(stdout.split("\n").map((l) => l.trim()).filter(Boolean));
+
+/**
+ * Commits read on their own, each flagged `onHead: true` when HEAD has it,
+ * and those then `base` (whether the branches HEAD is measured against have
+ * it too, as withHeadLine says it) and `unpushed: true` (HEAD's upstream does
+ * not have it, as withUnpushed says it). A read that fails flags nothing.
+ */
+async function withReach(topLevel, commits, refs, head, defaultBranch) {
+  if (!commits.length || !head?.sha || !isShaLike(head.sha)) return commits;
+  const away = await git("rev-list", [...commits.map((c) => c.sha), "--not", head.sha, "--"], { cwd: topLevel });
+  if (!away.ok) return commits;
+  const off = shaSet(away.stdout);
+  const on = commits.map((c) => c.sha).filter((sha) => !off.has(sha));
+  if (!on.length) return commits;
+  const bases = baseRefs(refs, head, defaultBranch);
+  const upstream = headUpstream(refs, head);
+  const [own, ahead] = await Promise.all([
+    bases.length ? git("rev-list", [...on, "--not", ...bases, "--"], { cwd: topLevel }) : null,
+    upstream ? git("rev-list", [...on, "--not", `refs/remotes/${upstream}`, "--"], { cwd: topLevel }) : null,
+  ]);
+  const mine = own?.ok ? shaSet(own.stdout) : null;
+  const unpushed = ahead?.ok ? shaSet(ahead.stdout) : null;
+  const onHead = new Set(on);
+  return commits.map((c) => (onHead.has(c.sha)
+    ? { ...c, onHead: true, ...(mine ? { base: !mine.has(c.sha) } : {}), ...(unpushed?.has(c.sha) ? { unpushed: true } : {}) }
+    : c));
 }
 
 /**

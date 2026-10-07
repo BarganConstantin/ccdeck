@@ -198,7 +198,7 @@ export const GATES = [
   // mark to an asker after it. Holding one git read open mid-answer takes a
   // `git` of the test's own on PATH, a shell script, which Windows cannot run
   // in git.exe's place; the cache's rule is the same code on every leg.
-  { file: "git-cache.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
+  { file: "git-cache.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
   // A real deck sent SIGHUP, to see its shutdown run. Windows cannot send a
   // process SIGHUP: there a child.kill of any signal is TerminateProcess.
   { file: "hangup-shuts-down.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },

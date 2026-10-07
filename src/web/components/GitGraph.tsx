@@ -574,14 +574,15 @@ const FkHistoryRow = memo(function FkHistoryRow(p: FkRowProps) {
  * The layout the Fork look draws: lanes where Fork would start them, with no
  * column held for an uncommitted row — unless that would put HEAD's own line
  * in the fold of a busy repository, where it would be lost; then the column
- * is held for it after all, as the deck look always holds it.
+ * is held for it after all, as the deck look always holds it, and a merge
+ * that takes HEAD in runs down that column to it.
  */
 export function forkLayout(commits: readonly LogCommit[], head: RepoHead | null, slots: ReadonlyMap<string, number>, defaultBranch: string | null): GraphLayout {
   const bare = layoutGraph(commits, { head, wip: false, slots, defaultBranch });
   const { folded } = graphColumns(bare.columns);
   const at = bare.rows.find(r => r.id === head?.sha) ?? bare.rows.find(r => byRefs(commits, r.id));
   if (!folded || !at || at.col < VISIBLE_LANES) return bare;
-  return layoutGraph(commits, { head, wip: true, slots, defaultBranch });
+  return layoutGraph(commits, { head, wip: true, wipHidden: true, slots, defaultBranch });
 }
 const byRefs = (commits: readonly LogCommit[], sha: string) => commits.some(c => c.sha === sha && c.refs.head && !c.outsideWindow);
 

@@ -108,18 +108,20 @@ function withStale(result) {
   return { ...result, stale: worktrees.get(result.topLevel)?.stale ?? 0 };
 }
 
-/** A per-worktree cached read: `slot` names the cache, `compute` fills it. */
-async function cached(repo, slot, compute) {
+/** A per-worktree cached read: `slot` names the cache, `compute` fills it.
+ *  `key` names what the read depends on beyond the worktree itself: a cached
+ *  answer, or one still running, made for another key is not this asker's. */
+async function cached(repo, slot, compute, key = "") {
   const wt = worktree(repo);
   const hit = wt[slot];
-  if (hit?.pending && markOf(wt, slot) < hit.start) return hit.pending;
-  if (hit && !hit.pending && holds(hit, wt, slot)) return hit.value;
+  if (hit?.pending && hit.key === key && markOf(wt, slot) < hit.start) return hit.pending;
+  if (hit && !hit.pending && hit.key === key && holds(hit, wt, slot)) return hit.value;
   const start = epoch + 1;
   const pending = compute();
-  wt[slot] = { pending, start };
+  wt[slot] = { pending, start, key };
   try {
     const value = await pending;
-    if (wt[slot]?.pending === pending) wt[slot] = value?.ok === false ? null : { at: now(), start, value };
+    if (wt[slot]?.pending === pending) wt[slot] = value?.ok === false ? null : { at: now(), start, key, value };
     return value;
   } catch {
     if (wt[slot]?.pending === pending) wt[slot] = null;
@@ -129,7 +131,14 @@ async function cached(repo, slot, compute) {
 
 const filtersOf = (repo) => cached(repo, "filters", () => filterNames(repo.topLevel));
 
-export const logOf = (repo) => cached(repo, "log", () => readLog(repo.topLevel, repo.head, { commonDir: repo.commonDir, defaultBranch: repo.defaultBranch ?? null }));
+/** The history marks HEAD's row, its branch and what is unpushed from the
+ *  HEAD it is read with, so it is kept per HEAD: a checkout made where no
+ *  agent marks it (the user's own terminal) is seen by the repository read
+ *  first, and its HEAD must never answer beside a history read for the old
+ *  one. */
+const logKey = (repo) => JSON.stringify([repo.head?.sha ?? null, repo.head?.branch ?? null, Boolean(repo.head?.detached), repo.defaultBranch ?? null]);
+
+export const logOf = (repo) => cached(repo, "log", () => readLog(repo.topLevel, repo.head, { commonDir: repo.commonDir, defaultBranch: repo.defaultBranch ?? null }), logKey(repo));
 
 export const statusOf = (repo) => cached(repo, "status", async () => readStatus(repo.topLevel, { filters: await filtersOf(repo) }));
 

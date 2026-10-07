@@ -95,7 +95,7 @@ export async function attributeHistory(repo, commits, { sessionId = null, agentI
   let olderHits = new Map();
   if (own.length) {
     // The store answers oldest first; the newest are the ones worth showing.
-    const read = await readCommitsBySha(repo.topLevel, own.slice(-OUTSIDE_WINDOW_MAX).map((r) => r.sha), repo.head);
+    const read = await readCommitsBySha(repo.topLevel, own.slice(-OUTSIDE_WINDOW_MAX).map((r) => r.sha), repo.head, { defaultBranch: repo.defaultBranch ?? null });
     if (read.ok) {
       const candidates = read.commits.filter((c) => !inWindow.has(c.sha));
       olderHits = attributeCommits(own, candidates.map(asHistory));
