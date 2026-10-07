@@ -698,15 +698,19 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const agentParam = away ? away.agentId : narrow ? focus.agentIds![0] : null;
   // From a subagent widened to its session, the session's repository is read.
   const facts = away ? awayCard?.git : narrow ? gitFactsFor(agent, root) : root?.git ?? gitFactsFor(agent, root);
+  // The worktree the read follows the agent into: the selection is that
+  // worktree's, and starts over when the agent moves to another.
+  const top = facts?.topLevel ?? null;
   const data = useGitData({
-    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, top: facts?.topLevel ?? null, enabled: true, fresh: true,
+    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, top, enabled: true, fresh: true,
     ownFolder: away != null || (narrow && agent.git != null),
   });
   const view = useGitSelection({
-    data, sessionId: agent.sessionId, agent: agentParam, focus, active: request.open,
-    // The row and file a request named are in the session's folder, not in
-    // the one a subagent was narrowed to.
-    initial: away ? {} : { sel: request.sel, file: request.file }, seq: request.seq,
+    data, sessionId: agent.sessionId, agent: agentParam, top, focus, active: request.open,
+    // The row and file a request named are the agent's it opened on, in the
+    // session's folder: never another agent's the view follows, nor the
+    // folder a subagent was narrowed to.
+    initial: away || request.agentId !== agent.id ? {} : { sel: request.sel, file: request.file }, seq: request.seq,
     forkOpen: prefs.look === "fork",
   });
   const { sel, file } = view;

@@ -19,7 +19,9 @@ const rule = (sel: string) => {
 describe("opening and closing", () => {
   it("opens from the card's chip, from g and from the glance, through one request", () => {
     expect(app).toMatch(/useGitOpener\(\{ selectAgent, openGitView: openGitViewFromChip \}\)/);
-    expect(app).toMatch(/openGitViewRequest\(how, opts\)/);
+    expect(app).toMatch(/openGitViewRequest\(how, \{ \.\.\.opts, agentId: id \}\)/);
+    // Every request names the agent it opened on: its row and file are that agent's.
+    expect(sourceOf("git-view-request.ts")).toMatch(/sel: hints\.sel, file: hints\.file, agentId: hints\.agentId \?\? null \}\);/);
     expect(sourceOf("use-deck-shortcuts.ts")).toMatch(/if \(e\.key === "g" \|\| e\.key === "G"\) toggleGitView\(\);/);
   });
 

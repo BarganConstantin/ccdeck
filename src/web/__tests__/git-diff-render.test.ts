@@ -254,7 +254,7 @@ describe("one path in two commits", () => {
     expect(diff).toContain('const fileKey = props.diffKey ?? (file ? `${file.area}\\0${file.path}` : "");');
     const view = sourceOf("components/GitView.tsx");
     expect(view).toContain("diffKey={view.diff.file && view.diff.sel ? `${view.diff.sel}:${view.diff.file.area}:${view.diff.file.path}` : undefined}");
-    expect(sourceOf("use-git-view.ts")).toContain("setDiff({ file, sel, diff: null, loading: true, stale: false, error: null });");
+    expect(sourceOf("use-git-view.ts")).toContain("setDiff({ file, sel, diff: null, loading: true, stale: false, error: null, of: owner });");
   });
 });
 

@@ -502,7 +502,7 @@ function Inner() {
       gitOpenerRef.current = active;
       gitOpenerPressed.current = pointerFocusRef.current === active ? active : null;
     }
-    openGitViewRequest(how, opts);
+    openGitViewRequest(how, { ...opts, agentId: id });
   }, []);
   const closeGitView = useCallback((how: GitViewHow) => closeGitViewRequest(how), []);
   const gitFocusBack = useCallback((el: HTMLElement) => {

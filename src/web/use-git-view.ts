@@ -41,6 +41,8 @@ export interface GitData {
   at: number;
   /** How many of the last read's answers are still on their way. */
   pending: number;
+  /** The worktree the read was asked in; never set before the first read. */
+  top?: string | null;
 }
 
 export const EMPTY_GIT_DATA: GitData = {
@@ -160,7 +162,7 @@ function read(key: string, sessionId: string, agent: string | null, stale: numbe
   e.top = top;
   e.data = moved ? { ...EMPTY_GIT_DATA, at: Date.now() } : { ...e.data, at: Date.now() };
   const kinds = agent ? READS : [...READS, "repo"] as const;
-  publish(e, { ...e.data, pending: kinds.length });
+  publish(e, { ...e.data, top, pending: kinds.length });
   for (const kind of kinds) {
     fetch(`/api/git/${kind}?${gitQuery(sessionId, kind === "edits" ? editsAgent : agent)}`)
       .then(async r => ({ status: r.status, body: (await r.json().catch(() => ({}))) as Answer }))
@@ -207,7 +209,9 @@ export function useGitData({ sessionId, agent, stale, top = null, enabled, fresh
     const old = Date.now() - e.data.at > 10_000;
     if (e.seen < stale || e.data.at === 0 || (fresh && old) || (e.top !== undefined && e.top !== top)) read(key, sessionId, agent, stale, ownFolder ? agent : null, top);
   }, [key, stale, top, fresh]);
-  return data;
+  // The agent moved to another worktree and its read there is not asked for
+  // yet: what the cache holds is the worktree before's, and none of it shows.
+  return data.top === undefined || data.top === top ? data : EMPTY_GIT_DATA;
 }
 
 // ── what the data says about whose work it is ────────────────────────────
@@ -295,7 +299,11 @@ export interface DiffState {
   /** Why the diff could not be read: the route's reason, "unlisted" when git
    *  no longer lists the change, "the deck did not answer". */
   error: string | null;
+  /** Whose selection it was read for (selectionOwner). */
+  of?: string;
 }
+
+const NO_DIFF: DiffState = { file: null, diff: null, loading: false, stale: false, error: null };
 
 /** A failed read of a commit's files, and why. */
 export interface ReadFailure { error: string }
@@ -314,6 +322,49 @@ type DiffAnswer = {
 
 const sameDiff = (a: DiffResult | null, b: DiffResult | null) => JSON.stringify(a) === JSON.stringify(b);
 
+/** Whose a selection is: one agent's (or the whole session's) read of one
+ *  worktree. A selection, the commits read for it and the diff on screen
+ *  never outlive it: another agent followed, or the agent moving to another
+ *  worktree, starts them over. */
+export const selectionOwner = (sessionId: string, agent: string | null, top: string | null) => `${sessionId}|${agent ?? ""}|${top ?? ""}`;
+
+/** The selection, and the request and owner it was started for. */
+export interface Picked {
+  /** `${seq}|${owner}`: a new request, or another owner, starts it over. */
+  of: string;
+  sel: string;
+  file: GitFileRef | null;
+  /** The file was chosen — by the reader, or by the request — so the file
+   *  the view opens on is not picked over it. */
+  picked: boolean;
+  /** Where the view opens is settled: the request named a row or a file, the
+   *  reader chose something, or the Fork look's opening rule has run. */
+  settled: boolean;
+  /** The request whose row and file were taken. They name one agent's
+   *  worktree as it was when they were chosen, so they are taken once: a
+   *  move to another worktree within the same request does not take them again. */
+  hinted: number | null;
+}
+
+/** A selection started over for `of`: on the request's row and file when it
+ *  names them and they were not taken yet, else on the working tree. */
+export function startPick(of: string, seq: number, initial: { sel?: string | null; file?: GitFileRef | null }, hinted: number | null): Picked {
+  const hints = (initial.sel != null || initial.file != null) && hinted !== seq;
+  return {
+    of, sel: hints ? initial.sel ?? UNCOMMITTED : UNCOMMITTED, file: hints ? initial.file ?? null : null,
+    picked: hints && initial.file != null, settled: hints, hinted: hints ? seq : hinted,
+  };
+}
+
+/** The commits read for one owner: their files, and the commit itself as the
+ *  read answered it (its committer and message included), for the Fork
+ *  look's Commit tab. */
+interface CommitReads {
+  of: string;
+  files: Map<string, CommitFile[] | ReadFailure>;
+  heads: Map<string, { commit: LogCommit; notDownloaded?: boolean }>;
+}
+
 /**
  * Which history row and file are selected in the open view, the selected
  * commit's files, and the selected file's diff.
@@ -323,71 +374,88 @@ const sameDiff = (a: DiffResult | null, b: DiffResult | null) => JSON.stringify(
  * The diff is read a frame after it is asked for, so the panel's first frame
  * never waits on it; when the working tree moves, the open file's diff is
  * read again and, if it changed, kept aside until the reader asks for it.
+ *
+ * All of it belongs to one owner (selectionOwner): the view following another
+ * agent, or the agent moving to another worktree, starts the selection over
+ * in the same render, so nothing of the one before is drawn or read there.
  */
-export function useGitSelection({ data, sessionId, agent, focus, initial, seq, active, forkOpen = false }: {
+export function useGitSelection({ data, sessionId, agent, top = null, focus, initial, seq, active, forkOpen = false }: {
   data: GitData;
   sessionId: string;
   agent: string | null;
+  /** The worktree the read is asked in (useGitData's `top`). */
+  top?: string | null;
   focus: GraphFocus;
-  /** What a request named: a row and a file, or nothing. */
+  /** What the request named for this agent: a row and a file, or nothing. */
   initial: { sel?: string | null; file?: GitFileRef | null };
   /** The request it came with; a new one starts the selection over. */
   seq: number;
   /** The view is open (reads wait otherwise). */
   active: boolean;
   /** The view opens in the Fork look: where it opens is forkOpening's, once
-   *  the reads it weighs are in, unless the request named a row or a file. */
+   *  the reads it weighs are in, unless the request named a row or a file or
+   *  the reader has already chosen one. */
   forkOpen?: boolean;
 }) {
-  const [sel, setSelRaw] = useState<string>(initial.sel ?? UNCOMMITTED);
-  const [file, setFile] = useState<GitFileRef | null>(initial.file ?? null);
-  const picked = useRef(false);
-  useEffect(() => {
-    setSelRaw(initial.sel ?? UNCOMMITTED);
-    setFile(initial.file ?? null);
-    picked.current = initial.file != null;
-  }, [seq, sessionId, agent]);
+  const owner = selectionOwner(sessionId, agent, top);
+  const of = `${seq}|${owner}`;
+  const [kept, setPick] = useState<Picked>(() => startPick(of, seq, initial, null));
+  // Started over in the render that finds a new owner, not in an effect after
+  // it: nothing of the selection before is drawn, or read, for the new one.
+  let pick = kept;
+  if (kept.of !== of) {
+    pick = startPick(of, seq, initial, kept.hinted);
+    setPick(pick);
+  }
+  const { sel, file } = pick;
+  const settle = useCallback(() => setPick(p => (p.settled ? p : { ...p, settled: true })), []);
 
   // A detached HEAD has no working-tree row worth opening on when it is clean:
   // the history opens on HEAD instead.
   useEffect(() => {
     if (sel !== UNCOMMITTED || !data.repo?.head.detached || !data.entries || data.entries.length) return;
     const head = data.repo.head.sha;
-    if (head) setSelRaw(head);
+    if (head) setPick(p => (p.sel === UNCOMMITTED ? { ...p, sel: head } : p));
   }, [data.repo, data.entries, sel]);
 
   // The commit's files, read once per commit while the view is open. A read
   // that failed is kept only until that commit is chosen again, asked for
-  // again, or the folder moves: it is never shown as an empty commit.
-  const [commitFiles, setCommitFiles] = useState<Map<string, CommitFile[] | ReadFailure>>(() => new Map());
-  const [commitAgain, setCommitAgain] = useState(0);
-  // The commit itself as that read answered it (its committer and message
-  // included), for the Fork look's Commit tab.
-  const [commitHeads, setCommitHeads] = useState<Map<string, { commit: LogCommit; notDownloaded?: boolean }>>(() => new Map());
+  // again, or the folder moves — and then it is read again: it is never
+  // shown as an empty commit, nor left reading.
+  const [reads, setReads] = useState<CommitReads>(() => ({ of: owner, files: new Map(), heads: new Map() }));
+  const own = reads.of === owner ? reads : null;
+  const read = sel === UNCOMMITTED ? undefined : own?.files.get(sel);
+  const asked = read !== undefined;
   useEffect(() => {
-    if (!active || sel === UNCOMMITTED || commitFiles.has(sel)) return;
+    if (!active || sel === UNCOMMITTED || asked) return;
     let gone = false;
+    const forOwner = (r: CommitReads): CommitReads => (r.of === owner ? r : { of: owner, files: new Map(), heads: new Map() });
     fetch(`/api/git/commit?${gitQuery(sessionId, agent, { sha: sel })}`)
       .then(async r => ({ status: r.status, a: (await r.json().catch(() => ({}))) as DiffAnswer }))
       .then(({ status, a }) => {
         if (gone) return;
-        setCommitFiles(m => new Map(m).set(sel, a.ok && a.files ? a.files : { error: failureOf(a, status) }));
-        if (a.ok && a.commit) setCommitHeads(m => new Map(m).set(sel, { commit: a.commit!, ...(a.notDownloaded ? { notDownloaded: true } : {}) }));
+        setReads(r => {
+          const base = forOwner(r);
+          const heads = a.ok && a.commit ? new Map(base.heads).set(sel, { commit: a.commit, ...(a.notDownloaded ? { notDownloaded: true } : {}) }) : base.heads;
+          return { of: owner, files: new Map(base.files).set(sel, a.ok && a.files ? a.files : { error: failureOf(a, status) }), heads };
+        });
       })
-      .catch(() => { if (!gone) setCommitFiles(m => new Map(m).set(sel, { error: "the deck did not answer" })); });
+      .catch(() => { if (!gone) setReads(r => { const base = forOwner(r); return { ...base, files: new Map(base.files).set(sel, { error: "the deck did not answer" }) }; }); });
     return () => { gone = true; };
-  }, [active, sel, sessionId, agent, commitAgain]);
-  const dropFailures = (only?: string) => setCommitFiles(m => {
-    const failed = [...m].filter(([id, f]) => !Array.isArray(f) && (only === undefined || id === only));
-    if (!failed.length) return m;
-    const n = new Map(m);
+  }, [active, sel, owner, asked]);
+  // Dropping a failure asks for the commit again: the read above runs once
+  // the commit has no answer.
+  const dropFailures = (only?: string) => setReads(r => {
+    const failed = [...r.files].filter(([id, f]) => !Array.isArray(f) && (only === undefined || id === only));
+    if (!failed.length) return r;
+    const n = new Map(r.files);
     for (const [id] of failed) n.delete(id);
-    return n;
+    return { ...r, files: n };
   });
   useEffect(() => { dropFailures(); }, [data.treeSeq]);
-  const retryCommit = useCallback(() => { dropFailures(); setCommitAgain(n => n + 1); }, []);
-  const files = sel === UNCOMMITTED ? null : commitFiles.get(sel);
-  const head = sel === UNCOMMITTED ? null : commitHeads.get(sel);
+  const retryCommit = useCallback(() => { dropFailures(); }, []);
+  const files = read;
+  const head = sel === UNCOMMITTED ? undefined : own?.heads.get(sel);
   const commitDetail = useMemo<CommitDetail | null>(
     () => (head && Array.isArray(files) ? { commit: head.commit, files, ...(head.notDownloaded ? { notDownloaded: true } : {}) } : null),
     [head, files],
@@ -395,86 +463,88 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
 
   // The file the view opens on, once there is something to open.
   useEffect(() => {
-    if (picked.current || file) return;
+    if (pick.picked || file) return;
     const first = sel === UNCOMMITTED
       ? firstFile(data.entries, data.edits, focus)
       : Array.isArray(files) && files[0] ? { path: files[0].path, area: "commit", ...(files[0].from ? { from: files[0].from } : {}) } : null;
-    if (first) setFile(first);
-  }, [sel, data.entries, data.edits, files, file]);
+    if (first) setPick(p => (p.of === of && !p.picked && !p.file ? { ...p, file: first } : p));
+  }, [sel, data.entries, data.edits, files, file, pick.picked]);
 
+  // Every choice — the reader's, and the Fork look's opening — settles where
+  // the view opens: the opening rule never moves a selection someone made.
   const setSel = useCallback((id: string) => {
     dropFailures(id);
-    setSelRaw(id);
-    setFile(null);
-    picked.current = false;
+    setPick(p => ({ ...p, sel: id, file: null, picked: false, settled: true }));
   }, []);
-  const pickFile = useCallback((f: GitFileRef) => { picked.current = true; setFile(f); }, []);
+  const pickFile = useCallback((f: GitFileRef) => setPick(p => ({ ...p, file: f, picked: true, settled: true })), []);
 
   // ── the Fork look's views ──
-  // The commit All Commits last showed, to go back to from Local Changes.
-  const lastCommit = useRef<string | null>(null);
-  if (sel !== UNCOMMITTED) lastCommit.current = sel;
-  const pickNow = useRef<{ data: GitData; focus: GraphFocus } | null>(null);
-  pickNow.current = { data, focus };
+  // The commit All Commits last showed in this worktree, to go back to from
+  // Local Changes.
+  const lastCommit = useRef<{ of: string; sha: string } | null>(null);
+  if (sel !== UNCOMMITTED) lastCommit.current = { of: owner, sha: sel };
+  const pickNow = useRef<{ data: GitData; focus: GraphFocus; owner: string } | null>(null);
+  pickNow.current = { data, focus, owner };
   const setView = useCallback((v: "all" | "local") => {
     if (v === "local") { setSel(UNCOMMITTED); return; }
-    const { data: d, focus: f } = pickNow.current!;
-    const known = lastCommit.current && d.commits?.some(c => c.sha === lastCommit.current) ? lastCommit.current : null;
+    const { data: d, focus: f, owner: o } = pickNow.current!;
+    const last = lastCommit.current?.of === o ? lastCommit.current.sha : null;
+    const known = last && d.commits?.some(c => c.sha === last) ? last : null;
     const to = known ?? forkCommitPick(d, f);
     if (to) setSel(to);
   }, [setSel]);
-  // Where the Fork look opens, decided once per request (and per agent the
-  // view follows) when the reads it weighs are in — and never over a row or
-  // file the request named. A look switched while the view is open keeps
-  // the selection it finds.
-  const decided = useRef<string | null>(null);
-  const opening = `${seq}|${sessionId}|${agent ?? ""}`;
+  // Where the Fork look opens, decided once per request and per owner when
+  // the reads it weighs are in — and never over a row or file the request
+  // named, nor over one the reader chose while the reads were on their way.
+  // A look switched while the view is open keeps the selection it finds.
   useEffect(() => {
-    if (decided.current === opening) return;
-    if (!forkOpen || initial.sel || initial.file) { decided.current = opening; return; }
-    if (data.state !== "repo" && data.state !== "loading") { decided.current = opening; return; }
+    if (pick.settled) return;
+    if (!forkOpen || (data.state !== "repo" && data.state !== "loading")) { settle(); return; }
     if (!data.commits || !data.entries || !data.edits) return;
-    decided.current = opening;
     const to = forkOpening(data, focus);
-    if (to !== UNCOMMITTED) setSel(to);
-  }, [opening, forkOpen, data.state, data.commits, data.entries, data.edits]);
+    if (to !== UNCOMMITTED) setSel(to); else settle();
+  }, [pick.of, pick.settled, forkOpen, data.state, data.commits, data.entries, data.edits]);
 
   // ── the diff ──
-  const [diff, setDiff] = useState<DiffState>({ file: null, diff: null, loading: false, stale: false, error: null });
+  const [diffKept, setDiff] = useState<DiffState>(NO_DIFF);
+  // A diff read for another owner is not this one's, even for the render
+  // before the effect below clears it.
+  const diff = diffKept.of === undefined || diffKept.of === owner ? diffKept : NO_DIFF;
   // Bumped to read the open file's diff again.
   const [again, setAgain] = useState(0);
   const latest = useRef<DiffResult | null>(null);
   const urlFor = (f: GitFileRef) => (sel === UNCOMMITTED
     ? `/api/git/diff?${gitQuery(sessionId, agent, { path: f.path, area: f.area })}`
     : `/api/git/commit?${gitQuery(sessionId, agent, { sha: sel, path: f.path })}`);
-  const fileKey = file ? `${sel}|${file.area}|${file.path}` : null;
+  const fileKey = file ? `${owner}|${sel}|${file.area}|${file.path}` : null;
 
   // A newly chosen file: read its diff a frame from now.
   useEffect(() => {
-    if (!active || !file) { setDiff(d => (d.file === null && !d.loading ? d : { file: null, diff: null, loading: false, stale: false, error: null })); return; }
+    if (!active || !file) { setDiff(d => (d.file === null && !d.loading ? d : NO_DIFF)); return; }
     let gone = false;
-    setDiff({ file, sel, diff: null, loading: true, stale: false, error: null });
+    setDiff({ file, sel, diff: null, loading: true, stale: false, error: null, of: owner });
     latest.current = null;
     const raf = requestAnimationFrame(() => {
       fetch(urlFor(file))
         .then(async r => ({ status: r.status, a: (await r.json().catch(() => ({}))) as DiffAnswer }))
         .then(({ status, a }) => {
           if (gone) return;
-          if (a.ok && a.diff) setDiff({ file, sel, diff: a.diff, loading: false, stale: false, error: null });
-          else setDiff({ file, sel, diff: null, loading: false, stale: false, error: failureOf(a, status) });
+          if (a.ok && a.diff) setDiff({ file, sel, diff: a.diff, loading: false, stale: false, error: null, of: owner });
+          else setDiff({ file, sel, diff: null, loading: false, stale: false, error: failureOf(a, status), of: owner });
         })
-        .catch(() => { if (!gone) setDiff({ file, sel, diff: null, loading: false, stale: false, error: "the deck did not answer" }); });
+        .catch(() => { if (!gone) setDiff({ file, sel, diff: null, loading: false, stale: false, error: "the deck did not answer", of: owner }); });
     });
     return () => { gone = true; cancelAnimationFrame(raf); };
   }, [active, fileKey, again]);
 
   // The working tree moved: read the open file's diff again, and keep a
   // changed one aside. A read of another folder (the view narrowed or
-  // widened) is not the tree moving: its selection starts over instead, and
-  // the file still selected here belongs to the folder before.
+  // widened, another agent followed, the agent in another worktree) is not
+  // the tree moving: its selection starts over instead, and the file still
+  // selected here belongs to the folder before.
   const treeSeen = useRef<{ seq: number; of: string } | null>(null);
   useEffect(() => {
-    const of = `${sessionId}|${agent ?? ""}`;
+    const of = owner;
     const was = treeSeen.current;
     treeSeen.current = { seq: data.treeSeq, of };
     if (!was || (data.treeSeq === was.seq && of === was.of)) return;
@@ -504,7 +574,7 @@ export function useGitSelection({ data, sessionId, agent, focus, initial, seq, a
       })
       .catch(() => {});
     return () => { gone = true; };
-  }, [data.treeSeq, sessionId, agent]);
+  }, [data.treeSeq, owner]);
 
   /** `n`, the pill and the header's reload: the latest diff when one is
    *  waiting, else the open file's diff read again. */

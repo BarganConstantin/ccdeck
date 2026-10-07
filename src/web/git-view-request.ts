@@ -20,6 +20,9 @@ export interface GitViewRequest {
   /** The history row and file to open on, when a glance row named them. */
   sel?: string | null;
   file?: GitFileRef | null;
+  /** The agent the request opened the view on: the row and file it names
+   *  are that agent's, and another agent the view follows never opens on them. */
+  agentId?: string | null;
 }
 
 export const CLOSED_REQUEST: GitViewRequest = { open: false, how: "key", seq: 0, focusInside: false };
@@ -32,8 +35,8 @@ const subscribe = (l: () => void) => { listeners.add(l); return () => { listener
 export const gitViewRequest = (): GitViewRequest => current;
 
 /** Ask the view to open on the selection. */
-export function openGitViewRequest(how: GitViewHow, hints: { focusInside?: boolean; sel?: string | null; file?: GitFileRef | null } = {}): void {
-  set({ open: true, how, seq: current.seq + 1, focusInside: hints.focusInside ?? how === "key", sel: hints.sel, file: hints.file });
+export function openGitViewRequest(how: GitViewHow, hints: { focusInside?: boolean; sel?: string | null; file?: GitFileRef | null; agentId?: string | null } = {}): void {
+  set({ open: true, how, seq: current.seq + 1, focusInside: hints.focusInside ?? how === "key", sel: hints.sel, file: hints.file, agentId: hints.agentId ?? null });
 }
 
 /** Ask the view to close; nothing when it is not open. */
