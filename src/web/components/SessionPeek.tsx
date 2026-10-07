@@ -214,7 +214,7 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   return createPortal(
     <div ref={ref} className="ap-peek node-peek" role="tooltip" id="node-peek">
       <div className="node-peek-head">
-        <span className="node-peek-name">{a.label}</span>
+        <span className="node-peek-name" title={a.label}>{a.label}</span>
         <span className="node-peek-time">{a.synthetic ? "≥ " : ""}{elapsed(a.startedAt, a.endedAt, now)}</span>
       </div>
       <div className="node-peek-kind">
@@ -224,11 +224,11 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
         <span>{kind}</span>
         {a.model ? <span>{shortModel(a.model)}</span> : null}
       </div>
-      {a.kind === "root" && naming.face && <p className="node-peek-title">{naming.face}</p>}
+      {a.kind === "root" && naming.face && <p className="node-peek-title" title={naming.face}>{naming.face}</p>}
       {a.kind === "root" && a.waiting && (
         <p className={`node-peek-wait${alarm ? " warn" : ""}`}>
           {alarm && <AlertMark />}
-          <span>{waitingLabel(a.waiting)}</span>
+          <span title={waitingLabel(a.waiting)}>{waitingLabel(a.waiting)}</span>
           <b>{elapsed(a.waiting.since, undefined, now)}</b>
         </p>
       )}
