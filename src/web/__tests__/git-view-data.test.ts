@@ -131,7 +131,15 @@ describe("the reads' rhythm", () => {
   });
 
   it("reads again when the repository's stale counter moves past what was read", () => {
-    expect(src).toMatch(/if \(e\.seen < stale \|\| e\.data\.at === 0 \|\| \(fresh && old\)\) read\(key, sessionId, agent, stale, ownFolder \? agent : null\);/);
+    expect(src).toMatch(/if \(e\.seen < stale \|\| e\.data\.at === 0 \|\| \(fresh && old\) \|\| \(e\.top !== undefined && e\.top !== top\)\) read\(key, sessionId, agent, stale, ownFolder \? agent : null, top\);/);
+  });
+
+  it("reads again, from nothing, when the agent has moved to another worktree", () => {
+    // The server follows an agent into the worktree it works in, and that
+    // worktree's stale counter is its own: the counter alone would not say so.
+    expect(src).toMatch(/\}, \[key, stale, top, fresh\]\);/);
+    expect(src).toMatch(/const moved = e\.top !== undefined && e\.top !== top;/);
+    expect(src).toMatch(/e\.data = moved \? \{ \.\.\.EMPTY_GIT_DATA, at: Date\.now\(\) \} : \{ \.\.\.e\.data, at: Date\.now\(\) \};/);
   });
 
   it("never reads the old folder's file in the new one when the view narrows or widens", () => {

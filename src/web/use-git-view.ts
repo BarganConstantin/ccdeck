@@ -107,6 +107,9 @@ interface Entry {
   readers: number;
   /** The stale counter the last read answered for. */
   seen: number;
+  /** The worktree the last read was asked for: the server follows an agent
+   *  that moves to another one, and its counter starts again there. */
+  top: string | null | undefined;
   generation: number;
   listeners: Set<() => void>;
 }
@@ -124,7 +127,7 @@ export const keyOf = (sessionId: string, agent: string | null, ownFolder = false
 function entryFor(key: string): Entry {
   let e = cache.get(key);
   if (!e) {
-    e = { data: EMPTY_GIT_DATA, readers: 0, seen: -1, generation: 0, listeners: new Set() };
+    e = { data: EMPTY_GIT_DATA, readers: 0, seen: -1, top: undefined, generation: 0, listeners: new Set() };
     cache.set(key, e);
   }
   return e;
@@ -146,11 +149,14 @@ const READS = ["status", "edits", "log"] as const;
 /** Ask the reads of one repository; each answer lands as it arrives, the
  *  working tree first, and an older read's late answers are dropped. A whole
  *  session's read also asks the repository route where its subagents work. */
-function read(key: string, sessionId: string, agent: string | null, stale: number, editsAgent: string | null): void {
+function read(key: string, sessionId: string, agent: string | null, stale: number, editsAgent: string | null, top: string | null): void {
   const e = entryFor(key);
   const generation = ++e.generation;
+  // Another worktree: nothing of the last one's answer stands in for it.
+  const moved = e.top !== undefined && e.top !== top;
   e.seen = stale;
-  e.data = { ...e.data, at: Date.now() };
+  e.top = top;
+  e.data = moved ? { ...EMPTY_GIT_DATA, at: Date.now() } : { ...e.data, at: Date.now() };
   const kinds = agent ? READS : [...READS, "repo"] as const;
   for (const kind of kinds) {
     fetch(`/api/git/${kind}?${gitQuery(sessionId, kind === "edits" ? editsAgent : agent)}`)
@@ -169,10 +175,12 @@ function read(key: string, sessionId: string, agent: string | null, stale: numbe
  * last read answered for reads again. `fresh` asks a read older than ten
  * seconds to be repeated, for a view the reader has just opened.
  */
-export function useGitData({ sessionId, agent, stale, enabled, fresh = false, ownFolder = false }: {
+export function useGitData({ sessionId, agent, stale, top = null, enabled, fresh = false, ownFolder = false }: {
   sessionId: string | null;
   agent: string | null;
   stale: number;
+  /** The worktree GitObserved last named for it: another one reads again. */
+  top?: string | null;
   enabled: boolean;
   fresh?: boolean;
   /** The subagent works in a folder of its own: its edits are read there.
@@ -194,8 +202,8 @@ export function useGitData({ sessionId, agent, stale, enabled, fresh = false, ow
     if (!key || !sessionId) return;
     const e = entryFor(key);
     const old = Date.now() - e.data.at > 10_000;
-    if (e.seen < stale || e.data.at === 0 || (fresh && old)) read(key, sessionId, agent, stale, ownFolder ? agent : null);
-  }, [key, stale, fresh]);
+    if (e.seen < stale || e.data.at === 0 || (fresh && old) || (e.top !== undefined && e.top !== top)) read(key, sessionId, agent, stale, ownFolder ? agent : null, top);
+  }, [key, stale, top, fresh]);
   return data;
 }
 

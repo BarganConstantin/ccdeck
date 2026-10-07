@@ -679,7 +679,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // From a subagent widened to its session, the session's repository is read.
   const facts = away ? awayCard?.git : narrow ? gitFactsFor(agent, root) : root?.git ?? gitFactsFor(agent, root);
   const data = useGitData({
-    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, enabled: true, fresh: true,
+    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, top: facts?.topLevel ?? null, enabled: true, fresh: true,
     ownFolder: away != null || (narrow && agent.git != null),
   });
   const view = useGitSelection({

@@ -51,7 +51,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   // A subagent in a folder of its own has its edits read there, as the view
   // reads them: the two share one read, and mark its files the same way.
   const data = useGitData({
-    sessionId: agent.sessionId, agent: key, stale: facts?.stale ?? 0, enabled: gitOn && readable,
+    sessionId: agent.sessionId, agent: key, stale: facts?.stale ?? 0, top: facts?.topLevel ?? null, enabled: gitOn && readable,
     ownFolder: key != null && agent.git != null,
   });
   const lineRef = useRef<HTMLParagraphElement>(null);

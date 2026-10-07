@@ -25,7 +25,9 @@ const { startServer, hookToken } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { isEnrichment } = await import("../../server/ring-bounds.mjs");
 // @ts-expect-error — plain .mjs server module, no types
-const { changesRepo } = await import("../../server/git-watch.mjs");
+const { changesRepo, noteGitEvent } = await import("../../server/git-watch.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { noteSessionFolder, sessionFolder } = await import("../../server/git-sessions.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { staleCount } = await import("../../server/git-state.mjs");
 
@@ -313,5 +315,109 @@ describe("GitObserved", () => {
     since = await lastSeq();
     await event({ hook_event_name: "UserPromptSubmit", session_id: "G10", cwd: dir, prompt: "again" });
     expect((await next("G10", since)).payload.git.branch).toBe("main");
+  });
+});
+
+describe("the worktree a session works in", () => {
+  /** A repository with a linked worktree on its own branch. */
+  function repoAndWorktree(name: string) {
+    const dir = track(repoWith({ "a.txt": "one\n" }, `ccdeck-git-follow-${name}-`));
+    const wt = join(track(tempDir(`ccdeck-git-follow-${name}wt-`)), "wt");
+    sh(dir, ["worktree", "add", "-q", "-b", `wt/${name}`, wt]);
+    return { dir, wt };
+  }
+  const repoTop = async (sid: string, agent?: string) =>
+    (await call("GET", `/api/git/repo?session=${sid}${agent ? `&agent=${agent}` : ""}`)).body?.repo?.topLevel;
+
+  it("follows a session whose command moves into another worktree, and back", async () => {
+    const { dir, wt } = repoAndWorktree("cd");
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F1", cwd: dir });
+    await next("F1", since);
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "F1", cwd: dir, tool_name: "Bash", tool_input: { command: `cd '${wt}' && git status` } });
+    const moved = await next("F1", since, g => g.topLevel === wt);
+    expect(moved.payload.git).toMatchObject({ branch: "wt/cd", linkedWorktree: true });
+    expect(await repoTop("F1")).toBe(wt);
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "F1", cwd: dir, tool_name: "Bash", tool_input: { command: `git -C '${dir}' log -1` } });
+    await next("F1", since, g => g.topLevel === dir);
+    expect(await repoTop("F1")).toBe(dir);
+    for (let i = 0; i < 100 && loggedFor("F1").length < 3; i++) await new Promise(r => setTimeout(r, 50));
+    expect(loggedFor("F1").map((p: any) => p.git.branch)).toEqual(["main", "wt/cd", "main"]);
+  });
+
+  it("follows a session whose own folder changes to a worktree", async () => {
+    const { dir, wt } = repoAndWorktree("enter");
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F2", cwd: dir });
+    await next("F2", since);
+    since = await lastSeq();
+    await event({ hook_event_name: "UserPromptSubmit", session_id: "F2", cwd: wt, prompt: "go on" });
+    expect((await next("F2", since, g => g.topLevel === wt)).payload.git.branch).toBe("wt/enter");
+  });
+
+  it("follows edits to another worktree only from the second call in a row", async () => {
+    const { dir, wt } = repoAndWorktree("edit");
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F3", cwd: dir });
+    await next("F3", since);
+    since = await lastSeq();
+    const edit = (file: string) => event({ hook_event_name: "PostToolUse", session_id: "F3", cwd: dir, tool_name: "Write", tool_input: { file_path: file } });
+    write(wt, { "b.txt": "one\n" });
+    await edit(join(wt, "b.txt"));
+    // An edit back home ends the count.
+    await edit(join(dir, "a.txt"));
+    await edit(join(wt, "b.txt"));
+    await new Promise(r => setTimeout(r, 900));
+    expect((await observed("F3", since)).filter(e => e.payload.git.topLevel === wt)).toEqual([]);
+    expect(await repoTop("F3")).toBe(dir);
+    await edit(join(wt, "b.txt"));
+    await next("F3", since, g => g.topLevel === wt);
+    expect(await repoTop("F3")).toBe(wt);
+  });
+
+  it("stays put for a folder outside every repository", async () => {
+    const { dir } = repoAndWorktree("plain");
+    const plain = track(tempDir("ccdeck-git-follow-plain-"));
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F4", cwd: dir });
+    await next("F4", since);
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "F4", cwd: dir, tool_name: "Bash", tool_input: { command: `cd '${plain}' && ls` } });
+    await new Promise(r => setTimeout(r, 900));
+    // The command still marks its repository stale; it takes the session nowhere.
+    expect((await observed("F4", since)).filter(e => e.payload.git.topLevel !== dir)).toEqual([]);
+    expect(await repoTop("F4")).toBe(dir);
+  });
+
+  it("takes along a subagent started in the session's folder, and lets one that moved itself go its own way", async () => {
+    const { dir, wt } = repoAndWorktree("team");
+    const own = join(track(tempDir("ccdeck-git-follow-teamown-")), "own");
+    sh(dir, ["worktree", "add", "-q", "-b", "wt/own", own]);
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "F5", cwd: dir });
+    await event({ hook_event_name: "PreToolUse", session_id: "F5", cwd: dir, agent_id: "fa-1", tool_name: "Read" });
+    await event({ hook_event_name: "PreToolUse", session_id: "F5", cwd: dir, agent_id: "fa-2", tool_name: "Read" });
+    await next("F5", since);
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "F5", cwd: dir, tool_name: "Bash", tool_input: { command: `cd '${wt}'` } });
+    await next("F5", since, g => !g.subagent && g.topLevel === wt);
+    expect(await repoTop("F5", "fa-1")).toBe(wt);
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "F5", cwd: dir, agent_id: "fa-2", tool_name: "Bash", tool_input: { command: `cd '${own}' && git status` } });
+    expect((await next("F5", since, g => g.subagent === "fa-2")).payload.git).toMatchObject({ topLevel: own, branch: "wt/own" });
+    expect(await repoTop("F5", "fa-1")).toBe(wt);
+    expect(await repoTop("F5")).toBe(wt);
+  });
+
+  it("puts a restarted deck's session back in the worktree its last GitObserved named", () => {
+    const { dir, wt } = repoAndWorktree("replay");
+    noteSessionFolder({ session_id: "F6", cwd: dir, hook_event_name: "SessionStart" });
+    noteGitEvent({ hook_event_name: "GitObserved", session_id: "F6", git: { state: "repo", topLevel: wt, branch: "wt/replay" } }, { replay: true, seq: 1, at: 1 });
+    expect(sessionFolder("F6")).toMatchObject({ cwd: wt, start: dir });
+    // Its own folder's worktree again: nothing followed any more.
+    noteGitEvent({ hook_event_name: "GitObserved", session_id: "F6", git: { state: "repo", topLevel: dir, branch: "main" } }, { replay: true, seq: 2, at: 2 });
+    expect(sessionFolder("F6")).toMatchObject({ cwd: dir, start: dir });
   });
 });
