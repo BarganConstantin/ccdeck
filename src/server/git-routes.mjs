@@ -1,4 +1,4 @@
-// GET /api/git/{repo,log,status,diff,commit,edits} — the git view's reads, each for
+// GET /api/git/{repo,log,status,diff,commit,edits,refs} — the git view's reads, each for
 // one session's repository.
 //
 // A request names a SESSION, never a folder: the folder is the one the deck
@@ -22,8 +22,10 @@
 // The log's commits each carry `agent` — who made it, and how the deck knows
 // (git-attribution.mjs) — and after the window, with `outsideWindow: true`,
 // come HEAD's own line when HEAD is older than the window (git-reads.mjs),
-// then the session's own agent commits older than it. The repository carries
-// `defaultBranch`, the branch its remote calls its default.
+// then the session's own agent commits older than it. Each says whether its
+// message has a body (`hasBody`), and the ones HEAD has not pushed to its
+// upstream carry `unpushed: true`. The repository carries `defaultBranch`,
+// the branch its remote calls its default.
 //
 // The repo answer for a session (not narrowed to one subagent) also lists the
 // session's subagents that work in another folder — another worktree, another
@@ -37,6 +39,7 @@ import { isShaLike } from "./git-reads.mjs";
 import { sessionFolder, sessionSubagents } from "./git-sessions.mjs";
 import { gitEnabled } from "./git-watch.mjs";
 import { commitOf, commitFileDiffOf, countedStatusOf, fileDiffOf, logOf, repoOf, statusOf } from "./git-state.mjs";
+import { refsOf } from "./git-refs.mjs";
 
 const AREAS = new Set(["staged", "unstaged", "untracked", "conflict"]);
 const MAX_PARAM = 4096;
@@ -157,6 +160,8 @@ export async function handleGitDiff(req, res, url) {
 }
 
 /** `?session&sha[&path]` — a commit's files, or one file's diff within it.
+ *  The `commit` carries who committed it and when (`committer`) and its
+ *  message after the subject (`body`, `clipped` past 64 KB).
  *  A diff a partial clone holds no content for answers `reason:
  *  "not-downloaded"`: the deck never fetches. */
 export async function handleGitCommit(req, res, url) {
@@ -191,4 +196,16 @@ export async function handleGitEdits(req, res, url) {
   if (!found) return;
   const edits = await sessionEdits(found.repo, param(url, "session"), found.folder.agent);
   send(res, 200, { ok: true, state: "repo", repo: found.repo, edits });
+}
+
+/** `?session[&agent]` — the repository's branches, remote-tracking branches,
+ *  tags, stashes, worktrees and submodules, for the sidebar (git-refs.mjs).
+ *  `current` on a branch and a worktree is the session's own worktree's. */
+export async function handleGitRefs(req, res, url) {
+  const found = await sessionRepo(url, res);
+  if (!found) return;
+  const refs = await refsOf(found.repo);
+  if (!refs.ok) return send(res, 200, { ok: false, state: "repo", repo: found.repo, reason: refs.reason });
+  const { ok, ...lists } = refs;
+  send(res, 200, { ok: true, state: "repo", repo: found.repo, ...lists });
 }

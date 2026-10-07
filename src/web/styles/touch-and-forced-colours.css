@@ -216,6 +216,12 @@
      chips' names. */
   .gv-hist { --gv-forced-ink: CanvasText; --gv-forced-mark: Highlight; }
   .gv-row.is-sel::before { forced-color-adjust: none; }
+  /* The Fork look's history: the selected row's pill, a fill the theme drops,
+     is ringed in the highlight instead; its casing is not needed on the
+     theme's own ground; its dots keep the text colour beside their words. */
+  .gv-wide[data-look="fork"] .fk-row.is-sel { outline: 2px solid Highlight; outline-offset: -2px; }
+  .gv-wide[data-look="fork"] .fk-case { display: none; }
+  .gv-wide[data-look="fork"] .fk-dot { forced-color-adjust: none; background: CanvasText; }
 
   /* The git view's file list and diff. The pip and the swatch mark the
      agent's own files beside the words that say so; the selection bar is a

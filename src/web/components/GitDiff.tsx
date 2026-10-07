@@ -11,6 +11,7 @@ import { fitPath, monoMeasure, nameFits, splitPath, type PathParts } from "../gi
 import { cachedSpans, highlightDocs, langOf, type LineSpans } from "../git-syntax";
 import { hunkWordMarks, type Range } from "../git-word-diff";
 import { readStored, writeStored } from "../storage";
+import FkPathBar, { FkDiffEmpty } from "./FkPathBar";
 import { CheckGlyph, ClashGlyph, CopyGlyph, EditorGlyph, InfoGlyph, ReloadGlyph, WrapGlyph } from "./GitDiffIcons";
 
 export type { DiffResult } from "../git-diff-parse";
@@ -47,6 +48,13 @@ export interface GitDiffProps {
    *  editor; drawn only when the deck found an editor on this machine and the
    *  page is on it. */
   editorFor?: { sessionId: string; agentId: string | null } | null;
+  /** The deck's own look, or Fork's: a path bar with ▲ ▼ over 17px rows, one
+   *  number gutter block and a quiet line where nothing is selected. */
+  look?: "deck" | "fork";
+  /** Fork look: step to the file before or after this one in the tree; absent
+   *  at either end. */
+  onPrevFile?: () => void;
+  onNextFile?: () => void;
 }
 
 /** What the view does to the diff from outside: give it the keyboard. */
@@ -81,6 +89,8 @@ const WINDOW_MARGIN = "800px 0px";
  *  it), for a block not drawn yet; `.gvd-line` and `.gvd-hunk` in the sheet. */
 const LINE_PX = 20;
 const HUNK_PX = 36;
+/** The same in the Fork look, where a hunk's header is one more 17px row. */
+const FORK_PX = { line: 17, hunk: 17 };
 /** How far ← and → scroll unwrapped code, as the browser's own arrow step. */
 const SIDE_STEP = 40;
 /** Blocks drawn on the first frame of a windowed diff, by their estimated top. */
@@ -114,6 +124,7 @@ const UNLISTED = new Set(["unlisted", "no such change in this repository"]);
  */
 const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, ref) {
   const { file, diff, loading, stale, onShowLatest, wrap, onToggleWrap, collision, emptyReason = "unselected", error = null, gone = false, onRetry, onReload, editorFor } = props;
+  const fork = props.look === "fork";
   const fileKey = props.diffKey ?? (file ? `${file.area}\0${file.path}` : "");
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -236,7 +247,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   // A long diff is drawn in blocks, and past WINDOW_FROM lines only the blocks
   // near the scroller's view are rendered; each one skipped holds the height
   // it was last drawn at, or an estimate, so the scrollbar tells the truth.
-  const blocks = useMemo(() => (budgeted ? blocksOf(budgeted.hunks) : []), [budgeted]);
+  const blocks = useMemo(() => (budgeted ? blocksOf(budgeted.hunks, fork ? FORK_PX : undefined) : []), [budgeted, fork]);
   const windowed = !!budgeted && budgeted.shown >= WINDOW_FROM && typeof IntersectionObserver !== "undefined";
   const heights = useRef(new Map<string, number>());
   useEffect(() => { heights.current = new Map(); }, [fileKey, wrap]);
@@ -247,6 +258,11 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
   );
   // Unwrapped and windowed, the diff is as wide as its longest line, drawn or not.
   const cols = useMemo(() => (windowed && !wrap && budgeted ? widestLine(budgeted.hunks) : 0), [windowed, wrap, budgeted]);
+
+  // Fork look: the number gutter is as wide as the largest line number, and a
+  // new or deleted file has one number column, not two.
+  const digits = useMemo(() => (fork && parsed ? widestNumber(parsed.hunks) : 1), [fork, parsed]);
+  const oneSide = parsed?.created ? "new" : parsed?.deleted ? "old" : undefined;
 
   // The header's path is cut to the room its row leaves it, file name whole.
   useLayoutEffect(() => {
@@ -312,6 +328,9 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     s.scrollLeft += (e.key === "ArrowLeft" ? -1 : 1) * Math.min(SIDE_STEP, room);
   };
 
+  if (!file && fork) {
+    return <div className="gvd" data-wrap={wrap}><FkDiffEmpty reason={emptyReason} /></div>;
+  }
   if (!file) {
     return (
       <div className="gvd" data-wrap={wrap}>
@@ -403,7 +422,8 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
     const next = b.shown < b.total ? budgetHunks(parsed!.hunks, steps + 1).shown : b.total;
     return (
       <div className="gvd-table">
-        <div className="gvd-diff" key={fileKey} style={cols ? { minWidth: `max(100%, calc(${cols}ch + ${GUTTER_PX + CODE_PAD_PX}px))` } : undefined}>
+        <div className="gvd-diff" key={fileKey} data-one={fork ? oneSide : undefined}
+          style={cols || fork ? { ...(cols ? { minWidth: `max(100%, calc(${cols}ch + ${GUTTER_PX + CODE_PAD_PX}px))` } : {}), ...(fork ? { "--fkd-digits": digits } as React.CSSProperties : {}) } : undefined}>
           {blocks.map(k => (
             <DiffBlock key={k.key} block={k} rows={rows!} watch={watch} heights={heights.current} onDrawn={notePlace} />
           ))}
@@ -433,6 +453,18 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
 
   return (
     <div className="gvd" data-wrap={wrap}>
+      {fork ? (
+        <FkPathBar
+          file={file} from={renameFrom ?? null} similarity={parsed?.similarity}
+          onPrev={props.onPrevFile} onNext={props.onNextFile}
+          stale={stale} gone={gone} onShowLatest={() => { holdFocus(); onShowLatest(); }} areaWord={AREA_WORD[file.area]}
+          wrap={wrap} onToggleWrap={onToggleWrap} copied={copied} onCopy={copy}
+          editor={editorFor && !parsed?.deleted && !(diff && diffState(diff) === "directory")
+            ? <EditorButton key={fileKey} to={editorFor} path={file.path} onFailed={setOpenFailed} className="fkd-tool" />
+            : null}
+          onReload={onReload && file.area !== "commit" ? onReload : undefined}
+        />
+      ) : (
       <div className="gvd-head">
         <div className="gvd-title" ref={titleRef}>
           <span className="vis-hidden">{file.path}</span>
@@ -480,6 +512,7 @@ const GitDiff = forwardRef<GitDiffHandle, GitDiffProps>(function GitDiff(props, 
           {stale ? (gone ? "git no longer lists this change. Show the latest with n." : "This file changed since the diff was read. Show the latest with n.") : copied ? "Path copied" : ""}
         </span>
       </div>
+      )}
       {openFailed && openFailed.key === fileKey && (
         <div className="gvd-note" role="status">
           <InfoGlyph />
@@ -528,8 +561,9 @@ export default GitDiff;
  * picks one when there are several). Only drawn while this page is on the
  * deck's machine with an editor found, as the hand-off row's buttons are.
  */
-function EditorButton({ to, path, onFailed }: {
+function EditorButton({ to, path, onFailed, className = "glyph-btn gvd-icon" }: {
   to: { sessionId: string; agentId: string | null }; path: string; onFailed: (f: { app: string; error: string } | null) => void;
+  className?: string;
 }) {
   const handoffs = useHandoffs();
   const [busy, setBusy] = useState(false);
@@ -546,7 +580,7 @@ function EditorButton({ to, path, onFailed }: {
     });
   };
   return (
-    <button type="button" className="glyph-btn gvd-icon" onClick={open} aria-busy={busy || undefined}
+    <button type="button" className={className} onClick={open} aria-busy={busy || undefined}
       title={`Open in ${app.name}`} aria-label={`Open ${path} in ${app.name}`}>
       <EditorGlyph />
     </button>
@@ -647,7 +681,7 @@ const CODE_PAD_PX = 4 + 24;
  * reader takes the latest and a hunk above them is gone, only its block goes,
  * and the lines they were reading stay the same nodes.
  */
-export function blocksOf(hunks: Hunk[]): Block[] {
+export function blocksOf(hunks: Hunk[], px: { line: number; hunk: number } = { line: LINE_PX, hunk: HUNK_PX }): Block[] {
   const out: Block[] = [];
   const used = new Map<number, number>();
   let top = 0;
@@ -659,7 +693,7 @@ export function blocksOf(hunks: Hunk[]): Block[] {
     for (let from = 0; from < n; from += BLOCK_LINES) {
       const to = Math.min(h.lines.length, from + BLOCK_LINES);
       const head = from === 0;
-      const est = (head ? HUNK_PX : 0) + (to - from) * LINE_PX;
+      const est = (head ? px.hunk : 0) + (to - from) * px.line;
       out.push({ key: `${hk}.${from / BLOCK_LINES}`, hi, from, to, head, top, est });
       top += est;
     }
@@ -682,6 +716,13 @@ export function lineKeys(lines: DiffLine[], oldStart: number): string[] {
   }
   keysOf.set(lines, k);
   return k;
+}
+
+/** How many digits the largest line number in the diff has. */
+function widestNumber(hunks: Hunk[]): number {
+  let n = 1;
+  for (const h of hunks) for (const l of h.lines) n = Math.max(n, l.old ?? 0, l.new ?? 0);
+  return String(n).length;
 }
 
 /** The longest line, in characters, a tab counted as the sheet's tab-size. */

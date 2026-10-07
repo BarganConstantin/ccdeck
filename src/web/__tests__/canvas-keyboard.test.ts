@@ -343,7 +343,9 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
 });
 
 /** The git view's parts, which may set a tabIndex (see below). */
-const GIT_VIEW_PARTS = /^components\/(Git(View|ViewStandIns|Graph|Files|Diff)|CommitBand)\.tsx$/;
+// The Fork look's parts (Fk*.tsx) are the same view in another look: its panes and lists.
+// The lane of recent commits under a card (CommitBand) is one stop whose rows the arrows move between.
+const GIT_VIEW_PARTS = /^components\/(Git(View|ViewStandIns|Graph|Files|Diff)|Fk[A-Z]\w*|CommitBand)\.tsx$/;
 
 describe("nothing else in the deck invents a focus stop", () => {
   /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */

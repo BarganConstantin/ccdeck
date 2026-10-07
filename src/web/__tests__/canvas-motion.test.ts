@@ -383,6 +383,7 @@ const PRESSES: Press[] = [
   [".gv-open:active", "0.97", "transform"],
   [".gv-g-row:active", "0.97", "transform"],
   [".gv-g-more:active", "0.97", "transform"],
+  [".appearance-git-look-pick:active", "0.97", "transform"],
   [".gv-g-collide:active", "0.97", "transform"],
   [".gv-g-quiet:active", "0.97", "transform"],
   // The files pane's line naming a subagent that works in another folder: a

@@ -11,8 +11,9 @@
 //
 // The panes answer their own arrows (the history and the files are listboxes
 // that move their selection themselves); what is decided here is what is left
-// for the view: g, Esc one layer at a time, n for the newest diff, and the way
-// between panes when a pane did not take the key itself.
+// for the view: g, Esc one layer at a time, n for the newest diff, f for the
+// other look, 1 2 3 for the Fork look's inspector tabs, and the way between
+// panes when a pane did not take the key itself.
 
 /** The attribute a key-owning region carries, and its value for the git view. */
 export const KEY_SCOPE_ATTR = "data-key-scope";
@@ -31,8 +32,10 @@ export function gitKeyAllowed({ selected, gitOn, dialogOpen }: { selected: boole
   return selected && gitOn && !dialogOpen;
 }
 
-/** The three panes of the view, top to bottom, left to right. */
-export type GitViewPane = "graph" | "files" | "diff";
+/** The view's panes. The deck look has three, top to bottom, left to right:
+ *  the history, the files, the diff. The Fork look adds its sidebar on the
+ *  left and, in the inspector, the Commit tab beside the files and the diff. */
+export type GitViewPane = "sidebar" | "graph" | "commit" | "files" | "diff";
 
 /** Where inside the view a keystroke landed. */
 export interface ViewKeyWhere {
@@ -44,6 +47,9 @@ export interface ViewKeyWhere {
   handled: boolean;
   /** Focus is on a button or link, which Enter and Space press. */
   control: boolean;
+  /** The Fork look: whether its sidebar is shown, and whether the Local
+   *  Changes view (files and diff, no history) is up. Absent in the deck look. */
+  fork?: { sidebar: boolean; local: boolean; tab: "commit" | "changes" };
 }
 
 export type ViewKeyIntent =
@@ -53,7 +59,11 @@ export type ViewKeyIntent =
   | { kind: "swallow" }
   | { kind: "close" }
   | { kind: "focus"; pane: GitViewPane }
-  | { kind: "newest" };
+  | { kind: "newest" }
+  /** The other look. */
+  | { kind: "look" }
+  /** A Fork inspector tab, by its place in the tab bar (1 Commit, 2 Changes, 3 File Tree). */
+  | { kind: "tab"; index: 0 | 1 | 2 };
 
 /** What the view does with a keystroke that reached its root. */
 export function viewKeyIntent(
@@ -62,11 +72,17 @@ export function viewKeyIntent(
 ): ViewKeyIntent {
   if (e.key === "Tab") return { kind: "pass" };
   if (e.ctrlKey || e.metaKey || e.altKey) return { kind: "pass" };
+  const fork = where.fork;
   if (e.key === "Escape") {
     // One layer back: diff → files → history → the view closes. A text field
     // gives its Esc to the view too: there is nothing in one to back out of.
+    // In the Fork look the Commit tab steps back to the history as the files
+    // do, and the sidebar hands back to the history it navigates; the Local
+    // Changes view has no history, so its files close the view.
     if (where.pane === "diff") return { kind: "focus", pane: "files" };
-    if (where.pane === "files") return { kind: "focus", pane: "graph" };
+    if (where.pane === "files") return fork?.local ? { kind: "close" } : { kind: "focus", pane: "graph" };
+    if (where.pane === "commit") return { kind: "focus", pane: "graph" };
+    if (where.pane === "sidebar") return fork?.local ? { kind: "focus", pane: "files" } : { kind: "focus", pane: "graph" };
     return { kind: "close" };
   }
   if (where.typing || where.handled) return { kind: "swallow" };
@@ -74,8 +90,14 @@ export function viewKeyIntent(
   if (where.control && (e.key === "Enter" || e.key === " ")) return { kind: "swallow" };
   if (e.key === "g" || e.key === "G") return { kind: "close" };
   if (e.key === "n" || e.key === "N") return { kind: "newest" };
-  if (where.pane === "graph" && (e.key === "ArrowRight" || e.key === "Enter")) return { kind: "focus", pane: "files" };
-  if (where.pane === "files" && e.key === "ArrowLeft") return { kind: "focus", pane: "graph" };
+  if (e.key === "f" || e.key === "F") return { kind: "look" };
+  if (fork && (e.key === "1" || e.key === "2" || e.key === "3")) return { kind: "tab", index: (Number(e.key) - 1) as 0 | 1 | 2 };
+  // Into the inspector: in the Fork look the tab on show decides where.
+  const inspector: GitViewPane = fork?.tab === "commit" ? "commit" : "files";
+  if (where.pane === "graph" && (e.key === "ArrowRight" || e.key === "Enter")) return { kind: "focus", pane: inspector };
+  if (where.pane === "graph" && e.key === "ArrowLeft" && fork?.sidebar) return { kind: "focus", pane: "sidebar" };
+  if (where.pane === "commit" && e.key === "ArrowLeft") return { kind: "focus", pane: "graph" };
+  if (where.pane === "files" && e.key === "ArrowLeft") return fork?.local ? (fork.sidebar ? { kind: "focus", pane: "sidebar" } : { kind: "swallow" }) : { kind: "focus", pane: "graph" };
   if (where.pane === "files" && (e.key === "Enter" || e.key === "ArrowRight")) return { kind: "focus", pane: "diff" };
   if (where.pane === "diff" && e.key === "ArrowLeft") return { kind: "focus", pane: "files" };
   return { kind: "swallow" };

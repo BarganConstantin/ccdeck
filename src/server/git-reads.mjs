@@ -63,36 +63,44 @@ export function parseTrailers(body) {
   return out;
 }
 
-/** One record of LOG_FORMAT, or null. */
+/** One record of LOG_FORMAT, or null. `hasBody`: the message says more than
+ *  its subject line (trailers count, as they do in any client). */
 export function parseLogRecord(record) {
   const parts = record.replace(/^\n+/, "").split(US);
   if (parts.length < 7) return null;
   const [sha, parents, name, email, date, subject, ...rest] = parts;
   if (!/^[0-9a-f]{40,64}$/.test(sha)) return null;
+  const body = rest.join(US);
   return {
     sha,
     parents: parents ? parents.split(" ").filter(Boolean) : [],
     author: { name, email },
     date,
     subject,
-    trailers: parseTrailers(rest.join(US)),
+    trailers: parseTrailers(body),
+    hasBody: /\S/.test(body),
   };
 }
 
-/** Every branch, remote-tracking branch and tag, by the commit it names. */
+/** Every branch, remote-tracking branch and tag, by the commit it names; a
+ *  branch whose configured upstream is a remote-tracking branch has it in its
+ *  commit's `upstream`, by name (`{ develop: "origin/develop" }`). */
 async function refsByCommit(topLevel) {
-  const r = await git("for-each-ref", ["--format=%(objectname)%00%(*objectname)%00%(refname)%00%(symref)", "refs/heads", "refs/remotes", "refs/tags"], { cwd: topLevel });
+  const r = await git("for-each-ref", ["--format=%(objectname)%00%(*objectname)%00%(refname)%00%(symref)%00%(upstream)", "refs/heads", "refs/remotes", "refs/tags"], { cwd: topLevel });
   const map = new Map();
   if (!r.ok) return map;
   for (const line of r.stdout.split("\n")) {
     if (!line) continue;
-    const [obj, peeled, ref, symref] = line.split("\0");
+    const [obj, peeled, ref, symref, upstream] = line.split("\0");
     // origin/HEAD and its kind point at another ref, which is listed itself.
     if (symref) continue;
     const at = peeled || obj;
     const slot = map.get(at) ?? { local: [], remote: [], tags: [], head: false };
-    if (ref.startsWith("refs/heads/")) slot.local.push(ref.slice(11));
-    else if (ref.startsWith("refs/remotes/")) slot.remote.push(ref.slice(13));
+    if (ref.startsWith("refs/heads/")) {
+      const name = ref.slice(11);
+      slot.local.push(name);
+      if (upstream?.startsWith("refs/remotes/")) (slot.upstream ??= {})[name] = upstream.slice(13);
+    } else if (ref.startsWith("refs/remotes/")) slot.remote.push(ref.slice(13));
     else if (ref.startsWith("refs/tags/")) slot.tags.push(ref.slice(10));
     map.set(at, slot);
   }
@@ -144,6 +152,10 @@ const MAX_SLOW_TOPO = 256;
  * listed, so the page cannot tell which of them the branch HEAD is measured
  * against already has; each carries `base`, git's answer to that (headLine).
  *
+ * Each commit says whether its message has a body (`hasBody`), and the ones
+ * HEAD has not pushed to its upstream yet carry `unpushed: true`
+ * (withUnpushed).
+ *
  * `{ ok: true, commits }`, or `{ ok: false, reason }` for a read that failed.
  */
 export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = null, topoBudgetMs = TOPO_BUDGET_MS, defaultBranch = null } = {}) {
@@ -155,16 +167,52 @@ export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = n
     git("log", ["-z", ...(topo ? ["--topo-order"] : []), `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"], { cwd: topLevel, ...(timeout ? { timeout } : {}) });
   const key = commonDir || topLevel;
   const graph = await hasCommitGraph(commonDir);
+  const finish = async (commits) => withUnpushed(topLevel, await withHeadLine(topLevel, commits, refs, head, defaultBranch), refs, head, limit);
   if (graph || !slowTopo.has(key)) {
     const r = await read(true, graph ? null : topoBudgetMs);
-    if (r.ok) return { ok: true, commits: await withHeadLine(topLevel, withRefs(r.stdout, refs, head), refs, head, defaultBranch) };
+    if (r.ok) return { ok: true, commits: await finish(withRefs(r.stdout, refs, head)) };
     if (graph || !r.timedOut) return { ok: false, reason: readFailure(r) };
     slowTopo.add(key);
     while (slowTopo.size > MAX_SLOW_TOPO) slowTopo.delete(slowTopo.values().next().value);
   }
   const r = await read(false, null);
   if (!r.ok) return { ok: false, reason: readFailure(r) };
-  return { ok: true, commits: await withHeadLine(topLevel, graphOrder(withRefs(r.stdout, refs, head)), refs, head, defaultBranch) };
+  return { ok: true, commits: await finish(graphOrder(withRefs(r.stdout, refs, head))) };
+}
+
+/**
+ * The remote-tracking branch HEAD's branch is configured to follow, by name
+ * (`origin/develop`), when there is one and it still exists; null for a
+ * detached or unborn HEAD, a branch with no upstream, an upstream that is
+ * another local branch, or one that is gone.
+ */
+function headUpstream(refs, head) {
+  if (!head?.sha || head.detached || !head.branch) return null;
+  let upstream = null;
+  const remotes = new Set();
+  for (const slot of refs.values()) {
+    if (slot.local.includes(head.branch)) upstream = slot.upstream?.[head.branch] ?? null;
+    for (const r of slot.remote) remotes.add(r);
+  }
+  return upstream && remotes.has(upstream) ? upstream : null;
+}
+
+/**
+ * The listed commits HEAD has and its upstream does not — what has not been
+ * pushed — each flagged `unpushed: true`: `git rev-list <upstream>..HEAD`, as
+ * many as the history holds. With no upstream to measure by nothing is
+ * flagged, rather than a guess; a read that fails flags nothing either. The
+ * upstream is a full ref name git itself reported (`refs/remotes/…`), so it
+ * can never be read as an option, and a ref name cannot hold `..`.
+ */
+async function withUnpushed(topLevel, commits, refs, head, limit) {
+  const upstream = headUpstream(refs, head);
+  if (!upstream || !commits.length) return commits;
+  const r = await git("rev-list", [`--max-count=${limit}`, `refs/remotes/${upstream}..HEAD`, "--"], { cwd: topLevel });
+  if (!r.ok) return commits;
+  const ahead = new Set(r.stdout.split("\n").map((l) => l.trim()).filter(Boolean));
+  if (!ahead.size) return commits;
+  return commits.map((c) => (ahead.has(c.sha) ? { ...c, unpushed: true } : c));
 }
 
 /** The window, and after it HEAD's own line when HEAD is not in it (readLog).
@@ -266,6 +314,7 @@ function withRefs(stdout, refs, head) {
       remote: slot?.remote ?? [],
       tags: slot?.tags ?? [],
       head: c.sha === head?.sha,
+      ...(slot?.upstream ? { upstream: slot.upstream } : {}),
     };
     commits.push(c);
   }
@@ -669,8 +718,41 @@ export function parseCommitFiles(out) {
   return files;
 }
 
+/** The most of a commit message's body one commit read answers with, in
+ *  bytes; past it the body is cut and the commit says `clipped: true`. */
+export const BODY_MAX = 64 << 10;
+
+// LOG_FORMAT's fields with the committer's name, email and date (strict ISO)
+// after the author's. The body is last for the same reason.
+const COMMIT_FORMAT = ["%H", "%P", "%an", "%ae", "%aI", "%cn", "%ce", "%cI", "%s", "%b"].join("%x1f");
+
 /**
- * One commit: its record (as readLog builds one, without refs) and its files
+ * One record of COMMIT_FORMAT: the record readLog builds (parseLogRecord's
+ * shape, trailers included) plus who committed it and when, and the message
+ * after its subject — trailing blank lines dropped, at most BODY_MAX bytes,
+ * `clipped: true` when it was cut. Null for a record that is not one.
+ */
+export function parseCommitRecord(record) {
+  const parts = String(record ?? "").replace(/^\n+/, "").split(US);
+  if (parts.length < 10) return null;
+  const [sha, parents, name, email, date, cName, cEmail, cDate, subject, ...rest] = parts;
+  const raw = rest.join(US);
+  const commit = parseLogRecord([sha, parents, name, email, date, subject, raw].join(US));
+  if (!commit) return null;
+  let body = raw.replace(/\s+$/, "");
+  let clipped = false;
+  if (Buffer.byteLength(body) > BODY_MAX) {
+    // Cut on a character, never inside one: a sequence the cut split decodes
+    // to U+FFFD at the end, which is dropped.
+    body = Buffer.from(body).subarray(0, BODY_MAX).toString("utf8").replace(/�+$/, "");
+    clipped = true;
+  }
+  return { ...commit, committer: { name: cName, email: cEmail, date: cDate }, body, ...(clipped ? { clipped } : {}) };
+}
+
+/**
+ * One commit: its record (as readLog builds one, without refs, plus its
+ * `committer` and its message `body`, parseCommitRecord) and its files
  * against its first parent — a merge is shown as what it brought into the
  * branch, a root commit as everything added. `sha` must already look like one
  * (isShaLike); a commit the repository does not have answers `{ ok: false,
@@ -686,9 +768,9 @@ export async function readCommit(topLevel, sha) {
   if (!isShaLike(sha)) return { ok: false, reason: "unknown" };
   const full = await resolveCommit(topLevel, sha);
   if (!full) return { ok: false, reason: "unknown" };
-  const head = await git("log", ["-z", "--max-count=1", `--format=${LOG_FORMAT}`, full, "--"], { cwd: topLevel });
+  const head = await git("log", ["-z", "--max-count=1", `--format=${COMMIT_FORMAT}`, full, "--"], { cwd: topLevel });
   if (!head.ok) return { ok: false, reason: readFailure(head) };
-  const commit = parseLogRecord(head.stdout.split("\0")[0] ?? "");
+  const commit = parseCommitRecord(head.stdout.split("\0")[0] ?? "");
   if (!commit) return { ok: false, reason: "error" };
   const range = commit.parents.length ? [commit.parents[0], full] : ["--root", full];
   const tree = (how) => git("diff-tree", ["-r", "-z", ...how, "--no-commit-id", ...range], { cwd: topLevel });

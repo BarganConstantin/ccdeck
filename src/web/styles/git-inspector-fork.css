@@ -1,0 +1,518 @@
+/* The git view's Fork look, lower half: the Commit tab (FkCommitTab.tsx), the
+   commit strip, the changed-file tree (FkFileTree.tsx) and the Changes tab /
+   Local Changes layout around it (FkChanges.tsx), with the status squares and
+   file-kind labels they share. Scoped to the Fork look; the deck look's own
+   files list (git-files.css) is untouched.
+
+   Colours are the --fk-* tokens. What Fork gives no token for — the file-kind
+   label colours, the avatar ink, the status glyphs that must stay legible on
+   their squares — is declared here, per theme, as --fki-*. */
+.gv-wide[data-look="fork"] {
+  --fki-ava-ink: #ffffff;
+  /* A file the agent did not edit, among some it did: a step down from the
+     text that still reads at 4.5:1 on a hovered row. */
+  --fki-quiet: var(--fk-text-2);
+  /* White on the yellow and the green squares is 1.5:1 and 2.3:1: their
+     glyphs are drawn dark instead, Fork's white kept on red and purple. */
+  --fki-st-ink-dark: #1f1f1f;
+  --fki-st-conflict-ink: #161616;
+  --fki-ft-cs: #9fe893;
+  --fki-ft-ts: #5aa9f5;
+  --fki-ft-js: #e8c547;
+  --fki-ft-json: #e0a94a;
+  --fki-ft-md: #a9b6c6;
+  --fki-ft-rs: #ef8f62;
+  --fki-ft-py: #6cc1d9;
+  --fki-ft-css: #c29bf0;
+  --fki-ft-html: #f08a68;
+  --fki-ft-sql: #e39ae3;
+  --fki-ft-yaml: #e57f7f;
+  --fki-ft-sh: #b9c96f;
+}
+:root[data-theme="light"] .gv-wide[data-look="fork"] {
+  --fki-quiet: #636363;
+  --fki-ft-cs: #1f7a2a;
+  --fki-ft-ts: #1560bd;
+  --fki-ft-js: #8a6a00;
+  --fki-ft-json: #8f5600;
+  --fki-ft-md: #4a5a6d;
+  --fki-ft-rs: #a8461b;
+  --fki-ft-py: #1f6f8a;
+  --fki-ft-css: #6c3fb5;
+  --fki-ft-html: #b23c17;
+  --fki-ft-sql: #943a94;
+  --fki-ft-yaml: #a12f2f;
+  --fki-ft-sh: #5d6b12;
+}
+
+/* ── status squares ─────────────────────────────────────────────────────── */
+.fk-st {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  box-shadow: var(--fk-st-rim);
+  color: var(--fk-st-glyph);
+  font: 500 10px/1 var(--fk-font);
+}
+.fk-st[data-st="modified"] { background: var(--fk-st-modified); color: var(--fki-st-ink-dark); }
+.fk-st[data-st="added"] { background: var(--fk-st-added); color: var(--fki-st-ink-dark); }
+.fk-st[data-st="untracked"] { background: var(--fk-st-untracked); color: var(--fki-st-ink-dark); }
+.fk-st[data-st="deleted"] { background: var(--fk-st-deleted); }
+.fk-st[data-st="renamed"] { background: var(--fk-st-renamed); }
+.fk-st[data-st="conflict"] { box-shadow: none; }
+.fk-st-mark { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.fk-st-letter { line-height: 1; }
+.fk-st-tri { display: block; }
+.fk-st-tri-fill { fill: var(--fk-st-conflict); }
+.fk-st-tri-ink { fill: none; stroke: var(--fki-st-conflict-ink); stroke-width: 1.6; stroke-linecap: round; }
+
+/* ── file kinds, pages, folders ─────────────────────────────────────────── */
+.fk-ft {
+  flex: none;
+  width: 16px;
+  color: var(--fk-text-2);
+  font: 700 10px/1 var(--fk-font);
+  letter-spacing: -0.4px;
+  text-align: center;
+  white-space: nowrap;
+}
+.fk-ft[data-long] { font-size: 9px; }
+.fk-ft.is-page { display: inline-grid; place-items: center; }
+.fk-ft[data-ft="cs"] { color: var(--fki-ft-cs); }
+.fk-ft[data-ft="ts"] { color: var(--fki-ft-ts); }
+.fk-ft[data-ft="js"] { color: var(--fki-ft-js); }
+.fk-ft[data-ft="json"] { color: var(--fki-ft-json); }
+.fk-ft[data-ft="md"] { color: var(--fki-ft-md); }
+.fk-ft[data-ft="rs"] { color: var(--fki-ft-rs); }
+.fk-ft[data-ft="py"] { color: var(--fki-ft-py); }
+.fk-ft[data-ft="css"] { color: var(--fki-ft-css); }
+.fk-ft[data-ft="html"] { color: var(--fki-ft-html); }
+.fk-ft[data-ft="sql"] { color: var(--fki-ft-sql); }
+.fk-ft[data-ft="yaml"] { color: var(--fki-ft-yaml); }
+.fk-ft[data-ft="sh"] { color: var(--fki-ft-sh); }
+.fk-page { display: block; }
+.fk-page-sheet { fill: var(--fk-page); stroke: var(--fk-page-line); stroke-width: 1; }
+.fk-page-fold { fill: var(--fk-page-fold); stroke: var(--fk-page-line); stroke-width: 1; stroke-linejoin: round; }
+.fk-folder { flex: none; display: block; }
+.fk-folder-top { stop-color: var(--fk-folder-top); }
+.fk-folder-bottom { stop-color: var(--fk-folder-bottom); }
+.fk-folder-back { fill: var(--fk-folder-back); }
+
+/* ── initials avatars ───────────────────────────────────────────────────── */
+.fkm-ava {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  background-color: var(--fk-avatar-0);
+  background-image: linear-gradient(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.14));
+  color: var(--fki-ava-ink);
+  font-family: var(--fk-font);
+  line-height: 1;
+  user-select: none;
+}
+.fkm-ava[data-tone="1"] { background-color: var(--fk-avatar-1); }
+.fkm-ava[data-tone="2"] { background-color: var(--fk-avatar-2); }
+.fkm-ava[data-tone="3"] { background-color: var(--fk-avatar-3); }
+.fkm-ava[data-tone="4"] { background-color: var(--fk-avatar-4); }
+.fkm-ava[data-size="strip"] { width: 18px; height: 18px; margin: 2px -1px 0 0; border-radius: 2px; font-size: 9px; font-weight: 700; }
+.fkm-ava[data-size="card"] { width: 42px; height: 42px; margin-top: 20px; border-radius: 3px; font-size: 16px; font-weight: 600; }
+
+/* ── the Commit tab ─────────────────────────────────────────────────────── */
+.fkm {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 20px 16px;
+  background: var(--fk-inspector);
+  color: var(--fk-text);
+  font: 13px/17px var(--fk-font);
+  scrollbar-width: thin;
+  scrollbar-color: var(--fk-scroll-thumb) transparent;
+  container: fkm / inline-size;
+}
+.fkm:focus-visible { outline-offset: -2px; border-radius: 0; }
+.fkm.is-empty { display: grid; place-items: center; }
+.fkm-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 16px;
+  color: var(--fk-text-2);
+  font-size: 13px;
+  text-align: center;
+}
+.fkm-note b { color: var(--fk-text); font-weight: 600; }
+.fkm-note.is-wait { opacity: 0; animation: fki-appear 150ms ease-out 200ms forwards; }
+.gv-wide[data-look="fork"] button.btn.fkm-retry { margin-top: 4px; }
+
+.fkm-ids {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 24px;
+  margin: 0 28px 16px;
+}
+.fkm-id { display: grid; grid-template-columns: 42px minmax(0, 1fr); column-gap: 16px; min-width: 0; }
+.fkm-id + .fkm-id { margin-left: 4px; }
+.fkm-id-text { display: flex; flex-direction: column; min-width: 0; }
+.fkm-id-role { color: var(--fk-text-2); font-size: 11px; line-height: 13px; letter-spacing: 0.02em; text-transform: uppercase; }
+.fkm-id-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 9px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.fkm-id-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fk-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+}
+.fkm-id-mail { flex: 0 1000 auto; min-width: 0; overflow: hidden; color: var(--fk-text-2); font-size: 13px; text-overflow: ellipsis; }
+.fkm-id-date {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--fk-text-2);
+  font-size: 13px;
+  line-height: 17px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.fkm-meta {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 1px 14px;
+  align-items: start;
+  margin: 0 0 18px;
+}
+.fkm-meta dt {
+  margin: 0;
+  color: var(--fk-text-2);
+  font-size: 12px;
+  line-height: 17px;
+  text-align: right;
+  text-transform: uppercase;
+}
+.fkm-meta dd { min-width: 0; margin: 0; font-size: 13px; line-height: 17px; }
+.fkm-refs { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; min-height: 19px; }
+.fkm-meta dt:first-child { line-height: 19px; }
+.fkm-sha { display: flex; align-items: center; gap: 4px; }
+.fkm-sha-text { min-width: 0; overflow-wrap: anywhere; user-select: text; }
+.fkm-copy {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fk-text-2);
+  cursor: default;
+}
+.fkm-copy:hover { background: var(--fk-tool-hover); color: var(--fk-text); }
+.fkm-copy:active { background: var(--fk-tool-press); }
+.fkm-copy:focus-visible,
+.fkm-parent:focus-visible,
+.fkc-strip-sha:focus-visible { outline-offset: 1px; border-radius: 3px; }
+.fkm-parents { display: flex; flex-wrap: wrap; gap: 0 8px; }
+.fkm-parent {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fk-link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: default;
+}
+.fkm-parent:hover { text-decoration-thickness: 2px; }
+.fkm-rule { margin: 0; border: 0; border-top: 1px solid var(--fk-line); }
+.fkm-msg { margin: 0 0 0 87px; padding: 12px 0 16px; }
+.fkm-subject { margin: 0; color: var(--fk-text); font-size: 16px; font-weight: 600; line-height: 21px; overflow-wrap: anywhere; }
+.fkm-body {
+  margin: 10px 0 0;
+  color: var(--fk-text);
+  font: 13px/17px var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+.fkm-clipped { margin: 8px 0 0; color: var(--fk-text-2); font-size: 12px; line-height: 17px; }
+.fkm-files { margin: 8px 0 0 36px; padding: 0; list-style: none; }
+.fkm-file { display: block; }
+.fkm-file-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--fk-text);
+  font: 13px/20px var(--fk-font);
+  text-align: left;
+  cursor: default;
+}
+.fkm-file-btn:focus-visible { outline-offset: 0; border-radius: 3px; }
+.fkm-file-path { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fkm-file-btn:hover .fkm-file-path,
+.fkm-file-btn:focus-visible .fkm-file-path { color: var(--fk-link); text-decoration: underline; text-underline-offset: 2px; }
+.fkm-file-go {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--fk-text-2);
+  color: var(--fk-inspector);
+  visibility: hidden;
+}
+.fkm-file-go svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.fkm-file-btn:hover .fkm-file-go,
+.fkm-file-btn:focus-visible .fkm-file-go { visibility: visible; }
+.fkm-more { padding: 4px 0 0; color: var(--fk-text-2); font-size: 12px; }
+@container fkm (max-width: 560px) {
+  .fkm-ids { grid-template-columns: minmax(0, 1fr); row-gap: 12px; margin: 0 0 16px; }
+  .fkm-id + .fkm-id { margin-left: 0; }
+  .fkm-ava[data-size="card"] { margin-top: 0; }
+  .fkm-msg { margin-left: 0; }
+  .fkm-files { margin-left: 0; }
+}
+
+/* ── the Changes tab and Local Changes ──────────────────────────────────── */
+.fkc {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--fk-inspector);
+  color: var(--fk-text);
+  font: 13px/17px var(--fk-font);
+  container: fkc / inline-size;
+}
+.fkc-strip {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 10px 2px 16px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--fk-line);
+  background: var(--fk-inspector);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.fkc-strip-author { flex: 0 1 auto; max-width: 30%; min-width: 0; overflow: hidden; color: var(--fk-text); text-overflow: ellipsis; }
+.fkc-strip-sha {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fk-text-2);
+  font: inherit;
+  cursor: default;
+}
+.fkc-strip-sha:hover { color: var(--fk-text); text-decoration: underline; text-underline-offset: 2px; }
+.fkc-strip-date { flex: none; color: var(--fk-text-2); }
+.fkc-strip-subject { flex: 1 1 auto; min-width: 0; margin-left: 3px; overflow: hidden; color: var(--fk-text); font-size: 14px; text-overflow: ellipsis; }
+
+.fkc-body { position: relative; flex: 1 1 auto; display: flex; min-height: 0; }
+.fkc-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: var(--fkc-tree-w, 240px);
+  min-height: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--fk-line);
+  background: var(--fk-tree);
+}
+.fkc-band {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 19px;
+  border-bottom: 1px solid var(--fk-line);
+  background: var(--fk-inspector);
+}
+.fkc-filter {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  min-width: 0;
+  padding: 0 8px 0 10px;
+  color: var(--fk-text-2);
+}
+.fkc-filter svg { flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.fkc-filter-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fk-text);
+  font: 12px/18px var(--fk-font);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.fkc-filter-input::placeholder { color: var(--fk-text-2); }
+.fkc-filter-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.fkc-filter-input:focus-visible { outline-offset: 0; border-radius: 3px; }
+.fkc-funnel {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fk-text-2);
+  cursor: default;
+}
+.fkc-funnel svg { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
+.fkc-funnel:hover { color: var(--fk-text); }
+.fkc-funnel:active { background: var(--fk-tool-press); }
+.fkc-funnel[aria-pressed="true"] { background: var(--fk-tool-press); color: var(--fk-text); }
+.fkc-funnel[aria-pressed="true"] svg { fill: currentColor; }
+.fkc-funnel:focus-visible { outline-offset: -2px; border-radius: 3px; }
+.fkc-group { flex: none; display: flex; flex-direction: column; min-height: 0; }
+.fkc-group.is-staged { flex: 1 1 0; border-top: 1px solid var(--fk-line); }
+.fkc-group-head {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 31px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--fk-line);
+  color: var(--fk-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.fkc-main { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--fk-diff); }
+.fkc-main:focus-visible { outline-offset: -2px; border-radius: 0; }
+.fkc-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: auto 0;
+  padding: 16px;
+  color: var(--fk-text-2);
+  font-size: 13px;
+  text-align: center;
+}
+.fkc-note b { color: var(--fk-text); font-weight: 600; }
+.fkc-note.is-wait { opacity: 0; animation: fki-appear 150ms ease-out 200ms forwards; }
+.gv-wide[data-look="fork"] button.btn.fkc-retry { margin-top: 4px; }
+
+/* Dividers, Fork's way: the line is the pane's own border, the handle a 7px
+   strip over it that takes no room. The strip lies on the tree's side of the
+   line (and on the Staged header's), so it never covers the diff's scroller or
+   a tree row someone can click. */
+.fkc-split-v,
+.fkc-split-h { position: relative; z-index: 3; flex: none; touch-action: none; }
+.fkc-split-v { width: 7px; margin: 0 0 0 -7px; cursor: col-resize; }
+.fkc-split-h { height: 7px; margin: -1px 7px -6px 0; cursor: row-resize; }
+.fkc-split-v:focus-visible,
+.fkc-split-h:focus-visible { outline-offset: -2px; border-radius: 4px; }
+
+/* Narrow (a phone, a sheet): the tree over the diff, not beside it. */
+@container fkc (max-width: 520px) {
+  .fkc-body { flex-direction: column; }
+  .fkc-side { width: auto; height: 40%; border-right: 0; border-bottom: 1px solid var(--fk-line); }
+  .fkc-split-v { display: none; }
+  .fkc-strip-date { display: none; }
+}
+
+/* ── the changed-file tree ──────────────────────────────────────────────── */
+.fkt { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; background: var(--fk-tree); }
+.fkt.is-empty { display: grid; place-items: center; }
+.fkt-empty { margin: 0; padding: 16px; color: var(--fk-text-2); font-size: 13px; text-align: center; }
+.fkt-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fk-scroll-thumb) transparent;
+}
+.fkt-scroll:focus-visible { outline-offset: -2px; border-radius: 0; }
+.fkt-rows { position: relative; }
+.fkt-row {
+  box-sizing: border-box;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 0 calc(var(--depth, 0) * 16px);
+  border-radius: 3px;
+  color: var(--fk-text);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+.fkt-row:hover { background: var(--fk-tree-hover); }
+.fkt-row.is-sel { background: var(--fk-select-idle); color: var(--fk-select-idle-ink); }
+.fkt:not(.is-blurred):focus-within .fkt-row.is-sel { background: var(--fk-select); color: var(--fk-select-ink); }
+.fkt-row:focus-visible { outline-offset: -2px; border-radius: 3px; }
+.fkt-twisty { flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; padding-top: 2px; color: var(--fk-text-2); }
+.fkt-twisty svg { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; transform: rotate(-90deg); }
+.fkt-twisty svg.is-open { transform: none; }
+.fkt-row.is-sel .fkt-twisty { color: inherit; }
+/* On the blue of a focused selection a kind's own colour is lost: it takes
+   the row's white, as the name does. */
+.fkt:not(.is-blurred):focus-within .fkt-row.is-sel .fk-ft { color: inherit; }
+/* Long names lose their start, as Fork's do: the end of a name is what tells
+   two files apart. The row's tooltip holds the whole path. */
+.fkt-name { flex: 0 1 auto; min-width: 0; overflow: hidden; direction: rtl; text-align: left; text-overflow: ellipsis; }
+.fkt-name bdi { direction: ltr; unicode-bidi: isolate; }
+/* The files the focused agent did not edit, when it edited some here: its own
+   stand out at full strength, as they lead the list in the deck look. */
+.fkt-row.is-quiet .fkt-name { color: var(--fki-quiet); }
+.fkt-row.is-quiet.is-sel .fkt-name { color: inherit; }
+/* The marks give way before the name does: a subagent's name shortens to its
+   swatch's side, and the file's own name keeps the room it needs. */
+.fkt-marks { flex: 0 1000 auto; display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding-left: 4px; font-size: 11px; }
+.fkt-agent { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 120px; overflow: hidden; }
+.fkt-swatch { flex: none; width: 7px; height: 7px; border-radius: 2px; background: hsl(var(--session-hue, 200) 70% var(--session-accent-l)); }
+.fkt-agent-name { overflow: hidden; text-overflow: ellipsis; }
+.fkt-other { max-width: 96px; overflow: hidden; color: var(--fk-text-2); text-overflow: ellipsis; }
+.fkt-row.is-sel .fkt-other { color: inherit; }
+.fkt-clash { flex: none; display: inline-grid; place-items: center; color: var(--err); }
+
+@keyframes fki-appear { to { opacity: 1; } }

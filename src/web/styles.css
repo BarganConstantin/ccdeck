@@ -63,5 +63,10 @@
 @import "./styles/git-handoffs.css";             /* the git view's hand-off row: open in an app, copy */
 @import "./styles/git-view.css";                 /* the git view: the widened right panel, its panes, the canvas beside it */
 @import "./styles/git-graph.css";                /* the git view's history: graph, rows, ref chips, agent marks */
+@import "./styles/git-fork.css";                 /* the git view's Fork look: its layout, toolbar, banner and inspector tab bar */
+@import "./styles/git-inspector-fork.css";       /* the git view's Fork look: Commit tab, Changes tab, the file tree */
+@import "./styles/git-diff-fork.css";            /* the git view's Fork look: path bar and diff */
+@import "./styles/git-sidebar-fork.css";         /* the git view's sidebar in the Fork look: refs, filter, the two views */
+@import "./styles/git-graph-fork.css";           /* the git view's history in the Fork look: rows, graph, badges, dots */
 @import "./styles/git-band.css";                 /* the lane of recent commits under a card */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

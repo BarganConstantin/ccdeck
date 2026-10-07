@@ -52,8 +52,15 @@ export interface LogCommit {
   date: string;
   subject: string;
   trailers: Array<{ key: string; value: string }>;
-  refs: { local: string[]; remote: string[]; tags: string[]; head: boolean };
+  /** `upstream`: each local branch here that has one configured, by name,
+   *  with the remote-tracking branch it follows (`origin/develop`). */
+  refs: { local: string[]; remote: string[]; tags: string[]; head: boolean; upstream?: Record<string, string> };
   agent: CommitAgent | null;
+  /** The message has more than its subject line. */
+  hasBody?: boolean;
+  /** HEAD has it and HEAD's upstream does not: not pushed yet. Only ever
+   *  `true`, and only when HEAD's branch has an upstream to measure by. */
+  unpushed?: boolean;
   outsideWindow?: boolean;
   /** On HEAD's line past the window: whether the branch HEAD is measured
    *  against already has the commit — git's answer, since the commits that
@@ -109,6 +116,24 @@ export interface CommitFile {
   binary: boolean;
 }
 
+/** Who committed a commit, and when (strict ISO): the author's twin, which
+ *  differs when someone else applied the commit (a rebase, a cherry-pick, a
+ *  patch). */
+export interface CommitIdentity {
+  name: string;
+  email: string;
+  date: string;
+}
+
+/** What /api/git/commit adds to a commit's record: who committed it and
+ *  when, and the message after its subject (trailers kept, at most 64 KB,
+ *  `clipped` when it was cut). */
+export interface CommitMessage {
+  committer?: CommitIdentity;
+  body?: string;
+  clipped?: boolean;
+}
+
 export interface Edit {
   /** Repository-relative. */
   path: string;
@@ -122,6 +147,20 @@ export type DiffResult =
   | { binary: true }
   | { tooLarge: true; limit: number; oldSize: number; newSize: number }
   | { directory: true };
+
+/** How the git view draws itself: the deck's own look, or Fork's window. */
+export type GitLook = "deck" | "fork";
+
+/** The Fork look's inspector tabs. */
+export type GitInspectorTab = "commit" | "changes" | "tree";
+
+/** `/api/git/commit` for a commit without a path: the commit and its files. */
+export interface CommitDetail {
+  commit: LogCommit;
+  files: CommitFile[];
+  /** A partial clone without this commit's contents: no line counts, no diffs. */
+  notDownloaded?: boolean;
+}
 
 /** Whose work the view is about: a session's whole team, or one subagent. */
 export interface GraphFocus {
@@ -139,4 +178,78 @@ export interface GitFileRef {
   path: string;
   area: string;
   from?: string;
+}
+
+// ── the sidebar's lists (GET /api/git/refs) ──────────────────────────────
+
+/** A local branch: `current` is the one checked out in the session's own
+ *  worktree, `upstream` the branch it tracks (null for none), `ahead` and
+ *  `behind` how far it is from it as of the last fetch anybody made, `gone` an
+ *  upstream the remote no longer has, `worktree` the folder holding it checked
+ *  out (null when none does). `sha` is null only for a branch with no commit. */
+export interface RefBranch {
+  name: string;
+  sha: string | null;
+  current: boolean;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  gone: boolean;
+  worktree: string | null;
+}
+
+/** A remote and its remote-tracking branches, named without the remote. */
+export interface RefRemote {
+  name: string;
+  branches: Array<{ name: string; sha: string }>;
+}
+
+/** A tag, with the commit it names (an annotated tag's, peeled). */
+export interface RefTag {
+  name: string;
+  sha: string;
+  annotated: boolean;
+}
+
+/** One entry of the stash, newest first: `stash@{index}`. */
+export interface RefStash {
+  index: number;
+  sha: string;
+  subject: string;
+  date: string;
+}
+
+/** A worktree of the repository; `current` is the session's own. */
+export interface RefWorktree {
+  path: string;
+  name: string;
+  branch: string | null;
+  sha: string | null;
+  current: boolean;
+  locked: boolean;
+  prunable: boolean;
+  missing: boolean;
+}
+
+/** A submodule, at the commit the index pins it to. */
+export interface RefSubmodule {
+  path: string;
+  name: string;
+  sha: string;
+}
+
+/** The lists a list name in `clipped` or `unread` can be. */
+export type RefsList = "refs" | "stashes" | "worktrees" | "submodules";
+
+export interface GitRefs {
+  branches: RefBranch[];
+  remotes: RefRemote[];
+  tags: RefTag[];
+  stashes: RefStash[];
+  worktrees: RefWorktree[];
+  submodules: RefSubmodule[];
+  /** Lists cut at their cap: "refs" is branches, remote branches and tags together. */
+  clipped: RefsList[];
+  /** Lists git could not be asked for. */
+  unread: RefsList[];
 }

@@ -572,6 +572,9 @@ const CONTROLS: Control[] = [
   // panel with the control edge round it, which is the mark that says which
   // one is chosen, so that edge is measured. The track sits on the panel.
   { at: ".fb-kind:has(input:checked)", fillFrom: ".fb-kind:has(input:checked)", beds: ["--panel"] },
+  // Appearance › Git view look: the same segmented pair, two buttons in a track,
+  // the chosen one raised onto the panel with the control edge round it.
+  { at: '.appearance-git-look-pick[aria-checked="true"]', fillFrom: '.appearance-git-look-pick[aria-checked="true"]', beds: ["--panel"] },
   // Its two quiet buttons under the message, Add screenshot and Add details:
   // no boundary at rest, since their words name them, and the control edge
   // under the pointer and the keyboard, as Other accounts' expand-all draws one.
@@ -872,8 +875,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // to 114 with the git history's new-commits pill, framed at rest.
     // And from 114 to 116 with the git view's diff: its Show latest pill,
     // framed in the accent at rest, and the keycap inside it; and to 118 with
-    // the glance's sharp collision line and its Open under the pointer.
-    expect(EDGED_CONTROLS.length).toBeLessThan(118);
+    // the glance's sharp collision line and its Open under the pointer. And
+    // to 119 with Appearance's git view look, whose chosen look is framed.
+    expect(EDGED_CONTROLS.length).toBeLessThan(119);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
