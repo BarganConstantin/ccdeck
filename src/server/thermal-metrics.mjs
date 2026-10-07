@@ -111,10 +111,19 @@ import { run } from "./metrics-run.mjs";
 //            Reasoned from the documented layout, not yet run on a localised
 //            Windows.
 //
-//            A MODERN INTEL LAPTOP declares no zone at all: Intel DTT manages
-//            its sensors and publishes them only to an administrator. There the
-//            degrees come from LibreHardwareMonitor's local web server when the
-//            user already runs it — see hwmonitor.mjs.
+//            A ZONE IS NOT THE CPU, AND IT MAY NOT BE A SENSOR AT ALL. An ACPI
+//            zone measures whatever the firmware wired it to — the skin, the
+//            board, the embedded controller's idea of the hottest of those —
+//            and on a lot of laptops it measures nothing: Intel's reference
+//            firmware returns a constant 3010 (drawn as 28°C) when it has no
+//            source. So a zone is drawn only once it has been seen to change,
+//            and never under the name CPU. See zonesSeenAfter.
+//
+//            A MODERN INTEL LAPTOP declares no zone at all, or one that never
+//            moves: Intel DTT manages its sensors and publishes them only to an
+//            administrator. There the degrees come from LibreHardwareMonitor's
+//            local web server when the user already runs it — see
+//            hwmonitor.mjs.
 //
 // NEVER INVENT A READING. No sensor means no row, and no rows at all means the
 // section is not rendered: not 0°C, not a dash, not a grey empty bar. Same rule
@@ -599,31 +608,93 @@ export async function readThermal(platform = process.platform, since = null) {
     return darwinThermal({ gpuC, throttle, macmon });
   }
 
-  if (platform === "win32") {
-    // One child for both sources rather than two, because the cost here is the
-    // PowerShell start and not the queries: the counter is tried first because
-    // it needs no administrator, and MSAcpi only when the counter said nothing.
-    // Both are wrapped in their own try — "no thermal zone on this machine" is
-    // the ordinary answer and arrives as a throw from either.
-    const out = await run("powershell.exe", [
-      "-NoProfile", "-NonInteractive", "-Command", WIN_THERMAL_PS,
-    ], 6_000);
-    const answer = out ? parseWinThermal(out.trim()) : [];
-    if (answer.length) return { celsius: answer, throttle: null };
-
-    // Windows itself had nothing, which on a modern Intel laptop is every time:
-    // the firmware declares no ACPI thermal zone and the sensors sit behind
-    // Intel DTT, which an ordinary process may not read. If something on this
-    // machine has already gone and got them — LibreHardwareMonitor, with its
-    // web server on — they are a plain HTTP read away. Never installed, never
-    // asked for. See hwmonitor.mjs.
-    const { readHwMonitorTemps } = await import("./hwmonitor.mjs");
-    const t = await readHwMonitorTemps();
-    const rows = [];
-    if (t.cpu != null) rows.push({ label: "CPU", celsius: t.cpu, warnAt: WARN_C, critAt: CRIT_C });
-    if (t.gpu != null) rows.push({ label: "GPU", celsius: t.gpu, warnAt: WARN_C, critAt: CRIT_C });
-    return rows.length ? { celsius: rows, throttle: null } : null;
-  }
+  if (platform === "win32") return readWindowsThermal(since);
 
   return null;
+}
+
+/**
+ * The Windows rows, from the PowerShell child and, failing that, from a running
+ * LibreHardwareMonitor.
+ *
+ * `deps` is a seam for the reason sampleThermal's `deps.read` is: the suite
+ * must never start PowerShell, so `powershell` stands in for the child's output
+ * and `hwMonitor` for the read of the local web server.
+ */
+export async function readWindowsThermal(since = null, deps = {}) {
+  // One child for both sources rather than two, because the cost here is the
+  // PowerShell start and not the queries: the counter is tried first because
+  // it needs no administrator, and MSAcpi only when the counter said nothing.
+  // Both are wrapped in their own try — "no thermal zone on this machine" is
+  // the ordinary answer and arrives as a throw from either.
+  const powershell = deps.powershell ?? (() => run("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command", WIN_THERMAL_PS,
+  ], 6_000));
+  const hwMonitor = deps.hwMonitor
+    ?? (async () => (await import("./hwmonitor.mjs")).readHwMonitorTemps());
+
+  const out = await powershell();
+  const zones = out ? parseWinThermal(out.trim()) : [];
+  const zonesSeen = zonesSeenAfter(zones, since?.zonesSeen);
+  const memory = Object.keys(zonesSeen).length ? { zonesSeen } : {};
+  const moved = zones.filter(z => zonesSeen[z.label].moved);
+  if (moved.length) return { celsius: moved, throttle: null, ...memory };
+
+  // Windows had no zone that has moved, which on a modern Intel laptop is
+  // every time: the firmware declares no ACPI thermal zone, or declares one
+  // that returns a constant, and the sensors sit behind Intel DTT, which an
+  // ordinary process may not read. If something on this machine has already
+  // gone and got them — LibreHardwareMonitor, with its web server on — they
+  // are a plain HTTP read away. Never installed, never asked for. See
+  // hwmonitor.mjs.
+  const t = await hwMonitor();
+  const rows = [];
+  if (t.cpu != null) rows.push({ label: "CPU", celsius: t.cpu, warnAt: WARN_C, critAt: CRIT_C });
+  if (t.gpu != null) rows.push({ label: "GPU", celsius: t.gpu, warnAt: WARN_C, critAt: CRIT_C });
+  if (rows.length) return { celsius: rows, throttle: null, ...memory };
+
+  // A zone that has not moved yet is still a zone, so this is an answer with
+  // nothing to draw rather than null. Null would let the sampler give up after
+  // three readings, and a real zone that idled on one value for half a minute
+  // would then never be drawn. thermalSnapshot keeps it off the panel.
+  return zones.length ? { celsius: [], throttle: null, zonesSeen } : null;
+}
+
+/**
+ * Which Windows zones have been seen to change since the deck started, keyed by
+ * the zone's row label: the first value each one read, and whether it has
+ * since read anything else.
+ *
+ * A ZONE IS DRAWN ONLY ONCE IT HAS MOVED. Intel's client reference firmware,
+ * which most laptop BIOSes are built from, ends the package zone's `_TMP` with
+ * "Return a static value if no source is available. Return(3010)" — 27.85°C,
+ * drawn as 28 — and returns a static 3000 when legacy thermal management is
+ * off. Where the zone does have a source it is the embedded controller's "max
+ * platform temperature", never the die. Drawn as it came, a zone stuck on
+ * 3010 reads "Thermal zone 28 °C" on a laptop whose CPU is far hotter, which is
+ * a reading this module invents by passing it on.
+ *
+ * The test is Microsoft's own for a zone: "Each thermal zone must report
+ * actual temperature on the sensor (_TMP). The test runs a varying workload on
+ * the PC, and the temperature is expected to change." Movement rather than a
+ * list of known constants, because a constant is a firmware's choice and the
+ * next one may choose another — and because a firmware that adds 2730 rather
+ * than 2732 reads a real 28°C as 3010, which a list would hide.
+ *
+ * WHAT IT COSTS: a real zone that holds one value from the moment the deck
+ * starts is not drawn until it first changes. Once it has, it stays drawn for
+ * the life of the process however still it then sits — `moved` never goes back.
+ * Compared in whole degrees, because that is what the row shows: a zone whose
+ * row would never change is indistinguishable from a constant to whoever reads
+ * it.
+ */
+function zonesSeenAfter(zones, before = {}) {
+  const seen = { ...before };
+  for (const z of zones) {
+    const prior = seen[z.label];
+    seen[z.label] = prior
+      ? { first: prior.first, moved: prior.moved || z.celsius !== prior.first }
+      : { first: z.celsius, moved: false };
+  }
+  return seen;
 }

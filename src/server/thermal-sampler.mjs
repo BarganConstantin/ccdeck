@@ -181,12 +181,16 @@ export function lastThermal() {
 }
 
 /** The thermal row /api/system answers: the last reading, with whether the
- *  machine has been held back since the deck started, or null without one. */
+ *  machine has been held back since the deck started, or null without one —
+ *  and null for a reading with nothing to draw, which is a Windows machine
+ *  whose zones have not moved yet (readWindowsThermal). The panel draws a
+ *  section for any object it is handed, and an empty one is not a reading. */
 export function thermalSnapshot() {
   if (!thermal) return null;
-  // The raw kernel count is the sampler's, for the next difference, and not a
-  // reading: the route answers what the panel draws.
-  const { throttleCount, ...shown } = thermal;
+  // The raw kernel count and the zones' first values are the sampler's, for
+  // the next reading, and not readings: the route answers what the panel draws.
+  const { throttleCount, zonesSeen, ...shown } = thermal;
+  if (!shown.celsius?.length && !shown.throttle) return null;
   return { ...shown, heldBack: heldBackSoFar() };
 }
 
