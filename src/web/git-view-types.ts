@@ -62,9 +62,13 @@ export interface LogCommit {
    *  `true`, and only when HEAD's branch has an upstream to measure by. */
   unpushed?: boolean;
   outsideWindow?: boolean;
-  /** On HEAD's line past the window: whether the branch HEAD is measured
-   *  against already has the commit — git's answer, since the commits that
-   *  join that line to the window are not listed. */
+  /** One of the session's older commits past the window that HEAD has:
+   *  git's answer, since the commits that join it to the window are not
+   *  listed. Only ever `true`. */
+  onHead?: boolean;
+  /** On HEAD's line past the window, or an older commit HEAD has: whether
+   *  the branch HEAD is measured against already has the commit — git's
+   *  answer, for the same reason. */
   base?: boolean;
 }
 

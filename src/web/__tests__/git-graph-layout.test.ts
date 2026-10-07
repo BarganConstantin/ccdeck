@@ -500,6 +500,35 @@ describe("HEAD older than the window", () => {
   });
 });
 
+describe("the session's older commits past the window", () => {
+  // HEAD on develop at the window's top; the commits joining the window's
+  // foot to the session's older commits are not listed, so whether HEAD has
+  // them is git's answer (`onHead`), not a walk of the list.
+  const window = Array.from({ length: 5 }, (_, i) => c(`w${i}`, [`w${i + 1}`], [], i === 0 ? { refs: at(["develop"], ["origin/develop"], true) } : {}));
+  const list: LogCommit[] = [
+    ...window,
+    c("mine", ["m1"], [], { outsideWindow: true, onHead: true, base: false }),
+    c("shared", ["s1"], [], { outsideWindow: true, onHead: true, base: true }),
+    c("away", ["a1"], [], { outsideWindow: true }),
+  ];
+  const head = { sha: "w0", branch: "develop", detached: false };
+
+  it("counts one HEAD has as on its history, toned by what its base already has", () => {
+    const tones = graphTones(list, head);
+    expect(tones.get("mine")).toBe("own");
+    expect(tones.get("shared")).toBe("base");
+    expect(tones.get("away")).toBe("off");
+  });
+
+  it("draws one HEAD has as on HEAD's history, still standing alone", () => {
+    const layout = layoutGraph(list, { head, wip: false });
+    const row = (id: string) => layout.rows.find(r => r.id === id)!;
+    expect(row("mine")).toMatchObject({ outside: true, onHead: true, input: [], output: [], edges: [] });
+    expect(row("shared").onHead).toBe(true);
+    expect(row("away").onHead).toBe(false);
+  });
+});
+
 // ─── built worst cases ────────────────────────────────────────────────────
 
 describe("worst cases", () => {

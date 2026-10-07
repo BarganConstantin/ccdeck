@@ -351,7 +351,7 @@ export function layoutGraph(commits: readonly LogCommit[], opts: LayoutOptions =
       // its last row, and this one stands alone in the first column.
       const key = n.ownKey ?? n.id;
       const slot = slotOf(key, [], []);
-      rows.push({ id: n.id, col: 0, key, slot, kind: n.parents.length > 1 ? "merge" : "commit", outside: true, onHead: fromHead.has(n.id), input: [], output: [], edges: [] });
+      rows.push({ id: n.id, col: 0, key, slot, kind: n.parents.length > 1 ? "merge" : "commit", outside: true, onHead: fromHead.has(n.id) || byId.get(n.id)?.onHead === true, input: [], output: [], edges: [] });
       lanes = [];
       return;
     }
@@ -538,8 +538,9 @@ export function baseTips(commits: readonly LogCommit[], head: Pick<RepoHead, "br
  * Each commit's tone: "own" for what HEAD's branch has that its base does
  * not, "base" for the history the two share, "off" for what HEAD cannot
  * reach. With no base to measure against, a trunk's history is all "base"
- * and any other branch's all "own". HEAD's line past the window is measured
- * by git (its `base`), since the commits joining it to the window are not
+ * and any other branch's all "own". HEAD's line past the window, and the
+ * session's older commits, are measured by git (their `base`, and `onHead`
+ * for the older ones), since the commits joining them to the window are not
  * listed.
  */
 export function graphTones(commits: readonly LogCommit[], head: Pick<RepoHead, "sha" | "branch" | "detached"> | null, defaultBranch: string | null = null): Map<string, Tone> {
@@ -553,7 +554,7 @@ export function graphTones(commits: readonly LogCommit[], head: Pick<RepoHead, "
   const noBase: Tone = !tips.length && branch !== null && !trunkNames(defaultBranch).includes(branch) ? "own" : "base";
   const out = new Map<string, Tone>();
   for (const c of commits) {
-    if (!fromHead.has(c.sha)) out.set(c.sha, "off");
+    if (!fromHead.has(c.sha) && !(c.outsideWindow && c.onHead === true)) out.set(c.sha, "off");
     else if (c.outsideWindow && typeof c.base === "boolean") out.set(c.sha, c.base ? "base" : "own");
     else if (!tips.length) out.set(c.sha, noBase);
     else out.set(c.sha, fromBase.has(c.sha) ? "base" : "own");
