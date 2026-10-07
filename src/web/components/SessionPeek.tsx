@@ -145,6 +145,10 @@ function usePlacedBeside(anchor: Element, bounds: () => { width: number; height:
   const place = useCallback(() => {
     const el = ref.current;
     if (!el || !anchor.isConnected) return;
+    // Measured at its natural height: measured with last time's cap on, a
+    // capped card fits, loses its cap, and runs past the window until the next
+    // render caps it again.
+    el.style.maxHeight = "";
     const p = placeBeside(anchor.getBoundingClientRect(), { width: el.offsetWidth, height: el.offsetHeight }, bounds());
     el.style.top = `${p.top}px`;
     el.style.left = `${p.left}px`;

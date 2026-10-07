@@ -381,6 +381,10 @@
   gap: 5px;
 }
 .node-peek p { margin: 0; }
+/* Each line keeps its height, so a card capped by a window shorter than it
+   scrolls. A flex column would squeeze them instead, and a line that hides its
+   own overflow, like the session title, would shrink to nothing. */
+.node-peek > * { flex: none; }
 .node-peek-head {
   display: flex;
   align-items: baseline;
