@@ -420,9 +420,11 @@ describe("the zoomed-out faces", () => {
   const sharp = (other: string): GitCollisions => ({ quiet: [quietWith(other)], sharp: [sharpWith(other, ["src/app.ts"])] });
   const face = (html: string) => html.slice(html.indexOf('class="lod-face"'));
 
-  it("keep a small error mark for a card's own sharp collision, with its words on hover", () => {
+  it("keep a small error mark for a card's own sharp collision, its words in the card's own name", () => {
     const f = face(card(webApp(sharp(BUG)), UI));
-    expect(f).toMatch(/<span class="lod-clash" title="src\/app\.ts also edited by web-bugfix"><svg[^>]*aria-hidden="true"/);
+    // No native title: the deck's hover card opens over a zoomed-out card,
+    // and the node's accessible name says the collision at every zoom.
+    expect(f).toMatch(/<span class="lod-clash"><svg[^>]*aria-hidden="true"/);
     expect(f).toContain('<span class="lod-clash-word">same file</span>');
     // On the name's line, after it.
     expect(f.indexOf("lod-clash")).toBeGreaterThan(f.indexOf('class="lod-name"'));

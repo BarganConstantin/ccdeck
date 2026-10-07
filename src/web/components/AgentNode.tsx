@@ -32,7 +32,7 @@ import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { noteTag, sessionNoteShown } from "../session-note";
 import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
-import { faceSignal, faceTitle, stateMarkKind, type BranchSummary } from "../node-face";
+import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
 // The activity chart's counting and its scale. See tool-spark.ts.
 import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
@@ -347,7 +347,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         )}
       </div>
 
-      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }}
+      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined}
         clash={gitMark?.level === "sharp" && !gitMark.session ? gitMark : null} />
 
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
@@ -384,15 +384,13 @@ const NO_YIELDS: RowYield[] = [];
  *
  * Hidden from assistive technology like the rows it stands in for: the node's
  * accessible name is agentAriaLabel, composed from the data, and says all of
- * this at every zoom. A line the face cuts short carries its whole text on
- * hover, as the full card's name does (faceTitle).
+ * this at every zoom. Nothing on the face carries a native title: the
+ * deck's hover card opens over a zoomed-out card with its whole name, and a
+ * browser tooltip beside it would be a second box saying the same thing.
  */
-function NodeFace({ data, title, tips, clash }: {
+function NodeFace({ data, title, clash }: {
   data: AgentNodeData & { branch?: BranchSummary; nameTail?: string };
   title?: string;
-  /** The full card's tooltips for the name and the session's line, which the
-   *  face's cut lines carry too (faceTitle). */
-  tips: { name?: string; title?: string };
   /** The card's own sharp collision, which the face keeps as a small error
    *  mark on the name's line — "same file" beside it where the face has the
    *  room. A quiet one is not worth a mark at this distance. */
@@ -414,12 +412,12 @@ function NodeFace({ data, title, tips, clash }: {
     >
       <div className="lod-id">
         <StateMark kind={stateMarkKind(data.state)} />
-        <span className="lod-name" title={faceTitle(shownName, tips.name)}>{shownName}</span>
+        <span className="lod-name">{shownName}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
         {alarm && <AlertMark />}
-        {clash && <span className="lod-clash" title={clash.words}><GvIcon name="clash" size={12} /><span className="lod-clash-word">same file</span></span>}
+        {clash && <span className="lod-clash"><GvIcon name="clash" size={12} /><span className="lod-clash-word">same file</span></span>}
       </div>
-      {title && <div className="lod-title" title={faceTitle(title, tips.title)}>{title}</div>}
+      {title && <div className="lod-title">{title}</div>}
       {signal && (
         <div className="lod-signal" data-tone={signal.tone}>
           <span className="lod-long">{signal.long}</span>

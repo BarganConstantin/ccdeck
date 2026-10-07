@@ -14,7 +14,8 @@ import { focusedTabToFollow, openedAt, sectionIndex, SETTINGS_CLOSED, SETTINGS_S
 import { tabStripMove } from "../tablist-keys";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import SoundMenu from "../components/SoundMenu";
-import { SettingsRun } from "../components/TopbarRuns";
+import { SettingsRun, SpeakerGlyph } from "../components/TopbarRuns";
+import SettingsSectionGlyph from "../components/SettingsSectionGlyph";
 import { CODEX_ONLY_SOUNDS_NOTE } from "../components/SoundsSection";
 import { DEFAULT_PREFS, FIGURE_KEYS, LEVEL_KEYS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
@@ -100,8 +101,12 @@ describe("a door into Settings opens it at the section it names", () => {
 
   it("names the five sections in the nav, in order", () => {
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds", "Music & character", "Git"]);
+    // Each tab's text, its glyph's markup stripped: a tab carries a drawn
+    // glyph before its word now (the next block), and the word is still all
+    // of the text a tab holds.
     const html = drawSettings();
-    const tabs = [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map(m => m[1].replace("&amp;", "&"));
+    const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([\s\S]*?)<\/button>/g)]
+      .map(m => m[1].replace(/<[^>]+>/g, "").replace("&amp;", "&"));
     expect(tabs).toEqual(["General", "Notifications", "Sounds", "Music & character", "Git"]);
   });
 
@@ -116,6 +121,65 @@ describe("a door into Settings opens it at the section it names", () => {
     const runs = (sourceOf("components/TopbarRuns.tsx"));
     expect(runs).toContain('onAllSettings={() => openSettings("sounds")}');
     expect(runs).toContain("onClick={() => openSettings()}");
+  });
+});
+
+// ── the nav's glyphs ────────────────────────────────────────────────────────
+
+describe("each section in the nav carries its glyph", () => {
+  const html = drawSettings();
+  const tabs = [...html.matchAll(/<button([^>]*role="tab"[^>]*)>([\s\S]*?)<\/button>/g)]
+    .map(m => ({ attrs: m[1], inner: m[2] }));
+  const glyphOf = (section: SettingsSection) => renderToStaticMarkup(createElement(SettingsSectionGlyph, { section }));
+  const SPEC = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+
+  it("draws one glyph before each name, hidden from assistive technology", () => {
+    expect(tabs).toHaveLength(SETTINGS_SECTIONS.length);
+    tabs.forEach((tab, i) => {
+      const { id, label } = SETTINGS_SECTIONS[i];
+      expect(tab.inner.match(/<svg\b/g), id).toHaveLength(1);
+      expect(tab.inner.startsWith(glyphOf(id)), id).toBe(true);
+      expect(tab.inner, id).toBe(`${glyphOf(id)}<span class="settings-tab-label">${label.replace("&", "&amp;")}</span>`);
+    });
+  });
+
+  it("names each tab by its word alone", () => {
+    tabs.forEach((tab, i) => {
+      const { id, label } = SETTINGS_SECTIONS[i];
+      expect(tab.attrs, id).not.toMatch(/aria-label|aria-labelledby|title=/);
+      expect(tab.inner, id).not.toMatch(/<title|<text|<desc/);
+      expect(tab.inner.replace(/<[^>]+>/g, "").replace("&amp;", "&"), id).toBe(label);
+    });
+  });
+
+  it("draws every glyph on the topbar's one spec, in the tab's own ink", () => {
+    // currentColor and nothing else, so a glyph is --muted at rest, --text
+    // chosen, and the system's text colour under a Contrast theme.
+    for (const { id } of SETTINGS_SECTIONS) {
+      const glyph = glyphOf(id);
+      expect(glyph.startsWith(SPEC), id).toBe(true);
+      expect(glyph.match(/fill="[^"]*"/g), id).toEqual(['fill="none"']);
+      expect(glyph.match(/stroke="[^"]*"/g), id).toEqual(['stroke="currentColor"']);
+      expect(glyph, id).not.toMatch(/style=|class=/);
+    }
+  });
+
+  it("gives Sounds the topbar's own speaker and General the sliders, never the gear", () => {
+    expect(glyphOf("sounds")).toBe(renderToStaticMarkup(createElement(SpeakerGlyph, { on: true })));
+    expect(sourceOf("components/TopbarRuns.tsx")).toContain("<SpeakerGlyph on={soundOn} />");
+    const general = glyphOf("general");
+    expect(general).toContain('d="M1.5 3h4.3M9.2 3h3.3M1.5 7h1.3M6.2 7h6.3M1.5 11h6.3M11.2 11h1.3"');
+    expect(general.match(/<circle\b/g)).toHaveLength(3);
+    const glyphs = SETTINGS_SECTIONS.map(s => glyphOf(s.id));
+    for (const glyph of glyphs) expect(glyph).not.toContain("M5.4 2.9L5.6 1.1L8.4 1.1");
+    expect(new Set(glyphs).size).toBe(SETTINGS_SECTIONS.length);
+  });
+
+  it("keeps each tab to one line, and the phone grid even", () => {
+    const css = sheetText();
+    expect(css).toMatch(/\.settings-tab-label \{[^}]*white-space: nowrap;/);
+    expect(css).toMatch(/@media \(max-width: 640px\) \{[\s\S]*?\.settings-nav \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    expect(css).toMatch(/@media \(max-width: 359px\) \{\s*\.settings-tab > svg \{ display: none; \}/);
   });
 });
 

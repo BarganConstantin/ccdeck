@@ -231,11 +231,11 @@ describe("a name cut short on a small face has its whole text on hover", () => {
     expect(faceTitle("empty-repo", undefined)).toBe("empty-repo");
   });
 
-  it("puts it on the name and on the session's line, as the full card does", () => {
+  it("leaves the face's own lines without a native title: the deck's hover card names the card there", () => {
     // A subagent beside a teammate of its type is named with its key's tail there too.
     expect(node).toContain("const shownName = data.nameTail ? `${data.label} · ${data.nameTail}` : data.label;");
-    expect(node).toContain('<span className="lod-name" title={faceTitle(shownName, tips.name)}>{shownName}</span>');
-    expect(node).toContain('{title && <div className="lod-title" title={faceTitle(title, tips.title)}>{title}</div>}');
+    expect(node).toContain('<span className="lod-name">{shownName}</span>');
+    expect(node).toContain('{title && <div className="lod-title">{title}</div>}');
   });
 });
 
@@ -348,7 +348,7 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("draws the face in every card and hides it from assistive technology", () => {
-    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} tips={{ name: cardTooltip, title: naming.tooltip }}');
+    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? naming.face : undefined}');
     // The card's own sharp git collision is the one git mark the face keeps.
     expect(node).toContain('clash={gitMark?.level === "sharp" && !gitMark.session ? gitMark : null} />');
     expect(node).toMatch(/className="lod-face"[\s\S]{0,200}aria-hidden/);
