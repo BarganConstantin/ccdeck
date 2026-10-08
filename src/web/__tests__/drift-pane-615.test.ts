@@ -88,9 +88,11 @@ const watchdog = (() => {
   return at < 0 || end < 0 ? "" : fitCode.slice(at, end);
 })();
 
-/** The ResizeObserver effect that measures the canvas. */
+/** The ResizeObserver effect that measures the canvas: from the element it
+ *  reads, through the held reading the layout's size goes through
+ *  (heldReading, since 2026-10-08), to the observer's disconnect. */
 const observer = (() => {
-  const at = sizeCode.indexOf("new ResizeObserver(");
+  const at = sizeCode.indexOf("const el = canvasRef.current;");
   const end = sizeCode.indexOf("ro.disconnect()", at);
   return at < 0 || end < 0 ? "" : sizeCode.slice(at, end);
 })();
@@ -156,14 +158,24 @@ function accountsPanelWidth(): number {
   return Number(m![1]);
 }
 
-function panelPixels(columns: string): number {
+/** The session list's width, declared on the list since 2026-10-08, when its
+ *  track went `auto` with Accounts' (styles/left-column.css). */
+function sessionListWidth(): number {
+  const m = /\.session-list\s*\{[^}]*?\bwidth:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
+  expect(m, ".session-list declares its own width").toBeTruthy();
+  return Number(m![1]);
+}
+
+/** The panel pixels each layout a template stands for gives away. */
+function panelPixels(columns: string): number[] {
   const fixed = columns.split(/\s+/)
     .map(t => /^(\d+(?:\.\d+)?)px$/.exec(t))
     .reduce((sum, px) => sum + (px ? Number(px[1]) : 0), 0);
-  // An `auto` first track is the accounts panel sizing itself. Counting zero
-  // for it would report the accounts layouts as 288px roomier than they are,
-  // which is the exact class of error #615 was about.
-  return /^auto\b/.test(columns.trim()) ? fixed + accountsPanelWidth() : fixed;
+  // An `auto` first track is the left column, as wide as whichever panel is
+  // in it — one rule for two layouts since 2026-10-08. Counting zero for it
+  // would report those layouts as 240-288px roomier than they are, which is
+  // the exact class of error #615 was about.
+  return /^auto\b/.test(columns.trim()) ? [fixed + sessionListWidth(), fixed + accountsPanelWidth()] : [fixed];
 }
 
 const WINDOW_W = 1600;
@@ -235,7 +247,7 @@ describe("the six layouts are still the six the stylesheet declares", () => {
   it("declares exactly the panel widths this suite tests against", () => {
     // If a panel is resized or a seventh layout is added, the table above is
     // stale and the numbers below stop describing this deck.
-    const declared = appColumnRules().map(panelPixels).sort((a, b) => a - b);
+    const declared = appColumnRules().flatMap(panelPixels).sort((a, b) => a - b);
     expect(declared).toEqual(LAYOUTS.map(l => l.panels).sort((a, b) => a - b));
   });
 
@@ -498,10 +510,12 @@ describe("App.tsx hands the rule the pane it measured", () => {
     // reflow the graph. An intersection test that inherited that tolerance
     // would call a 40px strip of live canvas off-screen — a smaller version of
     // the same bug.
+    // The layout's reading goes through heldReading's `take` since 2026-10-08,
+    // which holds it while the left column moves; the pane's is written from
+    // the observer's own entry, before that, and never held.
     const quantised = observer.slice(observer.indexOf("setCanvasSize(prev"));
-    expect(quantised).toMatch(/Math\.abs\(prev\.w - r\.width\) > 40/);
-    expect(observer.slice(0, observer.indexOf("setCanvasSize(prev")))
-      .toMatch(/paneSizeRef\.current = \{ width: r\.width/);
+    expect(quantised).toMatch(/Math\.abs\(prev\.w - width\) > 40/);
+    expect(observer).toMatch(/paneSizeRef\.current = \{ width: r\.width, height: r\.height \};\s*reading\.read\(r\.width, r\.height\);/);
   });
 
   it("observes the element the canvas is drawn in", () => {

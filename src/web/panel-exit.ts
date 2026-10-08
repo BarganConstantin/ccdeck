@@ -41,6 +41,24 @@ export function isMounted(phase: PanelPhase): boolean {
   return phase !== "gone";
 }
 
+/** Whether a panel is drawn, counting from the render that flips its flag.
+ *
+ *  The phase follows the flag one render late, from an effect, and an update
+ *  made in an effect is not always rendered before the next paint. For the
+ *  left column that one frame showed: under reduced motion its width moved to
+ *  the new panel's at once while the old panel was not yet leaving, so the old
+ *  one was drawn cut off at the new width for a frame. Read from the flag as
+ *  well, a panel is drawn, and leaving, from the same render as the column's
+ *  width. */
+export function isDrawn(open: boolean, phase: PanelPhase): boolean {
+  return open || isMounted(phase);
+}
+
+/** Whether a drawn panel is on its way out, from the render that closes it. */
+export function isLeaving(open: boolean, phase: PanelPhase): boolean {
+  return !open && isMounted(phase);
+}
+
 /**
  * The hook the panel's owner uses.
  *

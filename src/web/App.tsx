@@ -2,12 +2,13 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
-import { usePanelPresence, isMounted } from "./panel-exit";
+import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
+import LeftColumn from "./components/LeftColumn";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -58,7 +59,7 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
-import { useLeftColumn } from "./use-left-column";
+import { leftColumnWidth, useColumnSettle, useLeftColumn } from "./use-left-column";
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
@@ -120,12 +121,16 @@ function Inner() {
   // The left column: the session list and the accounts panel share one slot,
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
-  const { sessionListOpen, accountsPanelOpen, toggleSessionList, toggleAccountsPanel,
+  const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
           closeSessionList, closeAccountsPanel } = useLeftColumn();
-  /** The panel outlives its own `false` by the length of its exit, so closing
-   *  it animates instead of cutting 288px out of the layout in one frame.
-   *  Must match `--side-exit` in the sheet. */
+  /** Both panels outlive their own `false` by the length of their exit: a
+   *  close slides the panel out with the column's edge, and a switch fades the
+   *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
   const accountsPhase = usePanelPresence(accountsPanelOpen, 200);
+  const sessionListPhase = usePanelPresence(sessionListOpen, 200);
+  /** Drawn, and leaving, from the render that flips the flag: the same render
+   *  the column's width changes in (panel-exit.ts, isDrawn). */
+  const sessionListDrawn = isDrawn(sessionListOpen, sessionListPhase);
   /** The rail's two panels leave the same way — see --rail-exit in the sheet.
    *  Faster than the accounts panel because they travel less: 8px and a fade,
    *  against 288px of layout. */
@@ -211,6 +216,12 @@ function Inner() {
   // What this deck may see — its workspace scope and which CLIs it watches —
   // comes from /api/health, re-asked on every reconnect, in use-deck-scope.ts.
   const { workspace, providers, providersRef } = useDeckScope(live);
+  /** How wide the left column is drawn: the open panel's own width, or 0 —
+   *  never anything the two panels make between them (LeftColumn.tsx). The
+   *  accounts panel is Claude's alone, so without Claude Code it is no width. */
+  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !providers.claude ? null : leftPanel);
+  const columnSettleRef = useColumnSettle(leftColumnTarget);
+  const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && providers.claude;
 
   // The "started under an old npm name" notice lives in use-old-name-notice.ts.
   const oldNameNotice = useOldNameNotice(version);
@@ -323,7 +334,8 @@ function Inner() {
   // How big the canvas is, measured once by one observer and kept two ways:
   // quantised for the layout, whole for the drift watchdog below. See
   // use-canvas-size.ts.
-  const { canvasRef, canvasSize, paneSizeRef } = useCanvasSize();
+  // Held while the left column moves, so the board is re-packed once, after.
+  const { canvasRef, canvasSize, paneSizeRef } = useCanvasSize(columnSettleRef);
   const autoFit = useAutoFitSwitch(fitLeft);
   const { autoFitDisabledRef, disableAutoFit } = autoFit;
 
@@ -395,8 +407,8 @@ function Inner() {
   // panel: the topbar button that opens it, or the card the detail panel was
   // about — use-panel-return.ts.
   const panelReturn = usePanelReturn({
-    sessionListShown: sessionListOpen, usageShown: isMounted(usagePhase), machineShown: isMounted(machinePhase),
-    accountsShown: isMounted(accountsPhase) && providers.claude, detailShown, primarySelectedId, canvasRef,
+    sessionListShown: sessionListDrawn, usageShown: isMounted(usagePhase), machineShown: isMounted(machinePhase),
+    accountsShown: accountsDrawn, detailShown, primarySelectedId, canvasRef,
   });
 
   // What the floating panels cover of the canvas, and the frame the layout and
@@ -644,27 +656,34 @@ function Inner() {
         everConnected={everConnected} live={live} paused={paused}
       />
 
-      {/* Claude-only, and now conditional on Claude Code actually being here.
-          Every account in it is a Claude account, the store behind it is
-          claude-swap's, and both of its empty states end at `claude auth login`
-          — which on a Codex-only machine dead-ends at "the claude CLI could not
-          be run: not on PATH". The panel is also open by default, so that was
-          the first thing such a user saw. */}
-      {isMounted(accountsPhase) && providers.claude && (
-        <AccountsPanel leaving={accountsPhase === "leaving"} onReport={dialogs.openFeedback}
-          onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }} />
-      )}
-
-      {sessionListOpen && (
-        <SessionList
-          state={stateRef.current}
-          now={now}
-          selectedIds={selectedIds}
-          onSelect={openSession}
-          onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
-          removedIds={removedAgentIds}
-          onBringBackAll={bringBackAll}
-        />
+      {/* The left column, one element both panels are drawn in: its width is
+          the open panel's, eased from the last one, and a switch cross-fades
+          the two inside it — components/LeftColumn.tsx. */}
+      {(sessionListDrawn || accountsDrawn) && (
+        <LeftColumn width={leftColumnTarget}>
+          {/* Claude-only, and now conditional on Claude Code actually being here.
+              Every account in it is a Claude account, the store behind it is
+              claude-swap's, and both of its empty states end at `claude auth login`
+              — which on a Codex-only machine dead-ends at "the claude CLI could not
+              be run: not on PATH". The panel is also open by default, so that was
+              the first thing such a user saw. */}
+          {accountsDrawn && (
+            <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
+              onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }} />
+          )}
+          {sessionListDrawn && (
+            <SessionList
+              leaving={isLeaving(sessionListOpen, sessionListPhase)}
+              state={stateRef.current}
+              now={now}
+              selectedIds={selectedIds}
+              onSelect={openSession}
+              onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
+              removedIds={removedAgentIds}
+              onBringBackAll={bringBackAll}
+            />
+          )}
+        </LeftColumn>
       )}
       {/* <main>, the canvas: the listeners that have to sit on all of it, and
           the drag-to-remove zone and the peek drawn over it —

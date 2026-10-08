@@ -49,7 +49,9 @@ describe("each stripe is a toolbar, and the dock is one", () => {
     // Horizontal is a toolbar's default, so it is not said.
     expect(attr(tag, "aria-orientation")).toBeNull();
     expect([...buttons(html).values()].filter(b => attr(b, "tabindex") === "0")).toHaveLength(1);
-    expect(ids(html)).toEqual(["session-list", "accounts", "usage", "machine", "settings", "more"]);
+    // Accounts first since 2026-10-08, the owner's order for the left stripe,
+    // which the dock draws from the same list.
+    expect(ids(html)).toEqual(["accounts", "session-list", "usage", "machine", "settings", "more"]);
     const more = buttons(html).get("more")!;
     expect(attr(more, "aria-haspopup")).toBe("menu");
     expect(attr(more, "aria-expanded")).toBe("false");
@@ -68,7 +70,8 @@ describe("each stripe is a toolbar, and the dock is one", () => {
 
 describe("what each button is to assistive tech", () => {
   it("puts the left column's two on the left, and the rest on the right in their two groups", () => {
-    expect(ids(left())).toEqual(["session-list", "accounts"]);
+    // Accounts at the top, then Session list (the owner's order, 2026-10-08).
+    expect(ids(left())).toEqual(["accounts", "session-list"]);
     expect(ids(right())).toEqual(["usage", "machine", "history", "browser-watch"]);
     expect([...right().matchAll(/<div class="rail-group">/g)]).toHaveLength(2);
   });

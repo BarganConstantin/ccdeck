@@ -73,8 +73,9 @@ function buttons(html: string): Array<{ name: string; word: string }> {
 
 // Each word, and the accessible name it has to be found in (2.5.3).
 const WORDS: Array<[word: string, name: string]> = [
-  ["Session list", "Session list"],
+  // Accounts first on the left stripe since 2026-10-08, the owner's order.
   ["Accounts", "Accounts"],
+  ["Session list", "Session list"],
   ["Usage", "Usage"],
   ["Machine", "Machine"],
   ["Usage history", "Usage history"],
@@ -112,7 +113,7 @@ describe("every control in the chrome says its name (#836)", () => {
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
     const words = buttons(dock).map(b => b.word);
-    expect(words).toEqual(["Sessions", "Accounts", "Usage", "Machine", "Settings", "More"]);
+    expect(words).toEqual(["Accounts", "Sessions", "Usage", "Machine", "Settings", "More"]);
     expect(dock).toMatch(/aria-label="More: Usage history, Browser watch, not watching, Send feedback"/);
   });
 
@@ -121,7 +122,8 @@ describe("every control in the chrome says its name (#836)", () => {
   });
 
   it("orders each edge by what opens there: the left column's two, then the rail's panels before its records", () => {
-    // Session list and Accounts share the left column and open there. On the
+    // Accounts and Session list share the left column and open there,
+    // Accounts at the top since 2026-10-08 (the owner's order). On the
     // right the two panels that open beside the stripe come first and the two
     // records that open as dialogs after them, 4px apart inside a group and
     // 14px and a --line rule between the groups: spacing alone measured 26px
@@ -130,7 +132,7 @@ describe("every control in the chrome says its name (#836)", () => {
     // History was beside Usage on the bar, by subject; on the right edge it is
     // by what a press does, and it says "Usage history" whole — "History"
     // alone, over Browser watch, read as the browser's.
-    expect(buttons(left).map(b => b.word)).toEqual(["Session list", "Accounts"]);
+    expect(buttons(left).map(b => b.word)).toEqual(["Accounts", "Session list"]);
     expect(buttons(right).map(b => b.word)).toEqual(["Usage", "Machine", "Usage history", "Browser watch"]);
     expect(right.match(/<div class="rail-group">/g)).toHaveLength(2);
     expect(body(".edge-rail")).toMatch(/gap: 14px;/);

@@ -504,18 +504,19 @@ describe("what each of the four toggles announces", () => {
     // and the only place `L` is written down is the shortcuts sheet — reached
     // through a small `?` in the canvas control stack, which a mouse-only user
     // has no reason to open and a first-run user has never seen.
-    // It stands first on the left stripe now, beside the column it opens,
-    // drawn (#837) and with its word.
+    // It stands on the left stripe, beside the column it opens, drawn (#837)
+    // and with its word — under Accounts since 2026-10-08, the owner's order.
     const chrome = items();
-    expect(chrome.left[0].id).toBe("session-list");
+    expect(chrome.left.map(i => i.id)).toEqual(["accounts", "session-list"]);
     const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [chrome.left] }));
     expect(html).toMatch(/data-rail-item="session-list"[^>]*>\s*<svg /);
     expect(html).toMatch(/<span class="rail-word">Session list<\/span>/);
     // And on a phone, in the dock — the stripes give way to it there.
     const dock = draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] }));
     expect(attr(buttons(dock).get("session-list")!, "aria-expanded")).toBe("false");
-    // The panel keeps its landmark name either way.
-    expect(sessionList).toMatch(/<aside className="session-list" id="session-list" aria-label="Sessions">/);
+    // The panel keeps its landmark name either way, and wears `leaving` while
+    // it animates out of the left column (2026-10-08).
+    expect(sessionList).toMatch(/<aside className=\{`session-list\$\{leaving \? " leaving" : ""\}`\} id="session-list" aria-label="Sessions">/);
     // Enumerated rather than asked of one state, so a control that appeared
     // with some other state would fail here. Four, the four panels: the
     // speaker's popover left with the speaker (2026-10-07), the gear opens a
@@ -541,7 +542,10 @@ describe("what each of the four toggles announces", () => {
     const client = clientText();
     const body = client.slice(client.indexOf("const toggleSessionList"), client.indexOf("const toggleAccountsPanel"));
     expect(body).toMatch(/setSessionListOpen\(open => \{[\s\S]*?return !open;/);
-    expect(app).toMatch(/\{sessionListOpen && \(\s*<SessionList/);
+    // Drawn from the flag's own render, and held while it leaves (panel-exit.ts,
+    // isDrawn) since the left column animates (2026-10-08).
+    expect(app).toMatch(/const sessionListDrawn = isDrawn\(sessionListOpen, sessionListPhase\);/);
+    expect(app).toMatch(/\{sessionListDrawn && \(\s*<SessionList/);
     // The stripe button presses the same toggle L does.
     expect(app).toMatch(/onPress: toggleSessionList/);
     // The close arms the keyboard's hand-off on the way (panel-close-focus.test.ts).
@@ -560,7 +564,7 @@ describe("what each of the four toggles announces", () => {
     // edge-keys-switch.test.ts draws both).
     const rows = KEY_HELP.flatMap(g => g.rows);
     expect(rows.find(r => r.cap === "L")!.action).toMatch(/session list/);
-    const list = items().left[0];
+    const list = items().left.find(i => i.id === "session-list")!;
     expect(railHint(list, true, true)?.keys).toBe("L");
     expect(attr(stripes().get("session-list")!, "aria-keyshortcuts")).toBe("L");
   });

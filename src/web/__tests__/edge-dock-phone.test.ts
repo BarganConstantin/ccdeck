@@ -80,8 +80,9 @@ afterEach(() => { vi.unstubAllGlobals(); });
 describe("the dock holds the four panels and Settings, then More", () => {
   it("in the order the edges hold them: the left column's two, the right rail's two, then the gear", () => {
     const view = dockFor(rails());
+    // The left stripe's order, Accounts first since 2026-10-08.
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
-      .toEqual(["session-list", "accounts", "usage", "machine", "settings"]);
+      .toEqual(["accounts", "session-list", "usage", "machine", "settings"]);
     expect((moreOf(view.tree).props.items as { id: string }[]).map(i => i.id))
       .toEqual(["history", "browser-watch", "feedback"]);
   });
@@ -132,7 +133,7 @@ describe("the dock is one toolbar", () => {
     const view = dockFor(rails());
     expect(buttons(view.tree).map(b => b.props.variant)).toEqual(["dock", "dock", "dock", "dock", "dock"]);
     expect(buttons(view.tree).map(b => (b.props.item as { short: string }).short))
-      .toEqual(["Sessions", "Accounts", "Usage", "Machine", "Settings"]);
+      .toEqual(["Accounts", "Sessions", "Usage", "Machine", "Settings"]);
   });
 
   it("gives every control a thumb's target on the narrowest phone", () => {

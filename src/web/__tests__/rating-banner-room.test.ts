@@ -75,7 +75,9 @@ describe("the rating question's row", () => {
   it("starts the left panel and the detail panel under it", () => {
     const docked = top(/\.app:has\(\.rating-banner\)/).filter(r => decl(r, "grid-row") === "3 / -1");
     const covered = docked.map(r => r.selector).join(" ");
-    for (const panel of [".session-list", ".accounts-panel", ".detail"]) expect(covered).toContain(panel);
+    // The left column is the grid item both left panels are drawn in since
+    // 2026-10-08, so it is what starts a row lower (styles/left-column.css).
+    for (const panel of [".left-column", ".detail"]) expect(covered).toContain(panel);
   });
 
   it("starts the rail under it, by the height it reports, and the rail gives that height back at its foot", () => {

@@ -17,6 +17,9 @@ import { cascade, el, mediaApplies, selects, sheetRules, splitTop } from "./shee
 
 /** The Accounts panel's own width: the `auto` track is sized to it. */
 const ACCOUNTS_PANEL = 288;
+/** The session list's own width: since 2026-10-08 its track is `auto` too,
+ *  sized to the left column the list is drawn in (styles/left-column.css). */
+const SESSION_LIST = 240;
 
 /** A custom property's value at `width`, as the root declares it. */
 const token = (name: string, width: number) => cascade(sel => selects(sel, [el("html", [], { states: ["root"] })]), name, width);
@@ -31,6 +34,7 @@ function appCompound(sel: string, left: Left): number | null {
   const present = (cls: string) =>
     (cls === "session-list" && left === "sessions")
     || (cls === "accounts-panel" && left === "accounts")
+    || (cls === "left-column" && left !== "none")
     || cls === "detail";
   let spec = 10;
   for (const p of m[1].match(/:has\(\.[\w-]+\)|:not\(:has\(\.[\w-]+\)\)/g) ?? []) {
@@ -93,8 +97,8 @@ function fixedTracks(template: string, left: Left): number {
   return splitTop(template.replace(/\s+(?![^(]*\))/g, ",")).reduce((sum, t) => {
     if (/fr\)?$/.test(t)) return sum;
     if (t === "auto") {
-      expect(left, "an auto track with no Accounts panel to size it").toBe("accounts");
-      return sum + ACCOUNTS_PANEL;
+      expect(left, "an auto track with no left panel to size it").not.toBe("none");
+      return sum + (left === "accounts" ? ACCOUNTS_PANEL : SESSION_LIST);
     }
     return sum + length(t, 0);
   }, 0);
@@ -172,7 +176,9 @@ describe("a selected session on a narrow window (#1790)", () => {
   it("keeps the wide layout exactly as it was: a 360px column beside the canvas", () => {
     for (const width of [641, 900, 1280]) {
       expect(layout("none", width)).toMatchObject({ template: "1fr 360px", overlay: false });
-      expect(layout("sessions", width)).toMatchObject({ template: "240px 1fr 360px", overlay: false });
+      // `auto` since 2026-10-08: the track is the left column's, which is the
+      // session list's 240px while the list is in it (styles/left-column.css).
+      expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
     }
     // With Accounts open the panel and the column are 648px between them, so
     // from 641 to 647px the column gives up what the window lacks (#1840) —

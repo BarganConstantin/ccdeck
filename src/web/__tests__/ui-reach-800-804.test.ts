@@ -87,7 +87,7 @@ describe("#800 — the session list", () => {
     // In its hint's keycap and in aria-keyshortcuts, while the key works: with
     // Settings › General's single-key switch off neither advertises an L that
     // does nothing (WCAG 2.1.4).
-    const list = items().left[0];
+    const list = items().left.find(i => i.id === "session-list")!;
     expect(railHint(list, true, true)?.keys).toBe("L");
     expect(attr(left(false).get("session-list")!, "aria-keyshortcuts")).toBe("L");
     setSingleKeyShortcuts(false);
