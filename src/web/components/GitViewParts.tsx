@@ -8,6 +8,7 @@ import { fitBranch } from "../git-chip";
 import { monoMeasure } from "../git-path-fit";
 
 import { copyText } from "../copy-text";
+import { failureLasts, failureLine } from "../git-diff-parse";
 import type { LogCommit } from "../git-view-types";
 import { andList, commitMark, readStateLine, type Collision, type MarkLevel } from "../git-view-words";
 import { isEscapeKey } from "../modal-dismiss";
@@ -126,6 +127,18 @@ export function ReadStateLine({ state, folder, className = "gv-pane-empty", line
     <p className={className} ref={lineRef}>
       {line.folder && <><code title={line.folder}>{line.folder}</code> </>}<b>{line.lead}</b>{line.rest && <span> {line.rest}</span>}
     </p>
+  );
+}
+
+/** The history pane when its read failed while the folder's other reads
+ *  worked: why, and Try again wherever reading again can mend it. */
+export function HistoryFailed({ reason, onRetry }: { reason: string; onRetry: () => void }) {
+  return (
+    <div className="gv-pane-empty">
+      <b>Could not read the history.</b>
+      <span>{failureLine(reason)}</span>
+      {!failureLasts(reason) && <button type="button" className="btn gv-retry" onClick={onRetry}>Try again</button>}
+    </div>
   );
 }
 

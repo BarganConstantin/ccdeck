@@ -32,6 +32,9 @@ export interface GitData {
   subagents: SubagentElsewhere[] | null;
   /** Why a read inside a repository failed, when one did. */
   reason: string | null;
+  /** Why the history read failed, kept until a history read lands: the
+   *  working tree answering after it never takes it back. */
+  logReason: string | null;
   /** Commits that appeared in the history since the read before. */
   newShas: string[];
   /** Bumped by each answer about the working tree, so a reader can tell the
@@ -46,7 +49,7 @@ export interface GitData {
 }
 
 export const EMPTY_GIT_DATA: GitData = {
-  state: "loading", repo: null, entries: null, counts: null, commits: null, edits: null, subagents: null, reason: null,
+  state: "loading", repo: null, entries: null, counts: null, commits: null, edits: null, subagents: null, reason: null, logReason: null,
   newShas: [], treeSeq: 0, at: 0, pending: 0,
 };
 
@@ -93,15 +96,19 @@ export function newInHistory(prev: LogCommit[] | null, next: LogCommit[]): strin
  *  "gone" and the like answers for the whole read. */
 export function foldAnswer(data: GitData, kind: "status" | "log" | "edits" | "repo", a: Answer, status: number): GitData {
   if (status === 409) return { ...data, state: "off" };
-  if (status >= 400 || a.error) return { ...data, state: data.state === "loading" ? "error" : data.state, reason: a.error ?? `HTTP ${status}` };
+  const history = (reason: string) => (kind === "log" ? { logReason: reason } : {});
+  if (status >= 400 || a.error) {
+    const reason = a.error ?? `HTTP ${status}`;
+    return { ...data, state: data.state === "loading" ? "error" : data.state, reason, ...history(reason) };
+  }
   if (a.state && a.state !== "repo") return { ...data, state: a.state, repo: null };
   const next: GitData = { ...data, state: "repo", repo: a.repo ?? data.repo };
-  if (a.ok === false) return { ...next, reason: a.reason ?? "error" };
+  if (a.ok === false) return { ...next, reason: a.reason ?? "error", ...history(a.reason ?? "error") };
   if (kind === "status") return { ...next, entries: a.entries ?? [], counts: a.counts ?? null, treeSeq: data.treeSeq + 1, reason: null };
   if (kind === "edits") return { ...next, edits: a.edits ?? [] };
   if (kind === "repo") return { ...next, subagents: a.subagents ?? [] };
   const commits = a.commits ?? [];
-  return { ...next, commits, newShas: newInHistory(data.commits, commits) };
+  return { ...next, commits, newShas: newInHistory(data.commits, commits), logReason: null };
 }
 
 // ── the shared cache ─────────────────────────────────────────────────────
@@ -172,6 +179,14 @@ function read(key: string, sessionId: string, agent: string | null, stale: numbe
         publish(e, { ...foldAnswer(e.data, kind, body, status), pending: Math.max(0, e.data.pending - 1) });
       });
   }
+}
+
+/** Ask a repository's reads again, as they were last asked: the history
+ *  pane's Try again after its read failed. */
+export function readAgain(sessionId: string, agent: string | null, ownFolder = false): void {
+  const key = keyOf(sessionId, agent, ownFolder);
+  const e = cache.get(key);
+  if (e) read(key, sessionId, agent, e.seen, ownFolder ? agent : null, e.top ?? null);
 }
 
 /**

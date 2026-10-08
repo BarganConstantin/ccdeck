@@ -20,7 +20,8 @@ describe("a subagent working in another folder, from the files pane", () => {
 
   it("narrows the view to that subagent's own folder: every read names it", () => {
     expect(view).toMatch(/const agentParam = away \? away\.agentId : narrow \? focus\.agentIds!\[0\] : null;/);
-    expect(view).toMatch(/ownFolder: away != null \|\| \(narrow && agent\.git != null\)/);
+    expect(view).toMatch(/const ownFolder = away != null \|\| \(narrow && agent\.git != null\);/);
+    expect(view).toMatch(/top, enabled: true, fresh: true, ownFolder,/);
     // Its stale counter is its own card's, so the narrowed view reads again when it moves.
     expect(view).toMatch(/const awayCard = away && shown \? stateRef\.current\.agents\.get\(`\$\{shown\.sessionId\}::\$\{away\.agentId\}`\) \?\? null : null;/);
     expect(view).toMatch(/const facts = away \? awayCard\?\.git : /);

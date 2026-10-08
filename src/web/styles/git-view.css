@@ -229,6 +229,7 @@
   line-height: 18px;
 }
 .gv-pane-empty b { color: var(--text); font-size: 13px; font-weight: 600; }
+button.btn.gv-retry { align-self: flex-start; margin-top: 4px; }
 .gv-pane-empty code, .gv-line-empty code { color: var(--text); font: 11px var(--font-mono); overflow-wrap: anywhere; }
 
 
