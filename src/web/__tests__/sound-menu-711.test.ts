@@ -935,7 +935,7 @@ describe("M silences the deck from anywhere, and the switch is in Settings › S
     // state: the tooltip and the description that says the preview will sound.
     expect([...row.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
     expect(row).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
-    expect(row).toMatch(/: "Plays even when Sounds is off"\}/);
+    expect(row).toMatch(/: "Plays even when sounds are off"\}/);
     expect(row).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
     // The slice above ran to the menu's last </div>, so it also held the custom
     // sounds, which moved to CustomSoundsSection.tsx. Their markup is held to the
@@ -958,9 +958,12 @@ describe("M silences the deck from anywhere, and the switch is in Settings › S
     // read in the half-second before a press, so it states the exception and
     // stops; the description is read in sequence by somebody who cannot see the
     // switch above it, and carries why the exception is useful.
-    const tip = toneSection.match(/: "(Plays even when Sounds is off[^"]*)"\}/)![1];
+    // The switch was "Sounds" until Settings headed its section "Sounds" right
+    // above it; it says "Play sounds" now, so the exception names the state the
+    // switch leaves, not the switch's old word.
+    const tip = toneSection.match(/: "(Plays even when sounds are off[^"]*)"\}/)![1];
     const said = soundsSection.match(/<span id="sm-preview-note" className="vis-hidden">\s*([^<]+)/)![1].trim();
-    expect(tip).toBe("Plays even when Sounds is off");
+    expect(tip).toBe("Plays even when sounds are off");
     expect(said.length).toBeGreaterThan(tip.length);
     expect(said).toContain("before turning sounds back on");
     // And neither exists while the sound is on, where the sentence is noise —

@@ -236,7 +236,10 @@ export default function SettingsModal({
             ))}
           </div>
           {/* Keyed by the section, so a section opens at its top rather than
-              at the scroll the last one was left at. */}
+              at the scroll the last one was left at. Headed by its own name:
+              the dialog is one height now, and a short section under a title
+              reads as a page that ends rather than a box left half-filled. It
+              is also the rank the groups' h3 captions were missing. */}
           <div
             key={section}
             className="settings-pane"
@@ -244,6 +247,7 @@ export default function SettingsModal({
             id="settings-pane"
             aria-labelledby={`settings-tab-${section}`}
           >
+            <h2 className="settings-pane-title">{SETTINGS_SECTIONS[at].label}</h2>
             {pane}
           </div>
         </div>
