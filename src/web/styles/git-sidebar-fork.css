@@ -153,6 +153,12 @@
   font-size: 12px;
 }
 
+/* What the lists leave out: wrapped, never cut. */
+.fk-sb .fk-sb-msg.is-note {
+  overflow: visible;
+  white-space: normal;
+}
+
 /* A first read that failed: what, why, and Try again — wrapped, never cut,
    and the button's focus ring drawn whole. */
 .fk-sb .fk-sb-msg.is-failed {

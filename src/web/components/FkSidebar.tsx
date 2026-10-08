@@ -157,10 +157,15 @@ function SbMenu({ menu, onClose }: { menu: MenuState; onClose: (refocus: boolean
  * that failed, and why, with Try again unless reading again cannot mend it
  * (git timing out or erring on the folder is such a read, not a folder with
  * no repository); a folder with none; the last refs kept through a failed
- * refresh. Nothing while the first read is on its way or git is switched off.
+ * refresh; branches listed without the ahead and behind counts git took too
+ * long to work out. Nothing while the first read is on its way or git is
+ * switched off.
  */
 export function RefsNote({ refs, onRetry }: { refs: GitRefsData; onRetry: () => void }) {
-  if (refs.refs) return refs.reason ? <p className="fk-sb-msg" title={refs.reason}>Showing the last branches read.</p> : null;
+  if (refs.refs) {
+    if (refs.reason) return <p className="fk-sb-msg" title={refs.reason}>Showing the last branches read.</p>;
+    return refs.refs.unread.includes("counts") ? <p className="fk-sb-msg is-note">Ahead and behind counts are not shown: git took too long to count them.</p> : null;
+  }
   const why = refs.reason ?? (refs.state === "timeout" || refs.state === "error" ? refs.state : null);
   if (why) {
     return (

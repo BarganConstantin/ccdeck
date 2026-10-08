@@ -32,7 +32,7 @@ const { GUARDED_READS } = await import("../../server/request-gates.mjs");
 const refsMod = await import("../../server/git-refs.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { gitArgv } = await import("../../server/git-run.mjs");
-const { readRefs, MAX_REFS, parseStashes, parseWorktrees, parseGitmodules, parseGitlinks, splitRemoteRef, clearRefsCache } = refsMod;
+const { readRefs, MAX_REFS, REF_FORMAT, parseStashes, parseWorktrees, parseGitmodules, parseGitlinks, splitRemoteRef, clearRefsCache } = refsMod;
 
 const made: string[] = [];
 const track = (d: string) => { made.push(d); return d; };
@@ -295,11 +295,51 @@ describe("caps", () => {
   it("caps stashes, worktrees and submodules, and says which lists were cut", async () => {
     const r = await readRefs({ topLevel: repo, head: { branch: "main", detached: false, sha: mainSha, short: "", unborn: false } },
       { maxRefs: 3, maxStashes: 1, maxWorktrees: 2, maxSubmodules: 0 });
-    expect(r.branches.length + r.tags.length + r.remotes.reduce((n: number, x: any) => n + x.branches.length, 0)).toBe(3);
+    // Three in git's order, and the checked-out branch the cap cut, put first.
+    expect(r.branches.length + r.tags.length + r.remotes.reduce((n: number, x: any) => n + x.branches.length, 0)).toBe(4);
+    expect(r.branches[0].name).toBe("main");
     expect(r.stashes.length).toBe(1);
     expect(r.worktrees.length).toBe(2);
     expect(r.submodules.length).toBe(0);
     expect(r.clipped.sort()).toEqual(["refs", "stashes", "submodules", "worktrees"]);
+  });
+});
+
+describe("the checked-out branch past the cap", () => {
+  it("is still listed, first and current, with its upstream counts, when the cap cuts the list before it", async () => {
+    const r = await readRefs({ topLevel: repo, head: { branch: "main", detached: false, sha: mainSha, short: "", unborn: false } }, { maxRefs: 2 });
+    expect(r.ok).toBe(true);
+    expect(r.clipped).toContain("refs");
+    expect(r.branches.map((b: any) => b.name)).toEqual(["main", "agent/x", "feature/deep/one"]);
+    expect(r.branches[0]).toMatchObject({ sha: mainSha, current: true, upstream: "origin/main", ahead: 2, behind: 1, gone: false, worktree: repo });
+    expect(r.branches.filter((b: any) => b.current)).toHaveLength(1);
+  });
+
+  it("is listed once when the cap does not reach it", async () => {
+    const r = await readRefs({ topLevel: repo, head: { branch: "main", detached: false, sha: mainSha, short: "", unborn: false } });
+    expect(r.branches.filter((b: any) => b.name === "main")).toHaveLength(1);
+  });
+});
+
+describe("ahead and behind that take too long to count", () => {
+  it("lists every ref without them, and says they were not counted, rather than failing the whole answer", async () => {
+    // Each count is a walk between a branch and its upstream: seconds per
+    // branch in a large repository whose branches are far behind theirs.
+    const r = await readRefs({ topLevel: repo, head: { branch: "main", detached: false, sha: mainSha, short: "", unborn: false } }, { countsTimeoutMs: 1 });
+    expect(r.ok).toBe(true);
+    expect(r.unread).toEqual(["counts"]);
+    const byName = Object.fromEntries(r.branches.map((b: any) => [b.name, b]));
+    expect(Object.keys(byName).sort()).toEqual(["agent/x", "feature/deep/one", "feature/deep/two", "feature/gone", "main", "usb"]);
+    expect(byName.main).toMatchObject({ sha: mainSha, current: true, upstream: "origin/main", ahead: 0, behind: 0, gone: false });
+    expect(byName["feature/gone"]).toMatchObject({ upstream: "origin/feature/gone", ahead: 0, behind: 0, gone: false });
+    expect(r.remotes.map((x: any) => x.name)).toEqual(["origin", "team/eu"]);
+    expect(r.tags).toHaveLength(5);
+    expect(r.stashes).toHaveLength(2);
+  });
+
+  it("never asks the list read for them: that read walks no history", () => {
+    expect(REF_FORMAT).toMatch(/%\(refname\)/);
+    expect(REF_FORMAT).not.toMatch(/upstream:track|ahead-behind/);
   });
 });
 
@@ -312,6 +352,11 @@ describe("parsing", () => {
       { path: "/r", branch: "main", sha: "b".repeat(40), locked: false, prunable: false, bare: false },
       { path: "/w", branch: null, sha: "c".repeat(40), locked: true, prunable: true, bare: false },
     ]);
+    // A worktree on a branch with no commit yet: git prints the null id.
+    expect(parseWorktrees(`worktree /p\0HEAD ${"0".repeat(40)}\0branch refs/heads/pages\0\0`)).toEqual([
+      { path: "/p", branch: "pages", sha: null, locked: false, prunable: false, bare: false },
+    ]);
+    expect(parseWorktrees(`worktree /p\0HEAD ${"0".repeat(64)}\0branch refs/heads/pages\0\0`)[0].sha).toBeNull();
     expect(parseGitmodules("submodule.libs/a.b.path\nlibs/a\0submodule.libs/a.b.url\n../a\0")).toEqual([{ name: "libs/a.b", path: "libs/a" }]);
     expect([...parseGitlinks(`160000 ${"d".repeat(40)} 0\tlibs/a\x00100644 ${"e".repeat(40)} 0\tREADME\x00`)]).toEqual([["libs/a", "d".repeat(40)]]);
     expect(splitRemoteRef("team/eu/feature/x", ["origin", "team/eu"])).toEqual({ remote: "team/eu", name: "feature/x" });

@@ -357,6 +357,15 @@ describe("what the panel says when it has no refs to list", () => {
     expect(text(note({ state: "repo", refs: REFS, reason: "timeout" }))).toBe("Showing the last branches read.");
     expect(note({ state: "repo", refs: REFS, reason: null })).toBe("");
   });
+
+  it("says when git took too long to count how far each branch is from its upstream", () => {
+    const uncounted = note({ state: "repo", refs: { ...REFS, unread: ["counts"] }, reason: null });
+    expect(text(uncounted)).toBe("Ahead and behind counts are not shown: git took too long to count them.");
+    expect(uncounted).not.toContain("<button");
+    // Wrapped, never cut: a sidebar is often narrower than the sentence.
+    expect(uncounted).toContain('class="fk-sb-msg is-note"');
+    expect(css).toMatch(/\.fk-sb \.fk-sb-msg\.is-note \{[^}]*white-space: normal;/);
+  });
 });
 
 // ── contrast (spec 1.3 pairs, both themes) ───────────────────────────────
