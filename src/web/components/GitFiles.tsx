@@ -80,8 +80,9 @@ const SHELL_NOTE = "Marked from the agent's edit tools (Edit, Write, MultiEdit, 
  * the selected row — walked with ↑ ↓ Home End; Enter or → opens the diff.
  *
  * Paths are cut by measuring the room each row leaves them (git-path-fit.ts):
- * the file name whole, the folder cut in its middle; a subagent's tag folds to
- * `↳` before a file name is cut; a file listed twice is cut the same in both.
+ * the file name whole, the folders in front of it given up whole from the
+ * front (`…/auth/`); a subagent's tag folds to `↳` before a file name is cut;
+ * a file listed twice is cut the same in both.
  */
 const GitFiles = forwardRef<GitFilesHandle, GitFilesProps>(function GitFiles(props, ref) {
   const { entries, mode, edits, focus, selected, onSelect, onOpen, collisions, name, sha, commitBy, cleanNote, cardName, onElsewhere, reading, onRetry } = props;
