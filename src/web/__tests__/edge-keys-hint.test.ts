@@ -129,8 +129,13 @@ const control = (focusVisible = true) => ({
 });
 const SPEC = { label: "Session list", keys: "L" };
 const shown = (view: ReturnType<typeof hint>) => view.now.node != null && view.now.node !== false;
-/** Lets the clock pass the skip window, so a case's first hint is a first hint. */
-const later = () => { const at = performance.now() + SKIP_DELAY_WINDOW_MS + 1; vi.spyOn(performance, "now").mockReturnValue(at); };
+/** Lets the clock pass the skip window, so a case's first hint is a first hint.
+ *  A clock of its own that only ever moves forward, well past anything real:
+ *  read off the real clock, a case that ran a few milliseconds after another
+ *  case's mocked hide landed inside that hide's window on a fast machine, and
+ *  its "first" hint came at once (CI, all three platforms). */
+let clock = 1e9;
+const later = () => { clock += SKIP_DELAY_WINDOW_MS * 10; vi.spyOn(performance, "now").mockReturnValue(clock); };
 
 describe("the hint is a popover on the one dismiss stack", () => {
   it("registers while it is up, as a popover, and is what Escape reaches first", () => {
