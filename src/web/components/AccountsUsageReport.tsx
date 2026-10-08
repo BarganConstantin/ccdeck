@@ -112,6 +112,17 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
  *  that is not in the totals, the last number dimmed, never a zero it was not
  *  given. Why it is left out is the row's state to say, once. */
 function UsedCell({ cell, nowSec }: { cell: Cell; nowSec: number }) {
+  if (!cell.counted && cell.reset) {
+    // RESET, NOT THE OLD NUMBER. The cards take this window as unused, so a
+    // row printing the last reading added up to a different total from the
+    // one above it. Not "0%" either: nobody has read this window since it
+    // came back. When and at what it was read are on hover, and said.
+    return (
+      <td className="ap-report-cell" data-uncounted="" title={cell.reset}>
+        <span className="ap-report-pct"><span aria-hidden>reset</span><span className="vis-hidden">{cell.reset}</span></span>
+      </td>
+    );
+  }
   if (!cell.counted) {
     return (
       <td className="ap-report-cell" data-uncounted="">
@@ -240,7 +251,8 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
         <div className="ap-report-how-body">
           <p>
             Every account here, at its last reading: <b>used</b> is their average, and <b>remaining</b> is
-            the rest.
+            the rest. A window that has reset since its last reading counts as unused, and its row
+            says <b>reset</b>.
           </p>
           <p>
             <b>Ready</b> has room in both windows. <b>Limited</b> is at the limit of one, and <b>Exhausted</b> of
