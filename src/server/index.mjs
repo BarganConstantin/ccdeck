@@ -169,6 +169,15 @@ import { startToolAudit } from "./tool-audit.mjs";
 import { handleToolAudit } from "./tool-audit-routes.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
 import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaHistory } from "./usage-routes.mjs";
+// The terminal panel's five routes, every one absent while the panel is
+// switched off — see terminal-routes.mjs — and the WebSocket upgrade that
+// carries a pane, which runs its own gates because the route table never sees
+// an upgrade (terminal-socket.mjs).
+import { handleTerminalAdopt, handleTerminalLaunch, handleTerminalOpen, handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions } from "./terminal-routes.mjs";
+import { installTerminalUpgrade } from "./terminal-socket.mjs";
+// For bin/deck.js's shutdown: an upgraded socket is not in the HTTP server's
+// connection list, so closeAllConnections() never reaches a terminal.
+export { closeAllTerminals } from "./terminal-socket.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -193,7 +202,10 @@ export function requestUrl(rawUrl) {
   catch { return null; }
 }
 
-export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
+// `terminal` is handed to the terminal routes and its upgrade as their
+// stand-ins (see terminalDeps in terminal-routes.mjs): the suite runs them on
+// a tmux server of its own through it. The product passes nothing.
+export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null, terminal = {} } = {}) {
   startQuotaHistory();
   await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
@@ -425,6 +437,16 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // once per name per day. A name, never what was in it. See feature-use.mjs.
     if (req.method === "POST" && url.pathname === "/api/feature") return guard(handleFeature(req, res), res);
 
+    // The terminal panel. While it is switched off each of these answers the
+    // 404 below, word for word, without asking tmux anything — see
+    // terminal-routes.mjs. Session ids ride in the query or the body, never in
+    // the path, so GUARDED_READS can name the two reads exactly.
+    if (req.method === "GET"  && url.pathname === "/api/terminal/status") return guard(handleTerminalStatus(req, res, terminal), res);
+    if (req.method === "GET"  && url.pathname === "/api/terminal/target") return guard(handleTerminalTarget(req, res, url, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/open")   return guard(handleTerminalOpen(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/adopt")  return guard(handleTerminalAdopt(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);
+
     // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
     //
     // serveStatic falls back to index.html for a path it cannot find, which is
@@ -491,6 +513,14 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       failed(res, err);
     }
   });
+
+  // THE ONE 'upgrade' LISTENER, and what having one costs: from here on Node
+  // hands every request that carries an Upgrade header to it instead of to
+  // `route`, on any path and past every gate above. So it answers a 404 to
+  // everything that is not the terminal's own socket on a deck with the panel
+  // switched on, and runs the gates again itself for the one path it takes.
+  // Before the listen loop, so it is armed on whichever port binds.
+  installTerminalUpgrade(server, terminalUpgradeOptions(terminal));
 
   // Try requested port first, then up to 10 random ports from portRange.
   const candidates = [port];

@@ -199,7 +199,10 @@ describe("the fields a page may write", () => {
     // Every field the file holds is on one list or the other, so a new one
     // cannot be added to the file without being sorted onto one.
     const DECKS_OWN = {
-      top: ["reports", "report", "accounts"],
+      // `terminal` is the deck's own because a page that could set it could
+      // switch on a channel that types into the user's tmux, with the same
+      // POST it already passes the gates with (see DEFAULTS in deck-prefs.mjs).
+      top: ["reports", "report", "accounts", "terminal"],
       lan: ["secret", "onward", "trusted", "unpaired", "port", "aliases"],
     };
     const held = normalise({});

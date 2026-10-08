@@ -118,6 +118,40 @@ const FINGERPRINTS: { pkg: string; needle: string; note: string }[] = [
     needle: "[_$a-zA-Z][$\\w]+",
     note: "the body of its process.env matcher",
   },
+  // The terminal panel's four. Each needle was checked against a Vite 6.4.3
+  // production build of a page that reaches them only through import(), the
+  // way the panel will: present in the lazy chunks at the count beside it,
+  // absent from the entry chunk, and absent from every chunk the deck builds
+  // today — none of the four occurs in the other three packages either.
+  {
+    pkg: "@xterm/xterm",
+    // An internal element it measures glyphs with: 5 in the script, 1 in
+    // css/xterm.css. Chosen over `xterm-helper-textarea` because that is the
+    // element a deck stylesheet might one day style, and a needle the deck can
+    // write itself proves nothing about xterm.
+    needle: "xterm-char-measure-element",
+    note: "the class of the element it measures glyphs with",
+  },
+  {
+    pkg: "@xterm/addon-fit",
+    // 2: the method's definition and fit()'s call to it. A property name, so
+    // the minifier leaves it alone.
+    needle: "proposeDimensions",
+    note: "the fit addon's proposeDimensions method",
+  },
+  {
+    pkg: "@xterm/addon-unicode11",
+    // 1: a range out of its Unicode 11 width table, which is plain numbers in
+    // an array literal and minifies to exactly this.
+    needle: "[129648,129651]",
+    note: "a range out of its Unicode 11 width table",
+  },
+  {
+    pkg: "@xterm/addon-webgl",
+    // 2: an attribute name inside the GLSL source it compiles at runtime.
+    needle: "a_cellpos",
+    note: "an attribute name in its shader source",
+  },
 ];
 
 /** The slice of the notices between two headings, so a table is read out of the
@@ -278,6 +312,37 @@ describe.skipIf(!existsSync(dist))("what the build actually emitted", () => {
       .toContain('link[rel="modulepreload"]');
     expect(bundled(), "Vite emits code into the tarball and is not attributed").toContain("vite");
     expect(notices, "the Vite licence text is not reproduced").toContain("VoidZero Inc. and Vite contributors");
+  });
+
+  it("keeps xterm out of everything a visit loads, so the terminal costs the flag-off page nothing", () => {
+    // The terminal panel ships behind a hidden flag, and most people will
+    // never turn it on. Its four packages are several hundred kilobytes of
+    // script, so the contract is that they arrive only through the panel's
+    // dynamic import() — in chunks of their own, fetched the first time the
+    // panel opens — and never in the entry chunk or the stylesheet index.html
+    // links. "What a visit loads" is read off index.html itself rather than
+    // assumed to be index-*.js: a static import of the panel would surface as a
+    // modulepreload of some new chunk, and that has to be caught too.
+    //
+    // Whether xterm is in the build at all is the two cases above's business;
+    // this one only says where it may be. A separate chunk may hold it.
+    const html = readFileSync(dist, "utf8");
+    const firstLoad = [...html.matchAll(/(?:src|href)="\/?(assets\/[^"]+\.(?:js|css))"/g)].map((m) => m[1]);
+    expect(firstLoad.filter((f) => /^assets\/index-[^/]+\.js$/.test(f)), "index.html no longer loads an entry chunk")
+      .toHaveLength(1);
+    const xterm = FINGERPRINTS.filter(({ pkg }) => pkg.startsWith("@xterm/"));
+    expect(xterm.map(({ pkg }) => pkg).sort(), "a terminal package has no fingerprint to look for")
+      .toEqual(["@xterm/addon-fit", "@xterm/addon-unicode11", "@xterm/addon-webgl", "@xterm/xterm"]);
+    for (const file of firstLoad) {
+      const text = readFileSync(join(repo, "dist", "web", file), "utf8");
+      for (const { pkg, needle, note } of xterm) {
+        expect(
+          text.includes(needle),
+          `dist/web/${file} is loaded on every visit and contains ${note} (${needle}): ${pkg} has been imported `
+            + "statically somewhere. The terminal panel may only be reached through a dynamic import().",
+        ).toBe(false);
+      }
+    }
   });
 
   it("keeps node-resizer attributed on the strength of its stylesheet", () => {
