@@ -97,8 +97,8 @@
 .gv-wide[data-look="fork"] .fk-case .fk-node.is-trailer { stroke: var(--fk-list); stroke-width: 3.3; }
 
 /* The subject cell: [dot] [badges] subject [↩] … [agent chip]. The subject
-   gives way first; the badges are held to half the cell, a cut edge saying
-   there is more. */
+   gives way first; the badges are held to half the cell, and one too long for
+   what is left ends in an ellipsis (its title holds the whole name). */
 .gv-wide[data-look="fork"] .fk-cell-subj { display: flex; align-items: center; min-width: 0; height: 22px; padding-right: 8px; overflow: hidden; }
 .gv-wide[data-look="fork"] .fk-subj { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .gv-wide[data-look="fork"] .fk-cc { font-weight: 700; }
@@ -122,7 +122,8 @@
   --fk-ref-edge: var(--lane);
   --fk-ref-ink: #ffffff;
   position: relative;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -191,24 +192,25 @@
   background: var(--fk-ref-neutral-fill);
   color: var(--fk-ref-neutral-ink);
 }
-.gv-wide[data-look="fork"] .fk-ref[data-kind="more"] { cursor: help; }
+.gv-wide[data-look="fork"] .fk-ref[data-kind="more"] { flex: none; cursor: help; }
 
 /* The agent's name chip: a pill at the end of the subject, so it never reads
    as a ref badge, and the author column keeps the real git author. */
 .gv-wide[data-look="fork"] .fk-chip {
   --fk-chip-fill: rgba(255, 255, 255, 0.08);
   --fk-chip-edge: rgba(255, 255, 255, 0.14);
-  /* In a tight row the subject gives way first; the chip only at a third of
-     its pace, never below its swatch and five letters; its title holds the
-     whole name. */
-  flex: 0 0.3 auto;
+  /* In a tight row the subject gives way, and the chip keeps its size: the
+     same name reads the same on every row. Only a name past its cap (180px,
+     or two fifths of the cell) is cut, never below its swatch and five
+     letters; its title holds the whole name. */
+  flex: none;
   min-width: 64px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   box-sizing: border-box;
   height: 18px;
-  max-width: 180px;
+  max-width: min(180px, 40%);
   margin-left: auto;
   padding: 0 8px 0 6px;
   border: 1px solid var(--fk-chip-edge);
@@ -323,7 +325,7 @@
 @container gvhist (max-width: 679px) {
   .gv-wide[data-look="fork"] .fk-row { grid-template-columns: var(--fk-graph-w) minmax(100px, 1fr) 24px max(140px, var(--fk-date-min, 0px)); }
   .gv-wide[data-look="fork"] .fk-cell-sha { display: none; }
-  .gv-wide[data-look="fork"] .fk-chip { max-width: 96px; }
+  .gv-wide[data-look="fork"] .fk-chip { max-width: min(96px, 40%); }
 }
 @container gvhist (max-width: 479px) {
   .gv-wide[data-look="fork"] .fk-row { grid-template-columns: var(--fk-graph-w) minmax(100px, 1fr) 24px; }
