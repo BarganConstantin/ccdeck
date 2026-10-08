@@ -352,6 +352,11 @@ describe("parsing", () => {
       { path: "/r", branch: "main", sha: "b".repeat(40), locked: false, prunable: false, bare: false },
       { path: "/w", branch: null, sha: "c".repeat(40), locked: true, prunable: true, bare: false },
     ]);
+    // A worktree on a branch with no commit yet: git prints the null id.
+    expect(parseWorktrees(`worktree /p\0HEAD ${"0".repeat(40)}\0branch refs/heads/pages\0\0`)).toEqual([
+      { path: "/p", branch: "pages", sha: null, locked: false, prunable: false, bare: false },
+    ]);
+    expect(parseWorktrees(`worktree /p\0HEAD ${"0".repeat(64)}\0branch refs/heads/pages\0\0`)[0].sha).toBeNull();
     expect(parseGitmodules("submodule.libs/a.b.path\nlibs/a\0submodule.libs/a.b.url\n../a\0")).toEqual([{ name: "libs/a.b", path: "libs/a" }]);
     expect([...parseGitlinks(`160000 ${"d".repeat(40)} 0\tlibs/a\x00100644 ${"e".repeat(40)} 0\tREADME\x00`)]).toEqual([["libs/a", "d".repeat(40)]]);
     expect(splitRemoteRef("team/eu/feature/x", ["origin", "team/eu"])).toEqual({ remote: "team/eu", name: "feature/x" });

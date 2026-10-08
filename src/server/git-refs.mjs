@@ -184,7 +184,8 @@ export function parseWorktrees(stdout) {
     const value = sp < 0 ? "" : field.slice(sp + 1);
     if (key === "worktree") { if (cur) out.push(cur); cur = { path: value, branch: null, sha: null, locked: false, prunable: false, bare: false }; continue; }
     if (!cur) continue;
-    if (key === "HEAD") cur.sha = /^[0-9a-f]{40,64}$/.test(value) ? value : null;
+    // A worktree on a branch with no commit yet says HEAD is the null id.
+    if (key === "HEAD") cur.sha = /^[0-9a-f]{40,64}$/.test(value) && !/^0+$/.test(value) ? value : null;
     else if (key === "branch") cur.branch = value.replace(/^refs\/heads\//, "");
     else if (key === "locked") cur.locked = true;
     else if (key === "prunable") cur.prunable = true;
