@@ -49,8 +49,9 @@ export interface KeyHelpRow {
    *  note the sheet opens on, says the true thing instead. */
   action: string;
   /** The literal `e.key` values the app answers, so a test can hold this table
-   *  against the handler rather than against somebody's memory of it. Empty for
-   *  a mouse gesture, which binds no key by definition. */
+   *  against the handler rather than against somebody's memory of it — the
+   *  deck's handler, or for the git view's own group the view's. Empty for a
+   *  mouse gesture, which binds no key by definition. */
   binds: readonly string[];
   /** True for a row whose key is pressed with Ctrl or Cmd. Its bind is still a
    *  character (","), but a chord is not a single-key shortcut, so the row
@@ -147,6 +148,22 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "click", action: "a card: go to it and its session", binds: [] },
       { cap: "double-click", action: "a card: its prompt, every tool call, tokens and timing", binds: [] },
       { cap: "hover", action: "zoomed out, a card's name, state and numbers", binds: [] },
+    ],
+  },
+  {
+    // Answered by the view itself while focus is in it (git-view-keys.ts,
+    // git-graph-keys.ts), which keeps every key from the deck's handler: these
+    // binds are the view's literals, not the handler's. With the single-key
+    // shortcuts off the sheet keeps the named keys and leaves the letters
+    // out, as it does everywhere. G and N are the deck's own, above.
+    title: "In the git view",
+    rows: [
+      { cap: "↑ ↓", action: "the history, then a list of files, a row at a time", binds: ["ArrowUp", "ArrowDown"] },
+      { cap: "→ or Enter", action: "into the commit's files, then a file's diff", binds: ["ArrowRight", "Enter"] },
+      { cap: "Esc", action: "back one step; from the history, close the view", binds: ["Escape"] },
+      { cap: "I", action: "the agent card of a commit an agent made", binds: ["i"] },
+      { cap: "F", action: "the Deck or the Fork look", binds: ["f", "F"] },
+      { cap: "1 2", action: "the Fork look's Commit and Changes tabs", binds: ["1", "2"] },
     ],
   },
 ];

@@ -216,6 +216,8 @@ describe("the shortcuts sheet with the switch off", () => {
     expect(rows.map(r => r.cap)).toEqual([
       "Delete", "Ctrl + ,", "Tab", "Enter", "Shift + Enter", "Esc",
       "drag", "shift-click", "click", "double-click", "hover",
+      // The git view's own named keys, which the view answers itself.
+      "↑ ↓", "→ or Enter", "Esc",
     ]);
     expect(keyHelpFor(false).map(g => g.title)).not.toContain("Panels and dialogs");
     expect(rows.find(r => r.cap === "Delete")?.action).toBe("take the selected card off the board — the session list brings it back");

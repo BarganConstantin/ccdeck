@@ -26,7 +26,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { KEY_HELP, KEY_HELP_NOTE, documentedKeys } from "../key-help";
+import { KEY_HELP, KEY_HELP_NOTE, documentedKeys, keyHelpFor } from "../key-help";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
@@ -289,5 +289,30 @@ describe("the sound gestures that outlived their mechanism", () => {
     // one that had gone stale.
     expect(row!.action).toMatch(/sound on or off/);
     expect(row!.action).not.toMatch(/Claude Code/);
+  });
+});
+
+describe("the git view's own keys", () => {
+  // The view answers a handful of keys while focus is in it (git-view-keys.ts,
+  // git-graph-keys.ts), and until now only their tooltips named them: the
+  // look's F, the commit card's I, the Fork look's tabs.
+  const group = KEY_HELP.find(g => g.title === "In the git view");
+
+  it("are on the sheet beside the deck's, the way into the view and through it", () => {
+    expect(group?.rows.map(r => r.cap)).toEqual(["↑ ↓", "→ or Enter", "Esc", "I", "F", "1 2"]);
+  });
+
+  it("are each a key the view or its history answers", () => {
+    const view = read("git-view-keys.ts"), history = read("git-graph-keys.ts");
+    expect(history).toMatch(/case "ArrowDown":/);
+    expect(view).toMatch(/where\.pane === "graph" && \(e\.key === "ArrowRight" \|\| e\.key === "Enter"\)/);
+    expect(view).toMatch(/if \(e\.key === "Escape"\) \{/);
+    expect(history).toMatch(/case "i": return/);
+    expect(view).toMatch(/if \(e\.key === "f" \|\| e\.key === "F"\) return \{ kind: "look" \};/);
+    expect(view).toMatch(/e\.key === "1" \|\| e\.key === "2"/);
+  });
+
+  it("keep their named keys on the sheet with the single-key shortcuts off, and leave the letters out", () => {
+    expect(keyHelpFor(false).find(g => g.title === "In the git view")?.rows.map(r => r.cap)).toEqual(["↑ ↓", "→ or Enter", "Esc"]);
   });
 });

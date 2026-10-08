@@ -189,7 +189,9 @@ describe("the shortcuts sheet's git rows", () => {
     expect(draw()).toContain("<kbd>G</kbd><span>git view for the selected agent");
     setSingleKeyShortcuts(false);
     expect(draw()).not.toContain("<kbd>G</kbd>");
-    expect(draw()).not.toContain("git view");
+    expect(draw()).not.toContain("git view for the selected agent");
+    // The view's own named keys stay, under their group: they still work.
+    expect(draw()).toContain('<h3 class="kh-group">In the git view</h3>');
   });
 });
 
