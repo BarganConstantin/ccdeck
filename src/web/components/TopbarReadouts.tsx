@@ -26,6 +26,7 @@ import { waitingSentence } from "../agent-copy";
 import type { Incident } from "../provider-status";
 import { IncidentChips } from "./ProviderIncidents";
 import VersionChip from "./VersionChip";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
 type MonthlyUsage = ReturnType<typeof useMonthlyUsage>;
 
@@ -38,6 +39,7 @@ export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsa
   monthlyUsage: MonthlyUsage["monthlyUsage"];
   monthlyUsageUnavailable: MonthlyUsage["monthlyUsageUnavailable"];
 }) {
+  const singleKeys = useSingleKeyShortcuts();
   return (
     <span className="status">
       {/* Three states, not two. Read through the gate rather than a
@@ -68,7 +70,7 @@ export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsa
       {(() => {
         const pill = statusPill({
           connected: live, paused,
-          held: pauseGate.size, dropped: pauseGate.dropped,
+          held: pauseGate.size, dropped: pauseGate.dropped, singleKeys,
         });
         // Nothing at rest (#719). The ghost above explains why the box
         // measures its own worst case; this is the case where the box
@@ -138,6 +140,7 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
   focusSession: (sessionId: string) => void;
   now: number;
 }) {
+  const singleKeys = useSingleKeyShortcuts();
   return (
     <button
       type="button"
@@ -147,7 +150,7 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
         waitingCursorRef.current = waitingSessions[0].id;
         focusSession(waitingSessions[0].id);
       }}
-      title={`Blocked waiting for you — click, or press W, to go to the one that has been stuck longest:\n${
+      title={`Blocked waiting for you — ${singleKeys ? "click, or press W," : "click"} to go to the one that has been stuck longest:\n${
         waitingSessions.map(w => `  ${w.label}: ${waitingSentence(w.waiting)} (${shortAgo(now - w.waiting.since)})`).join("\n")
       }`}
       aria-label={`${waitingSessions.length} session${waitingSessions.length === 1 ? "" : "s"} waiting for you`}

@@ -65,7 +65,9 @@ describe("#800 — the session list", () => {
   });
 
   it("still names the shortcut, so the button teaches the key rather than replacing it", () => {
-    expect(app).toContain('title={`${sessionListOpen ? "Hide" : "Show"} session list (L)`}');
+    // While the key works: with Settings › General's single-key switch off the
+    // title drops the (L) it would otherwise advertise for nothing (WCAG 2.1.4).
+    expect(app).toContain('title={withKey(`${sessionListOpen ? "Hide" : "Show"} session list`, "L", singleKeys)}');
     expect(app).toContain('if (e.key === "l" || e.key === "L") toggleSessionList();');
   });
 });
