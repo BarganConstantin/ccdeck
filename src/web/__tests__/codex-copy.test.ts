@@ -60,11 +60,12 @@ function codeOf(text: string): string {
     .join("\n");
 }
 
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx and its readouts to
-// components/TopbarReadouts.tsx; App.tsx and they are read as one.
+// The topbar's readouts are components/TopbarReadouts.tsx's, and its panel
+// toggles left for the window's edges (2026-10-08): defined in rail-items.tsx and
+// drawn by components/EdgeRails.tsx. App.tsx and they are read as one.
 const readoutsCode = codeOf(read("src", "web", "components", "TopbarReadouts.tsx"));
-const appCode = codeOf(read("src", "web", "App.tsx")) + "\n" + codeOf(read("src", "web", "components", "TopbarRuns.tsx"))
-  + "\n" + readoutsCode;
+const appCode = codeOf(read("src", "web", "App.tsx")) + "\n" + codeOf(read("src", "web", "rail-items.tsx"))
+  + "\n" + codeOf(read("src", "web", "components", "EdgeRails.tsx")) + "\n" + readoutsCode;
 const nodeCode = codeOf(read("src", "web", "components", "AgentNode.tsx"));
 const deckCode = codeOf(read("bin", "deck.js"));
 const readme = read("README.md");
@@ -162,8 +163,9 @@ describe("the topbar readouts", () => {
   it("still has a strip with tooltipped readouts in it, so this block is not vacuous", () => {
     expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx entirely").toBeTruthy();
     expect(strip, "the pill left the strip").toContain("title={pill.title}");
-    expect(appCode, "nothing in the bar opens the machine panel any more")
-      .toContain('aria-label="Toggle machine detail"');
+    // The Machine button on the right stripe, which discloses the panel.
+    expect(appCode, "nothing in the chrome opens the machine panel any more")
+      .toMatch(/ariaLabel: "Machine"[^}]*controls: "system-panel", onPress: \(\) => setMachinePanelOpen\(o => !o\)/);
     expect((readouts.match(/title=|title:/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 

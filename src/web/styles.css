@@ -24,7 +24,7 @@
 @import "./styles/topbar.css";                   /* the topbar, the update-ready notice, the worded buttons */
 @import "./styles/menus.css";                    /* the sound and appearance menus, and the switch */
 @import "./styles/selection-ribbon.css";         /* the selected-agent ribbon */
-@import "./styles/topbar-status.css";            /* the topbar's status strip and the month's usage */
+@import "./styles/topbar-status.css";            /* the topbar's status strip and the ribbon's caps */
 @import "./styles/machine-panel.css";            /* the machine panel */
 @import "./styles/topbar-controls.css";          /* the live pill, the waiting count and the toolbar buttons */
 @import "./styles/panel-glyph.css";              /* the glyph a panel header closes with */
@@ -58,4 +58,6 @@
 @import "./styles/lan-setup.css";                /* local network setup */
 @import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */
+@import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
+@import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

@@ -31,11 +31,14 @@ import { KEY_HELP, KEY_HELP_NOTE, documentedKeys } from "../key-help";
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts, the canvas stack to
-// components/CanvasControls.tsx, the topbar's settings run to
-// components/TopbarRuns.tsx and the dialogs to components/DeckDialogs.tsx; the
-// keys and the rest of the deck are read as one.
+// components/CanvasControls.tsx, the chrome's controls — the topbar's settings
+// run among them, now beside the edge stripes — to rail-items.tsx and
+// components/EdgeRails.tsx, their hint to components/use-hint.tsx, and the
+// dialogs to components/DeckDialogs.tsx; the keys and the rest of the deck are
+// read as one.
 const app = read("App.tsx") + "\n" + read("use-deck-shortcuts.ts") + "\n" + read("components/CanvasControls.tsx")
-  + "\n" + read("components/TopbarRuns.tsx") + "\n" + read("components/DeckDialogs.tsx");
+  + "\n" + read("rail-items.tsx") + "\n" + read("components/EdgeRails.tsx") + "\n" + read("components/use-hint.tsx")
+  + "\n" + read("components/DeckDialogs.tsx");
 const sheet = read("components/KeyboardHelp.tsx");
 
 /** The body of the deck's one window keydown handler. Sliced rather than
@@ -129,6 +132,22 @@ describe("the short list that used to sit in the detail rail", () => {
     // table, in KeyboardHelp.tsx. A `<kbd>` reappearing here is a second list
     // being born, which is the thing this file spent three cases policing.
     expect([...app.matchAll(/<kbd>/g)]).toHaveLength(0);
+  });
+
+  it("lets the chrome's hint name a key only one at a time, and only a key the sheet lists", () => {
+    // The hint (use-hint.tsx) draws one keycap, the key of the control under
+    // the pointer, from that control's own definition (rail-items.tsx) — not
+    // a list of keys, so it is not the second list above. What would make it
+    // drift is a control naming a key the sheet does not document, or one the
+    // handler does not answer: every single key a chrome control names is in
+    // the table, and the gear's chord is the table's "," row.
+    expect([...app.matchAll(/<kbd className="hint-key">/g)]).toHaveLength(1);
+    const named = [...app.matchAll(/key: \{ cap: "([A-Z])", aria: "\1", single: true \}/g)].map(m => m[1]);
+    expect(named.sort()).toEqual(["A", "B", "H", "L", "S", "U"]);
+    const documented = documentedKeys();
+    for (const k of named) expect(documented, k).toContain(k.toLowerCase());
+    expect(app).toMatch(/key: \{ cap: settingsCap, aria: "Control\+, Meta\+,", single: false \}/);
+    expect(KEY_HELP.flatMap(g => g.rows).find(r => r.binds.includes(","))?.chord).toBe(true);
   });
 
   it("keeps every key the rail used to name, in the one list that is left", () => {

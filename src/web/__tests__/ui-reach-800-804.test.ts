@@ -25,11 +25,17 @@ import { clientText } from "./client-source";
 import { browserWatchSurface } from "./browser-watch-surface";
 import { soundMenuSurface } from "./sound-menu-surface";
 import { sheetText } from "./sheet-source";
+import { attr, buttons, createElement, draw, items } from "./edge-keys-rails";
+import { EdgeDock, EdgeRail, railHint } from "../components/EdgeRails";
+import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
-const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../components/TopbarRuns.tsx");
+// The panel toggles left the topbar for the window's edges: rail-items.tsx
+// defines them and components/EdgeRails.tsx draws them; App.tsx and they are
+// read as one.
+const app = read("../App.tsx") + "\n" + read("../use-deck-shortcuts.ts") + "\n" + read("../rail-items.tsx")
+  + "\n" + read("../components/EdgeRails.tsx");
 // The notification switches and the browser channel left the sound popover for
 // Settings › Notifications (2026-10-07), whole; Settings mounts them with what
 // they are handed, and the popover itself went with the topbar speaker the
@@ -48,26 +54,49 @@ const watchModal = browserWatchSurface();
 const css = sheetText();
 
 describe("#800 — the session list", () => {
-  it("has a button in the top bar again, not only a key", () => {
+  /** The left stripe, drawn with the list open or shut, by its controls. */
+  const left = (sessionListOpen: boolean) =>
+    buttons(draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [items({ sessionListOpen }).left] })));
+
+  it("has a button on screen, not only a key", () => {
     // The rail that documents `L` is itself closed on a fresh install, and a
-    // mouse-only user had no route to the list at all.
-    expect(app).toContain("onClick={toggleSessionList}");
-    expect(app).toContain('aria-label="Toggle session list"');
+    // mouse-only user had no route to the list at all. The button stands at
+    // the top of the left stripe now, beside the column it opens (2026-10-08),
+    // and in the phone's dock; both press the same toggle L does.
+    expect(app).toContain("onPress: toggleSessionList");
+    expect(app).toContain("onClick={() => item.onPress()}");
+    expect(left(false).get("session-list"), "no Session list on the left stripe").toBeTruthy();
+    expect(attr(left(false).get("session-list")!, "aria-label")).toBe("Session list");
+    const chrome = items();
+    const dock = buttons(draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] })));
+    expect(dock.get("session-list"), "no Sessions in the phone's dock").toBeTruthy();
   });
 
   it("tells a screen reader what the button controls, and only while it exists", () => {
     // `aria-controls` pointing at an unmounted id is a dangling reference; the
-    // four buttons beside it already follow this rule.
-    expect(app).toContain("aria-expanded={sessionListOpen}");
-    expect(app).toContain('aria-controls={sessionListOpen ? "session-list" : undefined}');
+    // three panel buttons beside it follow the same rule.
+    expect(attr(left(false).get("session-list")!, "aria-expanded")).toBe("false");
+    expect(attr(left(false).get("session-list")!, "aria-controls")).toBeNull();
+    expect(attr(left(true).get("session-list")!, "aria-expanded")).toBe("true");
+    expect(attr(left(true).get("session-list")!, "aria-controls")).toBe("session-list");
     // And the id it names must be the one the panel actually renders.
     expect(read("../components/SessionList.tsx")).toContain('id="session-list"');
   });
 
   it("still names the shortcut, so the button teaches the key rather than replacing it", () => {
-    // While the key works: with Settings › General's single-key switch off the
-    // title drops the (L) it would otherwise advertise for nothing (WCAG 2.1.4).
-    expect(app).toContain('title={withKey(`${sessionListOpen ? "Hide" : "Show"} session list`, "L", singleKeys)}');
+    // In its hint's keycap and in aria-keyshortcuts, while the key works: with
+    // Settings › General's single-key switch off neither advertises an L that
+    // does nothing (WCAG 2.1.4).
+    const list = items().left[0];
+    expect(railHint(list, true, true)?.keys).toBe("L");
+    expect(attr(left(false).get("session-list")!, "aria-keyshortcuts")).toBe("L");
+    setSingleKeyShortcuts(false);
+    try {
+      expect(railHint(list, false, true)).toBeNull();
+      expect(attr(left(false).get("session-list")!, "aria-keyshortcuts")).toBeNull();
+    } finally {
+      setSingleKeyShortcuts(true);
+    }
     expect(app).toContain('if (e.key === "l" || e.key === "L") toggleSessionList();');
   });
 });

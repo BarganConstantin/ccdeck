@@ -12,8 +12,9 @@ import { isCharacterKey, setSingleKeyShortcuts, singleKeyShortcutsOn, SINGLE_KEY
 import { KEY_HELP, KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor } from "../key-help";
 import { pauseTitle, statusPill } from "../status-pill";
 import { boardScopeTitle, BOARD_SCOPE_TITLE } from "../board-usage";
-import { SessionRun, SourceRun } from "../components/TopbarRuns";
 import { WaitingStat } from "../components/TopbarReadouts";
+import { EdgeRail, UtilityRun, liveKey, railHint } from "../components/EdgeRails";
+import { attr, buttons, draw, items } from "./edge-keys-rails";
 import DragTrashZone from "../components/DragTrashZone";
 import KeyboardHelp from "../components/KeyboardHelp";
 import SoundSwitch from "../components/SoundSwitch";
@@ -28,7 +29,6 @@ afterEach(() => {
 
 const noop = () => {};
 const ref = () => ({ current: null });
-const toggles = { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() };
 
 // ── the setting ─────────────────────────────────────────────────────────────
 
@@ -124,35 +124,66 @@ describe("the Settings row", () => {
 // ── the titles ──────────────────────────────────────────────────────────────
 
 describe("titles drop the letter when the switch is off", () => {
-  const titles = (html: string) => [...html.matchAll(/title="([^"]*)"/g)].map(m => m[1].replace(/&#x27;/g, "'"));
-  const drawRuns = () => renderToStaticMarkup(createElement("div", null,
-    createElement(SessionRun, {
-      sessionListOpen: false, toggleSessionList: noop, usagePanelOpen: false, setUsagePanelOpen: noop,
-      setUsageHistoryOpen: noop, toggles,
-    }),
-    createElement(SourceRun, {
-      providers: { kind: "reported", claude: true, codex: true }, accountsPanelOpen: false, toggleAccountsPanel: noop,
-      machinePanelOpen: false, setMachinePanelOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop, toggles,
-    }),
-  ));
+  // The panel buttons left the topbar for the window's edges (2026-10-08,
+  // EdgeRails.tsx), and the deck's chrome traded `title` for one hint
+  // (use-hint.tsx): the control's name and its key in a keycap. The rule this
+  // block holds is unchanged — a control names its letter while the letter
+  // does something, and never once the switch is off — and it now reaches
+  // three places: the hint's keycap, aria-keyshortcuts, and the hint itself,
+  // which says nothing at all when the key was the one thing it added.
+  /** Both stripes and the topbar's utilities, drawn, by their data-rail-item. */
+  const drawChrome = () => {
+    const chrome = items();
+    return buttons(draw(createElement("div", null,
+      createElement(EdgeRail, { side: "left", label: "Left column", groups: [chrome.left] }),
+      createElement(EdgeRail, { side: "right", label: "Right panels", groups: chrome.right }),
+      createElement(UtilityRun, { items: chrome.utilities }),
+    )));
+  };
+  const LETTERS: Array<[string, string]> = [
+    ["session-list", "L"], ["usage", "U"], ["history", "H"], ["accounts", "A"], ["machine", "S"], ["browser-watch", "B"],
+  ];
+  const every = () => { const c = items(); return [...c.left, ...c.right.flat(), ...c.utilities]; };
 
-  it("names each topbar panel's letter while the keys are on", () => {
-    const on = titles(drawRuns());
-    for (const cap of ["L", "U", "H", "A", "S", "B"]) {
-      expect(on.some(t => t.endsWith(`(${cap})`)), cap).toBe(true);
+  it("names each panel button's letter while the keys are on", () => {
+    const on = drawChrome();
+    for (const [id, cap] of LETTERS) {
+      expect(attr(on.get(id)!, "aria-keyshortcuts"), id).toBe(cap);
+      expect(railHint(every().find(i => i.id === id)!, true, true)?.keys, id).toBe(cap);
     }
   });
 
-  it("names none of them once the keys are off, and keeps every sentence otherwise whole", () => {
+  it("names none of them once the keys are off, and keeps every hint that says more than the word", () => {
     setSingleKeyShortcuts(false);
-    const off = titles(drawRuns());
-    expect(off).toContain("Show session list");
-    expect(off).toContain("Show usage panel");
-    expect(off).toContain("Usage history — ccusage");
-    expect(off).toContain("Show accounts");
-    expect(off).toContain("Show this machine — cores, memory, temperature");
-    expect(off).toContain("Browser watch — not watching; reading the browser's history live");
-    for (const t of off) expect(t, t).not.toMatch(/\([A-Z?]\)|\(Space\)/);
+    const off = drawChrome();
+    for (const [id] of LETTERS) {
+      expect(attr(off.get(id)!, "aria-keyshortcuts"), id).toBeNull();
+      expect(railHint(every().find(i => i.id === id)!, false, true)?.keys, id).toBeUndefined();
+    }
+    // What the old titles said beyond the letter is still said wherever there
+    // was more to say — a longer name than the word on the button, or Browser
+    // watch's state — and a button whose word is the whole of its name says
+    // nothing more, rather than a hint repeating the word.
+    for (const item of every().filter(i => i.key?.single)) {
+      const hint = railHint(item, false, true);
+      const more = (item.hint != null && item.hint !== item.label) || item.detail != null;
+      expect(hint === null, `${item.id}: a hint ${more ? "missing" : "repeating its word"}`).toBe(!more);
+      if (hint) expect(hint.label, item.id).toBe(item.hint ?? item.label);
+    }
+    expect(railHint(every().find(i => i.id === "browser-watch")!, false, true)?.detail).toMatch(/watching/i);
+    // No letter anywhere in the drawn chrome, as a title or otherwise.
+    for (const tag of off.values()) expect(tag, tag).not.toMatch(/title=|\([A-Z?]\)|\(Space\)/);
+  });
+
+  it("keeps the gear's chord whichever way the switch is set — a chord is not a single key", () => {
+    for (const singleKeys of [true, false]) {
+      setSingleKeyShortcuts(singleKeys);
+      const gear = drawChrome().get("settings")!;
+      expect(attr(gear, "aria-keyshortcuts"), `switch ${singleKeys ? "on" : "off"}`).toBe("Control+, Meta+,");
+      const settings = every().find(i => i.id === "settings")!;
+      expect(liveKey(settings.key, singleKeys)?.aria).toBe("Control+, Meta+,");
+      expect(railHint(settings, singleKeys, true)?.keys).toBe(settings.key!.cap);
+    }
   });
 
   it("drops Space from the pause control's and the pill's titles", () => {
@@ -172,15 +203,20 @@ describe("titles drop the letter when the switch is off", () => {
     expect(boardScopeTitle(false).startsWith(BOARD_SCOPE_TITLE.slice(0, BOARD_SCOPE_TITLE.indexOf("Press H")))).toBe(true);
   });
 
-  it("says click, not press W, on the waiting count", () => {
+  it("names W on the waiting count only while W does anything", () => {
+    // The count's title said "click, or press W"; since the chrome's hint
+    // replaced titles it names W in a keycap and in aria-keyshortcuts, and
+    // the click is offered either way.
     const waitingSessions = [{ id: "s1", label: "api", waiting: { kind: "permission", since: 0, message: "Run tests?" } }];
-    const draw = () => renderToStaticMarkup(createElement(WaitingStat, {
-      waitingSessions, waitingCursorRef: { current: null }, focusSession: noop, now: 1_000,
-    } as unknown as Parameters<typeof WaitingStat>[0]));
-    expect(draw()).toContain("click, or press W, to go to");
+    const count = () => buttons(draw(createElement(WaitingStat, {
+      waitingSessions, waitingCursorRef: { current: null }, focusSession: noop, now: 1_000, named: 0,
+    } as unknown as Parameters<typeof WaitingStat>[0])).replace(/<button /g, '<button data-rail-item="count" '));
+    expect(attr(count().get("count")!, "aria-keyshortcuts")).toBe("W");
     setSingleKeyShortcuts(false);
-    expect(draw()).toContain("Blocked waiting for you — click to go to");
-    expect(draw()).not.toMatch(/press W/);
+    expect(attr(count().get("count")!, "aria-keyshortcuts")).toBeNull();
+    expect(count().get("count")!).not.toMatch(/press W|title=/);
+    // The hint's keycap follows the same switch: the spec handed to it.
+    expect(sourceOf("components/TopbarReadouts.tsx")).toContain('keys: singleKeys ? "W" : undefined');
   });
 
   it("says the session list brings a card back, without its letter, while one is dragged to the bin", () => {

@@ -32,6 +32,19 @@
 // The two halves are one fix here. The stylesheet keys the on state off the
 // ARIA attribute, so a control cannot look pressed while reporting nothing.
 //
+// THE TOGGLES LEFT THE TOPBAR (2026-10-08). The four panel toggles stand on
+// the window's edges now, in a stripe beside the panel each opens, or in the
+// phone's dock (components/EdgeRails.tsx, rail-items.tsx), and the square
+// `.icon-btn` they wore left with them. What #370 asked of them holds of the
+// new buttons, and is asked of them below: the state is read off
+// aria-expanded, so pixels and tree cannot drift; open differs from closed by
+// 3:1 or better in a channel that is not hue — a 2px --text line on the
+// stripe's inner edge, measured against the stripe and against the open fill;
+// and each one announces what it discloses. The inverted accent fill #370
+// settled on for an `aria-pressed` toggle left with the last chrome control
+// that was one: the sound setting is a switch in Settings (below), and no
+// chrome button carries aria-pressed now.
+//
 // Plain node, no DOM — React cannot be rendered in this suite — so this reads
 // styles.css and the markup the way control-edges.test.ts, quiet-signals.test.ts
 // and manage-block.test.ts do, and computes every ratio from the sheet's own
@@ -49,6 +62,9 @@ import { gradientStops } from "./gradient-stops";
 import { clientText } from "./client-source";
 import { soundMenuSurface } from "./sound-menu-surface";
 import { sheetText } from "./sheet-source";
+import { attr, buttons, createElement, draw, items } from "./edge-keys-rails";
+import { EdgeDock, EdgeRail } from "../components/EdgeRails";
+import { railHint } from "../components/EdgeRails";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const cssRaw = sheetText();
@@ -67,8 +83,10 @@ function markupOf(source: string): string {
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
-const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("components/TopbarRuns.tsx");
+// The panel toggles are defined in rail-items.tsx and drawn by
+// components/EdgeRails.tsx; App.tsx and they are read as one.
+const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("rail-items.tsx")
+  + "\n" + markup("components/EdgeRails.tsx");
 const usagePanel = markup("components", "UsagePanel.tsx");
 const accountsPanel = markup("components", "AccountsPanel.tsx");
 const sessionList = markup("components", "SessionList.tsx");
@@ -161,6 +179,27 @@ function declIn(body: string, prop: string): string | null {
 
 const decl = (selector: string, prop: string) => declIn(bodyOf(selector), prop);
 
+/** A rule inside `@media <query>` blocks, in source order: the chrome draws its
+ *  hover only where there is one, and the dock only at a phone's width. */
+function mediaBodyOf(query: string, selector: string): string {
+  const hits: string[] = [];
+  let i = 0;
+  while (i < css.length) {
+    const open = css.indexOf("{", i);
+    if (open < 0) break;
+    const prelude = css.slice(i, open).replace(/\s+/g, " ").trim();
+    const [inner, end] = block(css, open);
+    if (prelude === `@media ${query}`) {
+      for (const r of topLevel(inner)) if (selectors(r.selector).includes(selector)) hits.push(r.body);
+    }
+    i = end + 1;
+  }
+  if (!hits.length) throw new Error(`no rule for ${selector} in @media ${query}`);
+  return hits.join(";");
+}
+const HOVER = "(hover: hover)";
+const PHONE = "(max-width: 640px)";
+
 const themes = ["dark", "light"] as const;
 type Theme = (typeof themes)[number];
 
@@ -226,11 +265,21 @@ function layer(value: string, theme: Theme): Rgba {
   return [r, g, b, Number(m[2]) / 100];
 }
 
-/** The on state, as the sheet writes it: one rule, two selectors. */
-const ON = 'button.btn.icon-btn[aria-pressed="true"]';
-const ON_EXPANDED = 'button.btn.icon-btn[aria-expanded="true"]';
-/** A toolbar button that is open: the pressed look, neutral. */
-const OPEN = `.topbar ${ON_EXPANDED}`;
+/** A chrome button whose panel is open: the control fill and the foreground. */
+const OPEN = '.rail-btn[aria-expanded="true"]';
+/** And its line on the edge the panel came out of: a stripe's inner edge, the
+ *  dock's top edge. Drawn always, shown only while open. */
+const LINES = [".rail-btn-stripe::before", ".rail-btn-dock::before"] as const;
+const LINE_SHOWN = {
+  ".rail-btn-stripe::before": '.rail-btn-stripe[aria-expanded="true"]::before',
+  ".rail-btn-dock::before": '.rail-btn-dock[aria-expanded="true"]::before',
+} as const;
+/** The bed the chrome's buttons stand on: a stripe and the dock are both
+ *  --bg-soft (edge-rails.css). */
+const CHROME_BED = (theme: Theme) => resolve("var(--bg-soft)", theme);
+/** A fill mixed from the foreground: the control fill, or the same mix at
+ *  another strength. Never a hue. */
+const NEUTRAL_FILL = /^(?:var\(--ctl-fill\)|color-mix\(in srgb, var\(--text\) \d+%, transparent\))$/;
 
 describe("the contrast maths, against the two ends everybody knows", () => {
   it("puts white on black at 21:1 and a colour on itself at 1:1", () => {
@@ -296,108 +345,103 @@ describe("what the toggle state used to be worth (#370)", () => {
   });
 });
 
-describe("the on state, as the sheet draws it now", () => {
-  it("keys both attributes, so no toggle can be styled and mute", () => {
-    // Two rules since #836: a setting that is on keeps the fill measured
-    // below, and a panel that is showing is underlined instead, because two
-    // or three open at once made the bar read as three things switched on.
-    // Since the chrome went quiet an open toolbar button is the pressed look,
-    // in neutrals only: the control fill, the resting edge and the foreground.
-    // No cyan line under it, and no accent anywhere in the state.
-    const rule = RULES.find(r => selectors(r.selector).includes(ON));
-    expect(rule, "no rule keyed on aria-pressed").toBeTruthy();
+describe("the open state, as the sheet draws it now", () => {
+  it("keys it off aria-expanded, in neutrals, so no toggle can be styled and mute", () => {
+    // An open chrome button is the pressed look of the old toolbar: the
+    // control fill and the whole foreground. No accent anywhere in the state —
+    // the accent on the chrome is focus and live data, and a panel that is
+    // showing is neither.
     const open = RULES.find(r => selectors(r.selector).includes(OPEN));
     expect(open, "no rule keyed on aria-expanded").toBeTruthy();
-    expect(declIn(open!.body, "border-color")).toBe("var(--ctl-edge)");
-    expect(declIn(open!.body, "background")).toBe("var(--ctl-fill)");
+    // A wash of the foreground itself, so it exists in both themes by
+    // construction (the derived-tier rule in DESIGN.md), at whatever strength
+    // the measurements below allow.
+    expect(declIn(open!.body, "background")).toMatch(NEUTRAL_FILL);
     expect(declIn(open!.body, "color")).toBe("var(--text)");
-    expect(open!.body, "an open toolbar button is painted in the accent again").not.toMatch(/--accent/);
-    expect(css, "an open panel is underlined again").not.toMatch(/aria-expanded="true"\][^{]*::after/);
-    // Closed, it draws no edge at all, which is what makes the edge the state.
-    expect(decl(".topbar button.btn.icon-btn", "border-color")).toBe("transparent");
+    expect(open!.body, "an open chrome button is painted in the accent again").not.toMatch(/--accent/);
+    // Closed, it draws no fill and no edge, which is what makes the fill and
+    // the line the state.
+    expect(decl(".rail-btn", "background")).toBe("transparent");
+    expect(decl(".rail-btn", "border")).toBe("0");
+    expect(decl(".rail-btn", "color")).toBe("var(--muted)");
   });
 
-  it("draws an open toolbar button's edge 3:1 or better off the bare bar, at both ends, in both themes", () => {
-    // The edge is what a closed button does not have, so it carries the delta
-    // #370 measured the fill for, composited over the fill it sits on.
+  it("draws a line on the edge the panel opened from, shown only while it is open", () => {
+    // The dock's line is drawn at a phone's width only, where the dock is.
+    const at = (sel: string, prop: string) =>
+      sel.includes("dock") ? declIn(mediaBodyOf(PHONE, sel), prop) : decl(sel, prop);
+    for (const line of LINES) {
+      expect(at(line, "background"), line).toBe("var(--text)");
+      expect(at(line, "opacity"), `${line} at rest`).toBe("0");
+      expect(at(LINE_SHOWN[line], "opacity"), `${line} open`).toBe("1");
+    }
+    // The stripe's line stands on the inner edge — the right of the left
+    // stripe, the left of the right one — over the stripe's own border.
+    expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-3px");
+    expect(decl(".edge-rail-right .rail-btn-stripe::before", "left")).toBe("-3px");
+    expect(decl(".rail-btn-stripe::before", "width")).toBe("2px");
+    expect(declIn(mediaBodyOf(PHONE, ".rail-btn-dock::before"), "height")).toBe("2px");
+  });
+
+  it("holds the line 3:1 or better off the stripe, and off the open fill beside it, in both themes", () => {
+    // The 3:1 #370 asked of the state difference, now carried by the line: it
+    // is what a closed button does not have. Against the bare stripe it stands
+    // beside, and against the open fill, which is the button's own bed.
     for (const theme of themes) {
-      const ends = barEnds(theme);
-      expect(ends.length, `${theme}: no topbar ends`).toBe(2);
-      for (const [name, bed] of ends) {
-        const fill = over(layer(decl(OPEN, "background")!, theme), bed);
-        const edge = over(layer(decl(OPEN, "border-color")!, theme), fill);
-        expect(contrastRatio(edge, bed), `${theme} open edge vs ${name}`)
-          .toBeGreaterThanOrEqual(NON_TEXT);
-      }
+      const bed = CHROME_BED(theme);
+      const fill = over(layer(decl(OPEN, "background")!, theme), bed);
+      const line = resolve(decl(".rail-btn-stripe::before", "background")!, theme);
+      expect(contrastRatio(line, bed), `${theme} line vs the stripe`).toBeGreaterThanOrEqual(NON_TEXT);
+      expect(contrastRatio(line, fill), `${theme} line vs the open fill`).toBeGreaterThanOrEqual(NON_TEXT);
     }
   });
 
-  it("stopped painting itself in --accent-dim, which is a wash and not a state", () => {
-    expect(decl(ON, "background")).toBe("var(--accent)");
-    expect(decl(ON, "background")).not.toMatch(/--accent-dim/);
-  });
-
-  it("stands 3:1 or better off the bare bar, at both ends, in both themes", () => {
+  it("reads its word at 4.5:1 open and at rest, on the stripe, in both themes", () => {
+    // The word is how a stripe button is identified (1.4.11 via the label, as
+    // the old toolbar's words were): --muted at rest on the stripe, --text on
+    // the open fill.
     for (const theme of themes) {
-      const fill = resolve(decl(ON, "background")!, theme);
-      const ends = barEnds(theme);
-      // The floor, and it sits OUTSIDE the quantification it is the floor for
-      // (#627's lesson, applied here by #649). barEnds already refuses a
-      // gradient it cannot read, so this is the second line rather than the
-      // first: it is what still fails if that reader is ever softened back to a
-      // `?? []`. "Both ends" is in this case's own name, so asserting there are
-      // two of them is the case restating its own claim, not a spare assertion.
-      expect(ends.length, `${theme}: no topbar ends — this case would stand the on-fill off nothing`).toBe(2);
-      for (const [name, bed] of ends) {
-        expect(contrastRatio(over(fill, bed), bed), `${theme} on-fill vs ${name}`)
-          .toBeGreaterThanOrEqual(NON_TEXT);
-      }
+      const bed = CHROME_BED(theme);
+      const fill = over(layer(decl(OPEN, "background")!, theme), bed);
+      expect(contrastRatio(resolve(decl(".rail-btn", "color")!, theme), bed), `${theme} word at rest`)
+        .toBeGreaterThanOrEqual(BODY);
+      expect(contrastRatio(resolve(decl(OPEN, "color")!, theme), fill), `${theme} word open`)
+        .toBeGreaterThanOrEqual(BODY);
     }
   });
 
-  it("reads its glyph at 4.5:1 on that fill — the state is visible AND the icon legible", () => {
+  it("keeps the pointer's own feedback on an open button, and out-specifies the hover it has to beat", () => {
+    // Hover lifts a closed button to the control fill — the open look — so an
+    // open button answers the pointer with a deeper fill of its own rather
+    // than with nothing.
+    // Only where there is a hover: a tap on the phone's dock left a fill behind.
+    // Measured as the alpha each fill lays down, in both themes: an open
+    // button under the pointer is deeper than an open one at rest, which is
+    // itself deeper than a closed one under the pointer — so hover never
+    // reads as open, and open never stops answering the pointer.
+    const hoverOpen = declIn(mediaBodyOf(HOVER, `${OPEN}:hover`), "background")!;
+    const hoverClosed = declIn(mediaBodyOf(HOVER, ".rail-btn:hover"), "background")!;
+    const resting = decl(OPEN, "background")!;
+    for (const v of [hoverOpen, hoverClosed]) expect(v).toMatch(NEUTRAL_FILL);
     for (const theme of themes) {
-      const fill = over(resolve(decl(ON, "background")!, theme), barEnds(theme)[0][1]);
-      const glyph = resolve(decl(ON, "color")!, theme);
-      expect(contrastRatio(glyph, fill), `${theme} on-glyph`).toBeGreaterThanOrEqual(BODY);
+      const alpha = (v: string) => layer(v, theme)[3];
+      expect(alpha(hoverOpen), `${theme} open under the pointer`).toBeGreaterThan(alpha(resting));
+      expect(alpha(resting), `${theme} open at rest`).toBeGreaterThan(alpha(hoverClosed));
     }
-  });
-
-  it("inverts polarity rather than shifting hue — the channel greyscale cannot flatten", () => {
-    // Off is a light glyph on a dark bar in dark theme and a dark glyph on a
-    // light bar in light theme. On has to be the other way round in BOTH, or
-    // the difference is only a colour again. Sign of the luminance step, which
-    // is what a monochrome screen, a photocopy and every CVD all still see.
-    for (const theme of themes) {
-      const bed = barEnds(theme)[0][1];
-      const offGlyph = resolve(decl("button.btn", "color")!, theme);
-      const onFill = over(resolve(decl(ON, "background")!, theme), bed);
-      const onGlyph = resolve(decl(ON, "color")!, theme);
-      const offStep = Math.sign(relativeLuminance(offGlyph) - relativeLuminance(bed));
-      const onStep = Math.sign(relativeLuminance(onGlyph) - relativeLuminance(onFill));
-      expect(offStep, `${theme} off polarity`).not.toBe(0);
-      expect(onStep, `${theme} on polarity`).toBe(-offStep);
-    }
-  });
-
-  it("keeps the pointer's own feedback, since hover now repaints the fill's own colour", () => {
-    // button.btn:hover sets border-color and color to --accent, and on this
-    // chip --accent is the background. Without a channel of its own a pressed
-    // toggle would answer the pointer with nothing at all.
-    const hover = bodyOf(`${ON}:hover`);
-    expect(declIn(hover, "box-shadow")).toBe("0 0 0 2px var(--accent-dim)");
-    // An open panel needs no halo: hover repaints the edge and the glyph, and
-    // leaves the underline that carries the state where it is (#836).
-    expect(RULES.some(r => selectors(r.selector).includes(`${ON_EXPANDED}:hover`))).toBe(false);
-    expect(declIn(bodyOf("button.btn:hover"), "box-shadow")).toBeNull();
-  });
-
-  it("out-specifies the hover it has to survive", () => {
-    // (0,3,1) against (0,2,1). If this ever inverts, hovering a pressed toggle
-    // repaints the glyph in the fill's own colour and the icon disappears.
     const specificity = (sel: string): number =>
       (sel.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) ?? []).length;
-    expect(specificity(ON)).toBeGreaterThan(specificity("button.btn:hover"));
+    expect(specificity(`${OPEN}:hover`)).toBeGreaterThan(specificity(".rail-btn:hover"));
+  });
+
+  it("left no chrome toggle drawing an on state off aria-pressed — the one setting left is a switch", () => {
+    // #370's inverted accent fill was the on state of an aria-pressed icon
+    // toggle. Its last wearer on the chrome was the speaker, which became a
+    // disclosure (#711) and then left for Settings › Sounds as a real switch
+    // (the case under "what each of the four toggles announces" pins it). The
+    // rule left with `.icon-btn`; a chrome toggle that came back as a setting
+    // would have to answer this sweep again rather than inherit a dead rule.
+    expect(css).not.toMatch(/icon-btn\[aria-pressed/);
+    expect(app).not.toMatch(/aria-pressed/);
   });
 
   it("left .primary alone — it means 'the action to take', not 'this is on'", () => {
@@ -407,46 +451,51 @@ describe("the on state, as the sheet draws it now", () => {
 });
 
 describe("what each of the four toggles announces", () => {
-  /** The attributes of the <button> whose aria-label is exactly this. */
-  function button(label: string): string {
-    // A name spelled as a literal, or as a template that begins with it: the
-    // sound button's name ends in its setting's state.
-    const at = [app.indexOf(`aria-label="${label}"`), app.indexOf("aria-label={`" + label)]
-      .find(i => i > -1) ?? -1;
-    expect(at, `no button labelled ${label}`).toBeGreaterThan(-1);
-    const open = app.lastIndexOf("<button", at);
-    return app.slice(open, app.indexOf(">", at) + 1);
+  /** The opening tags of the controls on both stripes, drawn with this state,
+   *  by their data-rail-item. */
+  function stripes(state: Parameters<typeof items>[0] = {}): Map<string, string> {
+    const chrome = items(state);
+    return buttons(draw(createElement("div", null,
+      createElement(EdgeRail, { side: "left", label: "Left column", groups: [chrome.left] }),
+      createElement(EdgeRail, { side: "right", label: "Right panels", groups: chrome.right }),
+    )));
   }
+  const PANELS: Array<[string, keyof NonNullable<Parameters<typeof items>[0]>, string]> = [
+    ["session-list", "sessionListOpen", "session-list"],
+    ["accounts", "accountsPanelOpen", "accounts-panel"],
+    ["usage", "usagePanelOpen", "usage-panel"],
+    ["machine", "machinePanelOpen", "system-panel"],
+  ];
 
-  it("gives the two panel toggles aria-expanded, bound to the panel's own state", () => {
-    // Disclosures: each shows a region that follows the button in the DOM and
-    // takes no focus with it. Not aria-pressed — the button is not a setting
-    // that stays on, it reports whether the thing it points at is on screen.
-    // Three until the session list's ☰ was removed; the rule is about what a
-    // disclosure toggle owes, not about how many of them the row carries.
-    expect(button("Toggle usage panel")).toMatch(/aria-expanded=\{usagePanelOpen\}/);
-    expect(button("Toggle accounts panel")).toMatch(/aria-expanded=\{accountsPanelOpen\}/);
+  it("gives the four panel toggles aria-expanded, bound to the panel's own state", () => {
+    // Disclosures: each shows a region beside the canvas and takes no focus
+    // with it. Not aria-pressed — the button is not a setting that stays on,
+    // it reports whether the thing it points at is on screen. Drawn closed and
+    // open, so a state wired to the wrong panel, or to none, cannot pass.
+    const closed = stripes();
+    for (const [id, state] of PANELS) {
+      expect(attr(closed.get(id)!, "aria-expanded"), `${id} closed`).toBe("false");
+      const open = stripes({ [state]: true });
+      expect(attr(open.get(id)!, "aria-expanded"), `${id} open`).toBe("true");
+      for (const [other] of PANELS.filter(p => p[0] !== id)) {
+        expect(attr(open.get(other)!, "aria-expanded"), `${other} while ${id} is open`).toBe("false");
+      }
+    }
   });
 
   it("points each one at a real element, and only while that element exists", () => {
     // The AccountsPanel ⋯ menu's rule, applied to the panels: an IDREF that
     // resolves to nothing is a dangling pointer, and closed is exactly when
     // there is nothing to point at.
-    const pairs: Array<[string, string, string]> = [
-      ["Toggle usage panel", "usagePanelOpen", "usage-panel"],
-      ["Toggle accounts panel", "accountsPanelOpen", "accounts-panel"],
-    ];
-    for (const [label, state, id] of pairs) {
-      expect(button(label), label)
-        .toMatch(new RegExp(`aria-controls=\\{${state} \\? "${id}" : undefined\\}`));
+    const closed = stripes();
+    for (const [id, state, region] of PANELS) {
+      expect(attr(closed.get(id)!, "aria-controls"), `${id} closed`).toBeNull();
+      expect(attr(stripes({ [state]: true }).get(id)!, "aria-controls"), `${id} open`).toBe(region);
     }
     expect(usagePanel).toMatch(/id="usage-panel"/);
     expect(accountsPanel).toMatch(/id="accounts-panel"/);
-    // And the session list is back in the enumeration (#800), under the same
-    // rule as the other two rather than as an exception to it.
-    expect(button("Toggle session list"))
-      .toMatch(/aria-controls=\{sessionListOpen \? "session-list" : undefined\}/);
     expect(sessionList).toMatch(/id="session-list"/);
+    expect(markup("components", "MachinePanel.tsx")).toMatch(/id="system-panel"/);
   });
 
   it("has a control on screen for the session list, not only a key (#800)", () => {
@@ -454,35 +503,27 @@ describe("what each of the four toggles announces", () => {
     // reason it was removed. Taking the button out left `L` as the only route,
     // and the only place `L` is written down is the shortcuts sheet — reached
     // through a small `?` in the canvas control stack, which a mouse-only user
-    // has no reason to open and a first-run user has never seen. The argument
-    // that removed it was about width, and it was about the three TEXT buttons
-    // that went with it; a 24px glyph is not that.
-    expect(app).toMatch(/aria-label="Toggle session list"/);
-    // Drawn since #837, rather than typed as ☰ in whichever font each platform had.
-    expect(app).toMatch(/aria-label="Toggle session list"[\s\S]{0,600}?<svg /);
-    // It reports its state, which is what the removal cost: aria-expanded on
-    // this button was the only announcement of the panel's open state anywhere
-    // in the deck.
-    expect(button("Toggle session list")).toMatch(/aria-expanded=\{sessionListOpen\}/);
+    // has no reason to open and a first-run user has never seen.
+    // It stands first on the left stripe now, beside the column it opens,
+    // drawn (#837) and with its word.
+    const chrome = items();
+    expect(chrome.left[0].id).toBe("session-list");
+    const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [chrome.left] }));
+    expect(html).toMatch(/data-rail-item="session-list"[^>]*>\s*<svg /);
+    expect(html).toMatch(/<span class="rail-word">Session list<\/span>/);
+    // And on a phone, in the dock — the stripes give way to it there.
+    const dock = draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] }));
+    expect(attr(buttons(dock).get("session-list")!, "aria-expanded")).toBe("false");
     // The panel keeps its landmark name either way.
     expect(sessionList).toMatch(/<aside className="session-list" id="session-list" aria-label="Sessions">/);
-    // Still enumerated rather than asked of one state name, so a control that
-    // appeared under some other state would fail here. `soundMenuOpen` joined
-    // in #711 for its own reason — the topbar speaker became a disclosure for a
-    // popover — and left with the speaker (2026-10-07). `sessionListOpen`
-    // rejoined here, and `machinePanelOpen` arrived
-    // when the topbar meter was removed: the panel it disclosed is opened by a
-    // glyph in the same run as the other three now, and it announces its state
-    // the same way. `detailOpen` is NOT in this list and that is a decision
-    // rather than an oversight: the canvas-edge tab that used to reopen the
-    // detail panel was removed at the owner's request after the #800 trade-off
-    // was put to them, and `D` in the shortcuts sheet is the route that
-    // replaced it. `appearanceMenuOpen` left with the Appearance button
-    // (2026-10-07): the gear that replaced it opens Settings, a modal, and says
-    // aria-haspopup="dialog" with no state, the shape the usage-history button
-    // below has and for its reason.
-    const expandeds = [...app.matchAll(/aria-expanded=\{(\w+)\}/g)].map(m => m[1]).sort();
-    expect(expandeds).toEqual(["accountsPanelOpen", "machinePanelOpen", "sessionListOpen", "usagePanelOpen"]);
+    // Enumerated rather than asked of one state, so a control that appeared
+    // with some other state would fail here. Four, the four panels: the
+    // speaker's popover left with the speaker (2026-10-07), the gear opens a
+    // modal, and the detail panel's way back is D and the canvas (#800's
+    // trade-off, put to the owner). The dock's More discloses a menu, which is
+    // its own thing and is drawn only on a phone.
+    const disclosing = [...stripes()].filter(([, tag]) => attr(tag, "aria-expanded") !== null).map(([id]) => id).sort();
+    expect(disclosing).toEqual(["accounts", "machine", "session-list", "usage"]);
   });
 
   it("leaves the session list a way in and a way out, which is what the button was", () => {
@@ -501,6 +542,8 @@ describe("what each of the four toggles announces", () => {
     const body = client.slice(client.indexOf("const toggleSessionList"), client.indexOf("const toggleAccountsPanel"));
     expect(body).toMatch(/setSessionListOpen\(open => \{[\s\S]*?return !open;/);
     expect(app).toMatch(/\{sessionListOpen && \(\s*<SessionList/);
+    // The stripe button presses the same toggle L does.
+    expect(app).toMatch(/onPress: toggleSessionList/);
     // The close arms the keyboard's hand-off on the way (panel-close-focus.test.ts).
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(client).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
@@ -510,17 +553,16 @@ describe("what each of the four toggles announces", () => {
     // the key falls through to clearing the canvas selection. Pinned so the
     // sentence above stays checkable.
     expect(sessionList).not.toMatch(/useModalDismiss|modalStack/);
-    // The sheet still lists it, and the button's own title names the key — so
-    // the control teaches the shortcut rather than replacing it (#800). Read
-    // from the table now rather than from the detail rail's copy of it: that
-    // rail is gone, and asserting against a second rendered list was always
-    // asserting against the duplicate rather than the source.
+    // The sheet still lists it, and the control names the key — in its hint's
+    // keycap and in aria-keyshortcuts now — so it teaches the shortcut rather
+    // than replacing it (#800). While the single-key shortcuts are on, which is
+    // where every deck starts; with them off the key is not named (WCAG 2.1.4,
+    // edge-keys-switch.test.ts draws both).
     const rows = KEY_HELP.flatMap(g => g.rows);
     expect(rows.find(r => r.cap === "L")!.action).toMatch(/session list/);
-    // While the single-key shortcuts are on, which is where every deck starts;
-    // with them off the title stops naming a key that does nothing (WCAG
-    // 2.1.4, single-key-shortcuts-surfaces.test.ts draws both).
-    expect(button("Toggle session list")).toContain('session list`, "L", singleKeys)');
+    const list = items().left[0];
+    expect(railHint(list, true, true)?.keys).toBe("L");
+    expect(attr(stripes().get("session-list")!, "aria-keyshortcuts")).toBe("L");
   });
 
   it("keeps the sound setting's state on a real switch, in Settings › Sounds", () => {
@@ -541,15 +583,25 @@ describe("what each of the four toggles announces", () => {
     expect(menuSurface).not.toMatch(/aria-pressed/);
   });
 
-  it("gives the usage-history button aria-haspopup and no state at all", () => {
-    // It opens a modal: role="dialog" aria-modal="true" behind a full-screen
-    // scrim, with a focus trap. While it is open the button cannot be clicked
-    // or tabbed to and aria-modal has taken the topbar out of the tree, so a
-    // `true` no reader can reach is worse than no state — it would be the one
-    // value announced only when it is not needed.
-    const history = button("Open usage history");
-    expect(history).toMatch(/aria-haspopup="dialog"/);
-    expect(history).not.toMatch(/aria-pressed|aria-expanded/);
+  it("gives the four that open a modal aria-haspopup and no state at all", () => {
+    // History opens a modal: role="dialog" aria-modal="true" behind a
+    // full-screen scrim, with a focus trap. While it is open the button cannot
+    // be clicked or tabbed to and aria-modal has taken the chrome out of the
+    // tree, so a `true` no reader can reach is worse than no state — it would
+    // be the one value announced only when it is not needed. Browser watch,
+    // Settings and Feedback open modals too, and say so the same way.
+    const chrome = items();
+    const tags = buttons(draw(createElement("div", null,
+      createElement(EdgeRail, { side: "right", label: "Right panels", groups: chrome.right }),
+      createElement(EdgeDock, { items: [chrome.utilities[0]], more: [] }),
+    )));
+    const utilities = buttons(draw(createElement(EdgeRail, { side: "left", label: "x", groups: [chrome.utilities] })));
+    for (const [id, tag] of [["history", tags.get("history")], ["browser-watch", tags.get("browser-watch")],
+                             ["settings", utilities.get("settings")], ["feedback", utilities.get("feedback")]] as const) {
+      expect(attr(tag!, "aria-haspopup"), id).toBe("dialog");
+      expect(tag!, id).not.toMatch(/aria-pressed|aria-expanded/);
+    }
+    expect(attr(tags.get("history")!, "aria-label")).toBe("Usage history");
     expect(historyModal).toMatch(/role="dialog" aria-modal="true"/);
     expect(historyModal).toMatch(/useModalDismiss/);
     // The shared scrim since #874, which put this dialog on the .modal shell.
@@ -582,8 +634,17 @@ describe("the category filter chips, handed over from #368", () => {
     // A toolbar is one tab stop for the whole set with arrows between members.
     // Every chip here is its own tab stop. group keeps the naming, which is
     // what the role was really doing.
-    expect(app + "\n" + bar).not.toMatch(/role="toolbar"/);
+    expect(bar).not.toMatch(/role="toolbar"/);
     expect(bar).toMatch(/role="group"\s*\n\s*aria-label="Filter tools by category"/);
+    // The deck's toolbars since the panel toggles reached the window's edges
+    // are the stripes and the dock, and they keep the promise the role makes:
+    // one stop, the arrows inside, Home and End (EdgeRails.tsx).
+    const rails = markup("components", "EdgeRails.tsx");
+    expect(rails).toMatch(/role="toolbar"/);
+    for (const key of ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"]) {
+      expect(rails, key).toContain(`"${key}"`);
+    }
+    expect(rails).toMatch(/tabIndex=\{variant === "bar" \? undefined : tabbable \? 0 : -1\}/);
   });
 
   it("carries `off` in a channel that is not colour", () => {
@@ -614,14 +675,14 @@ describe("the category filter chips, handed over from #368", () => {
 
 // ── the machine meter is gone, and its states went back to the sweep ────────
 //
-// #507 gave the topbar's 50x24 machine meter a describe of its own, because ON
-// and ON_EXPANDED above name `button.btn.icon-btn` and a box holding a
+// #507 gave the topbar's 50x24 machine meter a describe of its own, because the
+// toggles' on and open rules named `button.btn.icon-btn` and a box holding a
 // sparkline and a memory bar was not one: its "the panel is open" state and its
 // hover state had drifted into a single declaration with two selectors, and
 // nothing in this file could see it.
 //
-// The meter was removed. The panel it disclosed is opened by a glyph in the
-// icon run now — `aria-label="Toggle machine detail"` — so it is `btn icon-btn`
-// like the other four, and ON/ON_EXPANDED above already hold it to the ring,
-// the wash and the 3:1 that block had to spell out by hand. The exception is
-// gone with the control that needed it, which is why there is nothing here.
+// The meter was removed. The panel it disclosed is opened by Machine on the
+// right stripe now, a `.rail-btn` like the other three panel toggles, and the
+// open-state cases above already hold it to the fill, the line and the 3:1
+// that block had to spell out by hand. The exception is gone with the control
+// that needed it, which is why there is nothing here.
