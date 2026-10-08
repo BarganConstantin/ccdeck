@@ -282,6 +282,36 @@ export function newSlot(before, after) {
   return fresh.length === 1 ? fresh[0] : null;
 }
 
+/**
+ * The slot the account that just signed in occupies after `cswap add`, or null.
+ *
+ * ASKED OF THE IDENTITY, NOT OF WHAT IS NEW. `before` is the store as it was
+ * when the sign-in started, minutes ago, and a share or a Local network round
+ * can land other accounts in between. Reading "the one new slot" then named
+ * somebody else's slot for a re-sign-in of an account already here, and found
+ * nothing for a new account that arrived beside another.
+ *
+ * A NEW slot with this address still comes first, because one address under
+ * two organizations is two accounts: signing into the second organization of
+ * an address the store already holds adds a slot, and slotOf — which falls
+ * back to the first slot with the address when the CLI names no organization
+ * — would answer with the old one and call the new account a refresh. A slot
+ * whose organization the store does not record is not ruled out by one.
+ *
+ * newSlot is the last answer, for a store that keeps no address for the slot
+ * — the case it was written for — since nothing else can point at it then.
+ */
+export function signedInSlot(before, after, identity) {
+  const had = new Set(before.slots);
+  const org = identity?.orgId ?? "";
+  const fresh = after.slots.filter(s =>
+    !had.has(s)
+    && sameAddress(after.emails[s], identity?.email)
+    && (!org || !after.orgs?.[s] || after.orgs[s] === org));
+  if (fresh.length === 1) return fresh[0];
+  return slotOf(after, identity) ?? newSlot(before, after);
+}
+
 const sameAddress = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
 
 /**
@@ -707,10 +737,9 @@ async function registerSignedIn(flow, identity) {
     }
 
     const after = await readStore();
-    const slot = newSlot(flow.before, after);
-    // No new slot means the account was already managed and cswap refreshed its
-    // credentials in place. That is a success with a different sentence.
-    const num = slot ?? slotOf(after, identity) ?? null;
+    // The slot that holds the identity that just signed in, found by asking for
+    // it rather than by looking for what is new: see signedInSlot.
+    const num = signedInSlot(flow.before, after, identity);
 
     // Recorded now that claude-swap holds the account, and before the roster
     // is invalidated below, so no read can land between the two and cache a
@@ -722,11 +751,14 @@ async function registerSignedIn(flow, identity) {
     // or a Local network round can land a different account in between: two
     // new slots, newSlot answers null, and the account this sign-in did add
     // would never be marked.
-    if (num != null) {
-      const email = after.emails[num] || identity.email;
-      const org = after.orgs?.[num] ?? "";
-      await tellOrigins("signedIn", { email, org, added: !holds(flow.before, email, org) });
-    }
+    //
+    // And the success card's "added" is the same answer, asked once. It used to
+    // be `newSlot(before, after) != null`, which a share landing during the
+    // sign-in turned into the wrong sentence either way.
+    const email = num != null ? (after.emails[num] || identity.email) : identity.email;
+    const org = num != null ? (after.orgs?.[num] ?? "") : "";
+    const added = num != null && !holds(flow.before, email, org);
+    if (num != null) await tellOrigins("signedIn", { email, org, added });
 
     // Assigned, not discarded. `done` is still the right state — the account
     // WAS added — but it is `done` with a qualification whenever this says the
@@ -739,7 +771,7 @@ async function registerSignedIn(flow, identity) {
     runDetached(await cswapBin(), ["list"]);
 
     flow.state = "done";
-    flow.account = { num, email: identity.email, added: slot != null };
+    flow.account = { num, email: identity.email, added };
     return { ok: true, ...loginState() };
   });
 }
