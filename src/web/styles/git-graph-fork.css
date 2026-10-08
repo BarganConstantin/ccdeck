@@ -53,6 +53,10 @@
 .gv-wide[data-look="fork"] .gv-graph-scroll[data-focused] .fk-row.is-sel { background: var(--fk-select); color: var(--fk-select-ink); }
 /* The deck's one keyboard ring, drawn inside the pill's shape. */
 .gv-wide[data-look="fork"] .fk-row:focus-visible { outline-offset: -2px; border-radius: 6px; }
+/* On the accent pill the deck's ring would vanish in light (its blue on the
+   pill's blue): there it takes the pill's own ink at 75%, as the sidebar's
+   selected row does. */
+.gv-wide[data-look="fork"] .gv-graph-scroll[data-focused] .fk-row.is-sel:focus-visible { outline-color: color-mix(in srgb, var(--fk-select-ink) 75%, transparent); outline-offset: -1px; }
 /* A commit that just arrived glows in the accent for a second. */
 .gv-wide[data-look="fork"] .fk-row.is-new { animation: gv-new-fade 150ms ease-out, fk-glow 1000ms ease-out; }
 @keyframes fk-glow {

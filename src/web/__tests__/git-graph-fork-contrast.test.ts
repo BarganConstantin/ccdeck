@@ -253,3 +253,24 @@ describe("the Fork history's words", () => {
     }
   });
 });
+
+describe("the keyboard's ring on a focused selection", () => {
+  // The deck's ring is its accent, and in light the accent is a blue: on the
+  // Fork look's blue selection it all but vanished (about 1.1:1). There the
+  // ring takes the selection's own ink, as the sidebar's does, in the history
+  // and in the Changes tree alike.
+  const rings: Array<[string, string, string]> = [
+    ["a history row", `${F} .gv-graph-scroll[data-focused] .fk-row.is-sel:focus-visible`, `${F} .gv-graph-scroll[data-focused] .fk-row.is-sel`],
+    ["a Changes tree row", ".fkt:not(.is-blurred):focus-within .fkt-row.is-sel:focus-visible", ".fkt:not(.is-blurred):focus-within .fkt-row.is-sel"],
+  ];
+  for (const [what, ringSel, pillSel] of rings) {
+    it(`draws it at 3:1 on ${what}'s blue, in both themes`, () => {
+      for (const theme of themes) {
+        const pill = resolve(need(decl(pillSel, "background"), `${what} pill`), theme);
+        const ring = over(resolve(need(decl(ringSel, "outline-color"), `${what} ring`), theme), pill);
+        const r = ratio(ring, pill);
+        expect(r, `${theme} ${what} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    });
+  }
+});

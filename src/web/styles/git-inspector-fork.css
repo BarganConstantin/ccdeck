@@ -490,6 +490,9 @@
 .fkt-row.is-sel { background: var(--fk-select-idle); color: var(--fk-select-idle-ink); }
 .fkt:not(.is-blurred):focus-within .fkt-row.is-sel { background: var(--fk-select); color: var(--fk-select-ink); }
 .fkt-row:focus-visible { outline-offset: -2px; border-radius: 3px; }
+/* On the focused blue the ring takes the row's white, as the history's and
+   the sidebar's do: the deck's light accent is lost on that blue. */
+.fkt:not(.is-blurred):focus-within .fkt-row.is-sel:focus-visible { outline-color: color-mix(in srgb, var(--fk-select-ink) 75%, transparent); outline-offset: -1px; }
 .fkt-twisty { flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; padding-top: 2px; color: var(--fk-text-2); }
 .fkt-twisty svg { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; transform: rotate(-90deg); }
 .fkt-twisty svg.is-open { transform: none; }
