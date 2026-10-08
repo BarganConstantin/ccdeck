@@ -5,8 +5,10 @@ import { BAND_ROW_H, BAND_WINDOW_MS, bandView, laneSlot, type BandCommit, type C
 import { parseSlotMemory, repoSlots } from "../git-graph-layout";
 import { openGitFor } from "../git-open";
 import { shortAge } from "../git-view-words";
+import { withKey } from "../single-key-shortcuts";
 import { readStored } from "../storage";
 import { useNow } from "../use-now";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { LANE_MEMORY_KEY } from "./GitGraph";
 
 const EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
@@ -33,7 +35,8 @@ function ageWords(at: number, now: number): string {
  * THE LANE UNDER A CARD (git-commit-band.ts): one row a commit its agent was
  * seen making in the last half hour, newest on top — a filled diamond on a
  * thin line in its branch's colour, the subject, who made it when it was a
- * subagent, and its age — and the rest folded into "+N earlier · g".
+ * subagent, and its age — and the rest folded into "+N earlier · g" ("+N
+ * earlier" alone while the single-key shortcuts are off).
  *
  * Drawn in the card's node, under the card, with no box of its own: the node
  * is measured with it, so the layout makes room for it as it does for any
@@ -54,6 +57,9 @@ function ageWords(at: number, now: number): string {
  */
 export function CommitBand({ band, agentId }: { band: CardBand | null; agentId: string }) {
   const now = useNow(1000);
+  // The fold names `g` only while Settings › General's single-key shortcuts
+  // are on, the only time the key opens the view from the canvas.
+  const singleKeys = useSingleKeyShortcuts();
   const view = band ? bandView(band.commits, now) : NO_ROWS;
 
   // The last lane drawn, kept while it fades out.
@@ -200,7 +206,7 @@ export function CommitBand({ band, agentId }: { band: CardBand | null; agentId: 
           className="git-band-fold nodrag"
           data-slot={laneSlot(rows[rows.length - 1].branch, remembered) + 1}
           tabIndex={-1}
-          title={`${earlier} more ${earlier === 1 ? "commit" : "commits"} in the last ${BAND_WINDOW_MS / 60_000} minutes. Open the git view (g)`}
+          title={withKey(`${earlier} more ${earlier === 1 ? "commit" : "commits"} in the last ${BAND_WINDOW_MS / 60_000} minutes. Open the git view`, "g", singleKeys)}
           aria-label={`${earlier} earlier ${earlier === 1 ? "commit" : "commits"}. Open the git view`}
           onFocus={() => { focused.current = "+fold"; }}
           onClick={e => {
@@ -210,7 +216,7 @@ export function CommitBand({ band, agentId }: { band: CardBand | null; agentId: 
           }}
         >
           <span>+{earlier} earlier</span>
-          <span className="git-band-key" aria-hidden="true">&nbsp;·&nbsp;<kbd>g</kbd></span>
+          {singleKeys && <span className="git-band-key" aria-hidden="true">&nbsp;·&nbsp;<kbd>g</kbd></span>}
         </button>
       )}
     </div>

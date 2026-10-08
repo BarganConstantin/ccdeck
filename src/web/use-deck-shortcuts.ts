@@ -347,7 +347,10 @@ export function useDeckShortcuts({
       if (e.key === "?") setKeyHelpOpen(o => !o);
       // The git view for the selected agent, and the same key closes it. It
       // asks for a selection and the view switched on; the dialog gate above
-      // has already said no dialog is in front.
+      // has already said no dialog is in front. With the single-key shortcuts
+      // off it never gets here, nor does N below: the card's branch chip, the
+      // Git section's rows and the commit lane open the view instead, and the
+      // view's own keys (git-view-keys.ts) answer only while it has focus.
       if (e.key === "g" || e.key === "G") toggleGitView();
       // The newest diff of the file the open git view shows, from anywhere —
       // the view takes the same key itself while it has focus.
