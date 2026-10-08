@@ -117,10 +117,11 @@ describe("what counts as a modal being open (#1175)", () => {
   });
 
   it("leaves the letters live over a popover, which covers nothing", () => {
-    // The sound menu, the appearance menu and an account row's ⋯ join the same
-    // stack for Escape and Tab. They have no scrim, the board stays in view
-    // around them, and V has to be able to close the sound menu it opened —
-    // so a popover is on the stack for Escape and off it for the letters.
+    // An account row's ⋯ and the phone bar's ⋯ join the same stack for Escape
+    // and Tab (the sound menu and the appearance menu did, until each left).
+    // They have no scrim and the board stays in view around them, so a
+    // popover is on the stack for Escape and off it for the letters — V
+    // included, which opens Settings over one the way the chord does.
     const stack = createDismissStack();
     stack.push(() => {}, 0, "popover");
     expect(stack.depth()).toBe(1);
@@ -177,9 +178,11 @@ describe("every dialog reaches the gate (#1175)", () => {
         .not.toBe(`${name}: undecided`);
       expect(`${name}: ${isDialog(code) && isPopover(code)}`).toBe(`${name}: false`);
     }
-    // Named, so the count cannot drift without somebody reading this.
+    // Named, so the count cannot drift without somebody reading this. Two
+    // until the topbar speaker's SoundMenu.tsx left with it (2026-10-07); the
+    // phone bar's ⋯ and an account row's ⋯ both draw AnchoredPopover.
     expect(callers.filter(c => isPopover(c.code)).map(c => c.name).sort())
-      .toEqual(["AnchoredPopover.tsx", "SoundMenu.tsx"]);
+      .toEqual(["AnchoredPopover.tsx"]);
     // The nine the issue found, among the dialogs the stack now carries.
     const dialogs = callers.filter(c => isDialog(c.code)).map(c => c.name);
     for (const name of [

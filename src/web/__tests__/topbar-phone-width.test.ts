@@ -10,7 +10,9 @@
 // list button.
 //
 // So, under 480px, History, Browser watch and Feedback fold into a ⋯
-// (TopbarMore.tsx) and the ribbon leaves the bar. These ask the cascade which
+// (TopbarMore.tsx) and the ribbon leaves the bar. The speaker left the bar
+// since (2026-10-07), so the controls are eight above 480 and six under it,
+// and the fold still earns its place at the narrowest phones (below). These ask the cascade which
 // controls are drawn at each phone width, and add the bar up from the sheet's
 // own numbers, the way the browser lays it out: padding, the readout's waiting
 // pill, the gap between the two groups, and the controls in their runs.
@@ -38,7 +40,7 @@ const RUNS: { run: El; controls: El[][] }[] = [
   { run, controls: [[button()], [button()], [button("tb-fold")]] },                     // Session list, Usage, History
   { run, controls: [[button()], [button()], [button("bw-btn", "tb-fold")]] },           // Accounts, Machine, Browser watch
   { run: utility, controls: [
-    [el("div", ["sound-slot"]), button()], [button()],                                    // Sound, Settings
+    [button()],                                                                          // Settings
     [button("tb-fold")], [button("tb-more")],                                            // Feedback, ⋯
   ] },
 ];
@@ -52,9 +54,15 @@ const px = (v: string | null, vars: Record<string, number> = {}): number => {
 };
 const at = (chain: El[], prop: string, width: number) => cascade(sel => selects(sel, chain), prop, width);
 
-function barAt(width: number) {
+/** The bar at `width`; `unfolded` draws History, Browser watch and Feedback
+ *  where the fold would hide them and leaves out the ⋯, to ask what the bar
+ *  would need without the fold. */
+function barAt(width: number, unfolded = false) {
   const vars = { "--ctl-h": px(at([html], "--ctl-h", width)) };
-  const drawn = (chain: El[]) => at(chain, "display", width) !== "none";
+  const folding = (chain: El[]) => chain.some(e => e.classes.includes("tb-fold") || e.classes.includes("tb-more"));
+  const drawn = (chain: El[]) => unfolded && folding(chain)
+    ? !chain.some(e => e.classes.includes("tb-more"))
+    : at(chain, "display", width) !== "none";
   let controls = 0, total = 0, runsDrawn = 0;
   for (const r of RUNS) {
     const shown = r.controls.filter(c => drawn([bar, actions, r.run, ...c]));
@@ -98,10 +106,20 @@ describe("the topbar at a phone's width", () => {
     // does this arithmetic instead.
     for (const w of [481, 640, 1024, 1439]) {
       const b = barAt(w);
-      expect(b.controls, `at ${w}px`).toBe(9);
+      expect(b.controls, `at ${w}px`).toBe(8);
       expect(b.padding * 2 + b.actions, `at ${w}px`).toBeLessThanOrEqual(w);
     }
-    expect(barAt(390).controls).toBe(7);
+    expect(barAt(390).controls).toBe(6);
+  });
+
+  it("still needs the fold at the narrowest phone, with the speaker gone", () => {
+    // 34px came back with the speaker (2026-10-07), and the eight controls
+    // unfolded are still more than a 320px bar holds beside the pill — so the
+    // fold keeps its width rather than moving down to where it would no
+    // longer be needed.
+    const open = barAt(320, true);
+    expect(open.controls).toBe(8);
+    expect(open.padding * 2 + WAITING_PILL_PX + open.gap + open.actions).toBeGreaterThan(320);
   });
 });
 

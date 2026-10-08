@@ -30,8 +30,8 @@ export type Dismisser = () => void;
 export const CONFIRM_LAYER = 1;
 
 /** What an overlay is to the canvas behind it. A DIALOG covers the page with a
- *  scrim and says `aria-modal="true"`; a POPOVER — the sound menu, the
- *  appearance menu, an account row's ⋯ — hangs off its button with nothing
+ *  scrim and says `aria-modal="true"`; a POPOVER — an account row's ⋯, the
+ *  phone topbar's ⋯ — hangs off its button with nothing
  *  inert behind it. Escape and Tab treat the two alike. The canvas shortcuts do
  *  not: see dialogDepth below. */
 export type OverlayKind = "dialog" | "popover";
@@ -62,8 +62,7 @@ export interface DismissStack {
   /** How many of them are dialogs — the overlays that cover the canvas, and so
    *  the ones a canvas shortcut must not act behind (#1175). A popover is left
    *  out on purpose: the board stays in view around it, so a letter pressed
-   *  over one does what it does in plain sight, and V has to be able to close
-   *  the sound menu it opened. */
+   *  over one does what it does in plain sight. */
   dialogDepth(): number;
 }
 

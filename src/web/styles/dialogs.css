@@ -599,7 +599,7 @@
   transform-origin: left center;
   animation: ap-disarm 4000ms linear forwards;
 }
-/* The sound popover's cap (.sm-key-note kbd), on the canvas tier so it stands off
+/* Settings › Sounds' cap (.sm-key-note kbd), on the canvas tier so it stands off
    the panel the foot now sits on. Its ink is the buttons' resting --muted: in
    --text the two caps were the brightest words in the foot, louder than the
    Cancel and Send they annotate. */

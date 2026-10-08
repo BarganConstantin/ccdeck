@@ -51,11 +51,11 @@ const html = (theme: Theme) => el("html", [], { states: ["root"], attrs: { "data
 const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/ToneSection.tsx": [{
     name: "a tone's figure",
-    chain: [el("body"), el("div", ["sound-menu"]), el("div", ["sm-tones"]), el("section", ["sm-tone"]), el("div", ["sm-row"]), el("select", ["sm-select"])],
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("div", ["sm-tones"]), el("section", ["sm-tone"]), el("div", ["sm-row"]), el("select", ["sm-select"])],
   }],
   "components/SpokenVoiceForm.tsx": [{
     name: "a spoken voice",
-    chain: [el("body"), el("div", ["sound-menu"]), el("section", ["sm-custom"]), el("details", ["sm-voice"]), el("div", ["sm-voice-fields"]), el("label"), el("select", ["sm-select"])],
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("section", ["sm-custom"]), el("details", ["sm-voice"]), el("div", ["sm-voice-fields"]), el("label"), el("select", ["sm-select"])],
   }],
   "components/BrowserWatchSettings.tsx": [
     { name: "Browser Watch's quiet time", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },

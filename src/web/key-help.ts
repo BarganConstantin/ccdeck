@@ -98,9 +98,6 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // #826: the three topbar panels that were pointer-only.
       { cap: "S", action: "this machine — cores, memory, temperature", binds: ["s", "S"] },
       { cap: "B", action: "Browser Watch", binds: ["b", "B"] },
-      // Drawn only where Claude Code is, like A. M under Settings is the switch
-      // itself; this is the quick popover the speaker opens.
-      { cap: "V", action: "the sound popover — sounds on or off, and their volumes", binds: ["v", "V"] },
       { cap: "?", action: "this sheet", binds: ["?"] },
     ],
   },
@@ -112,11 +109,13 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // spellings work on every platform; the sheet prints the one on the
       // keyboard in front of the reader.
       { cap: "Ctrl + ,", macCap: "⌘ ,", action: "all settings", binds: [","] },
-      // #711 gave the topbar speaker a menu, so the click stopped toggling and
-      // this key became the only one-press route to silence. The action stays
-      // worded as the toggle it is, and the Mouse group below says what the
-      // button does now — the two gestures no longer agree, which is exactly
-      // the thing that has to be written down rather than discovered.
+      // Settings at its Sounds section, on every machine. V opened the topbar
+      // speaker's quick popover (#826) until the speaker left the bar
+      // (2026-10-07); everything that popover held is in this section.
+      { cap: "V", action: "sound settings — the switch, and each tone's volume and sound", binds: ["v", "V"] },
+      // The one-press route to silence from anywhere, and the only one with no
+      // dialog in the way: the switch it flips is in Settings › Sounds, the
+      // row above.
       { cap: "M", action: "sound on or off", binds: ["m", "M"] },
       { cap: "T", action: "light or dark theme", binds: ["t", "T"] },
     ],
@@ -140,14 +139,6 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "click", action: "a card: go to it and its session", binds: [] },
       { cap: "double-click", action: "a card: its prompt, every tool call, tokens and timing", binds: [] },
       { cap: "hover", action: "zoomed out, a card's name, state and numbers", binds: [] },
-      // #711. The speaker in the topbar used to toggle and now opens a menu, so
-      // the click and M no longer mean the same thing. That divergence is the
-      // shape #709 removed Shift+M for, and the difference is that this one is
-      // written down: a gesture that exists only in the source is not a feature
-      // that shipped, and this sheet is where the deck says otherwise.
-      // Since Settings the speaker's popover holds the quick things, and its
-      // last line opens Settings at Sounds for the rest.
-      { cap: "click", action: "the topbar speaker: sounds on or off and their volumes, and the way to all sound settings", binds: [] },
     ],
   },
 ];

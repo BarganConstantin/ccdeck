@@ -469,7 +469,8 @@ describe("what each of the four toggles announces", () => {
     // Still enumerated rather than asked of one state name, so a control that
     // appeared under some other state would fail here. `soundMenuOpen` joined
     // in #711 for its own reason — the topbar speaker became a disclosure for a
-    // popover — `sessionListOpen` rejoined here, and `machinePanelOpen` arrived
+    // popover — and left with the speaker (2026-10-07). `sessionListOpen`
+    // rejoined here, and `machinePanelOpen` arrived
     // when the topbar meter was removed: the panel it disclosed is opened by a
     // glyph in the same run as the other three now, and it announces its state
     // the same way. `detailOpen` is NOT in this list and that is a decision
@@ -481,7 +482,7 @@ describe("what each of the four toggles announces", () => {
     // aria-haspopup="dialog" with no state, the shape the usage-history button
     // below has and for its reason.
     const expandeds = [...app.matchAll(/aria-expanded=\{(\w+)\}/g)].map(m => m[1]).sort();
-    expect(expandeds).toEqual(["accountsPanelOpen", "machinePanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
+    expect(expandeds).toEqual(["accountsPanelOpen", "machinePanelOpen", "sessionListOpen", "usagePanelOpen"]);
   });
 
   it("leaves the session list a way in and a way out, which is what the button was", () => {
@@ -519,40 +520,22 @@ describe("what each of the four toggles announces", () => {
     expect(button("Toggle session list")).toContain("session list (L)");
   });
 
-  it("moved the sound button's aria-pressed onto the switch inside the menu it now opens", () => {
+  it("keeps the sound setting's state on a real switch, in Settings › Sounds", () => {
     // This used to be the one genuine setting-toggle in the row, and #711 took
-    // that away deliberately rather than by accident. The press opens a popover
-    // now — a switch, two volumes, two sound choices, two previews — so
-    // "pressed" would describe an action the button no longer performs, and
-    // aria-expanded describes the one it does. It gains aria-haspopup="dialog"
-    // for the same reason the usage-history button carries it: the kind of
-    // thing that opens is part of what the press promises.
-    const sound = button("Sound settings");
-    expect(sound).toMatch(/aria-expanded=\{soundMenuOpen\}/);
-    expect(sound).toMatch(/aria-haspopup="dialog"/);
-    expect(sound).not.toMatch(/aria-pressed/);
-    // And the state did not evaporate on the way. It is on a real switch inside
-    // the menu, which is also what M flips — so the setting still reports
-    // itself, one layer in. `role="switch"` with aria-checked rather than a
-    // button with aria-pressed: what it carries is a setting that stays on, and
-    // a switch is the role whose whole definition is that. It is also what the
-    // deck's other one already is (.bw-toggle in Browser Watch), so a reader
-    // meets one shape rather than two spellings of it.
-    const menu = markup("components", "SoundMenu.tsx");
-    // The menu and every file lifted out of it, for the negatives.
+    // that away deliberately: the button opened a popover, and its state moved
+    // onto a real switch inside it, which is also what M flips. The button and
+    // its popover left the topbar (2026-10-07) and the switch stayed where it
+    // also was, in Settings › Sounds — so the setting still reports itself.
+    // `role="switch"` with aria-checked rather than a button with
+    // aria-pressed: what it carries is a setting that stays on, and a switch
+    // is the role whose whole definition is that.
+    expect(app).not.toMatch(/Sound settings/);
     const menuSurface = markupOf(soundMenuSurface());
-    // The switch is SoundSwitch.tsx's since Settings › Sounds draws it too;
-    // the popover draws that one switch.
     const soundSwitch = markup("components", "SoundSwitch.tsx");
-    expect(menu).toMatch(/<SoundSwitch soundOn=\{soundOn\}/);
+    expect(markup("components", "SoundsSection.tsx")).toMatch(/<SoundSwitch soundOn=\{soundOn\}/);
     expect(soundSwitch).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
     expect(soundSwitch).toMatch(/aria-labelledby=\{labelId\}/);
     expect(menuSurface).not.toMatch(/aria-pressed/);
-    // Non-modal on purpose: nothing behind it is inert and there is no scrim,
-    // so claiming aria-modal would be the lie #518 removed from the modals that
-    // did have one.
-    expect(menu).toMatch(/role="dialog"/);
-    expect(menuSurface).not.toMatch(/aria-modal/);
   });
 
   it("gives the usage-history button aria-haspopup and no state at all", () => {
