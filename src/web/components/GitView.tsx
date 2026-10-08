@@ -348,8 +348,10 @@ export default function GitView(props: GitViewProps) {
   const reframeNow = useCallback(() => frame(0), [frame]);
 
   // ── what the panel covers ─────────────────────────────────────────────
-  // While it is open the detail rail under it is inert and out of sight, and
-  // so is everything beside the canvas when it is a full sheet. Marked on the
+  // While it is open the detail rail under it is inert and out of sight, as
+  // are the rail's Usage and Machine panels docked beside that rail (asking
+  // for one closes the view: git-view-request.ts), and so is everything
+  // beside the canvas when it is a full sheet. Marked on the
   // root (`data-git-view`) rather than found by a :has() over the app, which
   // made every open restyle the whole board.
   const heldInert = useState(() => new Set<Element>())[0];
@@ -360,7 +362,7 @@ export default function GitView(props: GitViewProps) {
   const coverBehind = useCallback((on: boolean) => {
     const behind = on ? [...document.querySelectorAll(sheetRef.current
       ? ".app > :is(main, .detail, .session-list, .accounts-panel, .usage-panel, .sysdetail)"
-      : ".app > .detail")] : [];
+      : ".app > :is(.detail, .usage-panel, .sysdetail)")] : [];
     setInert([...heldInert].filter(el => !behind.includes(el)), false, heldInert);
     setInert(behind, true, heldInert);
     const root = document.documentElement;

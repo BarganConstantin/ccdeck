@@ -80,7 +80,7 @@ import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useGitOpener } from "./use-git-opener";
 import GitView from "./components/GitView";
-import { closeGitViewRequest, gitViewRequest, openGitViewRequest, setGitAgentFocuser, setGitViewOpener, type GitViewHow } from "./git-view-request";
+import { closeGitViewRequest, gitViewRequest, openGitViewRequest, setGitAgentFocuser, setGitViewOpener, yieldingRailToggle, type GitViewHow } from "./git-view-request";
 import { gitKeyAllowed } from "./git-view-keys";
 import { gitFactsFor, gitViewOpens, subagentKey } from "./git-view-target";
 import { UNREADABLE, cachedGitState } from "./use-git-view";
@@ -124,6 +124,13 @@ function Inner() {
   // below, because a plain selection opens the detail panel (#814).
   const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen }
     = useRightPanels();
+  // The git view takes the rail's room while it is open, its Usage and Machine
+  // panels out of sight under it: their buttons and keys close the view and
+  // show the panel (git-view-request.ts) rather than turn on one nobody sees.
+  const railToggles = useMemo(() => ({
+    usage: { pointer: yieldingRailToggle(setUsagePanelOpen, "pointer"), key: yieldingRailToggle(setUsagePanelOpen, "key") },
+    machine: { pointer: yieldingRailToggle(setMachinePanelOpen, "pointer"), key: yieldingRailToggle(setMachinePanelOpen, "key") },
+  }), [setUsagePanelOpen, setMachinePanelOpen]);
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
@@ -573,7 +580,7 @@ function Inner() {
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
-    setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
+    setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: railToggles.usage.key, setMachinePanelOpen: railToggles.machine.key,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
     gitViewOpenRef: { get current() { return gitViewRequest().open; } }, toggleGitView, closeGitView,
   });
@@ -696,12 +703,12 @@ function Inner() {
               and the readouts share it. */}
           <SessionRun
             sessionListOpen={sessionListOpen} toggleSessionList={toggleSessionList}
-            usagePanelOpen={usagePanelOpen} setUsagePanelOpen={setUsagePanelOpen}
+            usagePanelOpen={usagePanelOpen} setUsagePanelOpen={railToggles.usage.pointer}
             setUsageHistoryOpen={setUsageHistoryOpen} toggles={panelReturn.toggles}
           />
           <SourceRun
             providers={providers} accountsPanelOpen={accountsPanelOpen} toggleAccountsPanel={toggleAccountsPanel}
-            machinePanelOpen={machinePanelOpen} setMachinePanelOpen={setMachinePanelOpen}
+            machinePanelOpen={machinePanelOpen} setMachinePanelOpen={railToggles.machine.pointer}
             watchOn={watchOn} watchUnseen={watchUnseen} setBrowserWatchOpen={setBrowserWatchOpen}
             toggles={panelReturn.toggles}
           />
