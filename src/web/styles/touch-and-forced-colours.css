@@ -109,6 +109,17 @@
   .react-flow__controls-button[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"]:hover,
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The sign-in's rings and stage marks carry where a sign-in is in their
+     colour as well as their shape, so they are redrawn in system colours: the
+     turning arc and the current stage in the highlight, a finished or failed
+     mark in the text colour beside the words that say which, and the track
+     and the stages still to come in grey. */
+  .aa-orbit, .aa-spin, .aa-stage-icon { forced-color-adjust: none; }
+  .aa-orbit-track, .aa-spin-track, .aa-stage-later { stroke: GrayText; }
+  .aa-orbit-arc, .aa-spin-arc { stroke: Highlight; }
+  .aa-stage-now { fill: Highlight; }
+  .aa-orbit-close, .aa-orbit-cross, .aa-stage-tick, .aa-stage-cross { stroke: CanvasText; }
+  .aa-stage:not(:last-child)::after { background: GrayText; }
   /* The feedback dialog's chosen kind is the same chip, raised by a fill and
      an edge the theme would repaint like its neighbours'. On a line of its
      own because its selector carries `:has()`, and one selector a browser

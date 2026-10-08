@@ -282,6 +282,36 @@ export function newSlot(before, after) {
   return fresh.length === 1 ? fresh[0] : null;
 }
 
+/**
+ * The slot the account that just signed in occupies after `cswap add`, or null.
+ *
+ * ASKED OF THE IDENTITY, NOT OF WHAT IS NEW. `before` is the store as it was
+ * when the sign-in started, minutes ago, and a share or a Local network round
+ * can land other accounts in between. Reading "the one new slot" then named
+ * somebody else's slot for a re-sign-in of an account already here, and found
+ * nothing for a new account that arrived beside another.
+ *
+ * A NEW slot with this address still comes first, because one address under
+ * two organizations is two accounts: signing into the second organization of
+ * an address the store already holds adds a slot, and slotOf — which falls
+ * back to the first slot with the address when the CLI names no organization
+ * — would answer with the old one and call the new account a refresh. A slot
+ * whose organization the store does not record is not ruled out by one.
+ *
+ * newSlot is the last answer, for a store that keeps no address for the slot
+ * — the case it was written for — since nothing else can point at it then.
+ */
+export function signedInSlot(before, after, identity) {
+  const had = new Set(before.slots);
+  const org = identity?.orgId ?? "";
+  const fresh = after.slots.filter(s =>
+    !had.has(s)
+    && sameAddress(after.emails[s], identity?.email)
+    && (!org || !after.orgs?.[s] || after.orgs[s] === org));
+  if (fresh.length === 1) return fresh[0];
+  return slotOf(after, identity) ?? newSlot(before, after);
+}
+
 const sameAddress = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
 
 /**
@@ -379,9 +409,14 @@ let _starting = null;
 
 export function loginState() {
   if (!_login) return { state: "idle" };
-  const { state, url, error, account, expiresAt, restore } = _login;
+  const { state, step, url, error, account, expiresAt, restore } = _login;
   return {
     state, url: url ?? null, error: error ?? null, account: account ?? null, expiresAt: expiresAt ?? null,
+    // Where inside `registering` the flow is — see LOGIN_STEPS. Null before it
+    // and on a failure that happened before it, and left on the step that was
+    // running when anything after it failed, which is how the dialog knows
+    // which of its stages to mark.
+    step: step ?? null,
     // The sign-in's OTHER outcome, and the one it used to drop (#951). `true`
     // until a restore has actually been attempted, because every state before
     // that — awaiting_url, awaiting_code, registering — has moved nothing that
@@ -390,6 +425,23 @@ export function loginState() {
     ...restoreFields(restore),
   };
 }
+
+/**
+ * The points a sign-in passes through after the browser said yes, in order.
+ *
+ * `registering` covers all three and used to be reported as one state, so the
+ * dialog could only say "registering…" for however long they took together —
+ * an identity check, a `cswap add` that may first wait its turn on the store
+ * lock, and a `cswap switch` back to the account the user was on. Each is set
+ * on the flow at the moment it begins, never ahead of it, so a dialog that
+ * shows the step is showing what the deck is doing rather than a guess.
+ *
+ *   confirm  the claude CLI is asked who signed in (and, for a pasted code,
+ *            first takes the code)
+ *   save     claude-swap records the account
+ *   restore  the account the user was working in is put back in front
+ */
+export const LOGIN_STEPS = Object.freeze(["confirm", "save", "restore"]);
 
 /** The restore verdict, in the two fields a caller reads. Written once here so
  *  the login route, the cancel result and the dialog's type cannot drift. */
@@ -624,6 +676,7 @@ async function spawnLogin(email) {
     // code posted while the question is out would otherwise register the same
     // login a second time, with a second `cswap add` racing this one.
     flow.state = "registering";
+    flow.step = "confirm";
     const identity = await currentIdentity();
     if (flow !== _login) return;
     // A clean exit with somebody logged in is a completed sign-in, including
@@ -693,6 +746,10 @@ function loginFailureText(r) {
  * with; the done handler simply drops it.
  */
 async function registerSignedIn(flow, identity) {
+  // Before the lock, not inside it: waiting for another change to the store to
+  // finish is part of saving this one, and the dialog says so rather than
+  // going on claiming the sign-in is still being confirmed.
+  flow.step = "save";
   return withStoreLock(async () => {
     const add = await run(await cswapBin(), ["add"], { timeout: CSWAP_TIMEOUT_MS });
     if (!add.ok) {
@@ -707,10 +764,9 @@ async function registerSignedIn(flow, identity) {
     }
 
     const after = await readStore();
-    const slot = newSlot(flow.before, after);
-    // No new slot means the account was already managed and cswap refreshed its
-    // credentials in place. That is a success with a different sentence.
-    const num = slot ?? slotOf(after, identity) ?? null;
+    // The slot that holds the identity that just signed in, found by asking for
+    // it rather than by looking for what is new: see signedInSlot.
+    const num = signedInSlot(flow.before, after, identity);
 
     // Recorded now that claude-swap holds the account, and before the roster
     // is invalidated below, so no read can land between the two and cache a
@@ -722,16 +778,20 @@ async function registerSignedIn(flow, identity) {
     // or a Local network round can land a different account in between: two
     // new slots, newSlot answers null, and the account this sign-in did add
     // would never be marked.
-    if (num != null) {
-      const email = after.emails[num] || identity.email;
-      const org = after.orgs?.[num] ?? "";
-      await tellOrigins("signedIn", { email, org, added: !holds(flow.before, email, org) });
-    }
+    //
+    // And the success card's "added" is the same answer, asked once. It used to
+    // be `newSlot(before, after) != null`, which a share landing during the
+    // sign-in turned into the wrong sentence either way.
+    const email = num != null ? (after.emails[num] || identity.email) : identity.email;
+    const org = num != null ? (after.orgs?.[num] ?? "") : "";
+    const added = num != null && !holds(flow.before, email, org);
+    if (num != null) await tellOrigins("signedIn", { email, org, added });
 
     // Assigned, not discarded. `done` is still the right state — the account
     // WAS added — but it is `done` with a qualification whenever this says the
     // machine did not go back, and the dialog renders that qualification
     // instead of "The account you were using is still active".
+    flow.step = "restore";
     flow.restore = await restoreActive(flow.previousActive);
     invalidateClaudeAccountsCache();
     // Collect straight away, so the new row shows numbers instead of "never
@@ -739,7 +799,7 @@ async function registerSignedIn(flow, identity) {
     runDetached(await cswapBin(), ["list"]);
 
     flow.state = "done";
-    flow.account = { num, email: identity.email, added: slot != null };
+    flow.account = { num, email: identity.email, added };
     return { ok: true, ...loginState() };
   });
 }
@@ -759,6 +819,7 @@ export async function submitLoginCode(code) {
 
   const askedBefore = flow.prompts;
   flow.state = "registering";
+  flow.step = "confirm";
   flow.child.write(code.trim() + "\n");
 
   // Whichever comes first: the CLI finishing, or it asking again. A wrong code
@@ -770,11 +831,13 @@ export async function submitLoginCode(code) {
   ]);
   if (r === "rejected") {
     flow.state = "awaiting_code";
+    flow.step = null;
     flow.error = "that code was not accepted — copy it again from the browser";
     return { ok: false, reason: "code_rejected", ...loginState() };
   }
   if (r === "slow") {
     flow.state = "awaiting_code";
+    flow.step = null;
     flow.error = "the claude CLI has not answered — try the code again";
     return { ok: false, reason: "no_verdict", ...loginState() };
   }
