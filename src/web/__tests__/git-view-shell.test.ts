@@ -173,8 +173,14 @@ describe("the motion lives in the sheet, on the house curve", () => {
 describe("the Git section in the detail panel", () => {
   it("keeps one height while its read arrives, so the panel under it never jumps", () => {
     expect(rule(".gv-glance[data-reserve]")).toMatch(/min-height: \d+px/);
-    expect(css).toMatch(/\.gv-glance\[data-reserve\] > \.gv-handoffs-wrap:not\(\[data-compact\]\) \{ margin-top: auto;/);
     const glance = sourceOf("components/GitGlance.tsx");
+    // The hand-off row follows the rows it acts on, the held room under it,
+    // not at the foot of that room with a gap above it; it comes with the
+    // rows, once the read that brings them is in, so it never moves as they
+    // arrive.
+    expect(css).not.toMatch(/\.gv-handoffs-wrap:not\(\[data-compact\]\) \{ margin-top: auto;/);
+    expect(glance).toMatch(/\{ready && \(\n\s+<GitHandoffs sessionId=\{agent\.sessionId\}/);
+    expect(glance).toMatch(/const ready = \(data\.commits != null && data\.entries != null && data\.edits != null\) \|\| \(data\.state === "repo" && data\.pending === 0\);/);
     // A folder with no repository is one line and reserves nothing.
     expect(glance).toMatch(/return section\(<ReadStateLine [^\n]*\/>\);/);
     expect(glance).toMatch(/<\/>,\s*true,\s*\);/);
