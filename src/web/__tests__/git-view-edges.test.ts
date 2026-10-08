@@ -11,6 +11,7 @@ import { closeGitViewRequest, gitViewCovers, gitViewRequest, openGitViewRequest,
 const own = sheetParts().find(([path]) => path === "styles/git-view.css")![1];
 const view = sourceOf("components/GitView.tsx");
 const app = sourceOf("App.tsx");
+const undo = sourceOf("components/RearrangeUndo.tsx");
 /** A rule of the view's own part of the sheet, outside any at-rule. */
 const rule = (sel: string) => {
   const at = own.indexOf(`\n${sel} {`);
@@ -125,5 +126,12 @@ describe("what the edges draw while the view is open", () => {
     expect(app).toMatch(/toggleAccountsPanel: columnToggles\.accounts\.pointer,/);
     expect(app).toMatch(/toggleSessionList: columnToggles\.sessionList\.key, toggleAccountsPanel: columnToggles\.accounts\.key,/);
     expect(app).toMatch(/if \(!sessionListOpen \|\| gitCovers === "all"\) columnToggles\.sessionList\.pointer\(\);/);
+  });
+});
+
+describe("Re-arrange's Undo beside the view", () => {
+  it("centres on the part of the canvas the view leaves, by the width it settles at", () => {
+    expect(undo).toMatch(/const gitCover = useSyncExternalStore\(subscribeGitViewCover, gitViewCover, gitViewCover\);/);
+    expect(undo).toMatch(/style=\{gitCover > 0 \? \{ right: gitCover \} : undefined\}/);
   });
 });

@@ -7,8 +7,9 @@
 // transient control owes the keyboard — Escape through the shared dismiss
 // stack, a clock that waits while focus is in it, and focus handed on when it
 // goes from under the reader.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
+import { gitViewCover, subscribeGitViewCover } from "../git-view-fit";
 import { modalStack } from "../modal-dismiss";
 import { isMounted, usePanelPresence } from "../panel-exit";
 import { platformName } from "../platform";
@@ -21,6 +22,11 @@ export default function RearrangeUndo({ undo }: { undo: RearrangeUndoState }) {
   const { open, said, undo: undoRearrange, dismiss, hold, release } = undo;
   const phase = usePanelPresence(open, REARRANGE_UNDO_EXIT_MS);
   const stripRef = useRef<HTMLDivElement>(null);
+  // An open git view covers the canvas's right: the strip centres on the part
+  // it leaves, in sight and under the pointer, as the session names keep off
+  // it (SessionClusters.tsx). By the width the view settles at, so a drag of
+  // its edge moves the strip once, when it lets go.
+  const gitCover = useSyncExternalStore(subscribeGitViewCover, gitViewCover, gitViewCover);
 
   // Escape's, while it is offered: a popover to the stack, so it answers the
   // key without covering the canvas the way a dialog does, and the letters
@@ -46,6 +52,7 @@ export default function RearrangeUndo({ undo }: { undo: RearrangeUndoState }) {
         <div
           ref={stripRef}
           className={phase === "leaving" ? "rearrange-undo leaving" : "rearrange-undo"}
+          style={gitCover > 0 ? { right: gitCover } : undefined}
           onPointerEnter={() => hold("hover")}
           onPointerLeave={() => release("hover")}
           onFocus={() => hold("focus")}
