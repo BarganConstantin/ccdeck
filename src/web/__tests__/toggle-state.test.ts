@@ -517,7 +517,10 @@ describe("what each of the four toggles announces", () => {
     // asserting against the duplicate rather than the source.
     const rows = KEY_HELP.flatMap(g => g.rows);
     expect(rows.find(r => r.cap === "L")!.action).toMatch(/session list/);
-    expect(button("Toggle session list")).toContain("session list (L)");
+    // While the single-key shortcuts are on, which is where every deck starts;
+    // with them off the title stops naming a key that does nothing (WCAG
+    // 2.1.4, single-key-shortcuts-surfaces.test.ts draws both).
+    expect(button("Toggle session list")).toContain('session list`, "L", singleKeys)');
   });
 
   it("keeps the sound setting's state on a real switch, in Settings › Sounds", () => {

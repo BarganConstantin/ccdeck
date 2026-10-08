@@ -188,6 +188,8 @@
   font-size: 12px;
   color: var(--muted);
 }
+/* The button keeps its words on one line; the sentence beside it wraps. */
+.guide-door .btn { flex: none; }
 
 /* The welcome's way back, on the empty canvas: the hero is pointer-transparent
    so a drag starting on it still pans, and this is the one thing on it a

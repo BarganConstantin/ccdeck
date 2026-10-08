@@ -134,6 +134,13 @@
      at higher specificity) and the face carries the ring. */
   .react-flow__node.rf-selected .agent-node,
   .react-flow__node.rf-selected .agent-node > .lod-face { outline-color: Highlight; }
+  /* A note under the pointer is a lift and a tint, a shadow and a fill the
+     theme drops, and an edge it repaints CanvasText either way: a hairline
+     outline carries it instead. A hairline in the text colour, so it is not
+     the selected card's Highlight ring, and a note is never selected or
+     focused itself, so it meets neither. */
+  .canvas-wrap[data-lod="detail"] .recap-note:hover,
+  .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face { outline: 1px solid CanvasText; outline-offset: 2px; }
   /* The order's caret takes the select's own system colour rather than the
      --muted it rests in, which a contrast theme does not repaint (#1579). */
   .ap-rest-sort svg { color: ButtonText; }

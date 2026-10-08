@@ -30,6 +30,7 @@
 // `binds` is the honest half. It is the literal `e.key` values App.tsx compares
 // against, not a pretty spelling, because the test that keeps this table
 // complete has to compare like with like.
+import { isCharacterKey } from "./single-key-shortcuts";
 
 /** One line of the sheet: what you press, and what happens. */
 export interface KeyHelpRow {
@@ -51,6 +52,10 @@ export interface KeyHelpRow {
    *  against the handler rather than against somebody's memory of it. Empty for
    *  a mouse gesture, which binds no key by definition. */
   binds: readonly string[];
+  /** True for a row whose key is pressed with Ctrl or Cmd. Its bind is still a
+   *  character (","), but a chord is not a single-key shortcut, so the row
+   *  stays on the sheet when those are turned off. */
+  chord?: boolean;
 }
 
 export interface KeyHelpGroup {
@@ -111,7 +116,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // chord the deck claims for itself (use-deck-shortcuts.ts). Both
       // spellings work on every platform; the sheet prints the one on the
       // keyboard in front of the reader.
-      { cap: "Ctrl + ,", macCap: "⌘ ,", action: "all settings", binds: [","] },
+      { cap: "Ctrl + ,", macCap: "⌘ ,", action: "all settings", binds: [","], chord: true },
       // Settings at its Sounds section, on every machine. V opened the topbar
       // speaker's quick popover (#826) until the speaker left the bar
       // (2026-10-07); everything that popover held is in this section.
@@ -145,6 +150,36 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
     ],
   },
 ];
+
+/** An action naming another row's letter in passing — Delete's "the session
+ *  list (L)" — which would point at a dead key with the shortcuts off. */
+const SINGLE_KEY_ASIDE = / \([A-Z?]\)/g;
+
+/** The sheet as it stands with the single-key shortcuts off (Settings ›
+ *  General, WCAG 2.1.4): only the rows that still do something — the chord,
+ *  the named keys and the mouse — with a group that loses every row left out
+ *  rather than drawn as an empty heading. With them on, the whole table. */
+export function keyHelpFor(singleKeys: boolean): readonly KeyHelpGroup[] {
+  if (singleKeys) return KEY_HELP;
+  return KEY_HELP
+    .map(group => ({
+      ...group,
+      rows: group.rows
+        .filter(row => row.chord || !row.binds.some(isCharacterKey))
+        .map(row => ({ ...row, action: row.action.replace(SINGLE_KEY_ASIDE, "") })),
+    }))
+    .filter(group => group.rows.length > 0);
+}
+
+/** What the sheet says first while the single-key shortcuts are off: that they
+ *  are, and where they are turned back on. The place is its own string so the
+ *  sheet can keep "Settings › General" on one line. */
+export const KEY_HELP_OFF_TITLE = "Single-key shortcuts are off.";
+export const SINGLE_KEYS_PLACE = "Settings › General";
+
+/** The footnote's second sentence while they are on: where the reader whose
+ *  letters fire by accident — dictation, a stray hand — turns them off. */
+export const KEY_HELP_SWITCH_NOTE = `Single-key shortcuts can be turned off in ${SINGLE_KEYS_PLACE}.`;
 
 /** Every `e.key` value the table claims the deck answers, lower-cased so a
  *  test can compare it with the handler's own literals without caring which

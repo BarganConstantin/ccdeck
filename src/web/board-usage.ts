@@ -148,11 +148,22 @@ export const BOARD_SCOPE_LABEL = "on this board";
  * `codex-copy.test.ts` holds the deck's copy to that: a provider-blind figure
  * must not carry one product's name.
  */
-export const BOARD_SCOPE_TITLE =
+const BOARD_SCOPE_FACTS =
   "Everything on the board right now, and only that.\n"
   + "Finished sessions are evicted from the canvas a couple of minutes after they end, "
-  + "and their tokens and dollars leave with them — so this figure falls on its own.\n"
-  + "Press H for the totals ccusage reads off the logs on disk, which do not forget.";
+  + "and their tokens and dollars leave with them — so this figure falls on its own.\n";
+
+export const BOARD_SCOPE_TITLE =
+  BOARD_SCOPE_FACTS + "Press H for the totals ccusage reads off the logs on disk, which do not forget.";
+
+/** The same three sentences, with the last pointing at Usage history by name
+ *  rather than by H once the single-key shortcuts are off (Settings › General),
+ *  so the way to the durable total is one that still works. */
+export function boardScopeTitle(singleKeys: boolean): string {
+  return singleKeys
+    ? BOARD_SCOPE_TITLE
+    : BOARD_SCOPE_FACTS + "Usage history has the totals ccusage reads off the logs on disk, which do not forget.";
+}
 
 /**
  * What one session's roll-up is called, on the sidebar row and on the end-of-

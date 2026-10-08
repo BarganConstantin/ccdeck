@@ -8,8 +8,10 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Controls, ControlButton, useReactFlow, useStore, type ReactFlowState } from "reactflow";
 import type { ClearSource } from "../clear-confirm";
+import { withKey } from "../single-key-shortcuts";
 import { PAUSE_LABEL, pauseTitle } from "../status-pill";
 import type { PauseControls } from "../use-pause-gate";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
 /** The zoom range's two ends, as React Flow's own zoom buttons read them.
  *  Module-level so `useStore` gets the same selector every render. */
@@ -35,6 +37,7 @@ export default function CanvasControls({
   // limit is reached or left, not on every zoom frame.
   const zoomMaxed = useStore(zoomAtMax);
   const zoomMinned = useStore(zoomAtMin);
+  const singleKeys = useSingleKeyShortcuts();
   return (
     <Controls showInteractive={false} showFitView={false} showZoom={false}>
       {/* Zoom in and out, drawn here rather than left to React Flow, so
@@ -121,7 +124,7 @@ export default function CanvasControls({
       <ControlButton
         data-group-start=""
         onClick={togglePause}
-        title={pauseTitle({ paused, held: pauseGate.size, dropped: pauseGate.dropped })}
+        title={pauseTitle({ paused, held: pauseGate.size, dropped: pauseGate.dropped, singleKeys })}
         aria-label={PAUSE_LABEL}
         aria-pressed={paused}
       >
@@ -144,7 +147,7 @@ export default function CanvasControls({
           is the whole button, and a glyph has no accessible name. */}
       <ControlButton
         onClick={handleRelayout}
-        title="Auto-arrange — clear pins (R)"
+        title={withKey("Auto-arrange — clear pins", "R", singleKeys)}
         aria-label="Re-arrange the canvas"
       >
         {/* three-node hierarchy — one parent over two children */}
@@ -169,7 +172,7 @@ export default function CanvasControls({
         data-group-start=""
         data-danger=""
         onClick={() => requestClear("button")}
-        title="Clear the canvas and the server's event log — asks first (C)"
+        title={withKey("Clear the canvas and the server's event log — asks first", "C", singleKeys)}
         aria-label="Clear the canvas"
       >
         {/* trash can — lid, handle, tapered body, two inner strokes */}
@@ -195,7 +198,7 @@ export default function CanvasControls({
       <ControlButton
         data-group-start=""
         onClick={() => setKeyHelpOpen(o => !o)}
-        title="Keyboard shortcuts (?)"
+        title={singleKeys ? withKey("Keyboard shortcuts", "?", true) : "Keyboard shortcuts — the single-key ones are off"}
         aria-label="Open the keyboard shortcuts"
         aria-haspopup="dialog"
       >

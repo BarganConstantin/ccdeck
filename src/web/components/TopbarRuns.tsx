@@ -14,6 +14,8 @@ import type { Providers } from "../providers";
 import type { PanelToggles } from "../use-panel-return";
 import { platformName } from "../platform";
 import { settingsChordLabel, type SettingsSection } from "../settings";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import TopbarMore from "./TopbarMore";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -28,6 +30,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
   /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
   toggles: PanelToggles;
 }) {
+  const singleKeys = useSingleKeyShortcuts();
   return (
     <div className="action-run">
       {/* aria-expanded, not aria-pressed. This shows and hides a region
@@ -61,7 +64,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
         ref={toggles.sessionList}
         className="btn icon-btn"
         onClick={toggleSessionList}
-        title={`${sessionListOpen ? "Hide" : "Show"} session list (L)`}
+        title={withKey(`${sessionListOpen ? "Hide" : "Show"} session list`, "L", singleKeys)}
         aria-label="Toggle session list"
         aria-expanded={sessionListOpen}
         aria-controls={sessionListOpen ? "session-list" : undefined}
@@ -83,7 +86,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
         ref={toggles.usage}
         className="btn icon-btn"
         onClick={() => setUsagePanelOpen(o => !o)}
-        title={`${usagePanelOpen ? "Hide" : "Show"} usage panel (U)`}
+        title={withKey(`${usagePanelOpen ? "Hide" : "Show"} usage panel`, "U", singleKeys)}
         aria-label="Toggle usage panel"
         aria-expanded={usagePanelOpen}
         aria-controls={usagePanelOpen ? "usage-panel" : undefined}
@@ -113,7 +116,7 @@ export function SessionRun({ sessionListOpen, toggleSessionList, usagePanelOpen,
       <button
         className="btn icon-btn tb-fold"
         onClick={() => setUsageHistoryOpen(o => !o)}
-        title="Usage history — ccusage (H)"
+        title={withKey("Usage history — ccusage", "H", singleKeys)}
         aria-label="Open usage history"
         aria-haspopup="dialog"
       >
@@ -150,6 +153,7 @@ export function SourceRun({
   /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
   toggles: PanelToggles;
 }) {
+  const singleKeys = useSingleKeyShortcuts();
   return (
     <div className="action-run">
       {/* Same disclosure as the usage panel — a sidebar that opens beside
@@ -163,7 +167,7 @@ export function SourceRun({
         ref={toggles.accounts}
         className="btn icon-btn"
         onClick={toggleAccountsPanel}
-        title={`${accountsPanelOpen ? "Hide" : "Show"} accounts (A)`}
+        title={withKey(`${accountsPanelOpen ? "Hide" : "Show"} accounts`, "A", singleKeys)}
         aria-label="Toggle accounts panel"
         aria-expanded={accountsPanelOpen}
         aria-controls={accountsPanelOpen ? "accounts-panel" : undefined}
@@ -199,7 +203,7 @@ export function SourceRun({
         ref={toggles.machine}
         className="btn icon-btn"
         onClick={() => setMachinePanelOpen(o => !o)}
-        title={`${machinePanelOpen ? "Hide" : "Show"} this machine — cores, memory, temperature (S)`}
+        title={withKey(`${machinePanelOpen ? "Hide" : "Show"} this machine — cores, memory, temperature`, "S", singleKeys)}
         aria-label="Toggle machine detail"
         aria-expanded={machinePanelOpen}
         aria-controls={machinePanelOpen ? "system-panel" : undefined}
@@ -230,9 +234,9 @@ export function SourceRun({
       <button
         className="btn icon-btn bw-btn tb-fold"
         onClick={() => setBrowserWatchOpen(o => !o)}
-        title={watchOn
-          ? "Browser watch — watching; the deck is keeping its own copy (B)"
-          : "Browser watch — not watching; reading the browser's history live (B)"}
+        title={withKey(watchOn
+          ? "Browser watch — watching; the deck is keeping its own copy"
+          : "Browser watch — not watching; reading the browser's history live", "B", singleKeys)}
         aria-label={`Browser watch, ${watchOn ? "watching" : "not watching"}`
           + (watchUnseen > 0 ? `, ${watchUnseen} unread` : "")}
         aria-haspopup="dialog"

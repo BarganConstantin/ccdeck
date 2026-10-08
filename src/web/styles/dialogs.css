@@ -110,6 +110,27 @@
 }
 /* The keyboard sheet's one line under its keys (#852): a footnote, not a box. */
 .kh-foot { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+/* The sheet with the single-key shortcuts off: what is so and where to change
+   it, on the tour door's row — a sentence and a button — and on the sheet's one
+   left edge, parted from the rest by a hairline rather than boxed, which would
+   have stepped its text and its button in from every other row. First and in
+   the foreground's weight, so it is read before the keys; neutral, not amber:
+   it is a choice the reader made, and amber on this deck means something is
+   waiting on them. The button drops under the sentence where the two do not
+   fit side by side. */
+.kh-off {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.kh-off-text { flex: 1 1 260px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.kh-off-text strong { color: var(--text); font-weight: 600; }
+.kh-place { white-space: nowrap; }
+.kh-off .btn { flex: none; }
 .modal-section pre {
   margin: 0;
   padding: 12px;

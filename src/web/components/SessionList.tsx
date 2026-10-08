@@ -19,6 +19,8 @@ import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../sess
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
 import { isAgentVisible } from "../visibility";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
 export interface Row {
   sessionId: string;
@@ -146,6 +148,7 @@ interface Props {
 }
 
 export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll }: Props) {
+  const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
   // list is the whole of what decides whether this rebuilds. `lastSeq` moves
@@ -187,7 +190,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
             signal rather than a claim that none of them is blocked. */}
         {waitingCount > 0 && <span className="sl-waiting-count">{waitingCount} waiting</span>}
         {liveCount > 0 && <span className="sl-live-count">{liveCount} live</span>}
-        <button className="glyph-btn sl-close" onClick={onClose} title="Hide sidebar (L)" aria-label="Hide session list">‹</button>
+        <button className="glyph-btn sl-close" onClick={onClose} title={withKey("Hide sidebar", "L", singleKeys)} aria-label="Hide session list">‹</button>
       </div>
       <ul className="sl-rows">
         {rows.length === 0 && <li className="sl-empty">No sessions yet.</li>}

@@ -10,6 +10,7 @@ import { useFeatureUse } from "../feature-use";
 import type { GraphState } from "../reducer";
 import { exportFileName, sessionExport } from "../session-export";
 import type { AgentNodeData } from "../types";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import Detail from "./Detail";
 
 /** Build a portable JSON snapshot of a single session (root + every subagent)
@@ -49,6 +50,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
   // here rather than off `detailOpen`, which stays on across a reload that
   // left nothing selected and so nothing on screen.
   useFeatureUse("detail-panel");
+  const singleKeys = useSingleKeyShortcuts();
   return (
     // Already the right element and still an unnamed one: the rotor listed
     // it as a bare "complementary" beside the session list's "Sessions",
@@ -73,6 +75,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
             onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
             onRemove={removeSelectedNode}
             stateRef={stateRef}
+            singleKeys={singleKeys}
           />
     </aside>
   );
