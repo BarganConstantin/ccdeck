@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import GitDiff, { BLOCK_LINES, blocksOf, lineKeys, type GitDiffProps } from "../components/GitDiff";
 import { parsePatch } from "../git-diff-parse";
 import { sourceOf } from "./client-source";
+import { sheetParts } from "./sheet-source";
 
 // React 18 says on the server that layout effects do nothing there: true, and beside the point.
 let quiet: ReturnType<typeof vi.spyOn>;
@@ -226,6 +227,49 @@ describe("a commit's files that are still being read, or could not be", () => {
     expect(hook).toMatch(/const setSel = useCallback\(\(id: string\) => \{\n    dropFailures\(id\);/);
     expect(hook).toMatch(/useEffect\(\(\) => \{ dropFailures\(\); \}, \[data\.treeSeq\]\);/);
     expect(sourceOf("components/GitView.tsx")).toMatch(/reading=\{sel === UNCOMMITTED \? null : view\.commitFiles == null \? "loading" : Array\.isArray\(view\.commitFiles\) \? null : view\.commitFiles\}/);
+  });
+});
+
+describe("an indented line that wraps", () => {
+  const TOKEN = 'expect(sessionCookie(createSession("u2"))).toContain("HttpOnly");';
+  const patch = [
+    "@@ -1,3 +1,7 @@",
+    ' describe("session", () => {',
+    `+    ${TOKEN}`,
+    "-    const total = price * qty;",
+    "+    const total = price * quantity;",
+    "+\t\treturn total;",
+    `+${" ".repeat(40)}deep();`,
+    "+      ",
+    "-  foo();",
+    "+    foo();",
+    "",
+  ].join("\n");
+  const html = render({ diff: { ok: true, binary: false, patch, added: 6, removed: 2 } });
+  const code = (n: string) => new RegExp(`<span class="gvd-ln n2" aria-hidden="true">${n}</span>[\\s\\S]*?<span class="gvd-code">([\\s\\S]*?)</span></div>`).exec(html)?.[1] ?? "";
+
+  it("keeps its indent in a span of its own, so the indent stays on the numbered row and the code beside it", () => {
+    expect(code("2")).toBe(`<span class="vis-hidden">added: </span><span class="gvd-indent">    </span>${TOKEN.replace(/"/g, "&quot;")}`);
+    expect(code("4")).toBe('<span class="vis-hidden">added: </span><span class="gvd-indent">\t\t</span>return total;');
+    // Beside the changed words of a changed line too.
+    expect(code("3")).toMatch(/^<span class="vis-hidden">added: <\/span><span class="gvd-indent">    <\/span>const total = price \* <mark class="gvd-word">quantity<\/mark>;$/);
+    // A line whose indent alone changed.
+    expect(code("7")).toBe('<span class="vis-hidden">added: </span><span class="gvd-indent">    </span>foo();');
+  });
+
+  it("copies as it did: the indent is the same spaces and tabs, only wrapped in a span", () => {
+    expect(words(html)).toContain(`added: ${TOKEN}`);
+    expect(code("2").replace(/<[^>]+>/g, "")).toBe(`added:     ${TOKEN}`.replace(/"/g, "&quot;"));
+  });
+
+  it("leaves a line of only blanks, and an indent wider than a narrow pane holds, as they were", () => {
+    expect(code("6")).toBe('<span class="vis-hidden">added: </span>      ');
+    expect(code("5")).not.toContain("gvd-indent");
+  });
+
+  it("never wraps inside the indent, and only when the diff wraps", () => {
+    const css = sheetParts().find(([p]) => p === "styles/git-diff.css")![1].replace(/\s+/g, " ");
+    expect(css).toContain('.gvd[data-wrap="true"] .gvd-indent { white-space: pre; }');
   });
 });
 
