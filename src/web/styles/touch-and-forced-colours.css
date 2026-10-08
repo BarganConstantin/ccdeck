@@ -38,6 +38,11 @@
   .autofit-resume,
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
+  /* What's new's update line: its one button takes the floor, and the line
+     keeps that height whether the button is there or not, so an answer that
+     brings one still moves nothing. */
+  .release-notes .rn-line-act,
+  .release-notes .rn-update-line { min-height: 32px; }
   .autofit-chip ~ .rearrange-undo { transform: translateY(-46px); }
 }
 
@@ -109,6 +114,9 @@
      control fill has gone too. */
   .rail-btn-stripe::before,
   .rail-btn-dock::before { forced-color-adjust: none; background: Highlight; }
+  /* What's new's Check for updates while a check is out: the accent every
+     busy button takes is gone here, so the edge takes the highlight. */
+  .release-notes .rn-act[aria-busy="true"] { border-color: Highlight; }
   /* A pressed chip, a paused canvas and the open tab are drawn as a fill, and
      the theme paints every fill Canvas, so each looked like its neighbours:
      they fill with the highlight, the way an on switch does, and keep it

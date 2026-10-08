@@ -72,3 +72,27 @@ export const FeedbackGlyph = () => (
     <path d="M7 7.7v.05" />
   </Glyph>
 );
+
+// What's new's three actions (ReleaseActions.tsx), on the same spec. The arrow
+// is the one the Accounts panel's reload turns while it works, and this one
+// turns the same way while a check is out.
+
+export const TourGlyph = () => (
+  <Glyph>
+    <path d="M4.6 2.9v8.2L11.1 7Z" />
+  </Glyph>
+);
+
+export const UpdateCheckGlyph = () => (
+  <Glyph>
+    <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
+    <path d="M11.9 2.6v3.7h-3.6" />
+  </Glyph>
+);
+
+export const RestartGlyph = () => (
+  <Glyph>
+    <path d="M7 1.6v5" />
+    <path d="M4.2 3.6a4.8 4.8 0 1 0 5.6 0" />
+  </Glyph>
+);

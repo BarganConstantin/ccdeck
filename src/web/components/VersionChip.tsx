@@ -29,7 +29,7 @@ export default function VersionChip({
   now: number;
   openReleaseNotes: () => void;
   showNotice: () => void;
-  loadVersion: (force?: boolean) => Promise<void>;
+  loadVersion: (force?: boolean) => Promise<unknown>;
 }) {
   return (
     <>

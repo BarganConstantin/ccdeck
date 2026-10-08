@@ -21,6 +21,9 @@
   font-size: 12px;
   line-height: 18px;
 }
+/* A hint for a control inside a dialog, one above .modal-backdrop like the
+   add-account dialog's own overlay, or it would draw under the scrim. */
+.hint.hint-over-dialog { z-index: 101; }
 .hint:has(.hint-key) { padding-right: 4px; }
 .hint-head {
   display: inline-flex;
