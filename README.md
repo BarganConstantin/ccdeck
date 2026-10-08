@@ -166,9 +166,44 @@ and established TCP connections attributed to native Claude Code processes.
 Each connection shows its remote IP and port, PID, current working directory
 when readable, and last observation time — not the last upload time.
 
-The centered inspector separates live connections, observation history and
-configuration. Select a connection to inspect its metadata; payloads are
-explicitly marked as not captured, rather than inferred from session logs.
+The centered inspector separates telemetry contents, live connections,
+observation history and configuration. Connection metadata is never presented
+as evidence of what was uploaded.
+
+**Telemetry contents** supports opt-in passive capture of plaintext IPv4
+OTLP/gRPC over HTTP/2, including gzip. Choose a collector IPv4 address and port,
+press **Prepare capture**, then run the generated command in your own Terminal.
+Only macOS's `tcpdump` needs administrator permission; the local helper and
+ccdeck run as your ordinary user. Capture bytes are piped directly to a
+temporary, authenticated loopback receiver — no capture file is written and
+Claude's settings, destination and active sessions are left unchanged.
+
+Select an observed export to inspect its log bodies, attributes, resource
+metadata, decoded OTLP JSON and the captured protobuf message in Base64 (after
+decompression, preserving fields unknown to the v1.9.0 schema). Logs, metrics
+and traces are separate signals.
+The inspector distinguishes transfer observed, collector acceptance, partial
+success and rejection. Acceptance is not proof of persistence in the final
+backend. Payloads come from captured traffic, never inferred from transcripts.
+TLS, incomplete captures and connections joined mid-stream are reported as
+limitations; older uploads cannot be reconstructed. Wait for existing
+connections to reconnect naturally rather than restarting working sessions.
+
+Capture is filtered by address, **not by process**: another app sending to that
+same collector may appear. It does not inspect model API traffic, other
+destinations or Enterprise server-side capture. Contents are available only
+through the local loopback UI, not the LAN endpoints. There is no per-user
+isolation between local clients of the same ccdeck server.
+
+Captured exports stay in bounded server memory (100 exports, a 5-minute window,
+4 million characters across decoded payloads and retained Base64). Details
+are fetched only when selected.
+**Pause list** freezes the list, not capture or retention; **Clear captured
+contents** removes the retained exports. Activation expires after 10 minutes.
+Closing the modal does not stop capture. **Stop receiving** immediately
+invalidates the temporary token; also press **Ctrl+C in Terminal** to stop
+`tcpdump`, which may otherwise wait until its next write. The activation
+command contains a short-lived token; do not share it or paste it into logs.
 
 The radar reads only named telemetry variables from user settings, cached
 organization settings and the system managed-settings file; credentials,
@@ -182,9 +217,9 @@ Sampling runs every five seconds only while the radar is open and the page
 is visible, with bounded subprocess execution and shared recent results.
 Observation history is held in server memory, capped at 100 connections and
 five minutes; the next read clears it after more than 30 seconds without a
-sample. The radar does not inspect payloads, persist prompts, contact the
-collector, change Claude settings or block traffic. Short-lived connections,
-Node wrappers, UDP and other providers are outside this first version;
+sample. Connection sampling does not inspect payloads. Neither mode contacts
+the collector, changes Claude settings or blocks traffic. Native-process
+sampling may miss short-lived connections, Node wrappers, UDP and other providers;
 unsupported platforms and failed samples are shown explicitly.
 
 This is local machine information, not per-browser-user isolation: people

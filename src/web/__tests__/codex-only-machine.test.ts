@@ -470,7 +470,7 @@ describe("which panels the UI draws for each machine", () => {
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
     expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
-    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, browserWatch\]\]/);
+    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\]\]/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
 

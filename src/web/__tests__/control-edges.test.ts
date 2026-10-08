@@ -479,6 +479,10 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: ".tr-input", beds: ["--panel"] },
+  { at: ".tr-select", beds: ["--panel"] },
+  { at: '.tr-nav .btn[aria-pressed="true"]', fillFrom: '.tr-nav .btn[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.btn.tr-row[aria-pressed="true"]', fillFrom: '.btn.tr-row[aria-pressed="true"]', beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -860,7 +864,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    expect(EDGED_CONTROLS.length).toBeLessThan(115);
+    expect(EDGED_CONTROLS.length).toBeLessThan(120);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

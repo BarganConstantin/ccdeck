@@ -293,7 +293,7 @@ describe("a percentage width under a horizontal margin", () => {
       // `.sd-proc-name` does the same thing, and only misses this list because
       // its rule is scoped rather than bare.
       "pl-name",
-      "tool-bursts-svg", "uh-bar", "uh-bar-seg", "up-table",
+      "tool-bursts-svg", "tr-event-top", "uh-bar", "uh-bar-seg", "up-table",
     ]);
 
     const violations: string[] = [];

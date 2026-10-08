@@ -2,9 +2,11 @@ import { useState } from "react";
 import { captureSummary, radarStatus, type RadarSnapshot } from "../traffic-radar";
 import { useTrafficRadar } from "../use-traffic-radar";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import { useTelemetryCapture } from "../use-telemetry-capture";
+import { TelemetryCapture } from "./TelemetryCapture";
 
 type Connection = RadarSnapshot["connections"][number];
-type RadarPage = "connections" | "history" | "configuration";
+type RadarPage = "telemetry" | "connections" | "history" | "configuration";
 const connectionKey = (connection: Connection) => `${connection.pid}:${connection.destination}`;
 function Stamp({ at }: { at: number }) {
   return <time dateTime={new Date(at).toISOString()}>{new Date(at).toLocaleTimeString()}</time>;
@@ -14,19 +16,20 @@ export default function TrafficRadar({ onClose }: { onClose: () => void }) {
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const { snapshot, failed } = useTrafficRadar();
+  const captureState = useTelemetryCapture();
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
     <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" onClick={e => e.stopPropagation()}>
       <header className="modal-head">
-        <div className="modal-title"><span className="modal-tool-name" id="tr-title">Traffic Radar</span><span className="modal-tool-id">this machine · read-only</span></div>
+        <div className="modal-title"><span className="modal-tool-name" id="tr-title">Traffic Radar</span><span className="modal-tool-id">local telemetry inspection</span></div>
         <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
       </header>
-      <TrafficRadarView snapshot={snapshot} failed={failed} />
+      <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} />
     </div>
   </div>;
 }
 
-export function TrafficRadarView({ snapshot, failed = false }: { snapshot: RadarSnapshot | null; failed?: boolean }) {
-  const [page, setPage] = useState<RadarPage>("connections");
+export function TrafficRadarView({ snapshot, failed = false, captureState }: { snapshot: RadarSnapshot | null; failed?: boolean; captureState?: ReturnType<typeof useTelemetryCapture> }) {
+  const [page, setPage] = useState<RadarPage>(captureState ? "telemetry" : "connections");
   const [selected, setSelected] = useState<string | null>(null);
   const warning = failed || snapshot?.status === "unavailable";
   const supported = snapshot && snapshot.status !== "unsupported";
@@ -35,16 +38,19 @@ export function TrafficRadarView({ snapshot, failed = false }: { snapshot: Radar
   const chosen = selected ? connections.find(c => connectionKey(c) === selected) : rows[0];
   return <div className="tr-body">
     <div className="tr-overview">
+      {page === "telemetry" ? <><p className="tr-status">Inspect telemetry contents</p><p className="tr-note">Choose a collector, activate capture locally, then select an export. Configuration alone cannot prove what was sent.</p></> : <>
       <p className={`tr-status${warning ? " tr-warning" : ""}`} role="status">{radarStatus(snapshot, failed)}</p>
-      <p className="tr-note">A connection is not proof of a telemetry upload. No payloads are inspected.</p>
+      <p className="tr-note">A connection is not proof of a telemetry upload. Telemetry contents require explicit local capture.</p>
       {supported && <p className="tr-sample">{snapshot.processCount} Claude processes · {warning ? "Unknown" : connections.filter(c => c.active).length} active connections · sampled <Stamp at={snapshot.sampledAt} /> · every 5 seconds while visible</p>}
+      </>}
     </div>
     <div className="tr-nav" role="group" aria-label="Radar views">
+      {captureState && <button className="btn" aria-pressed={page === "telemetry"} onClick={() => setPage("telemetry")}>Telemetry contents</button>}
       <button className="btn" aria-pressed={page === "connections"} onClick={() => setPage("connections")}>Live connections</button>
       <button className="btn" aria-pressed={page === "history"} onClick={() => setPage("history")}>Observation history</button>
       <button className="btn" aria-pressed={page === "configuration"} onClick={() => setPage("configuration")}>Configuration</button>
     </div>
-    {supported && (page === "configuration" ? <Configuration snapshot={snapshot} /> : <div className="tr-workspace">
+    {page === "telemetry" && captureState ? <TelemetryCapture {...captureState} radar={snapshot} /> : supported && (page === "configuration" ? <Configuration snapshot={snapshot} /> : <div className="tr-workspace">
       <section className="tr-feed" aria-label={page === "connections" ? "Live connections" : "Observation history"}>
         <h3>{page === "connections" ? "Observed connections" : "Past and current observations"}</h3>
         <p className="tr-note">{page === "connections" ? "Select a destination to inspect its connection." : "Connection observations, not a record of sent requests. Kept in memory during observation."}</p>

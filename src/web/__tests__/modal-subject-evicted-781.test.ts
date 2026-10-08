@@ -121,8 +121,8 @@ describe("what App.tsx does about it", () => {
     // The feedback dialog joined in #1853. It is one of use-dialogs.ts's own,
     // opened by the reader, so App.tsx still hands over only the two it does
     // not own.
-    expect(gate).toMatch(/\|\| summaryFor != null \|\| browserWatchOpen \|\| keyHelpOpen \|\| releaseNotes != null\s*\|\| feedbackOpen;/);
-    expect(dialogs).toMatch(/useModalGate\(\{\s*openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,\s*feedbackOpen,\s*\}\)/);
+    expect(gate).toMatch(/\|\| summaryFor != null \|\| browserWatchOpen \|\| keyHelpOpen \|\| releaseNotes != null\s*\|\| feedbackOpen \|\| trafficRadarOpen;/);
+    expect(dialogs).toMatch(/useModalGate\(\{\s*openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,\s*feedbackOpen, trafficRadarOpen,\s*\}\)/);
     expect(app).toMatch(/useDialogs\(\{ stateRef, tourOpen, releaseNotes \}\)/);
   });
 });
