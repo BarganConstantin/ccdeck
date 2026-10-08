@@ -14,12 +14,14 @@ const ENDPOINT_KEYS = ["OTEL_EXPORTER_OTLP_ENDPOINT", ...SIGNALS.map(s => `OTEL_
 const EXPORTER_KEYS = SIGNALS.map(s => `OTEL_${s}_EXPORTER`);
 const INTERVAL_KEYS = ["OTEL_METRIC_EXPORT_INTERVAL", "OTEL_LOGS_EXPORT_INTERVAL", "OTEL_TRACES_EXPORT_INTERVAL"];
 const HEADER_KEYS = ["OTEL_EXPORTER_OTLP_HEADERS", ...SIGNALS.map(s => `OTEL_EXPORTER_OTLP_${s}_HEADERS`)];
-export const RADAR_KEYS = [...BOOLEAN_KEYS, ...ENDPOINT_KEYS, ...EXPORTER_KEYS, ...INTERVAL_KEYS, ...HEADER_KEYS];
+const PROTOCOL_KEYS = ["OTEL_EXPORTER_OTLP_PROTOCOL", ...SIGNALS.map(s => `OTEL_EXPORTER_OTLP_${s}_PROTOCOL`)];
+export const RADAR_KEYS = [...BOOLEAN_KEYS, ...ENDPOINT_KEYS, ...EXPORTER_KEYS, ...INTERVAL_KEYS, ...HEADER_KEYS, ...PROTOCOL_KEYS];
 
 export function safeRadarValue(key, raw) {
   if (HEADER_KEYS.includes(key)) return "Configured (hidden)";
   if (typeof raw !== "string" && typeof raw !== "number" && typeof raw !== "boolean") return "Invalid (value hidden)";
   const value = String(raw).trim();
+  if (PROTOCOL_KEYS.includes(key)) return ['grpc', 'http/protobuf', 'http/json'].includes(value) ? value : "Unknown (value hidden)";
   if (BOOLEAN_KEYS.includes(key)) {
     if (key === "OTEL_LOG_RAW_API_BODIES" && value.startsWith("file:")) return "Enabled (file destination hidden)";
     if (["1", "true"].includes(value)) return "Enabled";

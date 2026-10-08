@@ -431,6 +431,8 @@ export function isAuthorizedDataRead(req) {
  *  carries Sec-Fetch-Site: same-origin. */
 export const GUARDED_READS = new Set([
   "/api/system/traffic-radar",
+  "/api/system/traffic-radar/capture",
+  "/api/system/traffic-radar/capture/event",
   "/events",
   "/api/events",
   "/api/claude-accounts",
