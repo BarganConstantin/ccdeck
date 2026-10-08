@@ -350,21 +350,24 @@
   --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
 /* A POINTER ON THE NOTE, answered as one on its card is: the card's lift at
-   the full size, the card's tint at a distance, and in both the note's edge —
-   the session's hue, which is the mark a note has where a card has a stripe —
-   drawn firmer. The face's tint was always meant for it, and never reached it:
-   `.react-flow__node:hover .lod-face` weighs less than the plate above, which
-   names the face by both its classes. Neither is a ring, which is
-   selection's and the keyboard's, and nothing moves: a shadow and two
-   colours, no travel, so reduced motion has nothing to take back. The fade is the sheet's colour
-   hover, 120ms: a note is passed over tens of times a day, the card's 200ms is
-   long for that, and no fade at all reads as a flicker.
-   Everything here, the fades included, is behind `(hover: hover)`, so a tap on
-   a touch screen does not leave a note lit. */
+   the full size, and at every distance the card face's hover tint on the
+   note's plate and the note's edge — the session's hue, which is the mark a
+   note has where a card has a stripe — drawn firmer. The tint is what carries
+   it at the full size on the dark canvas, where a shadow is next to invisible
+   and the edge alone read as no change. The face's tint was always meant for
+   it, and never reached it: `.react-flow__node:hover .lod-face` weighs less
+   than the plate above, which names the face by both its classes. None of it
+   is a ring, which is selection's and the keyboard's, and nothing moves: a
+   shadow and three colours, no travel, so reduced motion has nothing to take
+   back. The fade is the sheet's colour hover, 120ms: a note is passed over
+   tens of times a day, the card's 200ms is long for that, and no fade at all
+   reads as a flicker. Everything here, the fades included, is behind
+   `(hover: hover)`, so a tap on a touch screen does not leave a note lit. */
 @media (hover: hover) {
-  .recap-note { transition: border-color 120ms ease, box-shadow 120ms ease; }
+  .recap-note { transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
   .lod-face.recap-face { transition: background-color 120ms ease, border-color 120ms ease; }
   .canvas-wrap[data-lod="detail"] .recap-note:hover {
+    background: color-mix(in srgb, var(--text) 6%, var(--panel));
     border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
     box-shadow: var(--shadow-2);
   }

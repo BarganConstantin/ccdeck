@@ -10,9 +10,11 @@
 // node it is dragging: a dragged card showed `grabbing`, a dragged note kept
 // the open hand.
 //
-// What a pointer gets now: the card's lift at the full size and the card's
-// tint at a distance, with the note's own edge (the session's hue) drawn
-// firmer. Behind `(hover: hover)`, so a tap on a touch screen does not leave
+// What a pointer gets now: the card's lift at the full size, and at every
+// distance the card face's hover tint on the note's plate and the note's own
+// edge (the session's hue) drawn firmer. A shadow is next to invisible on the
+// dark canvas, so at the full size the tint is what says the note heard the
+// pointer. Behind `(hover: hover)`, so a tap on a touch screen does not leave
 // it lit. The hand stays an open hand at rest and closes during a drag, and
 // nothing on the canvas promises a click with `cursor: pointer`, which this
 // sheet keeps for controls that press (canvas-motion.test.ts).
@@ -119,6 +121,14 @@ describe("a full-size note under the pointer", () => {
   for (const theme of THEMES) for (const kind of NOTE_KINDS) {
     const name = `${theme}, ${kind.join(".")}`;
 
+    it(`takes the card face's hover tint on its plate (${name})`, () => {
+      const rest = cascadeOn(note(theme, "detail", false, kind), "background", mouse);
+      const hovered = cascadeOn(note(theme, "detail", true, kind), "background", mouse);
+      expect(rest, "the note's resting plate").toBe("var(--panel)");
+      expect(hovered, "the plate under the pointer").not.toBe(rest);
+      expect(hovered).toBe(cascadeOn(cardFace(theme, "compact", true), "background", mouse));
+    });
+
     it(`lifts as the card lifts (${name})`, () => {
       expect(cascadeOn(note(theme, "detail", false, kind), "box-shadow", mouse)).toBe(cascadeOn(card(theme, false), "box-shadow", mouse));
       expect(cascadeOn(note(theme, "detail", true, kind), "box-shadow", mouse)).toBe(cascadeOn(card(theme, true), "box-shadow", mouse));
@@ -133,7 +143,7 @@ describe("a full-size note under the pointer", () => {
     });
 
     it(`stays as it rests after a tap on a touch screen (${name})`, () => {
-      for (const prop of ["box-shadow", "border-color"])
+      for (const prop of ["background", "box-shadow", "border-color"])
         expect(cascadeOn(note(theme, "detail", true, kind), prop, touch), prop).toBe(cascadeOn(note(theme, "detail", false, kind), prop, touch));
     });
   }
@@ -141,7 +151,7 @@ describe("a full-size note under the pointer", () => {
   it("fades into the hover on what changes, and moves nothing", () => {
     const eased = (cascadeOn(note("dark", "detail", false), "transition", mouse) ?? "none");
     const props = splitTop(eased).map(p => p.split(/\s+/)[0]);
-    expect(props).toEqual(expect.arrayContaining(["border-color", "box-shadow"]));
+    expect(props).toEqual(expect.arrayContaining(["background-color", "border-color", "box-shadow"]));
     for (const moving of ["all", "transform", "translate", "scale", "top", "left", "margin", "width", "height"])
       expect(props, `the hover would carry the note through ${moving}`).not.toContain(moving);
   });
