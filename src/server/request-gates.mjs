@@ -430,6 +430,9 @@ export function isAuthorizedDataRead(req) {
  *  costs nothing: every fetch of both is in src/web, and a page's own GET
  *  carries Sec-Fetch-Site: same-origin. */
 export const GUARDED_READS = new Set([
+  "/api/system/traffic-radar",
+  "/api/system/traffic-radar/capture",
+  "/api/system/traffic-radar/capture/event",
   "/events",
   "/api/events",
   "/api/claude-accounts",

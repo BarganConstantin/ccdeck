@@ -14,7 +14,7 @@ import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
 import {
   AccountsGlyph, BrowserWatchGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph,
+  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph,
 } from "./components/rail-glyphs";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -42,7 +42,7 @@ export function browserWatchDetail(watchOn: boolean | null, unread: number): str
 export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-  watchOn, watchUnseen, setBrowserWatchOpen, openSettings, onFeedback, toggles,
+  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, openSettings, onFeedback, toggles,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -59,6 +59,7 @@ export function railItems({
   /** Findings nobody has looked at yet. */
   watchUnseen: number;
   setBrowserWatchOpen: Toggle;
+  setTrafficRadarOpen?: Toggle;
   /** The one door into Settings (use-settings-menus.ts). */
   openSettings: (section?: SettingsSection) => void;
   onFeedback: () => void;
@@ -125,7 +126,11 @@ export function railItems({
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
     left: providers.claude ? [accounts, sessionList] : [sessionList],
-    right: [[usage, machine], [history, browserWatch]],
+    right: [[usage, machine], [history, browserWatch, ...(setTrafficRadarOpen ? [{
+      id: "traffic-radar", label: "Traffic Radar", short: "Radar", ariaLabel: "Traffic Radar",
+      glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
+      detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),
+    }] : [])]],
     utilities: [settings, feedback],
   };
 }

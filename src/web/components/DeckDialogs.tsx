@@ -54,6 +54,7 @@ import ToolModal from "./ToolModal";
 // the new build no longer has — fails that dialog alone; see LazyDialog.tsx.
 const UsageHistoryModal = lazyDialog(() => import("./UsageHistoryModal"), "Usage history");
 const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), "Browser Watch");
+const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Traffic Radar");
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
@@ -88,6 +89,7 @@ export default function DeckDialogs({
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
           setKeyHelpOpen, feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill } = dialogs;
+  const { trafficRadarOpen, setTrafficRadarOpen } = dialogs;
   const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion } = welcome;
   const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate, askDesktopUpdateRestart } = desktopUpdate;
   const { version } = versionCheck;
@@ -134,6 +136,9 @@ export default function DeckDialogs({
         </Suspense>
       )}
       {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
+      {trafficRadarOpen && <Suspense fallback={null}>
+        <TrafficRadar onClose={() => setTrafficRadarOpen(false)} />
+      </Suspense>}
       {feedbackOpen && (
         <FeedbackDialog
           initialKind={feedbackPrefill?.initialKind}

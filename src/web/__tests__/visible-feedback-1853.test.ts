@@ -180,7 +180,7 @@ describe("the dialogs hook gives every opener one door", () => {
   it("leaves the modal gate reading feedbackOpen, exactly as it did", () => {
     // The gate is what other suites pin; the prefill is new state beside it, not
     // a change to the call.
-    expect(dialogs).toMatch(/useModalGate\(\{[\s\S]*?keyHelpOpen, releaseNotes,\s*feedbackOpen,\s*\}\)/);
+    expect(dialogs).toMatch(/useModalGate\(\{[\s\S]*?keyHelpOpen, releaseNotes,\s*feedbackOpen, trafficRadarOpen,\s*\}\)/);
   });
 
   it("clears the prefill when the dialog closes, so a blank open cannot inherit one", () => {

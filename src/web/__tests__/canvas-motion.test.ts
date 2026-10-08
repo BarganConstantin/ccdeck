@@ -262,6 +262,7 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  it is the spec for what a pressable control does rather than a record of
  *  which ones had been got to. */
 const PRESSES: Press[] = [
+  [".tr-details > summary:active", "0.97", "transform"],
   ["button.btn:active:not(:disabled)", "0.97", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —
   // `.sd-close` at 0.97 and `.detail-close`, `.ctx-modal-close` and `.uh-close`

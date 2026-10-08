@@ -53,7 +53,7 @@ describe("the deck's modals", () => {
     // The twenty-fourth is Settings, behind the gear and Cmd/Ctrl+,. The
     // Appearance modal it replaced was never counted here: its backdrop wore
     // two classes, which the sweep's one-class pattern does not match.
-    expect(MODALS.length).toBe(24);
+    expect(MODALS.length).toBe(25);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

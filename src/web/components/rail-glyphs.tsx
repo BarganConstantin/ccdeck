@@ -49,6 +49,14 @@ export const MachineGlyph = () => (
   </Glyph>
 );
 
+export const TrafficRadarGlyph = () => (
+  <Glyph>
+    <circle cx="7" cy="7" r="5" />
+    <path d="M7 2v5l3.5-3.5" />
+    <circle cx="4.5" cy="8.5" r=".7" />
+  </Glyph>
+);
+
 export const BrowserWatchGlyph = ({ watching }: { watching: boolean }) => (
   <Glyph>
     <path d="M0.9 7s2.2-4 6.1-4 6.1 4 6.1 4-2.2 4-6.1 4S0.9 7 0.9 7Z" />

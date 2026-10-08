@@ -219,7 +219,7 @@ describe("the modals themselves", () => {
       // #723's share picker, named here for the same reason as the three
       // above: this is how it joins the loop below, not how it leaves it.
       "ShareAccountsDialog.tsx",
-      "ToolModal.tsx", "UsageHistoryModal.tsx",
+      "ToolModal.tsx", "TrafficRadar.tsx", "UsageHistoryModal.tsx",
     ]);
     for (const [name, src] of withBackdrop) {
       expect(`${name}: ${src.includes("useModalDismiss(")}`).toBe(`${name}: true`);

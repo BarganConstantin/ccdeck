@@ -26,6 +26,7 @@
 @import "./styles/selection-ribbon.css";         /* the selected-agent ribbon */
 @import "./styles/topbar-status.css";            /* the topbar's status strip and the ribbon's caps */
 @import "./styles/machine-panel.css";            /* the machine panel */
+@import "./styles/traffic-radar.css";
 @import "./styles/topbar-controls.css";          /* the live pill, the waiting count and the toolbar buttons */
 @import "./styles/panel-glyph.css";              /* the glyph a panel header closes with */
 @import "./styles/search-and-banners.css";       /* search, and the connection and version banners */

@@ -559,7 +559,7 @@ function Inner() {
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-    watchOn, watchUnseen, setBrowserWatchOpen, openSettings, onFeedback: dialogs.openFeedback,
+    watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     toggles: panelReturn.toggles,
   });
   // How many of the waiting sessions the topbar names, for the count's hint,

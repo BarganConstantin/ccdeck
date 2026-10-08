@@ -60,6 +60,7 @@
    length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
+  .btn.tr-row[aria-pressed="true"], .tr-nav .btn[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
   .topbar .status .pill.live::before,
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,
@@ -265,4 +266,3 @@
   .autofit-resume:hover,
   .rearrange-undo-act:hover { border-color: Highlight; }
 }
-
