@@ -817,8 +817,11 @@ const DiffBlock = memo(function DiffBlock({ block, rows, watch, heights, onDrawn
       {h.lines.slice(block.from, block.to).map((l, i) => {
         const li = block.from + i;
         const syn = rows.spans?.[hi * 2 + (l.kind === "del" ? 0 : 1)]?.[rows.sideAt[hi]?.[li]];
+        // A wrapped line's next rows hang under its own code (git-diff.css).
+        const ind = indentOf(l.text).cols;
         return (
-          <div key={keys[li]} className="gvd-line" data-k={keys[li]} data-kind={l.kind} data-fresh={rows.fresh.has(`${hi}:${li}`) ? "" : undefined}>
+          <div key={keys[li]} className="gvd-line" data-k={keys[li]} data-kind={l.kind} data-fresh={rows.fresh.has(`${hi}:${li}`) ? "" : undefined}
+            style={ind ? ({ "--gvd-ind": `${ind}ch` } as React.CSSProperties) : undefined}>
             <span className="gvd-ln n1" aria-hidden="true">{l.old ?? ""}</span>
             <span className="gvd-ln n2" aria-hidden="true" data-old={l.kind === "del" ? l.old ?? undefined : undefined}>{l.new ?? ""}</span>
             <span className="gvd-glyph" aria-hidden="true">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : ""}</span>
@@ -856,14 +859,14 @@ function visible(text: string, key: string | number): React.ReactNode {
  *  wrapped line's numbered row: a deeper one could be wider than a narrow pane. */
 const INDENT_KEEP = 32;
 
-/** How many of a line's first characters are its indent: the spaces and tabs
- *  before its code. None on a line of only blanks, or one indented deeper than
- *  INDENT_KEEP. */
-function indentOf(text: string): number {
+/** A line's indent, the spaces and tabs before its code: how many characters
+ *  it is, and how many columns it takes (a tab to the next four). None on a
+ *  line of only blanks, or one indented deeper than INDENT_KEEP. */
+function indentOf(text: string): { chars: number; cols: number } {
   const lead = /^[ \t]+(?=[^ \t])/.exec(text)?.[0] ?? "";
   let cols = 0;
   for (const ch of lead) cols = ch === "\t" ? cols + 4 - (cols % 4) : cols + 1;
-  return cols <= INDENT_KEEP ? lead.length : 0;
+  return cols <= INDENT_KEEP ? { chars: lead.length, cols } : { chars: 0, cols: 0 };
 }
 
 /** A line's text in segments: syntax tones inside, the changed words marked.
@@ -873,7 +876,7 @@ function indentOf(text: string): number {
 function codeOf(text: string, syn: LineSpans | undefined, words: Range[] | undefined): React.ReactNode {
   // An empty line copies as an empty line, not as a space.
   if (!text) return <br />;
-  const lead = indentOf(text);
+  const lead = indentOf(text).chars;
   const indent = (body: React.ReactNode) => <span key="indent" className="gvd-indent">{body}</span>;
   if (!syn?.length && !words?.length) {
     return lead ? [indent(text.slice(0, lead)), <React.Fragment key="t">{visible(text.slice(lead), "t")}</React.Fragment>] : visible(text, "t");

@@ -263,6 +263,11 @@
    and the code un-indented on the row below. Still spaces and tabs: a copy is
    the same. */
 .gvd[data-wrap="true"] .gvd-indent { white-space: pre; }
+/* And the rows a long line wraps onto hang under its own code, its indent's
+   width in (`--gvd-ind`, set per line in columns by GitDiff.tsx), so a line in
+   a nested block reads as nested on every row; the first row stays where it
+   was. A copy is unchanged: the indent is padding, not text. */
+.gvd[data-wrap="true"] .gvd-code { padding-left: calc(4px + var(--gvd-ind, 0ch)); text-indent: calc(0px - var(--gvd-ind, 0ch)); }
 
 .gvd-more {
   position: sticky;
