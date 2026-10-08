@@ -294,10 +294,9 @@ describe("the Fork row in the sheet", () => {
     expect(tier(479)).toMatch(/\.fk-chip\[data-quiet\] \{ display: none; \}/);
     expect(tier(479)).not.toMatch(/\.fk-chip \{ display: none/);
     expect(tier(479)).toMatch(/\.fk-chip \.gv-agent-name \{ display: none; \}/);
-    expect(tier(479)).toMatch(/\.fk-chip \.fk-chip-sub \{ display: inline; \}/);
+    expect(tier(479)).toMatch(/\.fk-chip \.gv-chip-sub \{ display: inline; \}/);
     expect(tier(479)).toMatch(/\.fk-chip\[data-level="trailer"\] \{ display: none; \}/);
-    expect(rule(`${F} .fk-chip-sub`)).toMatch(/display: none;/);
-    expect(sourceOf("components/GitGraph.tsx")).toMatch(/\{agent\.sub && <span className="fk-chip-sub" aria-hidden="true">↳<\/span>\}/);
+    expect(sourceOf("components/GitGraph.tsx")).toMatch(/\{agent\.sub && <span className="gv-chip-sub" aria-hidden="true">↳<\/span>\}/);
   });
 
   it("lets the subject give way before the agent's name, the chip never below its swatch and five letters", () => {

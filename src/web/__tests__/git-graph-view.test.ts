@@ -106,6 +106,17 @@ describe("the history list, as the markup builds it", () => {
     expect(effect).toMatch(/reveal\(selected, lastSelected\.current === ""\);/);
   });
 
+  it("gives a phone's rows to their subjects, as the Fork look does: the chip keeps its swatch and a subagent's ↳", () => {
+    // The deck look's own tier (the Fork look has one of its own, scoped under it).
+    const at = sheet.indexOf("@container gvhist (max-width: 479px) {\n  .gv-agent-chip {");
+    expect(at).toBeGreaterThan(-1);
+    const tier = sheet.slice(at, sheet.indexOf("\n}\n", at));
+    expect(tier).toMatch(/\.gv-agent-chip \.gv-agent-name \{ display: none; \}/);
+    expect(tier).toMatch(/\.gv-agent-chip \.gv-chip-sub \{ display: inline; \}/);
+    expect(tier).toMatch(/\.gv-agent-chip\.is-quiet, \.gv-agent-chip\[data-level="trailer"\] \{ display: none; \}/);
+    expect(sheet).toMatch(/\.gv-chip-sub \{ display: none; \}/);
+  });
+
   it("moves nothing from the keyboard: a key reveals its row at once", () => {
     expect(src).toMatch(/const reveal = useCallback\(/);
     const reveal = src.slice(src.indexOf("const reveal = useCallback("), src.indexOf("reveal(selected, true)"));
