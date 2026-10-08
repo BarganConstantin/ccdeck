@@ -118,10 +118,13 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   // Other agents are named the way their cards are (git-agent-name.ts).
   const nameOf = (sessionId: string, agentId: string | null) => agentNameIn(stateRef.current.agents, sessionId, agentId);
   // The team's own first; a subagent's own is named as its (git-view-words.ts).
-  const collision = focusCollisions(root?.gitCollisions, focus,
-    k => stateRef.current.agents.get(`${agent.sessionId}::${k}`)?.git != null)[0] ?? null;
-  // Named as the card's own collision mark names it.
+  const collisions = focusCollisions(root?.gitCollisions, focus,
+    k => stateRef.current.agents.get(`${agent.sessionId}::${k}`)?.git != null);
+  const collision = collisions[0] ?? null;
+  // Named as the card's own collision mark names it, the rest of its kind
+  // counted after the name and named on hover.
   const other = collision ? otherAgentName(nameOf, collision.with) : "";
+  const also = collision ? collisions.filter(c => c !== collision && c.level === collision.level).map(c => ({ name: otherAgentName(nameOf, c.with), files: c.files })) : [];
   const who = collision ? collision.who.map(k => otherAgentName(nameOf, { sessionId: agent.sessionId, agentId: k })) : [];
   const own = (data.commits ?? []).filter(c => madeByFocus(c, focus));
   const showCommits = collision ? 2 : 3;
@@ -147,7 +150,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         </p>
       )}
       {collision && (
-        <CollisionLine c={collision} who={who} other={other} otherCli={null} where="glance"
+        <CollisionLine c={collision} who={who} other={other} otherCli={null} where="glance" also={also}
           onFocus={how => goToAgentCard(collisionTarget(stateRef.current.agents, collision.with), how)} />
       )}
       {data.commits && !own.length && <p className="gv-line-empty">No commits from this {scopeWord} yet.</p>}

@@ -133,7 +133,8 @@ describe("the sharp mark: the same file, edited by two live agents since it was 
     const line = sourceOf("components/GitViewParts.tsx");
     expect(line).not.toMatch(/are running/);
     // One sentence for every line the collision draws, wide and glance alike.
-    expect(line).toMatch(/const ended = who\.length > 1 \? "None of them has ended\." : "Neither has ended\.";/);
+    // Three or more agents in it (the others counted after the first) are "none of them".
+    expect(line).toMatch(/const many = Math\.max\(1, who\.length\) \+ 1 \+ also\.length > 2;\s*const ended = many \? "None of them has ended\." : "Neither has ended\.";/);
     expect(line.match(/\$\{ended\}|\{ended\}/g)?.length).toBeGreaterThanOrEqual(3);
     expect(marks.get(BUG)).toMatchObject({ level: "sharp", target: UI, said: "also edited by web-ui" });
   });

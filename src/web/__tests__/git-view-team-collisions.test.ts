@@ -94,11 +94,31 @@ describe("the collision line", () => {
     expect(line([], "glance", q)).toContain("Shares this folder with web-ui");
   });
 
+  it("counts the other agents of the same kind after the first, as the card does, and names them all on hover", () => {
+    const q = { level: "quiet" as const, with: { sessionId: "s2", agentId: null }, files: [], reason: "same-worktree" as const, by: [null] };
+    const html = (c: Parameters<typeof CollisionLine>[0]["c"], where: "wide" | "glance") =>
+      renderToStaticMarkup(createElement(CollisionLine, { c, who: [], other: "develop-hotfix", otherCli: null, where, onFocus: () => {}, also: [{ name: "shop-api · 0005", files: [] }] }));
+    for (const where of ["wide", "glance"] as const) {
+      const out = html(q, where);
+      expect(out.replace(/<[^>]+>/g, ""), where).toContain("Shares this folder with develop-hotfix +1");
+      expect(out, where).toMatch(/title="develop-hotfix and shop-api · 0005 work in the same folder\. Select develop-hotfix\."/);
+    }
+    const two = { ...sharp, by: [null] };
+    const sharpHtml = renderToStaticMarkup(createElement(CollisionLine, { c: two, who: [], other: "web-ui", otherCli: null, where: "wide", onFocus: () => {}, also: [{ name: "web-bugfix", files: ["src/app.ts"] }] }));
+    expect(sharpHtml.replace(/<[^>]+>/g, "")).toContain("web-ui +1 also edited README.md");
+    expect(sharpHtml).toContain("Also web-bugfix: src/app.ts.");
+    // One other agent: nothing is counted.
+    expect(line([], "wide", q)).not.toContain("+");
+  });
+
   it("is fed the team's collisions with who they are about, in the view and the glance", () => {
     for (const file of ["components/GitView.tsx", "components/GitGlance.tsx"]) {
       const src = sourceOf(file);
       expect(src, file).toMatch(/focusCollisions\(root\?\.gitCollisions, focus,/);
       expect(src, file).toMatch(/<CollisionLine c=\{collision\} who=\{/);
+      // The rest of its kind, counted and named.
+      expect(src, file).toMatch(/collisions\.filter\(c => c !== collision && c\.level === collision\.level\)/);
+      expect(src, file).toMatch(/also=\{also\}/);
     }
     // A subagent's collision in a folder of its own marks no file of this folder.
     expect(sourceOf("components/GitView.tsx")).toMatch(/collisions\.filter\(c => c\.level === "sharp" && !c\.away\)/);

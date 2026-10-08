@@ -1140,6 +1140,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // session's own agents it is about.
   const otherOf = (c: { with: GitCollisionRef }) => otherAgentName(nameOf, c.with);
   const whoOf = (c: { who: string[] }) => c.who.map(k => otherAgentName(nameOf, { sessionId: agent.sessionId, agentId: k }));
+  // The rest of the first collision's kind, counted after the other agent's
+  // name and named on hover, as the card's own mark does.
+  const also = collision ? collisions.filter(c => c !== collision && c.level === collision.level).map(c => ({ name: otherOf(c), files: c.files })) : [];
   const cliOf = (c: { with: { sessionId: string } }) => {
     const m = stateRef.current.agents.get(c.with.sessionId)?.model ?? "";
     return /^(gpt|o\d|codex)/i.test(m) ? "Codex" : m ? "Claude Code" : null;
@@ -1206,7 +1209,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
       setJumpNote(n => ({ text, n: (n?.n ?? 0) + 1 }));
     };
     const collisionNode = collision && (
-      <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
+      <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide" also={also}
         onFocus={how => {
           const id = collisionTarget(stateRef.current.agents, collision.with);
           onSelectAgent(id);
@@ -1398,7 +1401,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           </div>
         </header>
         {collision && (
-          <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
+          <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide" also={also}
             onFocus={how => {
               // The view follows the selection to the other agent; a pointer also lights its card once.
               const id = collisionTarget(stateRef.current.agents, collision.with);
