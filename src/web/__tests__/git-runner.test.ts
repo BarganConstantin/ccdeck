@@ -4,7 +4,7 @@
 // is shown happening with plain git first, so the case cannot pass merely
 // because the trap was never armed.
 import { afterAll, describe, expect, it } from "vitest";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
@@ -312,6 +312,29 @@ describe("a partial clone", () => {
     // Plain git, asked for the same counts, goes to the remote for them.
     try { sh(dst, ["diff-tree", "-r", "--numstat", `${two}~1`, two]); } catch { /* the fetch may fail; it was tried */ }
     expect(existsSync(marker), "plain git should have fetched").toBe(true);
+  });
+
+  it("says a treeless clone's older commit is not downloaded, which reading again cannot mend, and fetches nothing", async () => {
+    const { dst, two, marker, packs } = cloned("tree:0");
+    const before = packs();
+    // Its trees, and its parent's, were never downloaded.
+    expect(await readCommit(dst, two)).toEqual({ ok: false, reason: "not-downloaded" });
+    expect(packs()).toBe(before);
+    expect(existsSync(marker)).toBe(false);
+
+    try { sh(dst, ["diff-tree", "-r", "--numstat", `${two}~1`, two]); } catch { /* tried */ }
+    expect(existsSync(marker), "plain git should have fetched").toBe(true);
+  });
+
+  it("still calls a tree missing from an ordinary repository an error, not a download it never made", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    write(dir, { "a.txt": "two\n" });
+    const two = commitAll(dir, "two");
+    const tree = sh(dir, ["rev-parse", `${two}~1^{tree}`]).trim();
+    const loose = join(dir, ".git", "objects", tree.slice(0, 2), tree.slice(2));
+    chmodSync(loose, 0o644);
+    unlinkSync(loose);
+    expect(await readCommit(dir, two)).toEqual({ ok: false, reason: "error" });
   });
 
   it("never fetches old trees to tell when a file was last committed", async () => {

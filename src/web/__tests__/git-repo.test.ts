@@ -70,6 +70,18 @@ describe("resolveRepo", () => {
     expect((await resolveRepo(main)).head.branch).toBe("main");
   });
 
+  it("names the project folder, not the hidden git directory, for a bare repository kept beside its worktrees", async () => {
+    // git clone --bare <url> .bare; echo "gitdir: ./.bare" > .git; git worktree add …
+    const src = track(repoWith({ "a.txt": "one\n" }));
+    const project = join(track(tempDir("ccdeck-git-bare-wt-")), "shop");
+    mkdirSync(project);
+    sh(project, ["clone", "-q", "--bare", src, ".bare"]);
+    write(project, { ".git": "gitdir: ./.bare\n" });
+    sh(project, ["worktree", "add", "-q", "-b", "feature", "feature"]);
+    const r = await resolveRepo(join(project, "feature"));
+    expect(r).toMatchObject({ state: "repo", topLevel: join(project, "feature"), commonDir: join(project, ".bare"), linkedWorktree: true, name: "feature", mainName: "shop" });
+  });
+
   it("calls a repository with no commits empty, with HEAD on a branch that has none yet", async () => {
     const dir = track(emptyRepo());
     const r = await resolveRepo(dir);

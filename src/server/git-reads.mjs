@@ -20,6 +20,13 @@ const US = "\x1f";
 // SHA, parents, author name, author email, author date (strict ISO), subject,
 // body. The body is last so a unit separator inside one cannot shift a field.
 const LOG_FORMAT = ["%H", "%P", "%an", "%ae", "%aI", "%s", "%b"].join("%x1f");
+/** The most a read of LOG_FORMAT may print. A commit message has no limit of
+ *  its own (a generated changelog, a squash listing thousands of commits),
+ *  and one past the usual cap would fail the whole history. */
+const LOG_BYTES = 64 << 20;
+/** The most the read of every ref may print: a pull-request refspec on a busy
+ *  project, or a tag per build, can pass a hundred thousand refs. */
+const ALL_REFS_BYTES = 64 << 20;
 
 /** The reasons a read inside a repository answers with; anything else that
  *  went wrong is "error". "not-downloaded" is a partial clone that does not
@@ -82,14 +89,17 @@ export function parseLogRecord(record) {
   };
 }
 
+const REF_LINE = "--format=%(objectname)%00%(*objectname)%00%(refname)%00%(symref)%00%(upstream)";
+
 /** Every branch, remote-tracking branch and tag, by the commit it names; a
  *  branch whose configured upstream is a remote-tracking branch has it in its
- *  commit's `upstream`, by name (`{ develop: "origin/develop" }`). */
-async function refsByCommit(topLevel) {
-  const r = await git("for-each-ref", ["--format=%(objectname)%00%(*objectname)%00%(refname)%00%(symref)%00%(upstream)", "refs/heads", "refs/remotes", "refs/tags"], { cwd: topLevel });
+ *  commit's `upstream`, by name (`{ develop: "origin/develop" }`). When there
+ *  are too many to read, HEAD's branch and its upstream alone (headRefLines). */
+async function refsByCommit(topLevel, head, maxBytes = ALL_REFS_BYTES) {
+  const r = await git("for-each-ref", [REF_LINE, "refs/heads", "refs/remotes", "refs/tags"], { cwd: topLevel, maxBytes });
   const map = new Map();
-  if (!r.ok) return map;
-  for (const line of r.stdout.split("\n")) {
+  const stdout = r.ok ? r.stdout : await headRefLines(topLevel, head);
+  for (const line of stdout.split("\n")) {
     if (!line) continue;
     const [obj, peeled, ref, symref, upstream] = line.split("\0");
     // origin/HEAD and its kind point at another ref, which is listed itself.
@@ -105,6 +115,22 @@ async function refsByCommit(topLevel) {
     map.set(at, slot);
   }
   return map;
+}
+
+/** refsByCommit's lines for HEAD's branch and the remote-tracking branch it
+ *  follows: what the history needs most when every ref cannot be read, so
+ *  HEAD is still shown on its branch and what it has not pushed is still
+ *  flagged. Both names are git's own (symbolic-ref, %(upstream)), so each is
+ *  a ref name and never an option. Empty for a detached HEAD. */
+async function headRefLines(topLevel, head) {
+  if (!head?.branch || head.detached) return "";
+  const one = (ref) => git("for-each-ref", ["--count=1", REF_LINE, ref], { cwd: topLevel, maxBytes: 64 << 10 });
+  const own = await one(`refs/heads/${head.branch}`);
+  if (!own.ok) return "";
+  const upstream = own.stdout.split("\0")[4]?.trim() ?? "";
+  if (!upstream.startsWith("refs/remotes/")) return own.stdout;
+  const up = await one(upstream);
+  return own.stdout + (up.ok ? up.stdout : "");
 }
 
 /** How many commits of HEAD's own line the history lists after the window
@@ -158,13 +184,13 @@ const MAX_SLOW_TOPO = 256;
  *
  * `{ ok: true, commits }`, or `{ ok: false, reason }` for a read that failed.
  */
-export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = null, topoBudgetMs = TOPO_BUDGET_MS, defaultBranch = null } = {}) {
-  const refs = await refsByCommit(topLevel);
+export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = null, topoBudgetMs = TOPO_BUDGET_MS, defaultBranch = null, refsBytes = ALL_REFS_BYTES } = {}) {
+  const refs = await refsByCommit(topLevel, head, refsBytes);
   const starts = ["--branches", "--remotes", "--tags"];
   if (head?.sha) starts.push("HEAD");
   if (!head?.sha && refs.size === 0) return { ok: true, commits: [] };
   const read = (topo, timeout) =>
-    git("log", ["-z", ...(topo ? ["--topo-order"] : []), `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"], { cwd: topLevel, ...(timeout ? { timeout } : {}) });
+    git("log", ["-z", ...(topo ? ["--topo-order"] : []), `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"], { cwd: topLevel, maxBytes: LOG_BYTES, ...(timeout ? { timeout } : {}) });
   const key = commonDir || topLevel;
   const graph = await hasCommitGraph(commonDir);
   const finish = async (commits) => withUnpushed(topLevel, await withHeadLine(topLevel, commits, refs, head, defaultBranch), refs, head, limit);
@@ -219,7 +245,7 @@ async function withUnpushed(topLevel, commits, refs, head, limit) {
  *  A read of that line that fails leaves the window as it is. */
 async function withHeadLine(topLevel, commits, refs, head, defaultBranch) {
   if (!head?.sha || !isShaLike(head.sha) || commits.some((c) => c.sha === head.sha)) return commits;
-  const r = await git("log", ["-z", "--first-parent", `--max-count=${HEAD_LINE_MAX}`, `--format=${LOG_FORMAT}`, head.sha, "--"], { cwd: topLevel });
+  const r = await git("log", ["-z", "--first-parent", `--max-count=${HEAD_LINE_MAX}`, `--format=${LOG_FORMAT}`, head.sha, "--"], { cwd: topLevel, maxBytes: LOG_BYTES });
   if (!r.ok) return commits;
   const listed = new Set(commits.map((c) => c.sha));
   const line = [];
@@ -346,8 +372,8 @@ export async function readCommitsBySha(topLevel, shas, head, { defaultBranch = n
   const lost = await git("rev-list", ["--ignore-missing", ...list, "--not", ...ends, "--"], { cwd: topLevel });
   if (!lost.ok) return { ok: false, reason: readFailure(lost) };
   const gone = new Set(lost.stdout.split("\n").map((l) => l.trim()).filter(Boolean));
-  const refs = await refsByCommit(topLevel);
-  const r = await git("log", ["-z", "--no-walk", "--ignore-missing", `--format=${LOG_FORMAT}`, ...list, "--"], { cwd: topLevel });
+  const refs = await refsByCommit(topLevel, head);
+  const r = await git("log", ["-z", "--no-walk", "--ignore-missing", `--format=${LOG_FORMAT}`, ...list, "--"], { cwd: topLevel, maxBytes: LOG_BYTES });
   if (!r.ok) return { ok: false, reason: readFailure(r) };
   const kept = withRefs(r.stdout, refs, head).filter((c) => !gone.has(c.sha));
   return { ok: true, commits: await withReach(topLevel, kept, refs, head, defaultBranch) };
@@ -811,6 +837,11 @@ export async function readCommit(topLevel, sha) {
   const range = commit.parents.length ? [commit.parents[0], full] : ["--root", full];
   const tree = (how) => git("diff-tree", ["-r", "-z", ...how, "--no-commit-id", ...range], { cwd: topLevel });
   let r = await tree(["--find-renames", "--raw", "--numstat"]);
+  // A treeless clone's older trees were never downloaded, and a git that
+  // will not fetch them says only that it could not read one.
+  if (!r.ok && readFailure(r) === "error" && /unable to read tree|missing tree/i.test(r.stderr) && await isPartialClone(topLevel)) {
+    return { ok: false, reason: "not-downloaded" };
+  }
   if (!r.ok && readFailure(r) === "not-downloaded") {
     for (const how of [["--find-renames", "--raw"], ["--no-renames", "--raw"]]) {
       const bare = await tree(how);
@@ -821,6 +852,18 @@ export async function readCommit(topLevel, sha) {
   if (!r.ok && r.tooLarge) return { ok: true, commit, files: [], filesTooLarge: true };
   if (!r.ok) return { ok: false, reason: readFailure(r) };
   return { ok: true, commit, files: parseCommitFiles(r.stdout) };
+}
+
+/** Whether the repository is a partial clone: one with a remote it would
+ *  fetch a missing object from. Tells an object never downloaded from one a
+ *  repository lost. */
+async function isPartialClone(topLevel) {
+  const r = await git("config", ["-z", "--get-regexp", "^(extensions\\.partialclone|remote\\..+\\.promisor)$"], { cwd: topLevel, maxBytes: 64 << 10 });
+  if (!r.ok) return false;
+  return r.stdout.split("\0").some((entry) => {
+    const [key, value = ""] = entry.split("\n");
+    return key !== "" && !/^(false|no|off|0)$/i.test(value.trim());
+  });
 }
 
 /** The full id of a commit, or null. */

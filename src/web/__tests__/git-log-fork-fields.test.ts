@@ -79,6 +79,21 @@ describe("a log commit's body", () => {
   });
 });
 
+describe("a message larger than one read's usual cap", () => {
+  it("still answers the history, with that commit's body and trailers", async () => {
+    // A generated changelog, say: past the 8 MB a read is otherwise held to.
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    write(dir, { "a.txt": "two\n", "msg.txt": `chore: regenerate the changelog\n\n${"- a line of the changelog\n".repeat(360_000)}\nCo-Authored-By: Claude <noreply@anthropic.com>\n` });
+    sh(dir, ["add", "a.txt"]);
+    sh(dir, ["commit", "-q", "-F", "msg.txt"]);
+    const r = await readLog(dir, await headOf(dir));
+    expect(r.ok).toBe(true);
+    const [tip] = r.commits;
+    expect(tip).toMatchObject({ subject: "chore: regenerate the changelog", hasBody: true });
+    expect(tip.trailers).toEqual([{ key: "Co-Authored-By", value: "Claude <noreply@anthropic.com>" }]);
+  });
+});
+
 describe("the commits HEAD has not pushed", () => {
   it("flags what HEAD has and its upstream does not, and nothing once it is pushed", async () => {
     const { dir } = tracked(["second", "third"]);
@@ -120,6 +135,20 @@ describe("the commits HEAD has not pushed", () => {
     write(local, { "a.txt": "two\n" });
     commitAll(local, "second");
     expect(await unpushed(local)).toEqual([]);
+  });
+
+  it("keeps HEAD on its branch and its unpushed commits flagged when there are too many refs to read them all", async () => {
+    // A pull-request refspec on a busy project can leave a hundred thousand
+    // remote-tracking branches; held here by a tiny cap on the read of them all.
+    const { dir } = tracked(["second"]);
+    sh(dir, ["branch", "side"]);
+    sh(dir, ["tag", "v1"]);
+    const r = await readLog(dir, await headOf(dir), { refsBytes: 16 });
+    expect(r.ok).toBe(true);
+    const [tip, first] = r.commits;
+    expect(tip).toMatchObject({ subject: "second", unpushed: true, refs: { local: ["main"], head: true, upstream: { main: "origin/main" } } });
+    expect(first).toMatchObject({ subject: "first", refs: { remote: ["origin/main"] } });
+    expect(first.unpushed).toBeUndefined();
   });
 
   it("flags nothing for a branch only behind its upstream", async () => {
