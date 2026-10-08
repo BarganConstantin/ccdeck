@@ -174,11 +174,7 @@ export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
   const last = lane && Number.isFinite(lane.pct) ? clamp(lane.pct) : null;
   const issue = accountIssue(a, nowSec);
   const lapsed = lane?.resetAt != null && lane.resetAt <= nowSec;
-  // Good news the numbers have not caught up with: the window has come back
-  // since this was read, so the account is likely emptier than it says.
-  const reset = lapsed && last != null
-    ? `Reset ${ago(lane!.resetAt! * 1000, nowSec)}, ${shownUsed(last)}% when ${a.fetchedAt ? `read ${ago(a.fetchedAt, nowSec)}` : "last read"}`
-    : null;
+  const reset = resetSinceReading(lane, a.fetchedAt, nowSec);
   const unread = (why: Unread, say: string): Cell => ({
     counted: false, why, say, last,
     estimate: last == null ? null : lapsed ? 0 : last,
@@ -202,6 +198,27 @@ export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
 }
 
 const clamp = (pct: number) => Math.min(100, Math.max(0, pct));
+
+/**
+ * What a window whose reset has passed since its last reading says in place
+ * of that reading's number: when it reset, and what it read before — "Reset
+ * 17h ago, 96% when read 18h ago". Null while the window is still running, or
+ * when it has no number.
+ *
+ * Good news the numbers have not caught up with: the window has come back
+ * since it was read, so the account is likely emptier than it says. The
+ * report's rows and the accounts panel's open row both say it, in these words,
+ * so one account reads the same wherever it is drawn.
+ */
+export function resetSinceReading(
+  lane: { pct: number; resetAt: number | null } | undefined,
+  fetchedAt: number | null,
+  nowSec: number,
+): string | null {
+  if (lane?.resetAt == null || lane.resetAt > nowSec || !Number.isFinite(lane.pct)) return null;
+  const read = fetchedAt ? `read ${ago(fetchedAt, nowSec)}` : "last read";
+  return `Reset ${ago(lane.resetAt * 1000, nowSec)}, ${shownUsed(clamp(lane.pct))}% when ${read}`;
+}
 
 /** A window's total over the rows. */
 export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTotal {
