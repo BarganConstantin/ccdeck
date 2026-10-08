@@ -21,7 +21,7 @@ import {
 } from "../../server/session-activity.mjs";
 import { createJobWatch, jobStatusOf } from "../../server/claude-jobs.mjs";
 import { applyEvent, initialState } from "../reducer";
-import { jobLine, noteTag, promptLine, sessionNoteShown } from "../session-note";
+import { jobLine, noteSource, noteTag, promptLine, sessionNoteShown } from "../session-note";
 import { recapKey } from "../recap-note";
 import { buildRows } from "../components/SessionList";
 import type { BackgroundJob, HookEnvelope, HookPayload, SessionRecap } from "../types";
@@ -253,6 +253,27 @@ describe("what a session's note says", () => {
     expect(promptLine(notice)).toBe('background task finished: Background command "Watch CI" completed');
     // A finished turn the model never answered says nothing rather than an old line.
     expect(sessionNoteShown(root({ ...next, state: "done" }))).toBeNull();
+  });
+
+  // The prompt stands in until the reply's line arrives, and the reply's line
+  // is read off Claude Code's transcript alone (event-pipeline.mjs): a Codex
+  // session, read from its rollout log, keeps the prompt as its note for the
+  // whole turn, answered or not.
+  const promptTurn = { prompts: [{ at: T0 + MIN, text: "open the PR" }], activity: undefined };
+
+  it("a Codex prompt note does not claim the model has not answered", () => {
+    const note = sessionNoteShown(root({ ...promptTurn, provider: "codex" }))!;
+    expect(note).toMatchObject({ kind: "now", text: "open the PR", source: "prompt" });
+    expect(noteSource(note)).not.toMatch(/not answered/);
+    expect(noteSource(note)).toBe("The prompt this turn began with — the deck takes no line from a Codex reply");
+  });
+
+  it("a Claude Code prompt note still says the model has not answered yet", () => {
+    for (const provider of ["claude", undefined]) {
+      const note = sessionNoteShown(root({ ...promptTurn, provider }))!;
+      expect(note).toMatchObject({ kind: "now", text: "open the PR", source: "prompt" });
+      expect(noteSource(note)).toBe("The prompt this turn began with — the model has not answered yet");
+    }
   });
 
   it("prefers the job's own line to the deck's reading of the reply", () => {
