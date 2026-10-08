@@ -247,10 +247,12 @@ describe("titles drop the letter when the switch is off", () => {
 // ── the shortcuts sheet ─────────────────────────────────────────────────────
 
 describe("the shortcuts sheet with the switch off", () => {
-  it("lists only the keys that still work: the chord, the named keys and the mouse", () => {
+  it("lists only the keys that still work: the chords, the named keys and the mouse", () => {
     const rows = keyHelpFor(false).flatMap(g => g.rows);
+    // Ctrl + Z since Re-arrange can be undone: the stack's button still
+    // re-arranges with the letters off, and the chord still takes it back.
     expect(rows.map(r => r.cap)).toEqual([
-      "Delete", "Ctrl + ,", "Tab", "Enter", "Shift + Enter", "Esc",
+      "Delete", "Ctrl + Z", "Ctrl + ,", "Tab", "Enter", "Shift + Enter", "Esc",
       "drag", "shift-click", "click", "double-click", "hover",
     ]);
     expect(keyHelpFor(false).map(g => g.title)).not.toContain("Panels and dialogs");

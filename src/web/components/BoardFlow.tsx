@@ -31,6 +31,7 @@ import AutoFitChip from "./AutoFitChip";
 import CanvasControls from "./CanvasControls";
 import ClaudeFm from "./ClaudeFm";
 import RecapNoteNode from "./RecapNoteNode";
+import RearrangeUndo from "./RearrangeUndo";
 import RecapTieEdge from "./RecapTieEdge";
 import SessionClusters from "./SessionClusters";
 import SessionGroupNode from "./SessionGroupNode";
@@ -72,7 +73,7 @@ export default function BoardFlow({
   setKeyHelpOpen: Dispatch<SetStateAction<boolean>>;
 }) {
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
-  const { positionsRef, pinnedRef, handleRelayout } = layout;
+  const { positionsRef, pinnedRef, handleRelayout, rearrangeUndo } = layout;
   const { restoredViewport, onMoveStart, onMove } = viewport;
   const { onNodeClick, onPaneClick, onNodeDoubleClick, onNodeMouseEnter, onNodeMouseLeave } = clicks;
   const { onNodeDragStart, onNodeDrag, onNodeDragStop } = drag;
@@ -158,7 +159,9 @@ export default function BoardFlow({
       onNodeMouseLeave={onNodeMouseLeave}
       onMoveStart={onMoveStart}
       onMove={onMove}
-      onNodeDragStart={onNodeDragStart}
+      // A drag moves on from the board R drew: its Undo would now throw the
+      // drag away as well, so the offer ends where the gesture starts.
+      onNodeDragStart={(event, node, nodes) => { rearrangeUndo.dismiss(); onNodeDragStart(event, node, nodes); }}
       onNodeDrag={onNodeDrag}
       onNodeDragStop={onNodeDragStop}
     >
@@ -187,6 +190,10 @@ export default function BoardFlow({
           the state is and are not a control; Resume is the one thing here
           that can be pressed, and it does what the whole chip used to. */}
       {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
+      {/* Re-arrange's way back, for a few seconds after R — on the canvas
+          beside the chip, and stacked above it when both are up, since a
+          board built by hand is one auto-fit has usually stood down on. */}
+      <RearrangeUndo undo={rearrangeUndo} />
       {/* No React Flow fit-view button (#840). Recenter below does the same
           fit and also turns autofit back on, so two near-identical buttons
           sat side by side and the reader had to guess the difference. F

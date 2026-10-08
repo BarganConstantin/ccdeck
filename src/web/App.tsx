@@ -303,8 +303,8 @@ function Inner() {
   // The board's arrangement — the stored positions and pins it was restored
   // from, the placeholders, the layout signature, the epoch R and the reframe
   // move, and the frame it was packed for — and R itself, in use-board-layout.ts.
-  const layout = useBoardLayout(fitLeft);
-  const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout } = layout;
+  const layout = useBoardLayout(camera);
+  const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout, rearrangeUndo } = layout;
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -492,7 +492,7 @@ function Inner() {
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
-    handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
+    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
   });

@@ -399,6 +399,9 @@ const PRESSES: Press[] = [
   // #820's Resume, the one pressable part of the auto-fit strip. A labelled
   // control, so 0.97 like every other one.
   [".autofit-resume:active", "0.97", "transform"],
+  // Re-arrange's Undo, the one pressable part of its strip, and Resume's twin
+  // beside it. A labelled control, so 0.97.
+  [".rearrange-undo-act:active", "0.97", "transform"],
   // The spoken-voice disclosure under the custom-sound cards: a full-width
   // row, like `.up-disclose`. A labelled control, so 0.97.
   [".sm-voice summary:active", "0.97", "transform"],
