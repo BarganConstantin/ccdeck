@@ -147,16 +147,20 @@ describe("where the guides open from", () => {
     // closes itself as it opens the tour, so no two dialogs stand at once.
     const notes = bare(read("components/ReleaseNotesModal.tsx"));
     const keys = bare(read("components/KeyboardHelp.tsx"));
-    for (const src of [notes, keys]) {
-      // The release notes hold it back while the app's update is ready: the
-      // chip opens that dialog for the update then, and a second door competes
-      // with the one it came for (#1187). Every other time it is there.
-      expect(src).toMatch(/\{onTour (?:&& !updateVersion )?&& \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>Take the tour<\/button>/);
-      // Inside the body, after the header — the × stays the first stop.
-      expect(src.indexOf("guide-door")).toBeGreaterThan(src.indexOf('aria-label="Close (Esc)"'));
-    }
-    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">/);
-    expect(notes).toMatch(/\{onTour && !updateVersion && \(\s*<div className="guide-door">/);
+    // The `?` sheet's door is a sentence and a button, inside the body, after
+    // the header — the × stays the first stop.
+    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>Take the tour<\/button>/);
+    expect(keys.indexOf("guide-door")).toBeGreaterThan(keys.indexOf('aria-label="Close (Esc)"'));
+    // What's new's is the first button of its action strip (ReleaseActions.tsx),
+    // which the owner asked for in place of three stacked rows; the sentence
+    // went to its hint and its description. Held back while the app's update
+    // is ready: the chip opens that dialog for the update then, and a second
+    // door competes with the one it came for (#1187). Every other time it is
+    // there, and after the header too.
+    expect(notes).toMatch(/<ReleaseActions onTour=\{updateVersion \? undefined : onTour\}/);
+    expect(notes.indexOf("<ReleaseActions")).toBeGreaterThan(notes.indexOf('aria-label="Close (Esc)"'));
+    const strip = bare(read("components/ReleaseActions.tsx"));
+    expect(strip).toMatch(/\{onTour && \(\s*<button type="button" className="btn rn-act" onClick=\{onTour\}[\s\S]*?<TourGlyph \/>Take the tour\s*<\/button>/);
     // The notes close and the tour opens through named operations now. Both
     // doors are in components/DeckDialogs.tsx, which App.tsx hands the welcome
     // hook whole.

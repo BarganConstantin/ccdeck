@@ -67,12 +67,18 @@ export function skipsDelay(now: number, hiddenAt: number, anotherShown: boolean)
 interface Shown {
   spec: HintSpec;
   box: DOMRect;
+  /** The dialog a dialog-layer hint stays inside, across. */
+  within: DOMRect | null;
   instant: boolean;
 }
 
-/** Where the hint goes against its control, kept inside the window. */
-function place(side: HintSide, box: DOMRect, w: number, h: number): { left: number; top: number } {
-  const clampX = (x: number) => Math.max(EDGE_PX, Math.min(x, window.innerWidth - w - EDGE_PX));
+/** Where the hint goes against its control, kept inside the window — and
+ *  across, inside the dialog it belongs to, when it has one: a hint over the
+ *  end of What's new's strip hung off the dialog onto the scrim. */
+function place(side: HintSide, box: DOMRect, w: number, h: number, within: DOMRect | null = null): { left: number; top: number } {
+  const minX = Math.max(EDGE_PX, (within?.left ?? 0) + EDGE_PX);
+  const maxX = Math.min(window.innerWidth, within?.right ?? Infinity) - w - EDGE_PX;
+  const clampX = (x: number) => Math.max(minX, Math.min(x, maxX));
   const clampY = (y: number) => Math.max(EDGE_PX, Math.min(y, window.innerHeight - h - EDGE_PX));
   const midY = box.top + box.height / 2 - h / 2;
   const midX = box.left + box.width / 2 - w / 2;
@@ -82,7 +88,12 @@ function place(side: HintSide, box: DOMRect, w: number, h: number): { left: numb
   return { left: clampX(midX), top: box.bottom + GAP_PX };
 }
 
-export function useHint(side: HintSide) {
+/** Where the hint is drawn: on the chrome's popover layer, under every dialog,
+ *  or over the dialog it belongs to — What's new's actions are inside one. */
+export type HintLayer = "chrome" | "dialog";
+const LAYER_CLASS: Record<HintLayer, string> = { chrome: "", dialog: " hint-over-dialog" };
+
+export function useHint(side: HintSide, layer: HintLayer = "chrome") {
   const [shown, setShown] = useState<Shown | null>(null);
   const showTimer = useRef<number | undefined>(undefined);
   const hideTimer = useRef<number | undefined>(undefined);
@@ -105,11 +116,12 @@ export function useHint(side: HintSide) {
     const reveal = () => {
       if (current && current !== hide) current();
       current = hide;
-      setShown({ spec, box: el.getBoundingClientRect(), instant });
+      const within = layer === "dialog" ? el.closest('[role="dialog"]')?.getBoundingClientRect() ?? null : null;
+      setShown({ spec, box: el.getBoundingClientRect(), within, instant });
     };
     if (now || instant) reveal();
     else showTimer.current = window.setTimeout(reveal, FIRST_HINT_DELAY_MS);
-  }, [hide]);
+  }, [hide, layer]);
 
   const leave = useCallback(() => {
     window.clearTimeout(showTimer.current);
@@ -145,7 +157,7 @@ export function useHint(side: HintSide) {
     const el = hintRef.current;
     if (!el || !shown) return;
     const { width, height } = el.getBoundingClientRect();
-    const at = place(side, shown.box, width, height);
+    const at = place(side, shown.box, width, height, shown.within);
     el.style.left = `${at.left}px`;
     el.style.top = `${at.top}px`;
     el.style.visibility = "visible";
@@ -167,7 +179,7 @@ export function useHint(side: HintSide) {
   const node = shown && createPortal(
     <span
       ref={hintRef}
-      className={SIDE_CLASS[side]}
+      className={SIDE_CLASS[side] + LAYER_CLASS[layer]}
       data-instant={shown.instant || undefined}
       style={{ left: 0, top: 0, visibility: "hidden" }}
       aria-hidden

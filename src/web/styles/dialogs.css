@@ -770,6 +770,61 @@
   color: var(--warn);
 }
 .release-notes .rn-update-said:empty { margin: 0; }
+/* What's new's actions (ReleaseActions.tsx): Take the tour, Check for updates
+   and Restart as one strip of the sheet's own buttons, each a glyph from the
+   chrome's set and a short word, with the sentence each used to sit beside in
+   its hint. Restart goes to the far end: it is the one that takes the deck
+   down, and distance says so without a colour. */
+.release-notes .rn-actions { display: flex; flex-direction: column; gap: 6px; }
+.release-notes .rn-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.release-notes .rn-act { gap: 6px; padding: 0 10px; }
+.release-notes .rn-act .glyph { flex: none; display: block; }
+.release-notes .rn-act-restart { margin-left: auto; }
+/* The arrow turns while a check is out, the way the Accounts panel's reload
+   does — and stands still under reduced motion, where the accent every busy
+   button takes (lan-setup.css) and "Checking…" on the line say it instead. */
+.release-notes .rn-act[aria-busy="true"] .glyph { animation: spin 900ms linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .release-notes .rn-act[aria-busy="true"] .glyph { animation: none; }
+}
+/* The answer. One small line, and always that tall even when it says nothing,
+   so the answer arriving moves nothing above it and, on one line, nothing
+   below. Its action is the banner's, a size down. */
+.release-notes .rn-update-line {
+  margin: 0;
+  min-height: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--muted);
+}
+/* The answer in the text's own ink, and when it was had in the line's muted
+   one: the first is what somebody pressed the button to learn. A standing
+   note about this install — checks off, the app's own updater — stays muted,
+   and a check that came to nothing takes the warning's ink, as the app
+   update's failed press above does (.rn-update-said). Empty, the words take
+   no room and no gap, and stay in the tree: they are the live region. */
+.release-notes .rn-update-what { color: var(--text); }
+.release-notes .rn-update-line[data-tone="note"] .rn-update-what { color: var(--muted); }
+.release-notes .rn-update-line[data-tone="warn"] .rn-update-what { color: var(--warn); }
+.release-notes .rn-update-what:empty { position: absolute; }
+.release-notes .rn-update-age { white-space: nowrap; }
+.release-notes .rn-update-cmd { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.release-notes .rn-line-act { min-height: 24px; padding: 0 10px; font-size: 11px; }
+/* A phone's width has no room for three words side by side, and the one that
+   wrapped alone looked dropped rather than placed. So the strip becomes the
+   dock's shape: equal tiles, the glyph over its word, all in one row. */
+@media (max-width: 640px) {
+  .release-notes .rn-acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: stretch; }
+  /* Glyphs on one row and words starting on one line, so a word that takes
+     two lines ("Check for updates") grows its tile downwards and nothing
+     else moves. */
+  .release-notes .rn-act { flex-direction: column; justify-content: flex-start; gap: 2px; padding: 8px 4px 6px; font-size: 11px; line-height: 14px; }
+  .release-notes .rn-act-restart { margin-left: 0; }
+}
 /* The release a run of notes belongs to. Monospace and quiet: it is a label on
    the group, not a heading competing with the note titles under it, and the
    version chip it echoes in the topbar is set the same way. */

@@ -21,6 +21,7 @@ import type { useBrowserWatchBadge } from "../use-browser-watch-badge";
 import type { useClaudeFm } from "../use-claude-fm";
 import type { useClearFlow } from "../use-clear-flow";
 import type { useCustomTones } from "../use-custom-tones";
+import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useDialogs } from "../use-dialogs";
 import type { useLanPairRequests } from "../use-lan-pair-requests";
@@ -55,7 +56,7 @@ const UsageHistoryModal = lazyDialog(() => import("./UsageHistoryModal"), "Usage
 const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), "Browser Watch");
 
 export default function DeckDialogs({
-  dialogs, welcome, desktopUpdate, versionCheck, restart, lanPairs, attention, clearFlow, watchBadge, announcements,
+  dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
   appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, fm,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
@@ -63,6 +64,8 @@ export default function DeckDialogs({
   desktopUpdate: ReturnType<typeof useDesktopUpdate>;
   versionCheck: ReturnType<typeof useVersionCheck>;
   restart: ReturnType<typeof useAutoRestart>;
+  /** The banner's install and copy, which What's new offers too. */
+  upgrade: ReturnType<typeof useDeckUpgrade>;
   lanPairs: ReturnType<typeof useLanPairRequests>;
   attention: Attention;
   clearFlow: ReturnType<typeof useClearFlow>;
@@ -197,6 +200,8 @@ export default function DeckDialogs({
              501 and one without a writable log 409, and the button is not
              offered for either (#1163). */
           onRestart={!readyAppUpdate && version?.canRestart ? () => { closeReleaseNotes(); void askRestart(); } : undefined}
+          updateCheck={readyAppUpdate ? undefined
+            : { versionCheck, upgrade, restart, desktopUpdate, running: chipVersion, onHandOff: closeReleaseNotes }}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those
