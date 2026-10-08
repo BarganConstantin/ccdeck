@@ -20,9 +20,12 @@ export default function SoundSwitch({ soundOn, onToggleSound }: Props) {
   return (
     <div className="sm-setting">
       {/* A real switch, not a word in a box (#886): the row is a <label>, so a
-          press on the name reaches the switch once and there is one tab stop. */}
+          press on the name reaches the switch once and there is one tab stop.
+          Named for what it does, "Play sounds", and not for the section:
+          Settings heads the section "Sounds" right above it, and the two
+          read as one word said twice. */}
       <label className="sm-switch">
-        <span className="sm-switch-label" id={labelId}>Sounds</span>
+        <span className="sm-switch-label" id={labelId}>Play sounds</span>
         <button
           type="button"
           role="switch"

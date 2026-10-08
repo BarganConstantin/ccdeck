@@ -197,8 +197,11 @@ describe("#801 — what the Notifications switch is saying", () => {
   it("stops the word Sound naming two different things", () => {
     // The switch said "Sound" and the per-tone <select> under it said "Sound"
     // too — one meaning on/off, the other which of three figures plays. The
-    // switch is plural now and the picker is the thing it picks.
-    expect(soundSwitch).toContain("id={labelId}>Sounds<");
+    // picker is the thing it picks. The switch was "Sounds" next, until
+    // Settings headed its section "Sounds" right above it; it says what it
+    // does now, and no word on it is the section's.
+    expect(soundSwitch).toContain("id={labelId}>Play sounds<");
+    expect(soundSwitch).not.toMatch(/>Sounds?</);
     expect(read("../components/ToneSection.tsx")).toContain("<label htmlFor={figureId}>Tone</label>");
     expect(soundMenuAll).not.toMatch(/>Sound</);
   });
