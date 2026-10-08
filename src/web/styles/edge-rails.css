@@ -1,9 +1,7 @@
 /* ---------------- the edges: controls where their panels open ----------------
    components/EdgeRails.tsx says why. The geometry is two tokens in the
    geometry block (tokens.css): --topbar-h, the bar these stripes hang under,
-   and --edge-w, one control height (--ctl-h) wide — a topbar button turned on
-   its side, its word running down the stripe like a title down a book's
-   spine.
+   and --edge-w, one control height (--ctl-h) wide, with upright icons.
 
    The stripes are fixed to the window's edges; `.app` keeps their width free
    with its own inline padding, so every grid column, banner and panel inside
@@ -98,26 +96,16 @@
   .rail-btn[aria-expanded="true"]:hover { background: color-mix(in srgb, var(--text) 14%, transparent); }
 }
 
-/* One stripe button: the glyph upright, the word along the stripe under it,
-   read top to bottom on both edges so every button starts where its glyph is.
-   25px wide in the stripe's 29px inside its border, 2px clear either side, so
-   it sits on whole pixels and clears 24x24 (2.5.8) on its short side.
-   500, not the 400 the words had across the bar: turned on its side, 12px of
-   --muted at 400 thinned to a hairline at 1x in dark, and the extra weight is
-   what kept "Session list" a word rather than a texture (measured side by side,
-   400 to 500 and 0 to 0.04em of tracking, in both themes at 1x and 2x). */
+/* Upright icons, centred in a fixed target. Labels live in the hint on
+   desktop; the phone dock and topbar keep their normal horizontal words. */
 .rail-btn-stripe {
-  width: 25px;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 0 12px;
+  width: 26px;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
 }
-.rail-btn-stripe .rail-word {
-  writing-mode: vertical-rl;
-  white-space: nowrap;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
+.rail-btn-stripe .glyph { width: 17px; height: 17px; }
+.rail-btn-stripe .glyph-narrow { margin-inline: 0; }
 /* The ring inside the stripe: drawn 1px out, as buttons draw it elsewhere, it
    ran off the window on the left edge. */
 .rail-btn-stripe:focus-visible { outline-offset: 0; }
@@ -154,9 +142,8 @@
    was once the loudest object on the bar while nothing needed anyone. --bg on
    --muted is 5.08:1 in dark and 6.95:1 in light, and the bubble stands 4.70:1
    or better off the stripe in dark and 6.95:1 or better in light.
-   After the word on a stripe, on the glyph's corner in the dock. It is the
-   last thing in the last button of its stripe, so its arrival moves nothing
-   but that button's own foot. */
+   On the glyph’s corner in both the stripe and the dock, so unread counts
+   never move the controls around them. */
 .rail-badge {
   min-width: 16px;
   height: 16px;
@@ -170,6 +157,13 @@
   line-height: 16px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.rail-btn-stripe .rail-badge {
+  position: absolute;
+  top: -3px;
+  right: -1px;
+  pointer-events: none;
 }
 
 /* ── the two utilities on the bar ────────────────────────────────────────── */

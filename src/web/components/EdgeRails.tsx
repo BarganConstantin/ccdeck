@@ -10,10 +10,9 @@
 //                                          the two rail panels, then the two
 //                                          records that open as dialogs
 //
-// Words, not bare glyphs (#836, and Feedback lost twice as a bare glyph, #1853),
-// set along the stripe the way a title runs down a book's spine, so every
-// desktop width keeps them for 30px of width a side. The topbar keeps the
-// identity, the stream's state, the waiting queue, and the two utilities every
+// Desktop rails use upright icons, with names and shortcuts in their hints.
+// Phone controls and the topbar utilities keep their visible words.
+// The topbar keeps the identity, the stream's state, the waiting queue, and the two utilities every
 // product keeps in that corner (UtilityRun). Under 641px the stripes and the
 // utilities become one dock along the bottom: the four panels and Settings one
 // tap away, and the three rare dialogs — History, Browser watch, Feedback —
@@ -146,22 +145,6 @@ function useFocusHandover(ref: RefObject<HTMLElement>) {
   }, [ref]);
 }
 
-/** A word set down a stripe is as long as its letters' advances add up to —
- *  "Session list" came to 69.52px — and every button under it inherited the
- *  fraction, so their glyphs sat on half pixels and blurred at 1x. The word's
- *  box is rounded up to the next whole pixel, once: the fonts are the
- *  system's, already loaded, and the words never change. */
-function useWholePixelLength(on: boolean) {
-  const ref = useRef<HTMLSpanElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!on || !el) return;
-    el.style.height = "";
-    el.style.height = `${Math.ceil(el.getBoundingClientRect().height)}px`;
-  }, [on]);
-  return ref;
-}
-
 function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
   item: RailItem;
   index: number;
@@ -171,9 +154,8 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
   variant: "stripe" | "dock" | "bar";
 }) {
   const singleKeys = useSingleKeyShortcuts();
-  const hintHandlers = hint.bind(railHint(item, singleKeys, true));
+  const hintHandlers = hint.bind(railHint(item, singleKeys, variant !== "stripe"));
   const disclosure = item.kind === "panel";
-  const wordRef = useWholePixelLength(variant === "stripe");
   return (
     <button
       ref={item.buttonRef}
@@ -191,7 +173,7 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       onClick={() => item.onPress()}
     >
       {item.glyph}
-      <span className="rail-word" ref={wordRef}>{variant === "dock" ? item.short : item.label}</span>
+      {variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
     </button>
   );

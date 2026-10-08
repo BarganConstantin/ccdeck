@@ -87,8 +87,10 @@ const WORDS: Array<[word: string, name: string]> = [
 describe("every control in the chrome says its name (#836)", () => {
   const drawn = [...buttons(left), ...buttons(right), ...buttons(corner)];
 
-  it("gives all eight a word, inside the accessible name they have", () => {
-    expect(drawn.map(b => [b.word, b.name])).toEqual(WORDS);
+  it("names every control and keeps visible words on the topbar", () => {
+    expect(drawn.map(b => b.name)).toEqual(WORDS.map(([, name]) => name));
+    expect([...buttons(left), ...buttons(right)].every(b => b.word === "")).toBe(true);
+    expect(buttons(corner).map(b => b.word)).toEqual(["Settings", "Feedback"]);
     for (const { word, name } of drawn) {
       // The word is part of the name, so voice control can say what the eye reads.
       expect(name.toLowerCase(), word).toContain(word.toLowerCase());
@@ -97,7 +99,7 @@ describe("every control in the chrome says its name (#836)", () => {
     expect(drawn.some(b => /sound/i.test(b.word))).toBe(false);
   });
 
-  it("says it at every desktop width: no rule hides a word on a stripe or on the bar", () => {
+  it("keeps icon rails on desktop and normal labels on the topbar", () => {
     // The tiers that rationed the words to 1440, 1707 and 1761 are gone, and
     // with them every rule that hid one.
     expect(css).not.toMatch(/\.tb-word/);
@@ -132,8 +134,8 @@ describe("every control in the chrome says its name (#836)", () => {
     // History was beside Usage on the bar, by subject; on the right edge it is
     // by what a press does, and it says "Usage history" whole — "History"
     // alone, over Browser watch, read as the browser's.
-    expect(buttons(left).map(b => b.word)).toEqual(["Accounts", "Session list"]);
-    expect(buttons(right).map(b => b.word)).toEqual(["Usage", "Machine", "Usage history", "Browser watch"]);
+    expect(buttons(left).map(b => b.name)).toEqual(["Accounts", "Session list"]);
+    expect(buttons(right).map(b => b.name)).toEqual(["Usage", "Machine", "Usage history", "Browser watch, not watching"]);
     expect(right.match(/<div class="rail-group">/g)).toHaveLength(2);
     expect(body(".edge-rail")).toMatch(/gap: 14px;/);
     expect(body(".rail-group")).toMatch(/gap: 4px;/);

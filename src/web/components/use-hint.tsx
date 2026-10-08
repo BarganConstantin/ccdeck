@@ -9,11 +9,10 @@
 // a touch or a pen: a fingertip has no hover, and a hint that a tap left
 // behind would sit over the thing the tap opened.
 //
-// WHEN NOT. When it would only repeat a word already on the control — a stripe
-// says "Usage" along itself — it says nothing, unless it adds the key. So with
-// the single-key shortcuts turned off a plain stripe button is quiet, and the
-// ones whose hint names more than their word (Usage history, This machine, a
-// queued session's whole sentence) still speak.
+// WHEN NOT. When it would only repeat a word already on the control — a
+// labelled dock or topbar button — it says nothing unless it adds a key or
+// detail. Desktop rails use icons alone, so their names always appear in a
+// hint, including with single-key shortcuts switched off.
 //
 // AWAY (WCAG 1.4.13). Escape takes it down from anywhere, through the deck's
 // one dismiss stack (modal-dismiss.ts) like every other overlay, so the key

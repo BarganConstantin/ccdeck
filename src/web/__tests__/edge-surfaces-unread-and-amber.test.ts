@@ -57,9 +57,9 @@ const buttonNamed = (html: string, name: string) => {
 const rules = (css: string) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, sel, decls]) => ({ sel: sel.trim(), decls }));
 
 describe("Browser watch's unread count on the right stripe", () => {
-  it("is drawn after the word as .rail-badge, and only when something is unread", () => {
+  it("is drawn beside the icon as .rail-badge, and only when something is unread", () => {
     const button = buttonNamed(rightStripe(2), "Browser watch");
-    expect(button).toMatch(/<span class="rail-word"[^>]*>Browser watch<\/span><span class="rail-badge" aria-hidden="true">2<\/span>$/);
+    expect(button).toMatch(/<\/svg><span class="rail-badge" aria-hidden="true">2<\/span>$/);
     expect(buttonNamed(rightStripe(0), "Browser watch")).not.toContain("rail-badge");
   });
 

@@ -373,7 +373,7 @@ Sessions and Accounts share the left slot and are mutually exclusive; accounts
 takes `auto` because it has to fit bars and email addresses.
 
 **The panel buttons live on the window's edges** (`edge-rails.css`): a stripe
-`--edge-w` wide (one control height) on the left for the session list and the
+`--edge-w` wide (one control height), with upright icon buttons on the left for the session list and the
 accounts panel, and one on the right for Usage, the machine panel, Usage history
 and Browser Watch; `.app` keeps their width free with its inline padding. They
 are show/hide toggles, not tabs — several panels can be open at once and the
@@ -381,7 +381,8 @@ canvas never leaves — so an open one is a `--text` line on the stripe's inner
 edge, never a tab joined to a page. The topbar keeps the identity, the stream's
 state, the waiting count with the names of who is waiting, and Settings and
 Feedback. Under 641px the stripes and those two become one dock along the
-bottom, `--dock-h` tall.
+bottom, `--dock-h` tall. Desktop names and shortcuts appear in hints, including
+when single-key shortcuts are disabled; mobile dock labels remain visible.
 
 **The detail rail is the 360px column.** `--rail-r` is *not* its width — it is the
 right offset the floating panels position against: `368px` (the rail plus an 8px
