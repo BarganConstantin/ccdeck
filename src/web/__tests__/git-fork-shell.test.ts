@@ -153,6 +153,15 @@ describe("a floating sidebar", () => {
   });
 });
 
+describe("a sidebar width chosen on a wider window", () => {
+  it("is narrowed to what the panel leaves it, for its column, its float and its divider alike", () => {
+    expect(view).toMatch(/"--fk-side-w": `\$\{sidebarLayout\(prefs\.sidebarW, width, sheet\)\.width\}px`/);
+    expect(view).toMatch(/const side = sidebarLayout\(prefs\.sidebarW, width, sheet\);\s*const sidebarOver = side\.floating;/);
+    expect(view).toMatch(/kind === "sidebar" \? side\.width/);
+    expect(view).not.toMatch(/isSidebarFloating\(width, prefs\.sidebarW/);
+  });
+});
+
 describe("what a floating sidebar covers", () => {
   it("is inert while it is out, and the sidebar takes focus when brought out", () => {
     expect(view).toMatch(/const covering = fork && sidebarOver && sidebarShown;/);

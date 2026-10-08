@@ -31,7 +31,7 @@ import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from 
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
   GIT_VIEW_DEFAULTS, edgeBounds, filesBounds, fkGraphBounds, gitViewPrefsNow, graphBounds, clampTo, isSheet, panelWidth, setGitLook, setGitViewPrefs,
-  isSidebarFloating, sidebarBounds, sidebarShownFor, splitterTarget, useGitViewPrefs, type GitViewPrefs, type SplitterKind,
+  sidebarBounds, sidebarLayout, sidebarShownFor, splitterTarget, useGitViewPrefs, type GitViewPrefs, type SplitterKind,
 } from "../git-view-sizes";
 import { agentNameIn, cardName as cardNameIn, collisionTarget, commitAgentKeys, otherAgentName } from "../git-agent-name";
 import { pressHow } from "../agent-goto";
@@ -528,7 +528,7 @@ export default function GitView(props: GitViewProps) {
     "--gv-top": `${box?.top ?? 52}px`,
     "--gv-graph-h": `${((fork ? prefs.fkGraphH : prefs.graphH) * 100).toFixed(1)}%`,
     "--gv-files-w": `${(prefs.filesW * 100).toFixed(1)}%`,
-    ...(fork ? { "--fk-side-w": `${prefs.sidebarW}px` } : {}),
+    ...(fork ? { "--fk-side-w": `${sidebarLayout(prefs.sidebarW, width, sheet).width}px` } : {}),
   } as CSSProperties;
 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
@@ -768,8 +768,10 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // unless the reader hid it (remembered). Too narrow for that (a sheet, a
   // narrow panel) it floats over the history instead: hidden at first, out
   // while the reader has it out, and out of the way again once a view or a
-  // ref is picked in it, on Esc, or on a press outside it.
-  const sidebarOver = isSidebarFloating(width, prefs.sidebarW, sheet);
+  // ref is picked in it, on Esc, or on a press outside it. A width chosen on
+  // a wider window is narrowed to what this panel leaves it (git-view-sizes.ts).
+  const side = sidebarLayout(prefs.sidebarW, width, sheet);
+  const sidebarOver = side.floating;
   const [floatSide, setFloatSide] = useState(false);
   useEffect(() => setFloatSide(false), [request.seq, sidebarOver]);
   const sidebarShown = sidebarShownFor(prefs, sidebarOver, floatSide);
@@ -989,7 +991,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   };
   const sizeOf = (kind: SplitterKind) =>
     kind === "edge" ? width
-      : kind === "sidebar" ? sideRef.current?.getBoundingClientRect().width ?? prefs.sidebarW
+      : kind === "sidebar" ? sideRef.current?.getBoundingClientRect().width ?? side.width
       : kind === "graph" ? graphRef.current?.getBoundingClientRect().height ?? 0
       : filesRef.current?.getBoundingClientRect().width ?? 0;
   const commit = (kind: SplitterKind, px: number) => {
@@ -1054,7 +1056,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
       : kind === "graph" ? (fork ? fkGraphBounds : graphBounds)(boxes.panes) : filesBounds(boxes.bottom);
     const total = kind === "edge" ? win : kind === "sidebar" ? width : kind === "graph" ? boxes.panes : boxes.bottom;
     const pct = (px: number) => (total ? Math.round((px / total) * 100) : 0);
-    const now = kind === "edge" ? width : kind === "sidebar" ? prefs.sidebarW
+    const now = kind === "edge" ? width : kind === "sidebar" ? side.width
       : kind === "graph" ? (fork ? prefs.fkGraphH : prefs.graphH) * (total ?? 0) : prefs.filesW * (total ?? 0);
     return (
       <div
