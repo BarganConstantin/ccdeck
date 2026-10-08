@@ -14,6 +14,7 @@ import { goToAgentCard, pressHow } from "../agent-goto";
 import { agentNameIn, collisionTarget, otherAgentName } from "../git-agent-name";
 import { groupDigits } from "../git-diff-parse";
 import { changeMark, pathCounts } from "../git-files-model";
+import { fitPath, monoMeasure } from "../git-path-fit";
 import { useGitOn } from "../git-pref";
 import { openGitViewFrom } from "../git-view-request";
 import { gitFactsFor, gitFocus, gitViewOpens, subagentKey } from "../git-view-target";
@@ -35,6 +36,46 @@ const splitPath = (p: string): [string, string] => {
   const at = p.lastIndexOf("/");
   return at < 0 ? ["", p] : [p.slice(0, at + 1), p.slice(at + 1)];
 };
+
+/** The size a file row's path is set in (git-view.css's .gv-path). */
+const PATH_PX = 11;
+
+/**
+ * A file row's path, cut to its row the way the view's files pane cuts it
+ * (git-path-fit.ts): the name whole, the folders in front of it given up
+ * whole from the front, `…/Controllers/BookingController.cs`, never inside a
+ * folder's name. Drawn whole, then fitted once its row's width is known and
+ * again whenever it changes; React's own text nodes are rewritten, so React
+ * keeps owning them. The row's title holds the whole path.
+ */
+function GlancePath({ path }: { path: string }) {
+  const [dir, base] = splitPath(path);
+  const boxRef = useRef<HTMLSpanElement>(null);
+  const dirRef = useRef<HTMLSpanElement>(null);
+  const baseRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const dirText = dirRef.current?.firstChild ?? null, baseText = baseRef.current?.firstChild ?? null;
+    // Measured, not read off the row: the folder's own ellipsis keeps the
+    // row from ever overflowing, so the row cannot say it is too narrow.
+    const fit = () => {
+      const room = box.clientWidth;
+      const cut = fitPath(path, room, monoMeasure(PATH_PX));
+      if (dirText) dirText.nodeValue = cut.dir;
+      if (baseText) baseText.nodeValue = cut.base;
+    };
+    const raf = requestAnimationFrame(fit);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    ro?.observe(box);
+    return () => { cancelAnimationFrame(raf); ro?.disconnect(); };
+  }, [path]);
+  return (
+    <span className="gv-path" ref={boxRef}>
+      <span className="gv-dir" ref={dirRef}>{dir}</span><span className="gv-base" ref={baseRef}>{base}</span>
+    </span>
+  );
+}
 
 interface Props {
   agent: AgentNodeData;
@@ -181,7 +222,6 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         ? <p className="gv-line-empty">Working tree clean.</p>
         : <div className="gv-g-files-head"><b>{files.length}</b> file{files.length === 1 ? "" : "s"} changed · <b>{mine.length}</b> by this {scopeWord}</div>)}
       {shownFiles.map(f => {
-        const [dir, base] = splitPath(f.path);
         // The letter and word the files pane gives the same change.
         const { letter, word } = changeMark(f.entry.change);
         // The file's sides added together, as one file changed; nothing when unknown.
@@ -194,7 +234,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
           >
             <i className="gv-pip" aria-hidden="true" />
             <span className="gv-st" title={word}><span aria-hidden="true">{letter}</span><span className="vis-hidden">{word}</span></span>
-            <span className="gv-path"><span className="gv-dir">{dir}</span><span className="gv-base">{base}</span></span>
+            <GlancePath path={f.path} />
             {n && (n.binary
               ? <span className="gv-g-counts"><span className="gv-g-bin" title="binary file"><span aria-hidden="true">bin</span><span className="vis-hidden">binary file</span></span></span>
               : (n.added > 0 || n.removed > 0) && (

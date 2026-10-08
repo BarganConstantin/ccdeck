@@ -200,6 +200,8 @@
 }
 .gv-agent-chip:active { transform: scale(0.97); }
 .gv-agent-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The ↳ a subagent's chip keeps on a phone, where its name gives way. */
+.gv-chip-sub { display: none; }
 .gv-agent-chip:hover { border-color: var(--ctl-edge); background: var(--ctl-fill); }
 .gv-agent-chip[data-level="trailer"] { border-style: dashed; border-color: var(--ctl-edge); color: var(--muted); padding-left: 8px; }
 .gv-agent-chip.is-quiet, .gv-row[data-tone="off"] .gv-agent-chip { border-color: var(--line-soft); color: var(--muted); }
@@ -245,6 +247,17 @@
   .gv-cell-sha { display: none; }
   .gv-ref { max-width: 120px; }
   .gv-agent-chip { max-width: 96px; }
+}
+/* On a phone, as in the Fork look: the chip keeps its swatch, and ↳ on a
+   subagent's commit; its name moves to the chip's title and the row's
+   description, and the subject takes the room. Another session's chip and
+   one known from the commit message step aside: the diamond in the lane
+   still says an agent made it. */
+@container gvhist (max-width: 479px) {
+  .gv-agent-chip { min-width: 0; gap: 3px; padding: 0 5px; }
+  .gv-agent-chip .gv-agent-name { display: none; }
+  .gv-agent-chip .gv-chip-sub { display: inline; }
+  .gv-agent-chip.is-quiet, .gv-agent-chip[data-level="trailer"] { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
