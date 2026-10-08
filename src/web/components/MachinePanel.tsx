@@ -45,6 +45,7 @@ import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
 import { Fig, OpensHistory, Row } from "./MachineReadout";
 import NetworkSection from "./MachineNetwork";
+import TrafficRadar from "./TrafficRadar";
 
 /**
  * The panel's frame: its slot in the rail, its landmark name, its title, the
@@ -136,6 +137,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
     return (
       <Shell usageOpen={usageOpen} leaving={leaving} onClose={onClose}>
         <div className="sd-note">reading this machine…</div>
+        <TrafficRadar />
       </Shell>
     );
   }
@@ -153,6 +155,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
       <CpuSection cpu={cpu} perCore={perCore} loadavg={loadavg} cores={cores} />
       <MemorySection memory={memory} swap={swap} platform={platform} />
       {network && <NetworkSection network={network} />}
+      <TrafficRadar />
       <ThermalSection thermal={thermal} />
       <Processes sys={sys} />
     </Shell>

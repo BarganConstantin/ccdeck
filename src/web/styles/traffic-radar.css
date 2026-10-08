@@ -1,0 +1,38 @@
+.tr-heading { margin: 0; font-size: 12px; font-weight: 600; }
+.tr-heading .sd-detail { width: 100%; margin: 0; }
+.tr-readonly { margin-left: auto; font-size: 10px; color: var(--text-dim); font-weight: 400; }
+.tr-body { margin-top: 10px; }
+.tr-status { margin: 0 0 6px; font-size: 12px; font-weight: 600; }
+.tr-note { margin: 6px 0; color: var(--text-dim); line-height: 1.5; }
+.tr-warning { color: var(--warn); line-height: 1.5; }
+.tr-facts { margin: 12px 0; font-variant-numeric: tabular-nums; }
+.tr-facts > div { display: flex; justify-content: space-between; gap: 12px; margin-block: 5px; }
+.tr-facts dt { color: var(--text-dim); }
+.tr-facts dd { margin: 0; font-family: var(--font-mono); text-align: right; }
+.tr-block { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.tr-block h4 { font-size: 12px; margin: 0 0 8px; }
+.tr-body code, .tr-body time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tr-body ul { list-style: none; margin: 8px 0; padding: 0; }
+.tr-destinations li { margin-block: 8px; }
+.tr-destinations li > span { display: block; color: var(--text-dim); overflow-wrap: anywhere; margin-top: 3px; }
+.tr-details { margin-top: 12px; }
+.tr-details > summary { cursor: pointer; color: var(--text); padding-block: 6px; transition: background 140ms ease, transform 140ms ease; }
+.tr-details > summary:hover { background: var(--line); }
+.tr-details > summary:active { transform: scale(0.97); }
+.tr-variables { margin: 8px 0; }
+.tr-variables > div { padding-block: 8px; border-top: 1px solid var(--line); }
+.tr-variables dt > span { display: block; color: var(--text-dim); margin-top: 3px; }
+.tr-variables dd { font-family: var(--font-mono); margin: 6px 0 0; overflow-wrap: anywhere; }
+.tr-sources li { display: flex; justify-content: space-between; gap: 12px; margin-block: 6px; }
+.tr-sources li > span:last-child { color: var(--text-dim); flex-shrink: 0; }
+.tr-connections li { padding-block: 10px; border-bottom: 1px solid var(--line); }
+.tr-connection-head { display: flex; flex-direction: column; gap: 3px; }
+.tr-connection-head > span { color: var(--text-dim); }
+.tr-workspace { display: block; color: var(--text-dim); }
+.tr-alerts li { margin-block: 10px; line-height: 1.5; }
+.tr-alerts time { color: var(--text-dim); }
+.tr-foot { margin-top: 16px; }
+@media (prefers-reduced-motion: reduce) {
+  .tr-details > summary { transition: none; }
+  .tr-details > summary:active { transform: none; }
+}

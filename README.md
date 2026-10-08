@@ -158,6 +158,33 @@ Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.d
 - Optional: [claude-swap](https://github.com/realiti4/claude-swap) for the Accounts panel; the deck can install it for you
 - Nothing else. On Apple Silicon the deck fetches [`macmon`](https://github.com/vladkens/macmon) itself for the temperature rows; see below.
 
+### Claude Traffic Radar (macOS)
+
+Open **Machine → Traffic Radar** to inspect telemetry configuration sources
+and established TCP connections attributed to native Claude Code processes.
+Each connection shows its remote IP and port, PID, current working directory
+when readable, and last observation time — not the last upload time.
+
+The radar reads only named telemetry variables from user settings, cached
+organization settings and the system managed-settings file; credentials,
+endpoint paths and exporter headers stay hidden. These files are evidence,
+not a determination of a running session's effective configuration: process
+environment, project overrides and Enterprise server-side capture are not
+verified. No observed connection does not mean telemetry is disabled, and a
+connection does not establish what was sent.
+
+Sampling runs every five seconds only while the radar is open and the page
+is visible, with bounded subprocess execution and shared recent results.
+Observation history is held in server memory, capped at 100 connections and
+five minutes; the next read clears it after more than 30 seconds without a
+sample. The radar does not inspect payloads, persist prompts, contact the
+collector, change Claude settings or block traffic. Short-lived connections,
+Node wrappers, UDP and other providers are outside this first version;
+unsupported platforms and failed samples are shown explicitly.
+
+This is local machine information, not per-browser-user isolation: people
+with access to the same ccdeck server see that server's observations.
+
 ### Temperature, per machine
 
 The machine panel shows a **Thermal** section only where the machine actually answers, and it never invents a reading — no sensor means no row.
