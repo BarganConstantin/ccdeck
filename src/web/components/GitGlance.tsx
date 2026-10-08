@@ -178,7 +178,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
         const n = pathCounts(data.entries ?? [], f.path);
         return (
           <button
-            type="button" key={f.path} className="gv-g-row gv-g-file" style={{ "--session-hue": hue } as CSSProperties}
+            type="button" key={f.path} className="gv-g-row" style={{ "--session-hue": hue } as CSSProperties}
             title={`${f.path} — edited by this ${scopeWord} (from its edit tools)`}
             onClick={e => open(e, { sel: UNCOMMITTED, file: { path: f.entry.path, area: f.entry.area, ...(f.entry.from ? { from: f.entry.from } : {}) } })}
           >

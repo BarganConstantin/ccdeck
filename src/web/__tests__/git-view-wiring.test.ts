@@ -101,3 +101,23 @@ describe("the header's branch name, cut to its box", () => {
     expect(ticketed).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
   });
 });
+
+describe("the glance's rows, one column of marks and one of words", () => {
+  // The branch glyph, a commit's diamond, a file's dot and the shared-folder
+  // glyph each take a 14px slot 6px in, centred on one line down the section,
+  // and every row's words start 6px after it: 26px in.
+  const rule = (sel: string) => {
+    const at = viewCss.indexOf(`\n${sel} {`);
+    if (at < 0) throw new Error(`no rule ${sel}`);
+    return viewCss.slice(at, viewCss.indexOf("}", at));
+  };
+  it("gives every mark the same slot and every row the same gap", () => {
+    expect(rule(".gv-g-branch")).toMatch(/gap: 6px; height: 24px; padding: 0 6px;/);
+    expect(rule(".gv-g-branch > svg")).toMatch(/margin-right: 1px;/);
+    expect(rule(".gv-g-row")).toMatch(/gap: 6px;/);
+    expect(rule(".gv-g-row")).toMatch(/padding: 0 6px;/);
+    expect(rule(".gv-g-row .gv-mark")).toMatch(/width: 14px;/);
+    expect(rule(".gv-pip")).toMatch(/width: 6px; height: 6px; margin: 0 4px;/);
+    expect(rule(".gv-g-quiet svg")).toMatch(/margin: 0 1px;/);
+  });
+});
