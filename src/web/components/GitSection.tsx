@@ -81,7 +81,7 @@ function GitLookRow({ look }: { look: GitLook }) {
           </button>
         ))}
       </div>
-      <span id="appearance-git-look-note" className="appearance-row-note">Fork draws the view as Fork's window, still read-only. F switches it in the view.</span>
+      <span id="appearance-git-look-note" className="appearance-row-note">Fork draws the view as Fork's window, still read-only. Press F in the view to switch.</span>
     </div>
   );
 }

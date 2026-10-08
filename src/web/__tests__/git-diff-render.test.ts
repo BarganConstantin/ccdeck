@@ -267,6 +267,20 @@ describe("an indented line that wraps", () => {
     expect(code("5")).not.toContain("gvd-indent");
   });
 
+  it("hangs a wrapped line's next rows under its own code, its indent's width in from the edge", () => {
+    // VS Code's wrapped-line indent: a long line in a nested block reads as
+    // nested on every row it wraps to, not flush with the pane's edge.
+    const attrs = (n: string) => new RegExp(`<div class="gvd-line"([^>]*)><span class="gvd-ln n1" aria-hidden="true">[^<]*</span><span class="gvd-ln n2" aria-hidden="true">${n}</span>`).exec(html)?.[1] ?? "missing";
+    expect(attrs("2")).toContain('style="--gvd-ind:4ch"');
+    expect(attrs("4")).toContain('style="--gvd-ind:8ch"'); // two tabs, four columns each
+    expect(attrs("5")).not.toContain("--gvd-ind"); // deeper than a narrow pane holds
+    expect(attrs("6")).not.toContain("--gvd-ind"); // blanks only
+    const sheet = (part: string) => sheetParts().find(([p]) => p === part)![1].replace(/\s+/g, " ");
+    expect(sheet("styles/git-diff.css")).toContain('.gvd[data-wrap="true"] .gvd-code { padding-left: calc(4px + var(--gvd-ind, 0ch)); text-indent: calc(0px - var(--gvd-ind, 0ch)); }');
+    // The Fork look sets the code's padding itself, so it hangs the rows too.
+    expect(sheet("styles/git-diff-fork.css")).toContain('.gv-wide[data-look="fork"] .gvd[data-wrap="true"] .gvd-line .gvd-code { padding-left: calc(4px + var(--gvd-ind, 0ch)); }');
+  });
+
   it("never wraps inside the indent, and only when the diff wraps", () => {
     const css = sheetParts().find(([p]) => p === "styles/git-diff.css")![1].replace(/\s+/g, " ");
     expect(css).toContain('.gvd[data-wrap="true"] .gvd-indent { white-space: pre; }');

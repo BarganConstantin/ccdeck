@@ -191,7 +191,10 @@
   color: var(--muted);
   font: 10px/1 var(--font-mono);
 }
-.gvf-stage[data-stage="staged"] { border-color: var(--ctl-edge); }
+/* Staged reads a step louder than unstaged, as a tag does: a visible edge
+   where unstaged keeps the quiet line. Never --ctl-edge, which marks what
+   can be pressed. */
+.gvf-stage[data-stage="staged"] { border-color: var(--muted-dim); }
 .gvf-stage-short { display: none; }
 .gvf-clash { flex: none; display: inline-flex; color: var(--err); }
 .gvf-collapsed { flex: none; display: inline-flex; color: var(--muted); }

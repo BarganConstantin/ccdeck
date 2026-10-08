@@ -358,6 +358,8 @@ describe("Settings › Git holds the git view's switch and its look", () => {
     expect(html).toMatch(/role="radiogroup" aria-labelledby="appearance-git-look-label"/);
     expect(html).toMatch(/role="radio" class="appearance-git-look-pick" aria-checked="true" tabindex="0">Fork</);
     expect(html).toMatch(/role="radio" class="appearance-git-look-pick" aria-checked="false" tabindex="-1">Deck</);
+    // The key named the way Settings names T for the theme: what to press, and where.
+    expect(html).toMatch(/>Fork draws the view as Fork(&#x27;|')s window, still read-only\. Press F in the view to switch\.<\/span>/);
     setGitLook("deck");
     html = drawGit();
     expect(html).toMatch(/aria-checked="true" tabindex="0">Deck</);

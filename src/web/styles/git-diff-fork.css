@@ -150,6 +150,8 @@
 .gv-wide[data-look="fork"] .gvd-diff[data-one] .gvd-line .gvd-ln.n2 { left: 0; }
 .gv-wide[data-look="fork"] .gvd-diff[data-one="old"] .gvd-line[data-kind="del"] .gvd-ln.n2::before { content: attr(data-old); }
 .gv-wide[data-look="fork"] .gvd-line .gvd-code { padding: 0 24px 0 4px; color: var(--fk-text); }
+/* Wrapped, a line's next rows hang under its code, as the deck look's do. */
+.gv-wide[data-look="fork"] .gvd[data-wrap="true"] .gvd-line .gvd-code { padding-left: calc(4px + var(--gvd-ind, 0ch)); }
 .gv-wide[data-look="fork"] .gvd-line[data-kind="add"] { background: var(--fk-diff-add); }
 .gv-wide[data-look="fork"] .gvd-line[data-kind="del"] { background: var(--fk-diff-del); }
 .gv-wide[data-look="fork"] .gvd-word { padding: 2px 0; border-radius: 0; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
