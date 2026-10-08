@@ -295,11 +295,29 @@ describe("caps", () => {
   it("caps stashes, worktrees and submodules, and says which lists were cut", async () => {
     const r = await readRefs({ topLevel: repo, head: { branch: "main", detached: false, sha: mainSha, short: "", unborn: false } },
       { maxRefs: 3, maxStashes: 1, maxWorktrees: 2, maxSubmodules: 0 });
-    expect(r.branches.length + r.tags.length + r.remotes.reduce((n: number, x: any) => n + x.branches.length, 0)).toBe(3);
+    // Three in git's order, and the checked-out branch the cap cut, put first.
+    expect(r.branches.length + r.tags.length + r.remotes.reduce((n: number, x: any) => n + x.branches.length, 0)).toBe(4);
+    expect(r.branches[0].name).toBe("main");
     expect(r.stashes.length).toBe(1);
     expect(r.worktrees.length).toBe(2);
     expect(r.submodules.length).toBe(0);
     expect(r.clipped.sort()).toEqual(["refs", "stashes", "submodules", "worktrees"]);
+  });
+});
+
+describe("the checked-out branch past the cap", () => {
+  it("is still listed, first and current, with its upstream counts, when the cap cuts the list before it", async () => {
+    const r = await readRefs({ topLevel: repo, head: { branch: "main", detached: false, sha: mainSha, short: "", unborn: false } }, { maxRefs: 2 });
+    expect(r.ok).toBe(true);
+    expect(r.clipped).toContain("refs");
+    expect(r.branches.map((b: any) => b.name)).toEqual(["main", "agent/x", "feature/deep/one"]);
+    expect(r.branches[0]).toMatchObject({ sha: mainSha, current: true, upstream: "origin/main", ahead: 2, behind: 1, gone: false, worktree: repo });
+    expect(r.branches.filter((b: any) => b.current)).toHaveLength(1);
+  });
+
+  it("is listed once when the cap does not reach it", async () => {
+    const r = await readRefs({ topLevel: repo, head: { branch: "main", detached: false, sha: mainSha, short: "", unborn: false } });
+    expect(r.branches.filter((b: any) => b.name === "main")).toHaveLength(1);
   });
 });
 

@@ -263,6 +263,20 @@ async function readSubmodules(topLevel, max) {
   return { ok: true, list: all.slice(0, max), clipped: all.length > max || named.length > max + 1 };
 }
 
+/** The checked-out branch on its own, as refsFrom lists it, or null: for a
+ *  list the cap cut before it. Its name is git's own (symbolic-ref), so the
+ *  pattern is a ref name and never an option. */
+async function readOneBranch(cwd, branch, remoteNames, countsTimeoutMs) {
+  const ref = `refs/heads/${branch}`;
+  const [own, count] = await Promise.all([
+    git("for-each-ref", ["--count=1", `--format=${REF_FORMAT}`, ref], { cwd, maxBytes: SMALL_BYTES }),
+    git("for-each-ref", ["--count=1", `--format=${COUNT_FORMAT}`, ref], { cwd, maxBytes: SMALL_BYTES, timeout: countsTimeoutMs }),
+  ]);
+  if (!own.ok) return null;
+  const counts = count.ok ? parseCounts(count.stdout) : null;
+  return refsFrom(parseRefRecords(own.stdout), { remoteNames, counts }).branches.find((b) => b.name === branch) ?? null;
+}
+
 /**
  * The sidebar's lists for the repository at `repo.topLevel`:
  *   { ok: true, branches, remotes, tags, stashes, worktrees, submodules, clipped, unread }
@@ -270,7 +284,8 @@ async function readSubmodules(topLevel, max) {
  * `clipped` and `unread` name lists (`refs`, `stashes`, `worktrees`,
  * `submodules`) cut at their cap or not read at all; `unread` also names
  * `counts`, the branches' ahead and behind, when git could not count them
- * within COUNTS_TIMEOUT_MS.
+ * within COUNTS_TIMEOUT_MS. The checked-out branch is always listed, first
+ * when the cap cut the list before it.
  */
 export async function readRefs(repo, { maxRefs = MAX_REFS, maxStashes = MAX_STASHES, maxWorktrees = MAX_WORKTREES, maxSubmodules = MAX_SUBMODULES, countsTimeoutMs = COUNTS_TIMEOUT_MS } = {}) {
   const cwd = repo.topLevel;
@@ -284,16 +299,21 @@ export async function readRefs(repo, { maxRefs = MAX_REFS, maxStashes = MAX_STAS
     readSubmodules(cwd, maxSubmodules),
   ]);
   if (!refs.ok) return { ok: false, reason: readFailure(refs) };
+  const remoteNames = remoteCfg.ok ? parseRemoteNames(remoteCfg.stdout) : [];
   const { branches, remotes, tags, clipped: refsClipped } = refsFrom(parseRefRecords(refs.stdout), {
-    remoteNames: remoteCfg.ok ? parseRemoteNames(remoteCfg.stdout) : [],
+    remoteNames,
     maxRefs,
     asked,
     counts: counts.ok ? parseCounts(counts.stdout) : null,
   });
-  // A branch with no commit yet is not a ref, but it is where HEAD is.
   const head = repo.head;
-  if (head?.unborn && head.branch && !branches.some((b) => b.name === head.branch)) {
-    branches.unshift({ name: head.branch, sha: null, current: true, upstream: null, ahead: 0, behind: 0, gone: false, worktree: cwd });
+  if (head?.branch && !head.detached && !branches.some((b) => b.name === head.branch)) {
+    // A branch with no commit yet is not a ref, but it is where HEAD is.
+    if (head.unborn) branches.unshift({ name: head.branch, sha: null, current: true, upstream: null, ahead: 0, behind: 0, gone: false, worktree: cwd });
+    else if (refsClipped) {
+      const own = await readOneBranch(cwd, head.branch, remoteNames, countsTimeoutMs);
+      if (own) branches.unshift(own);
+    }
   }
   const clipped = [];
   const unread = [];
