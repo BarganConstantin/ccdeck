@@ -83,6 +83,17 @@ describe("the file list", () => {
     expect(css).toMatch(/\.gvf-stage-short \{ display: none; \}/);
   });
 
+  it("tells staged from unstaged as a tag does, never with a control's edge", () => {
+    // --ctl-edge says "press me"; a stage tag is a word, not a button. Staged
+    // still reads a step louder: a visible edge, where unstaged keeps the
+    // quiet line. Its word stays metadata (the secondary tier is for prose).
+    const staged = /\.gvf-stage\[data-stage="staged"\] \{([^}]*)\}/.exec(css)![1];
+    expect(staged).not.toMatch(/--ctl-edge/);
+    expect(staged).toMatch(/border-color: var\(--muted-dim\);/);
+    expect(staged).not.toMatch(/color: var\(--text-secondary\)/);
+    expect(/\.gvf-stage \{([^}]*)\}/.exec(css)![1]).toMatch(/border: 1px solid var\(--line\);/);
+  });
+
   it("moves a selection from the keyboard without animating it", () => {
     const row = /\.gvf-row \{([^}]*)\}/.exec(css)![1];
     expect(row).not.toMatch(/transition/);
