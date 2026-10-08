@@ -79,18 +79,43 @@ describe("the rating question's row", () => {
   });
 
   it("starts the rail under it, by the height it reports, and the rail gives that height back at its foot", () => {
+    // Read against the rail's own rules rather than a number kept here: the
+    // rail hangs 8px under the bar and ends 24px short of the window by the
+    // bar's token (tokens.css), and under the question it is the same two
+    // expressions with the row's height added and given back. Written as
+    // literals they were the 52px bar's 60 and 76, and stayed so when the bar
+    // became 44px (2026-10-08), so the rail stood 8px lower under the question
+    // than it does without it.
     const rail = top(/\.app:has\(\.rating-banner\)/).filter(r => /\.usage-panel/.test(r.selector) && /\.sysdetail/.test(r.selector));
     expect(rail).toHaveLength(1);
-    expect(decl(rail[0], "top")).toMatch(/^calc\(60px \+ var\(--rating-h, 0px\)\)$/);
-    expect(decl(rail[0], "max-height")).toMatch(/^calc\(100vh - 76px - var\(--rating-h, 0px\)\)$/);
+    const own = (prop: string) => {
+      const values = top(/^\.usage-panel$/).map(r => decl(r, prop)).filter(Boolean);
+      expect(values, `.usage-panel's own ${prop}`).toHaveLength(1);
+      return /^calc\((.*)\)$/.exec(values[0]!)![1];
+    };
+    expect(decl(rail[0], "top")).toBe(`calc(${own("top")} + var(--rating-h, 0px))`);
+    expect(decl(rail[0], "max-height")).toBe(`calc(${own("max-height")} - var(--rating-h, 0px))`);
   });
 
   it("on a phone, keeps the stacked rail stacked and starts the detail sheet under it too", () => {
     const at = (sel: RegExp, prop: string) => phone(sel).map(r => decl(r, prop)).filter(Boolean);
-    expect(at(/\.app:has\(\.rating-banner\) \.detail\b/, "top")).toContain("calc(52px + var(--rating-h, 0px))");
-    expect(at(/\.app:has\(\.rating-banner\) \.usage-panel\b/, "max-height")).toContain("calc(50vh - 38px - var(--rating-h, 0px))");
+    expect(at(/\.app:has\(\.rating-banner\) \.detail\b/, "top")).toContain("calc(var(--topbar-h) + var(--rating-h, 0px))");
     // The machine panel holds the foot of a phone, so it is not moved down.
     expect(at(/\.app:has\(\.rating-banner\) \.sysdetail\b/, "top")).toContain("auto");
+  });
+
+  it("on a phone, keeps both rail panels' caps clear of the dock along the bottom", () => {
+    // Under 641px the controls stand in a dock along the bottom
+    // (edge-rails.css), and each rail panel's cap gives half the dock back so
+    // the stacked pair keeps its 8px between them. The question's own caps
+    // outrank those (`.app:has(.rating-banner) …` is the heavier selector), so
+    // they have to carry the dock's half as well, or the pair overlaps by the
+    // dock's height minus the gap while the question is up.
+    const at = (sel: RegExp, prop: string) => phone(sel).map(r => decl(r, prop)).filter(Boolean);
+    expect(at(/\.app:has\(\.rating-banner\) \.usage-panel\b/, "max-height"))
+      .toContain("calc(50vh - 38px - var(--dock-h) / 2 - var(--rating-h, 0px))");
+    expect(at(/\.app:has\(\.rating-banner\) \.sysdetail\b/, "max-height"))
+      .toContain("calc(50vh - 38px - var(--dock-h) / 2)");
   });
 
   it("on a phone, is two lines: the question and Not now, then the scale — and the thanks the same way", () => {

@@ -40,11 +40,18 @@ describe("the topbar keeps its controls on screen (#849)", () => {
     expect(rule(".topbar .actions")).toMatch(/flex:\s*none/);
   });
 
-  it("spends less on padding and gaps on a narrow screen", () => {
-    expect(narrow).toMatch(/\.topbar\s*\{[^}]*padding:\s*0 10px/);
-    expect(narrow).toMatch(/\.topbar \.actions\s*\{[^}]*gap:\s*8px/);
-    // The settings run's offset shrinks with it, so the pair still stands apart.
-    expect(narrow).toMatch(/\.topbar \.action-run-utility\s*\{[^}]*margin-left:\s*4px/);
+  it("spends less on padding and gaps on a narrow screen, and nothing on controls there", () => {
+    // Under 641px every control is in the dock along the bottom
+    // (EdgeRails.tsx; topbar-phone-width.test.ts holds the bar to the readout
+    // alone there), so the bar's narrow block narrows its own padding and gap
+    // and has no run of controls left to tighten. The pixel on top stays at
+    // every width: it is what puts every height on the bar on whole pixels
+    // under its 1px rule.
+    expect(narrow).toMatch(/\.topbar\s*\{[^}]*padding:\s*1px 10px 0/);
+    expect(narrow).toMatch(/\.topbar\s*\{[^}]*gap:\s*12px/);
+    expect(narrow).toMatch(/\.topbar \.readout\s*\{[^}]*gap:\s*12px/);
+    expect(rule(".topbar")).toMatch(/padding:\s*1px 18px 0/);
+    expect(narrow).not.toMatch(/\.topbar \.actions|action-run/);
   });
 });
 

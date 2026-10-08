@@ -71,8 +71,8 @@
 .app .ver-banner.rating-banner { grid-column: 1 / -1; }
 .app:has(.rating-banner) :is(.session-list, .accounts-panel, .detail) { grid-row: 3 / -1; }
 .app:has(.rating-banner) :is(.usage-panel, .sysdetail) {
-  top: calc(60px + var(--rating-h, 0px));
-  max-height: calc(100vh - 76px - var(--rating-h, 0px));
+  top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
+  max-height: calc(100vh - var(--topbar-h) - 24px - var(--rating-h, 0px));
 }
 
 /* ON A PHONE, TWO LINES: the question with its "Not now" at the end, and the
@@ -102,9 +102,10 @@
   .rating-banner > .ver-act:has(+ .ver-close) { grid-area: next; justify-self: start; }
   .rating-banner .rating-ends { display: none; }
 
-  .app:has(.rating-banner) .usage-panel { max-height: calc(50vh - 38px - var(--rating-h, 0px)); }
-  .app:has(.rating-banner) .sysdetail { top: auto; max-height: calc(50vh - 38px); }
-  .app:has(.rating-banner) .detail { top: calc(52px + var(--rating-h, 0px)); }
+  /* Clear of the dock as well as the question (edge-rails.css). */
+  .app:has(.rating-banner) .usage-panel { max-height: calc(50vh - 38px - var(--dock-h) / 2 - var(--rating-h, 0px)); }
+  .app:has(.rating-banner) .sysdetail { top: auto; max-height: calc(50vh - 38px - var(--dock-h) / 2); }
+  .app:has(.rating-banner) .detail { top: calc(var(--topbar-h) + var(--rating-h, 0px)); }
 }
 
 /* A fingertip gets the 32px the rest of the deck's small targets grow to under

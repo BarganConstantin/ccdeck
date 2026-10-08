@@ -5,7 +5,7 @@
      panel's copy of this line. It had none at all. */
   animation: rail-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
   position: fixed;
-  top: 60px;
+  top: calc(var(--topbar-h) + 8px);
   /* THE SAME VARIABLE THE MACHINE PANEL READS. This was a literal 368 with a
      duplicate override further down the sheet — `.app:not(:has(.detail))
      .usage-panel { right: 8px }` — which is the exact two-places-one-number
@@ -17,7 +17,7 @@
      60px and the usage panel's right edge slides under the detail panel. */
   right: var(--rail-r);
   width: 280px;
-  max-height: calc(100vh - 76px);
+  max-height: calc(100vh - var(--topbar-h) - 24px);
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);

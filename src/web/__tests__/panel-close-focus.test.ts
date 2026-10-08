@@ -6,8 +6,11 @@
 // started again at "Skip to the canvas", and a screen reader said nothing.
 // The rule is panel-press.ts's (#518), through useFocusRescue (#1762): the
 // control the update takes away hands focus to the nearest thing that outlived
-// it — the topbar button that opens the panel, and for the detail panel the
-// card it was about, or the canvas when that card is not drawn.
+// it — the button that opens the panel, and for the detail panel the card it
+// was about, or the canvas when that card is not drawn. The four panel buttons
+// stand on the window's edges since 2026-10-08 (EdgeRails.tsx), or in the
+// phone's dock, and the one ref per panel lands on whichever of the two is
+// drawn.
 //
 // The hand-off is one hook, run here on a React of two hooks against a
 // document whose focused element the test sets. App and the topbar are
@@ -104,7 +107,7 @@ function close(panel: "sessionList" | "usage" | "machine" | "accounts" | "detail
 }
 
 describe("a docked panel's own close hands keyboard focus back", () => {
-  it("to the topbar button that opens it, for each of the four that have one", () => {
+  it("to the button that opens it, for each of the four that have one", () => {
     expect(close("usage").usage.focus).toHaveBeenCalledTimes(1);
     expect(close("machine").machine.focus).toHaveBeenCalledTimes(1);
     expect(close("accounts").accounts.focus).toHaveBeenCalledTimes(1);
@@ -125,7 +128,7 @@ describe("a docked panel's own close hands keyboard focus back", () => {
   });
 
   it("leaves a mouse press's focus where #851 wants it", () => {
-    // Left on the topbar button, the focus would keep Space for that button,
+    // Left on the panel's button, the focus would keep Space for that button,
     // and the next Space would reopen the panel rather than pause the stream.
     const toggles = close("usage", false);
     expect(toggles.usage.focus).not.toHaveBeenCalled();
@@ -134,7 +137,8 @@ describe("a docked panel's own close hands keyboard focus back", () => {
 
 describe("the wiring", () => {
   const app = sourceOf("App.tsx");
-  const runs = sourceOf("components/TopbarRuns.tsx");
+  const rails = sourceOf("rail-items.tsx");
+  const edge = sourceOf("components/EdgeRails.tsx");
   const detail = sourceOf("components/DetailAside.tsx");
 
   it("arms each panel's hand-off on the close that panel draws", () => {
@@ -150,14 +154,20 @@ describe("the wiring", () => {
     expect(app).toMatch(/const panelReturn = usePanelReturn\(\{\s*sessionListShown: sessionListOpen, usageShown: isMounted\(usagePhase\), machineShown: isMounted\(machinePhase\),\s*accountsShown: isMounted\(accountsPhase\) && providers\.claude, detailShown, primarySelectedId, canvasRef,\s*\}\);/);
   });
 
-  it("hands the topbar its four toggles' refs", () => {
-    expect(app).toMatch(/<SessionRun\b[^>]*\btoggles=\{panelReturn\.toggles\}/);
-    expect(app).toMatch(/<SourceRun\b[^>]*\btoggles=\{panelReturn\.toggles\}/);
-    for (const [ref, label] of [
-      ["sessionList", "Toggle session list"], ["usage", "Toggle usage panel"],
-      ["accounts", "Toggle accounts panel"], ["machine", "Toggle machine detail"],
+  it("hands the chrome its four toggles' refs, and every placement puts them on the button", () => {
+    // App hands the refs to the one definition of the chrome's controls; each
+    // panel's control carries its own; the button every placement draws — a
+    // stripe's, the dock's — takes the ref of the control it draws. Only one
+    // placement is mounted at a time (App.tsx draws the dock or the stripes),
+    // so a ref never has two buttons to choose between.
+    expect(app).toMatch(/railItems\(\{[\s\S]*?toggles: panelReturn\.toggles,[\s\S]*?\}\)/);
+    for (const [ref, item] of [
+      ["sessionList", "sessionList"], ["usage", "usage"], ["accounts", "accounts"], ["machine", "machine"],
     ]) {
-      expect(runs, label).toMatch(new RegExp(`<button\\s+ref=\\{toggles\\.${ref}\\}[^<]*?aria-label="${label}"`));
+      expect(rails, item).toMatch(new RegExp(`const ${item}: RailItem = \\{[\\s\\S]*?buttonRef: toggles\\.${ref},`));
     }
+    expect(edge).toMatch(/<button\s+ref=\{item\.buttonRef\}/);
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock[\s\S]*?:\s*<EdgeRail side="left"/);
+    expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
   });
 });

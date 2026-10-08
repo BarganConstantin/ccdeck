@@ -359,7 +359,7 @@ A CSS grid shell, `.app`, with `:has()` deciding the columns rather than a body
 class:
 
 ```
-rows:     52px  topbar
+rows:     44px  topbar (--topbar-h)
           auto  banner
           1fr   body
 
@@ -371,6 +371,17 @@ columns:  1fr 360px                   default (canvas + detail rail)
 
 Sessions and Accounts share the left slot and are mutually exclusive; accounts
 takes `auto` because it has to fit bars and email addresses.
+
+**The panel buttons live on the window's edges** (`edge-rails.css`): a stripe
+`--edge-w` wide (one control height) on the left for the session list and the
+accounts panel, and one on the right for Usage, the machine panel, Usage history
+and Browser Watch; `.app` keeps their width free with its inline padding. They
+are show/hide toggles, not tabs — several panels can be open at once and the
+canvas never leaves — so an open one is a `--text` line on the stripe's inner
+edge, never a tab joined to a page. The topbar keeps the identity, the stream's
+state, the waiting count with the names of who is waiting, and Settings and
+Feedback. Under 641px the stripes and those two become one dock along the
+bottom, `--dock-h` tall.
 
 **The detail rail is the 360px column.** `--rail-r` is *not* its width — it is the
 right offset the floating panels position against: `368px` (the rail plus an 8px
@@ -490,7 +501,9 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 - `.btn.danger` — `--err` text with an `--err` 65% edge, and an `.armed` second
   step so a destructive action is never one click.
 - `.btn.warn` was removed on purpose. Do not bring it back.
-- `.icon-btn` is the square variant for a glyph alone.
+- `.rail-btn` is the chrome's control — a stripe button, a dock button, a topbar
+  utility: edgeless at rest, `--ctl-fill` and `--text` under the pointer, a
+  deeper fill and a `--text` line when its panel is open.
 - **Edgeless at rest, in a dense column.** A few controls identified by their
   own word or name draw no boundary until they are pointed at or focused, and
   then take `--ctl-edge` and `--ctl-fill` — the verbs on a Local network row
@@ -539,7 +552,8 @@ reinvented. Three rules:
 
 1. **`--warn` is reserved for it.** The topbar `.waiting-stat` chip is a transparent
    pill with an `--warn` 85% edge and `--warn` text; `.notify-said-blocked` is
-   `--warn`. Nothing else competes at that colour.
+   `--warn`. Nothing else competes at that colour — not even the names of who is
+   waiting beside the count, which are neutral (`.wait-entry`).
 2. **The pulse is the only ambient motion a resting card may have.** `.waiting-dot`
    is a 5px `currentColor` dot borrowing `.ap-pulse`'s motion, so the app keeps one
    idiom for *still asking* and one reduced-motion answer for it.

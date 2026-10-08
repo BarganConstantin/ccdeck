@@ -74,15 +74,17 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 /** Comment-stripped, so a paragraph explaining a decision cannot satisfy an
  *  assertion about the code that carries it out (#513). */
-// The keydown handler moved to use-deck-shortcuts.ts, the topbar's settings run
-// to components/TopbarRuns.tsx and the menus' open state to
-// use-settings-menus.ts; the keys, the run and the rest of the deck are read as one.
+// The keydown handler moved to use-deck-shortcuts.ts, the chrome's controls to
+// rail-items.tsx and components/EdgeRails.tsx (the topbar's settings run before
+// them, 2026-10-08) and the menus' open state to use-settings-menus.ts; the
+// keys, the controls and the rest of the deck are read as one.
+const chrome = withoutComments(read("rail-items.tsx")) + "\n" + withoutComments(read("components/EdgeRails.tsx"));
 const app = withoutComments(read("App.tsx")) + "\n" + withoutComments(read("use-deck-shortcuts.ts"))
-  + "\n" + withoutComments(read("components/TopbarRuns.tsx")) + "\n" + withoutComments(read("use-settings-menus.ts"));
+  + "\n" + chrome + "\n" + withoutComments(read("use-settings-menus.ts"));
 // The tone settings, their write-through and the preview timer moved to
 // use-tone-prefs.ts. The cases about them read the whole client — every one of
 // them is a positive match, so the wider text cannot make one pass falsely.
-// `app` stays those four files for the rest, including the one negative case.
+// `app` stays those files for the rest, including the one negative case.
 const client = clientText();
 // The tone groups, the preview note and the custom sounds are Settings ›
 // Sounds, SoundsSection.tsx, and since the popover went (2026-10-07) so are the
@@ -858,8 +860,10 @@ describe("M silences the deck from anywhere, and the switch is in Settings › S
     // Sounds holds both (below), so the bar lost a door rather than a control.
     // The key that opened the popover opens the section, through the gear's
     // own door.
-    const runs = withoutComments(read("components/TopbarRuns.tsx"));
-    expect(runs).not.toMatch(/Sound settings|SoundMenu|soundMenuOpen|setSoundMenuOpen/);
+    // Not on the bar, and not on the edges or in the dock either: the eight
+    // controls of the chrome are the whole list, and none of them is a speaker.
+    expect(chrome).not.toMatch(/Sound settings|SoundMenu|soundMenuOpen|setSoundMenuOpen|SpeakerGlyph/);
+    expect(chrome).not.toContain('d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z"');
     expect(app).not.toMatch(/setSoundMenuOpen|soundButtonRef/);
     expect(app).toMatch(/if \(e\.key === "v" \|\| e\.key === "V"\) openSettings\("sounds"\);/);
   });
