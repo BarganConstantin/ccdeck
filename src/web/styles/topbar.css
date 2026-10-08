@@ -5,7 +5,8 @@
 
      4px   control to control      .action-run (the controls are borderless,
                                    so their own padding does the separating)
-     14px  readout to readout      .topbar .status — unchanged
+     14px  readout to readout      .topbar .status — kept for a second readout;
+                                   the strip holds the stream pill alone
      12px  run to run              .topbar .actions
      24px  role to role            .topbar, .topbar .readout, and the settings
                                    run's own offset from the panel runs
@@ -31,9 +32,9 @@
 }
 /* Everything the deck is telling you, in one group, on the LEFT. Not centred:
    a centred group's x-position is a function of both its neighbours' widths, so
-   the `live` pill would slide sideways every time the token count or the cost
-   gained a digit — and the one light on this bar that has to be noticed cannot
-   be the one that moves. On the left, everything ahead of it (a 16px logo, a
+   the stream pill would slide sideways every time something beside it gained a
+   digit — and the one light on this bar that has to be noticed cannot be the
+   one that moves. On the left, everything ahead of it (a 16px logo, a
    wordmark of a fixed string, a version chip that grows by at most a warning
    dot) has bounded width, which makes the pill an anchor. */
 .topbar .readout {
@@ -266,8 +267,10 @@
    and 77 less since the speaker left the bar (2026-10-07; measured in
    Chromium, its button with "Sound" 73px and the 4px after it), so 666 of
    controls and 1352. The tier stays at 1440 all the same: #737's ribbon caps
-   (topbar-status.css) switch there, and the busiest bar below still needs
-   more than their reserve. A paused deck on top of that does not fit, and
+   (topbar-status.css) switch there, and it is held with them until the
+   topbar's redesign settles every tier — the busiest bar below needed more
+   than their reserve while the month phrase was on it, and needs less since
+   the phrase left (2026-10-08). A paused deck on top of that does not fit, and
    `.readout` above is why that costs the wordmark rather than the alarm.
    Under 1440 the bar is glyphs again: the readouts give first and the
    controls never do. */
@@ -278,17 +281,21 @@
 }
 /* FEEDBACK'S WORD, WHERE THE BUSIEST BAR STILL HOLDS IT (#1853). The button was
    a bare glyph at the end of the words and could not be found, so it says
-   "Feedback" too — but not from 1440 with the others. The busiest bar is
+   "Feedback" too — but not from 1440 with the others. The busiest bar was
    #737's case (a blocked session, "this month" at its widest, a selected node
-   whose name fills any cap), and measured on a real deck it is already wider
+   whose name fills any cap), and measured on a real deck it was already wider
    than #737's reserve assumes: 1302px besides the ribbon, where the reserve
    says 1213 — 1225 since the speaker's 77px left the bar (2026-10-07), still
    over the reserve. Drawn from 1440, the word's 62px went straight out of the
    wordmark. So it arrives where that bar, the word, the ribbon's full 380 and
    #737's 40px of headroom all fit: 1784 with the speaker, 1707 without it —
-   every 1920 screen, and a 1728 one now too. Under that it is the glyph
-   alone, at the toolbar's resting --muted, the tone every labelled control
-   rests at, with its name and its tooltip. */
+   every 1920 screen, and a 1728 one now too. The month phrase left the bar
+   on 2026-10-08; measured again that day on a demo deck in headless Brave,
+   the busiest bar besides the ribbon is 999px with the six words and 1061
+   with this one, so the word would fit from 1481. It is held at 1707 until
+   the topbar's redesign settles every tier at once: late, never early.
+   Under that it is the glyph alone, at the toolbar's resting --muted, the
+   tone every labelled control rests at, with its name and its tooltip. */
 .tb-word-wide { display: none; }
 @media (min-width: 1707px) {
   .topbar .tb-word-wide { display: inline; font-size: 12px; line-height: 1; }
@@ -299,9 +306,11 @@
    from, and the word "Settings" is one more word on it: measured on a real
    deck, the word costs its button 54px, and the busiest bar holds both
    words with the ribbon at its full 380 and #737's 40px of headroom from
-   1838 with the speaker on the bar, and from 1761 since it left. Under that
-   it is the gear alone, named in its tooltip and its accessible name, as
-   Feedback is under its own width. */
+   1838 with the speaker on the bar, and from 1761 since it left. Without the
+   month phrase (2026-10-08) it holds them from 1535, measured as Feedback's
+   above, and the tier is held at 1761 with Feedback's until the redesign.
+   Under that it is the gear alone, named in its tooltip and its accessible
+   name, as Feedback is under its own width. */
 .tb-word-wider { display: none; }
 @media (min-width: 1761px) {
   .topbar .tb-word-wider { display: inline; font-size: 12px; line-height: 1; }

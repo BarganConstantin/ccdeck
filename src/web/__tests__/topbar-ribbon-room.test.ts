@@ -94,7 +94,7 @@ function ribbonFloorAt(width: number) {
 }
 
 /** Every width either side of the old breakpoint, then a step at a time to
- *  the glyph band, where monthly-topbar-737.test.ts does this sum instead. */
+ *  the glyph band, where #737's caps take over (topbar-ribbon-caps-737.test.ts). */
 const WIDTHS = [
   ...Array.from({ length: 41 }, (_, i) => 470 + i),
   ...Array.from({ length: 19 }, (_, i) => 520 + i * 10), 641, 800, 900, 1039,

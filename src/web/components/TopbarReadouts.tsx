@@ -1,6 +1,6 @@
 // The topbar's observation group, and the readouts in it: the status strip (the
-// stream's pill and the month's usage), the count of sessions blocked on you,
-// and what the browser answered when notifications were asked for.
+// stream's pill), the count of sessions blocked on you, and what the browser
+// answered when notifications were asked for.
 //
 // Moved out of App.tsx's markup unchanged: the readouts first, and then the
 // group itself (ReadoutGroup, at the end) — the wordmark, the version chip, the
@@ -11,13 +11,10 @@
 import type { MutableRefObject } from "react";
 import type { BlockedSession } from "../ambient-counts";
 import { MARK_SMALL_ON_LIGHT_SRC, MARK_SMALL_SRC, PRODUCT } from "../brand";
-import { fmtMonthlyCost } from "../monthly-usage";
 import { shortAgo } from "../relative-time";
 import { statusPill } from "../status-pill";
-import { fmtTokens } from "../token-format";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useLiveAnnouncements } from "../use-live-announcements";
-import type { useMonthlyUsage } from "../use-monthly-usage";
 import type { useOsNotifications } from "../use-os-notifications";
 import type { PauseControls } from "../use-pause-gate";
 import type { useVersionCheck } from "../use-version-check";
@@ -28,16 +25,11 @@ import { IncidentChips } from "./ProviderIncidents";
 import VersionChip from "./VersionChip";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
-type MonthlyUsage = ReturnType<typeof useMonthlyUsage>;
-
-export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsage, monthlyUsageUnavailable }: {
+export function StatusStrip({ live, paused, pauseGate }: {
   /** Whether the event stream is connected right now. */
   live: boolean;
   paused: boolean;
   pauseGate: PauseControls["pauseGate"];
-  monthUsageRef: MonthlyUsage["monthUsageRef"];
-  monthlyUsage: MonthlyUsage["monthlyUsage"];
-  monthlyUsageUnavailable: MonthlyUsage["monthlyUsageUnavailable"];
 }) {
   const singleKeys = useSingleKeyShortcuts();
   return (
@@ -50,11 +42,11 @@ export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsa
           canvas verbs went in #527 — so one fact stopped being split
           across two ends of a row, and the pill, which already knew the
           number, says it.
-          The ghost below is what keeps that free. The pill LEADS this
-          strip, so its width is upstream of everything after it — the
-          machine meter, the token total, the dollar figure: a count going
-          9 → 10 would walk all three, which is #504 one bar over, and the
-          count moves on its own where a label never did. A copy of the
+          The ghost below is what keeps that free. The pill's width is
+          upstream of everything after it in the readout — the blocked
+          count and any incident chip: a count going 9 → 10 would walk
+          them, which is #504 one bar over, and the count moves on its own
+          where a label never did. A copy of the
           widest label this tone can reach sits in the same grid cell as
           the live one, so the box measures its own worst case in whatever
           font the platform hands it. The alternative was a min-width in
@@ -74,10 +66,10 @@ export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsa
         });
         // Nothing at rest (#719). The ghost above explains why the box
         // measures its own worst case; this is the case where the box
-        // itself is not earned. `.status` is a flex row, so the 14px gap
-        // leaves with it and the strip closes up without anything
-        // shifting on its own — the tone only ever changes because Space
-        // was pressed or the stream died.
+        // itself is not earned. The strip is then empty, and `:empty` takes
+        // it out of the row with the 24px gap before it, so the readout
+        // closes up without anything shifting on its own — the tone only
+        // ever changes because Space was pressed or the stream died.
         if (pill.resting) return null;
         return (
           <span className={`pill ${pill.tone}`} title={pill.title}>
@@ -88,46 +80,29 @@ export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsa
           </span>
         );
       })()}
-      {/* Month-to-date usage comes from ccusage, not from the cards that
-          happen to remain on this board (#737). The label and both values
-          live in one element so the period can never be separated from
-          the figures it qualifies. A successful empty month is explicitly
-          0 tokens / $0.00; a ccusage failure says unavailable rather than
-          dressing the current board total up as history.
-          THE MACHINE METER WENT THE SAME WAY, and it is the one that had
-          been earning its width. A 50x24 box drew a 60-second CPU
-          sparkline and a memory bar, and it was the only readout here
-          that was not about agents. What it could not do is stop: it is a
-          trace that moves whether or not anything on the canvas is
-          happening, in the corner of a bar the eye returns to for the one
-          thing this deck is for. The panel it disclosed says everything
-          it said and eleven things it could not, and the button in the
-          run below opens that panel without drawing anything at all. A
-          glance costs a click now; the bar costs no attention.
-          What is left is the one thing the bar is FOR: whether the stream
-          is alive. That is a fact about right now, which is the only
-          tense a topbar can keep. */}
-      <span
-        ref={monthUsageRef}
-        className="month-usage"
-        title={monthlyUsage
-          ? `${monthlyUsage.tokens.toLocaleString()} tokens · ${fmtMonthlyCost(monthlyUsage.cost)} spent since the 1st of this local calendar month`
-          : monthlyUsageUnavailable
-            ? "Monthly usage is unavailable — ccusage could not be read"
-            : "Loading usage since the 1st of this local calendar month"}
-      >
-        <span className="month-usage-label">this month</span>
-        {monthlyUsage ? (
-          <>
-            <b>{fmtTokens(monthlyUsage.tokens)}</b>
-            <span className="month-usage-unit">tokens</span>
-            <span className="month-usage-sep" aria-hidden>·</span>
-            <b>{fmtMonthlyCost(monthlyUsage.cost)}</b>
-          </>
-        ) : (
-          <span className="month-usage-pending">{monthlyUsageUnavailable ? "unavailable" : "…"}</span>
-        )}
-      </span>
+      {/* WHAT IS LEFT IS THE ONE THING THE STRIP IS FOR: whether the stream
+          is alive. That is a fact about right now, which is the only tense a
+          topbar can keep, and the two readouts that used to follow the pill
+          went for not keeping it.
+          The machine meter was the one that had been earning its width. A 50x24 box drew a 60-second CPU sparkline and a
+          memory bar, and it was the only readout here that was not about
+          agents. What it could not do is stop: it is a trace that moves
+          whether or not anything on the canvas is happening, in the corner
+          of a bar the eye returns to for the one thing this deck is for. The
+          panel it disclosed says everything it said and eleven things it
+          could not, and the Machine button opens that panel without drawing
+          anything at all.
+          The month-to-date phrase went the same way ("this month", its
+          tokens and its dollars, #737). A month's total is a fact about the
+          weeks behind you, not about this minute: it moved by a sliver an
+          hour, and keeping it current cost a ccusage run every five minutes
+          — a walk of every transcript on disk — for as long as the tab was
+          in front and the window wide enough to draw it.
+          The Usage panel (U) answers "today", "this month" and "all time"
+          from the same logs, with the split by model and by kind of token
+          the phrase never had room for.
+          A glance costs a click or a key now; the bar costs no attention,
+          and the machine no read nobody asked for. */}
     </span>
   );
 }
@@ -196,14 +171,13 @@ export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
 }
 
 export function ReadoutGroup({
-  versionCheck, welcome, desktopUpdate, pause, monthly, announcements, notify,
+  versionCheck, welcome, desktopUpdate, pause, announcements, notify,
   waitingSessions, waitingCursorRef, focusSession, live, now, incidents,
 }: {
   versionCheck: ReturnType<typeof useVersionCheck>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
   desktopUpdate: ReturnType<typeof useDesktopUpdate>;
   pause: PauseControls;
-  monthly: MonthlyUsage;
   announcements: ReturnType<typeof useLiveAnnouncements>;
   notify: ReturnType<typeof useOsNotifications>;
   /** The sessions blocked on you, longest-stuck first. */
@@ -221,7 +195,6 @@ export function ReadoutGroup({
   const { chipVersion, openReleaseNotes } = welcome;
   const { readyAppUpdate } = desktopUpdate;
   const { paused, pauseGate } = pause;
-  const { monthlyUsage, monthlyUsageUnavailable, monthUsageRef } = monthly;
   const { blockedSaid, watchSaid, incidentSaid } = announcements;
   const { notifySaid } = notify;
   return (
@@ -239,7 +212,7 @@ export function ReadoutGroup({
        all was. Both dividers and both readouts have since gone, and the
        24px between the groups is what is left doing the work.
        LEFT, not centred. A centred group's x-position is a function of
-       both neighbours' widths, so the `live` pill would slide sideways
+       both neighbours' widths, so the stream pill would slide sideways
        every time something after it gained a digit — and a status light
        that has to be noticed cannot be a moving target. Everything ahead
        of it here (the logo, the wordmark, the version chip) has bounded
@@ -279,24 +252,22 @@ export function ReadoutGroup({
       {/* NOT a live region, and #372 is the issue that took the
           `role="status"` off it. Nothing in this strip is a status
           *message*: it is a permanently visible readout the user can read
-          whenever they want one, and every number in it still moves on its
-          own — tokens climbs on every event carrying usage, and the cost
-          label reprices its `$/h` rate on each frame while something is
-          live. `role="status"` also carries an implicit
+          whenever they want one, and every number it has carried moved on
+          its own — tokens climbed on every event carrying usage, the cost
+          label repriced its `$/h` rate on each frame while something was
+          live, and a paused pill counts its queue as events arrive.
+          `role="status"` also carries an implicit
           `aria-atomic="true"`, so what a screen reader actually did with
           each of those increments was re-read the WHOLE strip rather than
           the one number that moved. That is a property of the role, not of
           how many numbers are in the row: it held when the row also carried
-          the sessions, agents and events counters, and it holds now that
-          they are gone. Continuous speech of numbers nobody asked for is how
+          the sessions, agents and events counters and the month's usage, and
+          it holds for the pill alone. Continuous speech of numbers nobody asked for is how
           a page teaches its user to turn the screen reader off, and it was
           being spent on the least urgent thing in the topbar.
           WCAG 4.1.3 was satisfied here — for the wrong content. The alarm
           that is worth a live region has one of its own, below. */}
-      <StatusStrip
-        live={live} paused={paused} pauseGate={pauseGate}
-        monthUsageRef={monthUsageRef} monthlyUsage={monthlyUsage} monthlyUsageUnavailable={monthlyUsageUnavailable}
-      />
+      <StatusStrip live={live} paused={paused} pauseGate={pauseGate} />
       {/* The deck's one alarm, said out loud — and the only live region in
           the topbar (#372).
           MOUNTED UNCONDITIONALLY, which is the half that looks redundant and

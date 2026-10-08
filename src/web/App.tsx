@@ -74,7 +74,6 @@ import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
 import { initialState } from "./reducer";
-import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
@@ -121,7 +120,6 @@ function Inner() {
   // the eviction live in use-left-column.ts; only its toggles can open either.
   const { sessionListOpen, accountsPanelOpen, toggleSessionList, toggleAccountsPanel,
           closeSessionList, closeAccountsPanel } = useLeftColumn();
-  const monthly = useMonthlyUsage();
   /** The panel outlives its own `false` by the length of its exit, so closing
    *  it animates instead of cutting 288px out of the layout in one frame.
    *  Must match `--side-exit` in the sheet. */
@@ -582,7 +580,7 @@ function Inner() {
       <header className="topbar">
         {/* The observation group, and the notes on each readout in it — components/TopbarReadouts.tsx. */}
         <ReadoutGroup
-          versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause} monthly={monthly}
+          versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause}
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
           waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
           incidents={incidents}

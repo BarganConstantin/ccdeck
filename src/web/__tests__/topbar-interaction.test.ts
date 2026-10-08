@@ -130,9 +130,10 @@ const transitioned = (value: string | null): string[] =>
 // as its label went `Pause` → `Resume` → `Resume · 42 held`; the button has
 // since left the bar for the canvas control stack, and the held count it
 // printed is in the status pill's label instead. That is the same string with a
-// worse neighbourhood: the pill LEADS the readout strip, so its width is
-// upstream of the machine meter, the token total and the dollar figure, where
-// the button had only itself and the ribbon downstream of it. And the count is
+// worse neighbourhood: the pill LEADS the readout strip, so its width was
+// upstream of the machine meter, the token total and the dollar figure — and,
+// since those left, of the incident chips and the blocked count — where the
+// button had only itself and the ribbon downstream of it. And the count is
 // the half that moves unbidden — the tone changes when somebody presses Space,
 // but `paused · 9` becomes `paused · 10` while nobody touches anything.
 //

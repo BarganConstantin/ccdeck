@@ -24,7 +24,7 @@
 @import "./styles/topbar.css";                   /* the topbar, the update-ready notice, the worded buttons */
 @import "./styles/menus.css";                    /* the sound and appearance menus, and the switch */
 @import "./styles/selection-ribbon.css";         /* the selected-agent ribbon */
-@import "./styles/topbar-status.css";            /* the topbar's status strip and the month's usage */
+@import "./styles/topbar-status.css";            /* the topbar's status strip and the ribbon's caps */
 @import "./styles/machine-panel.css";            /* the machine panel */
 @import "./styles/topbar-controls.css";          /* the live pill, the waiting count and the toolbar buttons */
 @import "./styles/panel-glyph.css";              /* the glyph a panel header closes with */

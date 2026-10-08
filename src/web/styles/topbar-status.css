@@ -1,11 +1,14 @@
-/* 14px between readouts, unchanged — it was never the wrong number. What was
-   wrong is that it also had to serve as the seam between the readouts and the
-   controls, via a `margin-right: 6px` that made that boundary 14px too. The
-   margin is gone; .readout's 24px and .topbar's 24px carry the two boundaries
-   this strip actually has.
-   The second member is one month-to-date usage phrase. It is intentionally one
-   element rather than separate token/cost chips: "this month" qualifies both
-   figures and must travel with them when the row reflows. */
+/* 14px between readouts — it was never the wrong number. What was wrong is
+   that it also had to serve as the seam between the readouts and the controls,
+   via a `margin-right: 6px` that made that boundary 14px too. The margin is
+   gone; .readout's 24px and .topbar's 24px carry the two boundaries this strip
+   actually has.
+   The stream's pill is the strip's one member now, so the 14px separates
+   nothing today; it is the distance a second readout would take, and that
+   readout has the reasons below to answer first. The month-to-date phrase
+   that followed it (#737) left the bar on 2026-10-08: a month's total is not
+   a fact about right now, and it cost a ccusage run every five minutes to keep
+   current. The Usage panel says it, beside today and all time. */
 .topbar .status {
   color: var(--muted);
   font-size: 12px;
@@ -13,79 +16,50 @@
   align-items: center;
   gap: 14px;
 }
-.topbar .status .month-usage {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.topbar .status .month-usage-label,
-.topbar .status .month-usage-unit,
-.topbar .status .month-usage-sep,
-.topbar .status .month-usage-pending { color: var(--muted); }
-.topbar .status .month-usage b {
-  color: var(--text);
-  font-weight: 650;
-}
 /* Nothing to say is no box at all. The strip renders nothing while the stream
    is live, and an empty flex item still takes a gap on either side, so the bar
    drew 48px between the version chip and the blocked-session chip where every
    other role boundary in it is 24. */
 .topbar .status:empty { display: none; }
-/* WHERE THE MONTH GIVES WAY (#737). The readout clips from the left when the
-   bar is short, and the monthly phrase is ~180px of it. A figure without its
-   period is the one thing #737 said must not ship, and the version chip is a
-   control, which this bar never gives up for a readout.
-   BY WIDTH ALONE. The phrase used to leave as soon as a node was selected
-   under 1760px, and it sits AHEAD of the blocked-session chip in this
-   left-packed group, so one click on a card slid the alarm 204px left at 1440
-   and 1600 — the one light on the bar that is meant to be an anchor, moving
-   because of something done on the canvas. Nothing a click on the canvas puts
-   on the bar may change what the readout holds.
-   AND THE RIBBON PAYS FOR IT, not the phrase. 1440 is the app's default
-   window, so hiding the phrase wherever a selection might not fit beside it
-   hid "this month" from most people most of the time. The selected-node ribbon
-   is the one member of the bar that can say less and still be itself — a
-   state, a name cut with an ellipsis, a ×; the cost is on the card and in the
-   detail panel, and in the ribbon's own title — so where the room is short it
-   is the ribbon's cap that comes down.
-   The budget is a blocked session, the phrase with a nine-digit month, and a
-   selected node whose name is long enough to fill any cap. Measured in
-   Chromium (dark and light alike; Remove node left the bar in #1242),
-   everything but the ribbon comes to W - 827 of room for it on glyphs and
-   W - 1213 once the words (#836) arrive at 1440. Less 40px of headroom for
-   faces wider than the one measured, those are the two caps below; each meets
-   the ribbon's usual min(380px, 24vw) where the room runs out — 1140 and 1633
-   — so the ribbon never grows back past what fits. Where it is held under its
-   usual cap it drops its cost and rate first, so what it has left goes to the
-   name, which keeps about ten characters at the 1040 floor and twelve at 1440.
-   Under 1040 even that ribbon leaves no room, and the phrase leaves whole —
-   which also covers the phone bar, where the readout is spent on the alarm.
-   The cost stays off down there too. With the phrase gone the ribbon is back
-   under its usual cap, but from 641, where it returns (selection-ribbon.css),
-   the controls leave it less than 24vw, and a cost does not shrink: the name
-   ellipsed to nothing while the cost kept its width, and the cost and the ×
-   ran on past the ribbon's edge — 67px into the controls at 641, and over the
-   Session list button, taking its presses, at 720 to 750. So the cost's band
-   runs from wherever the ribbon is drawn up to 1139, with no lower bound of
-   its own (topbar-ribbon-cost.test.ts adds the bar up).
+/* THE RIBBON'S CAPS (#737). The selected-node ribbon is the one member of the
+   bar that can say less and still be itself — a state, a name cut with an
+   ellipsis, a ×; the cost is on the card and in the detail panel, and in the
+   ribbon's own title — so where the room is short it is the ribbon's cap that
+   comes down. Nothing a click on the canvas puts on the bar may change what
+   the readout holds: the readout is packed ahead of the blocked-session chip,
+   and a selection that hid any of it would slide the alarm sideways.
+   The budget the caps were cut to is a blocked session, the month phrase with
+   a nine-digit month, and a selected node whose name is long enough to fill
+   any cap. Measured in Chromium (dark and light alike; Remove node left the
+   bar in #1242), everything but the ribbon came to W - 827 of room for it on
+   glyphs and W - 1213 once the words (#836) arrive at 1440. Less 40px of
+   headroom for faces wider than the one measured, those are the two caps
+   below; each meets the ribbon's usual min(380px, 24vw) where the room runs
+   out — 1140 and 1633 — so the ribbon never grows back past what fits. Under
+   1040 the ribbon is under its usual cap again.
+   THE PHRASE HAS LEFT THE BAR SINCE (2026-10-08), and the caps stay where it
+   put them until the topbar's redesign settles every width tier at once. They
+   are short of the room by the phrase and the gap before it, and never over
+   it: the ribbon is given less than the bar has, not more. Measured on a demo
+   deck in headless Brave that day, the busiest bar besides the ribbon came
+   down from 858 to 637 on glyphs and from 1220 to 999 at 1440 — 221px, the
+   phrase's 197 and its 24px gap, and a nine-digit month was 23 wider.
+   Where it is held under its usual cap it drops its cost and rate first, so
+   what it has left goes to the name, which keeps about ten characters at the
+   1040 floor and twelve at 1440.
+   The cost stays off under 1040 too. There the ribbon is back under its usual
+   cap, but from 641, where it returns (selection-ribbon.css), the controls
+   leave it less than 24vw, and a cost does not shrink: the name ellipsed to
+   nothing while the cost kept its width, and the cost and the × ran on past
+   the ribbon's edge — 67px into the controls at 641, and over the Session list
+   button, taking its presses, at 720 to 750. So the cost's band runs from
+   wherever the ribbon is drawn up to 1139, with no lower bound of its own
+   (topbar-ribbon-cost.test.ts adds the bar up).
    A paused pill or the app's ready-update chip on top of the budget is outside
    it, the way .tb-word leaves a paused deck outside its own, and there the
    readout gives up the logo and the wordmark from the left, never the alarm.
-   The Usage panel is one keystroke away (U) and says the same number with more
-   beside it.
-   The strip goes with the phrase when the pill is not there either, for the
-   reason the :empty rule above gives: an empty flex item still takes both
-   gaps. All of this after the base rules, and not in the 640 block at the top
-   of the topbar section, where `.month-usage`'s own `display` and the ribbon's
-   own cap would win on source order. The page's ccusage poll asks the phrase
-   whether it is drawn rather than repeating these numbers, so a bound moved
-   here moves the poll with it. */
-@media (max-width: 1039px) {
-  .topbar .status .month-usage,
-  .topbar .status:not(:has(.pill)) { display: none; }
-}
+   All of this after the base rules, and not in the 640 block at the top of
+   the topbar section, where the ribbon's own cap would win on source order. */
 @media (min-width: 1040px) and (max-width: 1439px) {
   .selected-ribbon { max-width: min(24vw, calc(100vw - 867px)); }
 }

@@ -1,8 +1,8 @@
 // A running agent's ribbon ran its cost and × over the controls.
 //
 // The ribbon naming the selected agent comes back to the bar at 641px
-// (topbar-ribbon-room.test.ts), and from there to 1040, where the readout's
-// month phrase leaves, nothing held its cost back: the ribbon's cap is its
+// (topbar-ribbon-room.test.ts), and from there to 1040, where #737's caps take
+// over, nothing held its cost back: the ribbon's cap is its
 // usual 24vw, the bar beside the controls gives it less, and the cost — a
 // running agent's "$3.96 · 88¢/min", which does not shrink — kept its width
 // while the name ellipsed to nothing. The rest ran on past the ribbon's edge:

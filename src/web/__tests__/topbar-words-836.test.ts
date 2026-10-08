@@ -66,8 +66,9 @@ describe("each topbar button can say its name (#836)", () => {
   it("gives the gear its word only from the width the busiest bar holds it, not with these six", () => {
     // The Appearance button stood here glyph-only; the gear that replaced it
     // says "Settings", but on its own later tier (`tb-word-wider`), measured
-    // below, rather than from 1440 with the seven: at 1440 the busiest bar has
-    // no room for one more word.
+    // below, rather than from 1440 with the seven: at 1440 the busiest bar had
+    // no room for one more word while the month phrase was on it, and the tier
+    // is held for the topbar's redesign since the phrase left.
     const at = app.indexOf('aria-label="Settings"');
     expect(at).toBeGreaterThan(-1);
     const button = app.slice(app.lastIndexOf("<button", at), app.indexOf("</button>", at));
@@ -105,7 +106,7 @@ describe("each topbar button can say its name (#836)", () => {
   });
 });
 
-// FEEDBACK'S WORD AGAINST THE BUSIEST BAR (#1853). The busiest bar is #737's
+// FEEDBACK'S WORD AGAINST THE BUSIEST BAR (#1853). The busiest bar was #737's
 // case (topbar-status.css): a blocked session, "this month" at its widest and a
 // selected node whose name fills any cap, with the ribbon's cap taking the
 // rest of the bar. #737's reserve for it no longer holds — measured on the
@@ -121,8 +122,16 @@ describe("each topbar button can say its name (#836)", () => {
 // deck at 1440 before and after, the controls came down from 735.3px to
 // 658.1px — the speaker's button with its word, 73.1, and the 4px gap after
 // it — so the bar is 77px narrower, everything else in it unchanged.
+// The month phrase left the bar on 2026-10-08. Measured in headless Brave on a
+// demo deck at 1440, before and after, light and dark alike: everything but the
+// ribbon came down from 1220.2px to 998.8 — the phrase, 197.4 with that day's
+// figures, and the 24px gap before it. That is the busiest bar now. The tiers
+// are HELD where the bar with the phrase put them until the topbar's redesign
+// settles every tier at once, so each is pinned to that bar, and to never
+// arriving before the bar it has now can hold it.
 const SOUND_BUTTON_PX = 77;
-const BUSIEST_BAR_PX = 1302 - SOUND_BUTTON_PX;
+const BUSIEST_BAR_WITH_PHRASE_PX = 1302 - SOUND_BUTTON_PX;
+const BUSIEST_BAR_PX = 999;
 const FEEDBACK_WORD_PX = 62;
 const HEADROOM_PX = 40;
 
@@ -146,13 +155,15 @@ describe("Feedback says its word only where the busiest bar still fits", () => {
     }
   });
 
-  it("draws it from the first width that holds it, and no later", () => {
+  it("draws it from where the bar with the month phrase held it, which is never early", () => {
     // It was drawn with the seven from 1440, where the busiest bar had no room
-    // for it. The first width that holds it is the measured bar, its own
-    // width, the ribbon's full cap and the headroom; a later breakpoint would
-    // hide the word for nothing.
+    // for it. The first width that held it was the measured bar, its own
+    // width, the ribbon's full cap and the headroom: 1707. Without the phrase
+    // the bar holds it from 1481, and the tier is held at 1707 for the
+    // redesign — later than it has to be, and never earlier.
     expect(wordClass).toBe("tb-word-wide");
-    expect(shownFrom).toBe(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX);
+    expect(shownFrom).toBe(BUSIEST_BAR_WITH_PHRASE_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX);
+    expect(shownFrom).toBeGreaterThanOrEqual(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX);
     expect(css).toMatch(/\n\.tb-word-wide \{ display: none; \}/);
     const wide = media(`min-width: ${shownFrom}px`);
     expect(wide).toMatch(/\.topbar \.tb-word-wide \{ display: inline; font-size: 12px; line-height: 1; \}/);
@@ -199,7 +210,7 @@ describe("Settings says its word only where the busiest bar still fits it, besid
       .find(m => m[2].includes(".topbar .tb-word-wider { display: inline;"));
     return at ? Number(at[1]) : null;
   })();
-  const feedbackFrom = BUSIEST_BAR_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX;
+  const feedbackFrom = BUSIEST_BAR_WITH_PHRASE_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX;
   const reserve = Number(/@media \(min-width: 1440px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, calc\(100vw - (\d+)px\)\); \}/.exec(css)?.[1]);
 
   it("never draws it where both words would push the busiest bar past its width", () => {
@@ -212,8 +223,10 @@ describe("Settings says its word only where the busiest bar still fits it, besid
     }
   });
 
-  it("draws it from the first width that holds it, and no later", () => {
-    expect(shownFrom).toBe(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + SETTINGS_WORD_PX + 380 + HEADROOM_PX);
+  it("draws it from where the bar with the month phrase held both words, which is never early", () => {
+    // 1761 with the phrase; 1535 without it, held for the redesign.
+    expect(shownFrom).toBe(BUSIEST_BAR_WITH_PHRASE_PX + FEEDBACK_WORD_PX + SETTINGS_WORD_PX + 380 + HEADROOM_PX);
+    expect(shownFrom).toBeGreaterThanOrEqual(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + SETTINGS_WORD_PX + 380 + HEADROOM_PX);
     expect(css).toMatch(/\n\.tb-word-wider \{ display: none; \}/);
     const wide = media(`min-width: ${shownFrom}px`);
     expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word-wider\) \{ width: auto; gap: 6px; padding: 0 8px; \}/);
