@@ -81,4 +81,9 @@ describe("GitObserved", () => {
     expect(s.agents.get("s1")!.git).toBeUndefined();
     expect(gitFactsFrom({ state: "gone", branch: "feature/x", fromLog: true, stale: "no", extra: 1 })).toEqual({ state: "gone", branch: "feature/x", fromLog: true, stale: 0 });
   });
+
+  it("keeps the repository a worktree belongs to, which two worktrees of one repository share", () => {
+    expect(gitFactsFrom({ state: "repo", topLevel: "/r/shop-api-auth", commonDir: "/r/shop-api/.git", stale: 2 }))
+      .toEqual({ state: "repo", topLevel: "/r/shop-api-auth", commonDir: "/r/shop-api/.git", stale: 2 });
+  });
 });

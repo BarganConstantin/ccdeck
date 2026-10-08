@@ -51,7 +51,8 @@ describe("where the Fork look opens", () => {
   it("decides once per request and per agent and worktree followed, never over a row or file the request named", () => {
     const hook = sourceOf("use-git-view.ts");
     expect(hook).toMatch(/const of = `\$\{seq\}\|\$\{owner\}`;/);
-    expect(hook).toMatch(/export const selectionOwner = \(sessionId: string, agent: string \| null, top: string \| null\) => `\$\{sessionId\}\|\$\{agent \?\? ""\}\|\$\{top \?\? ""\}`;/);
+    expect(hook).toMatch(/export const selectionOwner = \(sessionId: string, agent: string \| null, repo: string \| null\) => `\$\{sessionId\}\|\$\{agent \?\? ""\}\|\$\{repo \?\? ""\}`;/);
+    expect(hook).toMatch(/const owner = selectionOwner\(sessionId, agent, repo \?\? top\);/);
     // A request's row or file settles it (startPick), and so does every choice, the reader's included.
     expect(hook).toMatch(/picked: hints && initial\.file != null, settled: hints,/);
     expect(hook).toMatch(/if \(pick\.settled\) return;\n    if \(!forkOpen \|\| \(data\.state !== "repo" && data\.state !== "loading"\)\) \{ settle\(\); return; \}/);
@@ -173,7 +174,7 @@ describe("what a floating sidebar covers", () => {
 
 describe("a ref the history does not list", () => {
   it("is said in a short note at the view's foot for a few seconds, and to a screen reader, never a dead press", () => {
-    expect(view).toMatch(/const text = !data\.commits \? "The history is still loading\." : `\$\{sha\.slice\(0, 7\)\} is not in the last 100 commits\.`;/);
+    expect(view).toMatch(/const text = !data\.commits \? \(data\.logReason \? "The history could not be read\." : "The history is still loading\."\) : `\$\{sha\.slice\(0, 7\)\} is not in the last 100 commits\.`;/);
     expect(view).toMatch(/<p className="fk-note" key=\{jumpNote\.n\} aria-hidden="true">/);
     expect(view).toMatch(/const t = window\.setTimeout\(\(\) => setJumpNote\(null\), 5000\);/);
     expect(view).toMatch(/<span className="vis-hidden" role="status" aria-live="polite">\{jumpNote\?\.text \?\? ""\}<\/span>/);

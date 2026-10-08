@@ -129,6 +129,76 @@ describe("a move to another worktree", () => {
   });
 });
 
+describe("a move to another worktree of the same repository", () => {
+  // A linked worktree and the main checkout share one repository: a commit is
+  // the same commit in both, its files and its diff the same.
+  const REPO = "/r/shop-api/.git";
+  const history = () => [commit("c66f14c", "2026-10-05T11:00:00Z", true), commit("2f2c90d", "2026-10-05T10:00:00Z")];
+  let commitAsks = 0;
+  const answerAll = (url: URL) => {
+    if (url.pathname === "/api/git/commit" && !url.searchParams.get("path")) { commitAsks++; return { status: 200, body: okFiles(["test/auth/login.test.ts", "test/cart/display.test.ts"]) }; }
+    return { status: 200, body: { ok: true, diff: { hunks: [] } } };
+  };
+
+  it("keeps the commit being read, its files and the file open: none of it changes under the reader", async () => {
+    auto = answerAll;
+    const props: Props = { data: repoData({ commits: history() }), sessionId: "s1", agent: null, top: "/r/shop-api-auth", repo: REPO, focus, initial: {}, seq: 4, active: true, forkOpen: true };
+    const v = mount(props);
+    await v.start();
+    await v.run(s => s.setSel("2f2c90d"));
+    await v.run(s => s.pickFile({ path: "test/cart/display.test.ts", area: "commit" }));
+    expect(v.now().diff.file?.path).toBe("test/cart/display.test.ts");
+
+    // The agent runs one `git -C` in the main checkout: the read follows it there.
+    const asked = commitAsks;
+    const from = v.renders.length;
+    await v.update({ ...props, data: EMPTY_GIT_DATA, top: "/r/shop-api" });
+    await v.update({ ...props, data: repoData({ commits: history() }), top: "/r/shop-api" });
+    for (const r of v.renders.slice(from)) {
+      expect(r.sel).toBe("2f2c90d");
+      expect(r.file?.path).toBe("test/cart/display.test.ts");
+    }
+    expect(v.now().commitDetail?.files.map(f => f.path)).toEqual(["test/auth/login.test.ts", "test/cart/display.test.ts"]);
+    expect(v.now().diff.file?.path).toBe("test/cart/display.test.ts");
+    // The commit was not read again: what was read for it still answers.
+    expect(commitAsks).toBe(asked);
+    await v.stop();
+  });
+
+  it("starts the working tree's file over: Uncommitted is the other worktree's", async () => {
+    auto = answerAll;
+    const props: Props = { data: repoData({ entries: [entry("notebooks/latency.ipynb")] }), sessionId: "s1", agent: null, top: "/r/shop-api-auth", repo: REPO, focus, initial: {}, seq: 4, active: true };
+    const v = mount(props);
+    await v.start();
+    expect([v.now().sel, v.now().file?.path]).toEqual([UNCOMMITTED, "notebooks/latency.ipynb"]);
+    const from = v.renders.length;
+    await v.update({ ...props, data: EMPTY_GIT_DATA, top: "/r/shop-api" });
+    await v.update({ ...props, data: repoData({ entries: [entry("src/auth/session.ts")] }), top: "/r/shop-api" });
+    for (const r of v.renders.slice(from)) {
+      expect(r.sel).toBe(UNCOMMITTED);
+      expect(r.file?.path ?? null).not.toBe("notebooks/latency.ipynb");
+      expect(r.diff.file?.path ?? null).not.toBe("notebooks/latency.ipynb");
+    }
+    expect(v.now().file?.path).toBe("src/auth/session.ts");
+    await v.stop();
+  });
+
+  it("starts everything over when the worktree is another repository's", async () => {
+    auto = answerAll;
+    const props: Props = { data: repoData({ commits: history() }), sessionId: "s1", agent: null, top: "/r/shop-api-auth", repo: REPO, focus, initial: {}, seq: 4, active: true };
+    const v = mount(props);
+    await v.start();
+    await v.run(s => s.setSel("2f2c90d"));
+    const from = v.renders.length;
+    await v.update({ ...props, data: EMPTY_GIT_DATA, top: "/r/web-app", repo: "/r/web-app/.git" });
+    for (const r of v.renders.slice(from)) {
+      expect(r.sel).toBe(UNCOMMITTED);
+      expect(r.commitDetail).toBeNull();
+    }
+    await v.stop();
+  });
+});
+
 describe("a commit read that failed", () => {
   it("is asked for again when a status answer drops it, never left reading", async () => {
     const props: Props = { data: repoData(), sessionId: "s1", agent: null, top: "/r/shop-api", focus, initial: { sel: "c1" }, seq: 1, active: true };

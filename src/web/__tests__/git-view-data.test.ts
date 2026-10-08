@@ -47,6 +47,18 @@ describe("an answer folded into what the page holds", () => {
     expect(foldAnswer(EMPTY_GIT_DATA, "edits", { error: "unknown session" }, 404)).toMatchObject({ state: "error", reason: "unknown session" });
   });
 
+  it("keeps why the history could not be read, whatever the other answers say, until a history read lands", () => {
+    const failed = foldAnswer(EMPTY_GIT_DATA, "log", { ok: false, state: "repo", repo: null, reason: "error" }, 200);
+    expect(failed).toMatchObject({ state: "repo", commits: null, logReason: "error" });
+    // The working tree answering after it does not take that back.
+    const tree = foldAnswer(failed, "status", { ok: true, state: "repo", repo: null, entries: [entry("d.txt")] }, 200);
+    expect(tree).toMatchObject({ commits: null, logReason: "error", reason: null });
+    expect(foldAnswer(EMPTY_GIT_DATA, "log", { error: "the deck did not answer" }, 0).logReason).toBe("the deck did not answer");
+    // A history that reads clears it.
+    expect(foldAnswer(tree, "log", { ok: true, state: "repo", commits: [commit("a")] }, 200).logReason).toBeNull();
+    expect(EMPTY_GIT_DATA.logReason).toBeNull();
+  });
+
   it("takes the session's subagents that work in another folder from the repository's answer", () => {
     const away = { agentId: "b7", label: "docs-sync", folder: "/c/docs", folderName: "docs", state: "repo" as const, topLevel: "/c/docs", sameRepo: true, changed: 1 };
     const d = foldAnswer(EMPTY_GIT_DATA, "repo", { ok: true, state: "repo", repo: null, subagents: [away] }, 200);

@@ -243,6 +243,9 @@ export interface GitFacts {
   folderName?: string;
   nameDiffers?: boolean;
   linkedWorktree?: boolean;
+  /** The repository's common git directory, which every worktree of one
+   *  repository shares: two worktrees with the same one hold the same commits. */
+  commonDir?: string;
   /** The branch HEAD is on, or null for a detached HEAD. */
   branch?: string | null;
   detached?: boolean;

@@ -38,7 +38,7 @@ import { flashCard } from "../card-flash";
 import { cancelHeldFocus } from "../focus-hold";
 import { elsewhereRows } from "../git-files-model";
 import { gitFactsFor, gitFocus, gitViewOpens } from "../git-view-target";
-import { UNREADABLE, madeByFocus, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
+import { UNREADABLE, madeByFocus, readAgain, useFocusCounts, useGitData, useGitSelection } from "../use-git-view";
 import { commitWho, focusCollisions, upstreamWords } from "../git-view-words";
 import { setGitViewNewest } from "../git-view-request";
 import { shortAgo } from "../relative-time";
@@ -54,7 +54,7 @@ import type { AgentNodeData, GitCollisionRef } from "../types";
 import { TOOL_LANE_ALLOWANCE } from "../use-camera";
 import { useMirroredRef } from "../use-mirrored-ref";
 import GitHandoffs from "./GitHandoffs";
-import { CollisionLine, CommitCard, GvIcon, ReadStateLine, useFittedName, type CommitCardFacts } from "./GitViewParts";
+import { CollisionLine, CommitCard, GvIcon, HistoryFailed, ReadStateLine, useFittedName, type CommitCardFacts } from "./GitViewParts";
 import GitDiff, { readDiffWrap, writeDiffWrap, type GitDiffHandle } from "./GitDiff";
 import GitFiles, { type GitFilesHandle } from "./GitFiles";
 import GitGraph from "./GitGraph";
@@ -744,15 +744,18 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const agentParam = away ? away.agentId : narrow ? focus.agentIds![0] : null;
   // From a subagent widened to its session, the session's repository is read.
   const facts = away ? awayCard?.git : narrow ? gitFactsFor(agent, root) : root?.git ?? gitFactsFor(agent, root);
-  // The worktree the read follows the agent into: the selection is that
-  // worktree's, and starts over when the agent moves to another.
+  // The worktree the read follows the agent into. The selection is its
+  // repository's: it starts over when the agent moves to another repository,
+  // and keeps a commit across a move between worktrees of one.
   const top = facts?.topLevel ?? null;
+  const ownFolder = away != null || (narrow && agent.git != null);
   const data = useGitData({
-    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, top, enabled: true, fresh: true,
-    ownFolder: away != null || (narrow && agent.git != null),
+    sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, top, enabled: true, fresh: true, ownFolder,
   });
+  // The history pane's Try again, after its read failed.
+  const retryRead = useCallback(() => readAgain(agent.sessionId, agentParam, ownFolder), [agent.sessionId, agentParam, ownFolder]);
   const view = useGitSelection({
-    data, sessionId: agent.sessionId, agent: agentParam, top, focus, active: request.open,
+    data, sessionId: agent.sessionId, agent: agentParam, top, repo: facts?.commonDir ?? null, focus, active: request.open,
     // The row and file a request named are the agent's it opened on, in the
     // session's folder: never another agent's the view follows, nor the
     // folder a subagent was narrowed to.
@@ -1139,6 +1142,9 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // session's own agents it is about.
   const otherOf = (c: { with: GitCollisionRef }) => otherAgentName(nameOf, c.with);
   const whoOf = (c: { who: string[] }) => c.who.map(k => otherAgentName(nameOf, { sessionId: agent.sessionId, agentId: k }));
+  // The rest of the first collision's kind, counted after the other agent's
+  // name and named on hover, as the card's own mark does.
+  const also = collision ? collisions.filter(c => c !== collision && c.level === collision.level).map(c => ({ name: otherOf(c), files: c.files })) : [];
   const cliOf = (c: { with: { sessionId: string } }) => {
     const m = stateRef.current.agents.get(c.with.sessionId)?.model ?? "";
     return /^(gpt|o\d|codex)/i.test(m) ? "Codex" : m ? "Claude Code" : null;
@@ -1201,11 +1207,11 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     const listFocused = winFocused && focusIn && pane === "graph";
     const jump = (sha: string) => {
       if (data.commits?.some(c => c.sha === sha)) { setJumpNote(null); view.setSel(sha); return; }
-      const text = !data.commits ? "The history is still loading." : `${sha.slice(0, 7)} is not in the last 100 commits.`;
+      const text = !data.commits ? (data.logReason ? "The history could not be read." : "The history is still loading.") : `${sha.slice(0, 7)} is not in the last 100 commits.`;
       setJumpNote(n => ({ text, n: (n?.n ?? 0) + 1 }));
     };
     const collisionNode = collision && (
-      <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
+      <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide" also={also}
         onFocus={how => {
           const id = collisionTarget(stateRef.current.agents, collision.with);
           onSelectAgent(id);
@@ -1298,7 +1304,12 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             ) : (
               <div className="fk-panes" ref={panesRef} data-collapsed={collapsed ? "" : undefined}>
                 <section className="fk-history" id="gv-graph" aria-label="History" data-gv-pane="graph" tabIndex={-1} ref={graphRef}>
-                  {reading || !data.commits ? (reading && <ReadStateLine state={data.state} folder={folder} />) : (
+                  {reading || !data.commits ? (
+                    <>
+                      {reading && <ReadStateLine state={data.state} folder={folder} />}
+                      {!reading && !data.commits && data.logReason && <HistoryFailed reason={data.logReason} onRetry={retryRead} />}
+                    </>
+                  ) : (
                     <GitGraph
                       repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={data.commits} rowLimit={rowLimit} head={head ?? null} defaultBranch={repo?.defaultBranch ?? null}
                       uncommitted={{ files: counts.changed, byFocus: counts.files, label: focusName }} focus={focus} selected={sel}
@@ -1397,7 +1408,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           </div>
         </header>
         {collision && (
-          <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide"
+          <CollisionLine c={collision} who={whoOf(collision)} other={otherOf(collision)} otherCli={cliOf(collision)} where="wide" also={also}
             onFocus={how => {
               // The view follows the selection to the other agent; a pointer also lights its card once.
               const id = collisionTarget(stateRef.current.agents, collision.with);
@@ -1417,6 +1428,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               <>
                 <div className="gv-pane-head"><span className="gv-pane-title">History</span></div>
                 {reading && <ReadStateLine state={data.state} folder={folder} />}
+                {!reading && !data.commits && data.logReason && <HistoryFailed reason={data.logReason} onRetry={retryRead} />}
               </>
             ) : (
               <GitGraph

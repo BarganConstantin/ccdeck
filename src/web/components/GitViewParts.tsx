@@ -8,6 +8,7 @@ import { fitBranch } from "../git-chip";
 import { monoMeasure } from "../git-path-fit";
 
 import { copyText } from "../copy-text";
+import { failureLasts, failureLine } from "../git-diff-parse";
 import type { LogCommit } from "../git-view-types";
 import { andList, commitMark, readStateLine, type Collision, type MarkLevel } from "../git-view-words";
 import { isEscapeKey } from "../modal-dismiss";
@@ -45,7 +46,7 @@ export function GvMark({ level }: { level: MarkLevel }) {
 
 /** A collision as one line: sharp in the error colour naming the file, quiet
  *  in the muted tier; either is a way to the other agent. */
-export function CollisionLine({ c, who = [], other, otherCli, where, onFocus }: {
+export function CollisionLine({ c, who = [], other, otherCli, where, onFocus, also = [] }: {
   c: Collision;
   /** The session's own agents it is about, by name ("↳ docs-sync"), when the
    *  agent in view is not one of them: they are named before the other agent. */
@@ -57,36 +58,43 @@ export function CollisionLine({ c, who = [], other, otherCli, where, onFocus }: 
   where: "wide" | "glance";
   /** A press on it: the way to the other agent, told how it was made. */
   onFocus: (how: PressHow) => void;
+  /** The other agents of the same kind after `other`, each with its files
+   *  when sharp: counted after its name ("+1"), as the card counts them, and
+   *  named on hover. */
+  also?: { name: string; files: string[] }[];
 }) {
   const press = (e: { detail: number }) => onFocus(pressHow(e));
   const them = andList(who);
-  const ended = who.length > 1 ? "None of them has ended." : "Neither has ended.";
+  const many = Math.max(1, who.length) + 1 + also.length > 2;
+  const ended = many ? "None of them has ended." : "Neither has ended.";
+  const more = also.length ? ` +${also.length}` : "";
+  const alsoSaid = also.length ? ` Also ${also.map(a => (a.files.length ? `${a.name}: ${a.files.join(", ")}` : a.name)).join("; ")}.` : "";
   if (c.level === "sharp") {
     const file = c.files[0] ?? "";
-    const more = c.files.length > 1 ? ` and ${c.files.length - 1} more` : "";
+    const moreFiles = c.files.length > 1 ? ` and ${c.files.length - 1} more` : "";
     const since = `since ${c.files.length === 1 ? "it was" : "they were"} last committed. ${ended}`;
     if (where === "glance") {
       const title = who.length
-        ? `${them} and ${other} both edited ${c.files.join(", ")} ${since}`
+        ? `${them} and ${other} ${many ? "" : "both "}edited ${c.files.join(", ")} ${since}`
         : `${other} also edited ${c.files.join(", ")} ${since}`;
       return (
-        <button type="button" className="gv-g-collide" title={`${title} Select ${other}.`} onClick={press}>
+        <button type="button" className="gv-g-collide" title={`${title}${alsoSaid} Select ${other}.`} onClick={press}>
           <GvIcon name="clash" />
-          <span><b>{file}</b>{more} {who.length ? `edited by ${them} and ${other}` : `also edited by ${other}`}</span>
+          <span><b>{file}</b>{moreFiles} {who.length ? `edited by ${them} and ${other}${more}` : `also edited by ${other}${more}`}</span>
         </button>
       );
     }
     // The tooltip opens with the line's own words, so a line cut short is whole there.
     const cli = otherCli ? ` (${otherCli})` : "";
     const said = who.length
-      ? `${them} and ${other}${cli} both edited ${c.files.join(", ")} ${since}`
-      : `${other}${cli} also edited ${c.files.join(", ")} ${since}`;
+      ? `${them} and ${other}${cli} ${many ? "" : "both "}edited ${c.files.join(", ")} ${since}${alsoSaid}`
+      : `${other}${cli} also edited ${c.files.join(", ")} ${since}${alsoSaid}`;
     return (
       <div className="gv-collide-line" role="note" title={said}>
         <GvIcon name="clash" />
         {who.length
-          ? <span><b>{them}</b> and <b>{other}</b>{cli} both edited <b>{file}</b>{more} since it was last committed. {ended}</span>
-          : <span><b>{other}</b>{cli} also edited <b>{file}</b>{more} since it was last committed. {ended}</span>}
+          ? <span><b>{them}</b> and <b>{other}</b>{more}{cli} {many ? "" : "both "}edited <b>{file}</b>{moreFiles} since it was last committed. {ended}</span>
+          : <span><b>{other}</b>{more}{cli} also edited <b>{file}</b>{moreFiles} since it was last committed. {ended}</span>}
         <button type="button" className="gv-link" onClick={press}>Focus {other}</button>
       </div>
     );
@@ -95,9 +103,14 @@ export function CollisionLine({ c, who = [], other, otherCli, where, onFocus }: 
   const what = who.length
     ? `${them} ${branch ? `${who.length > 1 ? "work" : "works"} on the same branch as` : `${who.length > 1 ? "share" : "shares"} a folder with`}`
     : branch ? "Works on this branch in another folder:" : "Shares this folder with";
+  const others = andList([other, ...also.map(a => a.name)]);
+  const place = branch ? "on the same branch" : "in the same folder";
+  const title = who.length
+    ? `${them} works ${place} as ${others}. Select ${other}.`
+    : `${others} ${also.length ? "work" : "works"} ${place}. Select ${also.length ? other : "it"}.`;
   const button = (
-    <button type="button" className="gv-g-quiet" title={`${who.length ? them : other} ${branch ? "works on the same branch" : "works in the same folder"}${who.length ? ` as ${other}` : ""}. Select ${who.length ? other : "it"}.`} onClick={press}>
-      <GvIcon name="share" /><span>{what} {other}</span>
+    <button type="button" className="gv-g-quiet" title={title} onClick={press}>
+      <GvIcon name="share" /><span>{what} {other}{more}</span>
     </button>
   );
   return where === "glance" ? button : <div className="gv-quiet-line">{button}</div>;
@@ -114,6 +127,18 @@ export function ReadStateLine({ state, folder, className = "gv-pane-empty", line
     <p className={className} ref={lineRef}>
       {line.folder && <><code title={line.folder}>{line.folder}</code> </>}<b>{line.lead}</b>{line.rest && <span> {line.rest}</span>}
     </p>
+  );
+}
+
+/** The history pane when its read failed while the folder's other reads
+ *  worked: why, and Try again wherever reading again can mend it. */
+export function HistoryFailed({ reason, onRetry }: { reason: string; onRetry: () => void }) {
+  return (
+    <div className="gv-pane-empty">
+      <b>Could not read the history.</b>
+      <span>{failureLine(reason)}</span>
+      {!failureLasts(reason) && <button type="button" className="btn gv-retry" onClick={onRetry}>Try again</button>}
+    </div>
   );
 }
 
