@@ -26,7 +26,13 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
 import SuccessMark from "./SuccessMark";
+import SignInProgress, { type ProgressPhase } from "./SignInProgress";
 import { exitRequest, loginEndNotice, loginTabView, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
+import {
+  approveHint, asSentence, celebrates, doneTitle, failedStage, handoffHold, HANDOFF_MS, importHint, liveStage,
+  loginPollMs, stageAnnouncement, stageDetail, stageFailureTitle, stageRows, type SignInStage,
+} from "../signin-stages";
+import { prefersReducedMotion } from "../viewport-motion";
 import { createLoginAnnouncer } from "../login-announce";
 import { arrivalCheck, explainFailure } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
@@ -38,6 +44,8 @@ import { useFeatureUse } from "../feature-use";
 /** Server-side login progress, polled while the dialog is open. */
 type LoginState = {
   state: LoginServerState;
+  /** Where inside `registering` the server is: confirm, save or restore. */
+  step?: string | null;
   url: string | null;
   error: string | null;
   account: { num: string | null; email: string; added: boolean } | null;
@@ -62,7 +70,11 @@ type Props = {
   onSignedIn?: (account: { num: string | null; email: string; added: boolean }) => void;
 };
 
-const POLL_MS = 1500;
+/** The sign-in page's host, for the link that reopens it: the reader sees
+ *  where it goes without a 400-character address taking the dialog's width. */
+function hostOf(url: string | null): string {
+  try { return url ? new URL(url).host : ""; } catch { return ""; }
+}
 
 /** The two journeys, in the order the strip draws them — which is the order
  *  the arrow keys walk, so the array is the widget's model and not decoration.
@@ -139,6 +151,40 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // Whether the switch that is about to render came from an arrow key. Read
   // once, by the effect below — see it for why a tab widget has to know.
   const arrowedRef = useRef(false);
+  // Which sign-in request is the current one. Cancel moves it on, so the answer
+  // to a start or a code that was already out when Cancel was pressed lands on
+  // nothing instead of dragging the dialog back into the sign-in it left.
+  const attemptRef = useRef(0);
+  // The stage the sign-in was last seen at while it was moving. The server
+  // forgets a flow it lost ("idle") along with everything it knew about it, so
+  // this is the only record of where the list should mark it as stopped.
+  const lastLiveRef = useRef<SignInStage | null>(null);
+  // Which face the Sign in tab last drew. The success card plays the handoff —
+  // the ring closing into its tick — only after the list was on screen.
+  const faceRef = useRef<"primer" | "progress" | "done">("primer");
+  // Focus targets for the moments the control the reader was on goes away.
+  const linkRef = useRef<HTMLAnchorElement | null>(null);
+  const doneRef = useRef<HTMLButtonElement | null>(null);
+  const retryRef = useRef<HTMLButtonElement | null>(null);
+  const refocusPrimerRef = useRef(false);
+  // Read once: the dialog is open for a minute, and a preference flipped in
+  // the middle of a sign-in is not worth a listener.
+  const reduced = useState(prefersReducedMotion)[0];
+  // The success the handoff has finished playing for, by the account it names.
+  const [settledKey, setSettledKey] = useState<string | null>(null);
+  // Whether the "Paste a code" disclosure is open. Closed to start with: on
+  // the deck's own machine the CLI takes the code itself and the field is
+  // noise; from another machine the page shows a code and this is one press.
+  const [codeOpen, setCodeOpen] = useState(false);
+  // A clock for the two hints that depend on how long something has taken,
+  // running only while one of them could appear.
+  const [now, setNow] = useState(() => Date.now());
+  const [approveSince, setApproveSince] = useState<number | null>(null);
+  const [importSince, setImportSince] = useState<number | null>(null);
+  // What a Cancel found when it put the previous account back — only ever set
+  // when it could not (restoreWarning), which a race with a sign-in finishing
+  // in the browser at the same moment can produce.
+  const [cancelNote, setCancelNote] = useState<string | null>(null);
 
   const close = useCallback(() => {
     // A live `claude auth login` on the server outlives this component, and an
@@ -162,9 +208,11 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // asked is a dialog nobody trusts to open again.
   const start = useCallback(async () => {
     if (!selfPressAccepted(busyRef.current)) return;
+    const attempt = ++attemptRef.current;
     busyRef.current = true;
     setLoginBusy(true);
     setLoginError(null);
+    setCancelNote(null);
     startedRef.current = true;
     // The address only when there is one: a bare `{action:"login"}` is still
     // the ordinary sign-in, with no flag appended (loginEmailArg).
@@ -172,7 +220,13 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     // An address the server will not put on a command line (loginEmailArg)
     // only loses the pre-filled field — the sign-in itself is still the one
     // asked for, so it starts without it rather than ending here.
-    if (email && out?.reason === "bad_email") out = await admin({ action: "login" }).catch(() => null);
+    if (email && out?.reason === "bad_email" && attempt === attemptRef.current) {
+      out = await admin({ action: "login" }).catch(() => null);
+    }
+    // Cancelled while the link was being asked for: Cancel already put the
+    // dialog back and released the lock, and this answer is about a sign-in
+    // the server has been told to drop.
+    if (attempt !== attemptRef.current) return;
     busyRef.current = false;
     setLoginBusy(false);
     if (!out?.ok) { setLoginError(explainFailure(out, "could not start the sign-in")); return; }
@@ -180,7 +234,8 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   }, [email]);
 
   // Poll only while something is actually moving on the server — see
-  // login-flow.ts for why "idle" ends the loop rather than continuing it.
+  // login-flow.ts for why "idle" ends the loop rather than continuing it, and
+  // signin-stages.ts for why registering is asked about more often.
   useEffect(() => {
     if (!shouldPollLogin(login?.state)) return;
     const iv = window.setInterval(async () => {
@@ -188,9 +243,43 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
         const res = await fetch("/api/claude-accounts/login");
         if (res.ok) setLogin(await res.json());
       } catch { /* the next tick tries again */ }
-    }, POLL_MS);
+    }, loginPollMs(login?.state));
     return () => window.clearInterval(iv);
   }, [login]);
+
+  /**
+   * Stop the sign-in from inside the dialog and go back to the start of it.
+   *
+   * The same request every exit sends, asked of the same rule — exitRequest —
+   * so this is not a second spelling of when a sign-in is cancelled. Offered
+   * only while the sign-in is still waiting on the CLI or the browser: once
+   * the browser has said yes, the account is being recorded, and a cancel then
+   * would put the previous account back without unrecording this one.
+   */
+  const cancel = useCallback(async () => {
+    const req = exitRequest({ started: startedRef.current, state: login?.state });
+    attemptRef.current += 1;
+    startedRef.current = false;
+    busyRef.current = false;
+    setLoginBusy(false);
+    setLoginError(null);
+    setLogin(null);
+    setCode("");
+    setCodeOpen(false);
+    refocusPrimerRef.current = true;
+    if (!req) return;
+    const out = await admin(req).catch(() => null);
+    setCancelNote(restoreWarning({ restored: out?.restored, activeAccount: out?.activeAccount }));
+  }, [login?.state]);
+
+  const retry = useCallback(() => {
+    startedRef.current = false;
+    setLogin(null);
+    setLoginError(null);
+    setCode("");
+    setCodeOpen(false);
+    start();
+  }, [start]);
 
   // Both of these are read by the effect below and neither may appear in its
   // dependency list: AccountsPanel hands this dialog a new `onChanged` on every
@@ -206,9 +295,14 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   const announcer = useState(createLoginAnnouncer)[0];
 
   useEffect(() => {
-    if (login?.state === "awaiting_code") codeRef.current?.focus();
     if (announcer.shouldAnnounce(login?.state)) onChangedRef.current();
   }, [login?.state, announcer]);
+
+  // The field takes focus when the disclosure that holds it opens, which is
+  // the press that says a code is on its way.
+  useEffect(() => {
+    if (codeOpen) codeRef.current?.focus();
+  }, [codeOpen]);
 
   // Who was signed in, told once per sign-in (#1893) — the prompt that opened
   // this dialog takes the account off its list the moment it arrives, rather
@@ -256,10 +350,12 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
 
   const submitCode = useCallback(async () => {
     if (!selfPressAccepted(busyRef.current)) return;
+    const attempt = attemptRef.current;
     busyRef.current = true;
     setLoginBusy(true);
     setLoginError(null);
     const out = await admin({ action: "login-code", code }).catch(() => null);
+    if (attempt !== attemptRef.current) return;
     busyRef.current = false;
     setLoginBusy(false);
     if (!out?.ok) {
@@ -352,6 +448,86 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   const view = loginTabView({ login, started: startedRef.current, loginError, loginBusy });
   const notice = loginEndNotice({ state: login?.state, serverError: login?.error, localError: loginError });
 
+  // ── the stage list (signin-stages.ts) ─────────────────────────────────────
+  // Where a sign-in that is still moving is, and where an ended one stopped.
+  const live = view === "asking" || view === "code"
+    ? liveStage({ state: login?.state, step: login?.step, starting: view === "asking" }) ?? "link"
+    : null;
+  const stoppedAt = view === "ended"
+    ? failedStage({ state: login?.state, step: login?.step, url: login?.url, lastLive: lastLiveRef.current })
+    : null;
+  // The success arrives while the list is up: the list stays for HANDOFF_MS,
+  // every row ticked, while the ring closes — then the card. Keyed by the
+  // account so it plays once per sign-in, and skipped under reduced motion or
+  // when the list was not what the reader was looking at.
+  const doneKey = done ? `${done.num ?? ""}|${done.email}` : null;
+  const holding = view === "done" && doneKey !== settledKey
+    && handoffHold({ fromStages: faceRef.current === "progress", reducedMotion: reduced }) > 0;
+  const face: "primer" | "progress" | "done" =
+    view === "primer" ? "primer" : view === "done" && done && !holding ? "done" : "progress";
+  const phase: ProgressPhase = stoppedAt ? "failed" : holding ? "resolving" : "live";
+  const rows = stageRows(holding ? { done: true } : stoppedAt ? { failed: stoppedAt, state: login?.state } : { live });
+  const failTitle = stoppedAt ? stageFailureTitle(stoppedAt, login?.state) : "";
+  const failText = asSentence(notice.message);
+  const hint = live === "approve" ? approveHint({ since: approveSince, now, expiresAt: login?.expiresAt }) : null;
+  const slowImport = pasteBusy ? importHint({ since: importSince, now }) : null;
+
+  // What a screen reader hears, said politely and only when it changes: once
+  // per stage, once for the verdict, once for an import starting and ending.
+  // Derived rather than pushed, so a poll that changed nothing says nothing.
+  const said = tab === "login"
+    ? face === "done" && done ? `${doneTitle(done)}.`
+      : phase === "failed" ? `${failTitle}. ${failText}`
+      : face === "progress" && !holding ? stageAnnouncement(live) ?? ""
+      : ""
+    : pasteBusy ? "Importing the share."
+      : pasteError ? asSentence(pasteError)
+      : imported ? asSentence(importSummary(imported))
+      : "";
+
+  useEffect(() => { if (live) lastLiveRef.current = live; }, [live]);
+  useEffect(() => { faceRef.current = face; }, [face]);
+
+  useEffect(() => {
+    if (!holding || !doneKey) return;
+    const t = window.setTimeout(() => setSettledKey(doneKey), HANDOFF_MS);
+    return () => window.clearTimeout(t);
+  }, [holding, doneKey]);
+
+  // The clock behind the two "still going" hints. Started when one of them
+  // could appear and stopped when neither can — nothing ticks while the dialog
+  // is only waiting to be closed.
+  const approving = live === "approve";
+  useEffect(() => { setApproveSince(approving ? Date.now() : null); }, [approving]);
+  useEffect(() => { setImportSince(pasteBusy ? Date.now() : null); }, [pasteBusy]);
+  const ticking = approving || pasteBusy;
+  useEffect(() => {
+    if (!ticking) return;
+    setNow(Date.now());
+    const iv = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(iv);
+  }, [ticking]);
+
+  // Focus follows the verdict: Done when it worked, Try again when it did not,
+  // the primer's button after Cancel. While the list is moving, focus is left
+  // wherever the reader put it, with one exception: the primer's button goes
+  // the moment it is pressed, and once the browser is up the link to the
+  // sign-in page is the one thing on screen worth being on — pressing it again
+  // opens the page again, which is harmless, where a Cancel there would turn a
+  // second Enter into the end of the sign-in.
+  useEffect(() => {
+    if (tab !== "login") return;
+    if (face === "done") { doneRef.current?.focus(); return; }
+    if (face === "primer") {
+      if (refocusPrimerRef.current) primerRef.current?.focus();
+      refocusPrimerRef.current = false;
+      return;
+    }
+    if (phase === "failed") { retryRef.current?.focus(); return; }
+    const at = document.activeElement;
+    if (live === "approve" && (!at || at === document.body)) linkRef.current?.focus();
+  }, [tab, face, phase, live]);
+
   // Through a portal, like SectionHistoryModal, but for a different rule of the
   // panel it opens from. The accounts panel wipes open by animating its width,
   // and to keep its text still while it does, every direct child gets a fixed
@@ -413,13 +589,15 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
             trade than that second. */}
         <section className="modal-body aa-body" id={PANEL_ID} role="tabpanel" aria-labelledby={tabDomId(tab)}>
           {tab === "login" ? (
-            // `&& done` and `&& login` only narrow the types: the view says
-            // "done" and "code" exactly when they hold.
-            view === "done" && done ? (
-              <div className="aa-done">
+            // `&& done` and `&& login` only narrow the types: the face says
+            // "done" exactly when they hold.
+            face === "done" && done ? (
+              // `from-orbit` when the list's ring closed into this mark: the
+              // ring is already drawn, so only the tick draws (signin-stages.ts).
+              <div className={`aa-done${settledKey === doneKey ? " from-orbit" : ""}`}>
                 <SuccessMark ref={markRef} />
-                <Confetti anchor={markRef} />
-                <h4>{done.added ? `Account ${done.num} added` : "Credentials refreshed"}</h4>
+                {celebrates({ added: done.added, reducedMotion: reduced }) && <Confetti anchor={markRef} />}
+                <h4>{doneTitle(done)}</h4>
                 <p className="aa-note">
                   <strong>{done.email}</strong>
                   {done.added
@@ -427,86 +605,119 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                     // machine, and it is only the deck's to make when the
                     // server says the switch back actually took (#951).
                     ? (restoreNote ? " is in the rotation." : " is in the rotation. The account you were using is still active.")
-                    : " was already managed, so its stored credentials were replaced."}
+                    : " was already in the rotation, so its stored login was replaced with this one."}
                 </p>
                 {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}
-                <button type="button" className="btn primary" onClick={close}>Done</button>
+                <button type="button" ref={doneRef} className="btn primary" onClick={close}>Done</button>
               </div>
-            ) : view === "code" && login ? (
-              <>
-                <div className="aa-step">
-                  <h4>1 · Approve in the browser</h4>
-                  <p className="aa-note">A tab should have opened. If not, use this link:</p>
-                  <a className="aa-link" href={login.url ?? "#"} target="_blank" rel="noreferrer noopener">{login.url}</a>
-                </div>
-                <div className="aa-step">
-                  {/* #708: this said "Paste the code it gives you", and on most
-                      machines the page gives you none. `claude auth login`
-                      listens on a loopback port as well as on stdin, so when
-                      the browser can reach this machine the CLI takes the code
-                      itself and the page just says you are all set. The paste
-                      is the OTHER route — a deck opened from a different
-                      machine, where loopback cannot be reached and the page
-                      shows the code instead. Both are live at once and the CLI
-                      says so itself: "Paste code here IF PROMPTED". */}
-                  <h4>2 · Paste a code, if the page shows one</h4>
-                  <p className="aa-note">
-                    It usually finishes on its own — if the page says you are all set, there is nothing to do here.
-                  </p>
-                  <div className="aa-field">
-                    <input
-                      ref={codeRef}
-                      type="text"
-                      value={code}
-                      onChange={e => setCode(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter" && code.trim() && !busy) submitCode(); }}
-                      placeholder="paste the code here"
-                      spellCheck={false}
-                      autoComplete="off"
-                      aria-label="Sign-in code"
-                      disabled={login.state === "registering"}
-                    />
-                    {/* #620: `busy` reached `disabled` here — submitCode sets
-                        it before its first await — so the press disabled the
-                        control it came from and Chrome dropped focus. The
-                        modal's Tab trap does bring focus back into the dialog,
-                        but at `stops[0]`, not where the reader was.
-                        The other two halves stay `disabled`, because neither
-                        is a press in flight: an empty field has nothing to
-                        submit, and `registering` is the CLI having ACCEPTED
-                        the code — this button's work is over, and the field is
-                        cleared by then anyway. */}
-                    <button type="button" className="btn primary"
-                      {...selfPressProps(busy, !code.trim() || login.state === "registering")}
-                      onClick={submitCode}>
-                      {login.state === "registering" ? "registering…" : "Continue"}
-                    </button>
-                  </div>
-                  {/* A rejected code leaves the flow in awaiting_code — which is
-                      right, the CLI is still asking — but that branch is above
-                      the failure branch, so without this the message had
-                      nowhere to render and the user retyped blind. */}
-                  {(loginError || login.error) && <p className="aa-err">{loginError ?? login.error}</p>}
-                  <p className="aa-note">
-                    The code goes straight to the claude CLI on this machine. It is never stored or sent anywhere else.
-                  </p>
-                </div>
-              </>
-            ) : view === "ended" ? (
-              <div className="aa-step">
-                <h4>{notice.title}</h4>
-                <p className="aa-err">{notice.message}</p>
-                <button type="button" className="btn" onClick={() => { startedRef.current = false; setLogin(null); setLoginError(null); start(); }}>
-                  Try again
-                </button>
-              </div>
-            ) : view === "asking" ? (
-              <div className="aa-step"><p className="aa-note">Asking the claude CLI for a sign-in link…</p></div>
+            ) : face === "progress" ? (
+              <SignInProgress
+                rows={rows}
+                phase={phase}
+                detail={phase === "failed" ? (
+                  <>
+                    <p className="aa-note aa-reason">{failText}</p>
+                    {/* Past the first stage a retry is the whole sign-in again,
+                        browser and all, and the button says so. */}
+                    <div className="aa-actions">
+                      <button type="button" ref={retryRef} className="btn primary" onClick={retry}>
+                        {stoppedAt === "link" ? "Try again" : "Start over"}
+                      </button>
+                    </div>
+                  </>
+                ) : live === "approve" && login ? (
+                  <>
+                    <p className="aa-note">
+                      Approve the sign-in in the tab that opened{email ? <>, with <strong>{email}</strong> filled in</> : null}.
+                      This moves on by itself.
+                    </p>
+                    {/* The page the CLI printed, in THIS browser — which is
+                        the only way to reach it from a deck opened on another
+                        machine, where the tab the CLI opened is on that
+                        machine's screen. Named for that, and not "Open the
+                        sign-in page" again one line under "Sign-in page
+                        opened". */}
+                    <a ref={linkRef} className="aa-link" href={login.url ?? "#"} target="_blank" rel="noreferrer noopener">
+                      <span>Open it in this browser</span>
+                      <span className="aa-link-host">
+                        {hostOf(login.url)}
+                        <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                          strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M3 7 7 3M3.6 3H7v3.4" />
+                        </svg>
+                      </span>
+                    </a>
+                    {hint ? <p className="aa-note aa-arrive">{hint}</p> : null}
+                    {/* #708: this said "Paste the code it gives you", and on most
+                        machines the page gives you none. `claude auth login`
+                        listens on a loopback port as well as on stdin, so when
+                        the browser can reach this machine the CLI takes the code
+                        itself and the page just says you are all set. The paste
+                        is the OTHER route — a deck opened from a different
+                        machine, where loopback cannot be reached and the page
+                        shows the code instead. Both are live at once and the CLI
+                        says so itself: "Paste code here IF PROMPTED". So the
+                        field waits behind a disclosure that names the case. */}
+                    <details className="aa-code" open={codeOpen} onToggle={e => setCodeOpen(e.currentTarget.open)}>
+                      <summary>
+                        <svg className="aa-code-chev" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                          strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M3.6 2.2 6.4 5 3.6 7.8" />
+                        </svg>
+                        Paste a code, if the page shows one
+                      </summary>
+                      <p className="aa-note">
+                        It usually finishes on its own — if the page says you are all set, there is nothing to do here.
+                      </p>
+                      <div className="aa-field">
+                        <input
+                          ref={codeRef}
+                          type="text"
+                          value={code}
+                          onChange={e => setCode(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" && code.trim() && !busy) submitCode(); }}
+                          placeholder="paste the code here"
+                          spellCheck={false}
+                          autoComplete="off"
+                          aria-label="Sign-in code"
+                          disabled={login.state === "registering"}
+                        />
+                        {/* #620: `busy` reached `disabled` here — submitCode sets
+                            it before its first await — so the press disabled the
+                            control it came from and Chrome dropped focus. The
+                            other two halves stay `disabled`, because neither is a
+                            press in flight: an empty field has nothing to submit,
+                            and `registering` is the CLI having ACCEPTED the code. */}
+                        <button type="button" className="btn primary"
+                          {...selfPressProps(busy, !code.trim() || login.state === "registering")}
+                          onClick={submitCode}>
+                          Continue
+                        </button>
+                      </div>
+                      {/* A rejected code leaves the flow in awaiting_code — which
+                          is right, the CLI is still asking — so the reason is
+                          printed here, under the field it is about. */}
+                      {(loginError || login.error) && <p className="aa-err">{loginError ?? login.error}</p>}
+                      <p className="aa-note">
+                        The code goes straight to the claude CLI on this machine. It is never stored or sent anywhere else.
+                      </p>
+                    </details>
+                  </>
+                ) : live ? (
+                  <p className="aa-note">{stageDetail(live, login?.step)}</p>
+                ) : null}
+                // Only while the sign-in is still waiting on the CLI or the
+                // browser — see `cancel` for why not after.
+                actions={live === "link" || live === "approve"
+                  ? <button type="button" className="btn" onClick={cancel}>Cancel</button>
+                  : null}
+              />
             ) : (
               // The primer. Says what the button will do before it does it —
               // this one opens a browser tab, which is not something to spring
               // on someone who wanted the other tab.
               <div className="aa-step aa-primer">
+                {cancelNote ? <p className="aa-note aa-warn" role="status">{cancelNote}</p> : null}
                 <h4>{email ? <>Sign in again as <strong>{email}</strong></> : "Sign in to Anthropic"}</h4>
                 <p className="aa-note">
                   Opens a browser tab where you approve the sign-in{email ? ", with this address already filled in" : ""}.
@@ -618,6 +829,19 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                 </button>
               </div>
               {pasteError && <p className="aa-err">{pasteError}</p>}
+              {/* The import is one request and the server reports nothing
+                  inside it, so this does not pretend to stages: one line that
+                  turns while it is out, says who is doing the work, and after
+                  ten seconds says how long it can take. */}
+              {pasteBusy ? (
+                <p className="aa-live-line">
+                  <svg className="aa-spin" viewBox="0 0 16 16" aria-hidden>
+                    <circle className="aa-spin-track" cx="8" cy="8" r="6" />
+                    <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
+                  </svg>
+                  <span>{slowImport ?? "claude-swap is adding the accounts in this share. Any already here are left as they are."}</span>
+                </p>
+              ) : null}
               <p className="aa-note">
                 Use <strong>share</strong> on one account in the other deck, or <strong>↗</strong> above
                 its list to send several at once. A share carries a live login for every account in it and
@@ -625,6 +849,10 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               </p>
             </div>
           )}
+          {/* One polite voice for the whole panel, mounted for as long as the
+              dialog is, because a live region that arrives with its own text is
+              one most screen readers never read. */}
+          <p className="vis-hidden" role="status" aria-live="polite">{said}</p>
         </section>
       </div>
     </div>,

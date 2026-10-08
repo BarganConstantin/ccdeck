@@ -2,6 +2,12 @@
 /* On the shared .modal shell. Narrower than a tool inspector — this is a form,
    and a form the width of a log dump reads as a mistake. */
 .aa-modal { width: min(560px, 92vw); }
+/* Its top edge stays put. The body changes height at every turn of a sign-in
+   — the primer, the list, a stage opening and closing, the success card — and
+   centred on the screen the dialog moved half of each change at its header, so
+   the tabs jumped while the reader was watching the list. Anchored near the
+   top, only the bottom edge moves. */
+.modal-backdrop > .aa-modal { align-self: flex-start; margin-top: min(14vh, 128px); }
 .aa-body { gap: 18px; display: flex; flex-direction: column; }
 
 .aa-tabs { display: inline-flex; gap: 4px; }
@@ -45,22 +51,34 @@
 }
 .aa-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .aa-err { margin: 0; color: var(--err); font-size: 12px; line-height: 1.5; }
-/* The link is long and unbreakable; letting it decide the dialog's width would
-   push everything else off screen. */
+/* The sign-in page, by name and host rather than by its address: the address
+   is 400 characters of OAuth parameters, and printing it took five lines of
+   the dialog to say "claude.com". The href still carries all of it. */
 .aa-link {
-  overflow-wrap: anywhere;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   padding: 8px 10px;
   border: 1px solid var(--ctl-edge);
   border-radius: 8px;
   background: var(--ctl-fill);
   color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   text-decoration: none;
-  user-select: all;
+  overflow-wrap: anywhere;
 }
 .aa-link:hover { border-color: var(--text); text-decoration: underline; }
+.aa-link-host {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
 
 .aa-field { display: flex; align-items: center; gap: 8px; }
 .aa-field input {
@@ -107,6 +125,208 @@
   text-transform: none;
 }
 .aa-done .aa-note { max-width: 44ch; }
+
+/* ── add-account: a sign-in in progress ─────────────────────────────────────
+   A ring that turns while the deck works, and the stages it passes through,
+   ticked off as the server reports them (signin-stages.ts). The ring is the
+   success mark's twin — same box, same radius, same place — so when the
+   sign-in finishes it can close into the check instead of being replaced by
+   it. Only the active stage opens; the others are one line each. */
+.aa-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 0 2px;
+}
+.aa-orbit { width: 44px; height: 44px; overflow: visible; color: var(--accent); }
+.aa-orbit-track, .aa-orbit-arc, .aa-orbit-close, .aa-orbit-cross {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.aa-orbit-track { stroke: var(--line); }
+/* A quarter of the ring, once round in 760ms. Fast on purpose: a spinner that
+   turns briskly reads as work being done, one that drifts reads as waiting. */
+.aa-orbit-arc {
+  stroke: currentColor;
+  stroke-dasharray: 32 126;
+  transform-origin: 50% 50%;
+  animation: aa-orbit-spin 760ms linear infinite;
+  transition: opacity 140ms ease;
+}
+@keyframes aa-orbit-spin {
+  from { transform: rotate(-90deg); }
+  to   { transform: rotate(270deg); }
+}
+/* Except while the deck is the one waiting. The browser half can take
+   minutes of somebody reading a consent page, and a ring racing round all
+   that time says "busy" over a screen whose real message is "your move". */
+.aa-progress[data-at="approve"] .aa-orbit-arc { animation-duration: 2400ms; }
+/* The handoff. The arc fades while a ring in the success mark's own colour
+   sweeps round from the top, exactly as the mark's ring would draw itself;
+   the card that follows then draws only the tick (.aa-done.from-orbit). */
+.aa-progress.resolving .aa-orbit-arc { opacity: 0; }
+.aa-orbit-close {
+  stroke: color-mix(in srgb, var(--ok) 45%, transparent);
+  stroke-dasharray: 126;
+  stroke-dashoffset: 126;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  animation: aa-draw 300ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+.aa-progress.resolving .aa-stages {
+  animation: aa-lift-out 160ms cubic-bezier(0.23, 1, 0.32, 1) 300ms both;
+}
+@keyframes aa-lift-out { to { opacity: 0; transform: translateY(-4px); } }
+.aa-progress.failed .aa-orbit-track { stroke: color-mix(in srgb, var(--err) 45%, transparent); }
+.aa-orbit-cross {
+  stroke: var(--err);
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: aa-draw 260ms cubic-bezier(0.23, 1, 0.32, 1) 60ms forwards;
+}
+
+.aa-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(100%, 400px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.aa-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  animation: aa-stage-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.aa-stage:nth-child(2) { animation-delay: 40ms; }
+.aa-stage:nth-child(3) { animation-delay: 80ms; }
+.aa-stage:nth-child(4) { animation-delay: 120ms; }
+@keyframes aa-stage-in { from { opacity: 0; transform: translateY(4px); } }
+/* The thread between the marks, green where it has been walked. */
+.aa-stage:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 19px;
+  bottom: -9px;
+  left: 7.5px;
+  width: 1px;
+  background: var(--line);
+}
+.aa-stage[data-status="done"]:not(:last-child)::after {
+  background: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+
+.aa-stage-icon { width: 16px; height: 16px; margin-top: 1px; overflow: visible; }
+.aa-stage-icon * {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* A stage still to come: a hollow mark in the decorative tint — the row's
+   words beside it carry the meaning at full contrast. */
+.aa-stage-later { stroke: var(--muted-dim); }
+.aa-stage[data-status="done"] .aa-stage-icon { color: var(--ok); }
+.aa-stage[data-status="active"] .aa-stage-icon { color: var(--accent); }
+.aa-stage[data-status="failed"] .aa-stage-icon { color: var(--err); }
+.aa-stage-now { fill: currentColor; stroke: none; }
+/* Each tick draws once, when its stage completes — the row's whole moment. */
+.aa-stage-tick {
+  stroke-dasharray: 14;
+  stroke-dashoffset: 14;
+  animation: aa-draw 220ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+.aa-stage-cross {
+  stroke-dasharray: 18;
+  stroke-dashoffset: 18;
+  animation: aa-draw 220ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.aa-stage-label {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 18px;
+  transition: color 200ms ease;
+}
+.aa-stage[data-status="done"] .aa-stage-label { color: var(--muted); }
+.aa-stage[data-status="active"] .aa-stage-label,
+.aa-stage[data-status="failed"] .aa-stage-label { color: var(--text); font-weight: 600; }
+
+/* What the active stage is doing, and what it needs from the reader. */
+.aa-stage-more {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  animation: aa-more-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@keyframes aa-more-in { from { opacity: 0; transform: translateY(-2px); } }
+/* Why a stage failed: a sentence to read, so the reading tier rather than the
+   error colour — the cross and the heading above it already say "failed". */
+.aa-reason { color: var(--text-secondary); }
+/* A line that arrives later than its row — the slow-browser hint. */
+.aa-arrive { animation: aa-more-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.aa-progress-actions { justify-content: center; }
+
+/* The code field, behind the sentence that says when it is needed. */
+.aa-code > * + * { margin-top: 8px; }
+/* At least the control height tall, so the sentence is a target a thumb can
+   find at phone width and not a 12px line of text. */
+.aa-code > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 12px;
+  list-style: none;
+  cursor: pointer;
+  transition: color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.aa-code > summary::-webkit-details-marker { display: none; }
+.aa-code-chev { flex: none; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.aa-code[open] .aa-code-chev { transform: rotate(90deg); }
+.aa-code > summary:hover { color: var(--text); }
+.aa-code > summary:active { transform: scale(0.97); }
+
+/* The import is one request with nothing reported inside it, so it gets one
+   line: a small turning ring, and who is doing the work. */
+.aa-live-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  animation: aa-more-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+/* Top-aligned with the first line, which 18px of line-height centres it on. */
+.aa-spin { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--accent); }
+.aa-spin-track, .aa-spin-arc { fill: none; stroke-width: 2; stroke-linecap: round; }
+.aa-spin-track { stroke: var(--line); }
+.aa-spin-arc {
+  stroke: currentColor;
+  stroke-dasharray: 10 38;
+  transform-origin: 50% 50%;
+  animation: aa-orbit-spin 760ms linear infinite;
+}
+
+/* After the handoff the ring is already round: the card keeps the mark still,
+   draws only its tick, and brings the words in around it. */
+.aa-done.from-orbit { animation: none; }
+.aa-done.from-orbit > :not(.aa-mark) { animation: aa-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.aa-done.from-orbit .aa-mark-ring { animation: none; stroke-dashoffset: 0; }
+.aa-done.from-orbit .aa-mark-tick { animation-delay: 0ms; }
 
 /* The qualification on a success (#951): the account was added, and the machine
    is still signed in as it. Amber rather than red because nothing failed — the
@@ -187,7 +407,9 @@
 }
 .confetti-bit.round { width: 6px; height: 6px; border-radius: 50%; }
 .confetti-bit[data-hue="1"] { background: var(--ok); }
-.confetti-bit[data-hue="2"] { background: var(--warn); }
+/* Not --warn: amber is the deck's "a session is waiting on you", and a burst
+   that wears it borrows the one colour that has to stay unambiguous. */
+.confetti-bit[data-hue="2"] { background: var(--usage-purple); }
 .confetti-bit[data-hue="3"] { background: color-mix(in srgb, var(--accent) 55%, var(--ok)); }
 
 @keyframes aa-burst-move {
@@ -210,6 +432,18 @@
   .aa-done { animation: aa-done-fade 160ms ease both; }
   .aa-mark-ring, .aa-mark-tick { animation: none; stroke-dashoffset: 0; }
   @keyframes aa-done-fade { from { opacity: 0; } to { opacity: 1; } }
+  /* The sign-in in progress is instant: the rings hold still — the row's words
+     say what is happening — every mark is simply there, and nothing slides.
+     The handoff does not run at all (handoffHold), so neither does its fade. */
+  /* A still quarter-arc would read as a quarter done — the very gauge the
+     list refuses to fake — so the arc becomes the whole ring, quietly. */
+  .aa-orbit-arc, .aa-spin-arc { animation: none; stroke-dasharray: none; opacity: 0.5; }
+  .aa-orbit-close, .aa-orbit-cross, .aa-stage-tick, .aa-stage-cross { animation: none; stroke-dashoffset: 0; }
+  .aa-stage, .aa-stage-more, .aa-arrive, .aa-live-line { animation: none; }
+  .aa-progress.resolving .aa-stages { animation: none; }
+  .aa-done.from-orbit > :not(.aa-mark) { animation: none; }
+  .aa-code > summary:active { transform: none; }
+  .aa-code-chev { transition: none; }
 }
 
 /* The bar yields to whatever is under it. Panning is the user's decision and
