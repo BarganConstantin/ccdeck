@@ -107,24 +107,37 @@ custom station in a browser without native HLS (#1208) — but that chunk is in
 changed by ccdeck's relicensing, and no copyleft obligation flows back to
 their authors.
 
-### Declared but not emitted (3)
+### Declared but not emitted (7)
 
-Three packages resolve into `node_modules` and do **not** survive the build.
-They were in the table above until #962, which is over-attribution rather than
-under-attribution and so harmless legally — but the paragraph at the top of this
-file says everything in the table is *physically present in the published
-tarball*, and that is a factual claim a redistributor is entitled to rely on. So
-they are listed here instead, with what was looked for in the built chunks and
-not found.
+Seven packages resolve into `node_modules` and do **not** survive the build.
+The first three were in the table above until #962, which is over-attribution
+rather than under-attribution and so harmless legally — but the paragraph at the
+top of this file says everything in the table is *physically present in the
+published tarball*, and that is a factual claim a redistributor is entitled to
+rely on. So they are listed here instead, with what was looked for in the built
+chunks and not found.
 
 | Package | Version | Licence | Searched for in `dist/web/assets/*` | Why it is not there |
 | --- | --- | --- | --- | --- |
 | `js-tokens` | 4.0.0 | MIT | `[gmiyus]{1,6}` — a fragment of its one exported regex, which a minifier cannot rename | A browserify transform's dependency, reached only through `loose-envify`. Rollup never invokes it. |
 | `loose-envify` | 1.4.0 | MIT | `[_$a-zA-Z][$\w]+` — the body of its `process.env.` matcher, likewise a regex literal | Same: it is a browserify transform, declared by `react` and never part of a Rollup graph. |
 | `@reactflow/node-toolbar` | 1.3.14 | MIT | `react-flow__node-toolbar` | Tree-shaken. The deck renders no node toolbar, and unlike its siblings this one contributes no stylesheet either. |
+| `@xterm/addon-fit` | 0.11.0 | MIT | `proposeDimensions` — the method it adds to the terminal, a property name the minifier leaves alone | Declared for the terminal panel, which nothing in the page reaches yet, so Rollup never reaches it either. |
+| `@xterm/addon-unicode11` | 0.9.0 | MIT | `[129648,129651]` — one range out of its Unicode 11 width table, which minifies to exactly that | Same: the terminal panel's, and not yet reachable. |
+| `@xterm/addon-webgl` | 0.19.0 | MIT | `a_cellpos` — an attribute name inside its shader source | Same. |
+| `@xterm/xterm` | 6.0.0 | MIT | `xterm-char-measure-element` — a class name its script creates and its stylesheet styles | Same. `src/web/terminal-palette.ts` imports a type from it and nothing else, and a type is erased at compile time. |
 
-Their licence texts are still reproduced below — §3, §6 and §7 — because dropping
-a notice is the expensive mistake and keeping one is free.
+Their licence texts are still reproduced below — §3, §6 and §7 for the first
+three, §15 to §17 for the four `@xterm/*` packages — because dropping a notice is
+the expensive mistake and keeping one is free.
+
+The `@xterm/*` packages are the terminal panel's. The panel sits behind a hidden
+flag and loads them with a dynamic `import()` the first time it opens, so once it
+is wired into the page they will be in a chunk of their own, the way `hls.js` is:
+never in what every visit loads, but in `dist/web` all the same, and so in the
+tarball. On that day their four rows move to the bundled table above — the build
+check in `notices-bundle.test.ts` fails until they do — and the same test holds
+them out of the entry chunk and its stylesheet.
 
 `@reactflow/node-resizer` is deliberately **not** in this list, and it is the one
 entry #962 got wrong. Its JavaScript is tree-shaken exactly as the toolbar's is —
@@ -644,4 +657,110 @@ If the Work includes a "NOTICE" text file as part of its distribution, then any 
 9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.
 
 END OF TERMS AND CONDITIONS
+```
+
+### 15. `@xterm/xterm` 6.0.0
+
+Reproduced verbatim from `node_modules/@xterm/xterm/LICENSE`:
+
+```text
+Copyright (c) 2017-2019, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+Copyright (c) 2014-2016, SourceLair Private Company (https://www.sourcelair.com)
+Copyright (c) 2012-2013, Christopher Jeffrey (https://github.com/chjj/)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+`lib/xterm.mjs` opens with two more notices, and each addon's `lib/*.mjs` below
+opens with the same two: the code xterm.js grew out of, and the code it adapted
+from Visual Studio Code. They are reproduced here as they appear there. In a
+Vite build the first survives minification as a `@license` comment and the
+second does not, which is why it is written out here.
+
+```text
+/**
+ * Copyright (c) 2014-2024 The xterm.js authors. All rights reserved.
+ * @license MIT
+ *
+ * Copyright (c) 2012-2013, Christopher Jeffrey (MIT License)
+ * @license MIT
+ *
+ * Originally forked from (with the author's permission):
+ *   Fabrice Bellard's javascript vt100 for jslinux:
+ *   http://bellard.org/jslinux/
+ *   Copyright (c) 2011 Fabrice Bellard
+ */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+```
+
+### 16. `@xterm/addon-fit` 0.11.0, `@xterm/addon-unicode11` 0.9.0
+
+Reproduced verbatim from `node_modules/@xterm/addon-fit/LICENSE`, which is
+byte-identical to `node_modules/@xterm/addon-unicode11/LICENSE`:
+
+```text
+Copyright (c) 2019, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+### 17. `@xterm/addon-webgl` 0.19.0
+
+Reproduced verbatim from `node_modules/@xterm/addon-webgl/LICENSE`:
+
+```text
+Copyright (c) 2018, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```

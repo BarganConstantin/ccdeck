@@ -92,6 +92,14 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
+  // THE TERMINAL PANEL, OFF and hidden: a terminal you can type into is the
+  // first thing in the deck that reaches into an agent rather than watching
+  // one, and it ships dark until its owner says otherwise. Deck-owned — not in
+  // PAGE_FIELDS — because a page that could switch it on could open a write
+  // channel into the user's tmux with the same POST it already passes the
+  // gates with. Set by hand in prefs.json, or for one run with the launch
+  // variable terminalOn names. See terminal-routes.mjs.
+  terminal: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -319,6 +327,7 @@ export function normalise(raw) {
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
+    terminal: flagOr(src.terminal, DEFAULTS.terminal),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),
@@ -758,6 +767,30 @@ export function accountNotifySettings(prefs, env = process.env) {
 export function lanEnabled(prefs, env = process.env) {
   if (env.AGENTS_DECK_NO_LAN === "1") return false;
   return normalise(prefs).lan.enabled;
+}
+
+/** Set to "1" to switch the terminal panel on for one run, whatever prefs.json
+ *  says. THE ONE VARIABLE HERE THAT TURNS SOMETHING ON rather than vetoing it,
+ *  and deliberately left out of the README's table and of the login item's
+ *  SETTING_VARS while the panel ships hidden — readme-order.test.ts names it
+ *  as a decision, so documenting it later is a decision too. */
+export const TERMINAL_ENV = "CCDECK_TERMINAL";
+
+/**
+ * Is the terminal panel switched on? Either the launch variable or the stored
+ * `terminal` switch, and nothing else.
+ *
+ * The opposite polarity from lanEnabled's veto, on purpose: the panel is the
+ * feature that is off unless somebody chose it, and either of the two people
+ * who can choose — whoever launched the deck, or whoever edited its settings
+ * file — is enough. A page is neither: `terminal` is not in PAGE_FIELDS.
+ *
+ * Asked on every request and every upgrade rather than once at boot, so the
+ * routes and the socket answer from the same settings at every moment and can
+ * never disagree about whether the panel exists.
+ */
+export function terminalOn(prefs, env = process.env) {
+  return env[TERMINAL_ENV] === "1" || prefs?.terminal === true;
 }
 
 /**

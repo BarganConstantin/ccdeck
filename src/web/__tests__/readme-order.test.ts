@@ -695,6 +695,11 @@ describe("every environment variable the deck reads is in the README's table", (
     "XDG_STATE_HOME", "PATH", "PATHEXT", "COMSPEC", "SHELL", "TERM", "TERM_PROGRAM",
     "NO_COLOR", "FORCE_COLOR", "CI", "AGENTS_DECK_RESPAWN", "AGENTS_DECK_SUPERVISED",
     "NODE_ENV", "TMPDIR", "TEMP", "TMP", "PROGRAMFILES", "SYSTEMROOT", "WINDIR",
+    // A knob, and undocumented on purpose: it switches on the terminal panel,
+    // which ships hidden until its owner says otherwise (deck-prefs.mjs
+    // TERMINAL_ENV). Named here so documenting it is a decision too, and
+    // taken off this list when it is.
+    "CCDECK_TERMINAL",
   ]);
 
   it("finds the variables at all, including the ones read through a constant", () => {
