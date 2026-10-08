@@ -381,7 +381,10 @@ canvas never leaves — so an open one is a `--text` line on the stripe's inner
 edge, never a tab joined to a page. The topbar keeps the identity, the stream's
 state, the waiting count with the names of who is waiting, and Settings and
 Feedback. Under 641px the stripes and those two become one dock along the
-bottom, `--dock-h` tall.
+bottom, `--dock-h` tall. Nothing fixed over the canvas covers them: the git view
+ends at the right stripe's inner edge, stands between the two as a full sheet,
+and ends above the dock; a panel it stands over reads closed on its edge, and
+its button closes the view and shows it.
 
 **The detail rail is the 360px column.** `--rail-r` is *not* its width — it is the
 right offset the floating panels position against: `368px` (the rail plus an 8px
