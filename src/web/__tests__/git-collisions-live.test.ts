@@ -225,6 +225,38 @@ describe("GitCollisions", () => {
     expect((await next("L-x", since, c => c.quiet.length === 0)).sharp).toEqual([{ agentId: null, with: { sessionId: "L-y", agentId: null }, files: ["a.txt"] }]);
   });
 
+  it("keeps a file sharp in the worktree an agent left, however many folders it edits after", async () => {
+    const repo = track(repoWith({ "shared/target.txt": "t\n" }, "ccdeck-collide-many-"));
+    const wt = join(track(tempDir("ccdeck-collide-manywt-")), "side");
+    const notes = track(tempDir("ccdeck-collide-notes-"));
+    sh(repo, ["worktree", "add", "-q", "-b", "side", wt]);
+    let since = await lastSeq();
+    await start("N-x", repo);
+    await start("N-y", repo);
+    await edit("N-x", repo, "shared/target.txt");
+    await edit("N-y", repo, "shared/target.txt");
+    await next("N-y", since, c => c.sharp.length === 1);
+    // N-x moves to the other worktree, then writes a file in each of 70
+    // folders outside every repository: the edit it left in the first is
+    // still found, ahead of all of them.
+    since = await lastSeq();
+    await event({ hook_event_name: "PostToolUse", session_id: "N-x", cwd: repo, tool_name: "Bash", tool_input: { command: `cd '${wt}' && git status` }, tool_response: { stdout: "" }, tool_use_id: "toolu_nx_cd" });
+    await next("N-y", since, c => c.quiet.length === 0);
+    for (let i = 0; i < 70; i++) {
+      write(notes, { [`d${i}/note.md`]: `${i}\n` });
+      await event({ hook_event_name: "PostToolUse", session_id: "N-x", cwd: wt, tool_name: "Write", tool_input: { file_path: join(notes, `d${i}/note.md`) }, tool_response: { success: true }, tool_use_id: `toolu_nxnote${i}` });
+    }
+    // A third session in the worktree N-x moved to: the answer that follows
+    // is worked out with every one of those edits.
+    since = await lastSeq();
+    await start("N-z", wt);
+    expect(await next("N-x", since, c => c.quiet.length === 1, 20_000)).toEqual({
+      quiet: [{ agentId: null, with: { sessionId: "N-z", agentId: null }, reason: "same-worktree", branch: "side" }],
+      sharp: [{ agentId: null, with: { sessionId: "N-y", agentId: null }, files: ["shared/target.txt"] }],
+    });
+    for (const sid of ["N-x", "N-y", "N-z"]) await event({ hook_event_name: "SessionEnd", session_id: sid, cwd: repo, reason: "exit" });
+  }, 45_000);
+
   it("works the marks out again when a session is followed into another worktree by a call that changes nothing", async () => {
     const repo = track(repoWith({ "a.txt": "a\n" }, "ccdeck-collide-move-"));
     const wt = join(track(tempDir("ccdeck-collide-movewt-")), "side");
