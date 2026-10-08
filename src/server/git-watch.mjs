@@ -15,8 +15,8 @@
 //
 //   { hook_event_name: "GitObserved", session_id, provider?: "codex",
 //     git: { subagent?, state, stale, topLevel?, name?, mainName?, folderName?,
-//            nameDiffers?, linkedWorktree?, branch?, detached?, sha?, unborn?,
-//            empty?, fromLog?, followed?, sameAsRoot? } }
+//            nameDiffers?, linkedWorktree?, commonDir?, branch?, detached?, sha?,
+//            unborn?, empty?, fromLog?, followed?, sameAsRoot? } }
 //
 // for the session's root and for each subagent whose folder is not the
 // root's (`git.subagent` is its key) — and for a subagent that had a folder of
@@ -404,6 +404,9 @@ export function describeRepo(repo) {
     folderName: repo.folderName,
     nameDiffers: repo.nameDiffers,
     linkedWorktree: repo.linkedWorktree,
+    // The repository the worktree belongs to, which all its worktrees share:
+    // a view keeps a commit selected across a move between them.
+    commonDir: repo.commonDir,
     branch: repo.head.branch,
     detached: repo.head.detached,
     sha: repo.head.short,

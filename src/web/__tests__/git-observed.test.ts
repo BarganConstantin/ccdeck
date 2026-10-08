@@ -119,7 +119,7 @@ describe("GitObserved", () => {
     expect(e.payload.provider).toBeUndefined();
     expect(e.payload.git).toEqual({
       state: "repo", topLevel: dir, name: dir.split(/[\\/]/).pop(), mainName: dir.split(/[\\/]/).pop(),
-      folderName: dir.split(/[\\/]/).pop(), nameDiffers: false, linkedWorktree: false,
+      folderName: dir.split(/[\\/]/).pop(), nameDiffers: false, linkedWorktree: false, commonDir: expect.stringMatching(/[\\/]\.git$/),
       branch: "main", detached: false, sha: sh(dir, ["rev-parse", "--short=7", "HEAD"]).trim(), unborn: false, empty: false, stale: 0,
     });
   });
@@ -333,11 +333,13 @@ describe("the worktree a session works in", () => {
     const { dir, wt } = repoAndWorktree("cd");
     let since = await lastSeq();
     await event({ hook_event_name: "SessionStart", session_id: "F1", cwd: dir });
-    await next("F1", since);
+    const first = await next("F1", since);
     since = await lastSeq();
     await event({ hook_event_name: "PostToolUse", session_id: "F1", cwd: dir, tool_name: "Bash", tool_input: { command: `cd '${wt}' && git status` } });
     const moved = await next("F1", since, g => g.topLevel === wt);
     expect(moved.payload.git).toMatchObject({ branch: "wt/cd", linkedWorktree: true });
+    // Another worktree, the same repository: the page keeps a commit selected across the move.
+    expect(moved.payload.git.commonDir).toBe(first.payload.git.commonDir);
     expect(await repoTop("F1")).toBe(wt);
     since = await lastSeq();
     await event({ hook_event_name: "PostToolUse", session_id: "F1", cwd: dir, tool_name: "Bash", tool_input: { command: `git -C '${dir}' log -1` } });

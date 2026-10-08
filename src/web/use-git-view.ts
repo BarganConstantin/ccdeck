@@ -299,7 +299,8 @@ export interface DiffState {
   /** Why the diff could not be read: the route's reason, "unlisted" when git
    *  no longer lists the change, "the deck did not answer". */
   error: string | null;
-  /** Whose selection it was read for (selectionOwner). */
+  /** Whose selection it was read for (selectionOwner), and for the working
+   *  tree, in which worktree. */
   of?: string;
 }
 
@@ -327,10 +328,11 @@ const FILES_TOO_LARGE: ReadFailure = { error: "too-large" };
 const sameDiff = (a: DiffResult | null, b: DiffResult | null) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Whose a selection is: one agent's (or the whole session's) read of one
- *  worktree. A selection, the commits read for it and the diff on screen
+ *  repository. A selection, the commits read for it and the diff on screen
  *  never outlive it: another agent followed, or the agent moving to another
- *  worktree, starts them over. */
-export const selectionOwner = (sessionId: string, agent: string | null, top: string | null) => `${sessionId}|${agent ?? ""}|${top ?? ""}`;
+ *  repository, starts them over. A move to another worktree of the same
+ *  repository keeps a commit, the same commit there (useGitSelection). */
+export const selectionOwner = (sessionId: string, agent: string | null, repo: string | null) => `${sessionId}|${agent ?? ""}|${repo ?? ""}`;
 
 /** The selection, and the request and owner it was started for. */
 export interface Picked {
@@ -348,15 +350,17 @@ export interface Picked {
    *  worktree as it was when they were chosen, so they are taken once: a
    *  move to another worktree within the same request does not take them again. */
   hinted: number | null;
+  /** The worktree it was made in: the working tree's file is that worktree's. */
+  top?: string | null;
 }
 
 /** A selection started over for `of`: on the request's row and file when it
  *  names them and they were not taken yet, else on the working tree. */
-export function startPick(of: string, seq: number, initial: { sel?: string | null; file?: GitFileRef | null }, hinted: number | null): Picked {
+export function startPick(of: string, seq: number, initial: { sel?: string | null; file?: GitFileRef | null }, hinted: number | null, top: string | null = null): Picked {
   const hints = (initial.sel != null || initial.file != null) && hinted !== seq;
   return {
     of, sel: hints ? initial.sel ?? UNCOMMITTED : UNCOMMITTED, file: hints ? initial.file ?? null : null,
-    picked: hints && initial.file != null, settled: hints, hinted: hints ? seq : hinted,
+    picked: hints && initial.file != null, settled: hints, hinted: hints ? seq : hinted, top,
   };
 }
 
@@ -380,15 +384,20 @@ interface CommitReads {
  * read again and, if it changed, kept aside until the reader asks for it.
  *
  * All of it belongs to one owner (selectionOwner): the view following another
- * agent, or the agent moving to another worktree, starts the selection over
- * in the same render, so nothing of the one before is drawn or read there.
+ * agent, or the agent moving to another repository, starts the selection over
+ * in the same render, so nothing of the one before is drawn or read there. A
+ * move to another worktree of the same repository keeps a selected commit,
+ * its files and its diff, and starts only the working tree's file over.
  */
-export function useGitSelection({ data, sessionId, agent, top = null, focus, initial, seq, active, forkOpen = false }: {
+export function useGitSelection({ data, sessionId, agent, top = null, repo = null, focus, initial, seq, active, forkOpen = false }: {
   data: GitData;
   sessionId: string;
   agent: string | null;
   /** The worktree the read is asked in (useGitData's `top`). */
   top?: string | null;
+  /** The repository that worktree belongs to (GitObserved's `commonDir`).
+   *  Unknown, the worktree counts as a repository of its own. */
+  repo?: string | null;
   focus: GraphFocus;
   /** What the request named for this agent: a row and a file, or nothing. */
   initial: { sel?: string | null; file?: GitFileRef | null };
@@ -401,14 +410,19 @@ export function useGitSelection({ data, sessionId, agent, top = null, focus, ini
    *  the reader has already chosen one. */
   forkOpen?: boolean;
 }) {
-  const owner = selectionOwner(sessionId, agent, top);
+  const owner = selectionOwner(sessionId, agent, repo ?? top);
   const of = `${seq}|${owner}`;
-  const [kept, setPick] = useState<Picked>(() => startPick(of, seq, initial, null));
+  const [kept, setPick] = useState<Picked>(() => startPick(of, seq, initial, null, top));
   // Started over in the render that finds a new owner, not in an effect after
   // it: nothing of the selection before is drawn, or read, for the new one.
+  // Another worktree of the same repository keeps a commit, the same commit
+  // there; the working tree is that worktree's, so its file is chosen again.
   let pick = kept;
   if (kept.of !== of) {
-    pick = startPick(of, seq, initial, kept.hinted);
+    pick = startPick(of, seq, initial, kept.hinted, top);
+    setPick(pick);
+  } else if ((kept.top ?? null) !== top) {
+    pick = kept.sel === UNCOMMITTED ? { ...kept, top, file: null, picked: false } : { ...kept, top };
     setPick(pick);
   }
   const { sel, file } = pick;
@@ -515,33 +529,35 @@ export function useGitSelection({ data, sessionId, agent, top = null, focus, ini
   }, [pick.of, pick.settled, forkOpen, data.state, data.commits, data.entries, data.edits]);
 
   // ── the diff ──
+  // Whose the diff is: the owner's, and for the working tree, its worktree's.
+  const diffOwner = sel === UNCOMMITTED ? `${owner}|${top ?? ""}` : owner;
   const [diffKept, setDiff] = useState<DiffState>(NO_DIFF);
   // A diff read for another owner is not this one's, even for the render
   // before the effect below clears it.
-  const diff = diffKept.of === undefined || diffKept.of === owner ? diffKept : NO_DIFF;
+  const diff = diffKept.of === undefined || diffKept.of === diffOwner ? diffKept : NO_DIFF;
   // Bumped to read the open file's diff again.
   const [again, setAgain] = useState(0);
   const latest = useRef<DiffResult | null>(null);
   const urlFor = (f: GitFileRef) => (sel === UNCOMMITTED
     ? `/api/git/diff?${gitQuery(sessionId, agent, { path: f.path, area: f.area })}`
     : `/api/git/commit?${gitQuery(sessionId, agent, { sha: sel, path: f.path })}`);
-  const fileKey = file ? `${owner}|${sel}|${file.area}|${file.path}` : null;
+  const fileKey = file ? `${diffOwner}|${sel}|${file.area}|${file.path}` : null;
 
   // A newly chosen file: read its diff a frame from now.
   useEffect(() => {
     if (!active || !file) { setDiff(d => (d.file === null && !d.loading ? d : NO_DIFF)); return; }
     let gone = false;
-    setDiff({ file, sel, diff: null, loading: true, stale: false, error: null, of: owner });
+    setDiff({ file, sel, diff: null, loading: true, stale: false, error: null, of: diffOwner });
     latest.current = null;
     const raf = requestAnimationFrame(() => {
       fetch(urlFor(file))
         .then(async r => ({ status: r.status, a: (await r.json().catch(() => ({}))) as DiffAnswer }))
         .then(({ status, a }) => {
           if (gone) return;
-          if (a.ok && a.diff) setDiff({ file, sel, diff: a.diff, loading: false, stale: false, error: null, of: owner });
-          else setDiff({ file, sel, diff: null, loading: false, stale: false, error: failureOf(a, status), of: owner });
+          if (a.ok && a.diff) setDiff({ file, sel, diff: a.diff, loading: false, stale: false, error: null, of: diffOwner });
+          else setDiff({ file, sel, diff: null, loading: false, stale: false, error: failureOf(a, status), of: diffOwner });
         })
-        .catch(() => { if (!gone) setDiff({ file, sel, diff: null, loading: false, stale: false, error: "the deck did not answer", of: owner }); });
+        .catch(() => { if (!gone) setDiff({ file, sel, diff: null, loading: false, stale: false, error: "the deck did not answer", of: diffOwner }); });
     });
     return () => { gone = true; cancelAnimationFrame(raf); };
   }, [active, fileKey, again]);
@@ -553,7 +569,7 @@ export function useGitSelection({ data, sessionId, agent, top = null, focus, ini
   // selected here belongs to the folder before.
   const treeSeen = useRef<{ seq: number; of: string } | null>(null);
   useEffect(() => {
-    const of = owner;
+    const of = `${owner}|${top ?? ""}`;
     const was = treeSeen.current;
     treeSeen.current = { seq: data.treeSeq, of };
     if (!was || (data.treeSeq === was.seq && of === was.of)) return;
@@ -583,7 +599,7 @@ export function useGitSelection({ data, sessionId, agent, top = null, focus, ini
       })
       .catch(() => {});
     return () => { gone = true; };
-  }, [data.treeSeq, owner]);
+  }, [data.treeSeq, owner, top]);
 
   /** `n`, the pill and the header's reload: the latest diff when one is
    *  waiting, else the open file's diff read again. */

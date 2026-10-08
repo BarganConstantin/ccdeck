@@ -51,7 +51,8 @@ describe("where the Fork look opens", () => {
   it("decides once per request and per agent and worktree followed, never over a row or file the request named", () => {
     const hook = sourceOf("use-git-view.ts");
     expect(hook).toMatch(/const of = `\$\{seq\}\|\$\{owner\}`;/);
-    expect(hook).toMatch(/export const selectionOwner = \(sessionId: string, agent: string \| null, top: string \| null\) => `\$\{sessionId\}\|\$\{agent \?\? ""\}\|\$\{top \?\? ""\}`;/);
+    expect(hook).toMatch(/export const selectionOwner = \(sessionId: string, agent: string \| null, repo: string \| null\) => `\$\{sessionId\}\|\$\{agent \?\? ""\}\|\$\{repo \?\? ""\}`;/);
+    expect(hook).toMatch(/const owner = selectionOwner\(sessionId, agent, repo \?\? top\);/);
     // A request's row or file settles it (startPick), and so does every choice, the reader's included.
     expect(hook).toMatch(/picked: hints && initial\.file != null, settled: hints,/);
     expect(hook).toMatch(/if \(pick\.settled\) return;\n    if \(!forkOpen \|\| \(data\.state !== "repo" && data\.state !== "loading"\)\) \{ settle\(\); return; \}/);

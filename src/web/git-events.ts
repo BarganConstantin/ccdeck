@@ -28,7 +28,7 @@ export function gitFactsFrom(raw: unknown): GitFacts | null {
   const sha = g.sha === null ? null : str(g.sha);
   const fields: Partial<GitFacts> = {
     topLevel: str(g.topLevel), name: str(g.name), mainName: str(g.mainName), folderName: str(g.folderName),
-    nameDiffers: bool(g.nameDiffers), linkedWorktree: bool(g.linkedWorktree), branch, detached: bool(g.detached),
+    nameDiffers: bool(g.nameDiffers), linkedWorktree: bool(g.linkedWorktree), commonDir: str(g.commonDir), branch, detached: bool(g.detached),
     sha, unborn: bool(g.unborn), empty: bool(g.empty), fromLog: bool(g.fromLog),
   };
   for (const [k, v] of Object.entries(fields)) if (v !== undefined) (facts as unknown as Record<string, unknown>)[k] = v;

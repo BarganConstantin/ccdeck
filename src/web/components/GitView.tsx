@@ -744,15 +744,16 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   const agentParam = away ? away.agentId : narrow ? focus.agentIds![0] : null;
   // From a subagent widened to its session, the session's repository is read.
   const facts = away ? awayCard?.git : narrow ? gitFactsFor(agent, root) : root?.git ?? gitFactsFor(agent, root);
-  // The worktree the read follows the agent into: the selection is that
-  // worktree's, and starts over when the agent moves to another.
+  // The worktree the read follows the agent into. The selection is its
+  // repository's: it starts over when the agent moves to another repository,
+  // and keeps a commit across a move between worktrees of one.
   const top = facts?.topLevel ?? null;
   const data = useGitData({
     sessionId: agent.sessionId, agent: agentParam, stale: facts?.stale ?? 0, top, enabled: true, fresh: true,
     ownFolder: away != null || (narrow && agent.git != null),
   });
   const view = useGitSelection({
-    data, sessionId: agent.sessionId, agent: agentParam, top, focus, active: request.open,
+    data, sessionId: agent.sessionId, agent: agentParam, top, repo: facts?.commonDir ?? null, focus, active: request.open,
     // The row and file a request named are the agent's it opened on, in the
     // session's folder: never another agent's the view follows, nor the
     // folder a subagent was narrowed to.
