@@ -305,7 +305,8 @@ describe("the report, drawn", () => {
 
   it("dims a left-out reading's last number, and says once, in its state, why", () => {
     const out = html([acct(1, 33, 40, { stale: true, fetchedAt: (NOW - HOUR) * 1000 })]);
-    expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, not counted</span>');
+    // Counted at that number since #1713, and said so (accounts-report-cell-said).
+    expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, last reading, counted as is</span>');
     // Judged on its last numbers — one word, one line — and how old they are
     // said once, in the Updated column (#1713).
     expect(out).toContain('<td class="ap-report-state" data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"></i>Ready</span></td><td class="ap-report-upd" data-old="">1h ago</td>');

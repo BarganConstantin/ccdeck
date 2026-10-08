@@ -109,8 +109,9 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
 }
 
 /** One account's use of one window, and when it resets — or, for a reading
- *  that is not in the totals, the last number dimmed, never a zero it was not
- *  given. Why it is left out is the row's state to say, once. */
+ *  that is not current, the last number dimmed, never a zero it was not given,
+ *  and what the totals above do with it. Why it is not current is the row's
+ *  state to say, once. */
 function UsedCell({ cell, nowSec }: { cell: Cell; nowSec: number }) {
   if (!cell.counted && cell.reset) {
     // RESET, NOT THE OLD NUMBER. The cards take this window as unused, so a
@@ -124,12 +125,18 @@ function UsedCell({ cell, nowSec }: { cell: Cell; nowSec: number }) {
     );
   }
   if (!cell.counted) {
+    // WHAT THE TOTAL DOES WITH IT, said. Since #1713 a window's total takes
+    // every number there is — an old reading, and one behind a login no
+    // switch gets past, at its last value — and leaves out only a window never
+    // read. Every one of these cells used to end ", not counted", which told a
+    // screen reader the card's average left out a number it had added in.
+    const said = cell.estimate == null ? ", not counted" : ", last reading, counted as is";
     return (
       <td className="ap-report-cell" data-uncounted="">
         <span className="ap-report-pct">
           {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">no reading</span></> : `${shownUsed(cell.last)}%`}
         </span>
-        <span className="vis-hidden">, not counted</span>
+        <span className="vis-hidden">{said}</span>
       </td>
     );
   }
