@@ -114,6 +114,38 @@ describe("the sidebar follows the view to another worktree", () => {
     expect(now().refs?.branches.map(b => b.name)).toEqual(["develop"]);
   });
 
+  it("keeps the first read when the view's worktree becomes known while it is on its way", async () => {
+    answer = () => branchesIn("/code/notes-app", ["main"]);
+    let release: () => void = () => {};
+    hold = new Promise<void>(r => { release = r; });
+    await show({ sessionId: "S-first", agent: null, stale: 0, top: null });
+    await show({ sessionId: "S-first", agent: null, stale: 0, top: "/code/notes-app" });
+    release();
+    await settle();
+    expect(asked).toHaveLength(1);
+    expect(now().refs?.branches.map(b => b.name)).toEqual(["main"]);
+    // A later move to another worktree still reads again.
+    answer = () => branchesIn("/code/notes-app-wt", ["fix/x"]);
+    hold = null;
+    await show({ sessionId: "S-first", agent: null, stale: 0, top: "/code/notes-app-wt" });
+    expect(asked).toHaveLength(2);
+    expect(now().refs?.branches.map(b => b.name)).toEqual(["fix/x"]);
+  });
+
+  it("keeps the first read for another session too, whose worktree becomes known while it is on its way", async () => {
+    answer = () => branchesIn("/code/infra", ["main"]);
+    await show({ sessionId: "S-was", agent: null, stale: 0, top: "/code/infra" });
+    answer = () => branchesIn("/code/shop-api", ["develop"]);
+    let release: () => void = () => {};
+    hold = new Promise<void>(r => { release = r; });
+    await show({ sessionId: "S-next", agent: null, stale: 0, top: null });
+    await show({ sessionId: "S-next", agent: null, stale: 0, top: "/code/shop-api" });
+    release();
+    await settle();
+    expect(asked).toHaveLength(2);
+    expect(now().refs?.branches.map(b => b.name)).toEqual(["develop"]);
+  });
+
   it("keeps its answer while the view's worktree is not known yet", async () => {
     answer = () => branchesIn("/code/notes-app", ["main"]);
     await show({ sessionId: "S-unknown", agent: null, stale: 0, top: "/code/notes-app" });

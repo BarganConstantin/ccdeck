@@ -108,6 +108,11 @@ export function useGitRefs({ sessionId, agent, stale, top = null, fresh = false,
   // Try again: bumped to ask once more after a failed read.
   const [again, setAgain] = useState(0);
   const retry = useCallback(() => setAgain(n => n + 1), []);
+  // Moves from one known worktree to another, within one session. The first
+  // one becoming known is not a move: the read already on its way answers for it.
+  const [moved, setMoved] = useState({ key, top, n: 0 });
+  if (moved.key !== key) setMoved({ key, top, n: moved.n });
+  else if (top && top !== moved.top) setMoved({ key, top, n: moved.top ? moved.n + 1 : moved.n });
   useEffect(() => {
     if (!enabled || !key || !sessionId) return;
     if (!refsWanted(kept.get(key), { stale, top, fresh, now: Date.now() })) return;
@@ -131,6 +136,6 @@ export function useGitRefs({ sessionId, agent, stale, top = null, fresh = false,
         });
       });
     return () => { gone = true; };
-  }, [enabled, key, stale, top, fresh, again]);
+  }, [enabled, key, stale, moved.n, fresh, again]);
   return { ...data, retry };
 }

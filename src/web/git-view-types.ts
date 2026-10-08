@@ -246,8 +246,10 @@ export interface RefSubmodule {
   sha: string;
 }
 
-/** The lists a list name in `clipped` or `unread` can be. */
-export type RefsList = "refs" | "stashes" | "worktrees" | "submodules";
+/** The lists a list name in `clipped` or `unread` can be; `unread` can also
+ *  name "counts", the branches' ahead and behind, when git took too long to
+ *  count them (each branch then says 0 and 0). */
+export type RefsList = "refs" | "stashes" | "worktrees" | "submodules" | "counts";
 
 export interface GitRefs {
   branches: RefBranch[];

@@ -32,7 +32,7 @@ const { GUARDED_READS } = await import("../../server/request-gates.mjs");
 const refsMod = await import("../../server/git-refs.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { gitArgv } = await import("../../server/git-run.mjs");
-const { readRefs, MAX_REFS, parseStashes, parseWorktrees, parseGitmodules, parseGitlinks, splitRemoteRef, clearRefsCache } = refsMod;
+const { readRefs, MAX_REFS, REF_FORMAT, parseStashes, parseWorktrees, parseGitmodules, parseGitlinks, splitRemoteRef, clearRefsCache } = refsMod;
 
 const made: string[] = [];
 const track = (d: string) => { made.push(d); return d; };
@@ -300,6 +300,28 @@ describe("caps", () => {
     expect(r.worktrees.length).toBe(2);
     expect(r.submodules.length).toBe(0);
     expect(r.clipped.sort()).toEqual(["refs", "stashes", "submodules", "worktrees"]);
+  });
+});
+
+describe("ahead and behind that take too long to count", () => {
+  it("lists every ref without them, and says they were not counted, rather than failing the whole answer", async () => {
+    // Each count is a walk between a branch and its upstream: seconds per
+    // branch in a large repository whose branches are far behind theirs.
+    const r = await readRefs({ topLevel: repo, head: { branch: "main", detached: false, sha: mainSha, short: "", unborn: false } }, { countsTimeoutMs: 1 });
+    expect(r.ok).toBe(true);
+    expect(r.unread).toEqual(["counts"]);
+    const byName = Object.fromEntries(r.branches.map((b: any) => [b.name, b]));
+    expect(Object.keys(byName).sort()).toEqual(["agent/x", "feature/deep/one", "feature/deep/two", "feature/gone", "main", "usb"]);
+    expect(byName.main).toMatchObject({ sha: mainSha, current: true, upstream: "origin/main", ahead: 0, behind: 0, gone: false });
+    expect(byName["feature/gone"]).toMatchObject({ upstream: "origin/feature/gone", ahead: 0, behind: 0, gone: false });
+    expect(r.remotes.map((x: any) => x.name)).toEqual(["origin", "team/eu"]);
+    expect(r.tags).toHaveLength(5);
+    expect(r.stashes).toHaveLength(2);
+  });
+
+  it("never asks the list read for them: that read walks no history", () => {
+    expect(REF_FORMAT).toMatch(/%\(refname\)/);
+    expect(REF_FORMAT).not.toMatch(/upstream:track|ahead-behind/);
   });
 });
 

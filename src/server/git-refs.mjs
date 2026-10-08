@@ -3,13 +3,15 @@
 // lists them.
 //
 // Read-only like every other read (git-run.mjs): the folder is the session's,
-// resolved by the route, and nothing here names a revision a request sent. Six
+// resolved by the route, and nothing here names a revision a request sent. Seven
 // small reads, each capped in time and in bytes:
 //
-//   for-each-ref   branches with their upstream and how far they are from it
-//                  (from the refs on disk: the deck never fetches), which
-//                  worktree holds each, remote-tracking branches, tags and
-//                  whether each is annotated; at most MAX_REFS, in git's order
+//   for-each-ref   branches with their upstream, which worktree holds each,
+//                  remote-tracking branches, tags and whether each is
+//                  annotated; at most MAX_REFS, in git's order. How far each
+//                  branch is from its upstream (from the refs on disk: the
+//                  deck never fetches) is a read of its own, held to
+//                  COUNTS_TIMEOUT_MS, since each count walks history
 //   config         the remotes' names, so a remote called `team/eu` keeps its
 //                  slash; and .gitmodules, read as a file of its own
 //   log -g         the stash, which is the reflog of refs/stash — what
@@ -22,8 +24,9 @@
 //                  starts a git inside every submodule
 //
 // A list that could not be read comes back empty and is named in `unread`; a
-// list cut at its cap is named in `clipped`. Only a failed ref read fails the
-// whole answer.
+// list cut at its cap is named in `clipped`. Counts not read in time leave
+// every branch at 0 and 0, and `counts` in `unread`. Only a failed ref read
+// fails the whole answer.
 import { access } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
 import { git } from "./git-run.mjs";
@@ -39,11 +42,20 @@ export const MAX_SUBMODULES = 500;
 const REFS_BYTES = 4 << 20;
 const SMALL_BYTES = 1 << 20;
 
-const REF_FORMAT = [
+/** How long the branches' ahead and behind counts may take. Each is a walk of
+ *  history between a branch and its upstream: in a large repository whose old
+ *  branches sit far behind theirs, seconds per branch. Past this the lists
+ *  answer without them rather than not at all. */
+export const COUNTS_TIMEOUT_MS = 3_000;
+
+/** The list read: nothing in it walks history, so it answers at once however
+ *  far apart the branches are. */
+export const REF_FORMAT = [
   "%(refname)", "%(objectname)", "%(*objectname)", "%(upstream)", "%(upstream:short)",
-  "%(upstream:track,nobracket)", "%(HEAD)", "%(symref)", "%(worktreepath)",
-  "%(objecttype)", "%(*objecttype)",
+  "%(HEAD)", "%(symref)", "%(worktreepath)", "%(objecttype)", "%(*objecttype)",
 ].join("%00") + "%00";
+/** The count read: each branch and how far it is from its upstream. */
+const COUNT_FORMAT = "%(refname)%00%(upstream:track,nobracket)%00";
 
 const US = "\x1f";
 
@@ -55,9 +67,15 @@ const insidePath = (p) => typeof p === "string" && p !== "" && !isAbsolute(p) &&
 /** `s` without `prefix`, which the caller has checked it starts with. */
 const after = (s, prefix) => s.slice(prefix.length);
 
-/** Every record of the ref read: `[refname, sha, peeled, upstream, upstreamShort, track, head, symref, worktree, type, peeledType]`. */
+/** Every record of the ref read: `[refname, sha, peeled, upstream, upstreamShort, head, symref, worktree, type, peeledType]`,
+ *  or of the count read: `[refname, track]`. */
 export function parseRefRecords(stdout) {
   return String(stdout ?? "").split("\0\n").filter((r) => r.trim() !== "").map((r) => r.replace(/^\n/, "").split("\0"));
+}
+
+/** The count read as refname → `ahead 2, behind 1` / `gone` / ``. */
+export function parseCounts(stdout) {
+  return new Map(parseRefRecords(stdout).filter(([ref]) => ref).map(([ref, track]) => [ref, track ?? ""]));
 }
 
 /** `ahead 2, behind 1` / `gone` / `` as numbers and a flag. */
@@ -96,21 +114,23 @@ export function splitRemoteRef(rest, remotes) {
 export const REF_SLACK = 33;
 
 /** The ref read, as the answer's branches, remotes and tags. `asked` is how
- *  many records the read was capped at: a read that filled it may have more. */
-export function refsFrom(records, { remoteNames = [], maxRefs = MAX_REFS, asked = Infinity } = {}) {
+ *  many records the read was capped at: a read that filled it may have more.
+ *  `counts` is the count read (parseCounts); a branch it does not name, or
+ *  every branch when it is null, is at 0 and 0. */
+export function refsFrom(records, { remoteNames = [], maxRefs = MAX_REFS, asked = Infinity, counts = null } = {}) {
   const branches = [];
   const byRemote = new Map(remoteNames.map((n) => [n, []]));
   const tags = [];
   let listed = 0;
   let clipped = false;
-  for (const [ref, obj, peeled, upstream, upstreamShort, track, head, symref, worktree, type, peeledType] of records) {
+  for (const [ref, obj, peeled, upstream, upstreamShort, head, symref, worktree, type, peeledType] of records) {
     if (!ref || !/^[0-9a-f]{40,64}$/.test(obj ?? "")) continue;
     // origin/HEAD and its kind point at a branch listed on its own.
     if (symref) continue;
     if (listed >= maxRefs) { clipped = true; break; }
     listed++;
     if (ref.startsWith("refs/heads/")) {
-      const t = parseTrack(track);
+      const t = parseTrack(counts?.get(ref));
       branches.push({
         name: after(ref, "refs/heads/"),
         sha: obj,
@@ -248,12 +268,16 @@ async function readSubmodules(topLevel, max) {
  *   { ok: true, branches, remotes, tags, stashes, worktrees, submodules, clipped, unread }
  * or { ok: false, reason } when the refs themselves could not be read.
  * `clipped` and `unread` name lists (`refs`, `stashes`, `worktrees`,
- * `submodules`) cut at their cap or not read at all.
+ * `submodules`) cut at their cap or not read at all; `unread` also names
+ * `counts`, the branches' ahead and behind, when git could not count them
+ * within COUNTS_TIMEOUT_MS.
  */
-export async function readRefs(repo, { maxRefs = MAX_REFS, maxStashes = MAX_STASHES, maxWorktrees = MAX_WORKTREES, maxSubmodules = MAX_SUBMODULES } = {}) {
+export async function readRefs(repo, { maxRefs = MAX_REFS, maxStashes = MAX_STASHES, maxWorktrees = MAX_WORKTREES, maxSubmodules = MAX_SUBMODULES, countsTimeoutMs = COUNTS_TIMEOUT_MS } = {}) {
   const cwd = repo.topLevel;
-  const [refs, remoteCfg, stashes, worktrees, submodules] = await Promise.all([
-    git("for-each-ref", [`--count=${maxRefs + REF_SLACK}`, `--format=${REF_FORMAT}`, "refs/heads", "refs/remotes", "refs/tags"], { cwd, maxBytes: REFS_BYTES }),
+  const asked = maxRefs + REF_SLACK;
+  const [refs, counts, remoteCfg, stashes, worktrees, submodules] = await Promise.all([
+    git("for-each-ref", [`--count=${asked}`, `--format=${REF_FORMAT}`, "refs/heads", "refs/remotes", "refs/tags"], { cwd, maxBytes: REFS_BYTES }),
+    git("for-each-ref", [`--count=${asked}`, `--format=${COUNT_FORMAT}`, "refs/heads"], { cwd, maxBytes: REFS_BYTES, timeout: countsTimeoutMs }),
     git("config", ["-z", "--get-regexp", "^remote\\."], { cwd, maxBytes: SMALL_BYTES }),
     readStashes(cwd, maxStashes),
     readWorktrees(cwd, maxWorktrees),
@@ -263,7 +287,8 @@ export async function readRefs(repo, { maxRefs = MAX_REFS, maxStashes = MAX_STAS
   const { branches, remotes, tags, clipped: refsClipped } = refsFrom(parseRefRecords(refs.stdout), {
     remoteNames: remoteCfg.ok ? parseRemoteNames(remoteCfg.stdout) : [],
     maxRefs,
-    asked: maxRefs + REF_SLACK,
+    asked,
+    counts: counts.ok ? parseCounts(counts.stdout) : null,
   });
   // A branch with no commit yet is not a ref, but it is where HEAD is.
   const head = repo.head;
@@ -273,6 +298,7 @@ export async function readRefs(repo, { maxRefs = MAX_REFS, maxStashes = MAX_STAS
   const clipped = [];
   const unread = [];
   if (refsClipped) clipped.push("refs");
+  if (!counts.ok) unread.push("counts");
   for (const [name, r] of [["stashes", stashes], ["worktrees", worktrees], ["submodules", submodules]]) {
     if (!r.ok) unread.push(name);
     else if (r.clipped) clipped.push(name);
