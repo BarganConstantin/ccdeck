@@ -97,6 +97,15 @@ describe("the history list, as the markup builds it", () => {
     expect(effect).toMatch(/if \(row && row\.dataset\.id !== selected\) rowEl\(selected\)\?\.focus\(\{ preventScroll: true \}\);/);
   });
 
+  it("opens with the newest rows in sight when the row it opens on is on the first screen, and centres it only further down", () => {
+    const reveal = src.slice(src.indexOf("const reveal = useCallback("), src.indexOf("reveal(selected, true)"));
+    // The working tree and the commits above the agent's stay in view.
+    expect(reveal).toMatch(/if \(center\) \{ sc\.scrollTop = top \+ h <= sc\.clientHeight \? 0 : top - sc\.clientHeight \/ 2 \+ h \/ 2; return; \}/);
+    // A selection the view's opening makes after the history is drawn lands as it would have at the opening.
+    const effect = src.slice(src.indexOf("const lastSelected = useRef(selected);"), src.indexOf("}, [selected, reveal, rowEl]);"));
+    expect(effect).toMatch(/reveal\(selected, lastSelected\.current === ""\);/);
+  });
+
   it("moves nothing from the keyboard: a key reveals its row at once", () => {
     expect(src).toMatch(/const reveal = useCallback\(/);
     const reveal = src.slice(src.indexOf("const reveal = useCallback("), src.indexOf("reveal(selected, true)"));

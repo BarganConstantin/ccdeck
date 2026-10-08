@@ -725,13 +725,15 @@ export default function GitGraph(props: GitGraphProps) {
 
   const rowEl = useCallback((id: string) => listRef.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`) ?? null, []);
 
-  /** Bring a row into the list's view, at once: nearest edge, or centred. */
+  /** Bring a row into the list's view, at once: nearest edge, or — opening —
+   *  centred, unless it is on the list's first screen, where the top stays in
+   *  sight: the working tree and the newer commits above it. */
   const reveal = useCallback((id: string, center = false) => {
     const sc = listRef.current;
     const el = rowEl(id);
     if (!sc || !el) return;
     const top = el.offsetTop, h = el.offsetHeight;
-    if (center) { sc.scrollTop = top - sc.clientHeight / 2 + h / 2; return; }
+    if (center) { sc.scrollTop = top + h <= sc.clientHeight ? 0 : top - sc.clientHeight / 2 + h / 2; return; }
     if (top < sc.scrollTop) sc.scrollTop = top;
     else if (top + h > sc.scrollTop + sc.clientHeight) sc.scrollTop = top + h - sc.clientHeight;
   }, [rowEl]);
@@ -742,14 +744,16 @@ export default function GitGraph(props: GitGraphProps) {
     reveal(selected, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repoKey]);
-  // A selection made outside the list (the glance, a card) comes into view.
+  // A selection made outside the list (the glance, a card) comes into view;
+  // the view's opening choice, landing after the history was drawn with no
+  // row selected, comes in as it would have at the opening.
   const lastSelected = useRef(selected);
   // Focus already on another of the list's rows moves with it, so the row
   // focused is always the list's one tab stop (a clean detached HEAD opens
   // the view on the top row, then selects HEAD once the folder is read).
   useLayoutEffect(() => {
     if (lastSelected.current !== selected) {
-      reveal(selected);
+      reveal(selected, lastSelected.current === "");
       const active = document.activeElement as HTMLElement | null;
       const row = active && listRef.current?.contains(active) ? active.closest<HTMLElement>("[data-id]") : null;
       if (row && row.dataset.id !== selected) rowEl(selected)?.focus({ preventScroll: true });
