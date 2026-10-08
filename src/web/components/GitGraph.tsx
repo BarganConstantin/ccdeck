@@ -974,11 +974,12 @@ export default function GitGraph(props: GitGraphProps) {
             +{folded} lanes
           </span>
         )}
-        <span className="gv-legend">
+        {/* It keys the marks on the commits: before the first commit there is nothing to key. */}
+        {commits.length > 0 && <span className="gv-legend">
           <span><Mark level="seen" /><span className="gv-long">seen by ccdeck</span><span className="gv-short">seen</span></span>
           <span><Mark level="trailer" /><span className="gv-long">from the commit message</span><span className="gv-short">message</span></span>
           <span><Mark level="round" /><span className="gv-long">no agent seen</span><span className="gv-short">none</span></span>
-        </span>
+        </span>}
       </div>}
       <div className="gv-graph-wrap">
         {newAbove > 0 && (

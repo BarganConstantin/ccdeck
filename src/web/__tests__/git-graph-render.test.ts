@@ -130,3 +130,15 @@ describe("the view's first frame", () => {
     expect(view).toMatch(/\? FIRST_ROWS : undefined;/);
   });
 });
+
+describe("the legend over the history", () => {
+  // It keys the marks on the commits; a repository with no commits yet has
+  // none to key, and the legend over its lone Uncommitted row was noise.
+  it("keys the marks when there are commits, and is left out before the first one", () => {
+    const head = { branch: "main", detached: false, sha: "a1", short: "a1", unborn: false };
+    expect(render({ commits: [commit("a1", [], 5)], head })).toContain('<span class="gv-legend">');
+    const unborn = render({ commits: [], head: { branch: "main", detached: false, sha: null, short: null, unborn: true } as never });
+    expect(unborn).not.toContain("gv-legend");
+    expect(unborn).toContain('<span class="gv-pane-title">History</span>');
+  });
+});
