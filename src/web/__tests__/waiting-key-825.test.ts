@@ -49,7 +49,9 @@ describe("W is a key, the button is its twin, and the sheet says so (#825)", () 
 
   it("lets the waiting button set where W moves on from", () => {
     expect(app).toMatch(/waitingCursorRef\.current = waitingSessions\[0\]\.id;\s*focusSession\(waitingSessions\[0\]\.id\);/);
-    expect(app).toMatch(/click, or press W, to go to the one that has been stuck longest/);
+    // "press W" only while W does anything — Settings › General's single-key
+    // switch (WCAG 2.1.4); the click is offered either way.
+    expect(app).toContain('${singleKeys ? "click, or press W," : "click"} to go to the one that has been stuck longest');
   });
 
   it("lists W in the sheet", () => {

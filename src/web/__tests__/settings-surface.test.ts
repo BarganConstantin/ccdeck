@@ -95,6 +95,14 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
+  it("draws General's Keyboard group under the color theme, its switch on as every deck starts", () => {
+    const html = drawSettings({ section: "general" });
+    expect(html.indexOf("Color theme")).toBeGreaterThan(-1);
+    expect(html.indexOf(">Keyboard</h3>")).toBeGreaterThan(html.indexOf("Color theme"));
+    expect(html).toMatch(/role="switch" aria-checked="true" aria-labelledby="settings-single-keys-label"/);
+    expect(html.match(/role="switch"/g)).toHaveLength(1);
+  });
+
   it("names the four sections in the nav, in order", () => {
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds", "Music & character"]);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
@@ -365,7 +373,7 @@ describe("moving every control into Settings resets no setting", () => {
     for (const rel of [
       "settings.ts", "use-settings-menus.ts", "components/SettingsModal.tsx", "components/ThemeSection.tsx",
       "components/NotificationsSection.tsx", "components/SoundsSection.tsx", "components/SoundSwitch.tsx",
-      "components/MusicSection.tsx",
+      "components/MusicSection.tsx", "components/KeyboardSection.tsx",
     ]) {
       const src = sourceOf(rel);
       expect(src, rel).not.toMatch(/localStorage|writeStored|readStored|sessionStorage|\/api\/prefs/);

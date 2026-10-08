@@ -117,7 +117,8 @@ describe("month-to-date topbar usage (#737)", () => {
     expect(gEnd).toBe(Math.floor(g / 0.76) - 1);
     expect(wEnd).toBe(w + 380 - 1);
     // The ribbon is components/SelectedRibbon.tsx's.
-    expect(readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`Zoom to \$\{selected\.label\} and its session \(Z\)\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);
+    // Z through withKey, named while Settings › General's single-key switch is on.
+    expect(readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`\$\{withKey\(`Zoom to \$\{selected\.label\} and its session`, "Z", singleKeys\)\}\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);
   });
 
   it("never lets a selection decide whether the phrase is there", () => {

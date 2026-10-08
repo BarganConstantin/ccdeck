@@ -93,7 +93,7 @@ export default function DeckDialogs({
   const { setWatchOn, markWatchSeen } = watchBadge;
   const { setWatchSaid } = announcements;
   const { palette } = appearance;
-  const { settingsOpen, settingsSection, showSection, closeSettings } = menus;
+  const { settingsOpen, settingsSection, showSection, closeSettings, openSettings } = menus;
   return (
     <>
       {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
@@ -220,7 +220,13 @@ export default function DeckDialogs({
           waiting for an answer. Escape agrees with the paint order — the prompt
           carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
           before arrival. */}
-      {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} onTour={() => { setKeyHelpOpen(false); openTour(); }} />}
+      {keyHelpOpen && (
+        <KeyboardHelp
+          onClose={() => setKeyHelpOpen(false)}
+          onTour={() => { setKeyHelpOpen(false); openTour(); }}
+          onSettings={() => { setKeyHelpOpen(false); openSettings("general"); }}
+        />
+      )}
       {tourOpen && (
         <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={closeTour} />
       )}

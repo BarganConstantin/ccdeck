@@ -9,6 +9,7 @@
 import { vi } from "vitest";
 import type { SetStateAction } from "react";
 import { initialState } from "../reducer";
+import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 import type { Theme } from "../theme";
 import { useDeckShortcuts, type DeckShortcuts } from "../use-deck-shortcuts";
 
@@ -43,14 +44,18 @@ export const button = (): KeyTarget => ({ tagName: "BUTTON" });
 export interface DeckKeysOptions {
   /** Whether Claude Code is on the machine; it is, unless a test says not. */
   claude?: boolean;
+  /** Settings › General's single-key switch; on, as a deck starts, unless a
+   *  test says not. Set on every mount, so no test inherits another's. */
+  singleKeys?: boolean;
 }
 
-export function mountDeckKeys({ claude = true }: DeckKeysOptions = {}) {
+export function mountDeckKeys({ claude = true, singleKeys = true }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   vi.stubGlobal("window", {
     addEventListener: (type: string, fn: (e: KeyboardEvent) => void) => { if (type === "keydown") onKey = fn; },
     removeEventListener: () => {},
   });
+  setSingleKeyShortcuts(singleKeys);
   const keyHelp = flag(false);
   const theme = flag<Theme>("dark");
   const detail = flag(false);
