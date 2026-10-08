@@ -16,6 +16,7 @@ import FkFileTypeLabel, { fileTypeOf } from "../components/FkFileTypeLabel";
 import FkStatusBadge, { fkStatusKind } from "../components/FkStatusBadge";
 import GitDiff from "../components/GitDiff";
 import { fileOrder, foldersOf, treeRows, type FkTreeFile } from "../git-fork-tree";
+import { viewKeyIntent } from "../git-view-keys";
 import type { CommitDetail, CommitMessage, LogCommit, StatusEntry } from "../git-view-types";
 import { sourceOf } from "./client-source";
 import { sheetParts } from "./sheet-source";
@@ -226,6 +227,24 @@ describe("Local Changes", () => {
     const css = part("styles/git-inspector-fork.css") + part("styles/git-diff-fork.css");
     expect(css).toMatch(/\.fkc-band \{[^}]*height: 19px;/);
     expect(css).toMatch(/\.fkd-bar \{[^}]*height: 19px;/);
+  });
+});
+
+describe("Esc in the file filter", () => {
+  it("clears its text first and keeps the view, as the sidebar's filter does", () => {
+    const input = /<input type="search" className="fkc-filter-input"[\s\S]*?\/>/.exec(sourceOf("components/FkChanges.tsx"))?.[0] ?? "";
+    expect(input).toContain("onKeyDown={onFilterKey}");
+    const own = /const onFilterKey = [\s\S]*?\n {2}\};/.exec(sourceOf("components/FkChanges.tsx"))?.[0] ?? "";
+    expect(own).toContain('if (isEscapeKey(e.key) && filter) { e.preventDefault(); e.stopPropagation(); setFilter(""); }');
+    // The sidebar's filter, the one it answers like.
+    expect(sourceOf("components/FkSidebar.tsx")).toContain('if (isEscapeKey(e.key) && query) { e.preventDefault(); e.stopPropagation(); setQuery(""); return; }');
+  });
+
+  it("steps back one layer once the filter is empty, as the view's Esc does from the files", () => {
+    const esc = { key: "Escape", ctrlKey: false, metaKey: false, altKey: false };
+    const inFilter = (local: boolean) => ({ pane: "files" as const, typing: true, handled: false, control: false, fork: { sidebar: true, local, tab: "changes" as const } });
+    expect(viewKeyIntent(esc, inFilter(false))).toEqual({ kind: "focus", pane: "graph" });
+    expect(viewKeyIntent(esc, inFilter(true))).toEqual({ kind: "close" });
   });
 });
 

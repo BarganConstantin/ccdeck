@@ -75,7 +75,8 @@ export function viewKeyIntent(
   const fork = where.fork;
   if (e.key === "Escape") {
     // One layer back: diff → files → history → the view closes. A text field
-    // gives its Esc to the view too: there is nothing in one to back out of.
+    // gives its Esc to the view too, once it is empty: a filter that holds
+    // text clears it first and keeps the key (FkSidebar, FkChanges).
     // In the Fork look the Commit tab steps back to the history as the files
     // do, and the sidebar hands back to the history it navigates; the Local
     // Changes view has no history, so its files close the view.
