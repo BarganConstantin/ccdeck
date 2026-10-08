@@ -94,6 +94,12 @@ async function agentCommits(sid: string, dir: string, file: string, subject: str
   return sh(dir, ["rev-parse", "HEAD"]).trim();
 }
 
+/** Post an agent's Bash call that ran `command` in `dir` and printed `stdout`. */
+async function agentRuns(sid: string, dir: string, command: string, stdout: string, id: string) {
+  await event({ hook_event_name: "PreToolUse", session_id: sid, cwd: dir, tool_name: "Bash", tool_input: { command }, tool_use_id: id });
+  await event({ hook_event_name: "PostToolUse", session_id: sid, cwd: dir, tool_name: "Bash", tool_input: { command }, tool_response: { stdout, stderr: "", interrupted: false }, tool_use_id: id });
+}
+
 beforeAll(async () => {
   server = await startServer({ port: 0, host: "127.0.0.1", persist: LOG, codex: false });
   port = (server.address() as AddressInfo).port;
@@ -195,6 +201,54 @@ describe("GitRecentCommits", () => {
     since = await lastSeq();
     refreshRecentCommits();
     expect((await next("RZ", since, p => p.commits.length === 0)).payload.commits).toEqual([]);
+  });
+
+  it("drops the commits an agent's own reset or rebase left behind, which print no commit", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }, "ccdeck-recent-reset-"));
+    let since = await lastSeq();
+    await event({ hook_event_name: "SessionStart", session_id: "RR", cwd: dir });
+    const first = await agentCommits("RR", dir, "b.txt", "feat: first");
+    await agentCommits("RR", dir, "c.txt", "feat: second");
+    await next("RR", since, p => p.commits.length === 2);
+    // It takes its last commit back.
+    since = await lastSeq();
+    await agentRuns("RR", dir, "git reset --hard HEAD~1", sh(dir, ["reset", "--hard", "HEAD~1"]), "toolu_rr_reset");
+    expect((await next("RR", since, p => p.commits.length === 1)).payload.commits.map((c: any) => c.sha)).toEqual([first]);
+    // It commits on a topic branch, main moves on, and it rebases onto main.
+    sh(dir, ["checkout", "-q", "-b", "topic"]);
+    since = await lastSeq();
+    const topic = await agentCommits("RR", dir, "t.txt", "feat: on the topic");
+    await next("RR", since, p => p.commits.length === 2);
+    sh(dir, ["checkout", "-q", "main"]);
+    write(dir, { "m.txt": "main\n" });
+    sh(dir, ["add", "m.txt"]);
+    sh(dir, ["commit", "-q", "-m", "chore: main moves"]);
+    sh(dir, ["checkout", "-q", "topic"]);
+    since = await lastSeq();
+    await agentRuns("RR", dir, "git rebase main", sh(dir, ["rebase", "main"]), "toolu_rr_rebase");
+    expect(sh(dir, ["rev-parse", "HEAD"]).trim()).not.toBe(topic);
+    expect((await next("RR", since, p => p.commits.length === 1)).payload.commits.map((c: any) => c.sha)).toEqual([first]);
+  });
+
+  it("drops a commit another session reset away, and one amended in a terminal, at the next command there", async () => {
+    const dir = track(repoWith({ "a.txt": "one\n" }, "ccdeck-recent-other-"));
+    let since = await lastSeq();
+    for (const sid of ["RO1", "RO2"]) await event({ hook_event_name: "SessionStart", session_id: sid, cwd: dir });
+    await agentCommits("RO1", dir, "b.txt", "feat: ro1's change");
+    await next("RO1", since, p => p.commits.length === 1);
+    // RO2, which made no commit of its own, resets RO1's away.
+    since = await lastSeq();
+    await agentRuns("RO2", dir, "git reset --hard HEAD~1", sh(dir, ["reset", "--hard", "HEAD~1"]), "toolu_ro2_reset");
+    expect((await next("RO1", since, p => p.commits.length === 0)).payload.commits).toEqual([]);
+    // RO1 commits again; somebody amends it in their own terminal, and the
+    // next command an agent runs there lets the old one go.
+    since = await lastSeq();
+    await agentCommits("RO1", dir, "c.txt", "feat: ro1's second change");
+    await next("RO1", since, p => p.commits.length === 1);
+    sh(dir, ["commit", "--amend", "-q", "-m", "feat: ro1's second change, reworded"]);
+    since = await lastSeq();
+    await agentRuns("RO2", dir, "git status", sh(dir, ["status"]), "toolu_ro2_status");
+    expect((await next("RO1", since, p => p.commits.length === 0)).payload.commits).toEqual([]);
   });
 
   it("is never written to the events log: a restarted deck works it out from the commit store", async () => {

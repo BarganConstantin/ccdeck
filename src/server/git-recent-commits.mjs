@@ -31,7 +31,11 @@
 // out again when the deck records a commit for the session — with every lane
 // holding a commit in that repository, which the new commit may have rewritten
 // (the tap tells this module, agent-git-tap.mjs `onCommit`); when the session is followed into
-// another folder (git-watch.mjs onFollow); when another deck on this machine is
+// another folder (git-watch.mjs onFollow); when a look at a worktree finds its
+// HEAD on another commit than the last list worked out against it had — a
+// reset, a rebase, an amend made in a terminal print no commit for the tap to
+// record — with every lane holding a commit in that repository (git-watch.mjs
+// onHeadSeen); when another deck on this machine is
 // the one recording the session, a moment later, from the store the two share;
 // after the boot, from the store, for every session with a commit still inside
 // the window; and when the git view is switched back on. A list that says what
@@ -48,7 +52,7 @@ import { pushEvent } from "./event-sink.mjs";
 import { readCommitsBySha } from "./git-reads.mjs";
 import { sessionFolder } from "./git-sessions.mjs";
 import { repoOf } from "./git-state.mjs";
-import { gitEnabled, onFollow } from "./git-watch.mjs";
+import { gitEnabled, onFollow, onHeadSeen } from "./git-watch.mjs";
 
 /** How long a commit stays in the lane: the page's BAND_WINDOW_MS. */
 export const RECENT_COMMITS_MS = 30 * 60_000;
@@ -60,6 +64,7 @@ export const ELSEWHERE_MS = 3_000;
 const MAX_SESSIONS = 2048;
 /** The most worktrees one pass asks which commits are still reached. */
 const MAX_REACH_READS = 16;
+const MAX_HEADS = 256;
 
 // sid -> the commits last sent for it, serialized; absent once they are empty
 const sent = new Map();
@@ -68,6 +73,8 @@ const sentSeq = new Map();
 // The sessions another deck recorded a commit for, looked at together.
 const elsewhere = new Set();
 let elsewhereTimer = null;
+// worktree top level -> the commit its HEAD was on when a lane was last worked out against it
+const heads = new Map();
 let generation = 0;
 const enabled = () => gitEnabled();
 const store = () => agentGit.store;
@@ -161,28 +168,37 @@ async function stillReached(lines) {
     if (!mine.length) continue;
     const read = await readCommitsBySha(repo.topLevel, mine.map((r) => r.sha), repo.head).catch(() => null);
     if (!read?.ok) continue;
+    noteHead(repo.topLevel, repo.head?.sha ?? null);
     for (const r of mine) out.set(r.sha, read.commits.some((c) => c.sha.startsWith(r.sha)));
   }
   return out;
 }
 
+function noteHead(top, sha) {
+  heads.delete(top);
+  heads.set(top, sha);
+  while (heads.size > MAX_HEADS) heads.delete(heads.keys().next().value);
+}
+
 let queue = Promise.resolve();
 /** Work the lanes of these sessions (all with a commit in the window when
- *  `sids` is null) out again — with `shared`, also every lane holding a
- *  commit in a repository theirs are in — and send each that changed; one
- *  pass at a time, so a slower pass never sends after a newer one. */
+ *  `sids` is null, only those with one in `inRepo` when it is named) out again
+ *  — with `shared`, also every lane holding a commit in a repository theirs
+ *  are in — and send each that changed; one pass at a time, so a slower pass
+ *  never sends after a newer one. */
 function lookAt(sids, opts) {
   queue = queue.then(() => lookAtNow(sids, opts)).catch(() => {});
   return queue;
 }
 
-async function lookAtNow(sids, { shared = false } = {}) {
+async function lookAtNow(sids, { shared = false, inRepo = null } = {}) {
   const gen = generation;
   if (!enabled()) return;
   let by;
   try { by = await linesBySession(); } catch { return; }
   if (gen !== generation || !enabled()) return;
   const targets = new Set(sids ?? by.keys());
+  if (inRepo) for (const sid of targets) if (!by.get(sid)?.some((r) => r.repo === inRepo)) targets.delete(sid);
   if (sids && shared) {
     const repos = new Set([...targets].flatMap((sid) => (by.get(sid) ?? []).map((r) => r.repo)));
     for (const [sid, lines] of by) if (lines.some((r) => repos.has(r.repo))) targets.add(sid);
@@ -204,6 +220,14 @@ async function lookAtNow(sids, { shared = false } = {}) {
 // Followed into another folder: the repository its lane is read against may
 // have changed with it.
 onFollow((sid) => { if (enabled()) void lookAt([sid]); });
+// HEAD is somewhere else than when a lane was worked out against its
+// worktree, whoever moved it and however: what a reset, a rebase or an amend
+// left behind leaves every lane holding a commit in that repository.
+onHeadSeen(({ top, commonDir, sha }) => {
+  if (!enabled() || !heads.has(top) || heads.get(top) === sha) return;
+  noteHead(top, sha);
+  void realpath(commonDir).catch(() => commonDir).then((inRepo) => lookAt(null, { inRepo }));
+});
 
 function send(sid, lane) {
   const evt = pushEvent({ hook_event_name: "GitRecentCommits", session_id: sid, repo: lane.repo, commits: lane.commits }, "internal", { persist: false });
@@ -289,6 +313,7 @@ export function recentCommitsSwitched(on) {
   generation++;
   if (elsewhereTimer) { clearTimeout(elsewhereTimer); elsewhereTimer = null; }
   elsewhere.clear();
+  heads.clear();
   if (!on) {
     for (const sid of [...sent.keys()]) send(sid, { repo: null, commits: [] });
     return;
@@ -308,6 +333,7 @@ export function clearRecentCommits() {
   sent.clear();
   sentSeq.clear();
   elsewhere.clear();
+  heads.clear();
   if (elsewhereTimer) { clearTimeout(elsewhereTimer); elsewhereTimer = null; }
 }
 

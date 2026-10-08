@@ -58,6 +58,11 @@
 // marked `followed`, which the log keeps, so a restarted deck puts the
 // session back where it was working (seedFromLog).
 //
+// WHERE HEAD IS. Each look tells whoever asked (onHeadSeen) the commit HEAD
+// is on in every worktree it reads: a reset, a rebase or an amend made in a
+// terminal prints no commit, and would leave the lane under a card holding
+// commits no branch reaches (git-recent-commits.mjs).
+//
 // AFTER A BOOT, the sessions the replay put back are looked at once
 // (refreshGit), and the GitObserved lines the replay found are taken as sent,
 // so only what changed while the deck was down goes out.
@@ -327,6 +332,27 @@ export function onFollow(fn) {
   return () => followers.delete(fn);
 }
 
+const headWatchers = new Set();
+/**
+ * Call `fn({ top, commonDir, sha })` with the commit HEAD is on — null on an
+ * unborn branch — in each worktree a look reads, `commonDir` its repository's
+ * common git directory as git-state.mjs spells it. A reset, a rebase or an
+ * amend made in a terminal print no commit; the HEAD they moved is how the
+ * lane under a card hears of them (git-recent-commits.mjs). Answers the way
+ * to stop.
+ */
+export function onHeadSeen(fn) {
+  headWatchers.add(fn);
+  return () => headWatchers.delete(fn);
+}
+
+function tellHead(repo) {
+  const seen = { top: repo.topLevel, commonDir: repo.commonDir, sha: repo.head?.sha ?? null };
+  for (const fn of headWatchers) {
+    try { fn(seen); } catch { /* a listener never breaks a look */ }
+  }
+}
+
 function schedule(sid, w, delay) {
   const due = Date.now() + delay;
   if (w.timer !== null && w.due <= due) return;
@@ -424,6 +450,7 @@ async function look(sid) {
   for (const [key, cwd] of targets) {
     const repo = await repoOf(cwd);
     if (!DEFINITE.has(repo.state) || watched.get(sid) !== w) continue;
+    if (repo.state === "repo") tellHead(repo);
     const git = describeRepo(repo);
     // Read somewhere other than the folder it started in: said, so a restart
     // follows it there again (seedFromLog) whatever the two folders' paths.
