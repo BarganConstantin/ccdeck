@@ -122,6 +122,20 @@ describe("the commits HEAD has not pushed", () => {
     expect(await unpushed(local)).toEqual([]);
   });
 
+  it("keeps HEAD on its branch and its unpushed commits flagged when there are too many refs to read them all", async () => {
+    // A pull-request refspec on a busy project can leave a hundred thousand
+    // remote-tracking branches; held here by a tiny cap on the read of them all.
+    const { dir } = tracked(["second"]);
+    sh(dir, ["branch", "side"]);
+    sh(dir, ["tag", "v1"]);
+    const r = await readLog(dir, await headOf(dir), { refsBytes: 16 });
+    expect(r.ok).toBe(true);
+    const [tip, first] = r.commits;
+    expect(tip).toMatchObject({ subject: "second", unpushed: true, refs: { local: ["main"], head: true, upstream: { main: "origin/main" } } });
+    expect(first).toMatchObject({ subject: "first", refs: { remote: ["origin/main"] } });
+    expect(first.unpushed).toBeUndefined();
+  });
+
   it("flags nothing for a branch only behind its upstream", async () => {
     const { dir, origin } = tracked([]);
     const other = join(track(tempDir("ccdeck-git-log-fork-other-")), "clone");
