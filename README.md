@@ -13,7 +13,7 @@ Step-by-step guides: [ccdeck.dev/guides](https://ccdeck.dev/guides/)
 
 **Know which agent is waiting on you, and for how long.**
 
-**ccdeck keeps them in one queue** — every session stopped on a human, longest wait first, and the count in the topbar is one click to the oldest. That queue is Claude Code's, because the deck reads Codex from its rollout log and a rollout carries no such signal; the canvas under it is both, with every Claude Code subagent on a node of its own.
+**ccdeck keeps them in one queue** — every session stopped on a human, longest wait first. The topbar names them, and its count is one click to the oldest. That queue is Claude Code's, because the deck reads Codex from its rollout log and a rollout carries no such signal; the canvas under it is both, with every Claude Code subagent on a node of its own.
 
 [![npm](https://img.shields.io/npm/v/ccdeck?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/ccdeck)
 [![npm downloads](https://img.shields.io/npm/dm/ccdeck?color=blue)](https://www.npmjs.com/package/ccdeck)
@@ -44,7 +44,7 @@ which Claude Code session is blocked on you · tool calls · one canvas · cost 
 
 Four agents running, and the machine has been quiet for twenty minutes. One of them stopped to ask something and you did not see it go by. From the outside every terminal tab looks the same — the one that is working and the one that has been holding a permission prompt since the coffee — so you find it by clicking through them, and the agent that was closest to finished is the one that has been waiting longest.
 
-ccdeck answers that in one place: every session stopped on a human is at the top of the sidebar with the wait beside it, longest first, and the count in the topbar goes straight to the oldest one. The question stops being *which tab* and becomes *this one*.
+ccdeck answers that in one place: every session stopped on a human is at the top of the sidebar with the wait beside it, longest first, and the topbar names them beside a count that goes straight to the oldest one. The question stops being *which tab* and becomes *this one*.
 
 That is the sharp end of a wider problem. An agent session is a tree, but a terminal shows it as a scroll: five subagents working in parallel arrive as one interleaved column of text, and the questions you actually have — *what is running right now, what did that subagent do, which one is stuck, what is this costing* — are the ones the scroll answers worst.
 
@@ -93,7 +93,7 @@ The deck opens on these eight pictures the first time it runs — they are the w
 
 | | |
 |---|---|
-| **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
+| **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it, and the session's name beside it, with how long it has waited and on what — one click from its card. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
 | **What each session is doing** | The note tied to each session's card — and the line under its row in the sidebar — says it while it works: the sentence the newest reply wrote, or the description on the command it ran. Once the turn is over it keeps the last thing the session did, until Claude Code's recap takes its place. A background session (`claude --bg`, or one started from `claude agents`) shows Claude Code's own line instead, read from its job folder in `~/.claude/jobs`: the question it is stuck on and the reply Claude Code suggests, or the headline of what it got done. No model is called for any of it. A Codex session, read from its rollout log, has the note only while a turn runs, and it says the first line of the prompt that began the turn: no line is taken from a Codex reply, and no recap follows. |
 | **Live DAG** | Nodes are agents and edges are spawns; each agent's latest tool calls sit beside its node and light up while they run. In-flight edges animate, settled ones dim. |
 | **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. Subagent cards are Claude Code only: a Codex session is one node with its tool calls. |

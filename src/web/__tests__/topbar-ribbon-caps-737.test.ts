@@ -7,10 +7,12 @@
 // current cost a ccusage run every five minutes — and the Usage panel says the
 // month beside today and all time (usage-panel-source-737.test.ts).
 //
-// The caps stay where the phrase put them until the topbar's redesign settles
-// every width tier at once, so what is pinned here is the caps as cut, that a
-// selection still never decides what the readout holds, and that nothing in the
-// page reads ccusage in the background any more.
+// The caps held where the phrase put them until the topbar's redesign settled
+// every width tier at once (2026-10-08): the panel toggles left the bar for the
+// window's edges, and the caps were recut to the bar that is left. What is
+// pinned here is the caps as recut, that a selection still never decides what
+// the readout holds, and that nothing in the page reads ccusage in the
+// background any more.
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -53,49 +55,45 @@ describe("the topbar's month phrase is gone (#737)", () => {
   });
 });
 
-describe("the ribbon's caps, as #737 cut them", () => {
+describe("the ribbon's caps, as #737 cut them and the bar's redesign recut them", () => {
+  /** The busiest bar besides the ribbon, measured in headless Brave at 1440
+   *  (topbar-status.css): padding, the readout with "12 waiting", the gaps,
+   *  and Settings and Feedback with their words. */
+  const BUSIEST_BAR_PX = 541;
+  const HEADROOM_PX = 40;
+  const cap = /@media \(min-width: (\d+)px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, 24vw, calc\(100vw - (\d+)px\)\); \}/.exec(css);
+
   it("makes the ribbon give up the room instead, and never past what fits", () => {
-    // Room for the ribbon beside the budget case, measured in Chromium, less
-    // 40px of headroom: W - 867 on glyphs, W - 1253 once the words arrive. The
-    // budget had the phrase in it, so these are now short of the room by the
-    // phrase and its gap, and held there for the redesign (topbar-status.css).
-    const glyphs = /@media \(min-width: (\d+)px\) and \(max-width: (\d+)px\) \{\s*\.selected-ribbon \{ max-width: min\(24vw, calc\(100vw - (\d+)px\)\); \}/.exec(css);
-    const words = /@media \(min-width: (\d+)px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, calc\(100vw - (\d+)px\)\); \}/.exec(css);
-    expect(glyphs, "the glyph band's ribbon cap").toBeTruthy();
-    expect(words, "the words band's ribbon cap").toBeTruthy();
-    const [, gFrom, gTo, gReserve] = glyphs!.map(Number);
-    const [, wFrom, wReserve] = words!.map(Number);
-    // The bands start where the phrase's floor was and meet the words' arrival.
-    expect(gFrom).toBe(1040);
-    expect(gTo).toBe(1439);
-    expect(wFrom).toBe(1440);
-    expect(css).toContain("@media (min-width: 1440px) {\n  .topbar .tb-word {");
-    // The same budget both sides of 1440: only the words' width differs.
-    expect(wReserve - gReserve).toBe(386);
-    // At its tightest the ribbon still holds a state, ten-odd characters of a
-    // name and its ×: 173px at the floor, 187 where the words arrive.
-    expect(gFrom - gReserve).toBeGreaterThanOrEqual(170);
-    expect(wFrom - wReserve).toBeGreaterThanOrEqual(170);
+    // #737 cut two bands, W - 867 on glyphs and W - 1253 once the words
+    // arrived, around eight panel toggles and the month's phrase. Both left
+    // the bar on 2026-10-08, the toggles for the window's edges, and with them
+    // went the bands: one cap from where the ribbon returns, the room the bar
+    // leaves it less the headroom, and never more than its usual cap.
+    expect(cap, "the ribbon's cap").toBeTruthy();
+    const [, from, reserve] = cap!.map(Number);
+    expect(from).toBe(641);
+    expect(reserve).toBe(BUSIEST_BAR_PX + HEADROOM_PX);
+    // The glyph and word bands are gone, and so are the words' tiers.
+    expect(css).not.toMatch(/max-width: min\(24vw, calc\(100vw - \d+px\)\)/);
+    expect(css).not.toMatch(/max-width: min\(380px, calc\(100vw - \d+px\)\)/);
+    expect(css).not.toMatch(/\.tb-word/);
+    // It is under its usual 24vw only below the width where W - reserve meets
+    // 24vw; above it the ribbon is its usual self.
+    const meets = reserve / 0.76;
+    expect(Math.ceil(meets)).toBe(765);
     // And it is after the ribbon's own rule, which would otherwise win on order.
-    expect(css.indexOf(glyphs![0])).toBeGreaterThan(css.indexOf(".selected-ribbon {"));
-    expect(css.indexOf(words![0])).toBeGreaterThan(css.indexOf(".selected-ribbon {"));
+    expect(css.indexOf(cap![0])).toBeGreaterThan(css.indexOf(".selected-ribbon {"));
   });
 
-  it("drops the ribbon's cost exactly where its cap is held under the usual one", () => {
-    // Where min(380px, 24vw) takes over again the ribbon is its usual self, cost
-    // and all. Short of that the name gets the room, and the cost stays on the
-    // card, in the detail panel and in the ribbon's own title. Under 1040 too,
-    // with no lower bound: there the controls leave the ribbon short of 24vw,
-    // and its cost ran over them (topbar-ribbon-cost.test.ts).
-    const reserve = (re: RegExp) => Number(re.exec(css)![1]);
-    const g = reserve(/max-width: min\(24vw, calc\(100vw - (\d+)px\)\)/);
-    const w = reserve(/max-width: min\(380px, calc\(100vw - (\d+)px\)\)/);
-    const cost = /@media \(max-width: (\d+)px\), \(min-width: 1440px\) and \(max-width: (\d+)px\) \{\s*\.selected-ribbon \.selected-cost \{ display: none; \}\s*\}/.exec(css);
+  it("drops the ribbon's cost below 1140, and only there", () => {
+    // Under 1140 the ribbon's 24vw holds a state, a cost that does not shrink
+    // and a name ellipsed to nothing; the cost stays on the card, in the
+    // detail panel and in the ribbon's own title (topbar-ribbon-cost.test.ts
+    // adds the bar up). The 1440–1632 band went with the words that made it.
+    const cost = /@media \(max-width: (\d+)px\) \{\s*\.selected-ribbon \.selected-cost \{ display: none; \}\s*\}/.exec(css);
     expect(cost, "the cost's band").toBeTruthy();
-    const [, gEnd, wEnd] = cost!.map(Number);
-    // Glyphs: W - g meets 24vw at g / 0.76. Words: W - w meets 380 at w + 380.
-    expect(gEnd).toBe(Math.floor(g / 0.76) - 1);
-    expect(wEnd).toBe(w + 380 - 1);
+    expect(Number(cost![1])).toBe(1139);
+    expect(css).not.toMatch(/\(min-width: 1440px\) and \(max-width: \d+px\) \{\s*\.selected-ribbon \.selected-cost/);
     // The ribbon is components/SelectedRibbon.tsx's. Z through withKey, named
     // while Settings › General's single-key switch is on.
     expect(readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`\$\{withKey\(`Zoom to \$\{selected\.label\} and its session`, "Z", singleKeys\)\}\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);

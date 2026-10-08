@@ -303,6 +303,10 @@ const PRESSES: Press[] = [
   // which had its own entry here. The rows are gone and the section is the
   // button above, so the two entries went with them.
   [".topbar .waiting-stat:active", "0.97", "transform"],
+  // The names the queue beside it gives each waiting session, and its "+N
+  // more" — labelled controls, so 0.97 like the count they continue.
+  [".topbar .wait-entry:active", "0.97", "transform"],
+  [".topbar .wait-more:active", "0.97", "transform"],
   // The chrome's eight panel and dialog controls, wherever they stand: the
   // edge stripes, the phone's dock, the topbar's corner (EdgeRails.tsx). One
   // rule for all three placements, because they are one control; 0.97 because

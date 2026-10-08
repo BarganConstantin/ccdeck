@@ -28,44 +28,31 @@
    comes down. Nothing a click on the canvas puts on the bar may change what
    the readout holds: the readout is packed ahead of the blocked-session chip,
    and a selection that hid any of it would slide the alarm sideways.
-   The budget the caps were cut to is a blocked session, the month phrase with
-   a nine-digit month, and a selected node whose name is long enough to fill
-   any cap. Measured in Chromium (dark and light alike; Remove node left the
-   bar in #1242), everything but the ribbon came to W - 827 of room for it on
-   glyphs and W - 1213 once the words (#836) arrive at 1440. Less 40px of
-   headroom for faces wider than the one measured, those are the two caps
-   below; each meets the ribbon's usual min(380px, 24vw) where the room runs
-   out — 1140 and 1633 — so the ribbon never grows back past what fits. Under
-   1040 the ribbon is under its usual cap again.
-   THE PHRASE HAS LEFT THE BAR SINCE (2026-10-08), and the caps stay where it
-   put them until the topbar's redesign settles every width tier at once. They
-   are short of the room by the phrase and the gap before it, and never over
-   it: the ribbon is given less than the bar has, not more. Measured on a demo
-   deck in headless Brave that day, the busiest bar besides the ribbon came
-   down from 858 to 637 on glyphs and from 1220 to 999 at 1440 — 221px, the
-   phrase's 197 and its 24px gap, and a nine-digit month was 23 wider.
-   Where it is held under its usual cap it drops its cost and rate first, so
-   what it has left goes to the name, which keeps about ten characters at the
-   1040 floor and twelve at 1440.
-   The cost stays off under 1040 too. There the ribbon is back under its usual
-   cap, but from 641, where it returns (selection-ribbon.css), the controls
-   leave it less than 24vw, and a cost does not shrink: the name ellipsed to
-   nothing while the cost kept its width, and the cost and the × ran on past
-   the ribbon's edge — 67px into the controls at 641, and over the Session list
-   button, taking its presses, at 720 to 750. So the cost's band runs from
-   wherever the ribbon is drawn up to 1139, with no lower bound of its own
-   (topbar-ribbon-cost.test.ts adds the bar up).
-   A paused pill or the app's ready-update chip on top of the budget is outside
-   it, the way .tb-word leaves a paused deck outside its own, and there the
-   readout gives up the logo and the wordmark from the left, never the alarm.
+   THE BAR THE CAPS ARE CUT TO NOW. The panel toggles left for the window's
+   edges (2026-10-08), and the month phrase before them, so the busiest bar
+   besides the ribbon is the brand, a waiting count of two digits and the two
+   utilities: measured in headless Brave at 1440, dark and light alike, 541px
+   with the padding and the gaps (the readout 272.7 with "12 waiting", Settings
+   and Feedback 184) — W - 541 of room for the ribbon, and less 40px of
+   headroom for faces wider than the one measured, W - 581. That is under the
+   ribbon's usual min(380px, 24vw) only below 765px, so from there down the
+   ribbon gives way towards its floor and above it is its usual self.
+   The waiting queue's names come after the readout and take only what is
+   left (topbar-controls.css), so a selection folds names before it can touch
+   the count, and never the readout.
+   Under 1140 the ribbon drops its cost and rate, so what it has goes to the
+   name: at 24vw a cost does not shrink, and from 641, where the ribbon
+   returns (selection-ribbon.css), the name ellipsed to nothing beside a cost
+   that kept its width. Above it the 24vw holds a name of a dozen characters
+   beside the cost (topbar-ribbon-cost.test.ts adds the bar up).
+   A paused pill, an incident chip or the app's ready-update chip on top of
+   the budget is outside it, and there the readout gives up the logo and the
+   wordmark from the left, never the alarm.
    All of this after the base rules, and not in the 640 block at the top of
    the topbar section, where the ribbon's own cap would win on source order. */
-@media (min-width: 1040px) and (max-width: 1439px) {
-  .selected-ribbon { max-width: min(24vw, calc(100vw - 867px)); }
+@media (min-width: 641px) {
+  .selected-ribbon { max-width: min(380px, 24vw, calc(100vw - 581px)); }
 }
-@media (min-width: 1440px) {
-  .selected-ribbon { max-width: min(380px, calc(100vw - 1253px)); }
-}
-@media (max-width: 1139px), (min-width: 1440px) and (max-width: 1632px) {
+@media (max-width: 1139px) {
   .selected-ribbon .selected-cost { display: none; }
 }

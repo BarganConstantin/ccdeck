@@ -37,7 +37,7 @@ import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
 import { useMediaQuery } from "./use-media-query";
-import { ReadoutGroup } from "./components/TopbarReadouts";
+import { ReadoutGroup, WaitingNames } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
 import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
@@ -550,6 +550,17 @@ function Inner() {
     watchOn, watchUnseen, setBrowserWatchOpen, openSettings, onFeedback: dialogs.openFeedback,
     toggles: panelReturn.toggles,
   });
+  // How many of the waiting sessions the topbar names, for the count's hint,
+  // which lists the rest.
+  const [queueNamed, setQueueNamed] = useState(0);
+  /** The waiting queue's "+N more": the session list, whose top rows are the
+   *  same sessions in the same order, opened if it is shut, and focus on its
+   *  first row once it is drawn. */
+  const showWaitingList = useCallback(() => {
+    if (!sessionListOpen) toggleSessionList();
+    requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
+  }, [sessionListOpen, toggleSessionList]);
+
   return (
     <div className="app">
       {/* The deck's regions, and why each one is the element it is (#381).
@@ -595,8 +606,16 @@ function Inner() {
           versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause}
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
           waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
-          incidents={incidents}
+          incidents={incidents} queueNamed={phone ? 0 : queueNamed}
         />
+        {/* Who is waiting, by name, in the room the bar has left — and none of
+            it on a phone, where the bar holds the count alone. Mounted while
+            nothing waits too, so the ribbon after it stands in one place
+            whether or not somebody is waiting. */}
+        {!phone && (
+          <WaitingNames waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef}
+            focusSession={focusSession} now={now} onFit={setQueueNamed} onMore={showWaitingList} />
+        )}
         {selected && (
           <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
         )}

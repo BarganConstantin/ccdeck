@@ -200,24 +200,29 @@
    it is good news, and good news that shouts is noise. */
 .topbar .notify-said-blocked { color: var(--warn); }
 
+/* THE COUNT. The bar's one alarm and the only amber on it: a transparent pill
+   with an 85% --warn edge and --warn words (the 85% is argued on
+   `.brand button.v.stale`). 28px tall since the bar has the room — the height
+   the queue's names stand at beside it — with its number a step up the type
+   ladder, at 14px and 700, so it reads first from across a desk. */
 .topbar .waiting-stat {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 24px;
-  padding: 3px 10px;
+  min-height: 28px;
+  padding: 0 12px 0 10px;
   border-radius: 999px;
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
   color: var(--warn);
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.topbar .waiting-stat b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.topbar .waiting-stat b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .topbar .waiting-stat:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, transparent);
@@ -231,6 +236,132 @@
    its top and bottom and showed as two brackets. An inset ring is the one the
    focus rule allows a component to move. */
 .topbar .waiting-stat:focus-visible { outline-offset: -3px; }
+
+/* THE QUEUE: who is waiting, by name (WaitingNames in TopbarReadouts.tsx).
+   The box takes every pixel the bar has left and nothing it does not — a basis
+   of 0 and all the growth — so it is the first thing a narrowing bar takes
+   back, and the names fold away while the count is whole. It gives the bar's
+   24px gap back with a margin, so an empty box costs the bar nothing, and its
+   list stands 12px off the count instead: the queue reads as the count's own
+   continuation, not as a fourth group. */
+.topbar .wait-names {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  /* Its width is the bar's to give, never its names' to ask for: without this
+     the names it had drawn counted towards the bar's own least width, and a
+     window narrowed from 1440 kept a 1403px bar with Feedback off the edge. */
+  contain: inline-size;
+  margin-left: -24px;
+  overflow: hidden;
+}
+.topbar .wait-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.topbar .wait-list:not(:empty) { padding-left: 12px; }
+.topbar .wait-list li {
+  display: flex;
+  flex: none;
+}
+/* A session that has just started waiting arrives, 160ms from 4px back; one
+   the queue merely has room for again, as the window widens, is simply there —
+   an entrance on every refit would be the bar fidgeting. */
+.topbar .wait-list li[data-fresh] { animation: wait-in 160ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes wait-in { from { opacity: 0; transform: translateX(-4px); } }
+
+/* One name: edgeless at rest, like every control a word identifies on this
+   bar, and neutral — the amber is the count's, and a row of amber names would
+   be a row of alarms. The name in --text at 600; how long it has waited in
+   --text too, tabular, because the wait is the number that decides whether
+   somebody gets up (DESIGN.md, duration beats description); what it is on in
+   --muted, the annotation. On the bar's own bed, with no fill under it,
+   --muted is 4.70:1 or better in dark and 6.95:1 or better in light, the tier
+   every resting label on this bar sits at. Under the pointer the control fill
+   comes up and the whole line goes to --text. A long name is cut in its
+   middle (queueName) and the hint says it whole. */
+.topbar .wait-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.topbar .we-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.topbar .we-wait { font-variant-numeric: tabular-nums; }
+.topbar .we-what { margin-left: -2px; color: var(--muted); }
+.topbar .wait-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (hover: hover) {
+  .topbar .wait-entry:hover,
+  .topbar .wait-more:hover {
+    background: var(--ctl-fill);
+    color: var(--text);
+    transition: background-color 120ms ease, color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .topbar .wait-entry:hover .we-what { color: var(--text); }
+}
+.topbar .wait-entry:active,
+.topbar .wait-more:active { transform: scale(0.97); }
+/* Inside the edge, for the reason the count's ring is: the box clips. */
+.topbar .wait-entry:focus-visible,
+.topbar .wait-more:focus-visible { outline-offset: -2px; }
+/* Every name at the width it would draw, where nothing sees it or reaches it:
+   the queue measures this to know what fits before it draws a name it would
+   have to cut. */
+.topbar .wait-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  visibility: hidden;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .topbar .wait-list li[data-fresh] { animation: none; }
+  .topbar .wait-entry,
+  .topbar .wait-more { transition: none; }
+  .topbar .wait-entry:active,
+  .topbar .wait-more:active { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) and (hover: hover) {
+  .topbar .wait-entry:hover,
+  .topbar .wait-more:hover { transition: none; }
+}
 
 /* A provider's own incident (#1311), while its status page reports one. NOT
    the waiting chip's colour and NOT its shape: --warn and the pill are the
