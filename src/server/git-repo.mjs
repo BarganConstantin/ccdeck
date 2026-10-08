@@ -64,10 +64,11 @@ export async function resolveRepo(folder) {
 }
 
 /** The main checkout's folder name: the parent of a `.git` common directory,
- *  or a bare repository's own name without `.git`. */
+ *  or of any hidden one (a bare repository kept as `.bare` beside the
+ *  worktrees made from it), else a bare repository's own name without `.git`. */
 function mainCheckoutName(commonDir, fallback) {
   const base = basename(commonDir);
-  if (base === ".git") return basename(dirname(commonDir)) || fallback;
+  if (base.startsWith(".")) return basename(dirname(commonDir)) || fallback;
   return base.replace(/\.git$/i, "") || fallback;
 }
 
