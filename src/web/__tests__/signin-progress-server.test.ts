@@ -134,6 +134,7 @@ const { lineFeed } = await import("../../server/exec.mjs");
 // @ts-expect-error — plain JS module, no types
 const admin = await import("../../server/cswap-admin.mjs");
 const { startLogin, submitLoginCode, cancelLogin, loginState, readStore, withStoreLock, accountOriginsWith, LOGIN_STEPS } = admin;
+const { stageOfStep } = await import("../signin-stages");
 probe.read = loginState;
 
 type Accounts = Record<string, { email: string; organizationUuid?: string }>;
@@ -272,8 +273,9 @@ describe("the step a registering sign-in reports", () => {
     expect(state.error).toBe("the sign-in window expired");
   });
 
-  it("names the three steps, in the order they run", () => {
+  it("names only steps the dialog can place on its list", () => {
     expect(LOGIN_STEPS).toEqual(["confirm", "save", "restore"]);
+    for (const step of LOGIN_STEPS) expect(stageOfStep(step), step).not.toBeNull();
   });
 
   it("reports idle with no step once the flow is gone", async () => {

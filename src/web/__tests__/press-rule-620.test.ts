@@ -397,7 +397,12 @@ describe("a second press is refused by the handler, not by the browser", () => {
     // idle while refusing every press. Each journey draws its own request
     // since #1795 — the sign-in's two and the import's two — under one lock.
     expect([...dialog.matchAll(/if \(!selfPressAccepted\(busyRef\.current\)\) return;/g)].length).toBe(4);
-    expect([...dialog.matchAll(/busyRef\.current = false;\s*\n\s*setLoginBusy\(false\);/g)].length).toBe(2);
+    // Three releases on the sign-in side: start's and submitCode's own, and
+    // Cancel's. Cancel abandons whichever of the two is out — its answer is
+    // dropped by attempt rather than applied — so the lock it held is released
+    // there, or the primer's button would refuse every press until a start
+    // the server had been told to drop timed out.
+    expect([...dialog.matchAll(/busyRef\.current = false;\s*\n\s*setLoginBusy\(false\);/g)].length).toBe(3);
     expect([...dialog.matchAll(/busyRef\.current = false;\s*\n\s*setPasteBusy\(false\);/g)].length).toBe(2);
   });
 });
