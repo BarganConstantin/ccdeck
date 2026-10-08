@@ -47,11 +47,13 @@ function markup(...path: string[]): string {
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx, its readouts to
-// components/TopbarReadouts.tsx, the connection banner to
-// components/ConnectionBanner.tsx, and the canvas stack the pause control went
-// down to (#527) to components/CanvasControls.tsx; App.tsx and they are read as one.
-const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("components/TopbarRuns.tsx")
+// The topbar's panel toggles moved to the window's edges (rail-items.tsx,
+// components/EdgeRails.tsx), its readouts to components/TopbarReadouts.tsx, the
+// connection banner to components/ConnectionBanner.tsx, and the canvas stack
+// the pause control went down to (#527) to components/CanvasControls.tsx;
+// App.tsx and they are read as one.
+const app = markup("App.tsx") + "\n" + markup("use-deck-shortcuts.ts") + "\n" + markup("rail-items.tsx")
+  + "\n" + markup("components/EdgeRails.tsx")
   + "\n" + markup("components/TopbarReadouts.tsx") + "\n" + markup("components/ConnectionBanner.tsx")
   + "\n" + markup("components/CanvasControls.tsx");
 const systemMeter = markup("components", "MachinePanel.tsx");
@@ -130,9 +132,10 @@ const transitioned = (value: string | null): string[] =>
 // as its label went `Pause` → `Resume` → `Resume · 42 held`; the button has
 // since left the bar for the canvas control stack, and the held count it
 // printed is in the status pill's label instead. That is the same string with a
-// worse neighbourhood: the pill LEADS the readout strip, so its width is
-// upstream of the machine meter, the token total and the dollar figure, where
-// the button had only itself and the ribbon downstream of it. And the count is
+// worse neighbourhood: the pill LEADS the readout strip, so its width was
+// upstream of the machine meter, the token total and the dollar figure — and,
+// since those left, of the incident chips and the blocked count — where the
+// button had only itself and the ribbon downstream of it. And the count is
 // the half that moves unbidden — the tone changes when somebody presses Space,
 // but `paused · 9` becomes `paused · 10` while nobody touches anything.
 //
@@ -319,20 +322,22 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     expect(app).not.toMatch(/className=\{`btn[^`]*warn/);
   });
 
-  it("keeps the topbar runs it did not belong to", () => {
-    // The removal takes a run with it — Pause was alone in the first one — and
-    // that is the change, not a side effect: what is left is the disclosures
-    // and the settings. The disclosures have since split into two runs by
-    // subject, and the settings run carries its own offset class.
-    expect((app.match(/<div className="action-run">/g) ?? [])).toHaveLength(2);
-    expect(app).toMatch(/<div className="action-run action-run-utility">/);
-    expect(app).toMatch(/aria-label="Toggle usage panel"/);
-    // This named the speaker, the settings run's first control, until the
-    // speaker left the bar (2026-10-07). What this case is about is unchanged
-    // and is why it still names a control in that run: the settings run still
-    // exists and still has something in it — the gear, first now.
-    expect(app).toMatch(/aria-label="Settings"/);
+  it("keeps the controls it did not belong to", () => {
+    // The removal took a run with it — Pause was alone in the first one — and
+    // that was the change, not a side effect: what was left was the
+    // disclosures and the settings. The disclosures have since left the bar
+    // for the window's edges (2026-10-08), each beside the panel it opens, and
+    // the bar keeps the two utilities, in one run drawn by UtilityRun: the
+    // gear, first since the speaker left the bar (2026-10-07), and Feedback.
+    // Pause is in none of them, and no run is left holding nothing.
+    expect(app).not.toMatch(/className="action-run/);
+    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>/);
+    expect(app).toMatch(/utilities: \[settings, feedback\]/);
+    expect(app).toMatch(/ariaLabel: "Settings"/);
+    expect(app).toMatch(/<EdgeRail side="right" label="Right panels" groups=\{rails\.right\} \/>/);
+    expect(app).toMatch(/ariaLabel: "Usage"/);
     expect(app).not.toMatch(/Sound settings/);
+    expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);
   });
 
   it("is drawn the way the four glyphs beside it are drawn", () => {

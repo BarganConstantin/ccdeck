@@ -1,6 +1,8 @@
 // #1026: the right rail is two panels, and below 640px it was one.
 //
-// Both rail panels are `position: fixed; top: 60px; z-index: 20`. The narrow
+// Both rail panels are `position: fixed; top: 60px; z-index: 20` — 8px under
+// a 52px bar then, 8px under the 44px bar since the panel toggles left it
+// (2026-10-08), which the sheet now says as `calc(var(--topbar-h) + 8px)`. The narrow
 // -width block changed only the horizontal box — `left: 8px; right: 8px; width:
 // auto` on each — so with both open they occupied the IDENTICAL rectangle and
 // the later one in DOM order painted over the whole of the other.
@@ -81,26 +83,41 @@ function decl(selector: string, prop: string, body = css): string | null {
 
 describe("below 640px the two rail panels stack rather than share a rectangle (#1026)", () => {
   it("gives the machine panel the bottom of the window, not the same top", () => {
-    // `top: auto` is the load-bearing half: without it, `bottom` joins `top:
-    // 60px` and the panel stretches over the other one rather than moving.
+    // `top: auto` is the load-bearing half: without it, `bottom` joins the
+    // desktop `top` and the panel stretches over the other one rather than
+    // moving.
     expect(decl(".app .sysdetail", "top", narrow)).toBe("auto");
-    expect(decl(".app .sysdetail", "bottom", narrow)).toBe("8px");
+  });
+
+  it("stands the machine panel 8px clear of the dock along the bottom, safe area and all", () => {
+    // Its foot was 8px off the window's edge. Under 641px the controls stand in
+    // a dock along the bottom (edge-rails.css), fixed over the panel, so the
+    // same 8px of daylight is kept above the dock instead — the dock's own
+    // height, the phone's safe area, then the 8.
+    expect(decl(".app .sysdetail", "bottom", narrow)).toBe("calc(var(--dock-h) + env(safe-area-inset-bottom) + 8px)");
+    expect(decl(".edge-dock", "height", narrow)).toBe("calc(var(--dock-h) + env(safe-area-inset-bottom))");
   });
 
   it("caps both so they cannot grow into each other, whatever they contain", () => {
     // Half the viewport each, less the chrome at either end — measured at 8px
-    // of daylight with both panels overflowing.
+    // of daylight with both panels overflowing — and less half the dock each,
+    // which takes its height out of the column the two share.
     const cap = decl(".app .usage-panel", "max-height", narrow);
     expect(cap, "the usage panel keeps the full-height cap and can reach the other").not.toBeNull();
     expect(cap).toBe(decl(".app .sysdetail", "max-height", narrow));
     expect(cap).toMatch(/50vh/);
+    expect(cap).toMatch(/var\(--dock-h\) \/ 2/);
   });
 
   it("leaves the desktop layout alone, which is the one the owner chose (#847)", () => {
     // The stacking turned down for #847 was one column on a DESKTOP, where the
-    // pair fits side by side. Nothing here escapes the media block.
-    expect(decl(".usage-panel", "top")).toBe("60px");
-    expect(decl(".sysdetail", "top")).toBe("60px");
+    // pair fits side by side. Nothing here escapes the media block. Both hang
+    // 8px under the bar, by the bar's own token, so the two can never be at
+    // different heights and neither can slide under a bar that changes.
+    expect(decl(".usage-panel", "top")).toBe("calc(var(--topbar-h) + 8px)");
+    expect(decl(".sysdetail", "top")).toBe("calc(var(--topbar-h) + 8px)");
+    expect(decl(".usage-panel", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px)");
+    expect(decl(".sysdetail", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px)");
     expect(decl(".sysdetail", "bottom")).toBeNull();
     expect(decl(".sysdetail.shifted", "right")).toBe("calc(var(--rail-r) + 280px + 20px)");
   });
@@ -114,9 +131,12 @@ describe("--rail-r is read by both panels it was introduced to hold together (#1
   it("is written in exactly one place, which was the point of it", () => {
     // The literal was in two rules and the variable in one, so widening the
     // detail panel moved one panel of the pair. Every 368 in the sheet has to
-    // be the definition itself.
+    // be the definition itself. Both offsets are measured from the window's
+    // edge, so both carry the right stripe's width since the panel toggles
+    // moved to the window's edges (edge-rails.css): the rail starts inside the
+    // stripe, by the stripe's own token, which is nothing on a phone.
     const defs = [...css.matchAll(/--rail-r\s*:\s*([^;]+);/g)].map(m => m[1].trim());
-    expect(defs).toEqual(["368px", "8px"]);
+    expect(defs).toEqual(["calc(368px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
     expect(css).not.toMatch(/\.usage-panel\s*\{[^}]*right:\s*368px/);
     // And the duplicate override is gone with it.
     expect(css).not.toMatch(/:not\(:has\(\.detail\)\)\s+\.usage-panel/);

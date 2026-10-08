@@ -1,30 +1,39 @@
 // #836: the topbar was eight icon-only buttons whose meaning lived in hover
 // titles, which a first-timer or a touch user cannot learn, and three of them
 // filled with the accent when their panel was open, so the bar at rest read as
-// "three things are on" rather than "three panels are open". Where the bar has
-// room each button now says its name, and an open panel is marked by a line
-// under its content.
+// "three things are on" rather than "three panels are open". Where the bar had
+// room each button said its name, and an open panel was marked by a fill.
 // The critique of that change took the frame off the open state (frame and
 // foot drew a raised key), the ellipses off the dialog openers (they read as
 // clipped words), the word off the theme button ("Dark" read as the current
-// mode), moved History beside Usage, and gave amber back to the alarm.
+// mode), and gave amber back to the alarm.
+//
+// THE CONTROLS LEFT THE BAR FOR THE WINDOW'S EDGES (2026-10-08), and that
+// settled what the width tiers were rationing. The words came from 1440px, and
+// Feedback's and Settings' only from 1707 and 1761, because eight words beside
+// the readout and a selected node's ribbon did not fit a narrower bar. On the
+// edges a word runs down a 30px stripe and costs no width at all, so every
+// control says its word at every desktop width: Session list and Accounts on
+// the left stripe, Usage, Machine, History and Browser watch on the right, and
+// Settings and Feedback in the topbar's corner, where two words always fit
+// (the bar's budget is topbar-status.css's, held by topbar-ribbon-room and
+// topbar-ribbon-cost). On a phone each says a short word under its glyph in
+// the dock along the bottom. The three tiers, their measured budgets and the
+// `tb-word*` classes are gone on purpose; what they protected — the bar never
+// pushed past its width by a word — is now the ribbon tests' arithmetic.
 import { describe, it, expect } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { sheetText } from "./sheet-source";
+import { railItems } from "../rail-items";
+import { EdgeDock, EdgeRail, UtilityRun } from "../components/EdgeRails";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
-// The topbar's three action runs moved to components/TopbarRuns.tsx and its readouts to
-// components/TopbarReadouts.tsx; App.tsx and they are read as one.
-const app = read("../App.tsx") + "\n" + read("../components/TopbarRuns.tsx") + "\n" + read("../components/TopbarReadouts.tsx");
+const app = read("../App.tsx");
+const readouts = read("../components/TopbarReadouts.tsx");
 const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
-
-/** The opening tag and body of the <button> a word sits in, up to the word. */
-function buttonOf(word: string): string {
-  const at = app.indexOf(`<span className="tb-word">${word}</span>`);
-  expect(at, word).toBeGreaterThan(-1);
-  return app.slice(app.lastIndexOf("<button", at), at);
-}
 
 /** The first rule written with exactly this selector, up to its closing brace. */
 function body(sel: string): string {
@@ -38,287 +47,169 @@ function media(query: string): string {
   return at < 0 ? "" : css.slice(at, css.indexOf("\n}", at));
 }
 
+const noop = () => {};
+const ref = () => ({ current: null });
+const rails = railItems({
+  providers: { kind: "reported", claude: true, codex: true },
+  sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
+  usagePanelOpen: false, setUsagePanelOpen: noop, machinePanelOpen: false, setMachinePanelOpen: noop,
+  setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
+  openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
+});
+const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: [rails.left] }));
+const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: rails.right }));
+const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.utilities }));
+const dock = renderToStaticMarkup(createElement(EdgeDock, {
+  items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right[1], rails.utilities[1]],
+}));
+
+/** Each drawn button's accessible name and the word it shows, in order. */
+function buttons(html: string): Array<{ name: string; word: string }> {
+  return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map(m => ({
+    name: /aria-label="([^"]*)"/.exec(m[1])?.[1] ?? "",
+    word: /<span class="rail-word"[^>]*>([^<]*)<\/span>/.exec(m[2])?.[1] ?? "",
+  }));
+}
+
 // Each word, and the accessible name it has to be found in (2.5.3).
-const WORDS: Array<[word: string, name: RegExp]> = [
-  ["Session list", /aria-label="Toggle session list"/],
-  ["Usage", /aria-label="Toggle usage panel"/],
-  ["History", /aria-label="Open usage history"/],
-  ["Accounts", /aria-label="Toggle accounts panel"/],
-  ["Machine", /aria-label="Toggle machine detail"/],
-  ["Browser watch", /aria-label=\{`Browser watch, /],
+const WORDS: Array<[word: string, name: string]> = [
+  ["Session list", "Session list"],
+  ["Accounts", "Accounts"],
+  ["Usage", "Usage"],
+  ["Machine", "Machine"],
+  ["Usage history", "Usage history"],
+  ["Browser watch", "Browser watch, not watching"],
+  ["Settings", "Settings"],
+  ["Feedback", "Send feedback"],
 ];
 
-describe("each topbar button can say its name (#836)", () => {
-  it("gives six a word, inside the accessible name they already have", () => {
-    // Seven until the speaker left the bar (2026-10-07), its "Sound" with it.
-    expect(app).not.toMatch(/className="tb-word">Sound</);
-    for (const [word, name] of WORDS) {
-      const button = buttonOf(word);
-      expect(button, word).toMatch(/className=\{?[`"]btn icon-btn/);
-      expect(button, word).toMatch(name);
+describe("every control in the chrome says its name (#836)", () => {
+  const drawn = [...buttons(left), ...buttons(right), ...buttons(corner)];
+
+  it("gives all eight a word, inside the accessible name they have", () => {
+    expect(drawn.map(b => [b.word, b.name])).toEqual(WORDS);
+    for (const { word, name } of drawn) {
       // The word is part of the name, so voice control can say what the eye reads.
-      const label = /aria-label=(?:"([^"]+)"|\{`([^`]+)`)/.exec(button)!;
-      expect((label[1] ?? label[2]).toLowerCase(), word).toContain(word.toLowerCase());
+      expect(name.toLowerCase(), word).toContain(word.toLowerCase());
     }
-    expect(app.match(/className="tb-word"/g)).toHaveLength(WORDS.length);
+    // The speaker left the bar on 2026-10-07, its "Sound" with it.
+    expect(drawn.some(b => /sound/i.test(b.word))).toBe(false);
   });
 
-  it("gives the gear its word only from the width the busiest bar holds it, not with these six", () => {
-    // The Appearance button stood here glyph-only; the gear that replaced it
-    // says "Settings", but on its own later tier (`tb-word-wider`), measured
-    // below, rather than from 1440 with the seven: at 1440 the busiest bar has
-    // no room for one more word.
-    const at = app.indexOf('aria-label="Settings"');
-    expect(at).toBeGreaterThan(-1);
-    const button = app.slice(app.lastIndexOf("<button", at), app.indexOf("</button>", at));
-    expect(button).not.toMatch(/className="tb-word"/);
-    expect(button).toMatch(/<span className="tb-word-wider">Settings<\/span>/);
+  it("says it at every desktop width: no rule hides a word on a stripe or on the bar", () => {
+    // The tiers that rationed the words to 1440, 1707 and 1761 are gone, and
+    // with them every rule that hid one.
+    expect(css).not.toMatch(/\.tb-word/);
+    const hiders = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, sel, decls]) => /rail-word/.test(sel) && /display:\s*none|visibility:\s*hidden/.test(decls));
+    expect(hiders.map(([sel]) => sel.trim())).toEqual([]);
+    // Drawn on the stripes and in the corner whenever the window is not a
+    // phone's — the dock takes over there, in the same breakpoint.
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
+    expect(app).toMatch(/: <EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\} \/>\}/);
+    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label="Right panels" groups=\{rails\.right\} \/>\}/);
+  });
+
+  it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
+    const words = buttons(dock).map(b => b.word);
+    expect(words).toEqual(["Sessions", "Accounts", "Usage", "Machine", "Settings", "More"]);
+    expect(dock).toMatch(/aria-label="More: Usage history, Browser watch, not watching, Send feedback"/);
   });
 
   it("ends no word in an ellipsis", () => {
-    for (const [, word] of app.matchAll(/className="tb-word">([^<]*)</g)) {
-      expect(word).not.toMatch(/…|\.\.\./);
-    }
+    for (const { word } of [...drawn, ...buttons(dock)]) expect(word).not.toMatch(/…|\.\.\./);
   });
 
-  it("orders the first run by subject, with History beside Usage", () => {
-    const names = [
-      'aria-label="Toggle session list"',
-      'aria-label="Toggle usage panel"',
-      'aria-label="Open usage history"',
-      'aria-label="Toggle accounts panel"',
-      'aria-label="Toggle machine detail"',
-      "aria-label={`Browser watch, ",
-    ];
-    const at = names.map(n => app.indexOf(n));
-    for (const [i, n] of names.entries()) expect(at[i], n).toBeGreaterThan(-1);
-    expect(at).toEqual([...at].sort((a, b) => a - b));
-  });
-
-  it("shows the words only where the bar has room, and lets those buttons grow to hold them", () => {
-    expect(css).toMatch(/\n\.tb-word \{ display: none; \}/);
-    const wide = media("min-width: 1440px");
-    expect(wide).toMatch(/\.topbar \.tb-word \{ display: inline; font-size: 12px; line-height: 1; \}/);
-    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word\) \{ width: auto; gap: 6px; padding: 0 8px; \}/);
-    // The height is still the one control height (line-height is the word's).
-    expect(wide).not.toMatch(/(?<!line-)height/);
+  it("orders each edge by what opens there: the left column's two, then the rail's panels before its records", () => {
+    // Session list and Accounts share the left column and open there. On the
+    // right the two panels that open beside the stripe come first and the two
+    // records that open as dialogs after them, 4px apart inside a group and
+    // 14px and a --line rule between the groups: spacing alone measured 26px
+    // ink to ink against 22 inside one and read as a single run, so a press
+    // on the third dropped a dialog where the stripe had promised a panel.
+    // History was beside Usage on the bar, by subject; on the right edge it is
+    // by what a press does, and it says "Usage history" whole — "History"
+    // alone, over Browser watch, read as the browser's.
+    expect(buttons(left).map(b => b.word)).toEqual(["Session list", "Accounts"]);
+    expect(buttons(right).map(b => b.word)).toEqual(["Usage", "Machine", "Usage history", "Browser watch"]);
+    expect(right.match(/<div class="rail-group">/g)).toHaveLength(2);
+    expect(body(".edge-rail")).toMatch(/gap: 14px;/);
+    expect(body(".rail-group")).toMatch(/gap: 4px;/);
+    expect(body(".edge-rail .rail-group + .rail-group")).toMatch(/border-top: 1px solid var\(--line\);/);
   });
 });
 
-// FEEDBACK'S WORD AGAINST THE BUSIEST BAR (#1853). The busiest bar is #737's
-// case (topbar-status.css): a blocked session, "this month" at its widest and a
-// selected node whose name fills any cap, with the ribbon's cap taking the
-// rest of the bar. #737's reserve for it no longer holds — measured on the
-// owner's deck in Chromium at 1440 on 2026-09-30, everything but the ribbon
-// comes to 1302px (the brand with its version chip 142, "this month 19.05B
-// tokens · $12.4k" 209, "1 waiting" 84, the controls with Feedback as a glyph
-// 735, gaps and padding 84), where the reserve assumes 1213 — so a word added
-// to the bar is held to the measured figure, not to the reserve. Feedback's
-// word is 62 of it: the button is 92px with the word and a 30px square
-// without. The 40px of headroom is #737's, for faces wider than the one
-// measured.
-// The speaker left the controls on 2026-10-07. Measured in Chromium on a demo
-// deck at 1440 before and after, the controls came down from 735.3px to
-// 658.1px — the speaker's button with its word, 73.1, and the 4px gap after
-// it — so the bar is 77px narrower, everything else in it unchanged.
-const SOUND_BUTTON_PX = 77;
-const BUSIEST_BAR_PX = 1302 - SOUND_BUTTON_PX;
-const FEEDBACK_WORD_PX = 62;
-const HEADROOM_PX = 40;
-
-describe("Feedback says its word only where the busiest bar still fits", () => {
-  const wordClass = /<span className="(tb-word[\w-]*)">Feedback<\/span>/.exec(app)?.[1];
-  /** Where the word is drawn from: the min-width of the block that shows it. */
-  const shownFrom = (() => {
-    const at = [...css.matchAll(/@media \(min-width: (\d+)px\) \{([^@]*)/g)]
-      .find(m => m[2].includes(`.topbar .${wordClass} { display: inline;`));
-    return at ? Number(at[1]) : null;
-  })();
-  const reserve = Number(/@media \(min-width: 1440px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, calc\(100vw - (\d+)px\)\); \}/.exec(css)?.[1]);
-
-  it("never draws the word where it would push the busiest bar past its width", () => {
-    expect(wordClass, "the Feedback button's word").toBeTruthy();
-    expect(shownFrom, "the breakpoint that shows it").not.toBeNull();
-    expect(reserve).toBeGreaterThan(1000);
-    for (let w = shownFrom!; w <= 2560; w++) {
-      const ribbon = Math.min(380, w - reserve);
-      expect(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + ribbon + HEADROOM_PX, `at ${w}px`).toBeLessThanOrEqual(w);
-    }
-  });
-
-  it("draws it from the first width that holds it, and no later", () => {
-    // It was drawn with the seven from 1440, where the busiest bar had no room
-    // for it. The first width that holds it is the measured bar, its own
-    // width, the ribbon's full cap and the headroom; a later breakpoint would
-    // hide the word for nothing.
-    expect(wordClass).toBe("tb-word-wide");
-    expect(shownFrom).toBe(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX);
-    expect(css).toMatch(/\n\.tb-word-wide \{ display: none; \}/);
-    const wide = media(`min-width: ${shownFrom}px`);
-    expect(wide).toMatch(/\.topbar \.tb-word-wide \{ display: inline; font-size: 12px; line-height: 1; \}/);
-    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word-wide\) \{ width: auto; gap: 6px; padding: 0 8px; \}/);
-    // Its own class, so the seven's 1440 rule never draws it early.
-    expect(app.match(/className="tb-word-wide"/g)).toHaveLength(1);
-  });
-
-  it("says a word its accessible name contains, and a tooltip that says the same", () => {
-    const at = app.indexOf('<span className="tb-word-wide">Feedback</span>');
-    const button = app.slice(app.lastIndexOf("<button", at), at);
-    expect(button).toMatch(/aria-label="Send feedback"/);
-    expect(button).toMatch(/title="Send feedback/);
-  });
-
-  it("rests, without its word, at the tone the labelled controls rest at, never a fainter one", () => {
-    // The glyph alone could not be found beside the words. Under 1707 it is
-    // the glyph alone again, so what it may not do is sink below them: it is
-    // the toolbar's own button, drawn by the rule that draws the seven, and
-    // nothing in the sheet quietens it.
-    const at = app.indexOf('<span className="tb-word-wide">Feedback</span>');
-    const button = app.slice(app.lastIndexOf("<button", at), at);
-    // `tb-fold` only folds it into the ⋯ at a phone's width (TopbarMore.tsx).
-    expect(button).toMatch(/^<button\s+className="btn icon-btn tb-fold"\s/);
-    expect(button).not.toMatch(/style=/);
-    expect(body(".topbar button.btn.icon-btn")).toMatch(/color: var\(--muted\);/);
-    const aimed = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-      .filter(([, sel]) => /tb-word-wide|Send feedback/.test(sel));
-    expect(aimed.length).toBeGreaterThan(0);
-    for (const [, sel, decls] of aimed) {
-      expect(decls, sel.trim()).not.toMatch(/(?:^|;)\s*(?:color|opacity|filter|visibility)\s*:/);
-    }
-  });
-});
-
-/** The word "Settings" on the gear, measured in Chromium on a live deck: the
- *  gear's button with the word less the button with the glyph alone. */
-const SETTINGS_WORD_PX = 54;
-
-describe("Settings says its word only where the busiest bar still fits it, beside Feedback's", () => {
-  /** Where the word is drawn from: the min-width of the block that shows it. */
-  const shownFrom = (() => {
-    const at = [...css.matchAll(/@media \(min-width: (\d+)px\) \{([^@]*)/g)]
-      .find(m => m[2].includes(".topbar .tb-word-wider { display: inline;"));
-    return at ? Number(at[1]) : null;
-  })();
-  const feedbackFrom = BUSIEST_BAR_PX + FEEDBACK_WORD_PX + 380 + HEADROOM_PX;
-  const reserve = Number(/@media \(min-width: 1440px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, calc\(100vw - (\d+)px\)\); \}/.exec(css)?.[1]);
-
-  it("never draws it where both words would push the busiest bar past its width", () => {
-    expect(shownFrom, "the breakpoint that shows it").not.toBeNull();
-    // Feedback's word is up from its own width, so this one counts both.
-    expect(shownFrom!).toBeGreaterThanOrEqual(feedbackFrom);
-    for (let w = shownFrom!; w <= 2560; w++) {
-      const ribbon = Math.min(380, w - reserve);
-      expect(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + SETTINGS_WORD_PX + ribbon + HEADROOM_PX, `at ${w}px`).toBeLessThanOrEqual(w);
-    }
-  });
-
-  it("draws it from the first width that holds it, and no later", () => {
-    expect(shownFrom).toBe(BUSIEST_BAR_PX + FEEDBACK_WORD_PX + SETTINGS_WORD_PX + 380 + HEADROOM_PX);
-    expect(css).toMatch(/\n\.tb-word-wider \{ display: none; \}/);
-    const wide = media(`min-width: ${shownFrom}px`);
-    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word-wider\) \{ width: auto; gap: 6px; padding: 0 8px; \}/);
-    expect(app.match(/className="tb-word-wider"/g)).toHaveLength(1);
-  });
-
-  it("says a word its accessible name is, and rests at the labelled controls' tone without it", () => {
-    const at = app.indexOf('<span className="tb-word-wider">Settings</span>');
-    const button = app.slice(app.lastIndexOf("<button", at), at);
-    expect(button).toMatch(/aria-label="Settings"/);
-    expect(button).toMatch(/^<button\s+className="btn icon-btn"\s/);
-    expect(button).not.toMatch(/style=/);
-    const aimed = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, sel]) => /tb-word-wider/.test(sel));
-    expect(aimed.length).toBeGreaterThan(0);
-    for (const [, sel, decls] of aimed) {
-      expect(decls, sel.trim()).not.toMatch(/(?:^|;)\s*(?:color|opacity|filter|visibility)\s*:/);
-    }
-  });
-});
-
-describe("the toolbar is quiet: no chrome at rest, a neutral pressed look when open", () => {
+describe("the chrome is quiet: no edge at rest, a neutral look under the pointer and when open", () => {
   it("draws a closed control as its glyph and word, with no edge and no fill", () => {
-    const rest = body(".topbar button.btn.icon-btn");
-    expect(rest).toMatch(/border-color: transparent;/);
+    const rest = body(".rail-btn");
+    expect(rest).toMatch(/border: 0;/);
+    expect(rest).toMatch(/background: transparent;/);
     expect(rest).toMatch(/color: var\(--muted\);/);
-    expect(rest).not.toMatch(/background/);
   });
 
   it("answers the pointer with the control fill and the foreground, never the accent", () => {
-    const hover = body(".topbar button.btn.icon-btn:hover");
-    expect(hover).toMatch(/border-color: transparent;/);
-    expect(hover).toMatch(/background: var\(--ctl-fill\);/);
+    // Under a pointer that can hover only (hover: hover): a tap on the dock
+    // left a fill behind.
+    const hover = body(".rail-btn:hover");
     expect(hover).toMatch(/color: var\(--text\);/);
+    expect(hover).toMatch(/background: var\(--ctl-fill\);/);
+    expect(css).toMatch(/@media \(hover: hover\) \{\s*\.rail-btn:hover \{/);
+    expect(css).not.toMatch(/\.rail-btn[^{]*:hover[^{]*\{[^}]*--accent/);
     expect(body("button.btn:hover")).not.toMatch(/--accent/);
   });
 
-  it("draws an open panel as pressed: fill, edge, foreground", () => {
-    const open = body('.topbar button.btn.icon-btn[aria-expanded="true"]');
-    expect(open).toMatch(/border-color: var\(--ctl-edge\);/);
-    expect(open).toMatch(/background: var\(--ctl-fill\);/);
-    expect(open).toMatch(/color: var\(--text\);/);
-    // No cyan line under it, and no second look for a popover's opener — the
-    // phone bar's ⋯ is one, as the speaker was until it left the bar.
-    expect(css).not.toMatch(/aria-expanded="true"\][^{]*::after/);
+  it("draws an open panel in the foreground on a fill a step past hover's, and its line in --text, not the accent", () => {
+    // Open used to be the hover's own --ctl-fill (7%), and a hovered closed
+    // button beside an open one was told apart by the line alone; open is 10%
+    // of the foreground now, and 14% under the pointer.
+    expect(body('.rail-btn[aria-expanded="true"]')).toMatch(/color: var\(--text\);[^}]*background: color-mix\(in srgb, var\(--text\) 10%, transparent\);/);
+    // The line on the stripe's inner edge, and on the dock's top edge.
+    expect(body(".rail-btn-stripe::before")).toMatch(/background: var\(--text\);/);
+    expect(css).toMatch(/\.rail-btn-stripe\[aria-expanded="true"\]::before \{ opacity: 1; transform: none; \}/);
+    expect(css).not.toMatch(/\.rail-btn[^{]*\{[^}]*background: var\(--accent\)/);
+    // No second look for a popover's opener: the dock's More is one, and it is
+    // the same button.
     expect(css).not.toMatch(/\[aria-haspopup\]\[aria-expanded="true"\]/);
   });
 
-  it("groups the panels in two runs and stands the settings apart, by spacing alone", () => {
-    // The three runs are components/TopbarRuns.tsx's, and App.tsx draws them
-    // in order.
-    const runs = read("../components/TopbarRuns.tsx");
-    const appOnly = read("../App.tsx");
-    expect(runs.match(/<div className="action-run">/g)).toHaveLength(2);
-    expect(appOnly.match(/<div className="action-run">/g)).toBeNull();
-    expect(runs.match(/<div className="action-run action-run-utility">/g)).toHaveLength(1);
-    expect(appOnly.match(/<div className="action-run action-run-utility">/g)).toBeNull();
-    expect(body(".topbar .action-run")).toMatch(/gap: 4px;/);
-    expect(body(".topbar .actions")).toMatch(/gap: 12px;/);
-    expect(css).toMatch(/\.topbar \.action-run-utility \{ margin-left: 12px; \}/);
-    // The runs are Session list, Usage, History | Accounts, Machine, Browser
-    // watch | Settings, Feedback.
-    const second = runs.indexOf('<div className="action-run">', runs.indexOf('<div className="action-run">') + 1);
-    expect(runs.indexOf('aria-label="Open usage history"')).toBeLessThan(second);
-    expect(runs.indexOf('aria-label="Toggle accounts panel"')).toBeGreaterThan(second);
-    expect(runs.indexOf("aria-label={`Browser watch, ")).toBeGreaterThan(second);
-    const actions = appOnly.slice(appOnly.indexOf('<div className="actions">'));
-    expect(actions.indexOf("<SessionRun")).toBeGreaterThan(-1);
-    expect(actions.indexOf("<SessionRun")).toBeLessThan(actions.indexOf("<SourceRun"));
-    expect(actions.indexOf("<SourceRun")).toBeLessThan(actions.indexOf("<SettingsRun"));
+  it("holds no aria-pressed control: each discloses a panel or opens a dialog", () => {
+    // The pressed fill was for a setting that is on, and no control in the
+    // chrome is one since the speaker left (2026-10-07); `.icon-btn` and its
+    // pressed look left with the bar's toggles. A disclosure says
+    // aria-expanded, a dialog opener aria-haspopup="dialog".
+    for (const html of [left, right, corner, dock]) expect(html).not.toMatch(/aria-pressed/);
+    expect(right).toMatch(/aria-label="Usage history"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Usage history"/);
+    expect(left).toMatch(/aria-expanded="false"/);
   });
 
   it("gives the narrow dollar sign back the air its box adds", () => {
-    expect(app).toMatch(/<svg className="tb-glyph-narrow" width="13" height="13" viewBox="0 0 14 14"/);
-    expect(app.match(/className="tb-glyph-narrow"/g)).toHaveLength(1);
-    // Both sides at once, so a square button still centres it.
-    expect(css).toMatch(/\.topbar \.tb-glyph-narrow \{ margin-inline: -2px; \}/);
+    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const UsageGlyph = \(\) => \(\s*<Glyph narrow>/);
+    // Both sides at once, so the glyph stays centred over its word.
+    expect(css).toMatch(/\.rail-btn \.glyph-narrow \{ margin-inline: -2px; \}/);
   });
 
-  it("keeps the fill for a setting that is on, which is what pressed means", () => {
-    expect(body('button.btn.icon-btn[aria-pressed="true"]')).toMatch(/background: var\(--accent\);/);
-  });
-
-  it("keeps the focus ring the sheet's own, in the accent, where focus has a use for it", () => {
-    // No topbar override: with no accent frame left to be mistaken for, the
-    // shared ring at its shared offset is the right one, and the 4px between
-    // two controls keeps it clear of the next.
-    expect(css).not.toMatch(/\.topbar button\.btn:focus-visible/);
+  it("keeps the focus ring the sheet's own, in the accent, moving only its offset", () => {
     expect(css).toMatch(/:focus-visible \{\s*outline: 2px solid var\(--accent\);/);
+    const rings = [...css.matchAll(/([^{}]*rail-btn[^{}]*:focus-visible[^{}]*)\{([^{}]*)\}/g)];
+    for (const [, sel, decls] of rings) {
+      expect(decls, sel.trim()).not.toMatch(/outline(?:-color)?:\s*[^;]*(?:var\(--(?!accent)|#|rgb)/);
+      expect(decls, sel.trim()).not.toMatch(/outline-width/);
+    }
   });
 });
 
 describe("the bar keeps amber for the alarm", () => {
   it("draws Browser watch's unread count as a count, not an alarm", () => {
-    expect(body(".bw-badge")).toMatch(/background: var\(--muted\);/);
-    // Cut out of the corner it overlaps, not laid over the button's edge.
-    expect(body(".bw-badge")).toMatch(/box-shadow: 0 0 0 2px var\(--panel\);/);
-    expect(css).not.toMatch(/\.bw-btn\.(?:has-findings|watching)/);
-    expect(app).toMatch(/className="btn icon-btn bw-btn tb-fold"/);
+    expect(body(".rail-badge")).toMatch(/background: var\(--muted\);/);
+    expect(body(".rail-badge")).not.toMatch(/--warn/);
+    expect(css).not.toMatch(/\.bw-btn|\.bw-badge/);
   });
 
   it("keeps the alarm when the readout gives, and draws no gap for an empty strip", () => {
     // The readout clips from the left, so the wordmark goes before the chip.
     expect(body(".topbar .readout")).toMatch(/justify-content: flex-end;/);
     expect(css).toMatch(/\.topbar \.status:empty \{ display: none; \}/);
-    // The ribbon's share of the bar that lets the words start at 1440px.
+    // The ribbon's usual share of the bar.
     expect(body(".selected-ribbon")).toMatch(/max-width: min\(380px, 24vw\);/);
   });
 
@@ -339,17 +230,19 @@ describe("the bar keeps amber for the alarm", () => {
     expect(css).not.toMatch(/button\.v:not\(\.stale\)(?!:not\(\.ready\))/);
   });
 
-  it("gives the waiting chip the readout on a narrow screen", () => {
+  it("gives the waiting chip the readout on a narrow screen, word and all", () => {
     const narrow = media("max-width: 640px");
     // The wordmark leaves the screen but stays the page's <h1>.
     expect(narrow).toMatch(/\.topbar \.brand h1 \{[^}]*clip-path: inset\(50%\);/);
     expect(narrow).not.toMatch(/\.topbar \.brand h1[^{]*\{[^}]*display: none/);
     // An up-to-date version chip goes; a stale one is a warning and stays, and
     // so does the app's ready update, the one way into it from the window.
-    expect(narrow).toMatch(/\.topbar \.brand button\.v:not\(\.stale\):not\(\.ready\),/);
-    // The chip keeps its number, and its name keeps the whole sentence.
-    expect(narrow).toMatch(/\.topbar \.waiting-stat \.ws-word \{ display: none; \}/);
-    expect(app).toMatch(/<b>\{waitingSessions\.length\}<\/b> <span className="ws-word">waiting<\/span>/);
-    expect(app).toMatch(/aria-label=\{`\$\{waitingSessions\.length\} session/);
+    expect(narrow).toMatch(/\.topbar \.brand button\.v:not\(\.stale\):not\(\.ready\) \{ display: none; \}/);
+    // The chip says its number and its word on a phone too: with every control
+    // in the dock, the bar has the room for "2 waiting" whole, and nothing
+    // hides the word. Its name keeps the whole sentence.
+    expect(css).not.toMatch(/ws-word/);
+    expect(readouts).toMatch(/<b>\{count\}<\/b> waiting\s*<\/button>/);
+    expect(readouts).toMatch(/aria-label=\{`\$\{count\} session\$\{count === 1 \? "" : "s"\} waiting for you`\}/);
   });
 });

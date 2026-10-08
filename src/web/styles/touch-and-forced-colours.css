@@ -103,10 +103,12 @@
   .ap-live::before,
   .topbar .brand button.v .v-dot,
   .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
-  /* An open toolbar button keeps a boundary in the theme's own highlight, so
-     open and closed still differ once every fill has been painted Canvas. A
-     system colour is honoured as written here, so nothing opts out. */
-  .topbar button.btn.icon-btn[aria-expanded="true"] { border-color: Highlight; }
+  /* An open panel's line on its stripe, or on the dock's top edge, is a
+     fill, which the theme paints Canvas like the stripe under it: it opts out
+     and draws in the highlight, so open and closed still differ once the
+     control fill has gone too. */
+  .rail-btn-stripe::before,
+  .rail-btn-dock::before { forced-color-adjust: none; background: Highlight; }
   /* A pressed chip, a paused canvas and the open tab are drawn as a fill, and
      the theme paints every fill Canvas, so each looked like its neighbours:
      they fill with the highlight, the way an on switch does, and keep it
@@ -164,7 +166,7 @@
   .ap-rest-sort svg { color: ButtonText; }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
-  .bw-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+  .rail-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,

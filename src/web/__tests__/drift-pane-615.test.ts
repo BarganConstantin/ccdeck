@@ -27,6 +27,13 @@
 // One of six. And not the one the deck opens in: the accounts panel defaults to
 // open and the detail panel defaults to closed, which is `288px 1fr`.
 //
+// That table is the deck the guess was written for. Since the panel toggles
+// left the topbar for stripes on the window's edges (2026-10-08) the grid is
+// inset by both stripes, 60px, and its first row is a 44px bar rather than a
+// 52px one, so the real pane is 60px narrower and 8px taller than the table
+// says in every layout — and the guess would now be wrong in all six. The
+// numbers below are today's, read from the sheet's own tokens.
+//
 // Both directions of the error break something, and they break opposite things:
 //
 //   too WIDE (either left panel open beside the detail panel) — the check
@@ -51,6 +58,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isBoxOnPane, shouldRefit, type NodeBox, type PaneSize, type Viewport } from "../drift";
 import { clientText } from "./client-source";
+import { cascade, el, selects } from "./sheet-cascade";
 import { sheetText } from "./sheet-source";
 
 const css = sheetText();
@@ -160,20 +168,36 @@ function panelPixels(columns: string): number {
 
 const WINDOW_W = 1600;
 const WINDOW_H = 900;
-/** `grid-template-rows: 52px auto 1fr` — the topbar, pinned by the CSS test. */
-const TOPBAR_H = 52;
+
+/** A length the root declares at this window's width, through any var() it
+ *  names — the chrome's geometry is tokens (tokens.css). */
+function rootPx(name: string): number {
+  const v = cascade(sel => selects(sel, [el("html", [], { states: ["root"] })]), name, WINDOW_W);
+  expect(v, `${name} is declared`).toBeTruthy();
+  const named = /^var\((--[\w-]+)\)$/.exec(v!);
+  if (named) return rootPx(named[1]);
+  expect(v).toMatch(/^\d+px$/);
+  return parseFloat(v!);
+}
+/** `grid-template-rows: var(--topbar-h) auto 1fr` — the topbar, pinned by the
+ *  CSS test below. 52px when the guess was written; 44 since. */
+const TOPBAR_H = rootPx("--topbar-h");
+/** The two edge stripes the grid is inset by, one each side. */
+const EDGES_W = 2 * rootPx("--edge-w");
+/** The guess's own subtraction, `window.innerHeight - 52`: the bar of its day. */
+const GUESSED_BAR = 52;
 /** What the connection and version banners occupy in row 2 when one is up.
  *  8px padding top and bottom around a 12px line: the exact number does not
  *  matter, only that row 2 is not always empty. */
 const BANNER_H = 34;
 
 /** The rectangle the check used to test against, in the same 1600x900 window. */
-const GUESS: PaneSize = { width: WINDOW_W - 360, height: WINDOW_H - TOPBAR_H };
+const GUESS: PaneSize = { width: WINDOW_W - 360, height: WINDOW_H - GUESSED_BAR };
 
 interface Layout {
   name: string;
   columns: string;
-  /** Pixels taken by panels, so the pane is WINDOW_W minus this. */
+  /** Pixels taken by panels, so the pane is WINDOW_W minus this and the stripes. */
   panels: number;
 }
 
@@ -187,7 +211,7 @@ const LAYOUTS: Layout[] = [
   { name: "accounts only (the deck's first run)", columns: "288px 1fr", panels: 288 },
 ];
 
-const paneFor = (l: Layout): PaneSize => ({ width: WINDOW_W - l.panels, height: WINDOW_H - TOPBAR_H });
+const paneFor = (l: Layout): PaneSize => ({ width: WINDOW_W - EDGES_W - l.panels, height: WINDOW_H - TOPBAR_H });
 
 /** A viewport that is panned and zoomed, so nothing here passes by accident
  *  through an identity transform. */
@@ -215,10 +239,15 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     expect(declared).toEqual(LAYOUTS.map(l => l.panels).sort((a, b) => a - b));
   });
 
-  it("puts the canvas in the third row, under a 52px topbar and a banner slot", () => {
+  it("puts the canvas in the third row, under the topbar's row and a banner slot", () => {
     // The height half of the same bug: `innerHeight - 52` is the pane only
-    // while row 2 is empty, and row 2 is where the banners live.
-    expect(css).toMatch(/\.app\s*\{[^}]*grid-template-rows:\s*52px auto 1fr;/);
+    // while row 2 is empty, and row 2 is where the banners live. The bar's row
+    // is its token now, 44px since its panel toggles left it, and the grid is
+    // inset by the edge stripes on both sides.
+    expect(css).toMatch(/\.app\s*\{[^}]*grid-template-rows:\s*var\(--topbar-h\) auto 1fr;/);
+    expect(TOPBAR_H).toBe(44);
+    expect(css).toMatch(/\.app\s*\{\s*padding-inline:\s*var\(--edge-w\);\s*\}/);
+    expect(EDGES_W).toBe(60);
     expect(css).toMatch(/\.canvas-wrap\s*\{[^}]*grid-row:\s*3;/);
     expect(css).toMatch(/\.conn-banner\s*\{[^}]*grid-row:\s*2;/);
     expect(css).toMatch(/\.ver-banner\s*\{[^}]*grid-row:\s*2;/);
@@ -258,9 +287,10 @@ describe("a graph past the pane's right edge is recovered in every layout", () =
 
   it("is what the window guess got wrong wherever it ran too wide", () => {
     // 240-288px of detail panel counted as canvas, so the card above still
-    // read as visible and the failsafe stayed asleep.
-    const tooWide = LAYOUTS.filter(l => WINDOW_W - l.panels < GUESS.width);
-    expect(tooWide.map(l => l.name)).toEqual(["sessions + detail", "accounts + detail"]);
+    // read as visible and the failsafe stayed asleep — and since the edge
+    // stripes, 60px of them in the layout the guess was written for as well.
+    const tooWide = LAYOUTS.filter(l => paneFor(l).width < GUESS.width);
+    expect(tooWide.map(l => l.name)).toEqual(["detail only", "sessions + detail", "accounts + detail"]);
     for (const layout of tooWide) {
       const pane = paneFor(layout);
       const boxes = [cardAtScreen(pane.width + 20, 100)];
@@ -299,7 +329,7 @@ describe("a card on the canvas is never mistaken for a drifted one", () => {
   it("is what the window guess got wrong wherever it ran too narrow", () => {
     // Including the layout the deck opens in. Every 1.5s tick where the cards
     // happened to sit in that strip was a fit the user did not ask for.
-    const tooNarrow = LAYOUTS.filter(l => WINDOW_W - l.panels > GUESS.width);
+    const tooNarrow = LAYOUTS.filter(l => paneFor(l).width > GUESS.width);
     expect(tooNarrow.map(l => l.name)).toEqual([
       "neither panel", "sessions only", "accounts only (the deck's first run)",
     ]);
@@ -321,20 +351,26 @@ describe("a card on the canvas is never mistaken for a drifted one", () => {
     }
   });
 
-  it("agrees with the guess in the one layout the guess described", () => {
-    const pane = paneFor(LAYOUTS[0]);
-    expect(pane).toEqual(GUESS);
+  it("agreed with the guess only in the layout the guess described, and agrees in none since the edge stripes", () => {
+    // In the deck the guess was written for — no stripes, a 52px bar — the
+    // detail-only pane was the guess exactly, and the two answered alike for
+    // any card: the guess was right once, by coincidence.
+    const then: PaneSize = { width: WINDOW_W - LAYOUTS[0].panels, height: WINDOW_H - GUESSED_BAR };
+    expect(then).toEqual(GUESS);
     for (const left of [-400, -100, 0, 10, 600, 1230, 1239, 1240, 1300, 2000]) {
       const boxes = [cardAtScreen(left, 100)];
-      expect(shouldRefit({ pane, viewport: VP, boxes }))
+      expect(shouldRefit({ pane: then, viewport: VP, boxes }))
         .toBe(shouldRefit({ pane: GUESS, viewport: VP, boxes }));
     }
+    // Not any more: the stripes take 60px out of every pane's width and the
+    // bar gave 8px back to its height, so the coincidence is gone in all six.
+    for (const layout of LAYOUTS) expect(paneFor(layout), layout.name).not.toEqual(GUESS);
   });
 });
 
 describe("the height is the row the canvas is in, not the window under the topbar", () => {
   it("recovers a graph pushed below a pane shortened by a banner", () => {
-    const pane: PaneSize = { width: WINDOW_W - 288, height: WINDOW_H - TOPBAR_H - BANNER_H };
+    const pane: PaneSize = { width: WINDOW_W - EDGES_W - 288, height: WINDOW_H - TOPBAR_H - BANNER_H };
     // Below the real bottom edge, above where the guess put it.
     const boxes = [cardAtScreen(200, pane.height + 8)];
     expect(shouldRefit({ pane, viewport: VP, boxes })).toBe(true);
