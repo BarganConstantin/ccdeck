@@ -145,3 +145,15 @@ describe("the hand-off row", () => {
     expect(render(root())).toContain("gv-handoffs-wrap");
   });
 });
+
+describe("a long path in the Git section", () => {
+  it("is cut at whole folders, as the view's files pane cuts it, never inside a folder's name", () => {
+    const glance = sourceOf("components/GitGlance.tsx");
+    expect(glance).toMatch(/<GlancePath path=\{f\.path\} \/>/);
+    expect(glance).toMatch(/const cut = fitPath\(path, room, monoMeasure\(PATH_PX\)\);/);
+    // Drawn whole first: the cut only replaces what does not fit.
+    read.data = { ...REPO, entries: [{ path: "src/Presentations/Web/Controllers/BookingController.cs", area: "unstaged", change: "modified", added: 1, removed: 0, binary: false }],
+      edits: [{ path: "src/Presentations/Web/Controllers/BookingController.cs", agentId: null, label: "app", at: NOW }] };
+    expect(render(root())).toContain('<span class="gv-dir">src/Presentations/Web/Controllers/</span><span class="gv-base">BookingController.cs</span>');
+  });
+});
