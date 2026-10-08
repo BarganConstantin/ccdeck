@@ -19,7 +19,7 @@ import { cascade, el, mediaApplies, selects, sheetRules, splitTop } from "./shee
 const ACCOUNTS_PANEL = 288;
 /** The session list's own width: since 2026-10-08 its track is `auto` too,
  *  sized to the left column the list is drawn in (styles/left-column.css). */
-const SESSION_LIST = 240;
+const SESSION_LIST = 288;
 
 /** A custom property's value at `width`, as the root declares it. */
 const token = (name: string, width: number) => cascade(sel => selects(sel, [el("html", [], { states: ["root"] })]), name, width);
@@ -174,10 +174,10 @@ describe("a selected session on a narrow window (#1790)", () => {
   });
 
   it("keeps the wide layout exactly as it was: a 360px column beside the canvas", () => {
-    for (const width of [641, 900, 1280]) {
+    for (const width of [648, 900, 1280]) {
       expect(layout("none", width)).toMatchObject({ template: "1fr 360px", overlay: false });
       // `auto` since 2026-10-08: the track is the left column's, which is the
-      // session list's 240px while the list is in it (styles/left-column.css).
+      // session list's 288px while the list is in it (styles/left-column.css).
       expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
     }
     // With Accounts open the panel and the column are 648px between them, so

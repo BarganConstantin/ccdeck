@@ -216,10 +216,10 @@ interface Layout {
 /** The six, in the order the stylesheet declares them. */
 const LAYOUTS: Layout[] = [
   { name: "detail only", columns: "1fr 360px", panels: 360 },
-  { name: "sessions + detail", columns: "240px 1fr 360px", panels: 600 },
+  { name: "sessions + detail", columns: "288px 1fr 360px", panels: 648 },
   { name: "accounts + detail", columns: "288px 1fr 360px", panels: 648 },
   { name: "neither panel", columns: "1fr", panels: 0 },
-  { name: "sessions only", columns: "240px 1fr", panels: 240 },
+  { name: "sessions only", columns: "288px 1fr", panels: 288 },
   { name: "accounts only (the deck's first run)", columns: "288px 1fr", panels: 288 },
 ];
 

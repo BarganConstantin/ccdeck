@@ -24,8 +24,8 @@ import { prefersReducedMotion } from "./viewport-motion";
 /** The two panels' own widths, and so the only widths the column can take.
  *  The sheet draws each panel at its own (session-list.css, accounts-panel.css)
  *  and left-column-motion.test.ts holds the two to these. */
-export const SESSION_LIST_WIDTH = 240;
 export const ACCOUNTS_PANEL_WIDTH = 288;
+export const SESSION_LIST_WIDTH = ACCOUNTS_PANEL_WIDTH;
 
 /** Which of the two the column is for. */
 export type LeftPanel = "session-list" | "accounts";

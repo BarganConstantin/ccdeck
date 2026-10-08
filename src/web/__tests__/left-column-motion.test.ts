@@ -22,14 +22,14 @@ import * as column from "../use-left-column";
 import { sheetText } from "./sheet-source";
 import { sourceOf } from "./client-source";
 
-const PANEL_WIDTHS = [240, 288];
+const PANEL_WIDTHS = [288, 288];
 
 describe("the column's width is decided in one place (2026-10-08)", () => {
   it("is the open panel's own width, or nothing", () => {
     const width = (list: boolean, accounts: boolean, waiting: boolean) =>
       column.leftColumnWidth(column.leftColumnPanel(list, accounts, waiting));
     // Accounts to the session list: the list takes the column, Accounts waits.
-    expect(width(true, false, true)).toBe(240);
+    expect(width(true, false, true)).toBe(288);
     // The session list to Accounts.
     expect(width(false, true, false)).toBe(288);
     // The list closing in front of a panel that is waiting for it: Accounts's

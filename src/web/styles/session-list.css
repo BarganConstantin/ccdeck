@@ -23,7 +23,8 @@
    longest row. It is drawn inside the left column now, out of flow, at this
    width from its first frame to its last (styles/left-column.css). */
 .session-list {
-  width: 240px;
+  /* Same width as Accounts, so switching panels keeps the canvas in place. */
+  width: 288px;
   background: var(--panel);
   border-right: 1px solid var(--line);
   display: flex;

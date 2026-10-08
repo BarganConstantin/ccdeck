@@ -19,7 +19,7 @@ import { cascade, splitTop } from "./sheet-cascade";
  *  for either, sized to the left column, which is as wide as the panel in it
  *  (styles/left-column.css). */
 const ACCOUNTS_PANEL = 288;
-const SESSION_LIST = 240;
+const SESSION_LIST = 288;
 /** The detail panel's column on a desktop window. */
 const DETAIL = 360;
 /** The topbar's min-content, which holds a bare `1fr` it is ALONE in: an item

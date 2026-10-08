@@ -26,7 +26,7 @@ const body = (selector: string) =>
 describe("the left column moves, and what is in it does not resize (#866)", () => {
   it("keeps each panel at its own width, with no width animation of its own", () => {
     expect(body(".accounts-panel")).toMatch(/width:\s*288px/);
-    expect(body(".session-list")).toMatch(/width:\s*240px/);
+    expect(body(".session-list")).toMatch(/width:\s*288px/);
     for (const sel of [".accounts-panel", ".session-list"]) expect(body(sel), sel).not.toMatch(/\b(animation|transition)\s*:/);
     // The panels' own slide keyframes went with the slide.
     expect(css).not.toMatch(/@keyframes side-(in|out)\b/);
