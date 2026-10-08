@@ -20,7 +20,8 @@ import {
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
 export interface RailItems {
-  /** The left column's two: they share it, and opening one closes the other. */
+  /** The left column's two, Accounts first: they share it, and opening one
+   *  closes the other. */
   left: RailItem[];
   /** The right stripe's two panels, then the two records that open as dialogs. */
   right: RailItem[][];
@@ -120,7 +121,10 @@ export function railItems({
     ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
   };
   return {
-    left: providers.claude ? [sessionList, accounts] : [sessionList],
+    // Accounts first, at the top of the stripe and the start of the dock: the
+    // owner's call (2026-10-08), the panel a first run opens and the one read
+    // before choosing where to start a session.
+    left: providers.claude ? [accounts, sessionList] : [sessionList],
     right: [[usage, machine], [history, browserWatch]],
     utilities: [settings, feedback],
   };

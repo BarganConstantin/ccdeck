@@ -151,7 +151,12 @@ describe("the wiring", () => {
   });
 
   it("says whether each panel is still drawn, by the same test that draws it", () => {
-    expect(app).toMatch(/const panelReturn = usePanelReturn\(\{\s*sessionListShown: sessionListOpen, usageShown: isMounted\(usagePhase\), machineShown: isMounted\(machinePhase\),\s*accountsShown: isMounted\(accountsPhase\) && providers\.claude, detailShown, primarySelectedId, canvasRef,\s*\}\);/);
+    // The two left panels animate out of the left column since 2026-10-08 and
+    // are drawn by `sessionListDrawn` and `accountsDrawn` (panel-exit.ts,
+    // isDrawn), which is what their hand-offs read too.
+    expect(app).toMatch(/const panelReturn = usePanelReturn\(\{\s*sessionListShown: sessionListDrawn, usageShown: isMounted\(usagePhase\), machineShown: isMounted\(machinePhase\),\s*accountsShown: accountsDrawn, detailShown, primarySelectedId, canvasRef,\s*\}\);/);
+    expect(app).toMatch(/\{sessionListDrawn && \(\s*<SessionList/);
+    expect(app).toMatch(/\{accountsDrawn && \(\s*<AccountsPanel/);
   });
 
   it("hands the chrome its four toggles' refs, and every placement puts them on the button", () => {

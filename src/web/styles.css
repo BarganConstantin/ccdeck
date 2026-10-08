@@ -45,6 +45,7 @@
 @import "./styles/usage-panel.css";              /* the usage panel and its quota bars */
 @import "./styles/usage-history.css";            /* the usage history modal */
 @import "./styles/accounts-panel.css";           /* the accounts panel */
+@import "./styles/left-column.css";              /* the left column both of those are drawn in, and its motion */
 @import "./styles/lan-sync.css";                 /* local network sync */
 @import "./styles/canvas-motion.css";            /* a card displaced by a growing session, and the canvas's reduced motion */
 @import "./styles/accounts-manage.css";          /* adding, managing and sharing accounts */

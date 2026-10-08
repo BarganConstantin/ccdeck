@@ -15,8 +15,11 @@
 import { describe, it, expect } from "vitest";
 import { cascade, splitTop } from "./sheet-cascade";
 
-/** The Accounts panel's own width: the `auto` track is sized to it. */
+/** The two left panels' own widths. Since 2026-10-08 the left track is `auto`
+ *  for either, sized to the left column, which is as wide as the panel in it
+ *  (styles/left-column.css). */
 const ACCOUNTS_PANEL = 288;
+const SESSION_LIST = 288;
 /** The detail panel's column on a desktop window. */
 const DETAIL = 360;
 /** The topbar's min-content, which holds a bare `1fr` it is ALONE in: an item
@@ -36,6 +39,7 @@ function appCompound(sel: string, left: Left, detail: boolean): number | null {
   const present = (cls: string) =>
     (cls === "session-list" && left === "sessions")
     || (cls === "accounts-panel" && left === "accounts")
+    || (cls === "left-column" && left !== "none")
     || (cls === "detail" && detail);
   let spec = 10;
   for (const p of m[1].match(/:has\(\.[\w-]+\)|:not\(:has\(\.[\w-]+\)\)/g) ?? []) {
@@ -92,8 +96,9 @@ function tracks(template: string, left: Left, width: number): Track[] {
     // its own, and the topbar has one only where this is its only track.
     if (/fr$/.test(t)) return { min: list.length === 1 ? topbarMinContent(width) : 0, max: Infinity, flex: true };
     if (t === "auto") {
-      expect(left, "an auto track with no Accounts panel to size it").toBe("accounts");
-      return { min: ACCOUNTS_PANEL, max: ACCOUNTS_PANEL, flex: false };
+      expect(left, "an auto track with no left panel to size it").not.toBe("none");
+      const column = left === "accounts" ? ACCOUNTS_PANEL : SESSION_LIST;
+      return { min: column, max: column, flex: false };
     }
     return { min: px(t), max: px(t), flex: false };
   });

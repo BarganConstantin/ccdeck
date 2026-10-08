@@ -42,10 +42,9 @@
    than a proxy for it, and it is what makes the panel's absence with nothing
    selected cost nothing extra. */
 .app:not(:has(.detail)) { grid-template-columns: 1fr; }
-.app:has(.session-list):not(:has(.detail)) { grid-template-columns: 240px 1fr; }
-.app:has(.accounts-panel):not(:has(.detail)) { grid-template-columns: auto 1fr; }
+.app:has(.left-column):not(:has(.detail)) { grid-template-columns: auto 1fr; }
 
-/* JUST ABOVE THE BREAKPOINT, WITH ACCOUNTS OPEN (#1840). The panel's 288px and
+/* JUST ABOVE THE BREAKPOINT, WITH EITHER LEFT PANEL OPEN (#1840). Both left panels are 288px, and
    the detail column's 360px are 648px between them, so from 641 to 647px the
    desktop row was up to 7px wider than the window: the page scrolled sideways
    and the last topbar control sat partly off screen. Here the column gives up
@@ -53,7 +52,7 @@
    sheet a few pixels early; from 648px up it is 360px again. Before the block
    below, which outranks it at 640px and under by source order. */
 @media (max-width: 647px) {
-  .app:has(.accounts-panel) { grid-template-columns: auto 1fr minmax(0, 360px); }
+  .app:has(.left-column) { grid-template-columns: auto 1fr minmax(0, 360px); }
 }
 
 /* A SHEET OVER THE CANVAS, NOT A COLUMN BESIDE IT, below the sheet's 640px
@@ -79,8 +78,7 @@
    untouched. */
 @media (max-width: 640px) {
   .app, .app:not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
-  .app:has(.session-list) { grid-template-columns: 240px minmax(0, 1fr); }
-  .app:has(.accounts-panel) { grid-template-columns: auto minmax(0, 1fr); }
+  .app:has(.left-column) { grid-template-columns: auto minmax(0, 1fr); }
   .detail {
     position: fixed;
     top: var(--topbar-h);

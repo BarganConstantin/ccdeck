@@ -148,9 +148,12 @@ interface Props {
   /** Brings back everything removed, subagent cards included, which have no
    *  row of their own to be brought back from. */
   onBringBackAll?: () => void;
+  /** On its way out of the left column: still drawn, fading or sliding with
+   *  the column's edge, for the length of its exit (LeftColumn.tsx). */
+  leaving?: boolean;
 }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false }: Props) {
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
@@ -180,7 +183,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
     // aria-label that makes the rotor's complementary entries tellable apart —
     // and that is now this panel's only announcement, since nothing reports its
     // open state any more.
-    <aside className="session-list" id="session-list" aria-label="Sessions">
+    <aside className={`session-list${leaving ? " leaving" : ""}`} id="session-list" aria-label="Sessions">
       <div className="sl-header">
         {/* h2, under the topbar's h1 — the level every panel title sits at
             (#381). This <aside> was already the shape the other two panels

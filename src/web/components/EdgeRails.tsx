@@ -5,7 +5,7 @@
 // from a button 1,100px away on the right. Here each side of the window owns
 // its own controls, in a stripe one control-height wide on that edge:
 //
-//   left   Session list, Accounts          the left column, which they share
+//   left   Accounts, Session list          the left column, which they share
 //   right  Usage, Machine · History, Browser watch
 //                                          the two rail panels, then the two
 //                                          records that open as dialogs

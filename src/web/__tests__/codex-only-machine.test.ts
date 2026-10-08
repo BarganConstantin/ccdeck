@@ -457,13 +457,16 @@ describe("which panels the UI draws for each machine", () => {
   it("mounts the accounts panel only where Claude Code is", () => {
     // It is open on first run, so on a Codex-only machine this was the first
     // thing on screen, and every route out of it ends at the claude CLI.
-    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain("providers.claude");
+    // The gate is one name since 2026-10-08, `accountsDrawn`, because the
+    // left column mounts on it too; Claude Code is in its definition.
+    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain("{accountsDrawn && (");
+    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && providers\.claude;/);
   });
 
   it("hides the accounts button too, rather than opening onto nothing", () => {
     // The left stripe — and the phone's dock, which draws the same list — holds
     // Accounts only where Claude Code is; without it, Session list alone.
-    expect(appSrc).toMatch(/left: providers\.claude \? \[sessionList, accounts\] : \[sessionList\]/);
+    expect(appSrc).toMatch(/left: providers\.claude \? \[accounts, sessionList\] : \[sessionList\]/);
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
     expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.

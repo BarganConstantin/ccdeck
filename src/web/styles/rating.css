@@ -69,7 +69,7 @@
    --rating-h, and gives the same height back at its foot. Nothing covers the
    row at any width, and nothing it holds can widen the page. */
 .app .ver-banner.rating-banner { grid-column: 1 / -1; }
-.app:has(.rating-banner) :is(.session-list, .accounts-panel, .detail) { grid-row: 3 / -1; }
+.app:has(.rating-banner) :is(.left-column, .detail) { grid-row: 3 / -1; }
 .app:has(.rating-banner) :is(.usage-panel, .sysdetail) {
   top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
   max-height: calc(100vh - var(--topbar-h) - 24px - var(--rating-h, 0px));
