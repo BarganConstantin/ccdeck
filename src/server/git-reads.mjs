@@ -837,6 +837,11 @@ export async function readCommit(topLevel, sha) {
   const range = commit.parents.length ? [commit.parents[0], full] : ["--root", full];
   const tree = (how) => git("diff-tree", ["-r", "-z", ...how, "--no-commit-id", ...range], { cwd: topLevel });
   let r = await tree(["--find-renames", "--raw", "--numstat"]);
+  // A treeless clone's older trees were never downloaded, and a git that
+  // will not fetch them says only that it could not read one.
+  if (!r.ok && readFailure(r) === "error" && /unable to read tree|missing tree/i.test(r.stderr) && await isPartialClone(topLevel)) {
+    return { ok: false, reason: "not-downloaded" };
+  }
   if (!r.ok && readFailure(r) === "not-downloaded") {
     for (const how of [["--find-renames", "--raw"], ["--no-renames", "--raw"]]) {
       const bare = await tree(how);
@@ -847,6 +852,18 @@ export async function readCommit(topLevel, sha) {
   if (!r.ok && r.tooLarge) return { ok: true, commit, files: [], filesTooLarge: true };
   if (!r.ok) return { ok: false, reason: readFailure(r) };
   return { ok: true, commit, files: parseCommitFiles(r.stdout) };
+}
+
+/** Whether the repository is a partial clone: one with a remote it would
+ *  fetch a missing object from. Tells an object never downloaded from one a
+ *  repository lost. */
+async function isPartialClone(topLevel) {
+  const r = await git("config", ["-z", "--get-regexp", "^(extensions\\.partialclone|remote\\..+\\.promisor)$"], { cwd: topLevel, maxBytes: 64 << 10 });
+  if (!r.ok) return false;
+  return r.stdout.split("\0").some((entry) => {
+    const [key, value = ""] = entry.split("\n");
+    return key !== "" && !/^(false|no|off|0)$/i.test(value.trim());
+  });
 }
 
 /** The full id of a commit, or null. */
