@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { captureSummary, radarStatus, type RadarSnapshot } from "../traffic-radar";
-import { TrafficRadarView } from "../components/TrafficRadar";
+import { Configuration, TrafficRadarView } from "../components/TrafficRadar";
 
 const snapshot: RadarSnapshot = {
   ok: true, sampledAt: 1_700_000_000_000, platform: "darwin", pollMs: 5_000,
@@ -15,9 +15,10 @@ describe("Traffic Radar status language", () => {
   it("never labels an empty connection sample as disabled or safe", () => {
     expect(radarStatus(snapshot)).toBe("No connections observed in this sample");
     const markup = renderToStaticMarkup(<TrafficRadarView snapshot={snapshot} />);
-    expect(markup).toContain("This does not mean telemetry is off");
+    const config = renderToStaticMarkup(<Configuration snapshot={snapshot} />);
+    expect(config).toContain("This does not mean telemetry is off");
     expect(markup).toContain("Brief transfers between samples may not appear");
-    expect(markup).toContain("Content capture settings unknown");
+    expect(config).toContain("Content capture settings unknown");
     expect(markup).not.toMatch(/safe|protected|not sending/i);
   });
 
@@ -25,7 +26,7 @@ describe("Traffic Radar status language", () => {
     const variables = [{ source: "Managed settings", key: "OTEL_LOG_USER_PROMPTS", value: "Enabled" }];
     expect(captureSummary(variables)).toBe("Content capture enabled in a configuration source");
     expect(captureSummary([{ ...variables[0], value: "Disabled" }])).toContain("unverified");
-    const markup = renderToStaticMarkup(<TrafficRadarView snapshot={{ ...snapshot, config: { ...snapshot.config!, variables } }} />);
+    const markup = renderToStaticMarkup(<Configuration snapshot={{ ...snapshot, config: { ...snapshot.config!, variables } }} />);
     expect(markup).toContain("not the effective settings of a running session");
   });
 
@@ -76,6 +77,19 @@ describe("Traffic Radar status language", () => {
     expect(hook).toContain("controller?.abort()");
     expect(hook).toContain("setTimeout(load, 5_000)");
     expect(hook).not.toContain("setInterval");
-    expect(component).toContain("{open && <RadarReader />}");
+    expect(component).toContain("useModalDismiss(onClose)");
+    const dialogs = readFileSync(new URL("../components/DeckDialogs.tsx", import.meta.url), "utf8");
+    const machine = readFileSync(new URL("../components/MachinePanel.tsx", import.meta.url), "utf8");
+    expect(dialogs).toContain("{trafficRadarOpen && <Suspense");
+    expect(machine).not.toContain("TrafficRadar");
+  });
+
+  it("offers separate live, history and configuration views with honest payload limits", () => {
+    const markup = renderToStaticMarkup(<TrafficRadarView snapshot={snapshot} />);
+    expect(markup).toContain("Live connections");
+    expect(markup).toContain("Observation history");
+    expect(markup).toContain("Configuration");
+    expect(markup).toContain("Payload not captured");
+    expect(markup).toContain("Earlier payloads cannot be recovered");
   });
 });

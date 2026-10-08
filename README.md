@@ -160,10 +160,15 @@ Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.d
 
 ### Claude Traffic Radar (macOS)
 
-Open **Machine → Traffic Radar** to inspect telemetry configuration sources
+Open **Traffic Radar** from the right rail (or **More → Traffic Radar** on a
+phone) to inspect telemetry configuration sources
 and established TCP connections attributed to native Claude Code processes.
 Each connection shows its remote IP and port, PID, current working directory
 when readable, and last observation time — not the last upload time.
+
+The centered inspector separates live connections, observation history and
+configuration. Select a connection to inspect its metadata; payloads are
+explicitly marked as not captured, rather than inferred from session logs.
 
 The radar reads only named telemetry variables from user settings, cached
 organization settings and the system managed-settings file; credentials,
