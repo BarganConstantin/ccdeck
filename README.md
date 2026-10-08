@@ -120,7 +120,7 @@ log in. **`ccdeck --stop` is the off switch**; `Ctrl+C` only cancels a start tha
 is still printing. `ccdeck --status` says what is running, and `--foreground`
 holds the terminal the way every version before 3.20 did.
 
-Everything the page lets you set — the theme, the sounds, notifications, Claude FM, the minimap character and the git view — is in **Settings**, behind the gear at the right of the topbar, or `Cmd+,` (`Ctrl+,` on Windows and Linux). A change applies the moment you make it. The sounds and how loud each tone is are in **Settings › Sounds**, which `V` opens straight away; `M` turns sounds off or on from anywhere. `?` lists every key.
+Everything the page lets you set — the theme, the single-key shortcuts, the sounds, notifications, Claude FM, the minimap character and the git view — is in **Settings**, behind the gear at the right of the topbar, or `Cmd+,` (`Ctrl+,` on Windows and Linux). A change applies the moment you make it. The sounds and how loud each tone is are in **Settings › Sounds**, which `V` opens straight away; `M` turns sounds off or on from anywhere. `?` lists every key. If you use voice control or press letters by accident, turn off **Single-key shortcuts** in **Settings › General**: letters, `?` and Space then do nothing, while `Cmd+,`, `Esc`, `Enter`, `Tab`, `Delete` and the arrows keep working.
 
 No config file. No account. What your sessions contain — your prompts, the replies, the files they touch — is never reported anywhere. The deck does send usage reports, on by default: its version, your system, your IP address and a device fingerprint, rough counts such as how many sessions ran in a day, and the errors it hits. It has no switch for them; `AGENTS_DECK_NO_REPORTS=1` keeps them off from the first start.
 

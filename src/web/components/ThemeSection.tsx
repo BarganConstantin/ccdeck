@@ -2,7 +2,8 @@
 //
 // Lifted out of the Appearance modal unchanged when that modal became the
 // General section of Settings. T still switches the theme from anywhere on the
-// deck, and from inside Settings too (SettingsModal.tsx answers it there).
+// deck, and from inside Settings too (SettingsModal.tsx answers it there) —
+// while the single-key shortcuts are on, which is also when the cap is drawn.
 import type { KeyboardEvent } from "react";
 import type { Theme } from "../theme";
 
@@ -43,9 +44,11 @@ function ThemePreview({ theme }: { theme: Theme }) {
 interface Props {
   theme: Theme;
   onTheme: (theme: Theme) => void;
+  /** Whether T does anything (Settings › General's switch, below this). */
+  singleKeys: boolean;
 }
 
-export default function ThemeSection({ theme, onTheme }: Props) {
+export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
     event.preventDefault();
@@ -65,8 +68,9 @@ export default function ThemeSection({ theme, onTheme }: Props) {
         {/* The key App already answers anywhere on the deck. Shown where the
             choice is, the way Settings › Sounds shows M; named to assistive
             tech by aria-keyshortcuts on the group rather than by a stray
-            letter. */}
-        <kbd className="settings-key" aria-hidden title="Press T anywhere to switch themes">T</kbd>
+            letter. Not drawn while the single-key shortcuts are off: a cap
+            for a key that does nothing is a promise the deck breaks. */}
+        {singleKeys && <kbd className="settings-key" aria-hidden title="Press T anywhere to switch themes">T</kbd>}
       </div>
       {/* One tab stop, on the theme that is set — the radio pattern. The
           arrows walk the pair and switch as they go, as a click does. The
@@ -75,7 +79,7 @@ export default function ThemeSection({ theme, onTheme }: Props) {
         className="appearance-themes"
         role="radiogroup"
         aria-labelledby="appearance-theme-caption"
-        aria-keyshortcuts="T"
+        aria-keyshortcuts={singleKeys ? "T" : undefined}
         onKeyDown={moveTheme}
       >
         {THEMES.map(choice => (

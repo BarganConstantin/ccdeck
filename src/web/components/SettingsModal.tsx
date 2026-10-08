@@ -27,7 +27,10 @@ import type { useCustomTones } from "../use-custom-tones";
 import type { useOsNotifications } from "../use-os-notifications";
 import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
+import { characterKeyMuted, setSingleKeyShortcuts } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import GitSection from "./GitSection";
+import KeyboardSection from "./KeyboardSection";
 import MusicSection from "./MusicSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
@@ -66,6 +69,7 @@ export default function SettingsModal({
   }, [section]);
 
   const { theme, setTheme, characterEnabled, setCharacterEnabled } = appearance;
+  const singleKeys = useSingleKeyShortcuts();
 
   const moveSection = (event: KeyboardEvent<HTMLDivElement>) => {
     const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");
@@ -83,9 +87,12 @@ export default function SettingsModal({
   // T is the key General's caption advertises. App answers it anywhere on the
   // deck, but not past an open dialog, so the hint would have named a dead key
   // in the one place it is shown. A field somebody is typing into keeps every
-  // letter, and so does a <select>, whose letters pick an option.
+  // letter, and so does a <select>, whose letters pick an option. And T is a
+  // single-key shortcut like the deck's others, so the switch in General
+  // silences it here too (WCAG 2.1.4).
   const onDialogKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === " ") { event.stopPropagation(); return; }
+    if (characterKeyMuted(event.key, singleKeys)) return;
     const target = event.target as HTMLElement;
     if (isTypingTarget(target) || target.tagName === "SELECT") return;
     if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -166,7 +173,12 @@ export default function SettingsModal({
       case "git":
         return <GitSection />;
       default:
-        return <ThemeSection theme={theme} onTheme={setTheme} />;
+        return (
+          <>
+            <ThemeSection theme={theme} onTheme={setTheme} singleKeys={singleKeys} />
+            <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
+          </>
+        );
     }
   })();
 

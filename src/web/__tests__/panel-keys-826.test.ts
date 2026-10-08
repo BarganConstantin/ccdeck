@@ -41,7 +41,10 @@ describe("the three pointer-only panels get keys (#826)", () => {
   });
 
   it("says the key on the buttons that carry a title of their own", () => {
-    expect(app).toMatch(/this machine — cores, memory, temperature \(S\)/);
-    expect(app).toMatch(/Browser watch — not watching; reading the browser's history live \(B\)/);
+    // Through withKey, which names the letter while Settings › General's
+    // single-key switch is on and drops it when the key does nothing (WCAG
+    // 2.1.4); single-key-shortcuts-surfaces.test.ts draws both.
+    expect(app).toMatch(/this machine — cores, memory, temperature`, "S", singleKeys\)/);
+    expect(app).toMatch(/"Browser watch — not watching; reading the browser's history live", "B", singleKeys\)/);
   });
 });

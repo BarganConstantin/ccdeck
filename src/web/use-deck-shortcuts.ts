@@ -18,6 +18,7 @@ import { gitViewNewest } from "./git-view-request";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
+import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import type { Theme } from "./theme";
 
@@ -173,6 +174,12 @@ export function useDeckShortcuts({
       // Arrows belong to the card, whatever React Flow does or does not do with
       // them. Delete does not: it is the deck's Remove from board (#1668).
       if (intent.kind === "node") return;
+      // WCAG 2.1.4: with Settings › General's switch off, no key that types a
+      // character does anything from here down — every letter, `?` and Space
+      // — so dictation that lands on the page cannot drive the deck. Asked
+      // after the chords, Escape and a focused card's own Enter and Space,
+      // which are not this list's; Delete is a named key and stays too.
+      if (characterKeyMuted(e.key, singleKeyShortcutsOn())) return;
       // `?` closes the sheet it opened, whatever in the sheet has focus — see
       // closesKeySheet. Asked before the gate below, which kept the key for the
       // sheet's ×, and not on a held key's repeat, which would shut the sheet
@@ -340,7 +347,10 @@ export function useDeckShortcuts({
       if (e.key === "?") setKeyHelpOpen(o => !o);
       // The git view for the selected agent, and the same key closes it. It
       // asks for a selection and the view switched on; the dialog gate above
-      // has already said no dialog is in front.
+      // has already said no dialog is in front. With the single-key shortcuts
+      // off it never gets here, nor does N below: the card's branch chip, the
+      // Git section's rows and the commit lane open the view instead, and the
+      // view's own keys (git-view-keys.ts) answer only while it has focus.
       if (e.key === "g" || e.key === "G") toggleGitView();
       // The newest diff of the file the open git view shows, from anywhere —
       // the view takes the same key itself while it has focus.

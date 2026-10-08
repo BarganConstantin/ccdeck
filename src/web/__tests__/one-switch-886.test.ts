@@ -40,8 +40,9 @@ describe("every switch is the one switch (#886)", () => {
     // Sixteen in the source again with the sound menu's account notifications
     // (#1312), which are three switches drawn by one `role="switch"` from one
     // list — this counts the markup that draws them, not what it draws.
-    // Seventeen with the git view's switch, in Settings › Git.
-    expect(switches, "the seventeen switches in the source").toBe(17);
+    // Seventeen with the git view's switch, in Settings › Git; eighteen with
+    // Settings › General's "Single-key shortcuts" (WCAG 2.1.4).
+    expect(switches, "the eighteen switches in the source").toBe(18);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

@@ -81,8 +81,9 @@ describe("character appearance preference", () => {
   it("is titled, and names each control from the words on screen", () => {
     expect(modal()).toContain('<span id="settings-title" className="modal-tool-name">Settings</span>');
     // The pair is named by its visible caption, and the key that switches it
-    // from anywhere is declared on it.
-    expect(themes()).toMatch(/role="radiogroup"\s+aria-labelledby="appearance-theme-caption"\s+aria-keyshortcuts="T"/);
+    // from anywhere is declared on it — while that key does anything, which
+    // Settings › General's single-key switch decides (WCAG 2.1.4).
+    expect(themes()).toMatch(/role="radiogroup"\s+aria-labelledby="appearance-theme-caption"\s+aria-keyshortcuts=\{singleKeys \? "T" : undefined\}/);
     // One tab stop in the pair, on the theme that is set; the arrows walk it.
     expect(themes()).toContain("tabIndex={theme === choice ? 0 : -1}");
     // The previews are pictures; the name is the word under each.

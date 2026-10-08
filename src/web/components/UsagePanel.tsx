@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtCost, UNPRICED_LABEL } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import {
-  boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
+  boardScopeTitle, boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SPEND_LABEL,
   type BoardSessionRow,
 } from "../board-usage";
 import {
@@ -32,6 +32,8 @@ import { useBoardSpend } from "../use-board-spend";
 import { usePanelClock } from "../use-panel-clock";
 import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
 // with the folds that build them (#1175). The tables that draw them, and
@@ -75,6 +77,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
    *  The $/min counts only from here (#821). */
   liveSince?: number | null;
 }) {
+  const singleKeys = useSingleKeyShortcuts();
   const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
   const { data: codexUsage } = useCodexUsage(providers.codex);
@@ -319,7 +322,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             className="glyph-btn up-close"
             onClick={onClose}
             aria-label="Close usage panel"
-            title="Close (U)"
+            title={withKey("Close", "U", singleKeys)}
           >×</button>
         </div>
       </div>
@@ -371,7 +374,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               "what has today cost me" from the logs on disk. */}
           {hasCost && (
             <>
-              <div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+              <div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
                 <span className="up-total-value">{fmtCost(shownCost)}</span>
                 <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
               </div>
@@ -389,7 +392,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             </>
           )}
 
-          <div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+          <div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
             <span className="up-tok"><span className="up-k">in</span>{fmtTokens(shownIn)}</span>
             <span className="up-tok"><span className="up-k">out</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that

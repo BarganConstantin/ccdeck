@@ -23,8 +23,10 @@ import {
 } from "../git-view-words";
 import type { GraphState } from "../reducer";
 import { sessionHue } from "../session-hue";
+import { withKey } from "../single-key-shortcuts";
 import type { AgentNodeData } from "../types";
 import { changedFiles, madeByFocus, useGitData } from "../use-git-view";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import GitHandoffs from "./GitHandoffs";
 import { CollisionLine, GvIcon, GvMark, ReadStateLine, useFittedName } from "./GitViewParts";
 
@@ -44,6 +46,9 @@ interface Props {
 
 export default function GitGlance({ agent, root, now, stateRef }: Props) {
   const gitOn = useGitOn();
+  // `g` opens the view from the canvas only while Settings › General's
+  // single-key shortcuts are on; off, no row here names it.
+  const singleKeys = useSingleKeyShortcuts();
   const facts = gitFactsFor(agent, root);
   const readable = gitViewOpens(facts);
   const focus = gitFocus(agent, false);
@@ -90,7 +95,9 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
     <h3 aria-labelledby={`gv-glance-${agent.id}`}>
       <span id={`gv-glance-${agent.id}`}>Git</span>
       {known && (data.state === "repo" || data.state === "loading") && (
-        <button type="button" className="gv-open" title="Open the git view (g)" onClick={e => open(e)}>Open<kbd>g</kbd></button>
+        <button type="button" className="gv-open" data-plain={singleKeys ? undefined : ""} title={withKey("Open the git view", "g", singleKeys)} onClick={e => open(e)}>
+          Open{singleKeys && <kbd>g</kbd>}
+        </button>
       )}
     </h3>
   );
@@ -199,7 +206,7 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
       {(moreCommits > 0 || moreFiles > 0) && (
         <button type="button" className="gv-g-more" onClick={e => open(e)}>
           {[moreCommits ? `+${moreCommits} commit${moreCommits === 1 ? "" : "s"}` : "", moreFiles ? `+${moreFiles} more file${moreFiles === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
-          <span aria-hidden="true">·</span><kbd>g</kbd><span>open</span>
+          <span aria-hidden="true">·</span>{singleKeys && <kbd>g</kbd>}<span>open</span>
         </button>
       )}
       <GitHandoffs sessionId={agent.sessionId} agentId={agent.git ? subagentKey(agent) : null}

@@ -146,7 +146,9 @@ describe("the short list that used to sit in the detail rail", () => {
 describe("the way in", () => {
   it("binds ? to the sheet, and the sheet to ?", () => {
     expect(app).toMatch(/if \(e\.key === "\?"\) setKeyHelpOpen\(o => !o\);/);
-    expect(app).toMatch(/\{keyHelpOpen && <KeyboardHelp onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
+    // Over several lines since it gained a third door, Settings at General
+    // for the single-key switch; the flag and the close are the same.
+    expect(app).toMatch(/\{keyHelpOpen && \(\s*<KeyboardHelp\s+onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
     // The sheet is mounted in components/DeckDialogs.tsx, which App.tsx hands the dialogs' state.
     expect(read("App.tsx")).toMatch(/<DeckDialogs\b[^>]*\bdialogs=\{dialogs\}/);
   });
@@ -158,7 +160,10 @@ describe("the way in", () => {
     // clicks an agent. It is in the canvas control stack, beside Recenter,
     // Re-arrange and Clear — where this deck put its commands when the topbar
     // was cut back — and not in the topbar, which is the thing that was cut.
-    expect(app).toMatch(/title="Keyboard shortcuts \(\?\)"/);
+    // The tooltip names `?` while `?` opens the sheet; with Settings › General's
+    // single-key switch off it is the button alone that does, and it says why
+    // `?` is quiet (WCAG 2.1.4).
+    expect(app).toContain('title={singleKeys ? withKey("Keyboard shortcuts", "?", true) : "Keyboard shortcuts — the single-key ones are off"}');
     expect(app).toMatch(/aria-label="Open the keyboard shortcuts"/);
     expect(app).not.toMatch(/className="btn icon-btn"[\s\S]{0,200}Keyboard shortcuts/);
   });

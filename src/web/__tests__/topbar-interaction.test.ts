@@ -353,8 +353,10 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // `useRef` argument, so `createPauseGate()` ran on every render and every
     // gate but the first was discarded. It is a lazily-initialised value now
     // and the ref around it is gone; what the tooltip has to say is unchanged.
+    // `singleKeys` joined them with Settings › General's switch: Space is named
+    // in the tooltip only while Space pauses (WCAG 2.1.4).
     expect(CONTROL).toMatch(
-      /title=\{pauseTitle\(\{ paused, held: pauseGate\.size, dropped: pauseGate\.dropped \}\)\}/,
+      /title=\{pauseTitle\(\{ paused, held: pauseGate\.size, dropped: pauseGate\.dropped, singleKeys \}\)\}/,
     );
   });
 

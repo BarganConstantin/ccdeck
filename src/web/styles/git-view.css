@@ -304,6 +304,9 @@ button.btn.gv-retry { align-self: flex-start; margin-top: 4px; }
   cursor: pointer;
   transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 140ms var(--gv-ease);
 }
+/* The right inset is the cap's; with the single-key shortcuts off the button
+   draws no cap (data-plain), and the word stands evenly in it. */
+.gv-open[data-plain] { padding: 0 8px; }
 .gv-open:hover { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
 .gv-open:active { transform: scale(0.97); }
 .gv-g-branch { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px; color: var(--text); font: 12px/1 var(--font-mono); }
