@@ -53,12 +53,13 @@ export const LABEL_MIN_W = 64;
 /**
  * The furniture drawn over the pane, which a pill keeps clear of: the
  * category filter bar, React Flow's panels (the control stack and the
- * minimap), the auto-fit chip, and the panels that float over the canvas —
+ * minimap), the auto-fit chip and Re-arrange's Undo above it, and the panels
+ * that float over the canvas —
  * usage, machine, and the detail panel where a narrow window floats it. A
  * selector that matches beside the pane rather than over it measures to
  * nothing and drops out.
  */
-export const PANE_CHROME = ".cat-filter-bar, .react-flow__panel, .autofit-chip, .usage-panel, .sysdetail, .detail";
+export const PANE_CHROME = ".cat-filter-bar, .react-flow__panel, .autofit-chip, .rearrange-undo, .usage-panel, .sysdetail, .detail";
 
 /**
  * How wide `c`'s pill may draw at this camera, and whether it is drawn at all.

@@ -32,6 +32,13 @@
   .fb-tool,
   .fb-foot .btn { min-height: 32px; }
   .fb-shot > .fb-shot-remove::after { inset: -6px; }
+  /* The canvas strips' one word each, Resume and Re-arrange's Undo, take the
+     floor too, and Undo drops the chord it names: a fingertip has no key to
+     press. The chip is 38px tall here, so the strip stacks 8px over that. */
+  .autofit-resume,
+  .rearrange-undo-act { min-height: 32px; }
+  .rearrange-undo-key { display: none; }
+  .autofit-chip ~ .rearrange-undo { transform: translateY(-46px); }
 }
 
 /* ---------------- forced colours (#871) ----------------
@@ -236,5 +243,16 @@
   .sm-row input[type="range"]::-moz-range-track { background: GrayText; }
   .sm-row input[type="range"]::-moz-range-progress { background: Highlight; }
   .sm-row input[type="range"]::-moz-range-thumb { background: Highlight; }
+
+  /* The canvas strips' words — Resume, and Re-arrange's Undo — are set apart
+     from the status beside them by weight and by a fill under the pointer,
+     and the theme paints that fill Canvas. An edge in the button colour
+     carries each instead, Highlight under the pointer, so the one control in
+     each strip still reads as one. A border and not an outline, which would
+     replace the keyboard's ring. */
+  .autofit-resume,
+  .rearrange-undo-act { border: 1px solid ButtonText; }
+  .autofit-resume:hover,
+  .rearrange-undo-act:hover { border-color: Highlight; }
 }
 
