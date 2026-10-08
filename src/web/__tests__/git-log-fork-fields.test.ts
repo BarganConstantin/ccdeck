@@ -79,6 +79,21 @@ describe("a log commit's body", () => {
   });
 });
 
+describe("a message larger than one read's usual cap", () => {
+  it("still answers the history, with that commit's body and trailers", async () => {
+    // A generated changelog, say: past the 8 MB a read is otherwise held to.
+    const dir = track(repoWith({ "a.txt": "one\n" }));
+    write(dir, { "a.txt": "two\n", "msg.txt": `chore: regenerate the changelog\n\n${"- a line of the changelog\n".repeat(360_000)}\nCo-Authored-By: Claude <noreply@anthropic.com>\n` });
+    sh(dir, ["add", "a.txt"]);
+    sh(dir, ["commit", "-q", "-F", "msg.txt"]);
+    const r = await readLog(dir, await headOf(dir));
+    expect(r.ok).toBe(true);
+    const [tip] = r.commits;
+    expect(tip).toMatchObject({ subject: "chore: regenerate the changelog", hasBody: true });
+    expect(tip.trailers).toEqual([{ key: "Co-Authored-By", value: "Claude <noreply@anthropic.com>" }]);
+  });
+});
+
 describe("the commits HEAD has not pushed", () => {
   it("flags what HEAD has and its upstream does not, and nothing once it is pushed", async () => {
     const { dir } = tracked(["second", "third"]);

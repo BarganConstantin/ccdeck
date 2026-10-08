@@ -20,6 +20,10 @@ const US = "\x1f";
 // SHA, parents, author name, author email, author date (strict ISO), subject,
 // body. The body is last so a unit separator inside one cannot shift a field.
 const LOG_FORMAT = ["%H", "%P", "%an", "%ae", "%aI", "%s", "%b"].join("%x1f");
+/** The most a read of LOG_FORMAT may print. A commit message has no limit of
+ *  its own (a generated changelog, a squash listing thousands of commits),
+ *  and one past the usual cap would fail the whole history. */
+const LOG_BYTES = 64 << 20;
 /** The most the read of every ref may print: a pull-request refspec on a busy
  *  project, or a tag per build, can pass a hundred thousand refs. */
 const ALL_REFS_BYTES = 64 << 20;
@@ -186,7 +190,7 @@ export async function readLog(topLevel, head, { limit = LOG_LIMIT, commonDir = n
   if (head?.sha) starts.push("HEAD");
   if (!head?.sha && refs.size === 0) return { ok: true, commits: [] };
   const read = (topo, timeout) =>
-    git("log", ["-z", ...(topo ? ["--topo-order"] : []), `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"], { cwd: topLevel, ...(timeout ? { timeout } : {}) });
+    git("log", ["-z", ...(topo ? ["--topo-order"] : []), `--max-count=${limit}`, `--format=${LOG_FORMAT}`, ...starts, "--"], { cwd: topLevel, maxBytes: LOG_BYTES, ...(timeout ? { timeout } : {}) });
   const key = commonDir || topLevel;
   const graph = await hasCommitGraph(commonDir);
   const finish = async (commits) => withUnpushed(topLevel, await withHeadLine(topLevel, commits, refs, head, defaultBranch), refs, head, limit);
@@ -241,7 +245,7 @@ async function withUnpushed(topLevel, commits, refs, head, limit) {
  *  A read of that line that fails leaves the window as it is. */
 async function withHeadLine(topLevel, commits, refs, head, defaultBranch) {
   if (!head?.sha || !isShaLike(head.sha) || commits.some((c) => c.sha === head.sha)) return commits;
-  const r = await git("log", ["-z", "--first-parent", `--max-count=${HEAD_LINE_MAX}`, `--format=${LOG_FORMAT}`, head.sha, "--"], { cwd: topLevel });
+  const r = await git("log", ["-z", "--first-parent", `--max-count=${HEAD_LINE_MAX}`, `--format=${LOG_FORMAT}`, head.sha, "--"], { cwd: topLevel, maxBytes: LOG_BYTES });
   if (!r.ok) return commits;
   const listed = new Set(commits.map((c) => c.sha));
   const line = [];
@@ -369,7 +373,7 @@ export async function readCommitsBySha(topLevel, shas, head, { defaultBranch = n
   if (!lost.ok) return { ok: false, reason: readFailure(lost) };
   const gone = new Set(lost.stdout.split("\n").map((l) => l.trim()).filter(Boolean));
   const refs = await refsByCommit(topLevel, head);
-  const r = await git("log", ["-z", "--no-walk", "--ignore-missing", `--format=${LOG_FORMAT}`, ...list, "--"], { cwd: topLevel });
+  const r = await git("log", ["-z", "--no-walk", "--ignore-missing", `--format=${LOG_FORMAT}`, ...list, "--"], { cwd: topLevel, maxBytes: LOG_BYTES });
   if (!r.ok) return { ok: false, reason: readFailure(r) };
   const kept = withRefs(r.stdout, refs, head).filter((c) => !gone.has(c.sha));
   return { ok: true, commits: await withReach(topLevel, kept, refs, head, defaultBranch) };
