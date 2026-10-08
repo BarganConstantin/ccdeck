@@ -35,7 +35,8 @@ export interface FkSidebarProps {
   top: string | null;
   /** The view's stale counter: the refs are read again when it moves. */
   stale: number;
-  view: "all" | "local";
+  /** The view on show; null while the git view has not decided where it opens. */
+  view: "all" | "local" | null;
   onView: (v: "all" | "local") => void;
   /** How many files the working tree has changed: `Local Changes (N)`. */
   localCount: number;

@@ -376,6 +376,10 @@
 
 /* --------------------------------------------- Local Changes, in their place */
 .fk-local { flex: 1; min-height: 0; display: flex; flex-direction: column; min-width: 0; background: var(--fk-inspector); }
+/* Before the view knows where it opens (a few hundred milliseconds on a cold
+   read): the list's own surface, neither view drawn, so it never shows one
+   layout and swaps it for the other. */
+.fk-opening { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--fk-list); }
 
 /* The deck's one-line state of a folder with no repository, in Fork's ink. */
 .gv-wide[data-look="fork"] .gv-pane-empty { color: var(--fk-text-2); }
