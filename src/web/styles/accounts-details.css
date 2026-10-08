@@ -88,6 +88,7 @@
   .aa-tab:active,
   .aa-result-fix:active,
   .autofit-resume:active,
+  .rearrange-undo-act:active,
   .bw-ep-head:active,
   /* The usage panel's one section that opens. Its chevron turns as well, and a
      rotation is the motion this block exists for — `transform: none` reaches

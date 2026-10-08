@@ -80,17 +80,30 @@ function useWindowWidth(): number {
   return w;
 }
 
+/** Where the panel may stand across the window: from the left stripe's inner
+ *  edge (a sheet's left) to the right stripe's (every panel's right), so the
+ *  panel toggles on both edges stay in sight and in reach while it is open.
+ *  The window's own edges where there are no stripes: on a phone the dock
+ *  stands in for them, along the bottom. */
+function chromeEdges(): { start: number; end: number } {
+  const left = document.querySelector(".edge-rail-left")?.getBoundingClientRect();
+  const right = document.querySelector(".edge-rail-right")?.getBoundingClientRect();
+  return { start: left && left.width > 0 ? left.right : 0, end: right && right.width > 0 ? right.left : window.innerWidth };
+}
+
 /** The canvas box: where the panel's top goes, and how much of the window the
- *  panel and the canvas share (the window less a left column). */
-function canvasBox(canvas: HTMLElement | null): { top: number; left: number; right: number; width: number; height: number } | null {
+ *  panel and the canvas share (from the canvas's left, past a left column, to
+ *  the right stripe). */
+function canvasBox(canvas: HTMLElement | null): { top: number; left: number; right: number; width: number; height: number; start: number; end: number } | null {
   if (!canvas) return null;
   const r = canvas.getBoundingClientRect();
-  return { top: r.top, left: r.left, right: r.right, width: r.width, height: r.height };
+  return { top: r.top, left: r.left, right: r.right, width: r.width, height: r.height, ...chromeEdges() };
 }
 
 type CanvasBox = NonNullable<ReturnType<typeof canvasBox>>;
 const sameBox = (a: CanvasBox | null, b: CanvasBox | null) =>
-  a === b || (a != null && b != null && a.top === b.top && a.left === b.left && a.right === b.right && a.width === b.width && a.height === b.height);
+  a === b || (a != null && b != null && a.top === b.top && a.left === b.left && a.right === b.right && a.width === b.width && a.height === b.height
+    && a.start === b.start && a.end === b.end);
 
 /** Elements made inert while the view is open, and what to give back. */
 function setInert(els: Iterable<Element>, on: boolean, held: Set<Element>) {
@@ -187,11 +200,14 @@ export default function GitView(props: GitViewProps) {
   // The canvas box is read in the frame after the panel's first paint (and
   // kept from the last open until then), so the press reads no layout.
   const [box, setBox] = useState(() => canvasBox(canvasRef.current));
-  const room = box ? win - box.left : win;
-  const width = sheet ? win : panelWidth(fork ? prefs.fkW : prefs.w, win, room);
+  // The panel's right edge: the right stripe's inner edge.
+  const end = box ? box.end : win;
+  const room = box ? end - box.left : win;
+  // A sheet stands between the two stripes.
+  const width = sheet ? end - (box ? box.start : 0) : panelWidth(fork ? prefs.fkW : prefs.w, win, room);
   // How much of the canvas the panel covers: its width less the detail rail
   // beside the canvas. It slides out from that rail's edge.
-  const cover = Math.max(0, width - (box ? win - box.right : detailShown ? 360 : 0));
+  const cover = Math.max(0, width - (box ? end - box.right : detailShown ? 360 : 0));
   const travel = sheet ? 32 : cover;
 
   // ── the camera beside the view ────────────────────────────────────────
@@ -224,7 +240,7 @@ export default function GitView(props: GitViewProps) {
     const canvas = canvasRef.current;
     if (!canvas) return NO_BOXES;
     const rect = canvas.getBoundingClientRect();
-    const sight: PaneBox = { left: rect.left, right: Math.min(rect.right, window.innerWidth - w), top: rect.top, bottom: rect.bottom };
+    const sight: PaneBox = { left: rect.left, right: Math.min(rect.right, chromeEdges().end - w), top: rect.top, bottom: rect.bottom };
     const { x, y, zoom } = at;
     const under = new Set<Element>(), clear = new Set<Element>();
     for (const n of nodesRef.current) {
@@ -268,7 +284,7 @@ export default function GitView(props: GitViewProps) {
     const canvas = canvasRef.current;
     if (!a || sh || !canvas) { setMarkers([]); return; }
     const rect = canvas.getBoundingClientRect();
-    const cover = Math.max(0, w - (window.innerWidth - rect.right));
+    const cover = Math.max(0, w - (chromeEdges().end - rect.right));
     const lanes = laneMap(stateRef.current);
     const boxOf = (n: Node): FlowBox | null => {
       const m = measuredRef.current.get(n.id);
@@ -558,7 +574,9 @@ export default function GitView(props: GitViewProps) {
   const style = {
     "--gv-w": `${width}px`,
     "--gv-travel": `${travel}px`,
-    "--gv-top": `${box?.top ?? 52}px`,
+    // The canvas's top, under the topbar and any banner; the bar's own
+    // height (the sheet's fallback) until it has been measured.
+    ...(box ? { "--gv-top": `${box.top}px` } : {}),
     "--gv-graph-h": `${((fork ? prefs.fkGraphH : prefs.graphH) * 100).toFixed(1)}%`,
     "--gv-files-w": `${(prefs.filesW * 100).toFixed(1)}%`,
     ...(fork ? { "--fk-side-w": `${sidebarLayout(prefs.sidebarW, width, sheet).width}px` } : {}),

@@ -34,8 +34,10 @@ import { usePanelReturn } from "./use-panel-return";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
-import { SessionRun, SettingsRun, SourceRun } from "./components/TopbarRuns";
-import { ReadoutGroup } from "./components/TopbarReadouts";
+import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
+import { railItems } from "./rail-items";
+import { useMediaQuery } from "./use-media-query";
+import { ReadoutGroup, WaitingNames } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
 import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
@@ -74,13 +76,12 @@ import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
 import { initialState } from "./reducer";
-import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useGitOpener } from "./use-git-opener";
 import GitView from "./components/GitView";
-import { closeGitViewRequest, gitViewRequest, openGitViewRequest, setGitAgentFocuser, setGitViewOpener, yieldingRailToggle, type GitViewHow } from "./git-view-request";
+import { closeGitViewRequest, gitViewRequest, openGitViewRequest, setGitAgentFocuser, setGitViewOpener, useGitViewCovers, yieldingColumnToggle, yieldingRailToggle, type GitViewHow } from "./git-view-request";
 import { gitKeyAllowed } from "./git-view-keys";
 import { gitFactsFor, gitViewOpens, subagentKey } from "./git-view-target";
 import { UNREADABLE, cachedGitState } from "./use-git-view";
@@ -139,7 +140,13 @@ function Inner() {
   // the eviction live in use-left-column.ts; only its toggles can open either.
   const { sessionListOpen, accountsPanelOpen, toggleSessionList, toggleAccountsPanel,
           closeSessionList, closeAccountsPanel } = useLeftColumn();
-  const monthly = useMonthlyUsage();
+  // A full-sheet git view stands over the left column as well: its two
+  // toggles then close the view and show the panel, as the rail's do
+  // (git-view-request.ts). Beside the canvas they toggle as before.
+  const columnToggles = useMemo(() => ({
+    sessionList: { pointer: yieldingColumnToggle(toggleSessionList, sessionListOpen, "pointer"), key: yieldingColumnToggle(toggleSessionList, sessionListOpen, "key") },
+    accounts: { pointer: yieldingColumnToggle(toggleAccountsPanel, accountsPanelOpen, "pointer"), key: yieldingColumnToggle(toggleAccountsPanel, accountsPanelOpen, "key") },
+  }), [toggleSessionList, sessionListOpen, toggleAccountsPanel, accountsPanelOpen]);
   /** The panel outlives its own `false` by the length of its exit, so closing
    *  it animates instead of cutting 288px out of the layout in one frame.
    *  Must match `--side-exit` in the sheet. */
@@ -321,8 +328,8 @@ function Inner() {
   // The board's arrangement — the stored positions and pins it was restored
   // from, the placeholders, the layout signature, the epoch R and the reframe
   // move, and the frame it was packed for — and R itself, in use-board-layout.ts.
-  const layout = useBoardLayout(fitLeft);
-  const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout } = layout;
+  const layout = useBoardLayout(camera);
+  const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout, rearrangeUndo } = layout;
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -579,7 +586,8 @@ function Inner() {
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
-    handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
+    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause,
+    toggleSessionList: columnToggles.sessionList.key, toggleAccountsPanel: columnToggles.accounts.key,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: railToggles.usage.key, setMachinePanelOpen: railToggles.machine.key,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
     gitViewOpenRef: { get current() { return gitViewRequest().open; } }, toggleGitView, closeGitView,
@@ -628,6 +636,36 @@ function Inner() {
   // use-prefs-read.ts.
   usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
 
+  // The eight controls of the chrome, each defined once, and the edge each
+  // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
+  // the two stripes and the utilities are one dock along the bottom.
+  const phone = useMediaQuery(PHONE_QUERY);
+  // A panel out of sight under the open git view is not drawn open on its
+  // edge: the line would face the view, not the panel. Its button still shows
+  // it, closing the view first. Re-renders only as the view opens or closes.
+  const gitCovers = useGitViewCovers();
+  const rails = railItems({
+    providers,
+    sessionListOpen: sessionListOpen && gitCovers !== "all", toggleSessionList: columnToggles.sessionList.pointer,
+    accountsPanelOpen: accountsPanelOpen && gitCovers !== "all", toggleAccountsPanel: columnToggles.accounts.pointer,
+    usagePanelOpen: usagePanelOpen && gitCovers === "none", setUsagePanelOpen: railToggles.usage.pointer,
+    machinePanelOpen: machinePanelOpen && gitCovers === "none", setMachinePanelOpen: railToggles.machine.pointer, setUsageHistoryOpen,
+    watchOn, watchUnseen, setBrowserWatchOpen, openSettings, onFeedback: dialogs.openFeedback,
+    toggles: panelReturn.toggles,
+  });
+  // How many of the waiting sessions the topbar names, for the count's hint,
+  // which lists the rest.
+  const [queueNamed, setQueueNamed] = useState(0);
+  /** The waiting queue's "+N more": the session list, whose top rows are the
+   *  same sessions in the same order, opened if it is shut, and focus on its
+   *  first row once it is drawn. */
+  const showWaitingList = useCallback(() => {
+    // Through the column's own toggle, which closes a full-sheet git view
+    // standing over the list first.
+    if (!sessionListOpen || gitCovers === "all") columnToggles.sessionList.pointer();
+    requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
+  }, [sessionListOpen, gitCovers, columnToggles]);
+
   return (
     <div className="app">
       {/* The deck's regions, and why each one is the element it is (#381).
@@ -670,57 +708,33 @@ function Inner() {
       <header className="topbar">
         {/* The observation group, and the notes on each readout in it — components/TopbarReadouts.tsx. */}
         <ReadoutGroup
-          versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause} monthly={monthly}
+          versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause}
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
           waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
-          incidents={incidents}
+          incidents={incidents} queueNamed={phone ? 0 : queueNamed}
         />
+        {/* Who is waiting, by name, in the room the bar has left — and none of
+            it on a phone, where the bar holds the count alone. Mounted while
+            nothing waits too, so the ribbon after it stands in one place
+            whether or not somebody is waiting. */}
+        {!phone && (
+          <WaitingNames waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef}
+            focusSession={focusSession} now={now} onFit={setQueueNamed} onMore={showWaitingList} />
+        )}
         {selected && (
           <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
         )}
-        <div className="actions">
-          {/* Three runs, 4px inside and 12px between, and the settings run a
-              further 12px out, so it stands at the 24px that separates this
-              whole group from the readout: control to control, run to run,
-              role to role. Spacing only, no rules drawn between them.
-              The first two runs open things: your sessions and what they
-              spend (Session list, Usage and its History), then who spends it,
-              on what, and what it watched (Accounts, Machine, Browser watch).
-              The third is the utilities: the gear that opens Settings, and
-              Feedback.
-              Re-layout, Clear and now Pause are gone from here entirely. All
-              three are canvas verbs and they are on the canvas, in the React
-              Flow control stack beside Recenter — the same place `F` already
-              had no topbar button of its own. Pause was held back a release
-              because it carried a count no glyph can print; the pill at the
-              other end of this bar carries it instead, which is what let the
-              last text button in the row go.
-              Two runs now, so the 18px between them draws one seam rather than
-              two. Nothing else in the bar moved: `.actions` is `flex: none` on
-              a `space-between` header, so the icon runs were pinned to the
-              right edge before and are pinned there still — what the removal
-              gives back is width in the middle, where the selected-agent ribbon
-              and the readouts share it. */}
-          <SessionRun
-            sessionListOpen={sessionListOpen} toggleSessionList={toggleSessionList}
-            usagePanelOpen={usagePanelOpen} setUsagePanelOpen={railToggles.usage.pointer}
-            setUsageHistoryOpen={setUsageHistoryOpen} toggles={panelReturn.toggles}
-          />
-          <SourceRun
-            providers={providers} accountsPanelOpen={accountsPanelOpen} toggleAccountsPanel={toggleAccountsPanel}
-            machinePanelOpen={machinePanelOpen} setMachinePanelOpen={railToggles.machine.pointer}
-            watchOn={watchOn} watchUnseen={watchUnseen} setBrowserWatchOpen={setBrowserWatchOpen}
-            toggles={panelReturn.toggles}
-          />
-          {/* The gear that opens Settings, and Feedback —
-              components/TopbarRuns.tsx. */}
-          <SettingsRun
-            openSettings={openSettings}
-            onFeedback={() => dialogs.openFeedback()}
-            watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen} setBrowserWatchOpen={setBrowserWatchOpen}
-          />
-        </div>
+        {/* Settings and Feedback, in the corner every product keeps them in.
+            The panel toggles are on the edges their panels open from. */}
+        {!phone && <div className="actions"><UtilityRun items={rails.utilities} /></div>}
       </header>
+
+      {/* The left stripe, ahead of the column it opens so Tab reaches the
+          control before the region it discloses — or, on a phone, the dock
+          that stands in for both stripes and the utilities. */}
+      {phone
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right[1], rails.utilities[1]]} />
+        : <EdgeRail side="left" label="Left column" groups={[rails.left]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -792,6 +806,10 @@ function Inner() {
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
         />
       </CanvasMain>
+
+      {/* The right stripe, ahead of the two panels it opens so Tab reaches the
+          control before the region it discloses. */}
+      {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only

@@ -49,9 +49,12 @@ export interface DeckKeysOptions {
   /** Settings › General's single-key switch; on, as a deck starts, unless a
    *  test says not. Set on every mount, so no test inherits another's. */
   singleKeys?: boolean;
+  /** Re-arrange's Undo: true when its window was open and it restored the
+   *  board, false once the notice has gone. Absent, there is nothing to undo. */
+  undoRearrange?: () => boolean;
 }
 
-export function mountDeckKeys({ claude = true, singleKeys = true }: DeckKeysOptions = {}) {
+export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   vi.stubGlobal("window", {
     addEventListener: (type: string, fn: (e: KeyboardEvent) => void) => { if (type === "keydown") onKey = fn; },
@@ -86,6 +89,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true }: DeckKeysOpti
     focusSession: vi.fn(),
     requestClear: vi.fn(),
     handleRelayout: vi.fn(),
+    undoRearrange: vi.fn(undoRearrange),
     handleFit: vi.fn(),
     togglePause: vi.fn(),
     toggleSessionList: vi.fn(),
