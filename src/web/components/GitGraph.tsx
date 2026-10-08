@@ -555,6 +555,8 @@ const FkHistoryRow = memo(function FkHistoryRow(p: FkRowProps) {
             data-sha={c.sha} title={agent.level === "trailer" ? `${agent.name}, from the commit message` : `${who(agent)}, ${agent.level === "matched" ? "matched" : "seen by ccdeck"}`}
             style={agent.hue !== null ? ({ "--session-hue": agent.hue } as React.CSSProperties) : undefined}>
             {agent.hue !== null && <i className="gv-swatch fk-swatch" />}
+            {/* On a phone the swatch stands alone, with this for a subagent's commit. */}
+            {agent.sub && <span className="fk-chip-sub" aria-hidden="true">↳</span>}
             <span className="gv-agent-name">{who(agent)}</span>
           </span>
         )}
