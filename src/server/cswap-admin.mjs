@@ -409,9 +409,14 @@ let _starting = null;
 
 export function loginState() {
   if (!_login) return { state: "idle" };
-  const { state, url, error, account, expiresAt, restore } = _login;
+  const { state, step, url, error, account, expiresAt, restore } = _login;
   return {
     state, url: url ?? null, error: error ?? null, account: account ?? null, expiresAt: expiresAt ?? null,
+    // Where inside `registering` the flow is — see LOGIN_STEPS. Null before it
+    // and on a failure that happened before it, and left on the step that was
+    // running when anything after it failed, which is how the dialog knows
+    // which of its stages to mark.
+    step: step ?? null,
     // The sign-in's OTHER outcome, and the one it used to drop (#951). `true`
     // until a restore has actually been attempted, because every state before
     // that — awaiting_url, awaiting_code, registering — has moved nothing that
@@ -420,6 +425,23 @@ export function loginState() {
     ...restoreFields(restore),
   };
 }
+
+/**
+ * The points a sign-in passes through after the browser said yes, in order.
+ *
+ * `registering` covers all three and used to be reported as one state, so the
+ * dialog could only say "registering…" for however long they took together —
+ * an identity check, a `cswap add` that may first wait its turn on the store
+ * lock, and a `cswap switch` back to the account the user was on. Each is set
+ * on the flow at the moment it begins, never ahead of it, so a dialog that
+ * shows the step is showing what the deck is doing rather than a guess.
+ *
+ *   confirm  the claude CLI is asked who signed in (and, for a pasted code,
+ *            first takes the code)
+ *   save     claude-swap records the account
+ *   restore  the account the user was working in is put back in front
+ */
+export const LOGIN_STEPS = Object.freeze(["confirm", "save", "restore"]);
 
 /** The restore verdict, in the two fields a caller reads. Written once here so
  *  the login route, the cancel result and the dialog's type cannot drift. */
@@ -654,6 +676,7 @@ async function spawnLogin(email) {
     // code posted while the question is out would otherwise register the same
     // login a second time, with a second `cswap add` racing this one.
     flow.state = "registering";
+    flow.step = "confirm";
     const identity = await currentIdentity();
     if (flow !== _login) return;
     // A clean exit with somebody logged in is a completed sign-in, including
@@ -723,6 +746,10 @@ function loginFailureText(r) {
  * with; the done handler simply drops it.
  */
 async function registerSignedIn(flow, identity) {
+  // Before the lock, not inside it: waiting for another change to the store to
+  // finish is part of saving this one, and the dialog says so rather than
+  // going on claiming the sign-in is still being confirmed.
+  flow.step = "save";
   return withStoreLock(async () => {
     const add = await run(await cswapBin(), ["add"], { timeout: CSWAP_TIMEOUT_MS });
     if (!add.ok) {
@@ -764,6 +791,7 @@ async function registerSignedIn(flow, identity) {
     // WAS added — but it is `done` with a qualification whenever this says the
     // machine did not go back, and the dialog renders that qualification
     // instead of "The account you were using is still active".
+    flow.step = "restore";
     flow.restore = await restoreActive(flow.previousActive);
     invalidateClaudeAccountsCache();
     // Collect straight away, so the new row shows numbers instead of "never
@@ -791,6 +819,7 @@ export async function submitLoginCode(code) {
 
   const askedBefore = flow.prompts;
   flow.state = "registering";
+  flow.step = "confirm";
   flow.child.write(code.trim() + "\n");
 
   // Whichever comes first: the CLI finishing, or it asking again. A wrong code
@@ -802,11 +831,13 @@ export async function submitLoginCode(code) {
   ]);
   if (r === "rejected") {
     flow.state = "awaiting_code";
+    flow.step = null;
     flow.error = "that code was not accepted — copy it again from the browser";
     return { ok: false, reason: "code_rejected", ...loginState() };
   }
   if (r === "slow") {
     flow.state = "awaiting_code";
+    flow.step = null;
     flow.error = "the claude CLI has not answered — try the code again";
     return { ok: false, reason: "no_verdict", ...loginState() };
   }

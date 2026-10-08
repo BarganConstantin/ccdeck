@@ -1,4 +1,15 @@
-// Which account the sign-in dialog says it registered.
+// What the server tells the sign-in dialog while it registers an account, and
+// which account it says it registered.
+//
+// THE STEP. `registering` used to be one opaque state covering everything
+// between the browser saying yes and the success card: asking the claude CLI
+// who signed in, `cswap add` (behind the store lock, so possibly a wait for
+// another change first), and `cswap switch` back to the account the user was
+// on. The dialog had nothing to draw for any of it but a button reading
+// "registering…". The flow already passes through those three points in a
+// fixed order, so it now says which one it is at — a `step` on the polled
+// state, set at the moment each begins and left where it stopped when one
+// fails, which is how the dialog knows which stage to mark as the failure.
 //
 // THE VERDICT. "Account N added" and "Credentials refreshed" were decided by
 // `newSlot(before, after)` — the one slot that appeared during the sign-in —
@@ -122,7 +133,7 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
 const { lineFeed } = await import("../../server/exec.mjs");
 // @ts-expect-error — plain JS module, no types
 const admin = await import("../../server/cswap-admin.mjs");
-const { startLogin, cancelLogin, loginState, readStore, withStoreLock, accountOriginsWith } = admin;
+const { startLogin, submitLoginCode, cancelLogin, loginState, readStore, withStoreLock, accountOriginsWith, LOGIN_STEPS } = admin;
 probe.read = loginState;
 
 type Accounts = Record<string, { email: string; organizationUuid?: string }>;
@@ -194,6 +205,80 @@ afterAll(() => {
   }
   rmTempDir(FAKE_HOME);
   rmTempDir(FAKE_STORE);
+});
+
+describe("the step a registering sign-in reports", () => {
+  it("is null while nothing past the browser has started", async () => {
+    store({ 1: { email: WORK } }, 1);
+    await waiting();
+    expect(loginState()).toMatchObject({ state: "awaiting_code", step: null });
+  });
+
+  it("moves confirm → save → restore, each set before its command runs", async () => {
+    store({ 1: { email: WORK } }, 1);
+    cli.onAdd = () => { store({ 1: { email: WORK }, 2: { email: PERSONAL } }, 2); return true; };
+    const child = await waiting();
+    cli.identity = { email: PERSONAL };
+    finish(child);
+
+    const state = await settled();
+    expect(state.state).toBe("done");
+    expect(registering()).toEqual([
+      ["auth status", "confirm"],
+      ["add", "save"],
+      ["switch 1", "restore"],
+    ]);
+  });
+
+  it("says confirm the moment a pasted code is handed over, and drops it if the code is refused", async () => {
+    store({ 1: { email: WORK } }, 1);
+    const child = await waiting();
+    const verdict = submitLoginCode("CODE-1");
+    expect(loginState()).toMatchObject({ state: "registering", step: "confirm" });
+    child.out("\r\nInvalid code.\r\nPaste code here if prompted > ");
+    expect(await verdict).toMatchObject({ ok: false, reason: "code_rejected" });
+    expect(loginState()).toMatchObject({ state: "awaiting_code", step: null });
+  }, 10_000);
+
+  it("stays on save when claude-swap could not record the account", async () => {
+    store({ 1: { email: WORK } }, 1);
+    cli.onAdd = () => false;
+    const child = await waiting();
+    cli.identity = { email: PERSONAL };
+    finish(child);
+
+    const state = await settled();
+    expect(state).toMatchObject({ state: "failed", step: "save" });
+    expect(state.error).toMatch(/could not read the credential/);
+  });
+
+  it("stays on confirm when the CLI reports nobody signed in", async () => {
+    store({ 1: { email: WORK } }, 1);
+    const child = await waiting();
+    cli.identity = null;
+    child.end({ ok: false, code: 1, killed: false, timedOut: false, stdout: GREETING, stderr: "Login failed\n" });
+
+    const state = await settled();
+    expect(state).toMatchObject({ state: "failed", step: "confirm" });
+  });
+
+  it("has no step when the sign-in window ran out in the browser", async () => {
+    store({ 1: { email: WORK } }, 1);
+    const child = await waiting();
+    child.end({ ok: false, code: "ETIMEDOUT", killed: true, timedOut: true, stdout: GREETING, stderr: "" });
+
+    const state = await settled();
+    expect(state).toMatchObject({ state: "failed", step: null, url: AUTHORIZE });
+    expect(state.error).toBe("the sign-in window expired");
+  });
+
+  it("names the three steps, in the order they run", () => {
+    expect(LOGIN_STEPS).toEqual(["confirm", "save", "restore"]);
+  });
+
+  it("reports idle with no step once the flow is gone", async () => {
+    expect(loginState()).toEqual({ state: "idle" });
+  });
 });
 
 describe("which account the success card names", () => {
