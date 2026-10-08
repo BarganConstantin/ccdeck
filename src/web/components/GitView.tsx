@@ -1202,7 +1202,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             <div className="fk-side-col" id="fk-side" ref={sideRef} data-over={sidebarOver ? "" : undefined}>
               <div className="fk-side-panel" data-gv-pane="sidebar" tabIndex={-1}>
                 <FkSidebar
-                  sessionId={agent.sessionId} agent={agentParam} repo={repo} stale={facts?.stale ?? 0}
+                  sessionId={agent.sessionId} agent={agentParam} repo={repo} top={top} stale={facts?.stale ?? 0}
                   view={view.view} onView={v => { floatAway(); view.setView(v); }} localCount={counts.changed}
                   selectedSha={local ? null : sel} onJump={sha => { floatAway(); jump(sha); }} focused={focusIn && pane === "sidebar"}
                 />

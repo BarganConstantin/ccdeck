@@ -253,7 +253,7 @@ const REPO: Repo = {
 };
 
 const sidebar = (over: Partial<Parameters<typeof FkSidebar>[0]> = {}) => renderToStaticMarkup(createElement(FkSidebar, {
-  sessionId: "S1", agent: null, repo: REPO, stale: 0, view: "all", onView: () => {}, localCount: 3, selectedSha: null, onJump: () => {}, focused: false, ...over,
+  sessionId: "S1", agent: null, repo: REPO, top: TOP, stale: 0, view: "all", onView: () => {}, localCount: 3, selectedSha: null, onJump: () => {}, focused: false, ...over,
 }));
 const tree = (rows: SbRow[]) => renderToStaticMarkup(createElement(FkSidebarTree, {
   rows, selKey: null, stopKey: rows[0]?.key ?? null, label: "refs", onCursor: () => {}, onToggle: () => {}, onJump: () => {}, onMenu: () => {}, onType: () => {}, focusSeq: 0,

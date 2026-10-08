@@ -8,7 +8,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
+import FkSidebar from "../components/FkSidebar";
 import { REFS_FRESH_MS, useGitRefs } from "../use-git-refs";
+import { sourceOf } from "./client-source";
 
 type Props = Parameters<typeof useGitRefs>[0];
 type Seen = ReturnType<typeof useGitRefs>;
@@ -117,6 +120,42 @@ describe("the sidebar follows the view to another worktree", () => {
     await show({ sessionId: "S-unknown", agent: null, stale: 0, top: null });
     expect(asked).toHaveLength(1);
     expect(now().refs?.branches.map(b => b.name)).toEqual(["main"]);
+  });
+});
+
+describe("the panel while the view follows the session to another worktree", () => {
+  // The history's answer is empty while the new worktree's reads are on their
+  // way, so the repository it names goes from the old worktree to nothing to
+  // the new one. The panel keeps to the worktree the view reads, which is
+  // known from the start of the move.
+  const panel = (top: string | null) => renderToStaticMarkup(createElement(FkSidebar, {
+    sessionId: "S-follow", agent: null, repo: null, top, stale: 0, view: "all", onView: () => {},
+    localCount: 0, selectedSha: null, onJump: () => {}, focused: false,
+  }));
+
+  it("never lists the worktree before's branches while the history of the new one is read", async () => {
+    let quiet: ReturnType<typeof vi.spyOn> | null = null;
+    try {
+      answer = () => branchesIn("/code/web-app", ["main", "web-only"]);
+      await show({ sessionId: "S-follow", agent: null, stale: 0, top: "/code/web-app" });
+      expect(now().refs?.branches.map(b => b.name)).toEqual(["main", "web-only"]);
+      // React says on the server that layout effects do nothing there.
+      quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(panel("/code/web-app")).toContain('data-key="branches:web-only"');
+      expect(panel("/code/infra")).not.toContain("web-only");
+    } finally {
+      quiet?.mockRestore();
+    }
+  });
+
+  it("is given the worktree the view reads, not the one its history last answered for", () => {
+    const view = sourceOf("components/GitView.tsx");
+    const tag = /<FkSidebar\b[\s\S]*?\/>/.exec(view)?.[0] ?? "";
+    expect(tag).toMatch(/\btop=\{top\}/);
+    expect(view).toContain("const top = facts?.topLevel ?? null;");
+    const sidebar = sourceOf("components/FkSidebar.tsx");
+    expect(sidebar).toMatch(/useGitRefs\(\{[^}]*\btop, fresh: true \}\)/);
+    expect(sidebar).not.toMatch(/useGitRefs\(\{[^}]*repo\?\.topLevel/);
   });
 });
 

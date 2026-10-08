@@ -30,6 +30,9 @@ export interface FkSidebarProps {
   sessionId: string;
   agent: string | null;
   repo: Repo | null;
+  /** The worktree the view reads now. Known from the start of a move to
+   *  another worktree, while the history's own answer (`repo`) is still empty. */
+  top: string | null;
   /** The view's stale counter: the refs are read again when it moves. */
   stale: number;
   view: "all" | "local";
@@ -172,10 +175,10 @@ export function RefsNote({ refs, onRetry }: { refs: GitRefsData; onRetry: () => 
   return <p className="fk-sb-msg">No repository here.</p>;
 }
 
-export default function FkSidebar({ sessionId, agent, repo, stale, view, onView, localCount, selectedSha, onJump, focused }: FkSidebarProps) {
+export default function FkSidebar({ sessionId, agent, repo, top, stale, view, onView, localCount, selectedSha, onJump, focused }: FkSidebarProps) {
   // The worktree the view reads now, and a panel just shown: both read the
   // refs again, as the history is read again for them.
-  const refs = useGitRefs({ sessionId, agent, stale, top: repo?.topLevel ?? null, fresh: true });
+  const refs = useGitRefs({ sessionId, agent, stale, top, fresh: true });
   const repoKey = repo ? repo.commonDir || repo.topLevel : null;
   const [open, setOpen] = useState<OpenState>(() => readOpenState(repoKey));
   const [openFor, setOpenFor] = useState(repoKey);
