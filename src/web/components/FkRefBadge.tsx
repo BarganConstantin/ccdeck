@@ -168,12 +168,14 @@ const KIND_WORD = (x: FkChip) => (x.kind === "head" ? "detached HEAD" : x.kind =
  */
 export function FkRefBadge({ chip, tone = "lane" }: { chip: FkChip; tone?: "lane" | "neutral" }) {
   const neutral = tone === "neutral" ? "neutral" : undefined;
+  // Beside the name rather than in it, so the name a narrow row cuts with an
+  // ellipsis is the label alone, and its title holds what it cut.
   const words = <span className="vis-hidden">{KIND_WORD(chip)} </span>;
   if (chip.kind === "remote") {
     return (
       <span className="fk-ref" data-kind="remote" data-tone={neutral} title={chip.title}>
         <span className="fk-ref-cell"><Cloud /></span>
-        <span className="fk-ref-name">{words}{chip.label}</span>
+        {words}<span className="fk-ref-name">{chip.label}</span>
       </span>
     );
   }
@@ -182,7 +184,7 @@ export function FkRefBadge({ chip, tone = "lane" }: { chip: FkChip; tone?: "lane
       {chip.upstream && <span className="fk-ref-cloud"><Cloud /></span>}
       {chip.current && <Check />}
       {chip.kind === "tag" && <Tag />}
-      <span className="fk-ref-name">{words}{chip.label}</span>
+      {words}<span className="fk-ref-name">{chip.label}</span>
     </span>
   );
 }

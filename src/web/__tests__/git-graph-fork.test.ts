@@ -293,10 +293,23 @@ describe("the Fork row in the sheet", () => {
   });
 
   it("lets the subject give way before the agent's name, the chip never below its swatch and five letters", () => {
+    // The chip does not shrink with the subject: the same name is the same
+    // chip on every row, cut only past its cap (a share of the cell), never
+    // by the few pixels one longer subject asks of it.
     const chip = rule(`${F} .fk-chip`);
-    expect(chip).toMatch(/flex: 0 0\.3 auto;/);
+    expect(chip).toMatch(/flex: none;/);
     expect(chip).toMatch(/min-width: 64px;/);
+    expect(chip).toMatch(/max-width: min\(180px, 40%\);/);
     expect(rule(`${F} .fk-subj`)).toMatch(/flex: 0 1 auto;/);
+  });
+
+  it("cuts a badge too long for the room its row leaves with an ellipsis, never through a letter", () => {
+    const badge = rule(`${F} .fk-ref`);
+    expect(badge).toMatch(/flex: 0 1 auto;/);
+    expect(badge).toMatch(/min-width: 0;/);
+    expect(rule(`${F} .fk-ref-name`)).toMatch(/text-overflow: ellipsis;/);
+    // The +N and the cloud of a pushed branch keep their size.
+    expect(rule(`${F} .fk-ref[data-kind="more"]`)).toMatch(/flex: none;/);
   });
 
   it("draws badges 18px with a 4px radius and 12px words, the chip a 999px pill", () => {

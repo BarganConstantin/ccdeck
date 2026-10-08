@@ -379,6 +379,19 @@ export function startPick(of: string, seq: number, initial: { sel?: string | nul
   };
 }
 
+/**
+ * `p` with `first` as the file it opens on — unless that file is no longer
+ * the selection's to take: another owner's selection, a file already there or
+ * chosen, or a selection that has moved off the row `first` was worked out
+ * for. The Fork look moves an untouched opening from the working tree to a
+ * commit as the history lands, and the working tree's first file, worked out
+ * a render before, can arrive after that move; opened in the commit, its diff
+ * read would ask the commit for a file it does not have.
+ */
+export function takeFirstFile(p: Picked, of: string, sel: string, first: GitFileRef): Picked {
+  return p.of === of && p.sel === sel && !p.picked && !p.file ? { ...p, file: first } : p;
+}
+
 /** The commits read for one owner: their files, and the commit itself as the
  *  read answered it (its committer and message included), for the Fork
  *  look's Commit tab. */
@@ -505,7 +518,7 @@ export function useGitSelection({ data, sessionId, agent, top = null, repo = nul
     const first = sel === UNCOMMITTED
       ? firstFile(data.entries, data.edits, focus)
       : Array.isArray(files) && files[0] ? { path: files[0].path, area: "commit", ...(files[0].from ? { from: files[0].from } : {}) } : null;
-    if (first) setPick(p => (p.of === of && !p.picked && !p.file ? { ...p, file: first } : p));
+    if (first) setPick(p => takeFirstFile(p, of, sel, first));
   }, [sel, data.entries, data.edits, data.pending, files, file, pick.picked]);
 
   // Every choice — the reader's, and the Fork look's opening — settles where

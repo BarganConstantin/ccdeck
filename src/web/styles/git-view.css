@@ -307,7 +307,11 @@ button.btn.gv-retry { align-self: flex-start; margin-top: 4px; }
 .gv-open:hover { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
 .gv-open:active { transform: scale(0.97); }
 .gv-g-branch { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px; color: var(--text); font: 12px/1 var(--font-mono); }
-.gv-g-branch > svg { flex: none; color: var(--muted); }
+/* Every row's mark takes one 14px slot, 6px in, and its words start 6px
+   after it: the branch glyph, a commit's diamond, a file's dot and the
+   shared-folder glyph stand on one line down the section, and every row's
+   words on another. */
+.gv-g-branch > svg { flex: none; margin-right: 1px; color: var(--muted); }
 .gv-g-branch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gv-ahead { flex: none; margin-left: auto; color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .gv-g-collide {
@@ -329,6 +333,7 @@ button.btn.gv-retry { align-self: flex-start; margin-top: 4px; }
 .gv-g-collide:hover { background: color-mix(in srgb, var(--err) 9%, transparent); }
 .gv-g-collide:active { transform: scale(0.97); }
 .gv-g-collide svg, .gv-g-quiet svg { flex: none; width: 12px; height: 12px; }
+.gv-g-quiet svg { margin: 0 1px; }
 .gv-g-collide span, .gv-g-quiet span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gv-g-collide b { font-weight: 700; }
 /* quiet: no tint, no border, still a way to the other agent */
@@ -354,7 +359,7 @@ button.btn.gv-retry { align-self: flex-start; margin-top: 4px; }
 .gv-g-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   height: 24px;
   padding: 0 6px;
   border: none;
@@ -369,13 +374,12 @@ button.btn.gv-retry { align-self: flex-start; margin-top: 4px; }
 }
 .gv-g-row:hover { background: var(--ctl-fill); }
 .gv-g-row:active { transform: scale(0.97); }
-.gv-g-row .gv-mark { color: var(--muted); }
+.gv-g-row .gv-mark { width: 14px; color: var(--muted); }
 .gv-g-subj { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gv-cc { font-weight: 600; }
 .gv-g-who { flex: none; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 10px/1 var(--font-mono); }
 .gv-g-time { flex: none; min-width: 24px; text-align: right; color: var(--muted); font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
-.gv-g-file { gap: 6px; }
-.gv-pip { flex: none; width: 6px; height: 6px; margin-right: 2px; border-radius: 50%; background: hsl(var(--session-hue, 200) 70% var(--session-accent-l)); }
+.gv-pip { flex: none; width: 6px; height: 6px; margin: 0 4px; border-radius: 50%; background: hsl(var(--session-hue, 200) 70% var(--session-accent-l)); }
 .gv-st { flex: none; width: 14px; text-align: center; color: var(--muted); font: 600 10px/1 var(--font-mono); }
 .gv-path { display: flex; flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; font: 11px/1.4 var(--font-mono); }
 .gv-dir { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }

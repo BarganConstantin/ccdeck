@@ -100,7 +100,9 @@ describe("a badge, as the markup builds it", () => {
   it("draws the Commit tab's refs as the same badge in its neutral colours, each kind said in words", () => {
     const m = renderToStaticMarkup(createElement(FkRefBadge, { chip: { kind: "remote", name: "origin/x", label: "origin/x", title: "remote branch origin/x" }, tone: "neutral" }));
     expect(m).toMatch(/^<span class="fk-ref" data-kind="remote" data-tone="neutral" title="remote branch origin\/x"><span class="fk-ref-cell">/);
-    expect(m).toContain('<span class="vis-hidden">remote branch </span>origin/x');
+    // The kind is said beside the name, so a name cut short ends in its own
+    // ellipsis and nothing a reader cannot see is cut with it.
+    expect(m).toContain('<span class="vis-hidden">remote branch </span><span class="fk-ref-name">origin/x</span>');
     const tab = sourceOf("components/FkCommitTab.tsx");
     expect(tab).toMatch(/import \{ FkRefBadge, isRemoteHead, type FkChip \} from "\.\/FkRefBadge";/);
     expect(tab).toMatch(/<FkRefBadge chip=\{chip\} tone="neutral" \/>/);
