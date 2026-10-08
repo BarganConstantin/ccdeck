@@ -48,16 +48,18 @@ describe("what it covers while open", () => {
   it("takes the rail's room: the Usage and Machine panels step out of sight, and asking for one gives the room back", () => {
     // Out of sight while it is open, as the detail rail it widens out of is, and back when it closes.
     expect(css).toMatch(/:root\[data-git-view\] \.app > :is\(\.usage-panel, \.sysdetail\),/);
-    // Their buttons and keys close the view and show the panel.
+    // Their buttons and keys close the view and show the panel: the buttons
+    // on the right stripe (or the phone's dock), both drawn from one list.
     expect(app).toMatch(/const railToggles = useMemo\(\(\) => \(\{\s*usage: \{ pointer: yieldingRailToggle\(setUsagePanelOpen, "pointer"\), key: yieldingRailToggle\(setUsagePanelOpen, "key"\) \},\s*machine: \{ pointer: yieldingRailToggle\(setMachinePanelOpen, "pointer"\), key: yieldingRailToggle\(setMachinePanelOpen, "key"\) \},/);
-    expect(app).toMatch(/setUsagePanelOpen=\{railToggles\.usage\.pointer\}/);
-    expect(app).toMatch(/setMachinePanelOpen=\{railToggles\.machine\.pointer\}/);
+    expect(app).toMatch(/const rails = railItems\(\{[\s\S]*?setUsagePanelOpen: railToggles\.usage\.pointer,[\s\S]*?\}\);/);
+    expect(app).toMatch(/const rails = railItems\(\{[\s\S]*?setMachinePanelOpen: railToggles\.machine\.pointer,[\s\S]*?\}\);/);
     expect(app).toMatch(/setUsagePanelOpen: railToggles\.usage\.key, setMachinePanelOpen: railToggles\.machine\.key,/);
   });
 
   it("takes a card wholly under the panel, or wholly off the canvas it leaves, out of the Tab order", () => {
     // The canvas the panel leaves: the canvas's own box, less the panel over its right.
-    expect(view).toMatch(/const sight: PaneBox = \{ left: rect\.left, right: Math\.min\(rect\.right, window\.innerWidth - w\), top: rect\.top, bottom: rect\.bottom \};/);
+    // The panel's right edge is the right stripe's inner edge (chromeEdges).
+    expect(view).toMatch(/const sight: PaneBox = \{ left: rect\.left, right: Math\.min\(rect\.right, chromeEdges\(\)\.end - w\), top: rect\.top, bottom: rect\.bottom \};/);
     expect(view).toMatch(/const card: PaneBox = \{ left, right: left \+ \(m\?\.width \?\? 0\) \* zoom, top, bottom: top \+ \(m\?\.height \?\? 0\) \* zoom \};\s*\(outOfSight\(card, sight\) \? under : clear\)\.add\(el\);/);
     // A session's name tag by the same rule, where the frame's camera puts it.
     expect(view).toMatch(/const covered = outOfSight\(\{ left, right: left \+ r\.width, top: rect\.top \+ tagTop, bottom: rect\.top \+ tagTop \+ r\.height \}, sight\);/);
@@ -88,7 +90,8 @@ describe("what it covers while open", () => {
   });
 
   it("is a full sheet with a way back to the canvas below 1100px", () => {
-    expect(rule(".gv-wide[data-sheet]")).toMatch(/width: 100%/);
+    // Between the two edge stripes, which stay in reach (git-view-edges.test.ts).
+    expect(rule(".gv-wide[data-sheet]")).toMatch(/left: var\(--edge-w\);\s*width: auto;/);
     expect(css).toMatch(/\.gv-wide\[data-sheet\] \.gv-head \.btn\.gv-back \{ display: inline-flex; \}/);
     expect(view).toMatch(/aria-label="Back to the canvas"/);
   });
