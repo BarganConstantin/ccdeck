@@ -12,7 +12,7 @@ export function decodeOtlp(signal, direction, bytes) {
   const group = signal === "traces" ? "trace" : signal;
   const name = `opentelemetry.proto.collector.${group}.v1.Export${types[signal]}Service${direction === "request" ? "Request" : "Response"}`;
   const type = root.lookupType(name);
-  return type.toObject(type.decode(bytes), { longs: String, bytes: String, enums: String });
+  return type.toObject(type.decode(bytes), { longs: String, bytes: String, enums: String, json: true });
 }
 
 export function headerDecoder() {

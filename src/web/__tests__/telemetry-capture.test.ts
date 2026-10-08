@@ -33,6 +33,14 @@ describe('passive OTLP capture', () => {
   it('handles gzip without mistaking compressed bytes for readable text', () => {
     const r = reader(); r.decoder.feed(pcap(packet(request('logs', LOGS, true)))); expect(r.events[0].payload).toEqual(LOGS);
   });
+  it('preserves 64-bit measurements and non-finite doubles without JSON precision loss', () => {
+    const payload = { resourceMetrics: [{ scopeMetrics: [{ metrics: [{ name: 'synthetic.values', gauge: { dataPoints: [{ asInt: '9223372036854775806' }, { asDouble: Infinity }] } }] }] }] };
+    const r = reader(); r.decoder.feed(pcap(packet(request('metrics', payload))));
+    const points = r.events[0].payload.resourceMetrics[0].scopeMetrics[0].metrics[0].gauge.dataPoints;
+    expect(points).toEqual([{ asInt: '9223372036854775806' }, { asDouble: 'Infinity' }]);
+    expect(JSON.parse(JSON.stringify(points))).toEqual(points);
+    expect(r.events[0].protobufBase64).toBeTruthy();
+  });
   it.each([['partial', { rejectedLogRecords: '1', errorMessage: 'Synthetic rejection' }, '0'], ['rejected', null, '7']])('reports %s instead of successful delivery', (outcome, partial, status) => {
     const r = reader(); r.decoder.feed(pcap(packet(request()), packet(response('logs', partial, status), { side: 'in' })));
     expect(r.receipts[0].outcome).toBe(outcome);
