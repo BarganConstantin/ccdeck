@@ -123,6 +123,11 @@ export function markerTop(card: FlowBox, viewport: { y: number; zoom: number }, 
 /** A box on the canvas, in px from its top left. */
 export interface PaneBox { left: number; right: number; top: number; bottom: number }
 
+/** Where a card on the plane is drawn on the canvas with the camera at `v`. */
+export function onPane(b: FlowBox, v: { x: number; y: number; zoom: number }): PaneBox {
+  return { left: v.x + b.x * v.zoom, right: v.x + (b.x + b.width) * v.zoom, top: v.y + b.y * v.zoom, bottom: v.y + (b.y + b.height) * v.zoom };
+}
+
 /** Whether two boxes share any area: a tag that reaches a pixel under the
  *  canvas's own chrome is under it. */
 export function boxesOverlap(a: PaneBox, b: PaneBox): boolean {

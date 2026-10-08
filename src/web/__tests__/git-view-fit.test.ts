@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentNodeData } from "../types";
 import {
-  alarmKey, alarmsOutside, boxesOverlap, clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, outOfSight, setGitViewFrame, stackMarkers,
+  alarmKey, alarmsOutside, boxesOverlap, clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, onPane, outOfSight, setGitViewFrame, stackMarkers,
   MARKER_H,
 } from "../git-view-fit";
 import { LABEL_LIFT } from "../session-chrome";
@@ -136,6 +136,15 @@ describe("the edge markers beside the cluster name tags", () => {
     expect(tops[1]).toBe(145);
   });
 
+  it("keep off the cards of the session the view frames, the selected one among them", () => {
+    // The framed card at plane (300, 40), 156×100, drawn at zoom 1 with the camera at (10, 20): level with the marker, under its span.
+    const framed = onPane({ x: 300, y: 40, width: 156, height: 100 }, { x: 10, y: 20, zoom: 1 });
+    expect(framed).toEqual({ left: 310, right: 466, top: 60, bottom: 160 });
+    expect(clearOfLabels([mark], [tag, framed], 288)).toEqual([160 + 4]);
+    // At half the size the card ends left of the marker's span: the marker stays.
+    expect(clearOfLabels([mark], [onPane({ x: 300, y: 40, width: 156, height: 100 }, { x: 10, y: 20, zoom: 0.5 })], 288)).toEqual([72]);
+  });
+
   it("know where a tag lands once the camera has moved: on the plane, lifted a fixed height above its box", () => {
     // A tag 12px above a box at plane y 400, drawn at zoom 0.5 with the camera at y 20.
     const was = { y: 20, zoom: 0.5 }, now = { y: -100, zoom: 0.25 };
@@ -150,7 +159,7 @@ describe("the edge markers beside the cluster name tags", () => {
     // The frame's own target, or the camera the reader left when it holds it.
     expect(view).toMatch(/\(\{ viewport, leftOut \} = plan\);/);
     expect(view).toMatch(/const boxes = takeOutOfSight\(viewport, was\);/);
-    expect(view).toMatch(/setLabelBoxes\(leftOut\.length \? boxes : NO_BOXES\);/);
+    expect(view).toMatch(/setLabelBoxes\(leftOut\.length \? \[\.\.\.boxes, \.\.\.session\.map\(c => onPane\(c, viewport\)\)\] : NO_BOXES\);/);
     const edge = view.slice(view.indexOf("function EdgeMarkers("), view.indexOf("// ── the panel"));
     expect(edge).toMatch(/clearOfLabels\(/);
     expect(edge).toMatch(/useLayoutEffect\(/);

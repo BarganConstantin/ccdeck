@@ -23,7 +23,7 @@ import { useReactFlow, useStoreApi, type Node, type Viewport } from "reactflow";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
 import {
-  alarmKey, alarmsOutside, boxesOverlap, clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, outOfSight, setGitViewFrame, stackMarkers,
+  alarmKey, alarmsOutside, boxesOverlap, clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, onPane, outOfSight, setGitViewFrame, stackMarkers,
   type FitCard, type PaneBox, type SessionCard,
 } from "../git-view-fit";
 import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
@@ -207,8 +207,8 @@ export default function GitView(props: GitViewProps) {
   // That move's epoch: while it is still the latest, the camera is the frame's.
   const framedEpoch = useRef(-1);
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
-  // The cluster name tags on the uncovered canvas, where the frame puts them:
-  // the edge markers keep off them.
+  // The cluster name tags on the uncovered canvas, where the frame puts them,
+  // and the cards of the session in view: the edge markers keep off them.
   const [labelBoxes, setLabelBoxes] = useState<PaneBox[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
   const focusAfterFrame = useRef<string | null>(null);
@@ -320,7 +320,9 @@ export default function GitView(props: GitViewProps) {
       ({ viewport, leftOut } = plan);
     }
     const boxes = takeOutOfSight(viewport, was);
-    setLabelBoxes(leftOut.length ? boxes : NO_BOXES);
+    // The markers keep off the cluster name tags in sight, and off the cards
+    // of the session in view: the frame keeps their whole face for the reader.
+    setLabelBoxes(leftOut.length ? [...boxes, ...session.map(c => onPane(c, viewport))] : NO_BOXES);
     const out = leftOut.map((id): EdgeMarker => {
       const ag = agents.get(id);
       const alarm = alarmOf.get(id)!;
@@ -620,8 +622,9 @@ export default function GitView(props: GitViewProps) {
 function EdgeMarkers({ markers, labels, right, now, onGo }: {
   markers: EdgeMarker[]; labels: readonly PaneBox[]; right: number; now: number; onGo: (id: string) => void;
 }) {
-  // Each marker moved off the cluster name tags in its own width, once that
-  // width is drawn: placed before paint, so none is seen over a tag.
+  // Each marker moved off the cluster name tags and the framed session's cards
+  // in its own width, once that width is drawn: placed before paint, so none
+  // is seen over either.
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const [placed, setPlaced] = useState<{ of: EdgeMarker[]; tops: number[] } | null>(null);
   useLayoutEffect(() => {
