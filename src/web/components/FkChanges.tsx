@@ -4,6 +4,7 @@ import { commitRows, fileKey, uncommittedList, type CardNamer, type CommitFile, 
 import { fileOrder, type FkTreeFile } from "../git-fork-tree";
 import type { DiffResult, Edit, GitFileRef, GraphFocus } from "../git-view-types";
 import { splitterMove } from "../git-view-keys";
+import { isEscapeKey } from "../modal-dismiss";
 import { clampTo, splitterTarget } from "../git-view-sizes";
 import { sessionHue } from "../session-hue";
 import { readStored, writeStored } from "../storage";
@@ -153,6 +154,12 @@ const FkChanges = forwardRef<FkChangesHandle, FkChangesProps>(function FkChanges
     onOpen(f);
   }, [onOpen]);
 
+  // Esc clears a filter that holds text and stays in it, as the sidebar's
+  // filter does; an empty filter's Esc goes on to the view, one layer back.
+  const onFilterKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isEscapeKey(e.key) && filter) { e.preventDefault(); e.stopPropagation(); setFilter(""); }
+  };
+
   useImperativeHandle(ref, () => ({
     focusTree() {
       const i = selKey ? Math.max(0, shownGroups.findIndex(g => g.some(f => f.key === selKey))) : 0;
@@ -239,7 +246,7 @@ const FkChanges = forwardRef<FkChangesHandle, FkChangesProps>(function FkChanges
             <label className="fkc-filter">
               <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="3.6" /><path d="m7.7 7.7 3 3" /></svg>
               <input type="search" className="fkc-filter-input" placeholder="Filter" aria-label="Filter the files" value={filter}
-                onChange={e => setFilter(e.target.value)} />
+                onChange={e => setFilter(e.target.value)} onKeyDown={onFilterKey} />
             </label>
             {anyMine && (
               <button type="button" className="fkc-funnel" aria-pressed={onlyMine} onClick={() => setOnlyMine(v => !v)}

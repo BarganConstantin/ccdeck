@@ -852,33 +852,58 @@ function visible(text: string, key: string | number): React.ReactNode {
     : <React.Fragment key={`${key}t${i}`}>{p.text}</React.Fragment>));
 }
 
-/** A line's text in segments: syntax tones inside, the changed words marked. */
+/** The deepest indent, in columns (a tab to the next four), kept whole on a
+ *  wrapped line's numbered row: a deeper one could be wider than a narrow pane. */
+const INDENT_KEEP = 32;
+
+/** How many of a line's first characters are its indent: the spaces and tabs
+ *  before its code. None on a line of only blanks, or one indented deeper than
+ *  INDENT_KEEP. */
+function indentOf(text: string): number {
+  const lead = /^[ \t]+(?=[^ \t])/.exec(text)?.[0] ?? "";
+  let cols = 0;
+  for (const ch of lead) cols = ch === "\t" ? cols + 4 - (cols % 4) : cols + 1;
+  return cols <= INDENT_KEEP ? lead.length : 0;
+}
+
+/** A line's text in segments: syntax tones inside, the changed words marked.
+ *  The indent is a span of its own that never wraps (git-diff.css): a wrapped
+ *  line whose code is one long token would otherwise break after the indent
+ *  first, leaving its numbered row blank and the code un-indented below. */
 function codeOf(text: string, syn: LineSpans | undefined, words: Range[] | undefined): React.ReactNode {
   // An empty line copies as an empty line, not as a space.
   if (!text) return <br />;
-  if (!syn?.length && !words?.length) return visible(text, "t");
-  const cuts = new Set<number>([0, text.length]);
+  const lead = indentOf(text);
+  const indent = (body: React.ReactNode) => <span key="indent" className="gvd-indent">{body}</span>;
+  if (!syn?.length && !words?.length) {
+    return lead ? [indent(text.slice(0, lead)), <React.Fragment key="t">{visible(text.slice(lead), "t")}</React.Fragment>] : visible(text, "t");
+  }
+  const cuts = new Set<number>([0, lead, text.length]);
   for (const [s, e] of syn ?? []) { cuts.add(s); cuts.add(e); }
   for (const [s, e] of words ?? []) { cuts.add(s); cuts.add(e); }
   const at = [...cuts].filter(n => n >= 0 && n <= text.length).sort((a, b) => a - b);
   const kindAt = (pos: number) => syn?.find(([s, e]) => pos >= s && pos < e)?.[2];
   const inWord = (pos: number) => !!words?.some(([s, e]) => pos >= s && pos < e);
-  const out: React.ReactNode[] = [];
-  let mark: React.ReactNode[] | null = null;
-  for (let i = 0; i < at.length - 1; i++) {
-    const s = at[i], e = at[i + 1];
-    if (s === e) continue;
-    const kind = kindAt(s);
-    const seg = visible(text.slice(s, e), s);
-    const piece = kind ? <span key={s} className={SYN_CLASS[kind]}>{seg}</span> : <React.Fragment key={s}>{seg}</React.Fragment>;
-    if (inWord(s)) {
-      if (!mark) mark = [];
-      mark.push(piece);
-    } else {
-      if (mark) { out.push(<mark key={`m${s}`} className="gvd-word">{mark}</mark>); mark = null; }
-      out.push(piece);
+  /** The segments between two cuts, a run of changed words in one mark. */
+  const run = (from: number, to: number): React.ReactNode[] => {
+    const out: React.ReactNode[] = [];
+    let mark: React.ReactNode[] | null = null;
+    for (let i = 0; i < at.length - 1; i++) {
+      const s = at[i], e = at[i + 1];
+      if (s === e || s < from || e > to) continue;
+      const kind = kindAt(s);
+      const seg = visible(text.slice(s, e), s);
+      const piece = kind ? <span key={s} className={SYN_CLASS[kind]}>{seg}</span> : <React.Fragment key={s}>{seg}</React.Fragment>;
+      if (inWord(s)) {
+        if (!mark) mark = [];
+        mark.push(piece);
+      } else {
+        if (mark) { out.push(<mark key={`m${s}`} className="gvd-word">{mark}</mark>); mark = null; }
+        out.push(piece);
+      }
     }
-  }
-  if (mark) out.push(<mark key="m-end" className="gvd-word">{mark}</mark>);
-  return out;
+    if (mark) out.push(<mark key="m-end" className="gvd-word">{mark}</mark>);
+    return out;
+  };
+  return lead ? [indent(run(0, lead)), ...run(lead, text.length)] : run(0, text.length);
 }

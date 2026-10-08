@@ -258,6 +258,11 @@
 .gvd[data-wrap="true"] .gvd-diff { width: auto; }
 .gvd[data-wrap="true"] .gvd-line { grid-template-columns: 44px 44px 18px minmax(0, 1fr); }
 .gvd[data-wrap="true"] .gvd-code { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* A line's indent never wraps, so a long token after it breaks at the pane's
+   edge rather than right after the indent, which left the numbered row blank
+   and the code un-indented on the row below. Still spaces and tabs: a copy is
+   the same. */
+.gvd[data-wrap="true"] .gvd-indent { white-space: pre; }
 
 .gvd-more {
   position: sticky;
