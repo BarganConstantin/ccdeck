@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CANVAS_MIN, FK_HISTORY_MIN, FK_INSPECTOR_MIN, GIT_VIEW_DEFAULTS, PANE_MIN, PANEL_MIN, SIDE_HISTORY_MIN, SIDEBAR_MAX, SIDEBAR_MIN, SPLIT_BAND, edgeBounds,
-  filesBounds, fkGraphBounds, graphBounds, isSheet, isSidebarFloating, panelWidth, parseGitViewPrefs, sidebarBounds, sidebarShownFor, splitterTarget,
+  filesBounds, fkGraphBounds, graphBounds, isSheet, isSidebarFloating, panelWidth, parseGitViewPrefs, sidebarBounds, sidebarLayout, sidebarShownFor, splitterTarget,
 } from "../git-view-sizes";
 
 describe("the panel's width", () => {
@@ -116,6 +116,29 @@ describe("the Fork look's sizes", () => {
     // Floating, it is out only while the reader has it out, whatever was remembered.
     expect(sidebarShownFor({ sidebarShown: true }, true, false)).toBe(false);
     expect(sidebarShownFor({ sidebarShown: false }, true, true)).toBe(true);
+  });
+
+  it("narrows a sidebar chosen on a wider panel to what keeps it beside a narrower one, and keeps the choice", () => {
+    // Widened to its most on a 1440px window (a 1037px panel)…
+    expect(sidebarLayout(SIDEBAR_MAX, 1037, false)).toEqual({ width: SIDEBAR_MAX, floating: false });
+    // …it stays beside the history on a 1280px window, as wide as the history leaves it.
+    expect(sidebarLayout(SIDEBAR_MAX, 920, false)).toEqual({ width: 920 - SIDE_HISTORY_MIN, floating: false });
+    // The panel's edge one step narrower: still beside it.
+    expect(sidebarLayout(SIDEBAR_MAX, 1021, false)).toEqual({ width: 1021 - SIDE_HISTORY_MIN, floating: false });
+    // A narrower choice is kept as it is.
+    expect(sidebarLayout(240, 920, false)).toEqual({ width: 240, floating: false });
+    // Narrowed no further than the default: where the default would float, a widened one floats too, at the width chosen.
+    const def = GIT_VIEW_DEFAULTS.sidebarW;
+    expect(sidebarLayout(SIDEBAR_MAX, def + SIDE_HISTORY_MIN - 1, false)).toEqual({ width: SIDEBAR_MAX, floating: true });
+    expect(sidebarLayout(def, def + SIDE_HISTORY_MIN - 1, false).floating).toBe(true);
+    expect(sidebarLayout(264, 1300, true)).toEqual({ width: 264, floating: true });
+    // Widening it never floats it where the default width stays beside the history.
+    for (let panelW = SIDEBAR_MIN + SIDE_HISTORY_MIN; panelW <= 1600; panelW += 7) {
+      for (const stored of [SIDEBAR_MIN, def, 320, SIDEBAR_MAX]) {
+        const atDefault = sidebarLayout(Math.min(stored, def), panelW, false).floating;
+        expect(sidebarLayout(stored, panelW, false).floating, `${stored} in ${panelW}px`).toBe(atDefault);
+      }
+    }
   });
 
   it("floats the sidebar over the history on a sheet and wherever the history beside it would be under 600px", () => {

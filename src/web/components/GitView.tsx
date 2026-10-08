@@ -20,18 +20,17 @@ import {
 import { createPortal } from "react-dom";
 import { useReactFlow, useStoreApi, type Node, type Viewport } from "reactflow";
 
-import { blockedSessions } from "../ambient-counts";
 import { laneMap } from "../canvas-flow";
 import { elapsed } from "../duration";
 import {
-  boxesOverlap, clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, outOfSight, setGitViewFrame, stackMarkers,
+  alarmKey, alarmsOutside, boxesOverlap, clearOfLabels, foldMarkers, gitViewFrame, labelTopAt, markerRoom, markerTop, onPane, outOfSight, setGitViewFrame, stackMarkers,
   type FitCard, type PaneBox, type SessionCard,
 } from "../git-view-fit";
 import { paneForLostFocus, splitterMove, viewKeyIntent, type GitViewPane } from "../git-view-keys";
 import { panelMounted, useGitViewPhase } from "../git-view-phase";
 import {
   GIT_VIEW_DEFAULTS, edgeBounds, filesBounds, fkGraphBounds, gitViewPrefsNow, graphBounds, clampTo, isSheet, panelWidth, setGitLook, setGitViewPrefs,
-  isSidebarFloating, sidebarBounds, sidebarShownFor, splitterTarget, useGitViewPrefs, type GitViewPrefs, type SplitterKind,
+  sidebarBounds, sidebarLayout, sidebarShownFor, splitterTarget, useGitViewPrefs, type GitViewPrefs, type SplitterKind,
 } from "../git-view-sizes";
 import { agentNameIn, cardName as cardNameIn, collisionTarget, commitAgentKeys, otherAgentName } from "../git-agent-name";
 import { pressHow } from "../agent-goto";
@@ -205,9 +204,11 @@ export default function GitView(props: GitViewProps) {
   const inertCards = useState(() => new Set<Element>())[0];
   // When the frame's own camera move lands, for the Tab stops to wait on.
   const framedUntil = useRef(0);
+  // That move's epoch: while it is still the latest, the camera is the frame's.
+  const framedEpoch = useRef(-1);
   const [markers, setMarkers] = useState<EdgeMarker[]>([]);
-  // The cluster name tags on the uncovered canvas, where the frame puts them:
-  // the edge markers keep off them.
+  // The cluster name tags on the uncovered canvas, where the frame puts them,
+  // and the cards of the session in view: the edge markers keep off them.
   const [labelBoxes, setLabelBoxes] = useState<PaneBox[]>([]);
   const live = useMirroredRef({ agent, width, sheet, box });
   const focusAfterFrame = useRef<string | null>(null);
@@ -259,7 +260,10 @@ export default function GitView(props: GitViewProps) {
     return boxes;
   }, []);
 
-  const frame = useCallback((duration: number) => {
+  // `hold`: an agent beside the view started waiting, failed, or was answered.
+  // The camera frames again — unless the reader has moved it since the frame
+  // did, when the alarms are marked against where they left it instead.
+  const frame = useCallback((duration: number, hold = false) => {
     const { agent: a, width: w, sheet: sh } = live.current;
     const canvas = canvasRef.current;
     if (!a || sh || !canvas) { setMarkers([]); return; }
@@ -282,9 +286,7 @@ export default function GitView(props: GitViewProps) {
     }
     // Waiting on the reader (a session's root carries the block) or failed.
     const agents = stateRef.current.agents;
-    const alarmOf = new Map<string, "waiting" | "failed">();
-    for (const s of blockedSessions(agents.values())) if (s.id !== a.sessionId) alarmOf.set(s.id, "waiting");
-    for (const ag of agents.values()) if (ag.state === "err" && ag.sessionId !== a.sessionId && !alarmOf.has(ag.id)) alarmOf.set(ag.id, "failed");
+    const alarmOf = alarmsOutside(agents.values(), a.sessionId);
     const alarms: FitCard[] = [];
     for (const n of nodes) {
       if (!alarmOf.has(n.id)) continue;
@@ -295,20 +297,36 @@ export default function GitView(props: GitViewProps) {
     // under it, so no framed card or cluster name lands beneath it.
     const bar = canvas.querySelector(".cat-filter-bar")?.getBoundingClientRect();
     const top = bar && bar.height > 0 ? bar.bottom - rect.top : 0;
-    const plan = gitViewFrame({ pane: { width: rect.width, height: rect.height }, cover, top, session, alarms, anchor });
-    // A click's jump still held under reduced motion would land after this
-    // frame and undo it; animated, this move cuts the click's short.
-    cancelHeldFocus();
     // The camera the plane is drawn with until this move lands.
     const was = rf.getViewport();
-    moveCamera(plan.viewport, duration);
-    framedUntil.current = performance.now() + duration + SETTLE_MS;
-    const boxes = takeOutOfSight(plan.viewport, was);
-    setLabelBoxes(plan.leftOut.length ? boxes : NO_BOXES);
-    const out = plan.leftOut.map((id): EdgeMarker => {
+    const keep = hold && cameraEpochRef.current !== framedEpoch.current;
+    let viewport: Viewport, leftOut: string[];
+    if (keep) {
+      // Where the reader left it: an alarm whose card's middle is out of what
+      // they see — past an edge, or under the panel — is marked.
+      viewport = was;
+      const sight: PaneBox = { left: 0, right: rect.width - cover, top, bottom: rect.height };
+      leftOut = alarms.filter(c => {
+        const x = was.x + (c.x + c.width / 2) * was.zoom, y = was.y + (c.y + c.height / 2) * was.zoom;
+        return outOfSight({ left: x, right: x, top: y, bottom: y }, sight);
+      }).map(c => c.id);
+    } else {
+      const plan = gitViewFrame({ pane: { width: rect.width, height: rect.height }, cover, top, session, alarms, anchor });
+      // A click's jump still held under reduced motion would land after this
+      // frame and undo it; animated, this move cuts the click's short.
+      cancelHeldFocus();
+      framedEpoch.current = moveCamera(plan.viewport, duration);
+      framedUntil.current = performance.now() + duration + SETTLE_MS;
+      ({ viewport, leftOut } = plan);
+    }
+    const boxes = takeOutOfSight(viewport, was);
+    // The markers keep off the cluster name tags in sight, and off the cards
+    // of the session in view: the frame keeps their whole face for the reader.
+    setLabelBoxes(leftOut.length ? [...boxes, ...session.map(c => onPane(c, viewport))] : NO_BOXES);
+    const out = leftOut.map((id): EdgeMarker => {
       const ag = agents.get(id);
       const alarm = alarmOf.get(id)!;
-      const top = markerTop(alarms.find(c => c.id === id)!, plan.viewport, rect.height);
+      const top = markerTop(alarms.find(c => c.id === id)!, viewport, rect.height);
       return { id, label: ag ? cardNameIn(agents, ag) : id, alarm, since: alarm === "waiting" ? ag?.waiting?.since ?? 0 : 0, top };
     });
     // More than the edge has rows for: the last row counts the rest.
@@ -330,8 +348,10 @@ export default function GitView(props: GitViewProps) {
   const reframeNow = useCallback(() => frame(0), [frame]);
 
   // ── what the panel covers ─────────────────────────────────────────────
-  // While it is open the detail rail under it is inert and out of sight, and
-  // so is everything beside the canvas when it is a full sheet. Marked on the
+  // While it is open the detail rail under it is inert and out of sight, as
+  // are the rail's Usage and Machine panels docked beside that rail (asking
+  // for one closes the view: git-view-request.ts), and so is everything
+  // beside the canvas when it is a full sheet. Marked on the
   // root (`data-git-view`) rather than found by a :has() over the app, which
   // made every open restyle the whole board.
   const heldInert = useState(() => new Set<Element>())[0];
@@ -342,7 +362,7 @@ export default function GitView(props: GitViewProps) {
   const coverBehind = useCallback((on: boolean) => {
     const behind = on ? [...document.querySelectorAll(sheetRef.current
       ? ".app > :is(main, .detail, .session-list, .accounts-panel, .usage-panel, .sysdetail)"
-      : ".app > .detail")] : [];
+      : ".app > :is(.detail, .usage-panel, .sysdetail)")] : [];
     setInert([...heldInert].filter(el => !behind.includes(el)), false, heldInert);
     setInert(behind, true, heldInert);
     const root = document.documentElement;
@@ -453,6 +473,19 @@ export default function GitView(props: GitViewProps) {
     ro.observe(canvas);
     return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, [want]);
+  // An agent beside the view starts waiting on the reader, fails, or is
+  // answered while the view is open: the canvas frames again, so it is kept
+  // in view or marked at the edge (and a marker for one answered goes). The
+  // deck's auto-fit would, but a card the reader clicked turned it off. A new
+  // agent in view, or the open itself, frames on its own (above).
+  const alarmsNow = want && !sheet && phase === "open" && agent ? { of: agent.sessionId, key: alarmKey(alarmsOutside(stateRef.current.agents.values(), agent.sessionId)) } : null;
+  const alarmsSeen = useRef<typeof alarmsNow>(null);
+  useEffect(() => {
+    const was = alarmsSeen.current, now = alarmsNow;
+    alarmsSeen.current = now;
+    if (!was || !now || was.of !== now.of || was.key === now.key) return;
+    frame(200, true);
+  }, [alarmsNow?.of, alarmsNow?.key]);
   // A pan or a zoom while the view is open moves cards into sight and out of
   // it: once the camera has stopped, the Tab stops follow it. The frame's own
   // move is left to land first, as it has already said where its cards will be.
@@ -528,7 +561,7 @@ export default function GitView(props: GitViewProps) {
     "--gv-top": `${box?.top ?? 52}px`,
     "--gv-graph-h": `${((fork ? prefs.fkGraphH : prefs.graphH) * 100).toFixed(1)}%`,
     "--gv-files-w": `${(prefs.filesW * 100).toFixed(1)}%`,
-    ...(fork ? { "--fk-side-w": `${prefs.sidebarW}px` } : {}),
+    ...(fork ? { "--fk-side-w": `${sidebarLayout(prefs.sidebarW, width, sheet).width}px` } : {}),
   } as CSSProperties;
 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
@@ -591,8 +624,9 @@ export default function GitView(props: GitViewProps) {
 function EdgeMarkers({ markers, labels, right, now, onGo }: {
   markers: EdgeMarker[]; labels: readonly PaneBox[]; right: number; now: number; onGo: (id: string) => void;
 }) {
-  // Each marker moved off the cluster name tags in its own width, once that
-  // width is drawn: placed before paint, so none is seen over a tag.
+  // Each marker moved off the cluster name tags and the framed session's cards
+  // in its own width, once that width is drawn: placed before paint, so none
+  // is seen over either.
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const [placed, setPlaced] = useState<{ of: EdgeMarker[]; tops: number[] } | null>(null);
   useLayoutEffect(() => {
@@ -768,8 +802,10 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   // unless the reader hid it (remembered). Too narrow for that (a sheet, a
   // narrow panel) it floats over the history instead: hidden at first, out
   // while the reader has it out, and out of the way again once a view or a
-  // ref is picked in it, on Esc, or on a press outside it.
-  const sidebarOver = isSidebarFloating(width, prefs.sidebarW, sheet);
+  // ref is picked in it, on Esc, or on a press outside it. A width chosen on
+  // a wider window is narrowed to what this panel leaves it (git-view-sizes.ts).
+  const side = sidebarLayout(prefs.sidebarW, width, sheet);
+  const sidebarOver = side.floating;
   const [floatSide, setFloatSide] = useState(false);
   useEffect(() => setFloatSide(false), [request.seq, sidebarOver]);
   const sidebarShown = sidebarShownFor(prefs, sidebarOver, floatSide);
@@ -989,7 +1025,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
   };
   const sizeOf = (kind: SplitterKind) =>
     kind === "edge" ? width
-      : kind === "sidebar" ? sideRef.current?.getBoundingClientRect().width ?? prefs.sidebarW
+      : kind === "sidebar" ? sideRef.current?.getBoundingClientRect().width ?? side.width
       : kind === "graph" ? graphRef.current?.getBoundingClientRect().height ?? 0
       : filesRef.current?.getBoundingClientRect().width ?? 0;
   const commit = (kind: SplitterKind, px: number) => {
@@ -1054,7 +1090,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
       : kind === "graph" ? (fork ? fkGraphBounds : graphBounds)(boxes.panes) : filesBounds(boxes.bottom);
     const total = kind === "edge" ? win : kind === "sidebar" ? width : kind === "graph" ? boxes.panes : boxes.bottom;
     const pct = (px: number) => (total ? Math.round((px / total) * 100) : 0);
-    const now = kind === "edge" ? width : kind === "sidebar" ? prefs.sidebarW
+    const now = kind === "edge" ? width : kind === "sidebar" ? side.width
       : kind === "graph" ? (fork ? prefs.fkGraphH : prefs.graphH) * (total ?? 0) : prefs.filesW * (total ?? 0);
     return (
       <div

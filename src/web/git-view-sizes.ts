@@ -198,6 +198,18 @@ export function sidebarBounds(panelW: number) {
   return { min: SIDEBAR_MIN, max: Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, panelW - SIDE_HISTORY_MIN)) };
 }
 
+/** The Fork sidebar column on a panel `panelW` wide. A column widened past
+ *  its default on a wider window or panel is narrowed to what keeps the
+ *  history beside it at 600px, down to the default width, so widening it
+ *  never floats it away where the default would have stayed beside the
+ *  history. The choice itself is kept, and comes back where it fits. Where
+ *  the history would be left too little anyway, it floats over the history
+ *  at the width chosen, as a default one does. */
+export function sidebarLayout(storedW: number, panelW: number, sheet: boolean): { width: number; floating: boolean } {
+  const beside = Math.min(storedW, Math.max(sidebarBounds(panelW).max, GIT_VIEW_DEFAULTS.sidebarW));
+  return isSidebarFloating(panelW, beside, sheet) ? { width: storedW, floating: true } : { width: beside, floating: false };
+}
+
 export type SplitterKind = "edge" | "graph" | "files" | "sidebar";
 
 /**

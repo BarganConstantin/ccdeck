@@ -422,7 +422,11 @@
    the detail rail it covers whole steps out of sight as well as out of the
    Tab order, and so do the minimap and the auto-fit chip it would half
    cover; a settled full sheet stops the canvas painting under it. The mark
-   comes off as a close starts, so focus can return to a row in the rail. */
+   comes off as a close starts, so focus can return to a row in the rail.
+   The rail's Usage and Machine panels dock beside the detail rail, where the
+   panel now is, and the canvas it leaves has no room for them: they step out
+   of sight too and come back as it closes. Asking for one closes the view. */
+:root[data-git-view] .app > :is(.usage-panel, .sysdetail),
 :root[data-git-view] .app > .detail,
 :root[data-git-view] .react-flow__minimap,
 :root[data-git-view] .autofit-chip { visibility: hidden; }

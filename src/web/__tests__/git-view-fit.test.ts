@@ -2,8 +2,9 @@
 // panel leaves, agents waiting on the reader kept in that frame while every
 // card can keep its full face, and a marker for each one that could not be.
 import { afterEach, describe, expect, it } from "vitest";
+import type { AgentNodeData } from "../types";
 import {
-  boxesOverlap, clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, outOfSight, setGitViewFrame, stackMarkers,
+  alarmKey, alarmsOutside, boxesOverlap, clearOfLabels, foldMarkers, frameForGitView, gitViewCover, gitViewFrame, labelTopAt, markerRoom, markerTop, onPane, outOfSight, setGitViewFrame, stackMarkers,
   MARKER_H,
 } from "../git-view-fit";
 import { LABEL_LIFT } from "../session-chrome";
@@ -135,6 +136,15 @@ describe("the edge markers beside the cluster name tags", () => {
     expect(tops[1]).toBe(145);
   });
 
+  it("keep off the cards of the session the view frames, the selected one among them", () => {
+    // The framed card at plane (300, 40), 156×100, drawn at zoom 1 with the camera at (10, 20): level with the marker, under its span.
+    const framed = onPane({ x: 300, y: 40, width: 156, height: 100 }, { x: 10, y: 20, zoom: 1 });
+    expect(framed).toEqual({ left: 310, right: 466, top: 60, bottom: 160 });
+    expect(clearOfLabels([mark], [tag, framed], 288)).toEqual([160 + 4]);
+    // At half the size the card ends left of the marker's span: the marker stays.
+    expect(clearOfLabels([mark], [onPane({ x: 300, y: 40, width: 156, height: 100 }, { x: 10, y: 20, zoom: 0.5 })], 288)).toEqual([72]);
+  });
+
   it("know where a tag lands once the camera has moved: on the plane, lifted a fixed height above its box", () => {
     // A tag 12px above a box at plane y 400, drawn at zoom 0.5 with the camera at y 20.
     const was = { y: 20, zoom: 0.5 }, now = { y: -100, zoom: 0.25 };
@@ -146,8 +156,10 @@ describe("the edge markers beside the cluster name tags", () => {
     const view = sourceOf("components/GitView.tsx");
     // Where the frame's camera puts each tag: the frame asks with its own move's target.
     expect(view).toMatch(/const tagTop = labelTopAt\(r\.top - rect\.top, was, at\);/);
-    expect(view).toMatch(/const boxes = takeOutOfSight\(plan\.viewport, was\);/);
-    expect(view).toMatch(/setLabelBoxes\(plan\.leftOut\.length \? boxes : NO_BOXES\);/);
+    // The frame's own target, or the camera the reader left when it holds it.
+    expect(view).toMatch(/\(\{ viewport, leftOut \} = plan\);/);
+    expect(view).toMatch(/const boxes = takeOutOfSight\(viewport, was\);/);
+    expect(view).toMatch(/setLabelBoxes\(leftOut\.length \? \[\.\.\.boxes, \.\.\.session\.map\(c => onPane\(c, viewport\)\)\] : NO_BOXES\);/);
     const edge = view.slice(view.indexOf("function EdgeMarkers("), view.indexOf("// ── the panel"));
     expect(edge).toMatch(/clearOfLabels\(/);
     expect(edge).toMatch(/useLayoutEffect\(/);
@@ -213,5 +225,34 @@ describe("the camera's own fits while the view is open", () => {
   it("is asked by the fit and by a focus on one card", () => {
     expect(sourceOf("use-camera.ts")).toMatch(/frameForGitView\(duration\)/);
     expect(sourceOf("use-agent-focus.ts")).toMatch(/gitViewCover\(\)/);
+  });
+});
+
+describe("an agent that starts waiting or fails while the view is open", () => {
+  const agent = (over: Partial<AgentNodeData>): AgentNodeData => ({ id: "x", sessionId: "x", kind: "root", state: "idle", label: "x", ...over } as AgentNodeData);
+  const waiting = (id: string, since = 1) => agent({ id, sessionId: id, waiting: { kind: "permission", since } as AgentNodeData["waiting"] });
+
+  it("is one of the alarms the canvas beside the view keeps in sight, outside the session in view", () => {
+    const agents = [waiting("w1"), agent({ id: "f1::sub", sessionId: "f1", kind: "subagent", state: "err" }), waiting("s1"), agent({ id: "s1::a", sessionId: "s1", kind: "subagent", state: "err" }),
+      agent({ id: "idle", sessionId: "idle", waiting: { kind: "idle", since: 1 } as AgentNodeData["waiting"] })];
+    expect([...alarmsOutside(agents, "s1")]).toEqual([["w1", "waiting"], ["f1::sub", "failed"]]);
+  });
+
+  it("changes the key the view frames again on, and only a change of who or why does", () => {
+    const before = alarmKey(alarmsOutside([waiting("w1")], "s1"));
+    expect(alarmKey(alarmsOutside([waiting("w1", 99)], "s1"))).toBe(before);
+    expect(alarmKey(alarmsOutside([waiting("w1"), waiting("w2")], "s1"))).not.toBe(before);
+    expect(alarmKey(alarmsOutside([waiting("w2"), waiting("w1")], "s1"))).toBe(alarmKey(alarmsOutside([waiting("w1"), waiting("w2")], "s1")));
+    expect(alarmKey(alarmsOutside([], "s1"))).not.toBe(before);
+  });
+
+  it("frames the view again, or marks it where the reader left the camera, without waiting for the auto-fit", () => {
+    const view = sourceOf("components/GitView.tsx");
+    // Worked out on every render while the open view is beside the canvas…
+    expect(view).toMatch(/const alarmsNow = want && !sheet && phase === "open" && agent \? \{ of: agent\.sessionId, key: alarmKey\(alarmsOutside\(stateRef\.current\.agents\.values\(\), agent\.sessionId\)\) \} : null;/);
+    // …and a change within one session in view frames again, holding a camera the reader moved.
+    expect(view).toMatch(/if \(!was \|\| !now \|\| was\.of !== now\.of \|\| was\.key === now\.key\) return;\s*frame\(200, true\);/);
+    expect(view).toMatch(/const keep = hold && cameraEpochRef\.current !== framedEpoch\.current;/);
+    expect(view).toMatch(/framedEpoch\.current = moveCamera\(plan\.viewport, duration\);/);
   });
 });

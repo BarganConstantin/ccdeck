@@ -2,7 +2,7 @@
 // the page, kept outside React like git-pref.ts. The keys, the card chip and
 // the glance write it; only the view subscribes, so pressing `g` re-renders
 // the view and nothing else on the deck.
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
 
 import type { GitFileRef } from "./git-view-types";
 
@@ -42,6 +42,17 @@ export function openGitViewRequest(how: GitViewHow, hints: { focusInside?: boole
 /** Ask the view to close; nothing when it is not open. */
 export function closeGitViewRequest(how: GitViewHow): void {
   if (current.open) set({ ...current, open: false, how, seq: current.seq + 1, focusInside: false });
+}
+
+/** A Usage or Machine panel's toggle that gives the rail back first. While
+ *  the git view is open those panels step out of sight under it, so a press
+ *  closes the view and shows the panel, whichever way it was set; otherwise
+ *  it toggles as before. A panel's own close only closes it. */
+export function yieldingRailToggle(setOpen: Dispatch<SetStateAction<boolean>>, how: GitViewHow): Dispatch<SetStateAction<boolean>> {
+  return v => {
+    if (current.open && v !== false) { closeGitViewRequest(how); setOpen(true); return; }
+    setOpen(v);
+  };
 }
 
 function set(next: GitViewRequest): void {

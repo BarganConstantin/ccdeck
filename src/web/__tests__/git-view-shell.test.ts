@@ -41,8 +41,18 @@ describe("opening and closing", () => {
 });
 
 describe("what it covers while open", () => {
-  it("makes the detail rail inert, and the whole deck beside the canvas when it is a sheet", () => {
-    expect(view).toMatch(/"\.app > :is\(main, \.detail, \.session-list, \.accounts-panel, \.usage-panel, \.sysdetail\)"\s*:\s*"\.app > \.detail"/);
+  it("makes the detail rail and the Usage and Machine panels inert, and the whole deck beside the canvas when it is a sheet", () => {
+    expect(view).toMatch(/"\.app > :is\(main, \.detail, \.session-list, \.accounts-panel, \.usage-panel, \.sysdetail\)"\s*:\s*"\.app > :is\(\.detail, \.usage-panel, \.sysdetail\)"/);
+  });
+
+  it("takes the rail's room: the Usage and Machine panels step out of sight, and asking for one gives the room back", () => {
+    // Out of sight while it is open, as the detail rail it widens out of is, and back when it closes.
+    expect(css).toMatch(/:root\[data-git-view\] \.app > :is\(\.usage-panel, \.sysdetail\),/);
+    // Their buttons and keys close the view and show the panel.
+    expect(app).toMatch(/const railToggles = useMemo\(\(\) => \(\{\s*usage: \{ pointer: yieldingRailToggle\(setUsagePanelOpen, "pointer"\), key: yieldingRailToggle\(setUsagePanelOpen, "key"\) \},\s*machine: \{ pointer: yieldingRailToggle\(setMachinePanelOpen, "pointer"\), key: yieldingRailToggle\(setMachinePanelOpen, "key"\) \},/);
+    expect(app).toMatch(/setUsagePanelOpen=\{railToggles\.usage\.pointer\}/);
+    expect(app).toMatch(/setMachinePanelOpen=\{railToggles\.machine\.pointer\}/);
+    expect(app).toMatch(/setUsagePanelOpen: railToggles\.usage\.key, setMachinePanelOpen: railToggles\.machine\.key,/);
   });
 
   it("takes a card wholly under the panel, or wholly off the canvas it leaves, out of the Tab order", () => {

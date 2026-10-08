@@ -62,7 +62,7 @@ describe("what the panel covers", () => {
     expect(view).toMatch(/for \(const el of canvas\.querySelectorAll<HTMLElement>\("\.cluster-label"\)\) \{/);
     expect(view).toMatch(/const left = rect\.left \+ x \+ \(\(r\.left - rect\.left - was\.x\) \/ was\.zoom\) \* zoom;/);
     // Read before the camera moves: until it lands, the tags are drawn with the old one.
-    expect(view).toMatch(/const was = rf\.getViewport\(\);\s*moveCamera\(plan\.viewport, duration\);/);
+    expect(view).toMatch(/const was = rf\.getViewport\(\);[\s\S]{0,1200}?framedEpoch\.current = moveCamera\(plan\.viewport, duration\);/);
   });
 });
 
