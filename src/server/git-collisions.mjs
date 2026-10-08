@@ -28,8 +28,9 @@
 // GitObserved reads them (git-state.mjs, from the agent's own folder); its
 // edits are the edit tracker's (agent-git-edits.mjs), each placed in the
 // worktree that holds it (git-edits.mjs) — the agent's own, or for an edit
-// outside it the one its folder is in, so an agent followed into another
-// worktree still holds what it left uncommitted in the first; "still
+// outside it the one the folder it was made from is in, else the one the
+// file's own folder is in, so an agent followed into another worktree still
+// holds what it left uncommitted in the first, however many folders; "still
 // changed" is the repository's cached status, which the agents' own tool
 // calls mark stale — and, for a changed file two agents edited, its last
 // commit since the earlier edit: an agent that committed the file and moved
@@ -70,8 +71,9 @@ const MAX_SESSIONS = 2048;
 const MAX_AGENTS_PER_SESSION = 512;
 /** The most files whose last commit one recompute reads. */
 const MAX_COMMIT_READS = 64;
-/** The most folders one recompute asks the repository of — the folders of
- *  edits outside their agent's own worktree. */
+/** The most folders one recompute asks the repository of for edits outside
+ *  their agent's own worktree: as many of the folders they were made from —
+ *  usually one per agent — and as many again of the edits' own folders. */
 const MAX_FOLDER_READS = 64;
 /** A commit time no edit can follow: what a file git reports unchanged is
  *  given, so it is never sharp. */
@@ -192,8 +194,8 @@ async function compute() {
   const repos = new Map();   // top level -> the resolved repository
   const placed = new Map();  // edited path (canonical, folded) -> { top, rel }
   const holders = new Map(); // edited path (canonical, folded) -> how many agents
-  const folderRepo = new Map(); // folder of an edit outside its agent's worktree -> its repository, or null
-  let folderReads = 0;
+  const folderRepo = new Map(); // folder of an edit outside its agent's worktree, or the folder it was made from -> its repository, or null
+  const folderReads = { made: 0, own: 0 }; // folders asked about: those edits were made from, and edits' own
   /** Put `rows` that are inside `repo` on `target`'s edits; answer the rest. */
   const placeRows = async (repo, rows, target) => {
     const where = await placeInRepo(repo.topLevel, rows.map((r) => r.path));
@@ -233,25 +235,33 @@ async function compute() {
       if (!member.foldInto) agents.push(target);
       if (!rows.length) continue;
       // Each edit in the worktree that holds it: the agent's own first, then,
-      // for an edit outside it, the worktree its folder is in — an agent
-      // followed into another worktree leaves its edits where it made them.
+      // for an edit outside it, the worktree of the folder it was made from —
+      // an agent followed into another worktree leaves its edits where it
+      // made them — and last the worktree the file's own folder is in. The
+      // folders edits were made from are asked about apart from the rest, so
+      // edits in many other folders never crowd out the ones it left behind.
       let left = rows;
       if (member.repo) {
         left = await placeRows(member.repo, rows, target);
         if (gen !== generation) return;
       }
-      for (const [dir, list] of groupBy(left, (r) => dirname(r.path))) {
-        if (!folderRepo.has(dir)) {
-          if (folderReads >= MAX_FOLDER_READS) continue;
-          folderReads++;
-          folderRepo.set(dir, await repoFor(dir));
+      for (const [pass, folderOf] of [["made", (r) => r.cwd], ["own", (r) => dirname(r.path)]]) {
+        const rest = [];
+        for (const [dir, list] of groupBy(left, folderOf)) {
+          if (typeof dir !== "string" || !dir) { rest.push(...list); continue; }
+          if (!folderRepo.has(dir)) {
+            if (folderReads[pass] >= MAX_FOLDER_READS) { rest.push(...list); continue; }
+            folderReads[pass]++;
+            folderRepo.set(dir, await repoFor(dir));
+            if (gen !== generation) return;
+          }
+          const repo = folderRepo.get(dir);
+          if (!repo || repo.topLevel === member.repo?.topLevel) { rest.push(...list); continue; }
+          repos.set(repo.topLevel, repo);
+          rest.push(...await placeRows(repo, list, target));
           if (gen !== generation) return;
         }
-        const repo = folderRepo.get(dir);
-        if (!repo || repo.topLevel === member.repo?.topLevel) continue;
-        repos.set(repo.topLevel, repo);
-        await placeRows(repo, list, target);
-        if (gen !== generation) return;
+        left = rest;
       }
     }
   }
