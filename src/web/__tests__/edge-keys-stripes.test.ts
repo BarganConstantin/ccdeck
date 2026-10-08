@@ -158,7 +158,12 @@ describe("Accounts, and the left column it shares", () => {
     // The eviction itself is use-left-column.ts's and left-column-824.test.ts
     // runs it; what this pins is that the stripe reaches the panels through
     // those toggles and nothing else, so it cannot draw both into one slot.
-    expect(sourceOf("App.tsx")).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,/);
+    // Through the git view's yield, which closes a full sheet standing over
+    // the column and then calls the same toggle (git-view-edges.test.ts).
+    const app = sourceOf("App.tsx");
+    expect(app).toMatch(/railItems\(\{\s*providers,\s*sessionListOpen: sessionListOpen && gitCovers !== "all", toggleSessionList: columnToggles\.sessionList\.pointer,\s*accountsPanelOpen: accountsPanelOpen && gitCovers !== "all", toggleAccountsPanel: columnToggles\.accounts\.pointer,/);
+    expect(app).toMatch(/sessionList: \{ pointer: yieldingColumnToggle\(toggleSessionList, sessionListOpen, "pointer"\),/);
+    expect(app).toMatch(/accounts: \{ pointer: yieldingColumnToggle\(toggleAccountsPanel, accountsPanelOpen, "pointer"\),/);
     const column = sourceOf("use-left-column.ts");
     expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open\) setAccountsPanelOpen\(/);
     expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open\) setSessionListOpen\(false\);/);

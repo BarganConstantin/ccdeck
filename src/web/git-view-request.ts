@@ -1,9 +1,11 @@
 // Whether the git view is asked to be open, how, and on what — one value for
 // the page, kept outside React like git-pref.ts. The keys, the card chip and
-// the glance write it; only the view subscribes, so pressing `g` re-renders
-// the view and nothing else on the deck.
+// the glance write it; only the view subscribes to the whole request, so
+// pressing `g` re-renders the view, and the page only as far as which of its
+// panels the view now covers (useGitViewCovers), once per open and close.
 import { useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
 
+import { isSheet } from "./git-view-sizes";
 import type { GitFileRef } from "./git-view-types";
 
 /** How a request reached the view: a pointer animates, a key does not. */
@@ -53,6 +55,43 @@ export function yieldingRailToggle(setOpen: Dispatch<SetStateAction<boolean>>, h
     if (current.open && v !== false) { closeGitViewRequest(how); setOpen(true); return; }
     setOpen(v);
   };
+}
+
+/** A Session list or Accounts toggle (the left column's two), which gives the
+ *  room back the same way, but only while the open view is a full sheet:
+ *  beside the canvas the view leaves the left column alone and the canvas
+ *  between them narrows, while a sheet stands over the column too. A press
+ *  then closes the view and shows that panel, opening it only if it is shut. */
+export function yieldingColumnToggle(toggle: () => void, isOpen: boolean, how: GitViewHow): () => void {
+  return () => {
+    if (current.open && isSheet(window.innerWidth)) {
+      closeGitViewRequest(how);
+      if (!isOpen) toggle();
+      return;
+    }
+    toggle();
+  };
+}
+
+/** Which of the chrome's panels the open view stands over and hides: none
+ *  while it is closed, the rail's Usage and Machine beside the canvas, and the
+ *  left column's two as well when it is a full sheet. Their stripe and dock
+ *  buttons read it, so a panel out of sight under the view is not drawn open. */
+export type GitViewCovers = "none" | "rail" | "all";
+/** The covered panels now, outside React. */
+export const gitViewCovers = (): GitViewCovers =>
+  !current.open ? "none" : typeof window !== "undefined" && isSheet(window.innerWidth) ? "all" : "rail";
+const subscribeCovers = (l: () => void) => {
+  listeners.add(l);
+  window.addEventListener("resize", l);
+  return () => { listeners.delete(l); window.removeEventListener("resize", l); };
+};
+
+/** The covered panels, re-rendering the caller only when they change: as the
+ *  view opens or closes, or the window crosses the sheet's width — never for
+ *  a new row or file inside an open view. */
+export function useGitViewCovers(): GitViewCovers {
+  return useSyncExternalStore(subscribeCovers, gitViewCovers, () => "none");
 }
 
 function set(next: GitViewRequest): void {

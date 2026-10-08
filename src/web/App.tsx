@@ -81,7 +81,7 @@ import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useGitOpener } from "./use-git-opener";
 import GitView from "./components/GitView";
-import { closeGitViewRequest, gitViewRequest, openGitViewRequest, setGitAgentFocuser, setGitViewOpener, yieldingRailToggle, type GitViewHow } from "./git-view-request";
+import { closeGitViewRequest, gitViewRequest, openGitViewRequest, setGitAgentFocuser, setGitViewOpener, useGitViewCovers, yieldingColumnToggle, yieldingRailToggle, type GitViewHow } from "./git-view-request";
 import { gitKeyAllowed } from "./git-view-keys";
 import { gitFactsFor, gitViewOpens, subagentKey } from "./git-view-target";
 import { UNREADABLE, cachedGitState } from "./use-git-view";
@@ -140,6 +140,13 @@ function Inner() {
   // the eviction live in use-left-column.ts; only its toggles can open either.
   const { sessionListOpen, accountsPanelOpen, toggleSessionList, toggleAccountsPanel,
           closeSessionList, closeAccountsPanel } = useLeftColumn();
+  // A full-sheet git view stands over the left column as well: its two
+  // toggles then close the view and show the panel, as the rail's do
+  // (git-view-request.ts). Beside the canvas they toggle as before.
+  const columnToggles = useMemo(() => ({
+    sessionList: { pointer: yieldingColumnToggle(toggleSessionList, sessionListOpen, "pointer"), key: yieldingColumnToggle(toggleSessionList, sessionListOpen, "key") },
+    accounts: { pointer: yieldingColumnToggle(toggleAccountsPanel, accountsPanelOpen, "pointer"), key: yieldingColumnToggle(toggleAccountsPanel, accountsPanelOpen, "key") },
+  }), [toggleSessionList, sessionListOpen, toggleAccountsPanel, accountsPanelOpen]);
   /** The panel outlives its own `false` by the length of its exit, so closing
    *  it animates instead of cutting 288px out of the layout in one frame.
    *  Must match `--side-exit` in the sheet. */
@@ -579,7 +586,8 @@ function Inner() {
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
-    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
+    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause,
+    toggleSessionList: columnToggles.sessionList.key, toggleAccountsPanel: columnToggles.accounts.key,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: railToggles.usage.key, setMachinePanelOpen: railToggles.machine.key,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
     gitViewOpenRef: { get current() { return gitViewRequest().open; } }, toggleGitView, closeGitView,
@@ -632,9 +640,16 @@ function Inner() {
   // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
+  // A panel out of sight under the open git view is not drawn open on its
+  // edge: the line would face the view, not the panel. Its button still shows
+  // it, closing the view first. Re-renders only as the view opens or closes.
+  const gitCovers = useGitViewCovers();
   const rails = railItems({
-    providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
-    usagePanelOpen, setUsagePanelOpen: railToggles.usage.pointer, machinePanelOpen, setMachinePanelOpen: railToggles.machine.pointer, setUsageHistoryOpen,
+    providers,
+    sessionListOpen: sessionListOpen && gitCovers !== "all", toggleSessionList: columnToggles.sessionList.pointer,
+    accountsPanelOpen: accountsPanelOpen && gitCovers !== "all", toggleAccountsPanel: columnToggles.accounts.pointer,
+    usagePanelOpen: usagePanelOpen && gitCovers === "none", setUsagePanelOpen: railToggles.usage.pointer,
+    machinePanelOpen: machinePanelOpen && gitCovers === "none", setMachinePanelOpen: railToggles.machine.pointer, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, openSettings, onFeedback: dialogs.openFeedback,
     toggles: panelReturn.toggles,
   });
@@ -645,9 +660,11 @@ function Inner() {
    *  same sessions in the same order, opened if it is shut, and focus on its
    *  first row once it is drawn. */
   const showWaitingList = useCallback(() => {
-    if (!sessionListOpen) toggleSessionList();
+    // Through the column's own toggle, which closes a full-sheet git view
+    // standing over the list first.
+    if (!sessionListOpen || gitCovers === "all") columnToggles.sessionList.pointer();
     requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
-  }, [sessionListOpen, toggleSessionList]);
+  }, [sessionListOpen, gitCovers, columnToggles]);
 
   return (
     <div className="app">

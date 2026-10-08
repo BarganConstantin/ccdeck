@@ -3,12 +3,14 @@
 // view stands between them and never over one, so every toggle stays in sight
 // and in reach while it is open; a toggle whose panel the view stands over
 // closes the view and shows that panel, and is not drawn open meanwhile.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sourceOf } from "./client-source";
 import { sheetParts } from "./sheet-source";
+import { closeGitViewRequest, gitViewCovers, gitViewRequest, openGitViewRequest, yieldingColumnToggle } from "../git-view-request";
 
 const own = sheetParts().find(([path]) => path === "styles/git-view.css")![1];
 const view = sourceOf("components/GitView.tsx");
+const app = sourceOf("App.tsx");
 /** A rule of the view's own part of the sheet, outside any at-rule. */
 const rule = (sel: string) => {
   const at = own.indexOf(`\n${sel} {`);
@@ -43,5 +45,85 @@ describe("where the view stands", () => {
     expect(view).toMatch(/const cover = Math\.max\(0, width - \(box \? end - box\.right : detailShown \? 360 : 0\)\);/);
     expect(view).toMatch(/const cover = Math\.max\(0, w - \(chromeEdges\(\)\.end - rect\.right\)\);/);
     expect(view).not.toMatch(/window\.innerWidth - (w|rect)\b/);
+  });
+});
+
+describe("the left column's toggles over a full sheet", () => {
+  let width = 900;
+  beforeEach(() => { width = 900; vi.stubGlobal("window", { get innerWidth() { return width; } }); });
+  afterEach(() => { closeGitViewRequest("key"); vi.unstubAllGlobals(); });
+
+  function column(open: boolean) {
+    let value = open;
+    return { toggle: () => { value = !value; }, now: () => value };
+  }
+
+  it("toggle as before while the view is closed", () => {
+    const c = column(false);
+    const press = yieldingColumnToggle(c.toggle, c.now(), "pointer");
+    press();
+    expect(c.now()).toBe(true);
+  });
+
+  it("toggle as before while the view stands beside the canvas, which leaves the column alone", () => {
+    width = 1440;
+    openGitViewRequest("pointer", { agentId: "s1" });
+    const c = column(false);
+    yieldingColumnToggle(c.toggle, c.now(), "pointer")();
+    expect(c.now()).toBe(true);
+    expect(gitViewRequest().open).toBe(true);
+  });
+
+  it("close the sheet and show the panel, opening it only if it was shut", () => {
+    for (const was of [false, true]) {
+      openGitViewRequest("pointer", { agentId: "s1" });
+      const c = column(was);
+      yieldingColumnToggle(c.toggle, c.now(), "pointer")();
+      expect(gitViewRequest().open, `was ${was}`).toBe(false);
+      expect(c.now(), `was ${was}`).toBe(true);
+    }
+  });
+
+  it("close it the way they were asked: a key never animates", () => {
+    openGitViewRequest("pointer", { agentId: "s1" });
+    const c = column(false);
+    yieldingColumnToggle(c.toggle, c.now(), "key")();
+    expect(gitViewRequest()).toMatchObject({ open: false, how: "key" });
+  });
+});
+
+describe("what the edges draw while the view is open", () => {
+  let width = 1440;
+  beforeEach(() => { width = 1440; vi.stubGlobal("window", { get innerWidth() { return width; } }); });
+  afterEach(() => { closeGitViewRequest("key"); vi.unstubAllGlobals(); });
+
+  it("knows which panels the view stands over: none closed, the rail's beside the canvas, all of them as a sheet", () => {
+    expect(gitViewCovers()).toBe("none");
+    openGitViewRequest("key", { agentId: "s1" });
+    expect(gitViewCovers()).toBe("rail");
+    width = 900;
+    expect(gitViewCovers()).toBe("all");
+    width = 390;
+    expect(gitViewCovers()).toBe("all");
+    closeGitViewRequest("key");
+    expect(gitViewCovers()).toBe("none");
+  });
+
+  it("draws no panel open on its edge while it is out of sight under the view", () => {
+    expect(app).toMatch(/const gitCovers = useGitViewCovers\(\);/);
+    const rails = app.slice(app.indexOf("const rails = railItems({"), app.indexOf("});", app.indexOf("const rails = railItems({")));
+    expect(rails).toMatch(/sessionListOpen: sessionListOpen && gitCovers !== "all",/);
+    expect(rails).toMatch(/accountsPanelOpen: accountsPanelOpen && gitCovers !== "all",/);
+    expect(rails).toMatch(/usagePanelOpen: usagePanelOpen && gitCovers === "none",/);
+    expect(rails).toMatch(/machinePanelOpen: machinePanelOpen && gitCovers === "none",/);
+  });
+
+  it("sends the left column's buttons, keys and the queue's +N more through the same yield", () => {
+    expect(app).toMatch(/sessionList: \{ pointer: yieldingColumnToggle\(toggleSessionList, sessionListOpen, "pointer"\), key: yieldingColumnToggle\(toggleSessionList, sessionListOpen, "key"\) \},/);
+    expect(app).toMatch(/accounts: \{ pointer: yieldingColumnToggle\(toggleAccountsPanel, accountsPanelOpen, "pointer"\), key: yieldingColumnToggle\(toggleAccountsPanel, accountsPanelOpen, "key"\) \},/);
+    expect(app).toMatch(/toggleSessionList: columnToggles\.sessionList\.pointer,/);
+    expect(app).toMatch(/toggleAccountsPanel: columnToggles\.accounts\.pointer,/);
+    expect(app).toMatch(/toggleSessionList: columnToggles\.sessionList\.key, toggleAccountsPanel: columnToggles\.accounts\.key,/);
+    expect(app).toMatch(/if \(!sessionListOpen \|\| gitCovers === "all"\) columnToggles\.sessionList\.pointer\(\);/);
   });
 });
