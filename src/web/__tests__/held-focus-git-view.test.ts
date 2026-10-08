@@ -81,7 +81,7 @@ describe("a camera move the deck makes while a click's jump is held", () => {
 
   it("is what the git view does before its frame and before it gives the camera back", () => {
     expect(view).toContain('import { cancelHeldFocus } from "../focus-hold";');
-    expect(view).toMatch(/cancelHeldFocus\(\);\n(?:\s*\/\/.*\n)*\s*const was = rf\.getViewport\(\);\s*moveCamera\(plan\.viewport, duration\);/);
+    expect(view).toMatch(/cancelHeldFocus\(\);\n(?:\s*\/\/.*\n)*\s*framedEpoch\.current = moveCamera\(plan\.viewport, duration\);/);
     expect(view).toMatch(/cancelHeldFocus\(\);\n\s+restoring\.current = \{ to: savedViewport\.current, epoch: moveCamera\(savedViewport\.current, duration\) \};/);
   });
 });

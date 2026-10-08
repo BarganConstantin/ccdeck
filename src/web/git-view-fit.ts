@@ -12,9 +12,11 @@
 // Cards the panel covers wholly leave the Tab order, and while the view is
 // open every fit the deck runs on its own — the auto-fit, F — frames for the
 // view instead of for the whole board, through the seam at the bottom.
+import { blockedSessions } from "./ambient-counts";
 import { focusViewport, unionBox, type FlowBox, type PaneInsets } from "./focus-camera";
 import { DETAIL_ENTER_ZOOM, FOCUS_MAX_ZOOM, fitZoomForDrawnLanes } from "./semantic-zoom";
 import { LABEL_LIFT } from "./session-chrome";
+import type { AgentNodeData } from "./types";
 
 export interface FitCard extends FlowBox {
   id: string;
@@ -28,6 +30,24 @@ export interface SessionCard extends FlowBox {
 
 /** Why an agent outside the session is kept in view. */
 export type Alarm = "waiting" | "failed";
+
+/** The agents outside session `sessionId` the canvas beside the view keeps
+ *  in sight: each session waiting on the reader (its root carries the block),
+ *  then each agent stopped on an error. */
+export function alarmsOutside(agents: Iterable<AgentNodeData>, sessionId: string): Map<string, Alarm> {
+  const all = [...agents];
+  const out = new Map<string, Alarm>();
+  for (const s of blockedSessions(all)) if (s.id !== sessionId) out.set(s.id, "waiting");
+  for (const a of all) if (a.state === "err" && a.sessionId !== sessionId && !out.has(a.id)) out.set(a.id, "failed");
+  return out;
+}
+
+/** Who is alarming and why, as one comparable word: the open view frames
+ *  again when it changes — an agent starting to wait, failing, or being
+ *  answered — and not as their clocks run. */
+export function alarmKey(alarms: ReadonlyMap<string, Alarm>): string {
+  return [...alarms].map(([id, why]) => `${id}:${why}`).sort().join("\u0001");
+}
 
 export interface GitViewFramePlan {
   viewport: { x: number; y: number; zoom: number };
