@@ -15,7 +15,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { EMPTY_GIT_DATA, startPick, useGitData, useGitSelection, type GitData } from "../use-git-view";
+import { EMPTY_GIT_DATA, startPick, takeFirstFile, useGitData, useGitSelection, type GitData } from "../use-git-view";
 import { UNCOMMITTED, type GitFileRef, type GraphFocus, type LogCommit, type StatusEntry } from "../git-view-types";
 
 type Selection = ReturnType<typeof useGitSelection>;
@@ -270,6 +270,31 @@ describe("the file the view opens on", () => {
     await v.start();
     expect(v.now().file?.path).toBe("a.ts");
     await v.stop();
+  });
+});
+
+describe("the first file, chosen for one row", () => {
+  // The Fork look moves an untouched opening from the working tree to a
+  // commit as the history lands; the working tree's first file, worked out a
+  // render earlier, can reach the selection after that move. It must not open
+  // there: the commit has no such file, and its diff read would be a 404.
+  const of = "5|s1";
+  const first: GitFileRef = { path: "src/auth/password.ts", area: "staged" };
+  const open = startPick(of, 5, {}, null, "/r/a");
+
+  it("is taken while the selection is still the row it was chosen for", () => {
+    expect(takeFirstFile(open, of, UNCOMMITTED, first).file).toEqual(first);
+  });
+
+  it("is dropped once the selection has moved to another row", () => {
+    const moved = { ...open, sel: "ded58c9", settled: true };
+    expect(takeFirstFile(moved, of, UNCOMMITTED, first)).toBe(moved);
+  });
+
+  it("never replaces a file already chosen, nor lands on another owner's selection", () => {
+    const chosen = { ...open, file: { path: "a.ts", area: "unstaged" } as GitFileRef, picked: true };
+    expect(takeFirstFile(chosen, of, UNCOMMITTED, first)).toBe(chosen);
+    expect(takeFirstFile(open, "6|s2", UNCOMMITTED, first)).toBe(open);
   });
 });
 
