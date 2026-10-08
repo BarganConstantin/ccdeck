@@ -131,7 +131,7 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
       aria-label={`${waitingSessions.length} session${waitingSessions.length === 1 ? "" : "s"} waiting for you`}
     >
       <span className="ap-pulse" aria-hidden />
-      <b>{waitingSessions.length}</b> <span className="ws-word">waiting</span>
+      <b>{waitingSessions.length}</b> waiting
     </button>
   );
 }

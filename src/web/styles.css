@@ -58,5 +58,6 @@
 @import "./styles/lan-setup.css";                /* local network setup */
 @import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */
+@import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
 @import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

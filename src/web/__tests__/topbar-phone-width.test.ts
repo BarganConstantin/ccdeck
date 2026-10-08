@@ -7,138 +7,107 @@
 // pill — the one light the bar exists to show — was cut off at x=-15, and at
 // 320 the last control went past the right edge too. With an agent selected,
 // the ribbon squeezed under its own state pill and × drew them over the Session
-// list button.
+// list button. Under 480px History, Browser watch and Feedback folded into a ⋯
+// for it, and the ribbon left the bar.
 //
-// So, under 480px, History, Browser watch and Feedback fold into a ⋯
-// (TopbarMore.tsx) and the ribbon leaves the bar. The speaker left the bar
-// since (2026-10-07), so the controls are eight above 480 and six under it,
-// and the fold still earns its place at the narrowest phones (below). These ask the cascade which
-// controls are drawn at each phone width, and add the bar up from the sheet's
-// own numbers, the way the browser lays it out: padding, the readout's waiting
-// pill, the gap between the two groups, and the controls in their runs.
+// THE BAR HOLDS NO CONTROL ON A PHONE NOW. The panel toggles left the topbar
+// for the window's edges (2026-10-08), and under 641px the edges and the
+// topbar's two utilities are one dock along the bottom (EdgeRails.tsx,
+// edge-dock-phone.test.ts) — so the ⋯ went with the fold it held, and the bar
+// is the readout alone: the mark, the stream's pill when it has something to
+// say, and the waiting count, which has the room for its word again. What is
+// pinned here is the guarantee the fold was for — the count whole on every
+// phone, beside the widest thing the bar can draw ahead of it — and that
+// nothing a selection or a control adds can take that room back.
+//
+// The numbers are the sheet's own where the sheet has them (padding, gaps,
+// what is drawn at which width), and measured in headless Brave on a demo deck
+// where only a browser can say (a word's width).
 import { describe, expect, it } from "vitest";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { cascade, el, selects, type El } from "./sheet-cascade";
 import { sourceOf } from "./client-source";
-import TopbarMore from "../components/TopbarMore";
 
-/** The waiting pill at the sheet's narrow breakpoint — its dot and a one-digit
- *  count, the word dropped — measured in Chromium on a live deck. */
-const WAITING_PILL_PX = 40;
+/** The kit's small mark, drawn 19px wide at its 16px height (TopbarReadouts.tsx). */
+const MARK_PX = 19;
+/** The waiting count with one digit and its word, "1 waiting", measured. */
+const WAITING_COUNT_PX = 91;
+/** What each further digit of the count adds: one 14px bold tabular figure. */
+const DIGIT_PX = 9;
+/** The stream pill at its widest, the paused tone's worst case, which the pill
+ *  holds while it is drawn at all — measured, status-pill.ts. */
+const PAUSED_PILL_PX = 103;
+/** Settings and Feedback with their words, measured at 86 and 95. */
+const UTILITIES_PX = [86, 95];
 
-const html = el("html", [], { states: ["root"] });
-const app = el("div", ["app"]);
 const bar = el("header", ["topbar"]);
-const actions = el("div", ["actions"]);
-const run = el("div", ["action-run"]);
-const utility = el("div", ["action-run", "action-run-utility"]);
-const button = (...more: string[]) => el("button", ["btn", "icon-btn", ...more]);
+const readout = el("div", ["readout"]);
 
-/** The bar's controls, run by run, as TopbarRuns.tsx and TopbarMore.tsx draw them. */
-const RUNS: { run: El; controls: El[][] }[] = [
-  { run, controls: [[button()], [button()], [button("tb-fold")]] },                     // Session list, Usage, History
-  { run, controls: [[button()], [button()], [button("bw-btn", "tb-fold")]] },           // Accounts, Machine, Browser watch
-  { run: utility, controls: [
-    [button()],                                                                          // Settings
-    [button("tb-fold")], [button("tb-more")],                                            // Feedback, ⋯
-  ] },
-];
-
-const px = (v: string | null, vars: Record<string, number> = {}): number => {
-  if (v == null) return 0;
-  const named = /^var\((--[\w-]+)\)$/.exec(v);
-  if (named) return vars[named[1]] ?? NaN;
+const px = (v: string | null): number => {
+  if (v == null || v === "0") return 0;
   const m = /^(-?[\d.]+)px$/.exec(v);
-  return m ? Number(m[1]) : v === "0" ? 0 : NaN;
+  return m ? Number(m[1]) : NaN;
 };
 const at = (chain: El[], prop: string, width: number) => cascade(sel => selects(sel, chain), prop, width);
+/** A shorthand's sides, top right bottom left, as the browser expands it. */
+const sides = (v: string | null) => {
+  const p = (v ?? "0").split(/\s+/).map(px);
+  return [p[0], p[1] ?? p[0], p[2] ?? p[0], p[3] ?? p[1] ?? p[0]];
+};
 
-/** The bar at `width`; `unfolded` draws History, Browser watch and Feedback
- *  where the fold would hide them and leaves out the ⋯, to ask what the bar
- *  would need without the fold. */
-function barAt(width: number, unfolded = false) {
-  const vars = { "--ctl-h": px(at([html], "--ctl-h", width)) };
-  const folding = (chain: El[]) => chain.some(e => e.classes.includes("tb-fold") || e.classes.includes("tb-more"));
-  const drawn = (chain: El[]) => unfolded && folding(chain)
-    ? !chain.some(e => e.classes.includes("tb-more"))
-    : at(chain, "display", width) !== "none";
-  let controls = 0, total = 0, runsDrawn = 0;
-  for (const r of RUNS) {
-    const shown = r.controls.filter(c => drawn([bar, actions, r.run, ...c]));
-    if (shown.length === 0) continue;
-    controls += shown.length;
-    runsDrawn++;
-    total += shown.length * px(at([bar, actions, r.run, ...shown[0]], "width", width), vars)
-      + (shown.length - 1) * px(at([bar, actions, r.run], "gap", width))
-      + px(at([bar, actions, r.run], "margin-left", width));
-  }
-  total += (runsDrawn - 1) * px(at([bar, actions], "gap", width));
-  const padding = px(at([bar], "padding", width).split(/\s+/)[1] ?? null);
-  return { controls, actions: total, padding, gap: px(at([bar], "gap", width)) };
+/** The bar at `width`: its inline padding, the gap inside the readout, and
+ *  whether each thing that could take the count's room is drawn there. */
+function barAt(width: number) {
+  const pad = sides(at([bar], "padding", width));
+  return {
+    inline: pad[1] + pad[3],
+    gap: px(at([bar, readout], "gap", width)),
+    word: at([bar, readout, el("button", ["waiting-stat"]), el("span", ["ws-word"])], "display", width) !== "none",
+    ribbon: at([el("div", ["app"]), bar, el("button", ["selected-ribbon"])], "display", width) !== "none",
+  };
 }
 
-const ribbonDrawn = (width: number) => at([app, bar, el("button", ["selected-ribbon"])], "display", width) !== "none";
-
-const PHONES = [320, 360, 390, 412, 480];
+const PHONES = [320, 360, 390, 412, 480, 640];
 
 describe("the topbar at a phone's width", () => {
   it("reads every number it adds from the sheet", () => {
     for (const w of PHONES) {
       const b = barAt(w);
-      for (const [k, v] of Object.entries(b)) expect(Number.isFinite(v), `${k} at ${w}px`).toBe(true);
+      expect(Number.isFinite(b.inline), `padding at ${w}px`).toBe(true);
+      expect(Number.isFinite(b.gap), `gap at ${w}px`).toBe(true);
     }
   });
 
   for (const w of PHONES) {
-    it(`keeps the waiting pill whole beside the controls at ${w}px`, () => {
+    it(`keeps a two-digit waiting count whole, with its word, beside a paused pill at ${w}px`, () => {
       const b = barAt(w);
-      expect(b.padding * 2 + WAITING_PILL_PX + b.gap + b.actions, `controls ${b.actions}px`).toBeLessThanOrEqual(w);
+      expect(b.word, "the count says its word on a phone").toBe(true);
+      const count = WAITING_COUNT_PX + DIGIT_PX;
+      expect(b.inline + MARK_PX + b.gap + PAUSED_PILL_PX + b.gap + count, `at ${w}px`).toBeLessThanOrEqual(w);
     });
 
-    it(`leaves no selection ribbon to squeeze over the controls at ${w}px`, () => {
-      expect(ribbonDrawn(w)).toBe(false);
+    it(`leaves no selection ribbon to take the count's room at ${w}px`, () => {
+      expect(barAt(w).ribbon).toBe(false);
     });
   }
 
-  it("keeps every control above a phone's width, and the ⋯ off the bar there", () => {
-    // Up to 1440, where the controls grow their words and topbar-words-836
-    // does this arithmetic instead.
-    for (const w of [481, 640, 1024, 1439]) {
-      const b = barAt(w);
-      expect(b.controls, `at ${w}px`).toBe(8);
-      expect(b.padding * 2 + b.actions, `at ${w}px`).toBeLessThanOrEqual(w);
-    }
-    expect(barAt(390).controls).toBe(6);
+  it("draws no control on the bar under 641px: the dock holds them all", () => {
+    // App.tsx mounts the topbar's utilities only above a phone's width, and
+    // the dock below it — the swap
+    // edge-dock-phone.test.ts holds to the sheet's own breakpoint.
+    const app = sourceOf("App.tsx");
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock\b/);
+    expect(app).not.toMatch(/TopbarMore|tb-more|tb-fold/);
   });
 
-  it("still needs the fold at the narrowest phone, with the speaker gone", () => {
-    // 34px came back with the speaker (2026-10-07), and the eight controls
-    // unfolded are still more than a 320px bar holds beside the pill — so the
-    // fold keeps its width rather than moving down to where it would no
-    // longer be needed.
-    const open = barAt(320, true);
-    expect(open.controls).toBe(8);
-    expect(open.padding * 2 + WAITING_PILL_PX + open.gap + open.actions).toBeGreaterThan(320);
-  });
-});
-
-describe("the ⋯ that holds them", () => {
-  const markup = (unseen: number) => renderToStaticMarkup(createElement(TopbarMore, {
-    watchUnseen: unseen, setUsageHistoryOpen: () => {}, setBrowserWatchOpen: () => {}, onFeedback: () => {},
-  }));
-
-  it("is a menu button that says what it holds, and carries Browser watch's unread count", () => {
-    expect(markup(0)).toMatch(/aria-haspopup="menu"/);
-    expect(markup(0)).toMatch(/aria-expanded="false"/);
-    expect(markup(0)).toMatch(/aria-label="More: usage history, Browser watch, feedback"/);
-    expect(markup(3)).toMatch(/aria-label="More: usage history, Browser watch, feedback, 3 unread"/);
-    expect(markup(3)).toMatch(/<span class="bw-badge" aria-hidden="true">3<\/span>/);
-  });
-
-  it("is what the three folded buttons fold into", () => {
-    const runs = sourceOf("components/TopbarRuns.tsx");
-    expect(runs.match(/className="btn icon-btn(?: bw-btn)? tb-fold"/g)).toHaveLength(3);
-    expect(runs).toMatch(/<TopbarMore\s/);
+  it("keeps both utilities whole beside the count from the first width that has them", () => {
+    // At 641 the bar is its widest padding, a two-digit count, the gap to the
+    // utilities and the pair: the readout gives first from the left (#849),
+    // so this is the least the bar has to hold, and it holds it.
+    const w = 641;
+    const pad = sides(at([bar], "padding", w));
+    const between = px(at([bar], "gap", w));
+    const pair = UTILITIES_PX[0] + px(at([bar, el("div", ["actions"]), el("div", ["utility-run"])], "gap", w)) + UTILITIES_PX[1];
+    expect(pad[1] + pad[3] + WAITING_COUNT_PX + DIGIT_PX + between + pair).toBeLessThanOrEqual(w);
   });
 });

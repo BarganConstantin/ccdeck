@@ -1,31 +1,41 @@
 /* ---------------- topbar ---------------- */
 
-/* Four distances in this bar and one meaning each, so a gap is readable as a
+/* Three distances in this bar and one meaning each, so a gap is readable as a
    claim about what is on either side of it:
 
-     4px   control to control      .action-run (the controls are borderless,
-                                   so their own padding does the separating)
-     14px  readout to readout      .topbar .status — kept for a second readout;
-                                   the strip holds the stream pill alone
-     12px  run to run              .topbar .actions
-     24px  role to role            .topbar, .topbar .readout, and the settings
-                                   run's own offset from the panel runs
+     4px   control to control      .utility-run, .wait-list (the controls are
+                                   borderless, so their own padding does the
+                                   separating)
+     12px  the count to the first  the queue's lead (.wait-list), and
+           name it continues with  .topbar .readout under 641px
+     24px  role to role            .topbar, .topbar .readout
 
-   Every one of them was already somewhere in this sheet; what was missing was
-   the largest. The bar used to run 14px between the last readout and the first
-   button and 8px between two buttons — a 1.75x step, under 16px, doing the work
-   of a group boundary, while a literal 1px rule marked the far smaller break
-   between two readouts. So the bar's own spacing said the break inside the
-   readouts was bigger than the break between watching and acting.
+   The bar used to run 14px between the last readout and the first button and
+   8px between two buttons — a 1.75x step, under 16px, doing the work of a
+   group boundary, while a literal 1px rule marked the far smaller break
+   between two readouts. The 24px is what was missing then and what still
+   separates watching from acting. The panel toggles that filled the right of
+   the bar are on the window's edges now (edge-rails.css), and with them went
+   the 12px between runs.
    `justify-content: space-between` stays: the gaps are the floor between
-   neighbours, and the free space still goes to the middle. */
+   neighbours, and the free space still goes to the middle — to the waiting
+   queue, which takes all of it, and nothing else. */
 .topbar {
   grid-column: 1 / -1;
+  /* A grid item's least is its content's by default, and the bar's content
+     includes the waiting queue's names, so the window could narrow under a bar
+     that would not: the names that were drawn held the column open, and the
+     queue never saw the room it had to fold into. */
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 0 18px;
+  /* The pixel on top is the bar's border's twin: 44px less the 1px rule under
+     it leaves 43 for the content, and a 30px control centred in 43 sat on a
+     half pixel, its edges smeared across two rows at 1x. 42 centres every
+     height on the bar — 30, 28, 24, 16 — on whole pixels. */
+  padding: 1px 18px 0;
   background: var(--topbar-grad);
   border-bottom: 1px solid var(--line);
   user-select: none;
@@ -76,7 +86,7 @@
 }
 /* The wordmark is the page's <h1> now (#381). `font: inherit` is the whole
    rule's point: an <h1> arrives from the UA sheet at 2em bold with a 0.67em
-   block margin, and none of that is what a 16px wordmark in a 52px bar looks
+   block margin, and none of that is what a 16px wordmark in a 44px bar looks
    like. Nothing about the heading's appearance changed — only what it is. */
 .topbar .brand h1 {
   font: inherit;
@@ -216,105 +226,17 @@
   box-shadow: 0 0 7px var(--warn);
   animation: pulse 2.4s infinite;
 }
-/* The runs of controls, and the distance between runs rather than between
-   buttons — the 8px that used to be this rule's gap now lives on .action-run,
-   one step down, where it says "these two are the same kind of thing".
-   Three runs when this rule was written and two since Pause left for the canvas
-   control stack; the 18px is a claim about the seam between two runs and does
-   not care how many there are.
+/* Settings and Feedback, the two controls the bar still holds.
    `flex: none` is the deliberate half. Every flex item shrinks by default, so
    under compression the bar used to take width from whatever gave first, which
    included the controls. It never should: a readout that has been squeezed off
-   the bar can be read again from a panel, while a control that has been squeezed
-   off is the only way to reach the thing it opens. The readouts give first now,
-   and the controls do not give at all. */
+   the bar can be read again from a panel, while a control that has been
+   squeezed off is the only way to reach the thing it opens. The readouts give
+   first, and the controls do not give at all. */
 .topbar .actions {
   display: flex;
-  gap: 12px;
   align-items: center;
   flex: none;
-}
-/* 4px between two controls: enough for the focus ring's 3px (2px at the
-   sheet's 1px offset) to clear the next button, and no more, because a
-   borderless button's own padding is what separates it from its neighbour. */
-.topbar .action-run {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-/* The utilities stand apart from the panels, by spacing and not by a rule:
-   12px between runs plus these 12 is the 24px this bar already uses between
-   roles, so the gear and Feedback read as utilities, not a fourth group of
-   panels. */
-.topbar .action-run-utility { margin-left: 12px; }
-/* The dollar sign is the one glyph whose ink is far narrower than its box:
-   4.8 of 14 units, where the rest of the set runs 8.6 to 12.2. At the set's
-   shared 13px box that left about 2.4px more air on each side than any
-   neighbour, so "$  Usage" read loose beside "Accounts": 9.6px from ink to
-   word against 6.2 to 8.1 for the others, measured. The box gives the air
-   back on both sides at once, so the glyph stays centred in a square button. */
-.topbar .tb-glyph-narrow { margin-inline: -2px; }
-/* THE WORDS (#836). Eight bare glyphs meant a first-timer or a touch user could
-   not learn the bar without hovering each one. Where the bar has room, each
-   says its name beside the glyph: a word its accessible name already contains,
-   so what the eye reads and what voice control hears agree (2.5.3). The theme
-   button keeps its glyph alone, and no word ends in an ellipsis.
-   From 1440px, which is a 14" laptop at its default scale and a 1920 screen at
-   125%; 1600 left every one of those on bare glyphs. The words cost about
-   440px, and the bar's common worst case at 1440 still fits: a blocked
-   session, a live stream and a selected agent come to 256 of readout, 346 of
-   ribbon at 24vw, 743 of controls and 84 of gaps and padding, 1429 in all —
-   and 77 less since the speaker left the bar (2026-10-07; measured in
-   Chromium, its button with "Sound" 73px and the 4px after it), so 666 of
-   controls and 1352. The tier stays at 1440 all the same: #737's ribbon caps
-   (topbar-status.css) switch there, and it is held with them until the
-   topbar's redesign settles every tier — the busiest bar below needed more
-   than their reserve while the month phrase was on it, and needs less since
-   the phrase left (2026-10-08). A paused deck on top of that does not fit, and
-   `.readout` above is why that costs the wordmark rather than the alarm.
-   Under 1440 the bar is glyphs again: the readouts give first and the
-   controls never do. */
-.tb-word { display: none; }
-@media (min-width: 1440px) {
-  .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
-  .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 8px; }
-}
-/* FEEDBACK'S WORD, WHERE THE BUSIEST BAR STILL HOLDS IT (#1853). The button was
-   a bare glyph at the end of the words and could not be found, so it says
-   "Feedback" too — but not from 1440 with the others. The busiest bar was
-   #737's case (a blocked session, "this month" at its widest, a selected node
-   whose name fills any cap), and measured on a real deck it was already wider
-   than #737's reserve assumes: 1302px besides the ribbon, where the reserve
-   says 1213 — 1225 since the speaker's 77px left the bar (2026-10-07), still
-   over the reserve. Drawn from 1440, the word's 62px went straight out of the
-   wordmark. So it arrives where that bar, the word, the ribbon's full 380 and
-   #737's 40px of headroom all fit: 1784 with the speaker, 1707 without it —
-   every 1920 screen, and a 1728 one now too. The month phrase left the bar
-   on 2026-10-08; measured again that day on a demo deck in headless Brave,
-   the busiest bar besides the ribbon is 999px with the six words and 1061
-   with this one, so the word would fit from 1481. It is held at 1707 until
-   the topbar's redesign settles every tier at once: late, never early.
-   Under that it is the glyph alone, at the toolbar's resting --muted, the
-   tone every labelled control rests at, with its name and its tooltip. */
-.tb-word-wide { display: none; }
-@media (min-width: 1707px) {
-  .topbar .tb-word-wide { display: inline; font-size: 12px; line-height: 1; }
-  .topbar button.btn.icon-btn:has(.tb-word-wide) { width: auto; gap: 6px; padding: 0 8px; }
-}
-/* SETTINGS' WORD, ONE STEP LATER STILL. The gear took the sliders' place
-   glyph for glyph, so the busiest bar is the bar Feedback's width was argued
-   from, and the word "Settings" is one more word on it: measured on a real
-   deck, the word costs its button 54px, and the busiest bar holds both
-   words with the ribbon at its full 380 and #737's 40px of headroom from
-   1838 with the speaker on the bar, and from 1761 since it left. Without the
-   month phrase (2026-10-08) it holds them from 1535, measured as Feedback's
-   above, and the tier is held at 1761 with Feedback's until the redesign.
-   Under that it is the gear alone, named in its tooltip and its accessible
-   name, as Feedback is under its own width. */
-.tb-word-wider { display: none; }
-@media (min-width: 1761px) {
-  .topbar .tb-word-wider { display: inline; font-size: 12px; line-height: 1; }
-  .topbar button.btn.icon-btn:has(.tb-word-wider) { width: auto; gap: 6px; padding: 0 8px; }
 }
 /* Two providers in an incident at once (#1311). The readout gives from the
    left, so two chips in full — Claude's and Codex's, about 280px — cost the
@@ -335,28 +257,11 @@
 @media (max-width: 480px) {
   .topbar .readout .provider-incident { display: none; }
 }
-/* THREE CONTROLS FOLD INTO ONE AT A PHONE'S WIDTH (TopbarMore.tsx). With
-   Feedback (#1853) the controls came to 314px, and at 360 that left the
-   readout group a sliver: the waiting pill was cut off the left edge, and at
-   320 the last control went off the right one. Under 480 History, Browser
-   watch and Feedback leave for a ⋯ that opens them, 68px back for the pill.
-   The ⋯ wears Browser watch's unread badge while it stands in for it.
-   The speaker left the bar since (2026-10-07), 34px of it at this width, and
-   the fold stays: unfolded, the eight controls are 280px, which beside the
-   one-digit pill, the gap and the padding is 352 — over a 320 screen, and
-   within 8px of a 360 one before the count gains a digit. */
-.topbar .tb-more { display: none; position: relative; }
-@media (max-width: 480px) {
-  .topbar .tb-fold { display: none; }
-  .topbar .tb-more { display: inline-flex; }
-}
-/* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
-   controls still do not shrink; the bar spends less on padding and gaps so all
-   of them fit down to a 320px screen. */
+/* A phone or a narrow window (#849), at the sheet's one narrow breakpoint.
+   Every control is in the dock along the bottom there (edge-rails.css), and
+   the bar is the readout alone, on less padding. */
 @media (max-width: 640px) {
-  .topbar { gap: 12px; padding: 0 10px; }
-  .topbar .actions { gap: 8px; }
-  .topbar .action-run-utility { margin-left: 4px; }
+  .topbar { gap: 12px; padding: 1px 10px 0; }
   /* THE ALARM OUTLASTS THE NAME. `.readout` gives first and clips what it
      loses, and the blocked-session chip is its last child, so at 600px it was
      cut in half and at 400px it was gone while the wordmark still said "ccdec".
@@ -364,8 +269,8 @@
      screen but not the outline (it is the page's <h1>, so it is hidden the way
      .vis-hidden hides, never with display), an up-to-date version chip leaves
      (a stale one stays, it is a warning, and so does the app's ready update,
-     the one way into it from the window), and the chip says its number without
-     the word, which its accessible name still carries in full. */
+     the one way into it from the window). The count keeps its word: with the
+     controls in the dock, the bar has the room for "2 waiting" whole. */
   .topbar .readout { gap: 12px; }
   .topbar .brand h1 {
     position: absolute;
@@ -375,9 +280,7 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .topbar .brand button.v:not(.stale):not(.ready),
-  .topbar .waiting-stat .ws-word { display: none; }
-  .topbar .waiting-stat { padding: 3px 8px; }
+  .topbar .brand button.v:not(.stale):not(.ready) { display: none; }
   /* A provider's incident chip (#1311) keeps its dot, its name and its state
      in one word — a mark with no word beside it read as the provider being
      offline. The title keeps the whole of it. `.readout` in the selectors

@@ -13,7 +13,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { focusedTabToFollow, openedAt, sectionIndex, SETTINGS_CLOSED, SETTINGS_SECTIONS, type SettingsSection } from "../settings";
 import { tabStripMove } from "../tablist-keys";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
-import { SettingsRun } from "../components/TopbarRuns";
+import { EdgeDock, UtilityRun } from "../components/EdgeRails";
+import { draw, items } from "./edge-keys-rails";
 import SettingsSectionGlyph from "../components/SettingsSectionGlyph";
 import { CODEX_ONLY_SOUNDS_NOTE } from "../components/SoundsSection";
 import { DEFAULT_PREFS, FIGURE_KEYS, LEVEL_KEYS } from "../sound";
@@ -128,8 +129,10 @@ describe("a door into Settings opens it at the section it names", () => {
     const keys = sourceOf("use-deck-shortcuts.ts");
     expect(keys).toContain('if (e.key === "v" || e.key === "V") openSettings("sounds");');
     expect(keys).toContain("if (!e.repeat) openSettings();");
-    expect(sourceOf("components/TopbarRuns.tsx")).toContain("onClick={() => openSettings()}");
-    expect(sourceOf("components/TopbarRuns.tsx")).not.toContain("onAllSettings");
+    // The gear is defined once for the topbar and the phone's dock
+    // (rail-items.tsx), and opens Settings at no section.
+    expect(sourceOf("rail-items.tsx")).toContain("onPress: () => openSettings()");
+    expect(sourceOf("rail-items.tsx") + sourceOf("components/EdgeRails.tsx")).not.toContain("onAllSettings");
   });
 });
 
@@ -181,7 +184,7 @@ describe("each section in the nav carries its glyph", () => {
     expect(sounds).toContain('d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2"');
     expect(sounds).toContain('d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2"');
     expect(sounds.match(/<path\b/g)).toHaveLength(3);
-    expect(sourceOf("components/TopbarRuns.tsx")).not.toMatch(/SpeakerGlyph|M3\.2 5\.2h2/);
+    expect(sourceOf("components/rail-glyphs.tsx") + sourceOf("rail-items.tsx")).not.toMatch(/SpeakerGlyph|M3\.2 5\.2h2/);
     const general = glyphOf("general");
     expect(general).toContain('d="M1.5 3h4.3M9.2 3h3.3M1.5 7h1.3M6.2 7h6.3M1.5 11h6.3M11.2 11h1.3"');
     expect(general.match(/<circle\b/g)).toHaveLength(3);
@@ -311,14 +314,18 @@ describe("a Codex-only machine reaches every setting", () => {
   const codexOnly = { kind: "reported" as const, claude: false, codex: true };
 
   it("draws the gear, and no speaker, whatever the machine runs", () => {
-    // The run takes no providers since the speaker left it: the gear is the
-    // way to every setting on every machine.
-    const html = renderToStaticMarkup(createElement(SettingsRun, {
-      openSettings: noop, onFeedback: noop, watchUnseen: 0, setUsageHistoryOpen: noop, setBrowserWatchOpen: noop,
-    }));
-    expect(html).toMatch(/aria-label="Settings"/);
-    expect(html).not.toMatch(/aria-label="Sound settings/);
-    expect(html).not.toMatch(/M3\.2 5\.2h2/);
+    // The gear takes no providers since the speaker left the bar: it is the
+    // way to every setting on every machine — on the topbar beside Feedback,
+    // and in the phone's dock — and only Accounts leaves with Claude Code.
+    const chrome = items({ claude: false });
+    for (const html of [
+      draw(createElement(UtilityRun, { items: chrome.utilities })),
+      draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] })),
+    ]) {
+      expect(html).toMatch(/aria-label="Settings"/);
+      expect(html).not.toMatch(/aria-label="Sound settings/);
+      expect(html).not.toMatch(/M3\.2 5\.2h2/);
+    }
   });
 
   it("reaches the notification switches through Settings", () => {

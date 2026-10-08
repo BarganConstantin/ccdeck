@@ -303,6 +303,11 @@ const PRESSES: Press[] = [
   // which had its own entry here. The rows are gone and the section is the
   // button above, so the two entries went with them.
   [".topbar .waiting-stat:active", "0.97", "transform"],
+  // The chrome's eight panel and dialog controls, wherever they stand: the
+  // edge stripes, the phone's dock, the topbar's corner (EdgeRails.tsx). One
+  // rule for all three placements, because they are one control; 0.97 because
+  // each carries its word.
+  [".rail-btn:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.
   [".topbar .brand button.v:active", "0.97", "transform"],
