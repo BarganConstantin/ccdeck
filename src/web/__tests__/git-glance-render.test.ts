@@ -122,3 +122,26 @@ describe("the read the glance shares with the view", () => {
     expect(keyOf("s1", null, true)).toBe(keyOf("s1", null, false));
   });
 });
+
+describe("the way into the rest of the files", () => {
+  const more = (html: string) => /<button type="button" class="gv-g-more"[^>]*>([\s\S]*?)<\/button>/.exec(html)?.[1] ?? "";
+
+  it("says how many more there are when some of the session's files are listed above it", () => {
+    read.data = REPO;
+    expect(more(render(root()))).toMatch(/^\+1 more file</);
+  });
+
+  it("names them all, without a +, when none of them is the session's and none is listed", () => {
+    read.data = { ...REPO, edits: [] };
+    expect(more(render(root()))).toMatch(/^3 files</);
+  });
+});
+
+describe("the hand-off row", () => {
+  it("comes with the rows: not while the read that brings them is on its way", () => {
+    read.data = { ...REPO, commits: null, pending: 1 };
+    expect(render(root())).not.toContain("gv-handoffs-wrap");
+    read.data = REPO;
+    expect(render(root())).toContain("gv-handoffs-wrap");
+  });
+});

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { sourceOf } from "./client-source";
 import { sheetParts } from "./sheet-source";
 import { UNCOMMITTED, type Edit, type LogCommit, type StatusEntry } from "../git-view-types";
-import { forkCommitPick, forkOpening, viewOf, EMPTY_GIT_DATA } from "../use-git-view";
+import { forkCommitPick, forkOpening, openingRow, viewOf, EMPTY_GIT_DATA } from "../use-git-view";
 
 const view = sourceOf("components/GitView.tsx");
 const toolbar = sourceOf("components/FkToolbar.tsx");
@@ -55,8 +55,54 @@ describe("where the Fork look opens", () => {
     expect(hook).toMatch(/const owner = selectionOwner\(sessionId, agent, repo \?\? top\);/);
     // A request's row or file settles it (startPick), and so does every choice, the reader's included.
     expect(hook).toMatch(/picked: hints && initial\.file != null, settled: hints,/);
-    expect(hook).toMatch(/if \(pick\.settled\) return;\n    if \(!forkOpen \|\| \(data\.state !== "repo" && data\.state !== "loading"\)\) \{ settle\(\); return; \}/);
-    expect(view).toMatch(/forkOpen: prefs\.look === "fork",/);
+    // Settled in the render whose reads allow it, so no frame draws a row before it.
+    expect(hook).toMatch(/if \(!pick\.settled\) \{\n    const to = openingFor\(data, focus, look\);/);
+    expect(view).toMatch(/look: prefs\.look,/);
+  });
+});
+
+describe("the view's first frames, before it knows where it opens", () => {
+  it("draws no Local Changes and no history in the Fork look, only a place for focus to wait in the history", () => {
+    expect(view).toMatch(/\{view\.opening \? \(/);
+    // Keyed, so React never reuses it as Local Changes' section with focus on it.
+    expect(view).toMatch(/<section key="opening" className="fk-opening" aria-label="History" aria-busy="true" data-gv-pane="graph" tabIndex=\{-1\}>/);
+    // Neither view is pressed in the sidebar while it is undecided.
+    expect(view).toMatch(/view=\{view\.opening \? null : view\.view\}/);
+    expect(sourceOf("components/FkSidebar.tsx")).toMatch(/view: "all" \| "local" \| null;/);
+  });
+
+  it("selects no row and draws no files or diff in the deck look", () => {
+    expect(view).toMatch(/selected=\{view\.opening \? "" : sel\}/);
+    expect(view).toMatch(/\{reading \|\| !data\.entries \|\| view\.opening \? \(/);
+    expect(view).toMatch(/\{reading \|\| !data\.entries \|\| view\.opening \? null : \(/);
+  });
+});
+
+describe("where the deck look opens", () => {
+  // The two looks answer "what did this agent do" the same way: its fresh
+  // uncommitted edits, else its latest commit. Only where the agent has done
+  // neither do they part: the deck has the working tree as its top row.
+  const T = Date.parse("2026-10-05T16:00:00Z");
+  const commits = [commit("other01", "2026-10-05T17:00:00Z"), commit("mine001", "2026-10-05T16:00:00Z", seen("s1"))];
+
+  it("opens on the Uncommitted row when the focus edited files still uncommitted after its last commit", () => {
+    expect(openingRow({ commits, repo, entries: [entry("a.ts")], edits: [edit("a.ts", T + 60_000)] }, focus, "deck")).toBe(UNCOMMITTED);
+  });
+
+  it("opens on the focus's latest commit when it has nothing newer uncommitted, as the Fork look does", () => {
+    for (const data of [
+      { commits, repo, entries: [entry("a.ts")], edits: [edit("a.ts", T - 60_000)] },
+      { commits, repo, entries: [entry("data/products.csv")], edits: [] },
+    ]) {
+      expect(openingRow(data, focus, "deck")).toBe("mine001");
+      expect(openingRow(data, focus, "fork")).toBe(forkOpening(data, focus));
+    }
+  });
+
+  it("stays on the Uncommitted row, its top row, when the focus has made no commit in the history", () => {
+    const none = { commits: [commit("c1", "2026-10-05T10:00:00Z")], repo, entries: [entry("a.ts")], edits: [] };
+    expect(openingRow(none, focus, "deck")).toBe(UNCOMMITTED);
+    expect(openingRow(none, focus, "fork")).toBe("head000");
   });
 });
 

@@ -1,6 +1,7 @@
-// A path cut to its row: the file name whole, the folder cut in its middle,
-// the whole path cut only when the name alone does not fit — and one file
-// listed twice cut the same way in both rows.
+// A path cut to its row: the file name whole, the folders in front of it
+// given up whole from the front (`…/auth/session.ts`), never cut inside one —
+// the way VS Code shortens a label — the whole path cut only when the name
+// alone does not fit, and one file listed twice cut the same way in both rows.
 import { describe, expect, it } from "vitest";
 import { cachedMeasure, fitPath, fitShared, middleCut, nameFits, splitPath, units, type Measure } from "../git-path-fit";
 
@@ -23,30 +24,35 @@ describe("a path that fits", () => {
 });
 
 describe("a path too long for its row", () => {
-  it("keeps the whole file name and cuts the folder in its middle", () => {
+  it("keeps the whole file name behind the nearest whole folders", () => {
     const c = fitPath("src/features/billing/invoices/builder.ts", room(30), mono);
-    expect(c.base).toBe("builder.ts");
-    expect(c.dir.endsWith("/")).toBe(true);
-    expect(c.dir).toContain("…");
-    expect(c.dir.startsWith("src/")).toBe(true);
+    expect(c).toEqual({ dir: "…/billing/invoices/", base: "builder.ts", cut: true });
     expect(mono(shown(c))).toBeLessThanOrEqual(room(30));
-    expect(c.cut).toBe(true);
   });
 
-  it("keeps as much of the folder as the room allows", () => {
+  it("keeps as many whole folders as the room allows, and never part of one", () => {
     const path = "src/features/billing/invoices/builder.ts";
-    for (let chars = 14; chars < path.length; chars++) {
+    const folders = ["src", "features", "billing", "invoices"];
+    for (let chars = 12; chars < path.length; chars++) {
       const c = fitPath(path, room(chars), mono);
-      // The longest spelling that fits: one more character would not.
-      // (a folder cut to under three letters goes to …/, so up to two less)
-      expect(mono(shown(c)), `${chars}: ${shown(c)}`).toBeGreaterThan(room(chars) - 3 * 7 - 1);
+      expect(c.base, `${chars}`).toBe("builder.ts");
+      expect(c.dir.startsWith("…/"), `${chars}: ${shown(c)}`).toBe(true);
+      // What is left of the folder is its last few folders, each whole.
+      const kept = c.dir.slice(2, -1).split("/").filter(Boolean);
+      expect(folders.slice(folders.length - kept.length), `${chars}: ${shown(c)}`).toEqual(kept);
       expect(mono(shown(c))).toBeLessThanOrEqual(room(chars));
+      // One more folder would not fit.
+      const more = folders.slice(folders.length - kept.length - 1).join("/");
+      if (kept.length < folders.length - 1) expect(mono(`…/${more}/builder.ts`), `${chars}`).toBeGreaterThan(room(chars));
     }
   });
 
-  it("drops a folder cut to a sliver to …/ rather than leave two letters of it", () => {
+  it("gives up a folder whole rather than leave part of it", () => {
     expect(shown(fitPath("src/auth/session.ts", room(14), mono))).toBe("…/session.ts");
-    expect(shown(fitPath("src/auth/session.ts", room(15), mono))).toBe("sr…h/session.ts");
+    expect(shown(fitPath("src/auth/session.ts", room(16), mono))).toBe("…/session.ts");
+    expect(shown(fitPath("src/auth/session.ts", room(17), mono))).toBe("…/auth/session.ts");
+    // A folder too long for the row goes whole too: its name is in the title.
+    expect(shown(fitPath("feature/VCRM-9090-make-the-invoice-builder-understand-everything/notes.md", room(40), mono))).toBe("…/notes.md");
   });
 
   it("goes down to …/ in front of the name before it touches the name", () => {

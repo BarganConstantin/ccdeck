@@ -142,6 +142,9 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
   const moreFiles = Math.max(0, files.length - shownFiles.length);
   const ended = endedAt(agent);
   const hue = sessionHue(agent.sessionId);
+  // The rows are in: every read has answered, or the ones that will. The
+  // hand-off row comes with them, right under them, so they never push it.
+  const ready = (data.commits != null && data.entries != null && data.edits != null) || (data.state === "repo" && data.pending === 0);
 
   return section(
     <>
@@ -205,12 +208,15 @@ export default function GitGlance({ agent, root, now, stateRef }: Props) {
       })}
       {(moreCommits > 0 || moreFiles > 0) && (
         <button type="button" className="gv-g-more" onClick={e => open(e)}>
-          {[moreCommits ? `+${moreCommits} commit${moreCommits === 1 ? "" : "s"}` : "", moreFiles ? `+${moreFiles} more file${moreFiles === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
+          {/* "more" than the files listed above it; with none listed, all of them. */}
+          {[moreCommits ? `+${moreCommits} commit${moreCommits === 1 ? "" : "s"}` : "", moreFiles ? `${shownFiles.length ? `+${moreFiles} more` : moreFiles} file${moreFiles === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
           <span aria-hidden="true">·</span>{singleKeys && <kbd>g</kbd>}<span>open</span>
         </button>
       )}
-      <GitHandoffs sessionId={agent.sessionId} agentId={agent.git ? subagentKey(agent) : null}
-        branch={detached ? null : branch} sha={detached ? head?.sha ?? null : own[0]?.sha ?? null} path={agent.cwd ?? null} compact={false} />
+      {ready && (
+        <GitHandoffs sessionId={agent.sessionId} agentId={agent.git ? subagentKey(agent) : null}
+          branch={detached ? null : branch} sha={detached ? head?.sha ?? null : own[0]?.sha ?? null} path={agent.cwd ?? null} compact={false} />
+      )}
     </>,
     true,
   );

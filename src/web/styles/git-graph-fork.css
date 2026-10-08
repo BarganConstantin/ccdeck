@@ -238,6 +238,8 @@
    a glance. */
 .gv-wide[data-look="fork"] .fk-chip[data-quiet] { --fk-chip-fill: transparent; border-color: var(--fk-line); color: var(--fk-text-2); }
 .gv-wide[data-look="fork"] .fk-swatch { width: 7px; height: 7px; border-radius: 2px; }
+/* The ↳ a subagent's chip keeps on a phone, where its name gives way. */
+.gv-wide[data-look="fork"] .fk-chip-sub { display: none; }
 .gv-wide[data-look="fork"] .fk-chip[data-quiet] .fk-swatch { opacity: 0.5; }
 /* On a row HEAD cannot reach the chip steps back with it: the second text
    tone, since the muted one falls under 4.5:1 on the chip's own fill. */
@@ -338,6 +340,14 @@
      lane and the row's name still say an agent made it. */
   .gv-wide[data-look="fork"] .fk-chip[data-quiet] { display: none; }
   .gv-wide[data-look="fork"] .fk-refs { max-width: 40%; }
+  /* The focused session's own chip keeps its swatch, and ↳ on a subagent's
+     commit: its name moves to the chip's title and the row's description, as
+     the date's words move to the row's title, and the subject takes the room.
+     A chip from the commit message has no swatch: the hollow diamond says it. */
+  .gv-wide[data-look="fork"] .fk-chip { min-width: 0; gap: 3px; padding: 0 5px; }
+  .gv-wide[data-look="fork"] .fk-chip .gv-agent-name { display: none; }
+  .gv-wide[data-look="fork"] .fk-chip .fk-chip-sub { display: inline; }
+  .gv-wide[data-look="fork"] .fk-chip[data-level="trailer"] { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

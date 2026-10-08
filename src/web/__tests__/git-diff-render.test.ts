@@ -225,7 +225,8 @@ describe("a commit's files that are still being read, or could not be", () => {
     expect(hook).not.toMatch(/"error"\)\);/);
     expect(hook).toMatch(/a\.ok && a\.files \? a\.files : \{ error: failureOf\(a, status\) \}/);
     expect(hook).toMatch(/const setSel = useCallback\(\(id: string\) => \{\n    dropFailures\(id\);/);
-    expect(hook).toMatch(/useEffect\(\(\) => \{ dropFailures\(\); \}, \[data\.treeSeq\]\);/);
+    // And a new request, which may open on that commit: opening on it is choosing it.
+    expect(hook).toMatch(/useEffect\(\(\) => \{ dropFailures\(\); \}, \[data\.treeSeq, of\]\);/);
     expect(sourceOf("components/GitView.tsx")).toMatch(/reading=\{sel === UNCOMMITTED \? null : view\.commitFiles == null \? "loading" : Array\.isArray\(view\.commitFiles\) \? null : view\.commitFiles\}/);
   });
 });

@@ -278,11 +278,13 @@ button.btn.gv-retry { align-self: flex-start; margin-top: 4px; }
    section taller than its reserve was squeezed back to it, rows and all. */
 .gv-glance { gap: 0; flex-shrink: 0; }
 /* Room for the section's eight rows and its hand-off row, held while the read
-   arrives and as the repository changes, so the panel under it stays put. */
+   arrives and as the repository changes, so the panel under it stays put.
+   The hand-off row follows the rows it acts on, and what is left of the room
+   sits under it: pinned to the foot of the room instead, it stood a row or
+   four below a quiet agent's last line, as if it belonged to the section
+   after. It comes with the rows (GitGlance.tsx), so it never moves as they
+   arrive. */
 .gv-glance[data-reserve] { min-height: 268px; }
-/* Its hand-off row stands at the foot of that room from the first frame, so
-   rows arriving above it do not move it. */
-.gv-glance[data-reserve] > .gv-handoffs-wrap:not([data-compact]) { margin-top: auto; padding-top: 10px; }
 .gv-glance h3 { margin-bottom: 6px; }
 .gv-open {
   display: inline-flex;

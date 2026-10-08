@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type {
-  CommitDetail, CommitFile, DiffResult, Edit, GitFileRef, GitReadState, GraphFocus, LogCommit, Repo, StatusCounts, StatusEntry, SubagentElsewhere,
+  CommitDetail, CommitFile, DiffResult, Edit, GitFileRef, GitLook, GitReadState, GraphFocus, LogCommit, Repo, StatusCounts, StatusEntry, SubagentElsewhere,
 } from "./git-view-types";
 import { UNCOMMITTED } from "./git-view-types";
 
@@ -296,6 +296,28 @@ export function forkOpening(data: Pick<GitData, "commits" | "repo" | "entries" |
   return forkCommitPick(data, focus) ?? UNCOMMITTED;
 }
 
+/** Where the view opens in either look: the focus's uncommitted edits when
+ *  they are newer than its last commit, else its latest commit — the same
+ *  answer to "what did this agent do" in both. Where the focus has made no
+ *  commit in the history the deck stays on its top row, the working tree;
+ *  the Fork look, whose working tree is a view of its own, goes to HEAD. */
+export function openingRow(data: Pick<GitData, "commits" | "repo" | "entries" | "edits">, focus: GraphFocus, look: GitLook): string {
+  const to = forkOpening(data, focus);
+  if (look === "fork" || to === UNCOMMITTED) return to;
+  return (data.commits ?? []).some(c => madeByFocus(c, focus)) ? to : UNCOMMITTED;
+}
+
+/** The row the view opens on once the reads it weighs are in; `undefined`
+ *  while one of them is still on its way. A read that failed does not hold
+ *  it: once every answer is in, it opens on what there is, and with no
+ *  history on the working tree. A folder git cannot read opens nowhere. */
+export function openingFor(data: GitData, focus: GraphFocus, look: GitLook): string | null | undefined {
+  if (data.state !== "repo" && data.state !== "loading") return null;
+  const missing = !data.commits || !data.entries || !data.edits;
+  if (missing && (data.state === "loading" || data.pending > 0)) return undefined;
+  return data.commits ? openingRow(data, focus, look) : UNCOMMITTED;
+}
+
 // ── the open view's selection and diff ───────────────────────────────────
 
 export interface DiffState {
@@ -359,7 +381,7 @@ export interface Picked {
    *  the view opens on is not picked over it. */
   picked: boolean;
   /** Where the view opens is settled: the request named a row or a file, the
-   *  reader chose something, or the Fork look's opening rule has run. */
+   *  reader chose something, or the opening rule has run (openingFor). */
   settled: boolean;
   /** The request whose row and file were taken. They name one agent's
    *  worktree as it was when they were chosen, so they are taken once: a
@@ -405,8 +427,11 @@ interface CommitReads {
  * Which history row and file are selected in the open view, the selected
  * commit's files, and the selected file's diff.
  *
- * Opens on the row and file a glance row named, else the working tree and the
- * first file the focus edited. Choosing a commit selects its first file.
+ * Opens on the row and file a glance row named, else where openingFor says —
+ * the focus's fresh uncommitted edits, else its latest commit — and nothing
+ * is selected until the reads it weighs are in (`opening`), so the view never
+ * draws one row and moves to another. The working tree opens on the first
+ * file the focus edited. Choosing a commit selects its first file.
  * The diff is read a frame after it is asked for, so the panel's first frame
  * never waits on it; when the working tree moves, the open file's diff is
  * read again and, if it changed, kept aside until the reader asks for it.
@@ -417,7 +442,7 @@ interface CommitReads {
  * move to another worktree of the same repository keeps a selected commit,
  * its files and its diff, and starts only the working tree's file over.
  */
-export function useGitSelection({ data, sessionId, agent, top = null, repo = null, focus, initial, seq, active, forkOpen = false }: {
+export function useGitSelection({ data, sessionId, agent, top = null, repo = null, focus, initial, seq, active, look = "deck" }: {
   data: GitData;
   sessionId: string;
   agent: string | null;
@@ -433,10 +458,11 @@ export function useGitSelection({ data, sessionId, agent, top = null, repo = nul
   seq: number;
   /** The view is open (reads wait otherwise). */
   active: boolean;
-  /** The view opens in the Fork look: where it opens is forkOpening's, once
-   *  the reads it weighs are in, unless the request named a row or a file or
-   *  the reader has already chosen one. */
-  forkOpen?: boolean;
+  /** The look the view opens in: where it opens is openingRow's for that
+   *  look, once the reads it weighs are in, unless the request named a row or
+   *  a file or the reader has already chosen one. A look switched while the
+   *  view is open keeps the selection it finds. */
+  look?: GitLook;
 }) {
   const owner = selectionOwner(sessionId, agent, repo ?? top);
   const of = `${seq}|${owner}`;
@@ -453,8 +479,18 @@ export function useGitSelection({ data, sessionId, agent, top = null, repo = nul
     pick = kept.sel === UNCOMMITTED ? { ...kept, top, file: null, picked: false } : { ...kept, top };
     setPick(pick);
   }
+  // Where the view opens, decided once per request and per owner, in the
+  // render whose reads allow it: no frame draws a row before it, and reads
+  // already in (the glance's) settle it in the view's first frame. Never over
+  // a row or file the request named, nor one the reader chose meanwhile.
+  if (!pick.settled) {
+    const to = openingFor(data, focus, look);
+    if (to !== undefined) {
+      pick = to !== null && to !== pick.sel ? { ...pick, sel: to, file: null, picked: false, settled: true } : { ...pick, settled: true };
+      setPick(pick);
+    }
+  }
   const { sel, file } = pick;
-  const settle = useCallback(() => setPick(p => (p.settled ? p : { ...p, settled: true })), []);
 
   // A detached HEAD has no working-tree row worth opening on when it is clean:
   // the history opens on HEAD instead.
@@ -498,7 +534,8 @@ export function useGitSelection({ data, sessionId, agent, top = null, repo = nul
     for (const [id] of failed) n.delete(id);
     return { ...r, files: n };
   });
-  useEffect(() => { dropFailures(); }, [data.treeSeq]);
+  // A new request asks again for what failed: opening on a commit is choosing it.
+  useEffect(() => { dropFailures(); }, [data.treeSeq, of]);
   const retryCommit = useCallback(() => { dropFailures(); }, []);
   const head = sel === UNCOMMITTED ? undefined : own?.heads.get(sel);
   const files = head?.filesTooLarge ? FILES_TOO_LARGE : read;
@@ -513,16 +550,16 @@ export function useGitSelection({ data, sessionId, agent, top = null, repo = nul
   // working tree, once the focus's edits are in too (or every read is), as
   // its own files come first.
   useEffect(() => {
-    if (pick.picked || file) return;
+    if (pick.picked || file || !pick.settled) return;
     if (sel === UNCOMMITTED && !data.edits && data.pending > 0) return;
     const first = sel === UNCOMMITTED
       ? firstFile(data.entries, data.edits, focus)
       : Array.isArray(files) && files[0] ? { path: files[0].path, area: "commit", ...(files[0].from ? { from: files[0].from } : {}) } : null;
     if (first) setPick(p => takeFirstFile(p, of, sel, first));
-  }, [sel, data.entries, data.edits, data.pending, files, file, pick.picked]);
+  }, [sel, data.entries, data.edits, data.pending, files, file, pick.picked, pick.settled]);
 
-  // Every choice — the reader's, and the Fork look's opening — settles where
-  // the view opens: the opening rule never moves a selection someone made.
+  // Every choice — the reader's, and the opening's — settles where the view
+  // opens: the opening rule never moves a selection someone made.
   const setSel = useCallback((id: string) => {
     dropFailures(id);
     setPick(p => ({ ...p, sel: id, file: null, picked: false, settled: true }));
@@ -544,17 +581,6 @@ export function useGitSelection({ data, sessionId, agent, top = null, repo = nul
     const to = known ?? forkCommitPick(d, f);
     if (to) setSel(to);
   }, [setSel]);
-  // Where the Fork look opens, decided once per request and per owner when
-  // the reads it weighs are in — and never over a row or file the request
-  // named, nor over one the reader chose while the reads were on their way.
-  // A look switched while the view is open keeps the selection it finds.
-  useEffect(() => {
-    if (pick.settled) return;
-    if (!forkOpen || (data.state !== "repo" && data.state !== "loading")) { settle(); return; }
-    if (!data.commits || !data.entries || !data.edits) return;
-    const to = forkOpening(data, focus);
-    if (to !== UNCOMMITTED) setSel(to); else settle();
-  }, [pick.of, pick.settled, forkOpen, data.state, data.commits, data.entries, data.edits]);
 
   // ── the diff ──
   // Whose the diff is: the owner's, and for the working tree, its worktree's.
@@ -639,7 +665,8 @@ export function useGitSelection({ data, sessionId, agent, top = null, repo = nul
     setAgain(n => n + 1);
   }, []);
 
-  return { sel, setSel, file, pickFile, commitFiles: files ?? null, commitDetail, view: viewOf(sel), setView, diff, showLatest, retryCommit };
+  // `opening`: where the view opens is not decided yet; nothing is selected.
+  return { sel, setSel, file, pickFile, commitFiles: files ?? null, commitDetail, view: viewOf(sel), setView, diff, showLatest, retryCommit, opening: !pick.settled };
 }
 
 /** Counts the header's scope chip and the Uncommitted row say: the focus's

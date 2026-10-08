@@ -287,9 +287,17 @@ describe("the Fork row in the sheet", () => {
     expect(tier(679)).toMatch(/\.fk-cell-sha \{ display: none; \}/);
     expect(tier(479)).toMatch(/\.fk-cell-date \{ display: none; \}/);
     // On a phone another session's chip gives its room to the subject; the
-    // focused agent's own chips stay.
+    // focused agent's own chips stay, as their swatch and, on a subagent's
+    // commit, its ↳: the name moves to the chip's title and the row's
+    // description, as the date's words move to the row's title. A chip from
+    // the commit message has no swatch, and its hollow diamond says it.
     expect(tier(479)).toMatch(/\.fk-chip\[data-quiet\] \{ display: none; \}/);
     expect(tier(479)).not.toMatch(/\.fk-chip \{ display: none/);
+    expect(tier(479)).toMatch(/\.fk-chip \.gv-agent-name \{ display: none; \}/);
+    expect(tier(479)).toMatch(/\.fk-chip \.fk-chip-sub \{ display: inline; \}/);
+    expect(tier(479)).toMatch(/\.fk-chip\[data-level="trailer"\] \{ display: none; \}/);
+    expect(rule(`${F} .fk-chip-sub`)).toMatch(/display: none;/);
+    expect(sourceOf("components/GitGraph.tsx")).toMatch(/\{agent\.sub && <span className="fk-chip-sub" aria-hidden="true">↳<\/span>\}/);
   });
 
   it("lets the subject give way before the agent's name, the chip never below its swatch and five letters", () => {

@@ -142,7 +142,7 @@ describe("a move to another worktree of the same repository", () => {
 
   it("keeps the commit being read, its files and the file open: none of it changes under the reader", async () => {
     auto = answerAll;
-    const props: Props = { data: repoData({ commits: history() }), sessionId: "s1", agent: null, top: "/r/shop-api-auth", repo: REPO, focus, initial: {}, seq: 4, active: true, forkOpen: true };
+    const props: Props = { data: repoData({ commits: history() }), sessionId: "s1", agent: null, top: "/r/shop-api-auth", repo: REPO, focus, initial: {}, seq: 4, active: true, look: "fork" };
     const v = mount(props);
     await v.start();
     await v.run(s => s.setSel("2f2c90d"));
@@ -230,7 +230,7 @@ describe("a commit read that failed", () => {
 });
 
 describe("the Fork look's opening", () => {
-  const slow = { data: repoData({ commits: null, edits: [] }), sessionId: "s1", agent: null, top: "/r/a", focus, initial: {}, seq: 5, active: true, forkOpen: true } satisfies Props;
+  const slow = { data: repoData({ commits: null, edits: [], pending: 1 }), sessionId: "s1", agent: null, top: "/r/a", focus, initial: {}, seq: 5, active: true, look: "fork" } satisfies Props;
   const landed = repoData({ commits: [commit("bb50a24", "2026-10-05T10:00:00Z", true)], edits: [] });
 
   it("moves an opening nobody touched to the focus's latest commit once the history lands", async () => {
@@ -248,6 +248,55 @@ describe("the Fork look's opening", () => {
     await v.run(s => s.pickFile({ path: "src/auth/session.ts", area: "unstaged" }));
     await v.update({ ...slow, data: landed });
     expect([v.now().view, v.now().file?.path]).toEqual(["local", "src/auth/session.ts"]);
+    await v.stop();
+  });
+});
+
+describe("where the view opens, in either look", () => {
+  // The view used to draw the working tree first and move to the agent's
+  // commit a few hundred milliseconds later: the Fork look flashed its Local
+  // Changes, the deck look its Uncommitted files and the diff of a file the
+  // agent never touched. Now nothing is chosen until the reads say where.
+  const mine = commit("bb50a24", "2026-10-05T10:00:00Z", true);
+  const waiting = repoData({ commits: null, entries: [entry("data/products.csv")], edits: [], pending: 1 });
+  const landed = repoData({ commits: [mine], entries: [entry("data/products.csv")], edits: [] });
+
+  for (const look of ["deck", "fork"] as const) {
+    it(`never draws the working tree before it lands on the agent's commit (${look})`, async () => {
+      const props: Props = { data: waiting, sessionId: "s1", agent: null, top: "/r/a", focus, initial: {}, seq: 7, active: true, look };
+      const v = mount(props);
+      await v.start();
+      expect(v.now().opening).toBe(true);
+      expect(v.now().file).toBeNull();
+      await v.update({ ...props, data: landed });
+      expect([v.now().opening, v.now().sel]).toEqual([false, "bb50a24"]);
+      // Not one render chose the working tree, nor a file of it.
+      for (const r of v.renders) {
+        expect(r.opening || r.sel === "bb50a24", `${r.sel}`).toBe(true);
+        expect(r.file?.path ?? null).not.toBe("data/products.csv");
+      }
+      await v.stop();
+    });
+  }
+
+  it("settles at once on reads already in, in the first render", async () => {
+    const v = mount({ data: landed, sessionId: "s1", agent: null, top: "/r/a", focus, initial: {}, seq: 8, active: true, look: "deck" });
+    await v.start();
+    expect([v.renders[0].opening, v.renders[0].sel]).toEqual([false, "bb50a24"]);
+    await v.stop();
+  });
+
+  it("settles on what there is once every answer is in, when one never came", async () => {
+    const v = mount({ data: repoData({ commits: null, edits: null, pending: 0 }), sessionId: "s1", agent: null, top: "/r/a", focus, initial: {}, seq: 9, active: true, look: "fork" });
+    await v.start();
+    expect([v.now().opening, v.now().sel]).toEqual([false, UNCOMMITTED]);
+    await v.stop();
+  });
+
+  it("is never in doubt where a request named a row", async () => {
+    const v = mount({ data: waiting, sessionId: "s1", agent: null, top: "/r/a", focus, initial: { sel: "c1" }, seq: 10, active: true, look: "deck" });
+    await v.start();
+    expect([v.renders[0].opening, v.now().sel]).toEqual([false, "c1"]);
     await v.stop();
   });
 });

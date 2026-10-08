@@ -760,7 +760,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
     // session's folder: never another agent's the view follows, nor the
     // folder a subagent was narrowed to.
     initial: away || request.agentId !== agent.id ? {} : { sel: request.sel, file: request.file }, seq: request.seq,
-    forkOpen: prefs.look === "fork",
+    look: prefs.look,
   });
   const { sel, file } = view;
   // The view followed the selection to a folder git cannot read before the
@@ -1245,7 +1245,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
               <div className="fk-side-panel" data-gv-pane="sidebar" tabIndex={-1}>
                 <FkSidebar
                   sessionId={agent.sessionId} agent={agentParam} repo={repo} top={top} stale={facts?.stale ?? 0}
-                  view={view.view} onView={v => { floatAway(); view.setView(v); }} localCount={counts.changed}
+                  view={view.opening ? null : view.view} onView={v => { floatAway(); view.setView(v); }} localCount={counts.changed}
                   selectedSha={local ? null : sel} onJump={sha => { floatAway(); jump(sha); }} focused={focusIn && pane === "sidebar"}
                 />
               </div>
@@ -1294,7 +1294,16 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             )}
             <div className="fk-body" ref={fkBodyRef}>
             <FkBanner collision={collisionNode} detached={detached && !reading ? { short: shortSha, clean: data.entries != null && !data.entries.length } : null} />
-            {local ? (
+            {view.opening ? (
+              // Until the reads say where the view opens, neither Local
+              // Changes nor All Commits is drawn: the list's own surface, and
+              // the history's place, where keyboard focus waits for its row.
+              // Keyed apart from Local Changes' section, so React never turns
+              // this one into it with focus still on it.
+              <section key="opening" className="fk-opening" aria-label="History" aria-busy="true" data-gv-pane="graph" tabIndex={-1}>
+                {reading && <ReadStateLine state={data.state} folder={folder} />}
+              </section>
+            ) : local ? (
               <section className="fk-local" aria-label="Local Changes" data-gv-pane="files" tabIndex={-1}>
                 {reading || !data.entries ? (reading && <ReadStateLine state={data.state} folder={folder} />) : (
                   <FkChanges ref={fkChanges} mode="local" entries={data.entries} selected={file} onOpen={() => focusPane("diff")}
@@ -1433,7 +1442,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             ) : (
               <GitGraph
                 repoKey={repo?.commonDir ?? repo?.topLevel ?? agent.sessionId} commits={data.commits} rowLimit={rowLimit} head={head ?? null} defaultBranch={repo?.defaultBranch ?? null}
-                uncommitted={{ files: counts.changed, byFocus: counts.files, label: focusName }} focus={focus} selected={sel}
+                uncommitted={{ files: counts.changed, byFocus: counts.files, label: focusName }} focus={focus} selected={view.opening ? "" : sel}
                 onSelect={view.setSel} onOpen={() => focusPane("files")}
                 onAgentCard={openCard} liveInsert={liveInsert}
                 agentName={nameOf}
@@ -1443,8 +1452,8 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
           {splitter("graph", "horizontal", "Resize the history and the files", "gv-graph", "gv-split-h")}
           <div className="gv-bottom" ref={bottomRef}>
             <section className="gv-files" id="gv-files" aria-label="Files" data-gv-pane="files" tabIndex={-1} ref={filesRef}>
-              {reading || !data.entries ? (
-                <div className="gv-pane-head"><span className="gv-pane-title">{sel === UNCOMMITTED ? "Uncommitted" : sel.slice(0, 7)}</span></div>
+              {reading || !data.entries || view.opening ? (
+                <div className="gv-pane-head">{!view.opening && <span className="gv-pane-title">{sel === UNCOMMITTED ? "Uncommitted" : sel.slice(0, 7)}</span>}</div>
               ) : (
                 <GitFiles
                   ref={filesHandle}
@@ -1461,7 +1470,7 @@ function GitViewBodyRaw({ agent, root, request, sheet, prefs, savePrefs, width, 
             </section>
             {splitter("files", "vertical", "Resize the files and the diff", "gv-files", "gv-split-v")}
             <section className="gv-diffpane" aria-label="Diff" data-gv-pane="diff" tabIndex={-1}>
-              {reading || !data.entries ? null : (
+              {reading || !data.entries || view.opening ? null : (
                 <GitDiff
                   ref={diffHandle}
                   file={view.diff.file ?? file} diff={view.diff.loading ? null : view.diff.diff} loading={view.diff.loading}

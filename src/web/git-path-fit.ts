@@ -1,6 +1,8 @@
-// A file path cut to the room its row leaves it, the way GitHub Desktop's
-// path text does it: the file name is what a reader scans for, so it stays
-// whole, and the folder in front of it gives way in its middle, down to `…/`.
+// A file path cut to the room its row leaves it. The file name is what a
+// reader scans for, so it stays whole; the folders in front of it give way
+// whole, from the front, the nearest kept longest — `…/auth/session.ts`, then
+// `…/session.ts` — the way VS Code shortens a label. A folder is never cut
+// inside its name: `sr…th/` (GitHub Desktop's character cut) names nothing.
 // Only when the name alone cannot fit is the whole path cut in its middle.
 //
 // Cut by measuring, not by counting characters or by a CSS ellipsis: an
@@ -83,20 +85,24 @@ export function units(text: string): string[] {
 
 /**
  * `path` cut to `room` pixels: whole when it fits; else the whole file name
- * behind a folder cut in its middle (`src/…/auth/`), down to `…/`; and only
- * when not even `…/name` fits, the whole path cut in its middle, keeping more
- * of the end, where the name is.
+ * behind as many of its nearest folders as fit, each whole (`…/auth/`), down
+ * to `…/`; and only when not even `…/name` fits, the whole path cut in its
+ * middle, keeping more of the end, where the name is.
  */
 export function fitPath(path: string, room: number, measure: Measure): PathCut {
   const { dir, base } = splitPath(path);
   if (measure(path) <= room) return { dir, base, cut: false };
   if (dir && measure(`${ELLIPSIS}/`) + measure(base) <= room) {
-    // The folder without its slash is cut, and the slash put back: the cut
-    // folder still ends where the name begins.
-    let folder = middleCut(dir.slice(0, -1), room - measure(base) - measure("/"), measure);
-    // A sliver of a folder (`s…/`) reads as noise; `…/` says the same.
-    if (units(folder).length - 1 < 3) folder = ELLIPSIS;
-    return { dir: `${folder}/`, base, cut: true };
+    // One folder more at a time, from the one the file sits in; every folder
+    // but the first, since all of them is the whole path, which did not fit.
+    const folders = dir.slice(0, -1).split("/");
+    let kept = `${ELLIPSIS}/`;
+    for (let i = folders.length - 1; i >= 1; i--) {
+      const next = `${ELLIPSIS}/${folders.slice(i).join("/")}/`;
+      if (measure(next) + measure(base) > room) break;
+      kept = next;
+    }
+    return { dir: kept, base, cut: true };
   }
   const whole = middleCut(path, room, measure, 0.4);
   const at = whole.lastIndexOf("/");
