@@ -133,3 +133,7 @@ the entire conversation.
   real synthetic JSON and collector acceptance, modal close/reopen, and Stop in
   Rider Black / White Contrast at 1280, 390 and 320px. A pcap header alone is
   readiness, not traffic; verify the status again after the first real export.
+- Restart QA exposed canvas measurement feedback. Keep Flow's previous sizes
+  separate from DOM measurements in `use-node-measurements.ts`; compare each
+  source with itself. Commit moving chrome measurements on the next frame in
+  `SessionClusters.tsx`, rather than recursively updating layout state.

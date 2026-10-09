@@ -22,17 +22,23 @@ export function useNodeMeasurements(draggingRef: MutableRefObject<boolean>) {
   // recursion: stable input → stable output → no extra render.
   const measuredRef = useRef<Map<string, { width: number; height: number }>>(new Map());
   const measuredVersionRef = useRef(0);
+  // The DOM pass also writes measuredRef. Compare store measurements with
+  // their own previous values so a different DOM size cannot make the same
+  // store snapshot look new on every controlled nodes update.
+  const storeSizesRef = useRef<Map<string, { width: number; height: number }>>(new Map());
   const measuredSelector = useCallback((s: ReactFlowState) => {
     const map = measuredRef.current;
     let changed = false;
     for (const n of s.nodeInternals.values()) {
       const w = n.width, h = n.height;
       if (w == null || h == null) continue;
-      const prev = map.get(n.id);
+      const prev = storeSizesRef.current.get(n.id);
       if (!prev) {
+        storeSizesRef.current.set(n.id, { width: w, height: h });
         map.set(n.id, { width: w, height: h });
         changed = true;
       } else if (Math.abs(prev.height - h) > 4 || Math.abs(prev.width - w) > 4) {
+        storeSizesRef.current.set(n.id, { width: w, height: h });
         map.set(n.id, { width: w, height: h });
         changed = true;
       }

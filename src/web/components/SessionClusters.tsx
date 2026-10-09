@@ -49,7 +49,13 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
     const host = layerRef.current?.parentElement;
     if (!host) return;
     const next = paneChrome(host);
-    setChrome(prev => (sameBoxes(prev, next) ? prev : next));
+    // Moving panels can change their rounded bounds on every layout read.
+    // Commit on the next frame so a measurement cannot recursively trigger
+    // another layout update until React reaches its maximum update depth.
+    const frame = requestAnimationFrame(() => {
+      setChrome(prev => (sameBoxes(prev, next) ? prev : next));
+    });
+    return () => cancelAnimationFrame(frame);
   });
   // Under reduced motion the camera jumps rather than travels, so a jump made
   // on a double-click's first press put the empty canvas, or another session's
