@@ -439,6 +439,8 @@ export const GUARDED_READS = new Set([
   // Reveals the local machine's Codex profile roster, even though paths and
   // credentials are deliberately omitted from the response.
   "/api/codex-profiles",
+  "/api/codex-profile-quota",
+  "/api/codex-profile-launch",
   "/api/claude-accounts/login",
   "/api/browser-watch",
   "/api/lan",

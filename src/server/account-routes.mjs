@@ -41,6 +41,20 @@ export async function handleCodexProfiles(_req, res) {
   send(res, 200, { profiles: await discoverCodexProfiles() });
 }
 
+export async function handleCodexProfileQuota(req, res) {
+  const { readCodexProfileQuota } = await import('./codex-profiles.mjs');
+  const id = new URL(req.url, 'http://localhost').searchParams.get('id');
+  send(res, 200, await readCodexProfileQuota(id));
+}
+
+export async function handleCodexProfileLaunch(req, res) {
+  const { codexProfileLaunchCommand } = await import('./codex-profiles.mjs');
+  const id = new URL(req.url, 'http://localhost').searchParams.get('id');
+  const command = await codexProfileLaunchCommand(id);
+  if (!command) return send(res, 404, { error: 'unknown_profile' });
+  send(res, 200, { command });
+}
+
 export async function handleClaudeAccounts(req, res) {
   const { fetchClaudeAccounts } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href

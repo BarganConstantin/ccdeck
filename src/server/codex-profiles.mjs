@@ -1,6 +1,6 @@
 // Explicit Codex homes are separate profiles, not snapshots of auth.json.
 // This read-only discovery layer never loads, copies or refreshes credentials.
-import { access, realpath } from 'node:fs/promises';
+import { access, realpath, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { posix, win32, join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -51,4 +51,84 @@ export async function discoverCodexProfiles(options = {}) {
     });
   }
   return profiles;
+}
+
+/** Resolve a browser-supplied opaque ID only against homes explicitly trusted
+ * at server startup. Never accept a path from an HTTP request. */
+export async function resolveCodexProfile(id, options = {}) {
+  if (typeof id !== 'string' || !/^[a-f0-9]{20}$/.test(id)) return null;
+  const homes = configuredCodexHomes(options.env, options.home, options.platform);
+  for (const directory of homes) {
+    let canonical;
+    try { canonical = await realpath(directory); } catch { canonical = directory; }
+    if (createHash('sha256').update(canonical).digest('hex').slice(0, 20) === id) return directory;
+  }
+  return null;
+}
+
+/** Command for a new terminal session. An environment override only applies
+ * to the launched process; no existing session or global auth is modified. */
+export async function codexProfileLaunchCommand(id, options = {}) {
+  const directory = await resolveCodexProfile(id, options);
+  if (!directory) return null;
+  if ((options.platform ?? process.platform) === 'win32') return null;
+  return `CODEX_HOME='${directory.replaceAll("'", "'\\''")}' codex`;
+}
+
+/** Read-only per-profile quota. The main CODEX_HOME keeps its existing quota
+ * poller; alternate profiles never trigger single-use OAuth refreshes. */
+const profileQuotaCache = new Map();
+export async function readCodexProfileQuota(id, options = {}) {
+  const directory = await resolveCodexProfile(id, options);
+  if (!directory) return { ok: false, reason: 'unknown_profile' };
+  const now = Date.now();
+  const cached = profileQuotaCache.get(id);
+  if (cached?.pending) return cached.pending;
+  if (cached && now - cached.at < 60_000) return cached.value;
+  const pending = (async () => {
+    let auth;
+    try { auth = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8')); }
+    catch { return { ok: false, reason: 'no_token' }; }
+    if (auth?.auth_mode === 'apikey' || !auth?.tokens?.access_token) {
+      return { ok: false, reason: auth?.auth_mode === 'apikey' ? 'api_key_mode' : 'no_token' };
+    }
+    // This read-only path must never spend a rotating refresh credential.
+    // Report expiry instead of contacting the API with a known-expired token.
+    try {
+      const payload = JSON.parse(Buffer.from(auth.tokens.access_token.split('.')[1], 'base64url').toString());
+      if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()) {
+        return { ok: false, reason: 'expired' };
+      }
+    } catch { /* Non-JWT tokens may still be accepted by the service. */ }
+    const claims = (() => {
+      try { return JSON.parse(Buffer.from(auth.tokens.id_token.split('.')[1], 'base64url').toString()); }
+      catch { return {}; }
+    })();
+    const accountId = auth.tokens.account_id ?? claims?.['https://api.openai.com/auth']?.chatgpt_account_id;
+    const headers = { Authorization: `Bearer ${auth.tokens.access_token}`, Accept: 'application/json', 'User-Agent': 'codex-cli' };
+    if (accountId) headers['ChatGPT-Account-Id'] = accountId;
+    let response;
+    try {
+      response = await (options.fetch ?? fetch)('https://chatgpt.com/backend-api/wham/usage', {
+        headers, cache: 'no-store', signal: AbortSignal.timeout(12_000),
+      });
+    } catch { return { ok: false, reason: 'fetch_error' }; }
+    if (!response.ok) return { ok: false, reason: `http_${response.status}` };
+    let body;
+    try { body = await response.json(); }
+    catch { return { ok: false, reason: 'decode_error' }; }
+    const window = (value) => {
+      const pct = Number(value?.used_percent);
+      return value && Number.isFinite(pct) ? { usedPercent: pct, resetAt: value.resets_at ?? null, seconds: value.limit_window_seconds ?? null } : null;
+    };
+    return {
+      ok: true, fetchedAt: Date.now(),
+      plan: body?.plan_type ?? claims?.['https://api.openai.com/auth']?.chatgpt_plan_type ?? null,
+      windows: [window(body?.rate_limit?.primary_window), window(body?.rate_limit?.secondary_window)].filter(Boolean),
+    };
+  })();
+  profileQuotaCache.set(id, { at: now, pending });
+  const value = await pending;
+  profileQuotaCache.set(id, { at: Date.now(), value });
+  return value;
 }
