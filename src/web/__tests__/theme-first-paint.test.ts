@@ -25,7 +25,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { prefersLight, resolveTheme, storedTheme, THEME_KEY, type Theme } from "../theme";
+import { prefersLight, resolveTheme, storedTheme, THEME_KEY, THEMES, THEME_DEFINITIONS, type Theme } from "../theme";
 import { sourceOf } from "./client-source";
 import { sheetText } from "./sheet-source";
 
@@ -90,30 +90,29 @@ describe("resolveTheme", () => {
     }
   });
 
-  it("follows the OS for a value nothing wrote or this version cannot read (#885)", () => {
+  it("defaults to Rider Black for a value nothing wrote or this version cannot read (#885)", () => {
     // null is both "never chosen" and "store refused" — readStored collapses
     // the two — and an unknown string is what a future version could leave
-    // behind. None of them is a choice, so the OS decides; with no answer from
-    // the OS they land on the default the sheet already paints.
+    // behind. None of them is a choice, so Rider Black is selected.
     for (const value of [null, undefined, "", "LIGHT", "system", "purple"]) {
-      expect(resolveTheme(value)).toBe("dark");
-      expect(resolveTheme(value, false)).toBe("dark");
-      expect(resolveTheme(value, true)).toBe("light");
+      expect(resolveTheme(value)).toBe("rider-black");
+      expect(resolveTheme(value, false)).toBe("rider-black");
+      expect(resolveTheme(value, true)).toBe("rider-black");
     }
   });
 
-  it("asks the OS without ever throwing, and boots light on a light desktop", () => {
+  it("preserves saved choices and defaults to Rider Black on either OS theme", () => {
     const glob = globalThis as unknown as Record<string, unknown>;
     const media = (matches: boolean) => ({ matchMedia: (q: string) => ({ matches: q === "(prefers-color-scheme: light)" && matches }) });
     try {
       glob.window = { ...media(true), localStorage: { getItem: () => null } };
       expect(prefersLight()).toBe(true);
-      expect(storedTheme()).toBe("light");
+      expect(storedTheme()).toBe("rider-black");
       glob.window = { ...media(true), localStorage: { getItem: () => "dark" } };
       expect(storedTheme()).toBe("dark");
       glob.window = { matchMedia: () => { throw new Error("no matchMedia"); }, localStorage: { getItem: () => null } };
       expect(() => storedTheme()).not.toThrow();
-      expect(storedTheme()).toBe("dark");
+      expect(storedTheme()).toBe("rider-black");
     } finally { delete glob.window; }
     expect(prefersLight()).toBe(false);
   });
@@ -130,7 +129,7 @@ describe("resolveTheme", () => {
     });
     try {
       expect(() => storedTheme()).not.toThrow();
-      expect(storedTheme()).toBe("dark");
+      expect(storedTheme()).toBe("rider-black");
     } finally { delete glob.window; }
   });
 });
@@ -160,14 +159,25 @@ describe("the inline bootstrap in index.html", () => {
     expect(boot("light", false).applied).toBe("light");
   });
 
-  it("follows the OS when nothing is stored, on the very first parse (#885)", () => {
-    expect(boot(null, true).applied).toBe("light");
-    expect(boot(null, false).applied).toBe("dark");
-    // A refused store is no choice either, so the OS still decides.
-    expect(boot("getter", true).applied).toBe("light");
-    // And an OS that cannot be asked costs nothing: dark, and the parse goes on.
+  it("defaults to Rider Black on the very first parse", () => {
+    expect(boot(null, true).applied).toBe("rider-black");
+    expect(boot(null, false).applied).toBe("rider-black");
+    // A refused store is no choice either, so Rider Black remains the default.
+    expect(boot("getter", true).applied).toBe("rider-black");
+    // An unavailable OS preference cannot stop the parse.
     expect(() => boot(null, "throws")).not.toThrow();
-    expect(boot(null, "throws").applied).toBe("dark");
+    expect(boot(null, "throws").applied).toBe("rider-black");
+  });
+
+  it("applies each palette's color scheme before paint", () => {
+    for (const theme of THEMES) {
+      const attributes: Record<string, string> = {};
+      new Function("window", "document", bootstrapOf(html).body)(
+        { localStorage: { getItem: () => theme } },
+        { documentElement: { setAttribute: (name: string, value: string) => { attributes[name] = value; } } },
+      );
+      expect(attributes["data-color-scheme"], theme).toBe(THEME_DEFINITIONS[theme].colorScheme);
+    }
   });
 
   it("asks for the key every other version of the deck wrote", () => {
@@ -184,14 +194,14 @@ describe("the inline bootstrap in index.html", () => {
     // already the fragile ones.
     for (const refusal of ["getter", "getItem", "missing"] as const) {
       expect(() => boot(refusal)).not.toThrow();
-      expect(boot(refusal).applied).toBe("dark");
+      expect(boot(refusal).applied).toBe("rider-black");
     }
   });
 
   it("reaches the same answer as resolveTheme for every input, so the two copies cannot drift", () => {
     // The bootstrap is dependency-free by necessity, which makes it a second
     // implementation of one rule. This is the seam that keeps it honest.
-    for (const stored of [null, "light", "dark", "rider-black", "vscode-black", "", "LIGHT", "system", "purple"]) {
+    for (const stored of [null, ...THEMES, "", "LIGHT", "system", "purple", "toString", "__proto__"]) {
       const expected: Theme = resolveTheme(stored);
       expect(boot(stored).applied).toBe(expected);
       for (const os of [false, true]) {
@@ -202,13 +212,10 @@ describe("the inline bootstrap in index.html", () => {
     expect(boot("getter", true).applied).toBe(resolveTheme(null, true));
   });
 
-  it("adds no flash in the other direction for the default theme", () => {
-    // A dark user is the untouched case only because the sheet's no-attribute
-    // block and its dark block are the same block. If they are ever split, the
-    // bootstrap writing "dark" starts changing the first frame too, and this is
-    // the line that says so.
+  it("applies the default before the bundle loads", () => {
+    // The parser writes Rider Black before the deferred bundle can paint.
     expect(css).toMatch(/^\uFEFF?:root,\s*:root\[data-theme="dark"\]\s*\{/);
-    expect(boot(null).applied).toBe("dark");
+    expect(boot(null).applied).toBe("rider-black");
   });
 });
 

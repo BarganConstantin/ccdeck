@@ -17,13 +17,14 @@
 // bootstrap instead, running while the parser is still inside <head>, before
 // any frame exists. That bootstrap cannot import this file — an import would
 // make it a module and defer it again, which is the exact bug — so the rule is
-// spelled out twice on purpose, and theme-first-paint.test.ts executes the
-// inlined text against resolveTheme over the same inputs so the copies cannot
-// drift apart.
+// spelled out twice on purpose, but its theme IDs and this module's catalog
+// are generated from the same JSON definitions. theme-first-paint.test.ts
+// executes the inlined text against resolveTheme so the resolution cannot drift.
 import { readStored } from "./storage";
+import { THEME_DEFINITIONS, type Theme } from "./themes/catalog.generated";
 
-export type Theme = "dark" | "light" | "rider-black" | "vscode-black";
-export const THEMES: Theme[] = ["light", "dark", "rider-black", "vscode-black"];
+export { THEME_DEFINITIONS, type Theme } from "./themes/catalog.generated";
+export const THEMES = Object.keys(THEME_DEFINITIONS) as Theme[];
 export function nextTheme(theme: Theme): Theme {
   return THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
 }
@@ -32,20 +33,10 @@ export function nextTheme(theme: Theme): Theme {
  *  reads as an empty store and silently discards everyone's choice. */
 export const THEME_KEY = "agent-dag.theme";
 
-/**
- * The theme a stored value asks for, and what no choice falls back to.
- *
- * Every supported theme is a choice, and a choice wins whatever the OS says.
- * Anything else — absent, null from a store the browser refused, or a value a
- * future version might have written — is no choice at all, and the deck
- * follows the OS (#885): a first run on a light desktop used to open dark.
- * `prefersLight` is the OS's answer, passed in rather than asked for so this
- * stays pure and the bootstrap can be held against it input for input. Its
- * default is dark, the one the stylesheet already paints with no attribute.
- */
-export function resolveTheme(stored: string | null | undefined, prefersLight = false): Theme {
-  if (stored === "light" || stored === "dark" || stored === "rider-black" || stored === "vscode-black") return stored;
-  return prefersLight ? "light" : "dark";
+/** Saved preferences win; first runs and unknown values start in Rider Black. */
+export function resolveTheme(stored: string | null | undefined, _prefersLight = false): Theme {
+  if (typeof stored === "string" && Object.hasOwn(THEME_DEFINITIONS, stored)) return stored as Theme;
+  return "rider-black";
 }
 
 /** Does the OS ask for light? `window` is absent in bare node and `matchMedia`
@@ -59,5 +50,5 @@ export function prefersLight(): boolean {
  *  blocked profile raises on the `localStorage` getter itself, so a store the
  *  browser will not hand over costs a preference and never the mount. */
 export function storedTheme(): Theme {
-  return resolveTheme(readStored(THEME_KEY), prefersLight());
+  return resolveTheme(readStored(THEME_KEY));
 }

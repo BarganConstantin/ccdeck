@@ -4,13 +4,38 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { readFileSync } from "node:fs";
+import { generateThemes } from "./scripts/theme-compiler.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
 export default defineConfig({
   root: resolve(root, "src/web"),
-  plugins: [react()],
+  plugins: [{
+    name: "ccdeck-json-themes",
+    buildStart() { generateThemes(root); },
+    configureServer(server) {
+      const themeDir = resolve(root, "src/web/themes");
+      server.watcher.add(themeDir);
+      const update = (file: string) => {
+        if (dirname(file) !== themeDir || !file.endsWith(".json")) return;
+        try {
+          generateThemes(root);
+          // Re-read the canvas palette too; CSS HMR alone leaves its JS cache
+          // on the previous values until the user switches themes.
+          server.ws.send({ type: "full-reload", path: "*" });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          server.config.logger.error(message);
+          server.ws.send({ type: "error", err: { message, stack: "", plugin: "ccdeck-json-themes" } });
+        }
+      };
+      for (const event of ["add", "change", "unlink"] as const) server.watcher.on(event, update);
+      server.httpServer?.once("close", () => {
+        for (const event of ["add", "change", "unlink"] as const) server.watcher.off(event, update);
+      });
+    },
+  }, react()],
   define: {
     // Injected at build time so the topbar can show the real version without
     // a hardcoded string. JSON.stringify wraps it as a valid JS literal.

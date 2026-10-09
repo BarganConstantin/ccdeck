@@ -1,12 +1,10 @@
-// The appearance menu's theme previews carry each theme's palette as literal
-// values, because a Light preview has to be light while the page is dark and
-// the tokens only exist for the theme that is showing. This holds every copied
-// value to the token it copies, so a theme that moves cannot leave a preview
-// showing the old one.
+// Generated previews must carry each theme's own palette even when a different
+// theme is active. Verify the output for every catalog entry.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { sheetText } from "./sheet-source";
+import { THEMES } from "../theme";
 
 const css = sheetText();
 
@@ -21,12 +19,6 @@ function value(body: string, prop: string): string {
   return m[1].trim().toLowerCase();
 }
 
-const THEMES = {
-  dark: block(":root,\n:root[data-theme=\"dark\"]"),
-  light: block(':root[data-theme="light"]'),
-  "rider-black": block(':root[data-theme="rider-black"]'),
-  "vscode-black": block(':root[data-theme="vscode-black"]'),
-};
 /** Which token each preview variable copies. */
 const COPIES = {
   "--tp-canvas": "--bg",
@@ -37,11 +29,12 @@ const COPIES = {
 } as const;
 
 describe("the theme previews are drawn in the themes they preview", () => {
-  for (const theme of ["dark", "light", "rider-black", "vscode-black"] as const) {
+  for (const theme of THEMES) {
     it(`copies the ${theme} tokens exactly`, () => {
       const swatch = block(`.appearance-preview[data-swatch="${theme}"]`);
+      const palette = block(theme === "dark" ? ":root,\n:root[data-theme=\"dark\"]" : `:root[data-theme="${theme}"]`);
       for (const [copy, token] of Object.entries(COPIES)) {
-        expect(value(swatch, copy), `${theme} ${copy} is ${token}`).toBe(value(THEMES[theme], token));
+        expect(value(swatch, copy), `${theme} ${copy} is ${token}`).toBe(value(palette, token));
       }
     });
   }

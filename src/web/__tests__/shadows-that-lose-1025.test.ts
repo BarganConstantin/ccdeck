@@ -2,7 +2,7 @@
 // a state the design leans on.
 //
 // Both were invisible to review because nothing about either rule looks wrong
-// on its own. `:root[data-theme="light"] .tool-burst` is (0,3,0) and quietly
+// on its own. `:root[data-color-scheme="light"] .tool-burst` is (0,3,0) and quietly
 // outranks `.tool-burst.status-err` (0,2,0), so redoing only `border-color` in
 // the light block left a FAILED tool bubble wearing the same neutral slate
 // shadow as the four successes beside it. And `.agent-node.state-active`
@@ -32,7 +32,7 @@ import { sheetText } from "./sheet-source";
 
 const raw = sheetText();
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
-const LIGHT = ':root[data-theme="light"] ';
+const LIGHT = ':root[data-color-scheme="light"] ';
 
 /**
  * Every rule in the sheet, by brace depth rather than by regex.
@@ -158,7 +158,7 @@ describe("a clickable bubble lifts on the light theme too (#1025)", () => {
 
 describe("the cluster label keeps its hover ring on the light theme (#1025)", () => {
   it("draws the currentColor outline the dark hover draws", () => {
-    // Same shape as the bubble: `:root[data-theme="light"] .cluster-label` is
+    // Same shape as the bubble: `:root[data-color-scheme="light"] .cluster-label` is
     // (0,3,0) against the hover's (0,2,0), so the light hover kept the RESTING
     // 1px/4px shadow — measured as `rgba(15,23,42,0.08) 0 1px 4px` under the
     // pointer. The light hover rule existed; it only said `filter`.

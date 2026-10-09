@@ -494,7 +494,7 @@
 /* Four class-weight compounds against the base light rule's three, so only the
    fill has to be said twice — the border and shadow above already outrank
    it on both canvases. */
-:root[data-theme="light"] .cat-filter-bar.occluded:not(:hover):not(:focus-within) {
+:root[data-color-scheme="light"] .cat-filter-bar.occluded:not(:hover):not(:focus-within) {
   background: rgba(255, 255, 255, 0.35);
 }
 

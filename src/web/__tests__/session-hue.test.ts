@@ -695,7 +695,7 @@ describe("hover keeps its direction when the tier flips", () => {
     // nothing has ever put `dragging` on that element, so both rules were dead
     // and the two assertions were measuring a state the label cannot be in.
     expect(amount(".cluster-label:hover")).toBeGreaterThan(1);
-    expect(amount(':root[data-theme="light"] .cluster-label:hover')).toBeLessThan(1);
+    expect(amount(':root[data-color-scheme="light"] .cluster-label:hover')).toBeLessThan(1);
   });
 
   it("never lets a hovered label drop under 4.5:1, at any hue", () => {
@@ -708,7 +708,7 @@ describe("hover keeps its direction when the tier flips", () => {
       // The pill paints --bg in dark and --bg-soft in light (styles.css).
       const pill = surfaces(theme)[theme === "dark" ? "--bg" : "--bg-soft"];
       for (const state of [":hover"]) {
-        const k = amount(theme === "dark" ? `.cluster-label${state}` : `:root[data-theme="light"] .cluster-label${state}`);
+        const k = amount(theme === "dark" ? `.cluster-label${state}` : `:root[data-color-scheme="light"] .cluster-label${state}`);
         for (let h = 0; h < 360; h++) {
           const ratio = contrastRatio(brightness(hsl(h, 70, l), k), brightness(pill, k));
           expect(ratio, `${theme} label ${state} h=${h}`).toBeGreaterThanOrEqual(BODY);

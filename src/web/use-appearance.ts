@@ -19,7 +19,7 @@ import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
 import { type MinimapNode, minimapNodeColor } from "./minimap";
 import { type Palette, paletteReader, readPalette, samePalette } from "./palette";
 import { writeStored } from "./storage";
-import { THEME_KEY, type Theme, storedTheme } from "./theme";
+import { THEME_KEY, THEME_DEFINITIONS, type Theme, storedTheme } from "./theme";
 
 /**
  * One custom property, resolved off the document.
@@ -62,7 +62,7 @@ export function useAppearance() {
   // On the FIRST run this is redundant and known to be: the bootstrap wrote the
   // same attribute from the same stored value before anything painted, and the
   // write-back stores the value it just read. With nothing stored yet, what it
-  // stores is what the OS asked for (#885), so the deck someone first sees is
+  // stores is Rider Black, so the deck someone first sees is
   // the one they keep until T changes it. It is left unguarded anyway,
   // because the only way to skip it is a "have we mounted yet" ref — a second
   // answer to a question the DOM already holds, and one that goes wrong the day
@@ -70,6 +70,7 @@ export function useAppearance() {
   // Every later run is the T toggle, which is the reason the effect exists.
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.colorScheme = THEME_DEFINITIONS[theme].colorScheme;
     writeStored(THEME_KEY, theme);
     // Re-read the canvas tokens HERE, in the same effect and on the line after
     // the attribute, rather than in a `useMemo` keyed on `theme` (#613). A memo

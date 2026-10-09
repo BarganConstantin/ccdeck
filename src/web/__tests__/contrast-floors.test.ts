@@ -319,7 +319,7 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
 describe("agent-node state rings (#268)", () => {
   const ringOf = (state: string, theme: Theme) => {
     const base = decl(rule(`.agent-node.state-${state}`), "border-color")!;
-    const light = decl(rule(`:root[data-theme="light"] .agent-node.state-${state}`), "border-color");
+    const light = decl(rule(`:root[data-color-scheme="light"] .agent-node.state-${state}`), "border-color");
     return resolve(theme === "light" && light ? light : base, theme);
   };
 
@@ -357,7 +357,7 @@ describe("agent-node state rings (#268)", () => {
 
   it("keeps the light rings opaque — an alpha tuned for #14161b vanishes on white", () => {
     for (const state of ["done", "err"]) {
-      const light = decl(rule(`:root[data-theme="light"] .agent-node.state-${state}`), "border-color");
+      const light = decl(rule(`:root[data-color-scheme="light"] .agent-node.state-${state}`), "border-color");
       expect(light, state).not.toMatch(/rgba\(/);
     }
   });
@@ -370,7 +370,7 @@ describe("agent-node state rings (#268)", () => {
         .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
       for (const state of ["active", "done", "err"]) {
         const base = rule(`.state-pill.state-${state}`);
-        const light = rule(`:root[data-theme="light"] .state-pill.state-${state}`);
+        const light = rule(`:root[data-color-scheme="light"] .state-pill.state-${state}`);
         const pick = (p: string) => (theme === "light" ? decl(light, p) ?? decl(base, p) : decl(base, p))!;
         const fg = resolve(pick("color"), theme);
         const wash = resolve(pick("background"), theme);
@@ -636,7 +636,7 @@ describe("the stacked cost bar and the key that reads it (#619)", () => {
     // 3.00:1 against the track, so pointing at a segment hid it.
     const factor = (theme: Theme) => {
       const base = decl(rule(".cost-bar .cb-seg:hover"), "filter")!;
-      const light = decl(rule(':root[data-theme="light"] .cost-bar .cb-seg:hover'), "filter");
+      const light = decl(rule(':root[data-color-scheme="light"] .cost-bar .cb-seg:hover'), "filter");
       return +/brightness\(([\d.]+)\)/.exec(theme === "light" && light ? light : base)![1];
     };
     expect(factor("dark"), "dark should brighten").toBeGreaterThan(1);
@@ -658,7 +658,7 @@ describe("the stacked cost bar and the key that reads it (#619)", () => {
 describe("the category filter bar when a card drifts under it (#622)", () => {
   const FADED = ".cat-filter-bar.occluded:not(:hover):not(:focus-within)";
   const fillOf = (selector: string, theme: Theme) => {
-    const light = decl(rule(`:root[data-theme="light"] ${selector}`), "background");
+    const light = decl(rule(`:root[data-color-scheme="light"] ${selector}`), "background");
     const base = decl(rule(selector), "background");
     const value = theme === "light" && light ? light : base;
     // A missing fill here does not mean "no fill", it means the yielding is
@@ -787,7 +787,7 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
       .map(m => m[1].trim());
     expect(rules,
       "the occluded state should be one rule per theme carrying both restore paths in its own selector")
-      .toEqual([FADED, `:root[data-theme="light"] ${FADED}`]);
+      .toEqual([FADED, `:root[data-color-scheme="light"] ${FADED}`]);
     for (const selector of rules) {
       expect(selector, "restores on a pointer of any kind").toContain(":not(:hover)");
       expect(selector, "restores once focus is inside").toContain(":not(:focus-within)");
@@ -1399,7 +1399,7 @@ const PAINTS = ["color", "background", "background-color", "box-shadow", "border
  *  light-theme rule for the same selector outranks the base one. */
 function paintsOf(selector: string, theme: Theme): string[] {
   return PAINTS.flatMap(prop => {
-    const light = theme === "light" ? declFor(`:root[data-theme="light"] ${selector}`, prop) : null;
+    const light = theme === "light" ? declFor(`:root[data-color-scheme="light"] ${selector}`, prop) : null;
     const value = light ?? declFor(selector, prop);
     return value == null ? [] : paintedColours(value, theme);
   });
@@ -1478,7 +1478,7 @@ describe("nothing at rest paints --inflight itself (#1649)", () => {
 /** `prop` as the cascade hands it to `theme`: in light, a rule for the same
  *  selector under `:root[data-theme="light"]` outranks the base one. */
 const themed = (selector: string, prop: string, theme: Theme) =>
-  (theme === "light" ? declFor(`:root[data-theme="light"] ${selector}`, prop) : null) ?? declFor(selector, prop);
+  (theme === "light" ? declFor(`:root[data-color-scheme="light"] ${selector}`, prop) : null) ?? declFor(selector, prop);
 
 /** The colour an element's words are drawn in: its own, else the nearest rule
  *  up `chain` that sets one — the inheritance the markup gives it. */

@@ -105,8 +105,8 @@
   width: auto;
 }
 .topbar .brand .logo-on-light { display: none; }
-:root[data-theme="light"] .topbar .brand .logo-on-dark { display: none; }
-:root[data-theme="light"] .topbar .brand .logo-on-light { display: block; }
+:root[data-color-scheme="light"] .topbar .brand .logo-on-dark { display: none; }
+:root[data-color-scheme="light"] .topbar .brand .logo-on-light { display: block; }
 .topbar .brand .v {
   color: var(--muted);
   font-weight: 400;

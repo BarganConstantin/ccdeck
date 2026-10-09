@@ -16,7 +16,7 @@ export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () =
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
     <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" onClick={e => e.stopPropagation()}>
       <header className="modal-head">
-        <div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span></div>
+        <div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div>
         <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
       </header>
       <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} />

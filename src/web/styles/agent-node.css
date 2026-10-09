@@ -184,9 +184,9 @@
 .agent-node.state-active > .lod-face { --lod-edge: var(--inflight); }
 .agent-node.state-done > .lod-face { --lod-edge: rgba(134,239,172,0.5); }
 .agent-node.state-err > .lod-face { --lod-edge: rgba(252,165,165,0.6); }
-:root[data-theme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
-:root[data-theme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
-:root[data-theme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
+:root[data-color-scheme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
+:root[data-color-scheme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
+:root[data-color-scheme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
 .lod-face[data-alarm] { --lod-alarm: var(--warn); }
 .agent-node.synthetic > .lod-face { border-style: dashed; }
 .react-flow__node:hover .lod-face {

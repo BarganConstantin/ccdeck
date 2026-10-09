@@ -18,6 +18,8 @@
     "LICENSING.md"
   ],
   "scripts": {
+    "themes:generate": "node scripts/build-themes.mjs",
+    "themes:check": "node scripts/build-themes.mjs --check",
     "dev:web": "vite",
     "dev:server": "node src/server/index.mjs",
     "start": "node bin/agent-dag.js",
