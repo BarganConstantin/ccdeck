@@ -206,6 +206,47 @@ describe("deciding which deck logs a rollout it is tailing", () => {
     expect(writes([mine, deck(THEIR_PID, 4317)])).toBe(false);
   });
 
+  it("keeps legacy readers in the election when the watcher supplies the rollout home", () => {
+    const old = deck(THEIR_PID, 4317);
+    delete old.codexHome;
+    expect(writesCodexLog({ decks: [self, old], pid: MY_PID, cwd: CWD,
+      codexHome: self.codexHome, platform: 'linux' })).toBe(false);
+    // The legacy reader's own election must agree with the current watcher.
+    expect(writesCodexLog({ decks: [self, old], pid: THEIR_PID, cwd: CWD,
+      platform: 'linux' })).toBe(true);
+  });
+
+  it("elects the lower-port alternate-home reader beside a legacy reader with an unknown home", () => {
+    const mine = deck(MY_PID, 4317, { codexHomes: ['/home/u/.codex', '/home/u/codex-2'] });
+    const old = deck(THEIR_PID, 4325);
+    delete old.codexHome;
+    expect(writesCodexLog({ decks: [mine, old], pid: MY_PID, cwd: CWD,
+      codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(true);
+    expect(writesCodexLog({ decks: [mine, old], pid: THEIR_PID, cwd: CWD,
+      platform: 'linux' })).toBe(false);
+  });
+
+  it.each([
+    [4317, 4318, 4319, THEIR_PID],
+    [4317, 4319, 4318, MY_PID],
+    [4318, 4317, 4319, THEIR_PID],
+    [4318, 4319, 4317, 79],
+    [4319, 4317, 4318, THEIR_PID],
+    [4319, 4318, 4317, 79],
+  ])("elects one mixed-version writer with modern/known/unknown ports %i/%i/%i", (modernPort, legacyPort, unknownPort, owner) => {
+    const modern = deck(MY_PID, modernPort, { codexHomes: ['/home/u/.codex', '/home/u/codex-2'] });
+    const legacy = deck(THEIR_PID, legacyPort, { codexHome: '/home/u/codex-2' });
+    const unknown = deck(79, unknownPort);
+    delete unknown.codexHome;
+    const decks = [modern, legacy, unknown];
+    expect(writesCodexLog({ decks, pid: modern.pid, cwd: CWD,
+      codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(owner === modern.pid);
+    expect(writesCodexLog({ decks, pid: legacy.pid, cwd: CWD,
+      platform: 'linux' })).toBe(owner === legacy.pid);
+    expect(writesCodexLog({ decks, pid: unknown.pid, cwd: CWD,
+      platform: 'linux' })).toBe(owner === unknown.pid);
+  });
+
   it("treats two spellings of one Codex tree as one where the filesystem does", () => {
     const win = "C:\\Users\\J\\.codex";
     const pair = [

@@ -4,6 +4,8 @@ import { access, realpath, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { readCodexSelection, codexProfileId, codexSelectionError } from './codex-selection.mjs';
+import { usesNativeCodexAccount } from './codex-auth.mjs';
+import { readNativeCodexAccount } from './codex-native-account.mjs';
 export { configuredCodexHomes } from './codex-selection.mjs';
 
 /** Resolve each explicitly trusted home once before scanning rollout trees.
@@ -50,13 +52,19 @@ export async function discoverCodexProfiles(options = {}) {
     if (await credentialFileVersion(directory) !== credentialVersion) identity = null;
     const id = selection.profiles?.find(p => p.home === directory)?.id ?? await codexProfileId(directory);
     const managedLabel = selection.managedProfiles?.find(p => p.id === id)?.label;
+    const available = await stat(directory).then(info => info.isDirectory(), () => false);
+    const authoritative = options.enableNative && await usesNativeCodexAccount(directory, selection.selectionEnabled);
+    const native = options.enableNative && (authoritative || !installed) && available
+      ? await (options.nativeRead ?? readNativeCodexAccount)(directory, { force: true }) : null;
+    const accountLabel = native ? (native.ok && native.signedIn ? native.label : null) : identity;
     profiles.push({
       id,
-      identityVersion: createHash('sha256').update(credentialVersion).digest('hex'),
-      label: identity ?? managedLabel ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
+      identityVersion: native?.signedIn ? native.identityVersion : createHash('sha256').update(credentialVersion).digest('hex'),
+      label: managedLabel ? `${managedLabel}${accountLabel ? ` · ${accountLabel}` : ''}` : accountLabel ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
       ...(managedLabel ? { managedLabel } : {}),
       active: id === selection.profileId,
-      available: await stat(directory).then(info => info.isDirectory(), () => false),
+      available,
+      ...(native ? { signedIn: native.ok && native.signedIn, authSource: 'native', metadataUnavailable: !native.ok, metadataReason: native.reason ?? null } : {}),
       signedInFilePresent: installed, // file presence is NOT authentication validity
     });
   }
@@ -103,7 +111,8 @@ async function credentialFileVersion(directory) {
 }
 
 export async function readCodexProfileQuota(id, options = {}) {
-  const directory = await resolveCodexProfile(id, options);
+  const selection = options.selection ?? await readCodexSelection(options);
+  const directory = await resolveCodexProfile(id, { ...options, selection });
   if (!directory) return { ok: false, reason: 'unknown_profile' };
   if (!await stat(directory).then(info => info.isDirectory(), () => false)) {
     return { ok: false, reason: 'profile_unavailable' };
@@ -111,6 +120,13 @@ export async function readCodexProfileQuota(id, options = {}) {
   // Invalidate cached quota after a login / account replacement. The file may
   // contain an entirely different ChatGPT account within the cache lifetime.
   const credentialVersion = await credentialFileVersion(directory);
+  const authoritative = options.enableNative && await usesNativeCodexAccount(directory, selection.selectionEnabled);
+  if (options.enableNative && (authoritative || credentialVersion === 'missing')) {
+    const native = await (options.nativeRead ?? readNativeCodexAccount)(directory, { includeQuota: true, force: true });
+    if (!authoritative && await credentialFileVersion(directory) !== credentialVersion) return { ok: false, reason: 'profile_changed' };
+    if (!native.ok || !native.signedIn || native.plan === 'api') return { ok: false, reason: native.reason ?? (native.plan === 'api' ? 'api_key_mode' : 'no_token') };
+    return { ok: true, partial: true, identityVersion: native.identityVersion, fetchedAt: native.fetchedAt, plan: native.plan, windows: native.windows };
+  }
   const now = Date.now();
   const cached = profileQuotaCache.get(id);
   if (cached?.credentialVersion === credentialVersion && cached.pending) return cached.pending;

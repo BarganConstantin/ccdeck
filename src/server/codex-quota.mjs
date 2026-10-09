@@ -15,9 +15,10 @@ import { cooldownFromHeader } from "./quota-oauth.mjs";
 import { join, resolve } from "node:path";
 import { CODEX_HOME } from "./codex-dir.mjs";
 import { readCodexSelection } from "./codex-selection.mjs";
-import { decodeJwt, codexCredentialFingerprint, getCodexAuth, forceCodexRefresh, isCredentialHost } from "./codex-auth.mjs";
+import { usesNativeCodexAccount, decodeJwt, codexCredentialFingerprint, getCodexAuth, forceCodexRefresh, isCredentialHost } from "./codex-auth.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { resetLabel } from "./reset-label.mjs";
+import { readNativeCodexAccount } from "./codex-native-account.mjs";
 
 // Resolved by codex-dir.mjs rather than here. This file used to spell it
 // `process.env.CODEX_HOME ?? join(homedir(), ".codex")`, which keeps an empty
@@ -582,20 +583,38 @@ function selectedReader(selection) {
 }
 
 /** Capture the selected target once; reject a completion from any old revision. */
-export async function fetchCodexQuota({ force = false, readSelection: read = readCodexSelection } = {}) {
+export async function fetchCodexQuota({ force = false, readSelection: read = readCodexSelection, enableNative = false, nativeRead = readNativeCodexAccount } = {}) {
   let selected;
   try { selected = await read(); }
   catch { return { ok: false, reason: "selection_unavailable" }; }
+  const home = selected.selectionEnabled ? selected.home : CODEX_HOME;
+  if (typeof home !== "string" || !home.trim()) return { ok: false, reason: "selection_unavailable" };
+  if (selected.available === false) return { ok: false, reason: "profile_unavailable" };
+  const authoritative = enableNative && await usesNativeCodexAccount(home, selected.selectionEnabled);
   let entry = null;
-  if (selected.selectionEnabled) {
-    if (typeof selected.home !== "string" || !selected.home) return { ok: false, reason: "selection_unavailable" };
+  if (selected.selectionEnabled && !authoritative) {
     entry = selectedReader(selected);
     if (!entry) return { ok: false, reason: "waiting", fetchedAt: Date.now() };
     entry.active++;
   }
   let result;
-  try { result = await (entry?.reader ?? legacyReader).fetch({ force }); }
+  try { result = authoritative ? { ok: false, reason: "no_token" } : await (entry?.reader ?? legacyReader).fetch({ force }); }
   finally { if (entry) entry.active--; }
+  if (enableNative && result.reason === "no_token") {
+    const fingerprint = authoritative ? null : await codexCredentialFingerprint({ home });
+    const native = await nativeRead(home, { includeQuota: true, force: force || selected.selectionEnabled });
+    if (!authoritative && await codexCredentialFingerprint({ home }) !== fingerprint) {
+      return { ok: false, reason: 'profile_changed' };
+    }
+    if (native.ok && native.signedIn && native.plan !== 'api') {
+      const windows = native.windows.map(window => toWindow({
+        used_percent: window.usedPercent, limit_window_seconds: window.seconds, resets_at: window.resetAt,
+      })).filter(Boolean).sort((a, b) => a.rank - b.rank);
+      result = { ok: true, windows, extraWindows: [], plan: native.plan, planLabel: planLabel(native.plan),
+        email: native.label, partial: true, refreshed: false, fetchedAt: native.fetchedAt };
+      _accountOfQuota.set(result, { accountId: `profile:${selected.profileId}`, profileId: selected.profileId, email: native.label });
+    } else result = { ok: false, reason: native.reason ?? (native.plan === 'api' ? 'api_key_mode' : 'no_token'), fetchedAt: native.fetchedAt };
+  }
   let current;
   try { current = await read(); }
   catch { return { ok: false, reason: "selection_unavailable" }; }

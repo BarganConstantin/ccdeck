@@ -7,6 +7,11 @@ interface CodexProfile {
   identityVersion: string;
   active: boolean;
   signedInFilePresent: boolean;
+  signedIn?: boolean;
+  authSource?: string;
+  metadataUnavailable?: boolean;
+  metadataReason?: string;
+  available?: boolean;
 }
 
 interface ProfileQuota {
@@ -14,6 +19,7 @@ interface ProfileQuota {
   identityVersion?: string;
   reason?: string;
   stale?: boolean;
+  partial?: boolean;
   lastGood?: ProfileQuota;
   fetchedAt?: number;
   plan?: string | null;
@@ -23,7 +29,7 @@ interface ProfileQuota {
 function quotaSummary(quota: ProfileQuota, now: number): string {
   const windows = quota.windows?.map((w) => `${Math.round(w.usedPercent)}% used (${w.seconds ? `${Math.round(w.seconds / 3600)}h` : 'window'})`).join(' · ');
   const age = quota.fetchedAt ? ` · Read ${Math.max(0, Math.floor((now - quota.fetchedAt) / 1000))}s ago` : '';
-  return `${quota.plan ?? 'Codex'} · ${windows || 'No limits reported'}${age}`;
+  return `${quota.plan ?? 'Codex'} · ${windows || 'No limits reported'}${age}${quota.partial ? ' · Ordinary Codex limits only' : ''}`;
 }
 
 function quotaStatus(quota: ProfileQuota, now: number): string {
@@ -158,11 +164,11 @@ export default function CodexProfilesSection() {
             {profiles.map((profile) => (
               <li key={profile.id} className="ap-codex-row">
                 <span>{profile.label}{profile.active ? " · Default for new sessions" : ""}</span>
-                <span className="ap-codex-hint">{profile.signedInFilePresent ? "Login file found" : "No login file"}</span>
+                <span className="ap-codex-hint">{profile.available === false ? "Profile unavailable" : profile.metadataUnavailable ? `Login inspection unavailable: ${profile.metadataReason?.replaceAll('_', ' ') ?? 'unknown'}` : profile.signedIn ? "Codex login found" : profile.authSource === 'native' ? "Not signed in to Codex" : profile.signedInFilePresent ? "Login file found" : "No login file"}</span>
                 <button className="ap-codex-check" type="button" aria-pressed={profile.active} aria-busy={action === profile.id} onClick={() => { if (!profile.active) void mutate('select', profile.id); }}>{profile.active ? "Default account" : "Use account"}</button>
-                {profile.signedInFilePresent && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} aria-busy={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
+                {profile.available !== false && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} aria-busy={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
                 <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>
-                <button className="ap-codex-check" type="button" onClick={() => void copyCommand('login', profile.id)}>{profile.signedInFilePresent ? "Sign in again" : "Sign in"}</button>
+                <button className="ap-codex-check" type="button" onClick={() => void copyCommand('login', profile.id)}>{profile.metadataUnavailable ? "Open sign-in command" : (profile.authSource === 'native' ? profile.signedIn : profile.signedInFilePresent) ? "Sign in again" : "Sign in"}</button>
                 {launch[profile.id] && <span className="ap-codex-hint" role="status">{launch[profile.id]}</span>}
                 {Object.hasOwn(quotas, profile.id) && (quotas[profile.id] === null
                   ? <span className="ap-codex-hint" role="status">Checking quota…</span>

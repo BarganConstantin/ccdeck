@@ -40,7 +40,7 @@ export async function handleCodexProfiles(_req, res) {
   const { discoverCodexProfiles } = await import('./codex-profiles.mjs');
   const { readCodexSelection } = await import('./codex-selection.mjs');
   const selection = await readCodexSelection();
-  send(res, 200, { profiles: await discoverCodexProfiles({ selection }), revision: selection.revision });
+  send(res, 200, { profiles: await discoverCodexProfiles({ selection, enableNative: true }), revision: selection.revision });
 }
 
 export async function handleCodexProfileMutation(req, res, action) {
@@ -80,7 +80,7 @@ export async function handleCodexTerminalCommand(req, res) {
 export async function handleCodexProfileQuota(req, res) {
   const { readCodexProfileQuota } = await import('./codex-profiles.mjs');
   const id = new URL(req.url, 'http://localhost').searchParams.get('id');
-  send(res, 200, await readCodexProfileQuota(id));
+  send(res, 200, await readCodexProfileQuota(id, { enableNative: true }));
 }
 
 export async function handleCodexProfileLaunch(req, res) {

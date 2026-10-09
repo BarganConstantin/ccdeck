@@ -237,10 +237,24 @@ export function writesCodexLog({ decks, pid, cwd, codexHome = null, platform = p
   if (codexHome) {
     // Legacy decks only compare primary homes. Prefer those readers for this
     // log so an alternate-home reader cannot elect itself beside a legacy writer.
-    const primary = group.filter(d => typeof d.codexHome === "string" && d.codexHome !== ""
-      && sameCodexTree(d.codexHome, codexHome, platform)
-      && typeof d.persist === "string" && d.persist !== ""
+    const sharing = group.filter(d => typeof d.persist === "string" && d.persist !== ""
       && sameCodexTree(d.persist, self.persist, platform));
+    // Legacy readers elect using primary homes, not monitored home sets. Ask
+    // which of them actually wins that protocol before electing ourselves for
+    // an alternate home. A wildcard alone is not an owner: it may lose to us,
+    // while a known primary reader can win after excluding our primary home.
+    for (const reader of sharing) {
+      if (reader.pid === self.pid || Array.isArray(reader.codexHomes)) continue;
+      const legacyGroup = live.filter(d => d && (d.pid === reader.pid || (
+        d.codex !== false && sameCodexTree(reader.codexHome, d.codexHome, platform)
+        && codexCwdInWorkspace(cwd, d.workspace ?? "", platform)
+      )));
+      if (electWriters(legacyGroup, platform).has(reader)) return false;
+    }
+    // A legacy reader that lost its own election cannot be preferred here.
+    const primary = sharing.filter(d => (d === self || Array.isArray(d.codexHomes))
+      && typeof d.codexHome === "string" && d.codexHome !== ""
+      && sameCodexTree(d.codexHome, codexHome, platform));
     if (primary.length) return electWriters(primary, platform).has(self);
   }
   return electWriters(group, platform).has(self);

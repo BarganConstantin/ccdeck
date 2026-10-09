@@ -19,6 +19,7 @@ import { CODEX_HOME } from "./codex-dir.mjs";
 import { readCodexSelection } from "./codex-selection.mjs";
 import { createTemp, renameWithRetry, resolveWriteTarget } from "./atomic-write.mjs";
 import { PRODUCT } from "./brand.mjs";
+import { readNativeCodexAccount } from "./codex-native-account.mjs";
 
 // This file used to resolve CODEX_HOME itself, as `process.env.CODEX_HOME ??
 // join(homedir(), ".codex")`. `??` falls back on null and undefined only, so an
@@ -368,17 +369,37 @@ function identityFrom(auth, refreshed) {
  * refresh; selectedReadOnly follows the server selection without rotating tokens.
  * Never throws.
  */
-export async function getCodexAuth({ home = CODEX_HOME, allowRefresh = true, selectedReadOnly = false } = {}) {
+// Native Codex resolves managed/configured system stores; file remains the legacy default.
+export async function usesNativeCodexAccount(home, selectionEnabled = false) {
+  if (selectionEnabled) return true;
+  try {
+    const text = await readFile(join(home, 'config.toml'), 'utf8');
+    const root = text.split(/^\s*\[/m)[0];
+    const mode = root.match(/^\s*(?:cli_auth_credentials_store|"cli_auth_credentials_store"|'cli_auth_credentials_store')\s*=\s*["'](file|keyring|auto|ephemeral)["']\s*(?:#.*)?$/m)?.[1];
+    return mode === 'keyring' || mode === 'auto' || mode === 'ephemeral';
+  } catch (error) { return error.code !== 'ENOENT'; }
+}
+
+export async function getCodexAuth({ home = CODEX_HOME, allowRefresh = true, selectedReadOnly = false, enableNative = false, nativeRead = readNativeCodexAccount } = {}) {
   if (selectedReadOnly) {
     try {
       const selected = await readCodexSelection();
       const directory = selected.selectionEnabled ? selected.home : CODEX_HOME;
       const fingerprint = await codexCredentialFingerprint({ home: directory });
-      const auth = await getCodexAuth({ home: directory, allowRefresh: false });
+      const authoritative = enableNative && await usesNativeCodexAccount(directory, selected.selectionEnabled);
+      let auth = authoritative ? { ok: false, reason: 'no_token' } : await getCodexAuth({ home: directory, allowRefresh: false });
+      if (enableNative && (authoritative || (!auth.ok && auth.reason === 'no_token'))) {
+        const native = await nativeRead(directory, { force: true });
+        if (native.ok && native.signedIn) auth = {
+          ok: true, apiKeyMode: native.plan === 'api', planType: native.plan,
+          accountId: null, email: native.label, accessToken: null, refreshed: false, identityVersion: native.identityVersion, authSource: 'native',
+        };
+        else auth = { ok: false, reason: native.reason ?? 'no_token', metadataUnavailable: !native.ok };
+      }
       const current = await readCodexSelection();
       if (selected.selectionEnabled !== current.selectionEnabled || selected.home !== current.home
         || selected.profileId !== current.profileId || selected.revision !== current.revision
-        || await codexCredentialFingerprint({ home: directory }) !== fingerprint) {
+        || (!authoritative && await codexCredentialFingerprint({ home: directory }) !== fingerprint)) {
         return { ok: false, reason: "profile_changed" };
       }
       return auth;
