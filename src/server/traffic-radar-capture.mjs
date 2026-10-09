@@ -1,23 +1,18 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { execFile } from "node:child_process";
 import { isIP } from "node:net";
 import { fileURLToPath } from "node:url";
+import { captureInterface, captureInterfaceValid, captureTool, CaptureSetupError } from './traffic-radar-platform.mjs';
 import { createWireCapture } from "./traffic-radar-wire.mjs";
 
 const WINDOW = 300_000;
 const DURATION = 600_000;
 const MAX_CHARS = 4_000_000;
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+const psQuote = value => `'${String(value).replaceAll("'", "''")}'`;
 export function captureDestination(value) {
   const match = /^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})$/.exec(String(value));
   if (!match || isIP(match[1]) !== 4 || +match[2] < 1 || +match[2] > 65535) throw new Error('Choose an IPv4 address and TCP port.');
   return { host: match[1], port: +match[2] };
-}
-async function networkInterface(host) {
-  return new Promise(resolve => execFile('/sbin/route', ['-n', 'get', host], { timeout: 2000, maxBuffer: 16_384 }, (error, stdout) => {
-    const name = !error && /interface:\s+([a-zA-Z0-9_.:-]{1,32})/.exec(stdout)?.[1];
-    resolve(name || null);
-  }));
 }
 export function exportSummary(payload, signal) {
   const group = signal === 'traces' ? 'Spans' : signal === 'logs' ? 'Logs' : 'Metrics';
@@ -45,7 +40,7 @@ export function exportSummary(payload, signal) {
   }
   return { count: records.length, name: String(records[0]?.eventName || records[0]?.name || signal).slice(0, 200), content: [...fields], sessionIds: [...sessionIds] };
 }
-export function createTrafficCapture({ now = Date.now, platform = process.platform, findInterface = networkInterface, wire = createWireCapture } = {}) {
+export function createTrafficCapture({ now = Date.now, platform = process.platform, findInterface = host => captureInterface(host, platform), findTool = () => captureTool(platform), wire = createWireCapture, execPath = process.execPath, electron = !!process.versions.electron } = {}) {
   let session = null, parsers = [], timer = null, nextId = 1, chars = 0;
   const events = new Map();
   let observations = [];
@@ -75,19 +70,25 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
   }
   return {
     async prepare(destination, localPort) {
-      if (platform !== 'darwin') throw new Error('Passive capture setup is available on macOS.');
+      if (!['darwin', 'linux', 'win32'].includes(platform)) throw new CaptureSetupError('Live capture is available on macOS, Linux and Windows.');
       const targets = [...new Set((Array.isArray(destination) ? destination : [destination]).map(String))];
       if (!targets.length || targets.length > 8) throw new Error('Choose between one and eight destinations.');
       const addresses = targets.map(captureDestination);
       if (!Number.isInteger(localPort) || localPort < 1 || localPort > 65535) throw new Error('Local ccdeck port unavailable.');
+      const tool = await findTool();
       const names = await Promise.all(addresses.map(({ host }) => findInterface(host)));
-      if (names.some(name => !name || !/^[a-zA-Z0-9_.:-]{1,32}$/.test(name))) throw new Error('Network interface unavailable. Check the destination and retry.');
+      if (names.some(name => !captureInterfaceValid(name, platform))) throw new Error('Network interface unavailable. Check the destination and retry.');
       stop(); events.clear(); observations = []; chars = 0;
       const token = randomBytes(32).toString('hex');
       const helper = fileURLToPath(new URL('./traffic-radar-helper.mjs', import.meta.url));
       const sources = addresses.map(({ host, port }, index) => {
         const filter = `host ${host} and tcp port ${port}`;
-        const command = `sudo /usr/sbin/tcpdump -i ${quote(names[index])} -nn -U -s 0 -w - ${quote(filter)} | ${quote(process.execPath)} ${quote(helper)} ${quote(`http://127.0.0.1:${localPort}`)} ${quote(token)} ${quote(index)}`;
+        let command = platform === 'win32'
+          ? `& ${psQuote(execPath)} ${psQuote(helper)} --capture ${psQuote(tool)} ${psQuote(names[index])} ${psQuote(host)} ${port} ${psQuote(`http://127.0.0.1:${localPort}`)} ${psQuote(token)} ${index}`
+          : `sudo ${quote(tool)} -i ${quote(names[index])} -nn -U -s 0 -w - ${quote(filter)} | ${quote(execPath)} ${quote(helper)} ${quote(`http://127.0.0.1:${localPort}`)} ${quote(token)} ${quote(index)}`;
+        if (electron) command = platform === 'win32'
+          ? `& { $previous=$env:ELECTRON_RUN_AS_NODE; try { $env:ELECTRON_RUN_AS_NODE='1'; ${command} } finally { $env:ELECTRON_RUN_AS_NODE=$previous } }`
+          : command.replace(`| ${quote(execPath)}`, `| env ELECTRON_RUN_AS_NODE=1 ${quote(execPath)}`);
         return { destination: `${host}:${port}`, interface: names[index], command, lastInputAt: null, bytes: 0 };
       });
       session = { id: randomBytes(8).toString('hex'), state: 'awaiting', destination: sources[0].destination, interface: sources[0].interface,
@@ -119,7 +120,7 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
     },
     read() {
       prune();
-      return { ok: true, sessionId: session?.id ?? null, state: session?.state ?? 'idle', destination: session?.destination ?? null, interface: session?.interface ?? null,
+      return { ok: true, platform, backend: platform === 'win32' ? 'dumpcap' : 'tcpdump', shell: platform === 'win32' ? 'PowerShell' : 'Terminal', sessionId: session?.id ?? null, state: session?.state ?? 'idle', destination: session?.destination ?? null, interface: session?.interface ?? null,
         startedAt: session?.startedAt ?? null, expiresAt: session?.expiresAt ?? null, lastInputAt: session?.lastInputAt ?? null,
         sources: session?.sources.map(({ command, ...source }) => ({ ...source, active: source.lastInputAt !== null && now() - source.lastInputAt <= 5000 && !!session.token })) ?? [],
         observations: [...observations],

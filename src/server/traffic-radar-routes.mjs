@@ -1,4 +1,5 @@
 import { trafficCapture } from "./traffic-radar-capture.mjs";
+import { CaptureSetupError } from './traffic-radar-platform.mjs';
 const BASE = '/api/system/traffic-radar';
 const loopback = req => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
 export function isAuthorizedTrafficIngest(req, url) {
@@ -36,5 +37,5 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
     if (req.method === 'POST' && action === '/capture/stop') { capture.stop(); return reply(res, 200, { ok: true }); }
     if (req.method === 'POST' && action === '/capture/clear') { capture.clear(); return reply(res, 200, { ok: true }); }
     return reply(res, 404, { error: 'Unknown capture action.' });
-  } catch { return reply(res, 400, { error: 'Could not complete capture setup. Use a valid IPv4 destination and check its network route.' }); }
+  } catch (error) { return reply(res, 400, { error: error instanceof CaptureSetupError ? error.message : 'Could not complete capture setup. Use a valid IPv4 destination and check its network route.' }); }
 }

@@ -50,3 +50,9 @@ describe('telemetry content inspection', () => {
     expect(outcomeLabel({ outcome: 'accepted' } as CapturedExport)).toBe('Collector accepted');
   });
 });
+
+
+it('explains Windows PowerShell activation without a text pipeline or macOS-only instructions', () => {
+  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'awaiting', shell: 'PowerShell', platform: 'win32' }} command='synthetic command' />);
+  expect(markup).toContain('Activate in PowerShell'); expect(markup).toContain('Wireshark with Npcap'); expect(markup).not.toContain('Only tcpdump');
+});

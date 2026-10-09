@@ -62,7 +62,7 @@ describe('passive OTLP capture', () => {
 });
 describe('capture lifecycle and privacy', () => {
   it('retains unreadable connection observations without inventing an export or session ID', async () => {
-    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async () => 'en0' });
+    const capture = createTrafficCapture({ platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0' });
     cleanup.push(() => capture.dispose());
     const setup = await capture.prepare('192.0.2.16:4317', 4329);
     const token = /'([a-f0-9]{64})' '0'$/.exec(setup.command)![1];
@@ -73,7 +73,7 @@ describe('capture lifecycle and privacy', () => {
     capture.clear(); expect(capture.read().observations).toEqual([]);
   });
   it('captures independent destinations without mixing parsers, tokens or receipts', async () => {
-    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async host => host.endsWith('16') ? 'en0' : 'en1' });
+    const capture = createTrafficCapture({ platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async host => host.endsWith('16') ? 'en0' : 'en1' });
     cleanup.push(() => capture.dispose());
     const setup = await capture.prepare(['192.0.2.16:4317', '192.0.2.17:4318'], 4329);
     expect(setup.commands).toHaveLength(2);
@@ -91,7 +91,7 @@ describe('capture lifecycle and privacy', () => {
 
   async function prepare() {
     let clock = 1700000000000;
-    const capture = createTrafficCapture({ now: () => clock, platform: 'darwin', findInterface: async () => 'en0' }); cleanup.push(() => capture.dispose());
+    const capture = createTrafficCapture({ now: () => clock, platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0' }); cleanup.push(() => capture.dispose());
     const setup = await capture.prepare('192.0.2.16:4317', 4329);
     const token = /'([a-f0-9]{64})' '0'$/.exec(setup.command)![1];
     return { capture, setup, token, advance: (ms: number) => { clock += ms; } };
@@ -119,7 +119,7 @@ describe('capture lifecycle and privacy', () => {
   });
   it('checks IPv4, port and interface inputs before generating a shell command', async () => {
     for (const value of ['localhost:4317', '192.0.2.16:0', '192.0.2.16:65536', '999.0.2.1:4317', '192.0.2.1:4317;whoami']) expect(() => captureDestination(value)).toThrow();
-    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async () => 'en0;whoami' }); cleanup.push(() => capture.dispose());
+    const capture = createTrafficCapture({ platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0;whoami' }); cleanup.push(() => capture.dispose());
     await expect(capture.prepare('192.0.2.16:4317', 4329)).rejects.toThrow('interface');
   });
   it('streams only to loopback and follows no redirects', async () => {

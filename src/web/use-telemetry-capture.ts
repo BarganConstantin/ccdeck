@@ -8,7 +8,7 @@ export interface CapturedExport {
   response: { at: number; grpcStatus: string | null; rejected: string | null; message: string | null } | null;
 }
 export interface CaptureSnapshot {
-  ok: boolean; sessionId: string | null; state: "idle" | "awaiting" | "receiving" | "capturing" | "stopped" | "expired" | "interrupted" | "error";
+  ok: boolean; platform?: string; backend?: "tcpdump" | "dumpcap"; shell?: "Terminal" | "PowerShell"; sessionId: string | null; state: "idle" | "awaiting" | "receiving" | "capturing" | "stopped" | "expired" | "interrupted" | "error";
   destination: string | null; interface: string | null; startedAt: number | null; expiresAt: number | null;
   observations?: { id: number; at: number; destination: string; source: string; reason: string }[];
   sources?: { destination: string; interface: string; active: boolean; bytes: number }[];
@@ -57,7 +57,7 @@ export function useTelemetryCapture() {
     inflight.current = kind;
     setPendingAction(kind); setBusy(true); setError("");
     const request = new AbortController(); actionRequest.current = request;
-    const timeout = setTimeout(() => request.abort(), 5000);
+    const timeout = setTimeout(() => request.abort(), 20_000);
     try {
       const response = await fetch(`/api/system/traffic-radar/capture/${kind}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destination }), signal: request.signal,

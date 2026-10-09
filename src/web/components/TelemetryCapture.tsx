@@ -145,6 +145,8 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
       .finally(() => clearTimeout(timeout));
     return () => { alive = false; clearTimeout(timeout); controller.abort(); };
   }, [id, retry]);
+  const shell = capture?.shell ?? (radar?.platform === "win32" ? "PowerShell" : "Terminal");
+  const windows = shell === "PowerShell";
   const running = !!capture && ["awaiting", "receiving", "capturing"].includes(capture.state);
   const active = capture?.sources?.filter(s => s.active).length ?? 0;
   const sourceCount = capture?.sources?.length ?? 1;
@@ -190,13 +192,13 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
       {destination === "custom" && <input className="tr-input" aria-label="Collector IPv4 and port" value={custom} onChange={e => setCustom(e.target.value)} placeholder="192.168.1.10:4317" />}
       {!addresses.length && destination === "all" && <span className="tr-note">{observed.length ? "Choose an observed connection or enter your collector address." : "Enter your collector address to monitor traffic. Missing settings do not mean telemetry is off."}</span>}
     </div>}
-    {radar?.status === "unsupported" && <p className="tr-capture-error" role="status">Live capture is available on macOS. You can still inspect a local file.</p>}
-    {error && <p className="tr-capture-error" role="alert">{error}</p>}
+    {radar?.status === "unsupported" && <p className="tr-capture-error" role="status">Live capture is available on macOS, Linux and Windows. You can still inspect a local file.</p>}
+    {error && <p className="tr-capture-error" role="alert">{error}{windows && error.includes("Npcap") && <> <a href="https://www.wireshark.org/download.html" target="_blank" rel="noreferrer">Get Wireshark</a></>}</p>}
     {running && !activationCommands.length && capture?.state === "awaiting" && <div className="tr-activation"><p>Activation is pending. Generate the Terminal instructions again to continue.</p><button className="btn" {...pressProps("prepare")} onClick={prepare}>Show activation instructions</button><p className="tr-note">The previous token will be invalidated.</p></div>}
-    {activationCommands.length > 0 && running && <details className="tr-activation" open={!active}><summary>Activate in Terminal{sourceCount > 1 ? ` · ${active}/${sourceCount} listening` : ""}</summary>
-      <p>Run each command in a separate Terminal tab. Only tcpdump asks for administrator permission.</p>
+    {activationCommands.length > 0 && running && <details className="tr-activation" open={!active}><summary>Activate in {shell}{sourceCount > 1 ? ` · ${active}/${sourceCount} listening` : ""}</summary>
+      <p>{windows ? "Run each command in a separate PowerShell tab. Wireshark with Npcap is required; use an administrator tab if Npcap restricts capture." : "Run each command in a separate Terminal tab. Only tcpdump asks for administrator permission."}</p>
       {activationCommands.map(entry => <div className="tr-command-entry" key={entry.destination}><div><code>{entry.destination}</code><button className="btn" onClick={() => void copy(entry.command, entry.destination)}>{copied === entry.destination ? "Copied" : "Copy command"}</button></div><pre className="tr-command">{entry.command}</pre></div>)}
-      <p className="tr-note">Press Ctrl+C in each Terminal tab to stop tcpdump. Monitoring expires after 10 minutes. Commands contain a temporary local token; do not share them.</p>
+      <p className="tr-note">Press Ctrl+C in each {shell} tab to stop capture. Monitoring expires after 10 minutes. Commands contain a temporary local token; do not share them.</p>
     </details>}
     {copied === "failed" && <p className="tr-capture-error" role="alert">Clipboard unavailable. Select the text and copy it manually.</p>}
     {failed && <p className="tr-capture-error" role="alert">Displayed messages are from the last successful read. Reconnecting automatically.</p>}
@@ -212,7 +214,7 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
           <strong className="tr-event-name">{event.name}</strong><span>{sessionName(event.sessionIds)}</span><code>{event.destination}</code>
           <span className="tr-event-bottom"><span className={`tr-receipt ${event.outcome === "accepted" ? "tr-tone-ok" : event.outcome === "rejected" || event.outcome === "partial" ? "tr-tone-enabled" : ""}`}>{event.outcome === "accepted" ? "Accepted" : event.outcome === "unconfirmed" ? "Receipt unconfirmed" : event.outcome === "partial" ? "Partially accepted" : event.outcome === "rejected" ? "Rejected" : "Receipt unknown"}</span><span>{event.count} {event.count === 1 ? "record" : "records"} · {event.bytes.toLocaleString()} B</span></span>
         </button></li>)}</ul> : !observations.length && <div className="tr-empty-capture"><h4>{events.length || observations.length ? "No matching messages" : running ? "Waiting for messages" : "Message capture is off"}</h4>
-          <p className="tr-note">{events.length ? "Try another session or message type." : running ? "Messages appear here once capture is activated and new decodable traffic arrives." : "No messages have been captured by Radar. Claude may still be sending telemetry. Choose a destination, start monitoring, then run the Terminal command to inspect new traffic."}</p>
+          <p className="tr-note">{events.length ? "Try another session or message type." : running ? "Messages appear here once capture is activated and new decodable traffic arrives." : "No messages have been captured by Radar. Claude may still be sending telemetry. Choose a destination, start monitoring, then run the activation command to inspect new traffic."}</p>
         </div>}
         {observations.length > 0 && <ul className="tr-connections tr-unreadable">{observations.map(entry => <li key={entry.id}><button className="tr-message" aria-pressed={selectedObservation === entry.id} onClick={() => { setSelected(null); setSelectedObservation(entry.id); }}><span className="tr-event-top"><span>Connection observation</span><time>{stamp(entry.at)}</time></span><strong>{entry.reason === "encrypted" ? "Encrypted traffic" : "Contents unavailable"}</strong><code>{entry.destination}</code><span>Unidentified session · no decoded JSON</span></button></li>)}</ul>}
         {connections.length > 0 && <details className="tr-details"><summary>Connections to these collectors ({connections.length})</summary><ul className="tr-live-connections">{connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>Claude · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A connection alone does not prove a telemetry message was sent. These connections are not filtered by session.</p></details>}
@@ -232,7 +234,7 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
     </div>
     <footer className="tr-monitor-footer"><span>{failed ? "Connection interrupted" : running ? "Local capture" : "Not monitoring"}{capture?.bytes ? ` · ${capture.bytes.toLocaleString()} capture bytes` : ""}</span><details><summary>Monitoring limits</summary><div>
       <p>Plaintext IPv4 OTLP/gRPC only. HTTPS contents cannot be decoded. Traffic to the chosen addresses can come from any process, not only Claude.</p>
-      <p>Messages stay in local memory: up to 100 exports for 5 minutes. No capture file is written. Closing this modal does not stop capture; use Stop monitoring and Ctrl+C in Terminal.</p>
+      <p>Messages stay in local memory: up to 100 exports for 5 minutes. No capture file is written. Closing this modal does not stop capture; use Stop monitoring and Ctrl+C in {shell}.</p>
       {Object.entries(capture?.issues ?? {}).map(([code, count]) => <p key={code}>{issueText[code] ?? "An inspection limitation was observed."} ({count})</p>)}
     </div></details></footer>
   </div>;

@@ -158,7 +158,7 @@ describe("on-demand observation", () => {
     expect(next.alerts).toEqual([]);
   });
 
-  it.each(["linux", "win32"])("reports unavailable platform coverage on %s without subprocesses", async platform => {
+  it.each(["freebsd", "aix"])("reports unavailable platform coverage on %s without subprocesses", async platform => {
     const run = vi.fn();
     const config = vi.fn();
     const result = await createTrafficRadar({ platform, run, config }).read();

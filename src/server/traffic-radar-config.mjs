@@ -1,7 +1,6 @@
 import { open } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
-import { claudeConfigDir } from "./claude-dir.mjs";
+import { join, win32 } from "node:path";
 
 const BOOLEAN_KEYS = [
   "CLAUDE_CODE_ENABLE_TELEMETRY", "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
@@ -68,12 +67,15 @@ async function readBoundedJson(path) {
   } finally { await file.close(); }
 }
 
-export async function readRadarConfig({ home = homedir(), env = process.env, readJson = readBoundedJson } = {}) {
-  const dir = claudeConfigDir(env, home);
+export async function readRadarConfig({ home = homedir(), env = process.env, platform = process.platform, readJson = readBoundedJson } = {}) {
+  const pathJoin = platform === 'win32' ? win32.join : join;
+  const dir = env.CLAUDE_CONFIG_DIR || pathJoin(home, '.claude');
+  const managed = platform === 'win32' ? pathJoin(env.ProgramFiles || 'C:\\Program Files', 'ClaudeCode', 'managed-settings.json')
+    : platform === 'linux' ? '/etc/claude-code/managed-settings.json' : '/Library/Application Support/ClaudeCode/managed-settings.json';
   const files = [
-    ["User settings", join(dir, "settings.json")],
-    ["Cached organization settings", join(dir, "remote-settings.json")],
-    ["Managed settings", "/Library/Application Support/ClaudeCode/managed-settings.json"],
+    ["User settings", pathJoin(dir, "settings.json")],
+    ["Cached organization settings", pathJoin(dir, "remote-settings.json")],
+    ["Managed settings", managed],
   ];
   const sources = await Promise.all(files.map(async ([name, path]) => {
     try {
