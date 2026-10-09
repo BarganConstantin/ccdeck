@@ -9,6 +9,35 @@ const props = { capture: { ...empty, events: [event(2, "logs"), event(1, "metric
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ payload: {} }) }))); });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 describe("telemetry capture interactions", () => {
+  it("pins the initial message without requiring an explicit selection", () => {
+    const view = mount(TelemetryCapture, props);
+    view.rerender({ ...props, capture: { ...empty, events: [event(3, "logs"), ...props.capture.events] } });
+    expect(textOf(one(view.tree, e => e.props.className === "tr-inspector"))).toContain("Synthetic logs 2");
+    expect(textOf(one(view.tree, e => e.props.className === "tr-inspector"))).not.toContain("Synthetic logs 3");
+    view.unmount();
+  });
+  it("reports arrivals while the list is paused without adding them to its rows", () => {
+    const view = mount(TelemetryCapture, props);
+    (one(view.tree, e => e.type === "button" && textOf(e) === "Pause list")!.props.onClick as () => void)();
+    view.rerender({ ...props, capture: { ...empty, events: [event(3, "logs"), ...props.capture.events] } });
+    const feed = textOf(one(view.tree, e => e.props.className === "tr-feed"));
+    expect(feed).toContain("Monitoring continues · 1 new entry");
+    expect(feed).not.toContain("Synthetic logs 3");
+    (one(view.tree, e => e.type === "button" && textOf(e) === "Resume list")!.props.onClick as () => void)();
+    expect(textOf(one(view.tree, e => e.props.className === "tr-feed"))).toContain("Synthetic logs 3");
+    expect(props.action).not.toHaveBeenCalled();
+    view.unmount();
+  });
+  it("identifies unreadable observations separately and keeps their real metadata", () => {
+    const view = mount(TelemetryCapture, { ...props, capture: { ...empty, managed: true, enabled: true, state: "capturing", bytes: 100, sources: [{ destination: "192.0.2.16:4317", interface: "en0", active: true, bytes: 100 }], observations: [{ id: 1, at: 1700000000000, destination: "192.0.2.16:4317", source: "192.0.2.10:50210", reason: "joined_midstream" }] } });
+    expect(textOf(view.tree)).toContain("0 decoded messages · 1 observation");
+    const inspector = textOf(one(view.tree, e => e.props.className === "tr-inspector"));
+    expect(inspector).toContain("192.0.2.10:50210");
+    expect(inspector).toContain("Not decoded");
+    expect(inspector).toContain("already captured traffic cannot be reconstructed");
+    expect(fetch).not.toHaveBeenCalled();
+    view.unmount();
+  });
   it("can prepare an explicitly selected observed connection when settings are absent", () => {
     const view = mount(TelemetryCapture, { ...props, capture: empty, radar: { ...props.radar, config: { sources: [], variables: [] }, connections: [{ pid: 123, destination: "192.0.2.16:4317", workspace: null, firstSeenAt: 0, lastSeenAt: 0, active: true }] } });
     expect(one(view.tree, e => e.type === "button" && textOf(e) === "Start monitoring")!.props.disabled).toBe(true);
