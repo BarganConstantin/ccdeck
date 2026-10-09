@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
-import { nextTheme, resolveTheme } from "../theme";
+import { THEMES, nextTheme, resolveTheme } from "../theme";
 
 const css = sheetText();
 const base = css.split("}")[0];
@@ -12,14 +12,11 @@ function contrast(a: string, b: string) {
   const [lo, hi] = [luminance(a), luminance(b)].sort((a, b) => a - b);
   return (hi + .05) / (lo + .05);
 }
-for (const theme of ["rider-black", "vscode-black"] as const) describe(theme, () => {
+for (const theme of ["rider-black", "vscode-black", "omarchy", "matrix"] as const) describe(theme, () => {
   const sheet = css.slice(css.indexOf(`:root[data-theme="${theme}"] {`));
   const tokens = Object.fromEntries([...`${base}\n${sheet.split("}")[0]}`.matchAll(/(--[\w-]+):\s*(#[a-f\d]{6})\s*;/gi)].map(m => [m[1], m[2]]));
   it("cycles each theme and preserves the explicit choice on either OS theme", () => {
-    expect(nextTheme("light")).toBe("dark");
-    expect(nextTheme("dark")).toBe("rider-black");
-    expect(nextTheme("rider-black")).toBe("vscode-black");
-    expect(nextTheme("vscode-black")).toBe("light");
+    THEMES.forEach((id, index) => expect(nextTheme(id)).toBe(THEMES[(index + 1) % THEMES.length]));
     expect(resolveTheme(theme, true)).toBe(theme);
     expect(resolveTheme(theme, false)).toBe(theme);
   });
@@ -31,7 +28,8 @@ for (const theme of ["rider-black", "vscode-black"] as const) describe(theme, ()
     });
   }
   it("keeps the selected text and primary action readable", () => {
-    expect(theme === "rider-black" ? contrast("#dfe1e5", "#2e436e") : contrast("#ffffff", "#264f78")).toBeGreaterThanOrEqual(4.5);
+    const selection = { "rider-black": ["#dfe1e5", "#2e436e"], "vscode-black": ["#ffffff", "#264f78"], omarchy: ["#c0caf5", "#292e42"], matrix: ["#c5e6c6", "#23482a"] }[theme];
+    expect(contrast(selection[0], selection[1])).toBeGreaterThanOrEqual(4.5);
     expect(contrast(tokens["--bg"], tokens["--accent"])).toBeGreaterThanOrEqual(4.5);
   });
 });

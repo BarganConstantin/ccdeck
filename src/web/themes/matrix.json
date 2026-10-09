@@ -1,0 +1,41 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "matrix",
+  "name": "Matrix",
+  "colorScheme": "dark",
+  "order": 60,
+  "extends": "dark",
+  "tokens": {
+    "node-grad": "var(--panel)",
+    "topbar-grad": "var(--panel)",
+    "session-accent-l": "74%",
+    "session-edge-idle-l": "65%",
+    "bg": "#080c09",
+    "bg-soft": "#0d140e",
+    "panel": "#121a13",
+    "line": "#294530",
+    "line-soft": "#1e3323",
+    "text": "#c5e6c6",
+    "text-secondary": "#a8d4a9",
+    "muted": "#83aa87",
+    "text-dim": "#83aa87",
+    "muted-dim": "#4d6b50",
+    "accent": "#3cbf5c",
+    "accent-dim": "#3cbf5c50",
+    "ok": "#a8d4a9",
+    "warn": "#d4d66a",
+    "err": "#e97870",
+    "chrome-bg": "#121a13",
+    "chrome-edge": "#36553c",
+    "conn-wash": "#e9787018",
+    "burst-live-wash": "#f0abfc12",
+    "hero-core": "#3cbf5c",
+    "grid-line": "#192b1e",
+    "minimap-mask": "rgba(8, 12, 9, .85)"
+  },
+  "selection": {
+    "background": "#23482a",
+    "foreground": "#c5e6c6"
+  }
+}

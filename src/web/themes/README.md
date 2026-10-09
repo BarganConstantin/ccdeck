@@ -52,3 +52,11 @@ palette; Light and Dark remain the fallback choices when no preference is stored
 
 This is a build-time catalog. A Settings importer or visual theme editor can use
 the versioned format later; adding those controls is a separate feature.
+
+## Palette references
+
+- **Omarchy** adapts the official [Tokyo Night palette](https://github.com/omacom/omarchy/blob/quattro/themes/tokyo-night/colors.toml): ink-blue surfaces, periwinkle actions and brighter secondary text for small interface labels. Omarchy supports many palettes; this name identifies ccdeck's Tokyo Night inspired interpretation.
+- **Matrix** takes its black-green surfaces and restrained CRT accent from [BVisagie's Matrix palette](https://github.com/BVisagie/omarchy-matrix-theme/blob/main/colors.toml). Text is lifted for comfortable reading; ccdeck retains distinct warning, error, running, category and chart colors so monitoring data remains distinguishable.
+
+Both are flat color palettes with no animated backgrounds. Shared layout, brand
+artwork and keyboard behavior remain part of ccdeck's interface.

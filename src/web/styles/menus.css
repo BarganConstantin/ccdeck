@@ -232,7 +232,7 @@
   .settings-tab:active { transform: none; }
 }
 
-/* TWO PREVIEWS, NOT TWO WORDS. Each choice is the deck itself in that theme,
+/* Each choice previews the deck in that theme,
    so it is recognised before it is read. The -8px bleed is the plate's own
    8px padding given back, so each choice has a plate to hover in while the
    previews stand on the caption's text edge rather than 8px in from it.
@@ -246,7 +246,7 @@
    3% shrink is a lurch, not a click. */
 .appearance-themes {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin: 0 -8px;
 }

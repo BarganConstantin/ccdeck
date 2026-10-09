@@ -15,6 +15,14 @@ export const THEME_DEFINITIONS = {
   "vscode-black": {
     "name": "VS Code Black",
     "colorScheme": "dark"
+  },
+  "omarchy": {
+    "name": "Omarchy",
+    "colorScheme": "dark"
+  },
+  "matrix": {
+    "name": "Matrix",
+    "colorScheme": "dark"
   }
 } as const;
 export type Theme = keyof typeof THEME_DEFINITIONS;

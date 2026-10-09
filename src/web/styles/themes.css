@@ -260,6 +260,136 @@
   color-scheme: dark;
 }
 
+:root[data-theme="omarchy"] {
+  --bg: #1a1b26;
+  --bg-soft: #1e2030;
+  --panel: #24283b;
+  --line: #414868;
+  --line-soft: #343b58;
+  --text: #c0caf5;
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
+  --text-secondary: #b4bee6;
+  --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
+  --chrome-bg: #24283b;
+  --chrome-edge: #414868;
+  --sm-edge: color-mix(in srgb, var(--text) 36%, transparent);
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --muted: #9aa5ce;
+  --muted-dim: #565f89;
+  --text-dim: #9aa5ce;
+  --accent: #7aa2f7;
+  --accent-dim: #7aa2f750;
+  --ok: #9ece6a;
+  --warn: #e0af68;
+  --err: #f7768e;
+  --inflight: #bb9af7;
+  --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
+  --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
+  --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --node-grad: var(--panel);
+  --topbar-grad: var(--panel);
+  --conn-wash: #f7768e18;
+  --burst-live-wash: #bb9af712;
+  --hero-core: #7aa2f7;
+  --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
+  --glint: var(--text);
+  --grid-line: #292e42;
+  --minimap-mask: rgba(26, 27, 38, .85);
+  --session-label-l: 78%;
+  --session-accent-l: 74%;
+  --session-rim-l: 55%;
+  --session-edge-l: 72%;
+  --session-edge-idle-l: 65%;
+  --mcp-dot-l: 65%;
+  --cat-file: #7aa2f7;
+  --cat-shell: #e0af68;
+  --cat-web: #7dcfff;
+  --cat-agent: #ff9ac1;
+  --cat-task: #9ece6a;
+  --cat-plan: #bb9af7;
+  --cat-mcp: #73daca;
+  --cat-other: #a9b1d6;
+  --usage-purple: #c4b5fd;
+  --usage-blue: #7dd3fc;
+  --usage-teal: #5eead4;
+  --usage-lime: #bef264;
+  --usage-pink: #f9a8d4;
+  --usage-indigo: #a5b4fc;
+  --usage-orange: #fdba74;
+  --usage-zinc: #94a3b8;
+  --usage-cyan: #67e8f9;
+  color-scheme: dark;
+}
+
+:root[data-theme="matrix"] {
+  --bg: #080c09;
+  --bg-soft: #0d140e;
+  --panel: #121a13;
+  --line: #294530;
+  --line-soft: #1e3323;
+  --text: #c5e6c6;
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
+  --text-secondary: #a8d4a9;
+  --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
+  --chrome-bg: #121a13;
+  --chrome-edge: #36553c;
+  --sm-edge: color-mix(in srgb, var(--text) 36%, transparent);
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --muted: #83aa87;
+  --muted-dim: #4d6b50;
+  --text-dim: #83aa87;
+  --accent: #3cbf5c;
+  --accent-dim: #3cbf5c50;
+  --ok: #a8d4a9;
+  --warn: #d4d66a;
+  --err: #e97870;
+  --inflight: #f0abfc;
+  --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
+  --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
+  --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --node-grad: var(--panel);
+  --topbar-grad: var(--panel);
+  --conn-wash: #e9787018;
+  --burst-live-wash: #f0abfc12;
+  --hero-core: #3cbf5c;
+  --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
+  --glint: var(--text);
+  --grid-line: #192b1e;
+  --minimap-mask: rgba(8, 12, 9, .85);
+  --session-label-l: 78%;
+  --session-accent-l: 74%;
+  --session-rim-l: 55%;
+  --session-edge-l: 72%;
+  --session-edge-idle-l: 65%;
+  --mcp-dot-l: 65%;
+  --cat-file: #7dd3fc;
+  --cat-shell: #fcd34d;
+  --cat-web: #67e8f9;
+  --cat-agent: #f9a8d4;
+  --cat-task: #86efac;
+  --cat-plan: #c4b5fd;
+  --cat-mcp: #5eead4;
+  --cat-other: #94a3b8;
+  --usage-purple: #c4b5fd;
+  --usage-blue: #7dd3fc;
+  --usage-teal: #5eead4;
+  --usage-lime: #bef264;
+  --usage-pink: #f9a8d4;
+  --usage-indigo: #a5b4fc;
+  --usage-orange: #fdba74;
+  --usage-zinc: #94a3b8;
+  --usage-cyan: #67e8f9;
+  color-scheme: dark;
+}
+
 .appearance-preview[data-swatch="light"] {
   --tp-canvas: #eef1f6;
   --tp-surface: #ffffff;
@@ -298,4 +428,28 @@
 :root[data-theme="vscode-black"] ::selection {
   background: #264f78;
   color: #ffffff;
+}
+
+.appearance-preview[data-swatch="omarchy"] {
+  --tp-canvas: #1a1b26;
+  --tp-surface: #24283b;
+  --tp-rule: #414868;
+  --tp-mark: #565f89;
+  --tp-accent: #7aa2f7;
+}
+:root[data-theme="omarchy"] ::selection {
+  background: #292e42;
+  color: #c0caf5;
+}
+
+.appearance-preview[data-swatch="matrix"] {
+  --tp-canvas: #080c09;
+  --tp-surface: #121a13;
+  --tp-rule: #294530;
+  --tp-mark: #4d6b50;
+  --tp-accent: #3cbf5c;
+}
+:root[data-theme="matrix"] ::selection {
+  background: #23482a;
+  color: #c5e6c6;
 }
