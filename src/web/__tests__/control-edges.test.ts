@@ -394,6 +394,7 @@ function surfaces(theme: Theme): Record<string, Rgba> {
     "--panel": panel,
     "--bg-soft": parseColor(TOK[theme]["--bg-soft"]),
     "--bg": bg,
+    "Radar feed": resolve("var(--tr-feed-surface)", theme, ".modal.tr-modal"),
     "the topbar's light end": top[0],
     "the topbar's dark end": top[1],
     "the version banner": over(bannerTint, bg),
@@ -405,6 +406,7 @@ function surfaces(theme: Theme): Record<string, Rgba> {
  *  themselves against it. */
 const BEDS = [
   "--panel", "--bg-soft", "--bg",
+  "Radar feed",
   "the topbar's light end", "the topbar's dark end",
   "the version banner", "the active account row",
 ];
@@ -522,8 +524,8 @@ const CONTROLS: Control[] = [
   { at: ".tr-input", states: [".tr-input:hover"], beds: ["--panel"] },
   { at: ".tr-select", states: [".tr-select:hover"], beds: ["--panel"] },
   { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
-  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"], scope: ".modal.tr-modal" },
-  { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
+  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["Radar feed"], scope: ".modal.tr-modal" },
+  { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["Radar feed"], scope: ".modal.tr-modal" },
   // Start now uses the shared primary button measured below. Quiet utilities
   // identify themselves by text at rest; measure their edge when it appears.
   { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },

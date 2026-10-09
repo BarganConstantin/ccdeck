@@ -108,11 +108,11 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
   );
 }
 
-/** One account's use of one window, and when it resets — or, for a reading
+/** One account's use of one window — or, for a reading
  *  that is not current, the last number dimmed, never a zero it was not given,
  *  and what the totals above do with it. Why it is not current is the row's
  *  state to say, once. */
-function UsedCell({ cell, nowSec }: { cell: Cell; nowSec: number }) {
+function UsedCell({ cell }: { cell: Cell }) {
   if (!cell.counted && cell.reset) {
     // RESET, NOT THE OLD NUMBER. The cards take this window as unused, so a
     // row printing the last reading added up to a different total from the
@@ -140,13 +140,24 @@ function UsedCell({ cell, nowSec }: { cell: Cell; nowSec: number }) {
       </td>
     );
   }
-  const reset = cell.resetAt != null ? resetCountdown(cell.resetAt, nowSec) : null;
   return (
     <td className="ap-report-cell">
       <span className="ap-report-pct" data-level={level(cell.pct)}>{shownUsed(cell.pct)}%</span>
-      {reset && <span className="ap-report-in"><span className="vis-hidden">resets in </span>{reset}</span>}
     </td>
   );
+}
+
+/** A recorded reset has its own column even when the usage reading is old or
+ *  the login has expired. The exact time remains available alongside its
+ *  countdown; a passed reset never looks like a future one. */
+function ResetCell({ at, nowSec }: { at: number | null; nowSec: number }) {
+  if (at == null) return <td className="ap-report-reset-cell"><span aria-hidden>—</span><span className="vis-hidden">No reset time</span></td>;
+  const when = new Date(at * 1000);
+  const countdown = resetCountdown(at, nowSec);
+  return <td className="ap-report-reset-cell" title={`Recorded reset: ${when.toLocaleString()}`}>
+    <time dateTime={when.toISOString()}><span className="vis-hidden">{countdown ? "resets in " : "reset already "}</span>{countdown ?? "passed"}</time>
+    <span className="vis-hidden"> · Recorded reset: {when.toLocaleString()}</span>
+  </td>;
 }
 
 const STATE_WORD: Record<Status, string> = {
@@ -216,11 +227,13 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
       </div>
 
+      <div className="ap-report-table-scroll" role="region" aria-label="Account capacity table">
       <table className="ap-report-table">
-        <caption className="vis-hidden">Each account's use of each window, and what it can do now</caption>
+        <caption className="vis-hidden">Each account's use and reset of each window, and what it can do now</caption>
         <colgroup>
           <col />
           {REPORT_WINDOWS.map(w => <col key={w.id} className="ap-report-col-win" />)}
+          {REPORT_WINDOWS.map(w => <col key={`${w.id}-reset`} className="ap-report-col-reset" />)}
           <col className="ap-report-col-state" />
           <col className="ap-report-col-upd" />
         </colgroup>
@@ -230,8 +243,11 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
             {REPORT_WINDOWS.map(w => (
               <SortHead key={w.id} col={w.id} label={`${w.label} used`} sort={sort} next={nextReportSort} onSort={onSort} />
             ))}
+            {REPORT_WINDOWS.map(w => (
+              <SortHead key={`${w.id}-reset`} col={`${w.id}_reset`} label={`${w.label} reset`} sort={sort} next={nextReportSort} onSort={onSort} />
+            ))}
             <SortHead col="status" label="Status" sort={sort} next={nextReportSort} onSort={onSort} />
-            <SortHead col="updated" label="Updated" className="ap-report-upd-h" sort={sort} next={nextReportSort} onSort={onSort} />
+            <SortHead col="updated" label="Updated" sort={sort} next={nextReportSort} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
@@ -245,13 +261,15 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
                   {r.heldOut && <span className="ap-report-tag">held out</span>}
                 </span>
               </th>
-              {REPORT_WINDOWS.map(w => <UsedCell key={w.id} cell={r.cells[w.id]} nowSec={nowSec} />)}
+              {REPORT_WINDOWS.map(w => <UsedCell key={w.id} cell={r.cells[w.id]} />)}
+              {REPORT_WINDOWS.map(w => <ResetCell key={`${w.id}-reset`} at={r.resets[w.id]} nowSec={nowSec} />)}
               <StateCell row={r} />
               <UpdatedCell row={r} nowSec={nowSec} />
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
 
       <details className="ap-report-how">
         <summary><InfoMark />How usage is calculated</summary>

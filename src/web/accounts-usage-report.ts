@@ -79,6 +79,9 @@ export interface ReportRow {
    *  Switch to it, so the row says so. */
   heldOut: boolean;
   cells: Record<WindowId, Cell>;
+  /** Recorded reset timestamps, including past resets; independent of whether
+   *  the usage reading still belongs to the current window. */
+  resets: Record<WindowId, number | null>;
   /** What the row can do now — see statusOf. */
   status: Status;
   /** When the account was last read, in ms; null when it never was. */
@@ -166,6 +169,13 @@ export interface UsageReport {
 
 /** The name the panel calls an account by. */
 export const accountName = (a: Account) => a.alias ?? a.email ?? `account ${a.num}`;
+
+/** The actual recorded timestamp, rather than a rounded countdown or a
+ *  future-only reading. Missing and non-finite timestamps cannot be sorted. */
+function recordedReset(a: Account, id: WindowId): number | null {
+  const at = a.lanes?.find(l => l.id === id)?.resetAt;
+  return at != null && Number.isFinite(at) ? at : null;
+}
 
 /** One account's reading of one window, or why it does not count. */
 export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
@@ -279,6 +289,7 @@ export function usageReport(accounts: readonly Account[], nowSec: number): Usage
       active: a.active,
       heldOut: a.disabled === true,
       cells,
+      resets: { five_hour: recordedReset(a, "five_hour"), seven_day: recordedReset(a, "seven_day") },
       status: statusOf(cells),
       updatedAt: a.fetchedAt ?? null,
     };
@@ -289,9 +300,9 @@ export function usageReport(accounts: readonly Account[], nowSec: number): Usage
   return { rows, windows: REPORT_WINDOWS.map(w => windowTotal(rows, w.id)), roomInBoth };
 }
 
-/** The columns a reader can order the rows by: each window's own column,
+/** The columns a reader can order the rows by: each window's use and reset,
  *  and the name, the state and the age on either side of them. */
-export type ReportSortKey = "account" | WindowId | "status" | "updated";
+export type ReportSortKey = "account" | WindowId | "five_hour_reset" | "seven_day_reset" | "status" | "updated";
 
 export interface ReportSort {
   key: ReportSortKey;
@@ -302,7 +313,7 @@ export interface ReportSort {
  * What a press on a column header does: a column you are not on arrives
  * ascending, and the one you are on flips. Ascending is the order a reader
  * looks for room in — A to Z, the least used first, Ready first, the newest
- * reading first — so the first press answers "which account next", and the
+ * reading first, earliest recorded reset first — so the first press answers "which account next", and the
  * second turns it round.
  */
 export function nextReportSort(current: ReportSort | null, key: ReportSortKey): ReportSort {
@@ -325,6 +336,8 @@ function shownPct(c: Cell): number | null {
 function sortValue(row: ReportRow, key: Exclude<ReportSortKey, "account">): number | null {
   if (key === "status") return STATUS_RANK[row.status];
   if (key === "updated") return row.updatedAt == null ? null : -row.updatedAt;
+  if (key === "five_hour_reset") return row.resets.five_hour;
+  if (key === "seven_day_reset") return row.resets.seven_day;
   return shownPct(row.cells[key]);
 }
 

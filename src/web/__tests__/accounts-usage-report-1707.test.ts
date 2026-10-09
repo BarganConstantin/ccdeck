@@ -245,8 +245,9 @@ describe("the resets", () => {
     const html = renderToStaticMarkup(createElement(UsageReportBody, {
       accounts: [acct(1, 10, 10, {}, [NOW + 2 * HOUR + 1800]), acct(2, 10, 10, {}, [NOW + 45 * 60])], nowSec: NOW, held: null,
     }));
-    expect(html).toContain('<span class="ap-report-in"><span class="vis-hidden">resets in </span>2h 30m</span>');
-    expect(html).toContain('<span class="ap-report-in"><span class="vis-hidden">resets in </span>45m</span>');
+    expect(html).toContain('<span class="vis-hidden">resets in </span>2h 30m</time>');
+    expect(html).toContain('<span class="vis-hidden">resets in </span>45m</time>');
+    expect(html.match(/class="ap-report-reset-cell"/g)).toHaveLength(4);
   });
 });
 
@@ -299,7 +300,7 @@ describe("the report, drawn", () => {
     for (const label of ["Account", "5h used", "7d used", "Status"]) {
       expect(out).toContain(`<th scope="col" aria-sort="none"><button type="button" class="sd-sort" title="Sort by ${label}">${label}<span class="sd-sort-dir" aria-hidden="true"></span></button></th>`);
     }
-    expect(out).toContain('<th scope="col" aria-sort="none" class="ap-report-upd-h"><button type="button" class="sd-sort" title="Sort by Updated">Updated<span');
+    expect(out).toContain('<th scope="col" aria-sort="none"><button type="button" class="sd-sort" title="Sort by Updated">Updated<span');
     expect(out).toContain('<td class="ap-report-upd">now</td>');
   });
 
