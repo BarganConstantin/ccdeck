@@ -26,6 +26,7 @@ export function useTelemetryCapture() {
   const [pendingAction, setPendingAction] = useState<CaptureAction | null>(null);
   const inflight = useRef<CaptureAction | null>(null);
   const actionRequest = useRef<AbortController | null>(null);
+  const revision = useRef(0);
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -34,15 +35,17 @@ export function useTelemetryCapture() {
     const stop = () => { clearTimeout(timer); controller?.abort(); controller = null; };
     const load = async () => {
       if (!alive || !visible() || controller) return;
+      if (inflight.current) { timer = setTimeout(load, 1000); return; }
+      const observedRevision = revision.current;
       const request = new AbortController(); controller = request;
       try {
         const response = await fetch("/api/system/traffic-radar/capture", { signal: request.signal });
         if (!response.ok) throw new Error();
         const data: CaptureSnapshot = await response.json();
-        if (alive && !request.signal.aborted) {
+        if (alive && !request.signal.aborted && observedRevision === revision.current) {
           setCapture(data); setFailed(false);
         }
-      } catch { if (alive && !request.signal.aborted) setFailed(true); }
+      } catch { if (alive && !request.signal.aborted && observedRevision === revision.current) setFailed(true); }
       finally {
         if (controller === request) controller = null;
         if (alive && !request.signal.aborted && visible()) timer = setTimeout(load, 1000);
@@ -54,6 +57,7 @@ export function useTelemetryCapture() {
   }, []);
   const action = async (kind: CaptureAction, destination?: string | string[]) => {
     if (!pressAccepted(inflight.current)) return;
+    revision.current++;
     inflight.current = kind;
     setPendingAction(kind); setBusy(true); setError("");
     const request = new AbortController(); actionRequest.current = request;
