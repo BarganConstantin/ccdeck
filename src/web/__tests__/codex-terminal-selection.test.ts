@@ -59,12 +59,17 @@ describe('durable terminal selection', () => {
     let shellOutput;
     if (process.platform === 'win32') {
       const script = join(f.root, 'launch.ps1');
-      await writeFile(script, `. '${rc.replaceAll("'", "''")}'\ncodex @args\nexit $LASTEXITCODE\n`);
-      shellOutput = execFileSync('pwsh', ['-NoProfile', '-File', script, ...args], { env, encoding: 'utf8' });
+      const exact = [strange, '', 'trailing\\', 'é unicode', 'line\nbreak'];
+      const encoded = Buffer.from(JSON.stringify([...args.slice(0, -1), ...exact])).toString('base64');
+      await writeFile(script, `. '${rc.replaceAll("'", "''")}'\n$probeArgs = ConvertFrom-Json ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')))\ncodex @probeArgs\nexit $LASTEXITCODE\n`);
+      for (const executable of ['pwsh', 'powershell.exe']) {
+        shellOutput = execFileSync(executable, ['-NoProfile', '-File', script], { env, encoding: 'utf8' });
+        expect(JSON.parse(shellOutput)).toEqual({ home: f.selected.home, args: exact });
+      }
     } else {
       shellOutput = execFileSync('bash', ['-c', 'source "$1"; shift; codex "$@"', 'qa', rc, ...args], { env, encoding: 'utf8' });
     }
-    expect(JSON.parse(shellOutput)).toEqual({ home: f.selected.home, args: [strange] });
+    if (process.platform !== 'win32') expect(JSON.parse(shellOutput)).toEqual({ home: f.selected.home, args: [strange] });
     await configureCodexTerminal('uninstall', options);
     expect(await readFile(rc, 'utf8')).toBe(existing);
     // The copied helper remains usable after removal of the shell block and
@@ -77,6 +82,18 @@ describe('durable terminal selection', () => {
     try { execFileSync(process.execPath, [runner, f.file, process.execPath, '-e', 'process.exit(17)'], { stdio: 'pipe' }); }
     catch (error) { expect((error as { status: number }).status).toBe(17); return; }
     throw new Error('Expected exit code 17');
+  });
+  it('decodes the PowerShell envelope exactly and preserves explicit home and exit code', async () => {
+    const f = await fixture();
+    const runner = join(f.store, 'codex-terminal', 'codex-terminal-runner.mjs');
+    await configureCodexTerminal('install', { ...f.options, rc: join(f.root, 'generated.ps1'), shell: 'powershell5', executable: process.execPath });
+    const exact = ['', 'spaces "quotes" & $ apostrophe\'', 'trailing\\', 'é unicode', 'line\nbreak'];
+    const args = ['-e', 'console.log(JSON.stringify({home:process.env.CODEX_HOME,args:process.argv.slice(1)}))', '--', ...exact];
+    const invoke = (values: string[]) => [runner, f.file, process.execPath, '--ccdeck-args-base64', Buffer.from(JSON.stringify(values)).toString('base64')];
+    const env = { ...process.env, CODEX_HOME: f.original };
+    expect(JSON.parse(execFileSync(process.execPath, invoke(args), { env, encoding: 'utf8' }))).toEqual({ home: f.original, args: exact });
+    expect(() => execFileSync(process.execPath, invoke(['-e', 'process.exit(17)']), { env, stdio: 'pipe' })).toThrow(expect.objectContaining({ status: 17 }));
+    expect(() => execFileSync(process.execPath, [runner, f.file, process.execPath, '--ccdeck-args-base64', Buffer.from('{}').toString('base64')], { env, stdio: 'pipe' })).toThrow(expect.objectContaining({ status: 1 }));
   });
   it('quotes official login commands for both shell families', () => {
     expect(codexLoginCommand("/profiles/it's work", 'linux')).toContain("'\\''");

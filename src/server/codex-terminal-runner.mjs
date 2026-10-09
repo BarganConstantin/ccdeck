@@ -64,7 +64,15 @@ if (process.argv[1] && await realpath(fileURLToPath(import.meta.url)) === await 
   const [file, executable, ...args] = process.argv.slice(2);
   if (!file || !executable) { console.error('Codex terminal integration is incomplete. Reinstall it from ccdeck.'); process.exitCode = 1; }
   else {
-    try { process.exitCode = (await runSelectedCodex(file, executable, args)).code; }
+    try {
+      let forwarded = args;
+      if (args[0] === '--ccdeck-args-base64') {
+        if (args.length !== 2) throw new Error('Invalid terminal argument envelope');
+        forwarded = JSON.parse(Buffer.from(args[1], 'base64').toString('utf8'));
+        if (!Array.isArray(forwarded) || forwarded.some(arg => typeof arg !== 'string')) throw new Error('Invalid terminal argument envelope');
+      }
+      process.exitCode = (await runSelectedCodex(file, executable, forwarded)).code;
+    }
     catch { console.error('Could not start the selected Codex account. Check the selection in ccdeck or reinstall terminal integration.'); process.exitCode = 1; }
   }
 }

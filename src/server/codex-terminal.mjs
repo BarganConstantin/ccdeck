@@ -90,7 +90,9 @@ export async function configureCodexTerminal(action, options = {}) {
     const file = codexSelectionPath({ store: data });
     const node = options.node ?? process.execPath;
     const line = shell.startsWith('powershell')
-      ? `function global:codex { & ${psQuote(node)} ${psQuote(runner)} ${psQuote(file)} ${psQuote(executable)} @args }`
+      // Windows PowerShell's native argv conversion strips embedded quotes and
+      // empty arguments. Transport strings as JSON/base64, then spawn normally.
+      ? `function global:codex { $ccdeckCodexArgs = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject ([string[]]@($args)) -Compress))); & ${psQuote(node)} ${psQuote(runner)} ${psQuote(file)} ${psQuote(executable)} --ccdeck-args-base64 $ccdeckCodexArgs }`
       : `codex() { command ${quote(node)} ${quote(runner)} ${quote(file)} ${quote(executable)} "$@"; }`;
     next += `${next.endsWith('\n') || next === '' ? '' : '\n'}${BEGIN}\n${line}\n${END}\n`;
   }
