@@ -227,6 +227,23 @@ describe("deciding which deck logs a rollout it is tailing", () => {
   });
 
   it.each([
+    [4317, 4318, 4319], [4317, 4319, 4318],
+    [4318, 4317, 4319], [4318, 4319, 4317],
+    [4319, 4317, 4318], [4319, 4318, 4317],
+  ])("excludes a losing wildcard reader beside primary-only and alternate readers at %i/%i/%i", (primaryPort, legacyPort, alternatePort) => {
+    const primary = deck(MY_PID, primaryPort, { codexHomes: ['/home/u/.codex'] });
+    const legacy = deck(THEIR_PID, legacyPort);
+    delete legacy.codexHome;
+    const alternate = deck(79, alternatePort, { codexHomes: ['/home/u/.codex', '/home/u/codex-2'] });
+    const decks = [primary, legacy, alternate];
+    const legacyWins = legacyPort < primaryPort && legacyPort < alternatePort;
+    // Legacy primary-home election sees the wildcard and both A primary homes.
+    expect(writesCodexLog({ decks, pid: legacy.pid, cwd: CWD, platform: 'linux' })).toBe(legacyWins);
+    expect(writesCodexLog({ decks, pid: alternate.pid, cwd: CWD,
+      codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(!legacyWins);
+  });
+
+  it.each([
     [4317, 4318, 4319, THEIR_PID],
     [4317, 4319, 4318, MY_PID],
     [4318, 4317, 4319, THEIR_PID],

@@ -224,6 +224,7 @@ export function writesCodexLog({ decks, pid, cwd, codexHome = null, platform = p
   if (!self || typeof self.persist !== "string" || self.persist === "") return true;
 
   const group = [self];
+  const losingLegacyReaders = new Set();
   for (const d of live) {
     if (!d || d.pid === self.pid) continue;
     if (d.codex === false) continue;
@@ -250,6 +251,7 @@ export function writesCodexLog({ decks, pid, cwd, codexHome = null, platform = p
         && codexCwdInWorkspace(cwd, d.workspace ?? "", platform)
       )));
       if (electWriters(legacyGroup, platform).has(reader)) return false;
+      losingLegacyReaders.add(reader);
     }
     // A legacy reader that lost its own election cannot be preferred here.
     const primary = sharing.filter(d => (d === self || Array.isArray(d.codexHomes))
@@ -257,5 +259,6 @@ export function writesCodexLog({ decks, pid, cwd, codexHome = null, platform = p
       && sameCodexTree(d.codexHome, codexHome, platform));
     if (primary.length) return electWriters(primary, platform).has(self);
   }
-  return electWriters(group, platform).has(self);
+  // A reader that stands down under its own protocol cannot own the fallback.
+  return electWriters(group.filter(reader => !losingLegacyReaders.has(reader)), platform).has(self);
 }
