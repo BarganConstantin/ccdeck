@@ -59,6 +59,7 @@ export async function discoverCodexProfiles(options = {}) {
     seen.add(canonical);
     let installed = false;
     try { await access(join(directory, 'auth.json')); installed = true; } catch { /* No login yet. */ }
+    const credentialVersion = await credentialFileVersion(directory);
     let identity = null;
     try {
       const auth = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'));
@@ -69,8 +70,10 @@ export async function discoverCodexProfiles(options = {}) {
       const workspace = typeof account === 'string' ? createHash('sha256').update(account).digest('hex').slice(0, 8) : null;
       identity = email ? `${email}${workspace ? ` · ${workspace}` : ''}` : workspace ? `Account ${workspace}` : null;
     } catch { /* Missing or malformed login metadata uses the profile label. */ }
+    if (await credentialFileVersion(directory) !== credentialVersion) identity = null;
     profiles.push({
       id: createHash('sha256').update(canonical).digest('hex').slice(0, 20),
+      identityVersion: createHash('sha256').update(credentialVersion).digest('hex'),
       label: identity ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
       active: profiles.length === 0,
       signedInFilePresent: installed, // file presence is NOT authentication validity
@@ -169,6 +172,7 @@ export async function readCodexProfileQuota(id, options = {}) {
     };
     return {
       ok: true, fetchedAt: Date.now(),
+      identityVersion: createHash('sha256').update(credentialVersion).digest('hex'),
       plan: body?.plan_type ?? claims?.['https://api.openai.com/auth']?.chatgpt_plan_type ?? null,
       windows: [window(body?.rate_limit?.primary_window), window(body?.rate_limit?.secondary_window)].filter(Boolean),
     };

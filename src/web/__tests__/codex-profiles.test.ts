@@ -14,6 +14,24 @@ describe('Codex profile discovery', () => {
         .toEqual([join(a, 'sessions'), join(b, 'sessions')]);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
+  it('detects Codex when only an explicitly configured alternate home exists', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-installed-profiles-'));
+    const previousDefault = process.env.CODEX_HOME;
+    const previousExtras = process.env.CCDECK_CODEX_HOMES;
+    try {
+      process.env.CODEX_HOME = join(root, 'missing-default');
+      process.env.CCDECK_CODEX_HOMES = JSON.stringify([root]);
+      const { hasCodexInstalled } = await import('../../server/installer.mjs');
+      expect(hasCodexInstalled()).toBe(true);
+      process.env.CCDECK_CODEX_HOMES = '[]';
+      expect(hasCodexInstalled()).toBe(false);
+    } finally {
+      if (previousDefault === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = previousDefault;
+      if (previousExtras === undefined) delete process.env.CCDECK_CODEX_HOMES; else process.env.CCDECK_CODEX_HOMES = previousExtras;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('keeps existing CODEX_HOME behavior with no configuration', () => {
     expect(configuredCodexHomes({ CODEX_HOME: '/tmp/current' }, '/tmp')).toEqual(['/tmp/current']);
   });
@@ -100,12 +118,16 @@ describe('Codex profile discovery', () => {
       expect(seen).toEqual(['Bearer ACCESS_A', 'Bearer ACCESS_B']);
       expect(first.windows).toEqual([{ usedPercent: 35, resetAt: null, seconds: 18000 }]);
       expect(first.plan).toBe('plus');
+      expect(first.identityVersion).toBe(profiles[0].identityVersion);
       expect(JSON.stringify([first, second])).not.toContain('ACCESS_');
       await readCodexProfileQuota(profiles[0].id, { env, fetch: mockFetch });
       expect(seen).toHaveLength(2);
       // Re-login can replace auth.json while the previous account's quota is cached.
       await writeFile(join(a, 'auth.json'), JSON.stringify({ tokens: { access_token: 'REPLACED_ACCOUNT_TOKEN' } }));
-      await readCodexProfileQuota(profiles[0].id, { env, fetch: mockFetch });
+      const replaced = await readCodexProfileQuota(profiles[0].id, { env, fetch: mockFetch });
+      const refreshed = await discoverCodexProfiles({ env });
+      expect(replaced.identityVersion).toBe(refreshed[0].identityVersion);
+      expect(replaced.identityVersion).not.toBe(first.identityVersion);
       expect(seen).toEqual(['Bearer ACCESS_A', 'Bearer ACCESS_B', 'Bearer REPLACED_ACCOUNT_TOKEN']);
     } finally { await rm(root, { recursive: true, force: true }); }
   });

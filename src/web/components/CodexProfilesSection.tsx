@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { copyText } from "../copy-text";
 import { readStored, writeStored } from "../storage";
 
@@ -7,12 +7,14 @@ const SELECTED_CODEX_PROFILE_KEY = "agent-dag.codex.selectedProfile";
 interface CodexProfile {
   id: string;
   label: string;
+  identityVersion: string;
   active: boolean;
   signedInFilePresent: boolean;
 }
 
 interface ProfileQuota {
   ok: boolean;
+  identityVersion?: string;
   reason?: string;
   stale?: boolean;
   lastGood?: ProfileQuota;
@@ -37,6 +39,7 @@ function quotaStatus(quota: ProfileQuota, now: number): string {
 
 export default function CodexProfilesSection() {
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
+  const profileRequest = useRef(0);
   const [error, setError] = useState(false);
   const [quotas, setQuotas] = useState<Record<string, ProfileQuota | null>>({});
   const [launch, setLaunch] = useState<Record<string, string>>({});
@@ -71,30 +74,33 @@ export default function CodexProfilesSection() {
       const response = await fetch(`/api/codex-profile-quota?id=${encodeURIComponent(id)}`);
       if (!response.ok) throw new Error('Quota unavailable');
       const value = await response.json() as ProfileQuota;
+      await refreshProfiles();
       setQuotas((current) => ({ ...current, [id]: value }));
     } catch {
       setQuotas((current) => ({ ...current, [id]: { ok: false, reason: 'fetch_error' } }));
     }
   }
 
+  async function refreshProfiles(signal?: AbortSignal) {
+    const request = ++profileRequest.current;
+    const response = await fetch("/api/codex-profiles", { signal });
+    if (!response.ok) throw new Error("Unable to load Codex profiles");
+    const result = await response.json() as { profiles: CodexProfile[] };
+    if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
+    if (signal?.aborted || request !== profileRequest.current) return;
+    setProfiles(result.profiles);
+    setError(false);
+    setSelectedId(current => result.profiles.some(profile => profile.id === current) ? current : result.profiles[0]?.id ?? "");
+  }
+
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/codex-profiles", { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error("Unable to load Codex profiles");
-        return response.json() as Promise<{ profiles: CodexProfile[] }>;
-      })
-      .then((result) => {
-        if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
-        if (!controller.signal.aborted) {
-          setProfiles(result.profiles);
-          if (!result.profiles.some((profile) => profile.id === selectedId)) {
-            setSelectedId(result.profiles[0]?.id ?? "");
-          }
-        }
-      })
-      .catch(() => { if (!controller.signal.aborted) setError(true); });
-    return () => controller.abort();
+    const load = () => refreshProfiles(controller.signal).catch(() => {
+      if (!controller.signal.aborted) setError(true);
+    });
+    void load();
+    const timer = setInterval(() => void load(), 15_000);
+    return () => { controller.abort(); clearInterval(timer); };
   }, []);
 
   return (
@@ -114,7 +120,10 @@ export default function CodexProfilesSection() {
                 {launch[profile.id] && <span className="ap-codex-hint" role="status">{launch[profile.id]}</span>}
                 {Object.hasOwn(quotas, profile.id) && (quotas[profile.id] === null
                   ? <span className="ap-codex-hint" role="status">Checking quota…</span>
-                  : <span className="ap-codex-hint" role="status">{quotaStatus(quotas[profile.id]!, clock)}</span>)}
+                  : <span className="ap-codex-hint" role="status">{quotaStatus(
+                    (quotas[profile.id]?.ok || quotas[profile.id]?.stale) &&
+                    (quotas[profile.id]?.identityVersion ?? quotas[profile.id]?.lastGood?.identityVersion) !== profile.identityVersion
+                      ? { ok: false, reason: 'profile_changed' } : quotas[profile.id]!, clock)}</span>)}
               </li>
             ))}
           </ul>

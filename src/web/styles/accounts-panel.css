@@ -60,15 +60,15 @@
 .ap-codex { padding: 14px var(--panel-inset); border-top: 1px solid var(--line-soft); }
 .ap-codex-title { font-weight: 600; font-size: 12px; margin-bottom: 9px; }
 .ap-codex-list { margin: 0; padding: 0; list-style: none; }
-.ap-codex-row { display: flex; flex-direction: column; gap: 2px; padding: 7px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
+.ap-codex-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
 .ap-codex-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 4px 0 0; }
 .ap-codex-check {
   align-self: flex-start;
   border: 1px solid var(--ctl-edge);
   background: var(--ctl-fill);
   color: var(--text);
-  border-radius: 5px;
-  padding: 4px 7px;
+  border-radius: 4px;
+  padding: 4px 8px;
   margin-top: 3px;
   font-size: 11px;
   cursor: pointer;
