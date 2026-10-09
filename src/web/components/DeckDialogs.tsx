@@ -205,8 +205,7 @@ export default function DeckDialogs({
              501 and one without a writable log 409, and the button is not
              offered for either (#1163). */
           onRestart={!readyAppUpdate && version?.canRestart ? () => { closeReleaseNotes(); void askRestart(); } : undefined}
-          updateCheck={readyAppUpdate ? undefined
-            : { versionCheck, upgrade, restart, desktopUpdate, running: chipVersion, onHandOff: closeReleaseNotes }}
+          updateCheck={{ versionCheck, upgrade, restart, desktopUpdate, running: chipVersion, onHandOff: closeReleaseNotes }}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those

@@ -71,7 +71,7 @@ import { handleFeature, noteRouteFeature } from "./feature-use.mjs";
 export { HARD_TRACKED_SESSIONS } from "./session-tracking.mjs";
 // The desktop app's update as its window sees it — the state the app reports
 // and the window's answers relayed back to it. See desktop-update-routes.mjs.
-import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest } from "./desktop-update-routes.mjs";
+import { handleDesktopUpdateCheck, handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest } from "./desktop-update-routes.mjs";
 // The one spelling of `--workspace`, and of a rollout's cwd — see
 // canonical-path.mjs. Both were exported from this file before they moved,
 // and still are.
@@ -308,6 +308,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/version")     return guard(handleVersion(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/desktop-update") return handleDesktopUpdateRead(req, res);
     if (req.method === "POST" && url.pathname === "/api/desktop-update") return guard(handleDesktopUpdateReport(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update/check") return guard(handleDesktopUpdateCheck(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/desktop-update/restart") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-restart"), res);
     if (req.method === "POST" && url.pathname === "/api/desktop-update/seen") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-seen"), res);
     if (req.method === "POST" && url.pathname === "/api/upgrade")     return guard(handleUpgrade(req, res), res);

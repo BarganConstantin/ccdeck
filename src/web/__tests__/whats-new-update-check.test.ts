@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
 
 import {
-  CHECK_MIN_BUSY_MS, CHECKS_OFF, DECK_UNREACHABLE, NPM_UNREACHABLE, runUpdateCheck, updateCheckState,
+  CHECK_MIN_BUSY_MS, CHECKS_OFF, DECK_UNREACHABLE, NPM_UNREACHABLE, runUpdateCheck, runDesktopUpdateCheck, updateCheckState,
   type UpdateCheckFacts,
 } from "../update-check";
 import type { VersionInfo } from "../use-version-check";
@@ -166,9 +166,9 @@ describe("an update available, offered as the banner offers it on each channel",
 
   it("the desktop app: the app's own updater, and its verified update is the dialog's top door", () => {
     expect(updateCheckState(inApp({ status: "downloading", version: "3.38.7" }), UPGRADE_BLOCK_TEXT))
-      .toEqual({ canCheck: false, checking: false, line: { said: "3.38.7 is out. The app is downloading it.", tone: "note", age: null, command: null, action: null } });
+      .toEqual({ canCheck: true, checking: false, line: { said: "3.38.7 is out. The app is downloading it.", tone: "note", age: null, command: null, action: null } });
     // Ready: the door at the top says it, with Restart to update; nothing here.
-    expect(updateCheckState(inApp({ status: "ready", version: "3.38.7" }), UPGRADE_BLOCK_TEXT)).toBeNull();
+    expect(updateCheckState(inApp({ status: "ready", version: "3.38.7" }), UPGRADE_BLOCK_TEXT)).toMatchObject({ canCheck: true, line: { said: "3.38.7 is ready. Restart to update." } });
   });
 });
 
@@ -181,11 +181,11 @@ describe("where no check can run, the line says why instead of offering a button
 
   it("the desktop app's own deck, which leaves updates to the app: its updater's state, and the menu that can check", () => {
     const said = (update: Parameters<typeof inApp>[0]) => updateCheckState(inApp(update), UPGRADE_BLOCK_TEXT)!.line.said;
-    expect(said(null)).toBe(`The app keeps itself up to date. To check now, use Check for updates in ${MENU}.`);
-    expect(said({ status: "idle", version: null })).toBe(`The app keeps itself up to date. To check now, use Check for updates in ${MENU}.`);
+    expect(said(null)).toBe(`The app keeps itself up to date. Check for updates here.`);
+    expect(said({ status: "idle", version: null })).toBe(`The app keeps itself up to date. Check for updates here.`);
     expect(said({ status: "checking", version: null })).toBe("The app is checking for updates…");
-    expect(said({ status: "current", version: null })).toBe(`You're on the latest, 3.38.6. To check again, use Check for updates in ${MENU}.`);
-    expect(said({ status: "error", version: null })).toBe(`The app's last update check failed. Try Check for updates in ${MENU}.`);
+    expect(said({ status: "current", version: null })).toBe(`You're on the latest, 3.38.6. You can check again here.`);
+    expect(said({ status: "error", version: null })).toBe(`The app's last update check failed. Try Check for updates again.`);
     expect(said({ status: "downloading", version: null })).toBe("The app is downloading an update.");
   });
 
@@ -216,7 +216,7 @@ describe("the press is the chip's own check, under the same rules", () => {
     // The button runs the press over the dialog's versionCheck…
     expect(read("../components/ReleaseActions.tsx")).toContain("await runUpdateCheck(versionCheck.loadVersion);");
     // …which is the one App.tsx hands the topbar, where the chip is.
-    expect(read("../components/DeckDialogs.tsx")).toMatch(/: \{ versionCheck, upgrade, restart, desktopUpdate, running: chipVersion, onHandOff: closeReleaseNotes \}/);
+    expect(read("../components/DeckDialogs.tsx")).toContain("updateCheck={{ versionCheck, upgrade, restart, desktopUpdate, running: chipVersion, onHandOff: closeReleaseNotes }}");
     const app = read("../App.tsx");
     expect(app).toMatch(/<ReadoutGroup\s+versionCheck=\{versionCheck\}/);
     expect(app).toMatch(/<DeckDialogs\b[^>]*\bversionCheck=\{versionCheck\}/);
@@ -383,5 +383,27 @@ describe("motion and contrast themes", () => {
   });
   it("marks the busy button in the highlight under forced colours", () => {
     expect(read("../styles/touch-and-forced-colours.css")).toContain('.release-notes .rn-act[aria-busy="true"] { border-color: Highlight; }');
+  });
+});
+
+
+describe('desktop update check from the dialog', () => {
+  it('requests the native updater and reports a disconnected app', async () => {
+    const request = vi.fn(async () => ({ ok: true }));
+    expect(await runDesktopUpdateCheck(request as never)).toBe('answered');
+    expect(request.mock.calls[0][0]).toBe('/api/desktop-update/check');
+    expect(request.mock.calls[0][1]).toMatchObject({ method: 'POST' });
+    expect(await runDesktopUpdateCheck(vi.fn(async () => ({ ok: false })) as never)).toBe('unreachable');
+  });
+  it('keeps the native check visible and busy while Electron is checking', () => {
+    expect(updateCheckState(inApp({ status: 'checking', version: null }), UPGRADE_BLOCK_TEXT)).toMatchObject({ canCheck: true, checking: true });
+  });
+  it('draws the check inside Electron even when npm checks are disabled', () => {
+    vi.stubGlobal('navigator', { userAgent: 'ccdeck-desktop/3.39.1' });
+    try {
+      const html = draw({ onTour: noop, onRestart: noop, updateCheck: wiring(version({ checkDisabled: true })) });
+      expect(buttons(html).map(text)).toEqual(['Take the tour', 'Check for updates', 'Restart']);
+      expect(html).toContain('Ask the desktop app whether a newer ccdeck is out.');
+    } finally { vi.unstubAllGlobals(); }
   });
 });

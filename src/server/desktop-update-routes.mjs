@@ -70,6 +70,18 @@ async function handleDesktopUpdateRequest(req, res, event) {
   send(res, 202, { ok: true });
 }
 
+// Checking is routed to the same native updater as the tray menu. The existing
+// mutation gate protects the request; only authenticated tray subscribers receive it.
+let lastCheckAt = 0;
+export function handleDesktopUpdateCheck(_req, res) {
+  if (trayClients.size === 0) return send(res, 409, { ok: false, reason: 'app_disconnected' });
+  if (Date.now() - lastCheckAt >= 1000) {
+    lastCheckAt = Date.now();
+    for (const client of trayClients) writeSse(client, 'event: desktop-update-check\ndata: {}\n\n');
+  }
+  send(res, 202, { ok: true });
+}
+
 // The four routes index.mjs dispatches to these. Listed rather than marked at
 // each declaration, so the declarations read as they did where they came from.
 export { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest };
