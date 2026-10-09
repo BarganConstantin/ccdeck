@@ -31,6 +31,22 @@ export function configuredCodexHomes(env = process.env, home = homedir(), platfo
   return result;
 }
 
+/** Resolve each explicitly trusted home once before scanning rollout trees.
+ * Deduping canonical directories avoids reading a symlink alias twice. */
+export async function codexProfileSessionDirs(options = {}) {
+  const homes = configuredCodexHomes(options.env, options.home, options.platform);
+  const seen = new Set();
+  const result = [];
+  for (const home of homes) {
+    let canonical;
+    try { canonical = await realpath(home); } catch { canonical = home; }
+    if (seen.has(canonical)) continue;
+    seen.add(canonical);
+    result.push(join(home, 'sessions'));
+  }
+  return result;
+}
+
 /** The ID identifies a home, never an OAuth token or an email address. */
 export async function discoverCodexProfiles(options = {}) {
   const homes = configuredCodexHomes(options.env, options.home, options.platform);

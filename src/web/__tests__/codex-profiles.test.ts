@@ -1,10 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { configuredCodexHomes, discoverCodexProfiles, readCodexProfileQuota, resolveCodexProfile, codexProfileLaunchCommand } from '../../server/codex-profiles.mjs';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { configuredCodexHomes, codexProfileSessionDirs, discoverCodexProfiles, readCodexProfileQuota, resolveCodexProfile, codexProfileLaunchCommand } from '../../server/codex-profiles.mjs';
+import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 describe('Codex profile discovery', () => {
+  it('enumerates independent session roots once even when a home is an alias', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-session-homes-'));
+    try {
+      const a = join(root, 'a'); const b = join(root, 'b'); const alias = join(root, 'alias');
+      await mkdir(a); await mkdir(b); await symlink(a, alias);
+      expect(await codexProfileSessionDirs({ env: { CODEX_HOME: a, CCDECK_CODEX_HOMES: JSON.stringify([alias, b, a]) } }))
+        .toEqual([join(a, 'sessions'), join(b, 'sessions')]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
   it('keeps existing CODEX_HOME behavior with no configuration', () => {
     expect(configuredCodexHomes({ CODEX_HOME: '/tmp/current' }, '/tmp')).toEqual(['/tmp/current']);
   });
