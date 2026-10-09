@@ -46,7 +46,7 @@ export async function runCaptureTool({ tool, interface: iface, host, port, base,
   // Validate before launching a child, not after it has started capturing.
   const url = new URL(base);
   if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.pathname !== '/' || url.search || url.hash || url.username || url.password || !/^[a-f0-9]{64}$/.test(token) || !Number.isInteger(source) || source < 0 || source > 7) throw new Error('Invalid local capture destination.');
-  const child = launch(tool, ['-i', iface, '-P', '-s', '0', '-f', `host ${host} and tcp port ${port}`, '-w', '-'], { stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true, shell: false });
+  const child = launch(tool, ['-i', iface, '-F', 'pcap', '-s', '0', '-f', `host ${host} and tcp port ${port}`, '-w', '-'], { stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true, shell: false });
   let failure = null;
   child.on('error', error => { failure = error; child.stdout.destroy(error); });
   child.on('exit', code => { if (code) failure = new Error('Capture tool failed. Check Npcap and capture permissions.'); });

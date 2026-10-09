@@ -91,7 +91,7 @@ describe('capture backends', () => {
     const launch = vi.fn(() => child);
     await runCaptureTool({ tool: 'dumpcap.exe', interface: '\\Device\\NPF_Loopback', host: '192.0.2.16', port: 4317, base: 'http://127.0.0.1:4329', token, launch, report: () => {}, send: async (_url, init) => ({ ok: capture.ingest(token, init.body) }) });
     expect(capture.detail(capture.read().events[0].id).payload).toEqual(LOGS);
-    expect(launch.mock.calls[0][1]).toContain('-P'); expect(launch.mock.calls[0][2]).toMatchObject({ shell: false }); expect(child.kill).toHaveBeenCalled();
+    expect(launch.mock.calls[0][1]).toEqual(expect.arrayContaining(['-F', 'pcap'])); expect(launch.mock.calls[0][2]).toMatchObject({ shell: false }); expect(child.kill).toHaveBeenCalled();
   });
   it('validates helper arguments before any capture starts', async () => {
     const launch = vi.fn();

@@ -79,19 +79,23 @@ clear next action when capture needs assistance.
   process/connection APIs and Wireshark dumpcap with Npcap. Windows cwd may be
   unknown; do not infer a workspace or session from an address.
 - Windows activation is a PowerShell command invoking the Node helper, which
-  launches dumpcap directly with binary pcap output (`-P`). A PowerShell 5 binary
+  launches dumpcap directly with binary pcap output (`-F pcap`). A PowerShell 5 binary
   pipeline would corrupt the capture. Handle local addresses with Npcap loopback,
   and routed addresses with the adapter GUID. The helper also works when the
   server runs through Electron's binary by setting ELECTRON_RUN_AS_NODE.
 - Capture dependencies and privileges are explicit. No drivers are installed
-  automatically. The owner's `rdp` host was tested with real Claude processes
-  and connections, but lacked Wireshark/Npcap. Installing that network driver
-  was asked separately; do not infer approval from elapsed time.
+  automatically. On 2026-10-09 the owner explicitly approved installing all
+  dependencies on `rdp`. Wireshark 4.6.9 and Npcap 1.89 were installed from
+  official, signed packages; the Npcap driver runs without a reboot. The free
+  Npcap installer was completed through its GUI, not an OEM silent switch.
 - `scripts/verify-radar-platform.mjs` is an OS smoke probe. `--live` creates only
   synthetic loopback traffic and verifies real packet capture, decoded JSON and
   collector acceptance. It requires capture privileges and dev dependencies.
-  The live Linux check passed in an isolated Docker container. The Windows tests
-  exercised the binary helper with fixtures; this does not prove Npcap capture.
+  The live Linux check passed in an isolated Docker container. The live Windows
+  check passed on `rdp`, executing the generated PowerShell command and capturing
+  real Npcap loopback packets: decoded JSON matched the synthetic export, its
+  session ID was recovered, and the collector response was `accepted`. This
+  verifies the capture path; it does not prove Claude sent that test payload.
 - Monitoring still needs manual activation, expires after 10 minutes, and retains
   messages for 5 minutes. This change does not implement always-on capture.
 - What's new now has a Check for updates button inside Electron. It asks the

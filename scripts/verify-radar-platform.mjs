@@ -7,7 +7,7 @@ import { createTrafficRadar } from '../src/server/traffic-radar.mjs';
 import { captureInterface, captureTool } from '../src/server/traffic-radar-platform.mjs';
 import { createTrafficCapture } from '../src/server/traffic-radar-capture.mjs';
 import { handleTrafficCapture } from '../src/server/traffic-radar-routes.mjs';
-import { streamCapture, runCaptureTool } from '../src/server/traffic-radar-helper.mjs';
+import { streamCapture } from '../src/server/traffic-radar-helper.mjs';
 
 const snapshot = await createTrafficRadar().read();
 assert.equal(snapshot.status, 'observing', 'Native connection visibility should be available');
@@ -32,7 +32,12 @@ try {
   const base = `http://127.0.0.1:${localPort}`;
   const tool = await captureTool(process.platform), iface = await captureInterface('127.0.0.1', process.platform);
   if (process.platform === 'win32') {
-    runner = runCaptureTool({ tool, interface: iface, host: '127.0.0.1', port, base, token });
+    // Run the exact PowerShell command shown in Radar, including helper CLI arguments.
+    const activation = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', setup.command], { stdio: ['ignore', 'inherit', 'inherit'], windowsHide: true });
+    runner = new Promise((resolve, reject) => {
+      activation.once('error', reject);
+      activation.once('exit', code => code === 0 ? resolve() : reject(new Error(`Capture activation exited ${code}`)));
+    });
     runner.catch(() => {});
     await new Promise(r => setTimeout(r, 2000));
   } else {
