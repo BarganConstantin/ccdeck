@@ -7,18 +7,21 @@ branches still have the same state. Verify them at the start of a new session.
 
 - Original checkout: `/Users/constantin/Desktop/agents-deck`, with separate
   unfinished Git View work. Preserve that checkout and its changes.
-- UI worktree: `/Users/constantin/.cache/ccdeck-wt/finish-left-column`.
-- Working branch: `fix/finish-left-column`; delivery branch: `origin/development`.
+- Current Radar worktree: `/Users/constantin/.cache/ccdeck-wt/radar-cross-platform`.
+  Earlier UI worktree: `/Users/constantin/.cache/ccdeck-wt/finish-left-column`.
+- Working branch: `feat/radar-cross-platform`; delivery branch: `origin/development`.
   Completed commits have been delivered with `git push origin HEAD:development`.
   Fetch and inspect divergence before pushing; integrate remote work rather than
   force-pushing. Other worktrees also exist, so inspect `git worktree list`.
-- The owner's local app has been served at `http://127.0.0.1:4317` from this UI
+- The owner's local app has been served at `http://127.0.0.1:4317` from the Radar
   worktree, using `/Users/constantin/.nvm/versions/node/v22.14.0/bin/node`.
   Inspect the actual listener and process before assuming this is still true.
 - Launch the built UI with `node bin/agent-dag.js --port 4317 --no-open` from the
   intended checkout. Consult `--help` before changing server lifecycle behavior.
-- `main` was merged into the development work during this session. Package
-  version at this handoff is 3.39.0; read `package.json` for the current version.
+- `main` and `development` were synchronized for the published 3.39.1 release.
+  Radar platform support and the Electron update button subsequently went to
+  `development` only. Package version is still 3.39.1; these later changes need
+  a future release to reach installed desktop apps.
 
 ## UI decisions
 
@@ -67,6 +70,35 @@ messages are different evidence. Check the live API/helper status and capture
 coverage before reporting "not sending" or "working". Preserve Claude settings
 during passive inspection. Avoid filling the modal with setup jargon; show a
 clear next action when capture needs assistance.
+
+## Radar platform support and desktop updates
+
+- `src/server/traffic-radar-platform.mjs` owns native inspection and capture-tool
+  setup. macOS uses ps/lsof and route/tcpdump. Linux uses ps plus owned `/proc`
+  sockets and tcpdump `any`, including loopback. Windows uses PowerShell native
+  process/connection APIs and Wireshark dumpcap with Npcap. Windows cwd may be
+  unknown; do not infer a workspace or session from an address.
+- Windows activation is a PowerShell command invoking the Node helper, which
+  launches dumpcap directly with binary pcap output (`-P`). A PowerShell 5 binary
+  pipeline would corrupt the capture. Handle local addresses with Npcap loopback,
+  and routed addresses with the adapter GUID. The helper also works when the
+  server runs through Electron's binary by setting ELECTRON_RUN_AS_NODE.
+- Capture dependencies and privileges are explicit. No drivers are installed
+  automatically. The owner's `rdp` host was tested with real Claude processes
+  and connections, but lacked Wireshark/Npcap. Installing that network driver
+  was asked separately; do not infer approval from elapsed time.
+- `scripts/verify-radar-platform.mjs` is an OS smoke probe. `--live` creates only
+  synthetic loopback traffic and verifies real packet capture, decoded JSON and
+  collector acceptance. It requires capture privileges and dev dependencies.
+  The live Linux check passed in an isolated Docker container. The Windows tests
+  exercised the binary helper with fixtures; this does not prove Npcap capture.
+- Monitoring still needs manual activation, expires after 10 minutes, and retains
+  messages for 5 minutes. This change does not implement always-on capture.
+- What's new now has a Check for updates button inside Electron. It asks the
+  existing updater through the authenticated tray stream; it does not use npm
+  to update a bundled app. Modern desktop reports include `canCheck: true` so a
+  request to an older desktop app is refused instead of claiming a check ran.
+  The full click-to-native-check flow was verified in an isolated Electron app.
 
 ## Verification lessons
 
