@@ -1,3 +1,4 @@
+import { RadarSelect } from "./RadarSelect";
 import { useState, type KeyboardEvent } from "react";
 import type { RadarSnapshot } from "../traffic-radar";
 import { configuredDestinations, configuredState, observedDestinations, type RadarSession } from "../telemetry-inspection";
@@ -60,9 +61,9 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
     <div className="tr-navigation">
       <div className="tr-tabs" role="tablist" aria-label="Radar views" onKeyDown={handleTabKeyDown}>{([['monitor', 'Monitor'], ['configuration', 'Configuration'], ['file', 'File']] as const).map(([id, label]) =>
         <button key={id} id={`tr-tab-${id}`} className="tr-tab" role="tab" aria-selected={page === id} aria-controls={`tr-panel-${id}`} tabIndex={page === id ? 0 : -1} onClick={() => setPage(id)}>{label}</button>)}</div>
-      <label className="tr-session-filter">Session<select className="tr-select" value={session} onChange={e => setSession(e.target.value)} aria-label="Session">
+      <label className="tr-session-filter">Session<RadarSelect value={session} onChange={e => setSession(e.target.value)} aria-label="Session">
         <option value="all">All sessions</option>{[...choices].map(([id, label]) => <option key={id} value={id}>{label} · {id.slice(0, 8)}</option>)}<option value="unidentified">Unidentified session</option>
-      </select></label>
+      </RadarSelect></label>
     </div>
     {/* Keep views mounted: selecting Configuration must not discard the selected message or imported file. */}
     <div className="tr-page" id="tr-panel-monitor" role="tabpanel" aria-labelledby="tr-tab-monitor" hidden={page !== "monitor"}>

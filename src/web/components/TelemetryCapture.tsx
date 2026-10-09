@@ -1,7 +1,8 @@
+import { RadarSelect } from "./RadarSelect";
 import { useEffect, useRef, useState } from "react";
 import { JsonInspector } from "./JsonInspector";
 import { radarMonitorState } from "../radar-monitor-state";
-import { pressState } from "../panel-press";
+import { armedPress, pressState } from "../panel-press";
 import type { RadarSnapshot } from "../traffic-radar";
 import { captureAddress, configuredDestinations, observedDestinations, type RadarSession } from "../telemetry-inspection";
 import type { CaptureAction, CaptureSnapshot, CapturedExport } from "../use-telemetry-capture";
@@ -121,6 +122,8 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
   const [pausedObservationIds, setPausedObservationIds] = useState<number[] | null>(null);
   const [paused, setPaused] = useState<CapturedExport[] | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [clearArmed, setClearArmed] = useState(false);
+  const clearArmedAt = useRef(0);
   const [view, setView] = useState<"summary" | "json">("summary");
   const [detail, setDetail] = useState<{ id: number; payload?: Obj; error?: string } | null>(null);
   const [retry, setRetry] = useState(0);
@@ -162,7 +165,17 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
     }).catch(value => { if (alive) setDetail({ id, error: controller.signal.aborted ? "Loading timed out. Try again." : value instanceof Error ? value.message : "Could not read this message." }); })
       .finally(() => clearTimeout(timeout));
     return () => { alive = false; clearTimeout(timeout); controller.abort(); };
-  }, [id, retry]);
+  }, [id, selectedObservation, retry]);
+  useEffect(() => {
+    if (!copied || copied === "failed") return;
+    const timer = setTimeout(() => setCopied(null), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  useEffect(() => {
+    if (!clearArmed) return;
+    const timer = setTimeout(() => setClearArmed(false), 5000);
+    return () => clearTimeout(timer);
+  }, [clearArmed]);
   const shell = capture?.shell ?? (radar?.platform === "win32" ? "PowerShell" : "Terminal");
   const windows = shell === "PowerShell";
   const monitor = radarMonitorState(capture, failed);
@@ -182,6 +195,14 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
       inspector.current?.focus({ preventScroll: true }); inspector.current?.scrollIntoView({ block: "start", behavior: "auto" });
     }
   };
+  const clearHistory = () => {
+    const now = Date.now();
+    const decision = armedPress({ armedFor: clearArmed ? "history" : null, target: "history", armedAt: clearArmedAt.current, now, gapMs: 350 });
+    if (decision === "arm") { clearArmedAt.current = now; setClearArmed(true); return; }
+    if (decision === "ignore") return;
+    setClearArmed(false); setSelected(null); setSelectedObservation(null); setPaused(null); setPausedObservationIds(null);
+    void action("clear");
+  };
   const prepare = () => {
     setCopied(null); setPaused(null); setPausedObservationIds(null); setSelected(null); setSelectedObservation(null);
     const targets = destination === "custom" ? [custom.trim()] : destination === "all" ? addresses : [destination];
@@ -200,13 +221,13 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
         <p className="tr-note">{failed ? "Showing the last successful read. Reconnecting automatically." : running ? active ? `${active} of ${sourceCount} destination${sourceCount === 1 ? "" : "s"} listening · ${monitor.traffic ? "Traffic observed" : "No traffic observed yet"}` : "Monitoring is enabled; the listener is not ready yet." : "Start Radar to inspect new collector traffic. Claude settings stay unchanged."}</p></div>
       <div className="tr-capture-actions">
         {running ? <button className="btn" {...pressProps("stop")} onClick={() => void action("stop")}>Stop monitoring</button>
-          : <button className="btn tr-start" {...pressProps("prepare")} disabled={pressProps("prepare").disabled || !capture || failed || radar?.status === "unsupported" || (destination === "all" && !addresses.length) || (destination === "custom" && !custom.trim())} onClick={prepare}>{pendingAction === "prepare" ? "Starting…" : "Start monitoring"}</button>}
-        <button className="btn" {...pressProps("clear")} disabled={pressProps("clear").disabled || (!capture?.events.length && !capture?.observations?.length)} onClick={() => { setSelected(null); setSelectedObservation(null); setPaused(null); setPausedObservationIds(null); void action("clear"); }}>Clear messages</button>
+          : <button className="btn primary tr-start" {...pressProps("prepare")} disabled={pressProps("prepare").disabled || !capture || failed || radar?.status === "unsupported" || (destination === "all" && !addresses.length) || (destination === "custom" && !custom.trim())} onClick={prepare}>{pendingAction === "prepare" ? "Starting…" : "Start monitoring"}</button>}
+        <button className={clearArmed ? "btn danger armed" : "btn tr-quiet"} {...pressProps("clear")} disabled={pressProps("clear").disabled || (!capture?.events.length && !capture?.observations?.length)} title={clearArmed ? "Remove decoded messages and observations. Monitoring continues." : "Clear retained messages and connection observations"} onBlur={() => setClearArmed(false)} onClick={clearHistory}>{clearArmed ? "Confirm clear history" : "Clear history"}</button>
       </div>
     </div>
-    {running && <div className="tr-active-destinations" role="group" aria-label="Monitored destinations"><span>Destination{sourceCount > 1 ? "s" : ""}</span>{capture?.sources?.length ? capture.sources.map(source => <span className="tr-destination-entry" key={source.destination}><code>{source.destination}</code>{(sourceCount > 1 || !source.active) && <span className={source.active ? "tr-source-ready" : "tr-source-pending"}>{source.active ? "Listening" : "Not listening"}</span>}{!source.active && source.error && <span className="tr-source-error">{source.error}</span>}</span>) : capture?.destination && <code>{capture.destination}</code>}<span className="tr-continuous">{managed ? "Continuous monitoring" : "Local capture"}</span></div>}
+    {running && <div className="tr-active-destinations" role="group" aria-label="Monitored destinations"><span>Destination{sourceCount > 1 ? "s" : ""}</span>{capture?.sources?.length ? capture.sources.map(source => <span className="tr-destination-entry" key={source.destination}><code>{source.destination}</code>{(sourceCount > 1 || !source.active) && <span className={source.active ? "tr-source-ready" : "tr-source-pending"}>{source.active ? "Listening" : "Not listening"}</span>}{!source.active && source.error && <span className="tr-source-error">{source.error}</span>}</span>) : capture?.destination && <code>{capture.destination}</code>}</div>}
     {!running && <div className="tr-destination">
-      <label>Destination<select className="tr-select" aria-label="Capture destination" value={destination} onChange={e => setDestination(e.target.value)}><option value="all">All configured IPv4 destinations ({addresses.length})</option>{addresses.map(address => <option key={address} value={address}>{address}</option>)}{observed.length > 0 && <optgroup label="Observed Claude connections · telemetry unverified">{observed.map(address => <option key={address} value={address}>{address} · observed</option>)}</optgroup>}<option value="custom">Another IPv4 address…</option></select></label>
+      <label>Destination<RadarSelect aria-label="Capture destination" value={destination} onChange={e => setDestination(e.target.value)}><option value="all">All configured IPv4 destinations ({addresses.length})</option>{addresses.map(address => <option key={address} value={address}>{address}</option>)}{observed.length > 0 && <optgroup label="Observed Claude connections · telemetry unverified">{observed.map(address => <option key={address} value={address}>{address} · observed</option>)}</optgroup>}<option value="custom">Another IPv4 address…</option></RadarSelect></label>
       {destination === "custom" && <input className="tr-input" aria-label="Collector IPv4 and port" value={custom} onChange={e => setCustom(e.target.value)} placeholder="192.168.1.10:4317" />}
       {!addresses.length && destination === "all" && <span className="tr-note">{observed.length ? "Choose an observed connection or enter your collector address." : "Enter your collector address to monitor traffic. Missing settings do not mean telemetry is off."}</span>}
     </div>}
@@ -226,9 +247,9 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
 
     <div className="tr-workspace">
       <section className="tr-feed" aria-label="Collector activity">
-        <div className="tr-feed-head"><h3>Activity <span className="tr-count">{activity.length}</span></h3><button className="btn" title="Freeze the list while monitoring continues" disabled={!events.length && !observations.length && paused === null} onClick={() => { setPaused(paused ? null : [...events]); setPausedObservationIds(paused ? null : (capture?.observations ?? []).map(entry => entry.id)); }}>{paused ? "Resume list" : "Pause list"}</button></div>
+        <div className="tr-feed-head"><h3>Activity <span className="tr-count">{activity.length}</span></h3><button className="btn tr-quiet" title="Freeze the list while monitoring continues" disabled={!events.length && !observations.length && paused === null} onClick={() => { setPaused(paused ? null : [...events]); setPausedObservationIds(paused ? null : (capture?.observations ?? []).map(entry => entry.id)); }}>{paused ? "Resume list" : "Pause list"}</button></div>
         <p className="tr-history">Last 24 hours · {rows.length} decoded {rows.length === 1 ? "message" : "messages"} · {observations.length} {observations.length === 1 ? "observation" : "observations"}</p>
-        <div className="tr-filter"><label>Type<select className="tr-select" aria-label="Message type" value={filter} onChange={e => { setSelected(null); setFilter(e.target.value); }}><option value="all">All types</option><option value="logs">Events</option><option value="metrics">Metrics</option><option value="traces">Traces</option></select></label><label>To<select className="tr-select" aria-label="Message destination" value={messageDestination} onChange={e => { setSelected(null); setMessageDestination(e.target.value); }}><option value="all">All destinations</option>{[...new Set([...addresses, ...(capture?.sources?.map(s => s.destination) ?? []), ...retained.map(e => e.destination), ...(capture?.observations ?? []).map(e => e.destination)])].map(address => <option key={address} value={address}>{address}</option>)}</select></label></div>
+        <div className="tr-filter"><label>Type<RadarSelect aria-label="Message type" value={filter} onChange={e => { setSelected(null); setFilter(e.target.value); }}><option value="all">All types</option><option value="logs">Events</option><option value="metrics">Metrics</option><option value="traces">Traces</option></RadarSelect></label><label>To<RadarSelect aria-label="Message destination" value={messageDestination} onChange={e => { setSelected(null); setMessageDestination(e.target.value); }}><option value="all">All destinations</option>{[...new Set([...addresses, ...(capture?.sources?.map(s => s.destination) ?? []), ...retained.map(e => e.destination), ...(capture?.observations ?? []).map(e => e.destination)])].map(address => <option key={address} value={address}>{address}</option>)}</RadarSelect></label></div>
         {paused && <p className="tr-list-notice" role="status">List paused · Monitoring continues{newCount > 0 ? ` · ${newCount} new ${newCount === 1 ? "entry" : "entries"}` : ""}</p>}
         {capture?.retention?.evictedExports ? <p className="tr-note">{capture.retention.evictedExports.toLocaleString()} older messages removed by history limits.</p> : null}
         {activity.length ? <ul className="tr-connections" onKeyDown={event => {
@@ -238,13 +259,18 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
           if (index < 0) return;
           event.preventDefault();
           const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
-          buttons[next]?.focus(); buttons[next]?.click();
+          const item = activity[next];
+          if (item) {
+            setSelected(item.kind === "export" ? item.event.id : null);
+            setSelectedObservation(item.kind === "observation" ? item.event.id : null);
+          }
+          buttons[next]?.focus();
         }}>{activity.slice(0, visibleCount).map(item => item.kind === "export" ? <li key={`event-${item.event.id}`}><button className="tr-message" aria-pressed={chosen?.id === item.event.id} onClick={() => inspect(item.event)}>
-          <span className="tr-event-top"><span className="tr-signal">{item.event.signal === "logs" ? "Event" : item.event.signal === "metrics" ? "Metric" : "Trace"}</span><time dateTime={new Date(item.event.at).toISOString()}>{stamp(item.event.at)}</time></span>
-          <strong className="tr-event-name">{item.event.name}</strong><span>{sessionName(item.event.sessionIds)}</span><code>{item.event.destination}</code>
+          <span className="tr-event-top"><strong className="tr-event-name">{item.event.name}</strong><time dateTime={new Date(item.event.at).toISOString()}>{stamp(item.event.at)}</time></span>
+          <span className="tr-event-context"><span className="tr-signal">{item.event.signal === "logs" ? "Decoded event" : item.event.signal === "metrics" ? "Decoded metric" : "Decoded trace"}</span><span>{sessionName(item.event.sessionIds)}</span></span><code className="tr-event-destination">{item.event.destination}</code>
           <span className="tr-event-bottom"><span className={`tr-receipt ${item.event.outcome === "accepted" ? "tr-tone-ok" : item.event.outcome === "rejected" ? "tr-tone-error" : item.event.outcome === "partial" ? "tr-tone-enabled" : ""}`}>{item.event.outcome === "accepted" ? "Accepted" : item.event.outcome === "unconfirmed" ? "Receipt unconfirmed" : item.event.outcome === "partial" ? "Partially accepted" : item.event.outcome === "rejected" ? "Rejected" : "Receipt unknown"}</span><span>{item.event.count} {item.event.count === 1 ? "record" : "records"}</span></span>
         </button></li> : <li key={`observation-${item.event.id}`}><button className="tr-message" aria-pressed={selectedObservation === item.event.id} onClick={() => { setSelected(null); setSelectedObservation(item.event.id); if (window.matchMedia?.("(max-width: 640px)").matches) { inspector.current?.focus({ preventScroll: true }); inspector.current?.scrollIntoView({ block: "start", behavior: "auto" }); } }}>
-          <span className="tr-event-top"><span>Connection observed</span><time dateTime={new Date(item.event.at).toISOString()}>{stamp(item.event.at)}</time></span><strong className="tr-event-name">{item.event.reason === "encrypted" ? "Encrypted traffic" : "Unreadable contents"}</strong><code>{item.event.destination}</code><span>No decoded message</span>
+          <span className="tr-event-top"><strong className="tr-event-name">Connection observed</strong><time dateTime={new Date(item.event.at).toISOString()}>{stamp(item.event.at)}</time></span><code className="tr-event-destination">{item.event.destination}</code><span>{item.event.reason === "encrypted" ? "Encrypted contents" : "Contents not decoded"}</span>
         </button></li>)}</ul> : <div className="tr-empty-capture"><h4>{retained.length || capture?.observations?.length ? "No matching activity" : running ? "Waiting for traffic" : "Message capture is off"}</h4>
           <p className="tr-note">{retained.length || capture?.observations?.length ? "Try another session, type or destination." : running ? "Activity appears when traffic reaches a monitored destination. Decoded messages will be identified separately." : "No messages have been captured by Radar. Claude may still be sending telemetry. Choose a destination and start monitoring to inspect new traffic."}</p>
         </div>}
@@ -253,15 +279,15 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
       </section>
       <section className="tr-inspector" aria-label="Activity inspector" ref={inspector} tabIndex={-1}>
         {observation ? <div className="tr-observation-detail">
-          <div className="tr-inspector-head"><h3>Connection observed</h3><p className="tr-note">Traffic reached this address. A readable telemetry message has not been identified.</p></div>
-          <dl className="tr-facts"><div><dt>Destination</dt><dd><code>{observation.destination}</code><button className="tr-inline-copy" aria-label="Copy destination" onClick={() => void copy(observation.destination, "destination")}>{copied === "destination" ? "Copied" : "Copy"}</button></dd></div><div><dt>Observed</dt><dd><time dateTime={new Date(observation.at).toISOString()}>{new Date(observation.at).toLocaleString()}</time></dd></div><div><dt>Source</dt><dd><code>{observation.source || "Not identified"}</code></dd></div><div><dt>Contents</dt><dd>{observation.reason === "encrypted" ? "Encrypted" : "Not decoded"}</dd></div><div><dt>Session</dt><dd>Not identified</dd></div></dl>
-          <div className="tr-inspection-limit"><h4>{observation.reason === "encrypted" ? "This connection is encrypted" : "Why no message contents?"}</h4><p>{issueText[observation.reason] ?? "This connection could not be decoded."}</p><p className="tr-note">{observation.reason === "joined_midstream" ? "Keep Radar listening. New connections may allow decoding; already captured traffic cannot be reconstructed." : observation.reason === "encrypted" ? "Inspect the collector’s own records to see the contents. Radar does not decrypt HTTPS." : "Keep monitoring for other messages. This observation has no decoded JSON."}</p></div>
+          <div className="tr-inspector-head"><h3>Connection details</h3></div>
+          <dl className="tr-facts"><div><dt>Destination</dt><dd className="tr-fact-copy"><code>{observation.destination}</code><button className="tr-inline-copy" aria-label="Copy destination" onClick={() => void copy(observation.destination, "destination")} title={copied === "destination" ? "Copied destination" : "Copy destination"}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{copied === "destination" ? <path d="m5 12 4 4L19 6" /> : <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4H4v12h4" /></>}</svg></button></dd></div><div><dt>Observed</dt><dd><time dateTime={new Date(observation.at).toISOString()}>{new Date(observation.at).toLocaleString()}</time></dd></div><div><dt>Source</dt><dd><code>{observation.source || "Not identified"}</code></dd></div><div><dt>Contents</dt><dd>{observation.reason === "encrypted" ? "Encrypted" : "Not decoded"}</dd></div><div><dt>Session</dt><dd>Not identified</dd></div></dl>
+          <div className="tr-inspection-limit"><h4>{observation.reason === "encrypted" ? "Encrypted connection" : "Message contents unavailable"}</h4><p>{observation.reason === "joined_midstream" ? "Radar joined an existing connection. Keep listening: new connections may allow decoding." : observation.reason === "encrypted" ? "Radar cannot decrypt HTTPS. Inspect the collector’s own records for the contents." : issueText[observation.reason] ?? "This connection could not be decoded."}</p><details className="tr-details"><summary>Technical details</summary><p className="tr-note">{issueText[observation.reason] ?? "The decoder could not read this connection."}</p><p className="tr-note">There is no decoded JSON or confirmed session ID for this observation. {observation.reason === "joined_midstream" && "Already captured traffic cannot be reconstructed."}</p></details></div>
         </div> : chosen ? <>
           <div className="tr-inspector-head"><h3>{chosen.name}</h3><p className="tr-note">Decoded {chosen.signal === "logs" ? "event" : chosen.signal === "metrics" ? "metrics" : "trace"} · {sessionName(chosen.sessionIds)} · {stamp(chosen.at)}</p></div>
           <div className="tr-detail-tabs" role="group" aria-label="Message format"><button className="btn" aria-pressed={view === "summary"} onClick={() => setView("summary")}>Overview</button><button className="btn" aria-pressed={view === "json"} onClick={() => setView("json")}>JSON</button>
             <button className="btn tr-copy-json" disabled={!detail?.payload || detail.id !== chosen.id} onClick={() => void copy(JSON.stringify(detail?.payload, null, 2), "json")}>{copied === "json" ? "Copied" : "Copy JSON"}</button></div>
           {detail?.id === chosen.id ? detail.payload ? view === "json" ? <><p className="tr-note">Decoded OTLP fields. Unknown protobuf fields and transport headers are excluded.</p><JsonInspector value={detail.payload} /></> : <>
-            <dl className="tr-facts"><div><dt>Destination</dt><dd><code>{chosen.destination}</code><button className="tr-inline-copy" aria-label="Copy destination" onClick={() => void copy(chosen.destination, "destination")}>{copied === "destination" ? "Copied" : "Copy"}</button></dd></div><div><dt>Time</dt><dd>{stamp(chosen.at)}</dd></div><div><dt>Receipt</dt><dd>{outcomeLabel(chosen)}</dd></div><div><dt>Size</dt><dd>{chosen.bytes.toLocaleString()} bytes · {chosen.count} {chosen.count === 1 ? "record" : "records"}</dd></div>
+            <dl className="tr-facts"><div><dt>Destination</dt><dd className="tr-fact-copy"><code>{chosen.destination}</code><button className="tr-inline-copy" aria-label="Copy destination" onClick={() => void copy(chosen.destination, "destination")} title={copied === "destination" ? "Copied destination" : "Copy destination"}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{copied === "destination" ? <path d="m5 12 4 4L19 6" /> : <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4H4v12h4" /></>}</svg></button></dd></div><div><dt>Time</dt><dd>{stamp(chosen.at)}</dd></div><div><dt>Receipt</dt><dd>{outcomeLabel(chosen)}</dd></div><div><dt>Size</dt><dd>{chosen.bytes.toLocaleString()} bytes · {chosen.count} {chosen.count === 1 ? "record" : "records"}</dd></div>
               {chosen.response?.message && <div><dt>Response</dt><dd><Value value={chosen.response.message} /></dd></div>}
             </dl><DecodedPayload payload={detail.payload} signal={chosen.signal} />
           </> : <div role="alert"><p>{detail.error}</p><button className="btn" onClick={() => setRetry(retry + 1)}>Retry</button></div> : <p className="tr-note" role="status">Loading message contents…</p>}

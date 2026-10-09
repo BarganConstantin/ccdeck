@@ -326,7 +326,7 @@ function rootTokens(theme: Theme): Record<string, string> {
 const TOK: Record<Theme, Record<string, string>> = { dark: rootTokens("dark"), light: rootTokens("light") };
 
 /** Resolve tokens and two-color sRGB mixes, with premultiplied alpha. */
-function resolve(value: string, theme: Theme): Rgba {
+function resolve(value: string, theme: Theme, scope?: string): Rgba {
   const v = value.trim();
   const mix = /^color-mix\(in srgb,([\s\S]*)\)$/.exec(v);
   if (mix) {
@@ -337,17 +337,17 @@ function resolve(value: string, theme: Theme): Rgba {
     const second = weights[1] ?? 1 - first;
     const total = first + second;
     if (first < 0 || second < 0 || total <= 0) throw new Error(`invalid mix weights: ${v}`);
-    const a = resolve(parts[0][1], theme), b = resolve(parts[1][1], theme);
+    const a = resolve(parts[0][1], theme, scope), b = resolve(parts[1][1], theme, scope);
     const alpha = (a[3] * first + b[3] * second) / total;
     return [0, 1, 2].map(i => alpha === 0 ? 0 : (a[i] * a[3] * first + b[i] * b[3] * second) / (total * alpha))
       .concat(alpha * Math.min(1, total)) as Rgba;
   }
   const ref = /^var\(\s*(--[\w-]+)\s*(?:,\s*([\s\S]+))?\)$/.exec(v);
   if (ref) {
-    const defined = TOK[theme][ref[1]];
-    if (defined !== undefined) return resolve(defined, theme);
+    const defined = (scope ? decl(scope, ref[1]) : null) ?? TOK[theme][ref[1]];
+    if (defined !== undefined) return resolve(defined, theme, scope);
     if (ref[2] === undefined) throw new Error(`undefined token with no fallback: ${v}`);
-    return resolve(ref[2], theme);
+    return resolve(ref[2], theme, scope);
   }
   return parseColor(v);
 }
@@ -360,9 +360,13 @@ describe('the contrast sweep resolves sRGB color mixes', () => {
   });
   it('reads the selected Radar fill from each theme, including the panel contribution', () => {
     for (const theme of ['dark', 'light'] as const) {
-      const actual = resolve('color-mix(in srgb, var(--accent) 7%, var(--panel))', theme);
+      const actual = resolve('var(--tr-selection)', theme, '.modal.tr-modal');
+      const mix = decl('.modal.tr-modal', '--tr-selection')!;
+      const weight = Number(/var\(--accent\)\s+([\d.]+)%/.exec(mix)?.[1]) / 100;
+      expect(weight).toBeGreaterThan(0);
+      expect(weight).toBeLessThan(1);
       const accent = resolve('var(--accent)', theme), panel = resolve('var(--panel)', theme);
-      for (const channel of [0, 1, 2]) expect(actual[channel]).toBeCloseTo(accent[channel] * 0.07 + panel[channel] * 0.93);
+      for (const channel of [0, 1, 2]) expect(actual[channel]).toBeCloseTo(accent[channel] * weight + panel[channel] * (1 - weight));
       expect(actual[3]).toBe(1);
     }
   });
@@ -511,16 +515,18 @@ interface Control {
   fillFrom?: string;
   states?: string[];
   beds: string[];
+  scope?: string;
 }
 
 const CONTROLS: Control[] = [
-  { at: ".tr-input", beds: ["--panel"] },
-  { at: ".tr-select", beds: ["--panel"] },
+  { at: ".tr-input", states: [".tr-input:hover"], beds: ["--panel"] },
+  { at: ".tr-select", states: [".tr-select:hover"], beds: ["--panel"] },
   { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
-  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"], scope: ".modal.tr-modal" },
   { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
-  { at: ".btn.tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
-  { at: ".tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
+  // Start now uses the shared primary button measured below. Quiet utilities
+  // identify themselves by text at rest; measure their edge when it appears.
+  { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -733,9 +739,9 @@ function restingFill(c: Control): string {
 /** A boundary's ratio against the bed it is drawn on, with the control's own
  *  fill in between — `background-clip` is `border-box` by default, so the
  *  border composites over the fill, not straight onto the surface. */
-function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme): number {
-  const filled = over(resolve(fill, theme), bed);
-  return contrastRatio(over(resolve(edge, theme), filled), bed);
+function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme, scope?: string): number {
+  const filled = over(resolve(fill, theme, scope), bed);
+  return contrastRatio(over(resolve(edge, theme, scope), filled), bed);
 }
 
 // ── the rings ────────────────────────────────────────────────────────────────
@@ -1136,7 +1142,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
         const fill = restingFill(c);
         const edge = borderColour(c.at);
         for (const bedName of c.beds) {
-          expect(edgeRatio(edge, fill, beds[bedName], theme), `${theme} ${c.at} on ${bedName}`)
+          expect(edgeRatio(edge, fill, beds[bedName], theme, c.scope), `${theme} ${c.at} on ${bedName}`)
             .toBeGreaterThanOrEqual(NON_TEXT);
         }
       }
@@ -1156,8 +1162,8 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
           const edge = borderColourIn(body) ?? restEdge;
           for (const bedName of c.beds) {
             const bed = beds[bedName];
-            expect(edgeRatio(edge, fill, bed, theme), `${theme} ${state} on ${bedName}`)
-              .toBeGreaterThanOrEqual(edgeRatio(restEdge, restFill, bed, theme) - 1e-9);
+            expect(edgeRatio(edge, fill, bed, theme, c.scope), `${theme} ${state} on ${bedName}`)
+              .toBeGreaterThanOrEqual(edgeRatio(restEdge, restFill, bed, theme, c.scope) - 1e-9);
           }
         }
       }

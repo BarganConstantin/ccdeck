@@ -59,6 +59,7 @@
    length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
+  .tr-select-wrap > svg { color: ButtonText; }
   .tr-live-dot { forced-color-adjust: none; background: GrayText; }
   .tr-dot-ok { background: Highlight; }
   .tr-dot-error, .tr-dot-attention { background: CanvasText; }
