@@ -219,7 +219,7 @@ const workspace = canonicalWorkspace(rawWorkspace);
 // and no directory is created either way — Codex hooks are not used any more,
 // so `--codex` only means "watch even though ~/.codex/ is not there yet",
 // which is the right answer for a machine where Codex arrives later.
-const wantCodex = wantsCli({ off: flags.noCodex, on: flags.codex, installed: hasCodexInstalled });
+const wantCodex = !flags.noCodex && (flags.codex || await hasCodexInstalled());
 
 // The same question for the other CLI, and the one nobody was asking. README
 // offers "Claude Code CLI or OpenAI Codex CLI (or both)"; a Codex-only machine

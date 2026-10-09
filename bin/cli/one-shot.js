@@ -156,7 +156,7 @@ async function defaultShape(deckLogDir) {
   const mine = {
     workspace: "",
     persist: canonicalLogPath(join(deckLogDir(), "events.jsonl")),
-    codex: hasCodexInstalled(),
+    codex: await hasCodexInstalled(),
     claude: hasClaudeInstalled(),
   };
   // And the Codex tree, the one field of a start's shape that is not a flag. A

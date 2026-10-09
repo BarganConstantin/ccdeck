@@ -18,18 +18,50 @@ describe('Codex profile discovery', () => {
     const root = await mkdtemp(join(tmpdir(), 'ccdeck-installed-profiles-'));
     const previousDefault = process.env.CODEX_HOME;
     const previousExtras = process.env.CCDECK_CODEX_HOMES;
+    const previousStore = process.env.CCDECK_HOME;
+    process.env.CCDECK_HOME = join(root, 'store');
     try {
       process.env.CODEX_HOME = join(root, 'missing-default');
       process.env.CCDECK_CODEX_HOMES = JSON.stringify([root]);
       const { hasCodexInstalled } = await import('../../server/installer.mjs');
-      expect(hasCodexInstalled()).toBe(true);
+      expect(await hasCodexInstalled()).toBe(true);
       process.env.CCDECK_CODEX_HOMES = '[]';
-      expect(hasCodexInstalled()).toBe(false);
+      expect(await hasCodexInstalled()).toBe(false);
     } finally {
       if (previousDefault === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = previousDefault;
       if (previousExtras === undefined) delete process.env.CCDECK_CODEX_HOMES; else process.env.CCDECK_CODEX_HOMES = previousExtras;
+      if (previousStore === undefined) delete process.env.CCDECK_HOME; else process.env.CCDECK_HOME = previousStore;
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it('detects persisted managed accounts after the original home disappears on restart', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-managed-restart-'));
+    try {
+      const original = join(root, 'original');
+      await mkdir(original);
+      const options = { store: join(root, 'store'), env: { CODEX_HOME: original } };
+      const { addCodexProfile, readCodexSelection, selectCodexProfile } = await import('../../server/codex-selection.mjs');
+      const { hasCodexInstalled } = await import('../../server/installer.mjs');
+      const added = await addCodexProfile({ operationId: 'add', label: 'Work' }, options);
+      const current = await readCodexSelection(options);
+      await selectCodexProfile({ id: added.id, expectedRevision: current.revision, operationId: 'select' }, options);
+      await rm(original, { recursive: true });
+      expect(await hasCodexInstalled(options)).toBe(true);
+      expect((await readCodexSelection(options)).available).toBe(true);
+      const other = await addCodexProfile({ operationId: 'another', label: 'Other' }, options);
+      const selected = await readCodexSelection(options);
+      await rm(selected.home, { recursive: true });
+      expect(await hasCodexInstalled(options)).toBe(true);
+      const remaining = (await readCodexSelection(options)).profiles.find(p => p.id === other.id)!;
+      await rm(remaining.home, { recursive: true });
+      expect(await hasCodexInstalled(options)).toBe(false);
+      await writeFile(join(options.store, 'codex-accounts.json'), '{bad');
+      expect(await hasCodexInstalled(options)).toBe(false);
+      await mkdir(original);
+      expect(await hasCodexInstalled(options)).toBe(true);
+      await expect(readCodexSelection(options)).rejects.toThrow('registry_corrupt');
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 
   it('keeps existing CODEX_HOME behavior with no configuration', () => {

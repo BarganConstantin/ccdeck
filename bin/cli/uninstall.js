@@ -109,7 +109,7 @@ export async function uninstall(flags) {
       console.error(`${PRODUCT}: your own sound hooks were NOT restored ${gDash} ${sound.message}`);
     }
   }
-  if (hasCodexInstalled()) {
+  if (await hasCodexInstalled()) {
     report(await uninstallHooks({ provider: "codex" }), "Codex");
   }
   // ── THE DECKS STILL RUNNING ────────────────────────────────────────────────
