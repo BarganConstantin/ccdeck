@@ -146,3 +146,8 @@
 .tr-raw-flag { margin-left: 12px; color: var(--text-secondary); font-size: 12px; }
 .btn.tr-start { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .tr-unreadable .tr-message > strong { color: var(--warn); }
+
+.tr-purpose { padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.tr-purpose > p { margin: 0 0 4px; }
+.tr-purpose > p:first-child { color: var(--text); font-weight: 500; }
+.tr-purpose .tr-details { margin-top: 8px; }

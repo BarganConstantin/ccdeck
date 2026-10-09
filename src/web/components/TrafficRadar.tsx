@@ -14,7 +14,7 @@ export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () =
   const { snapshot, failed } = useTrafficRadar();
   const captureState = useTelemetryCapture();
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
-    <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" onClick={e => e.stopPropagation()}>
+    <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" aria-describedby="tr-purpose" onClick={e => e.stopPropagation()}>
       <header className="modal-head">
         <div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div>
         <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
@@ -47,6 +47,15 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
   for (const event of captureState?.capture?.events ?? []) for (const id of event.sessionIds ?? []) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
   for (const id of fileSessions) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
   return <div className="tr-body">
+    <div className="tr-purpose">
+      <p id="tr-purpose">See what Claude Code sends to your telemetry collectors.</p>
+      <p className="tr-note">Destinations can be configured by you or your organization. Inspect captured usage, tool activity and any included content.</p>
+      <details className="tr-details"><summary>What does Radar show?</summary>
+        <p className="tr-note">Radar inspects configured OpenTelemetry exports, including prompts or responses when enabled and captured. It does not show everything Claude knows about you, ordinary AI requests, or Anthropic’s separate service telemetry.</p>
+        <p className="tr-note">An address does not identify who owns a collector or who can access its data. Encrypted connections can be observed, but their contents cannot be decoded here.</p>
+        <a href="https://code.claude.com/docs/en/monitoring-usage" target="_blank" rel="noreferrer">Claude Code telemetry documentation</a>
+      </details>
+    </div>
     <div className="tr-summary">
       <div className="tr-summary-state"><span className={`tr-state ${failed || !snapshot ? "tr-tone-unknown" : state === "Enabled in settings" ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{failed ? "Configuration unavailable" : !snapshot ? "Reading settings…" : state === "Unknown" ? "Configuration unknown" : state}</span>
         <span className="tr-note">{destinations.length ? `${destinations.length} configured destination${destinations.length === 1 ? "" : "s"}` : "No destination found in the settings files read. Telemetry may still be running."}</span></div>
