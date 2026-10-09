@@ -8,7 +8,7 @@ const snapshot: RadarSnapshot = { ok: true, sampledAt: 1700000000000, platform: 
 describe("Telemetry Radar evidence and navigation", () => {
   it("does not mistake missing configuration for disabled telemetry", () => {
     const markup = renderToStaticMarkup(<TrafficRadarView snapshot={snapshot} />);
-    expect(markup).toContain("Unknown");
+    expect(markup).toContain("Configuration unknown");
     expect(markup).toContain("This does not mean telemetry is off");
     expect(markup).not.toMatch(/safe|protected|Disabled in settings/);
   });
@@ -23,6 +23,16 @@ describe("Telemetry Radar evidence and navigation", () => {
   it("marks failed reads unavailable rather than retaining a current enabled claim", () => {
     const markup = renderToStaticMarkup(<TrafficRadarView snapshot={snapshot} failed />);
     expect(markup).toContain("Configuration unavailable");
+  });
+  it("keeps connection evidence visible when organization settings disappear", () => {
+    const live = { ...snapshot, connections: [{ pid: 123, destination: "192.0.2.16:4317", workspace: "Test project", firstSeenAt: 0, lastSeenAt: 0, active: true }] };
+    const markup = renderToStaticMarkup(<TrafficRadarView snapshot={live} />);
+    expect(markup).toContain("Configuration unknown");
+    expect(markup).toContain("Claude connections observed");
+    expect(markup).toContain("192.0.2.16:4317");
+    expect(markup).toContain("not confirmed telemetry messages");
+    expect(renderToStaticMarkup(<TrafficRadarView snapshot={live} failed />)).not.toContain("Claude connections observed");
+    expect(renderToStaticMarkup(<TrafficRadarView snapshot={{ ...live, status: "unavailable" }} />)).not.toContain("Claude connections observed");
   });
   it("provides three focused views and defaults to all sessions", () => {
     const markup = renderToStaticMarkup(<TrafficRadarView snapshot={snapshot} sessions={[{ id: "test-session", label: "Test project" }]} />);

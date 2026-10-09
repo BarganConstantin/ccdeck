@@ -153,6 +153,10 @@ describe("the inline bootstrap in index.html", () => {
     expect(boot("light")).toEqual({ applied: "light", asked: THEME_KEY });
     expect(boot("dark").applied).toBe("dark");
     expect(boot("dark", true).applied).toBe("dark");
+    expect(boot("rider-black", true).applied).toBe("rider-black");
+    expect(boot("rider-black", false).applied).toBe("rider-black");
+    expect(boot("vscode-black", true).applied).toBe("vscode-black");
+    expect(boot("vscode-black", false).applied).toBe("vscode-black");
     expect(boot("light", false).applied).toBe("light");
   });
 
@@ -187,7 +191,7 @@ describe("the inline bootstrap in index.html", () => {
   it("reaches the same answer as resolveTheme for every input, so the two copies cannot drift", () => {
     // The bootstrap is dependency-free by necessity, which makes it a second
     // implementation of one rule. This is the seam that keeps it honest.
-    for (const stored of [null, "light", "dark", "", "LIGHT", "system", "purple"]) {
+    for (const stored of [null, "light", "dark", "rider-black", "vscode-black", "", "LIGHT", "system", "purple"]) {
       const expected: Theme = resolveTheme(stored);
       expect(boot(stored).applied).toBe(expected);
       for (const os of [false, true]) {

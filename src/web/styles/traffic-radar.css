@@ -13,6 +13,8 @@
 .tr-summary-state .tr-note { margin: 0; }
 .tr-state { font-size: 12px; font-weight: 600; }
 .tr-endpoints { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 8px; font-size: 12px; }
+.tr-observed-summary { margin-top: 12px; font-size: 12px; }
+.tr-observed-summary .tr-note { margin-bottom: 0; }
 .tr-navigation { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 20px; border-bottom: 1px solid var(--line); }
 .tr-tabs { display: flex; align-self: stretch; gap: 20px; }
 .tr-tab { appearance: none; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-secondary); padding: 14px 0 12px; font: inherit; cursor: pointer; }

@@ -9,6 +9,18 @@ const props = { capture: { ...empty, events: [event(2, "logs"), event(1, "metric
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ payload: {} }) }))); });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 describe("telemetry capture interactions", () => {
+  it("can prepare an explicitly selected observed connection when settings are absent", () => {
+    const view = mount(TelemetryCapture, { ...props, capture: empty, radar: { ...props.radar, config: { sources: [], variables: [] }, connections: [{ pid: 123, destination: "192.0.2.16:4317", workspace: null, firstSeenAt: 0, lastSeenAt: 0, active: true }] } });
+    expect(one(view.tree, e => e.type === "button" && textOf(e) === "Start monitoring")!.props.disabled).toBe(true);
+    expect(textOf(view.tree)).toContain("Claude may still be sending telemetry");
+    const select = one(view.tree, e => e.props["aria-label"] === "Capture destination")!;
+    (select.props.onChange as (e: { target: { value: string } }) => void)({ target: { value: "192.0.2.16:4317" } });
+    const start = one(view.tree, e => e.type === "button" && textOf(e) === "Start monitoring")!;
+    expect(start.props.disabled).toBe(false);
+    (start.props.onClick as () => void)();
+    expect(props.action).toHaveBeenCalledWith("prepare", ["192.0.2.16:4317"]);
+    view.unmount();
+  });
   it("filters messages by session evidence and preserves unidentified exports separately", () => {
     const view = mount(TelemetryCapture, { ...props, sessionFilter: "one", capture: { ...empty, events: [{ ...event(3, "logs"), sessionIds: ["one"] }, { ...event(2, "logs"), sessionIds: ["two"] }, event(1, "metrics")] } });
     expect(textOf(one(view.tree, e => e.props.className === "tr-feed"))).toContain("Synthetic logs 3");

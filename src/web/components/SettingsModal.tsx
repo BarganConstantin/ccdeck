@@ -35,6 +35,7 @@ import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import ThemeSection from "./ThemeSection";
+import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 export interface SettingsModalProps {
@@ -97,10 +98,10 @@ export default function SettingsModal({
     if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
-    const next = theme === "dark" ? "light" : "dark";
+    const next = nextTheme(theme);
     setTheme(next);
     if (target.getAttribute("role") === "radio") {
-      event.currentTarget.querySelector<HTMLButtonElement>(`[role="radio"][aria-checked="false"]`)?.focus();
+      event.currentTarget.querySelector<HTMLButtonElement>(`[role="radio"][data-theme-choice="${next}"]`)?.focus();
     }
   };
 

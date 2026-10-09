@@ -246,7 +246,7 @@
    3% shrink is a lurch, not a click. */
 .appearance-themes {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 0 -8px;
 }
@@ -326,6 +326,23 @@
   --tp-rule: #c8cdd6;
   --tp-mark: #7c8493;
   --tp-accent: #0369a1;
+}
+.appearance-preview[data-swatch="rider-black"] {
+  --tp-canvas: #1e1f22;
+  --tp-surface: #2b2d30;
+  --tp-rule: #393b40;
+  --tp-mark: #6f737a;
+  --tp-accent: #83acfc;
+}
+.appearance-preview[data-swatch="vscode-black"] {
+  --tp-canvas: #1f1f1f;
+  --tp-surface: #181818;
+  --tp-rule: #2b2b2b;
+  --tp-mark: #616161;
+  --tp-accent: #4daafc;
+}
+@media (max-width: 640px) {
+  .appearance-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .tp-canvas { fill: var(--tp-canvas); }
 .tp-surface { fill: var(--tp-surface); }

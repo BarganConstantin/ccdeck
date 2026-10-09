@@ -1,7 +1,12 @@
-import type { RadarVariable } from "./traffic-radar";
+import type { RadarSnapshot, RadarVariable } from "./traffic-radar";
 export interface RadarSession { id: string; label: string }
 export function configuredDestinations(variables: RadarVariable[]) {
   return [...new Set(variables.filter(v => v.key.endsWith("ENDPOINT")).map(v => v.value).filter(v => /^https?:\/\//.test(v)))];
+}
+/** Socket evidence is independent of settings and never identifies telemetry. */
+export function observedDestinations(snapshot: RadarSnapshot | null) {
+  if (snapshot?.status !== "observing") return [];
+  return [...new Set(snapshot.connections.filter(c => c.active === true).map(c => c.destination))];
 }
 export function captureAddress(endpoint: string): string | null {
   try {

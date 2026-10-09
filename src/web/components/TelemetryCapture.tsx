@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { pressState } from "../panel-press";
 import type { RadarSnapshot } from "../traffic-radar";
-import { captureAddress, configuredDestinations, type RadarSession } from "../telemetry-inspection";
+import { captureAddress, configuredDestinations, observedDestinations, type RadarSession } from "../telemetry-inspection";
 import type { CaptureAction, CaptureSnapshot, CapturedExport } from "../use-telemetry-capture";
 
 type Json = null | string | number | boolean | Json[] | { [key: string]: Json };
@@ -108,6 +108,7 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
 }) {
   const configured = configuredDestinations(radar?.config?.variables ?? []);
   const addresses = [...new Set(configured.map(captureAddress).filter((v): v is string => !!v))];
+  const observed = observedDestinations(radar).filter(address => !addresses.includes(address) && captureAddress(`http://${address}`));
   const [destination, setDestination] = useState("all");
   const [custom, setCustom] = useState("");
   const [selectedObservation, setSelectedObservation] = useState<number | null>(null);
@@ -148,8 +149,8 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
   const active = capture?.sources?.filter(s => s.active).length ?? 0;
   const sourceCount = capture?.sources?.length ?? 1;
   const state = failed ? "Monitor connection lost" : !capture ? "Reading monitor…" : ({
-    idle: "Monitoring stopped", awaiting: "Terminal activation needed", receiving: "Listening · waiting for traffic", capturing: "Monitoring traffic",
-    stopped: "Monitoring stopped", expired: "Monitoring expired", interrupted: "Capture disconnected", error: "Capture could not be read",
+    idle: "Message capture stopped", awaiting: "Terminal activation needed", receiving: "Listening · waiting for traffic", capturing: "Monitoring traffic",
+    stopped: "Message capture stopped", expired: "Monitoring expired", interrupted: "Capture disconnected", error: "Capture could not be read",
   })[capture.state];
   const pressProps = (kind: CaptureAction) => {
     const state = pressState(pendingAction ?? (busy ? "capture" : null), kind);
@@ -173,7 +174,7 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
   const sessionName = (ids: string[] = []) => ids.length ? ids.map(id => `${sessions.find(s => s.id === id)?.label ?? "Session"} · ${id.slice(0, 8)}`).join(", ") : "Unidentified session";
   const encrypted = (capture?.issues.encrypted ?? 0) > 0;
   const liveAddresses = new Set([...(capture?.sources?.map(s => s.destination) ?? []), ...addresses]);
-  const connections = radar?.connections.filter(c => c.active && liveAddresses.has(c.destination)) ?? [];
+  const connections = radar?.status === "observing" ? radar.connections.filter(c => c.active && liveAddresses.has(c.destination)) : [];
   return <div className="tr-telemetry">
     <div className="tr-capture-bar">
       <div><h3 role="status"><span className={`tr-live-dot${running && active ? " is-live" : ""}`} />{state}</h3>
@@ -185,9 +186,9 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
       </div>
     </div>
     {!running && <div className="tr-destination">
-      <label>Destination<select className="tr-select" aria-label="Capture destination" value={destination} onChange={e => setDestination(e.target.value)}><option value="all">All configured IPv4 destinations ({addresses.length})</option>{addresses.map(address => <option key={address} value={address}>{address}</option>)}<option value="custom">Another IPv4 address…</option></select></label>
+      <label>Destination<select className="tr-select" aria-label="Capture destination" value={destination} onChange={e => setDestination(e.target.value)}><option value="all">All configured IPv4 destinations ({addresses.length})</option>{addresses.map(address => <option key={address} value={address}>{address}</option>)}{observed.length > 0 && <optgroup label="Observed Claude connections · telemetry unverified">{observed.map(address => <option key={address} value={address}>{address} · observed</option>)}</optgroup>}<option value="custom">Another IPv4 address…</option></select></label>
       {destination === "custom" && <input className="tr-input" aria-label="Collector IPv4 and port" value={custom} onChange={e => setCustom(e.target.value)} placeholder="192.168.1.10:4317" />}
-      {!addresses.length && destination === "all" && <span className="tr-note">No capturable IPv4 address found. Choose another address to continue.</span>}
+      {!addresses.length && destination === "all" && <span className="tr-note">{observed.length ? "Choose an observed connection or enter your collector address." : "Enter your collector address to monitor traffic. Missing settings do not mean telemetry is off."}</span>}
     </div>}
     {radar?.status === "unsupported" && <p className="tr-capture-error" role="status">Live capture is available on macOS. You can still inspect a local file.</p>}
     {error && <p className="tr-capture-error" role="alert">{error}</p>}
@@ -210,8 +211,8 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
           <span className="tr-event-top"><span className="tr-signal">{event.signal === "logs" ? "Event" : event.signal === "metrics" ? "Metric" : "Trace"}</span><time dateTime={new Date(event.at).toISOString()}>{stamp(event.at)}</time></span>
           <strong className="tr-event-name">{event.name}</strong><span>{sessionName(event.sessionIds)}</span><code>{event.destination}</code>
           <span className="tr-event-bottom"><span className={`tr-receipt ${event.outcome === "accepted" ? "tr-tone-ok" : event.outcome === "rejected" || event.outcome === "partial" ? "tr-tone-enabled" : ""}`}>{event.outcome === "accepted" ? "Accepted" : event.outcome === "unconfirmed" ? "Receipt unconfirmed" : event.outcome === "partial" ? "Partially accepted" : event.outcome === "rejected" ? "Rejected" : "Receipt unknown"}</span><span>{event.count} {event.count === 1 ? "record" : "records"} · {event.bytes.toLocaleString()} B</span></span>
-        </button></li>)}</ul> : !observations.length && <div className="tr-empty-capture"><h4>{events.length || observations.length ? "No matching messages" : running ? "Waiting for messages" : "Ready when you are"}</h4>
-          <p className="tr-note">{events.length ? "Try another session or message type." : running ? "Messages appear here once capture is activated and new decodable traffic arrives." : "Start monitoring, run the Terminal command, then use Claude. Select a message here to see what was sent."}</p>
+        </button></li>)}</ul> : !observations.length && <div className="tr-empty-capture"><h4>{events.length || observations.length ? "No matching messages" : running ? "Waiting for messages" : "Message capture is off"}</h4>
+          <p className="tr-note">{events.length ? "Try another session or message type." : running ? "Messages appear here once capture is activated and new decodable traffic arrives." : "No messages have been captured by Radar. Claude may still be sending telemetry. Choose a destination, start monitoring, then run the Terminal command to inspect new traffic."}</p>
         </div>}
         {observations.length > 0 && <ul className="tr-connections tr-unreadable">{observations.map(entry => <li key={entry.id}><button className="tr-message" aria-pressed={selectedObservation === entry.id} onClick={() => { setSelected(null); setSelectedObservation(entry.id); }}><span className="tr-event-top"><span>Connection observation</span><time>{stamp(entry.at)}</time></span><strong>{entry.reason === "encrypted" ? "Encrypted traffic" : "Contents unavailable"}</strong><code>{entry.destination}</code><span>Unidentified session · no decoded JSON</span></button></li>)}</ul>}
         {connections.length > 0 && <details className="tr-details"><summary>Connections to these collectors ({connections.length})</summary><ul className="tr-live-connections">{connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>Claude · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A connection alone does not prove a telemetry message was sent. These connections are not filtered by session.</p></details>}

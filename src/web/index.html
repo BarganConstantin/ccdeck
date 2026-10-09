@@ -61,7 +61,7 @@
         // embed without matchMedia must not stop the parse either.
         try { light = window.matchMedia("(prefers-color-scheme: light)").matches; } catch (e) {}
         document.documentElement.setAttribute("data-theme",
-          stored === "light" || (stored !== "dark" && light) ? "light" : "dark");
+          stored === "light" || stored === "dark" || stored === "rider-black" || stored === "vscode-black" ? stored : light ? "light" : "dark");
       })();
     </script>
   </head>
