@@ -216,7 +216,7 @@ export function readNativeCodexAccount(home, options = {}) {
     const initialRemaining = deadline - Date.now();
     if (initialRemaining <= 0) return failure('timeout', now);
     // Force means verify identity now, never bypass the per-home usage floor.
-    if (includeQuota && entry.quotaValue && started >= entry.quotaAt && started - entry.quotaAt < CACHE_MS) {
+    if (includeQuota && entry.quotaValue && started - entry.quotaAt < CACHE_MS) {
       const fresh = await rpcRead(home, { ...options, platform, env, now, includeQuota: false, deadlineMs: initialRemaining });
       if (!fresh.ok) return failure(fresh.reason ?? 'rpc_error', now);
       if (fileVersion !== entry.quotaFileVersion || await authFileVersion(home, path, options.stat) !== fileVersion) return failure('profile_changed', now);

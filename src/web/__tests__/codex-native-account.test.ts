@@ -100,6 +100,10 @@ describe('native Codex account adapter (synthetic children only)', () => {
       expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: true, stale: true, fetchedAt: first.fetchedAt });
     }
     expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
+    // A wall-clock correction must not reopen the remote request floor.
+    clock = 99999;
+    expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: true, stale: true, fetchedAt: first.fetchedAt });
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
     clock = 160000;
     expect((await readNativeCodexAccount(HOME, options)).ok).toBe(true);
     expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(2);
