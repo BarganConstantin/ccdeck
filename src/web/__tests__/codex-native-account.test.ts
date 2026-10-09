@@ -29,7 +29,7 @@ function fake(handler?: (message: Message, child: Child) => void) {
     } });
     children.push(child); return child;
   });
-  const options = { spawn, executable: 'synthetic-codex', stat: async () => { throw Object.assign(new Error('missing fixture'), { code: 'ENOENT' }); }, killChild: (child: Child) => child.kill(), env: { PATH: '/synthetic/bin' } };
+  const options = { spawn, executable: 'synthetic-codex', realpath: async (home: string) => home, stat: async () => { throw Object.assign(new Error('missing fixture'), { code: 'ENOENT' }); }, killChild: (child: Child) => child.kill(), env: { PATH: '/synthetic/bin' } };
   return { options, spawn, messages, children };
 }
 function reply(child: Child, id: number, result: unknown) { child.stdout.write(JSON.stringify({ id, result }) + '\n'); }
@@ -133,6 +133,26 @@ describe('native Codex account adapter (synthetic children only)', () => {
     await readNativeCodexAccount(HOME + '-b', { ...options, includeQuota: false });
     expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: true, stale: true, fetchedAt: first.fetchedAt });
     expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
+  });
+
+  it('shares the quota floor and canonical RPC home across a real directory alias', async () => {
+    const { mkdtemp, mkdir, symlink, realpath, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-native-alias-'));
+    try {
+      const directory = join(root, 'work'), alias = join(root, 'alias');
+      await mkdir(directory);
+      await symlink(directory, alias, process.platform === 'win32' ? 'junction' : 'dir');
+      const canonical = await realpath(directory);
+      const f = fake();
+      const options = { ...f.options, realpath, includeQuota: true, force: true };
+      const first = await readNativeCodexAccount(canonical, options);
+      expect(await readNativeCodexAccount(alias, options)).toMatchObject({ ok: true, stale: true, fetchedAt: first.fetchedAt });
+      expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
+      expect(f.spawn.mock.calls.every(call => (call[2] as { cwd: string; env: { CODEX_HOME: string } }).cwd === canonical
+        && (call[2] as { env: { CODEX_HOME: string } }).env.CODEX_HOME === canonical)).toBe(true);
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 
   it('refuses cache pressure instead of evicting settled active quota floors, then admits after expiry', async () => {

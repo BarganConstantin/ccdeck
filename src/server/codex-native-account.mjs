@@ -6,7 +6,7 @@
 // cannot prove that two same-email workspaces are the same account. Managed
 // home labels remain essential. Recheck account/read after every quota read.
 import { spawn } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { posix, win32 } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
@@ -187,15 +187,20 @@ function rpcRead(home, options) {
  * support synthetic tests; callers never forward HTTP input as options.
  * Cache keys separate quota from metadata. No reads of plaintext auth files.
  */
-export function readNativeCodexAccount(home, options = {}) {
+export async function readNativeCodexAccount(home, options = {}) {
   const now = options.now ?? Date.now;
   const platform = options.platform ?? process.platform;
   const path = platform === 'win32' ? win32 : posix;
   if (typeof home !== 'string' || !path.isAbsolute(home) || home.includes('\0')) return Promise.resolve(failure('profile_unavailable', now));
   const env = { ...(options.env ?? process.env) };
+  // Match Codex's canonical-home keyring identity and share floors across aliases.
+  try { home = await (options.realpath ?? realpath)(home); }
+  catch (error) {
+    if (!['ENOENT', 'ENOTDIR'].includes(error.code)) return failure('profile_unavailable', now);
+  }
   const includeQuota = options.includeQuota === true;
   const key = JSON.stringify([home, includeQuota, platform, options.executable ?? null, env.PATH ?? env.Path ?? '',
-    dependencyId(options.spawn), dependencyId(options.pathLookup), dependencyId(options.killChild), dependencyId(options.now), dependencyId(options.stat), options.deadlineMs ?? null, options.maxOutputBytes ?? null]);
+    dependencyId(options.spawn), dependencyId(options.pathLookup), dependencyId(options.killChild), dependencyId(options.now), dependencyId(options.stat), dependencyId(options.realpath), options.deadlineMs ?? null, options.maxOutputBytes ?? null]);
   const started = now();
   const held = cache.get(key);
   if (held && (held.pending || (!options.force && started >= held.at && started - held.at < CACHE_MS))) return (held.pending ?? Promise.resolve(structuredClone(held.value))).then(value => structuredClone(value));
