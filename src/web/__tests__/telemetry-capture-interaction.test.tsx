@@ -5,13 +5,22 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 const { TelemetryCapture } = await import("../components/TelemetryCapture");
 const empty: CaptureSnapshot = { ok: true, sessionId: null, state: "idle", destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
 const event = (id: number, signal: CapturedExport["signal"]): CapturedExport => ({ id, signal, at: 1700000000000, observedAt: 1700000000000, destination: "192.0.2.16:4317", bytes: 100, count: 1, name: `Synthetic ${signal} ${id}`, content: [], outcome: "unconfirmed", response: null });
-const props = { capture: { ...empty, events: [event(2, "logs"), event(1, "metrics")] }, radar: null, failed: false, busy: false, error: "", command: "", action: vi.fn(async () => {}) };
+const props = { capture: { ...empty, events: [event(2, "logs"), event(1, "metrics")] }, radar: { ok: true, sampledAt: 0, platform: "darwin", pollMs: 5000, status: "observing" as const, processCount: 0, connections: [], alerts: [], config: { sources: [], variables: [{ key: "OTEL_EXPORTER_OTLP_ENDPOINT", value: "http://192.0.2.16:4317", source: "User settings" }] } }, failed: false, busy: false, error: "", command: "", action: vi.fn(async () => {}) };
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ payload: {} }) }))); });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 describe("telemetry capture interactions", () => {
+  it("filters messages by session evidence and preserves unidentified exports separately", () => {
+    const view = mount(TelemetryCapture, { ...props, sessionFilter: "one", capture: { ...empty, events: [{ ...event(3, "logs"), sessionIds: ["one"] }, { ...event(2, "logs"), sessionIds: ["two"] }, event(1, "metrics")] } });
+    expect(textOf(one(view.tree, e => e.props.className === "tr-feed"))).toContain("Synthetic logs 3");
+    expect(textOf(one(view.tree, e => e.props.className === "tr-feed"))).not.toContain("Synthetic logs 2");
+    view.rerender({ ...props, sessionFilter: "unidentified" });
+    expect(textOf(one(view.tree, e => e.props.className === "tr-feed"))).toContain("Synthetic metrics 1");
+    view.unmount();
+  });
+
   it("selects an export from the new signal rather than inspecting a hidden row", () => {
     const view = mount(TelemetryCapture, props);
-    const select = one(view.tree, e => e.type === "select")!;
+    const select = one(view.tree, e => e.type === "select" && e.props["aria-label"] === "Message type")!;
     (select.props.onChange as (e: { target: { value: string } }) => void)({ target: { value: "metrics" } });
     const inspector = one(view.tree, e => e.props.className === "tr-inspector")!;
     expect(textOf(inspector)).toContain("Synthetic metrics 1");
@@ -39,16 +48,16 @@ describe("telemetry capture interactions", () => {
   });
   it("offers a replacement command after reopening before activation", () => {
     const view = mount(TelemetryCapture, { ...props, capture: { ...empty, state: "awaiting", destination: "192.0.2.16:4317" } });
-    (one(view.tree, e => e.type === "button" && textOf(e) === "Prepare a new command")!.props.onClick as () => void)();
-    expect(props.action).toHaveBeenCalledWith("prepare", "192.0.2.16:4317");
+    (one(view.tree, e => e.type === "button" && textOf(e) === "Show activation instructions")!.props.onClick as () => void)();
+    expect(props.action).toHaveBeenCalledWith("prepare", ["192.0.2.16:4317"]);
     expect(textOf(view.tree)).toContain("previous token will be invalidated");
     view.unmount();
   });
   it("preserves the pending action's focusable button while disabling sibling actions", () => {
     const view = mount(TelemetryCapture, { ...props, busy: true, pendingAction: "prepare" });
-    const prepare = one(view.tree, e => e.type === "button" && textOf(e) === "Preparing…")!;
+    const prepare = one(view.tree, e => e.type === "button" && textOf(e) === "Starting…")!;
     expect(prepare.props.disabled).toBe(false); expect(prepare.props["aria-busy"]).toBe(true);
-    expect(one(view.tree, e => e.type === "button" && textOf(e) === "Clear captured contents")!.props.disabled).toBe(true);
+    expect(one(view.tree, e => e.type === "button" && textOf(e) === "Clear messages")!.props.disabled).toBe(true);
     view.unmount();
   });
 });

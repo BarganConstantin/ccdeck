@@ -9,8 +9,8 @@ const props = { capture, radar: null, failed: false, busy: false, error: '', com
 describe('telemetry content inspection', () => {
   it('explains activation without declaring an idle receiver safe or telemetry disabled', () => {
     const markup = renderToStaticMarkup(<TelemetryCapture {...props} />);
-    expect(markup).toContain('Prepare capture'); expect(markup).toContain('No decoded exports yet');
-    expect(markup).toContain('Older uploads and encrypted payloads cannot be recovered');
+    expect(markup).toContain('Start monitoring'); expect(markup).toContain('Ready when you are');
+    expect(markup).toContain('HTTPS contents cannot be decoded');
     expect(markup).not.toMatch(/safe|protected|telemetry is off/i);
   });
   it('shows permissions, expiry, plaintext-only coverage and process attribution limits', () => {
@@ -21,13 +21,13 @@ describe('telemetry content inspection', () => {
   it('makes incomplete capture and encryption limitations visible', () => {
     const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'capturing', issues: { encrypted: 1, joined_midstream: 1 } }} />);
     expect(markup).toContain('contents cannot be read'); expect(markup).toContain('Waiting for a new HTTP/2 connection');
-    expect(markup).toContain('Stop receiving');
+    expect(markup).toContain('Stop monitoring');
   });
   it('renders actual OTLP body and typed attributes without reconstructing local transcripts', () => {
     const markup = renderToStaticMarkup(<DecodedPayload payload={LOGS} signal='logs' />);
     expect(markup).toContain('Synthetic fixture'); expect(markup).toContain('Explain this synthetic example.');
     expect(markup).toContain('Prompt-related field included in this export'); expect(markup).toContain('Resource metadata');
-    expect(markup).toContain('Decoded OTLP JSON');
+    expect(markup).toContain('All record fields');
   });
   it('escapes content instead of interpreting HTML inside prompts', () => {
     const payload = { resourceLogs: [{ scopeLogs: [{ logRecords: [{ body: { stringValue: '<script>alert(1)</script>' } }] }] }] };

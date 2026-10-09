@@ -1,18 +1,13 @@
 import { useState } from "react";
-import { captureSummary, radarStatus, type RadarSnapshot } from "../traffic-radar";
+import type { RadarSnapshot } from "../traffic-radar";
+import { configuredDestinations, configuredState, type RadarSession } from "../telemetry-inspection";
 import { useTrafficRadar } from "../use-traffic-radar";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useTelemetryCapture } from "../use-telemetry-capture";
 import { TelemetryCapture } from "./TelemetryCapture";
+import { TelemetryFile } from "./TelemetryFile";
 
-type Connection = RadarSnapshot["connections"][number];
-type RadarPage = "telemetry" | "connections" | "history" | "configuration";
-const connectionKey = (connection: Connection) => `${connection.pid}:${connection.destination}`;
-function Stamp({ at }: { at: number }) {
-  return <time dateTime={new Date(at).toISOString()}>{new Date(at).toLocaleTimeString()}</time>;
-}
-
-export default function TrafficRadar({ onClose }: { onClose: () => void }) {
+export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () => void; sessions?: RadarSession[] }) {
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const { snapshot, failed } = useTrafficRadar();
@@ -20,96 +15,75 @@ export default function TrafficRadar({ onClose }: { onClose: () => void }) {
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
     <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" onClick={e => e.stopPropagation()}>
       <header className="modal-head">
-        <div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="modal-tool-id">local telemetry inspection</span></div>
+        <div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span></div>
         <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
       </header>
-      <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} />
+      <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} />
     </div>
   </div>;
 }
 
-export function TrafficRadarView({ snapshot, failed = false, captureState }: { snapshot: RadarSnapshot | null; failed?: boolean; captureState?: ReturnType<typeof useTelemetryCapture> }) {
-  const [page, setPage] = useState<RadarPage>(captureState ? "telemetry" : "connections");
-  const [selected, setSelected] = useState<string | null>(null);
-  const warning = failed || snapshot?.status === "unavailable";
-  const supported = snapshot && snapshot.status !== "unsupported";
-  const connections = snapshot?.connections ?? [];
-  const rows = page === "connections" ? connections.filter(c => c.active !== false) : connections;
-  const chosen = selected ? connections.find(c => connectionKey(c) === selected) : rows[0];
+export function TrafficRadarView({ snapshot, failed = false, captureState, sessions = [] }: {
+  snapshot: RadarSnapshot | null; failed?: boolean; captureState?: ReturnType<typeof useTelemetryCapture>; sessions?: RadarSession[];
+}) {
+  const [page, setPage] = useState<"monitor" | "configuration" | "file">("monitor");
+  const [fileSessions, setFileSessions] = useState<string[]>([]);
+  const [session, setSession] = useState("all");
+  const variables = snapshot?.config?.variables ?? [];
+  const destinations = configuredDestinations(variables);
+  const state = configuredState(variables);
+  const choices = new Map(sessions.map(s => [s.id, s.label]));
+  for (const event of captureState?.capture?.events ?? []) for (const id of event.sessionIds ?? []) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
+  for (const id of fileSessions) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
   return <div className="tr-body">
-    <div className="tr-overview">
-      {page === "telemetry" ? <><p className="tr-status">Inspect telemetry contents</p><p className="tr-note">Choose a collector, activate capture locally, then select an export. Configuration alone cannot prove what was sent.</p></> : <>
-      <p className={`tr-status${warning ? " tr-warning" : ""}`} role="status">{radarStatus(snapshot, failed)}</p>
-      <p className="tr-note">A connection is not proof of a telemetry upload. Telemetry contents require explicit local capture.</p>
-      {supported && <p className="tr-sample">{snapshot.processCount} Claude processes · {warning ? "Unknown" : connections.filter(c => c.active).length} active connections · sampled <Stamp at={snapshot.sampledAt} /> · every 5 seconds while visible</p>}
-      </>}
+    <div className="tr-summary">
+      <div className="tr-summary-state"><span className={`tr-state ${failed || !snapshot ? "tr-tone-unknown" : state === "Enabled in settings" ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{failed ? "Configuration unavailable" : !snapshot ? "Reading settings…" : state}</span>
+        <span className="tr-note">{destinations.length ? `${destinations.length} configured destination${destinations.length === 1 ? "" : "s"}` : "No destination found in settings"}</span></div>
+      {destinations.length > 0 && <div className="tr-endpoints">{destinations.map(destination => <code key={destination}>{destination}</code>)}</div>}
     </div>
-    <div className="tr-nav" role="group" aria-label="Radar views">
-      {captureState && <button className="btn" aria-pressed={page === "telemetry"} onClick={() => setPage("telemetry")}>Telemetry contents</button>}
-      <button className="btn" aria-pressed={page === "connections"} onClick={() => setPage("connections")}>Live connections</button>
-      <button className="btn" aria-pressed={page === "history"} onClick={() => setPage("history")}>Observation history</button>
-      <button className="btn" aria-pressed={page === "configuration"} onClick={() => setPage("configuration")}>Configuration</button>
+    <div className="tr-navigation">
+      <div className="tr-tabs" role="tablist" aria-label="Radar views">{([['monitor', 'Monitor'], ['configuration', 'Configuration'], ['file', 'File']] as const).map(([id, label]) =>
+        <button key={id} id={`tr-tab-${id}`} role="tab" aria-selected={page === id} aria-controls={`tr-panel-${id}`} tabIndex={page === id ? 0 : -1} onClick={() => setPage(id)} onKeyDown={e => {
+          const ids = ['monitor', 'configuration', 'file'] as const;
+          const at = ids.indexOf(id);
+          const next = e.key === 'ArrowRight' ? ids[(at + 1) % 3] : e.key === 'ArrowLeft' ? ids[(at + 2) % 3] : e.key === 'Home' ? ids[0] : e.key === 'End' ? ids[2] : null;
+          if (next) { e.preventDefault(); setPage(next); document.getElementById(`tr-tab-${next}`)?.focus(); }
+        }}>{label}</button>)}</div>
+      <label className="tr-session-filter">Session<select className="tr-select" value={session} onChange={e => setSession(e.target.value)} aria-label="Session">
+        <option value="all">All sessions</option>{[...choices].map(([id, label]) => <option key={id} value={id}>{label} · {id.slice(0, 8)}</option>)}<option value="unidentified">Unidentified session</option>
+      </select></label>
     </div>
-    {page === "telemetry" && captureState ? <TelemetryCapture {...captureState} radar={snapshot} /> : supported && (page === "configuration" ? <Configuration snapshot={snapshot} /> : <div className="tr-workspace">
-      <section className="tr-feed" aria-label={page === "connections" ? "Live connections" : "Observation history"}>
-        <h3>{page === "connections" ? "Observed connections" : "Past and current observations"}</h3>
-        <p className="tr-note">{page === "connections" ? "Select a destination to inspect its connection." : "Connection observations, not a record of sent requests. Kept in memory during observation."}</p>
-        {rows.length ? <ul className="tr-connections">{rows.map(connection => <li key={connectionKey(connection)}>
-          <button className="btn tr-row" aria-pressed={chosen && connectionKey(chosen) === connectionKey(connection)} onClick={() => setSelected(connectionKey(connection))}>
-            <code>{connection.destination}</code><span>{warning || connection.active === null ? "Unknown" : connection.active ? "Observed now" : "Seen earlier"} · PID {connection.pid}</span>
-            <span className="tr-workspace-name">{connection.workspace ?? "Workspace unavailable"}</span>
-            <span>last seen <Stamp at={connection.lastSeenAt} /></span>
-          </button>
-        </li>)}</ul> : <p className="tr-note">{warning ? "Connections could not be determined. Sampling will retry while this panel is open." : "No established TCP connections captured in this sample. Brief transfers between samples may not appear."}</p>}
-      </section>
-      <section className="tr-inspector" aria-label="Connection details">
-        <h3>Connection details</h3>
-        {chosen ? <>
-          <h4><code>{chosen.destination}</code></h4>
-          <dl className="tr-facts">
-            <div><dt>Observation</dt><dd>{warning || chosen.active === null ? "Unknown" : chosen.active ? "Observed now" : "Seen earlier"}</dd></div>
-            <div><dt>Process</dt><dd>Claude · PID {chosen.pid}</dd></div>
-            <div><dt>Workspace</dt><dd>{chosen.workspace ?? "Unavailable"}</dd></div>
-            <div><dt>First seen</dt><dd><Stamp at={chosen.firstSeenAt} /></dd></div>
-            <div><dt>Last seen</dt><dd><Stamp at={chosen.lastSeenAt} /></dd></div>
-          </dl>
-          {page === "connections" && chosen.active === false && <p className="tr-note">The selected connection is no longer observed live. Its retained metadata is available in Observation history.</p>}
-        </> : <p className="tr-note">{selected ? "The selected observation is no longer retained. Select another connection to inspect it." : "A connection will appear here when one is observed."}</p>}
-        <div className="tr-payload"><h4>Payload not captured</h4>
-          <p>This radar observes established TCP connections, not requests or their contents. It cannot show what was sent inside this connection.</p>
-          <p className="tr-note">Inspecting actual telemetry requires an explicitly configured local capture or access to the existing collector. Earlier payloads cannot be recovered from these observations.</p>
-        </div>
-        <details className="tr-details"><summary>Coverage and retention</summary>
-          <p className="tr-note">Native Claude processes only. Node wrappers, short-lived connections, UDP and other apps may be missed. Session environment, project overrides and Enterprise server-side capture are not verified.</p>
-          <p className="tr-note">Observation metadata stays in server memory, bounded to 100 connections and a 5-minute observation window. On the next sample, history resets after an observation gap longer than 30 seconds. Nothing here changes or blocks Claude telemetry.</p>
-        </details>
-        {snapshot.limited && <p className="tr-warning">Only the first 64 identified processes were sampled.</p>}
-      </section>
-    </div>)}
-    {supported && snapshot.alerts.length > 0 && <details className="tr-changes"><summary>Changes while observing ({snapshot.alerts.length})</summary>
-      <ul>{snapshot.alerts.map(alert => <li key={alert.id}><Stamp at={alert.at} /> {alert.message}</li>)}</ul>
-    </details>}
-    {snapshot?.status === "unsupported" && <p className="tr-empty">This version cannot inspect Claude connections on {snapshot.platform}. No privacy conclusion can be drawn.</p>}
-    {!snapshot && <p className="tr-empty">{failed ? "Could not read the radar. Check the ccdeck connection; sampling will retry while this panel is open." : "Reading local telemetry configuration and connection metadata…"}</p>}
+    {/* Keep views mounted: selecting Configuration must not discard the selected message or imported file. */}
+    <div className="tr-page" id="tr-panel-monitor" role="tabpanel" aria-labelledby="tr-tab-monitor" hidden={page !== "monitor"}>
+      {captureState ? <TelemetryCapture {...captureState} radar={snapshot} sessionFilter={session} sessions={sessions} /> : <p className="tr-empty">Reading monitor status…</p>}
+    </div>
+    <div className="tr-page" id="tr-panel-configuration" role="tabpanel" aria-labelledby="tr-tab-configuration" hidden={page !== "configuration"}>
+      {snapshot ? <Configuration snapshot={snapshot} stale={failed} sessionLabel={session === "all" ? undefined : choices.get(session) ?? session} /> : <p className="tr-empty">{failed ? "Could not read settings. Sampling will retry." : "Reading local settings…"}</p>}
+    </div>
+    <div className="tr-page" id="tr-panel-file" role="tabpanel" aria-labelledby="tr-tab-file" hidden={page !== "file"}><TelemetryFile onSessions={setFileSessions} sessionFilter={session} /></div>
   </div>;
 }
 
-export function Configuration({ snapshot }: { snapshot: RadarSnapshot }) {
+export function Configuration({ snapshot, sessionLabel, stale = false }: { snapshot: RadarSnapshot; sessionLabel?: string; stale?: boolean }) {
   const variables = snapshot.config?.variables ?? [];
   const destinations = variables.filter(v => v.key.endsWith("ENDPOINT"));
-  const captureWarning = variables.some(v => v.key.startsWith("OTEL_LOG_") && v.value.startsWith("Enabled"));
+  const flags = variables.filter(v => v.key.startsWith("OTEL_LOG_") || v.key.includes("ENABLE") || v.key.includes("TELEMETRY_BETA"));
+  const names: Record<string, string> = { CLAUDE_CODE_ENABLE_TELEMETRY: "Telemetry", OTEL_LOG_USER_PROMPTS: "Your prompts", OTEL_LOG_ASSISTANT_RESPONSES: "Claude responses", OTEL_LOG_TOOL_DETAILS: "Tool details", OTEL_LOG_TOOL_CONTENT: "Tool contents", OTEL_LOG_RAW_API_BODIES: "Full API bodies", OTEL_LOG_MANAGED_SETTINGS: "Managed settings", CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: "Enhanced telemetry", ENABLE_ENHANCED_TELEMETRY_BETA: "Enhanced telemetry" };
   return <section className="tr-config" aria-label="Telemetry configuration">
-    <h3>Configured telemetry</h3>
-    <p className={captureWarning ? "tr-warning" : "tr-note"}>{captureSummary(variables)}</p>
-    <p className="tr-note">Values below are configuration evidence, not the effective settings of a running session. Endpoint credentials, paths, queries and headers are hidden.</p>
-    {destinations.length ? <ul className="tr-destinations">{destinations.map(v => <li key={`${v.source}:${v.key}`}><code>{v.value}</code><span>{v.source} · {v.key}</span></li>)}</ul>
-      : <p className="tr-note">No destination found in the sources read. This does not mean telemetry is off.</p>}
-    <h4>Variables and configuration sources</h4>
-    {variables.length > 0 && <dl className="tr-variables">{variables.map(v => <div key={`${v.source}:${v.key}`}>
-      <dt><code>{v.key}</code><span>{v.source}</span></dt><dd>{v.value}</dd>
-    </div>)}</dl>}
-    <ul className="tr-sources">{snapshot.config?.sources.map(source => <li key={source.name}><span>{source.name}</span><span>{source.status === "read" ? "Read" : source.status === "absent" ? "Not found" : "Unavailable"}</span></li>)}</ul>
-    <p className="tr-note">Documented defaults: metrics 60 seconds; logs and traces 5 seconds. Actual intervals may differ.</p>
-    <p className="tr-note">Session environment, project overrides and Enterprise server-side capture are not verified.</p>
+    <h3>What Claude is configured to send</h3>
+    {stale && <p className="tr-warning" role="status">Last successfully read settings. Current configuration could not be verified.</p>}
+    <p className="tr-note">Read from local Claude settings. The effective environment of a running session is not verified.</p>
+    {sessionLabel && <p className="tr-note">Selected session: {sessionLabel}. These shared settings are evidence; this session’s runtime values are unverified.</p>}
+    <h4>Destinations</h4>
+    {destinations.length ? <ul className="tr-destinations">{destinations.map(v => <li key={`${v.source}:${v.key}`}><code>{v.value}</code><span>{v.source} · {v.key}</span></li>)}</ul> : <p className="tr-note">No destination found in the sources read. This does not mean telemetry is off.</p>}
+    <h4>Telemetry and content</h4>
+    {flags.length ? <dl className="tr-variables">{flags.map(v => <div key={`${v.source}:${v.key}`}>
+      <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{v.source}</span></dt><dd><span className={`tr-state ${v.value.startsWith("Enabled") ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{v.value}</span>{v.rawValue !== undefined && <code className="tr-raw-flag">{v.rawValue}</code>}</dd>
+    </div>)}</dl> : <p className="tr-note">No telemetry flags found in the settings read.</p>}
+    <details className="tr-details"><summary>All variables and sources</summary>
+      <dl className="tr-variables">{variables.map(v => <div key={`${v.source}:${v.key}`}><dt><code>{v.key}</code><span>{v.source}</span></dt><dd>{v.value}</dd></div>)}</dl>
+      <ul className="tr-sources">{snapshot.config?.sources.map(source => <li key={source.name}><span>{source.name}</span><span>{source.status === "read" ? "Read" : source.status === "absent" ? "Not found" : "Unavailable"}</span></li>)}</ul>
+      <p className="tr-note">Endpoint credentials and headers are hidden. Settings can differ from an already running process.</p>
+    </details>
   </section>;
 }

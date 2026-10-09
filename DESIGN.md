@@ -662,3 +662,15 @@ are literals today.
 - Don't add a hue that only works in dark. Light is a peer, and it is where the bugs
   are.
 - Don't use `--line` to identify a control. That is `--ctl-edge`'s job.
+
+### Telemetry Radar
+
+An inspection workspace with three tabs: Monitor, Configuration and File. A compact
+settings summary and shared session selector sit above the split message list and
+inspector. The Monitor is the initial view; JSON is a first-class inspection mode.
+Configuration evidence, capture state and collector receipts use distinct language.
+Enabled content flags use warning color; positive receipts alone use the success
+color. Unknown attribution remains explicit. Detailed capture limits stay in the
+footer, and Terminal activation expands only when action is needed. On mobile,
+messages precede the inspector in one scrolling column. Views remain mounted so
+changing tabs preserves the selected message and imported file.

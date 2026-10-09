@@ -160,70 +160,60 @@ Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.d
 
 ### Claude Telemetry Radar (macOS)
 
-Open **Telemetry Radar** from the right rail (or **More → Telemetry Radar** on a
-phone) to inspect telemetry configuration sources
-and established TCP connections attributed to native Claude Code processes.
-Each connection shows its remote IP and port, PID, current working directory
-when readable, and last observation time — not the last upload time.
+Open **Telemetry Radar** from the right rail, or **More → Telemetry Radar** on a
+phone. Three views keep configuration, observed traffic and saved files separate:
 
-The centered inspector separates telemetry contents, live connections,
-observation history and configuration. Connection metadata is never presented
-as evidence of what was uploaded.
+- **Monitor** lists decoded messages and unreadable connection observations.
+  Filter by session, destination or message type, then select a message for its
+  readable overview or decoded **JSON**. Session attribution comes from IDs in
+  the captured payload; absent IDs remain unidentified, and an export containing
+  multiple session IDs is shown under each matching session.
+- **Configuration** shows configured destinations, telemetry/content flags and
+  their sources. Enabled flags are highlighted and recognized boolean values
+  are shown as written. These are settings-file evidence, not confirmation of a
+  running session's effective environment. Credentials and endpoint paths stay
+  hidden.
+- **File** opens a local JSON or JSONL file, lists its records and shows the
+  original text. Files stay in the browser and are never uploaded. Search and
+  session filtering narrow the list. Inputs are bounded to 10 MB and 10,000
+  lines; the first 200 matching rows are displayed. File contents alone do not
+  prove that a record was sent.
 
-**Telemetry contents** supports opt-in passive capture of plaintext IPv4
-OTLP/gRPC over HTTP/2, including gzip. Choose a collector IPv4 address and port,
-press **Prepare capture**, then run the generated command in your own Terminal.
-Only macOS's `tcpdump` needs administrator permission; the local helper and
-ccdeck run as your ordinary user. Capture bytes are piped directly to a
-temporary, authenticated loopback receiver — no capture file is written and
-Claude's settings, destination and active sessions are left unchanged.
+Choose all configured IPv4 destinations, one destination or a custom IPv4
+address and port, then press **Start monitoring**. Run each generated command
+in a separate Terminal tab. Only `tcpdump` needs administrator permission;
+ccdeck and the helper remain unprivileged. Each destination gets its own
+network interface and decoder, up to eight destinations per capture. The UI
+shows how many destinations have actually been activated. Preparing commands
+alone does not start capture.
 
-Select an observed export to inspect its log bodies, attributes, resource
-metadata, decoded OTLP JSON and the captured protobuf message in Base64 (after
-decompression, preserving fields unknown to the v1.9.0 schema). Logs, metrics
-and traces are separate signals.
-The inspector distinguishes transfer observed, collector acceptance, partial
-success and rejection. Acceptance is not proof of persistence in the final
-backend. Payloads come from captured traffic, never inferred from transcripts.
-TLS, incomplete captures and connections joined mid-stream are reported as
-limitations; older uploads cannot be reconstructed. Wait for existing
-connections to reconnect naturally rather than restarting working sessions.
+Passive decoding supports plaintext IPv4 OTLP/gRPC over HTTP/2, including gzip.
+Encrypted or incomplete traffic appears as an observation without invented
+JSON or session attribution. Existing connections may need to reconnect
+naturally before decoding begins. Capture does not redirect traffic or change
+Claude's settings. It is filtered by address, not process: other apps sending
+there can also appear. Model API traffic and Enterprise server-side capture
+are outside its coverage.
 
-Capture is filtered by address, **not by process**: another app sending to that
-same collector may appear. It does not inspect model API traffic, other
-destinations or Enterprise server-side capture. Contents are available only
-through the local loopback UI, not the LAN endpoints. There is no per-user
-isolation between local clients of the same ccdeck server.
+The inspector distinguishes observed transfer, collector acceptance, partial
+success and rejection. Acceptance does not prove final backend storage. Contents
+come from captured traffic, not local conversation transcripts. Messages remain
+in local server memory: at most 100 exports for five minutes, with a bounded
+payload budget; unreadable observations are also capped at 100 for five minutes.
+No capture file is written. **Pause list** pauses display, not capture or retention;
+**Clear messages** clears exports and unreadable observations.
 
-Captured exports stay in bounded server memory (100 exports, a 5-minute window,
-4 million characters across decoded payloads and retained Base64). Details
-are fetched only when selected.
-**Pause list** freezes the list, not capture or retention; **Clear captured
-contents** removes the retained exports. Activation expires after 10 minutes.
-Closing the modal does not stop capture. **Stop receiving** immediately
-invalidates the temporary token; also press **Ctrl+C in Terminal** to stop
-`tcpdump`, which may otherwise wait until its next write. The activation
-command contains a short-lived token; do not share it or paste it into logs.
+Activation expires after ten minutes. Closing the modal does not stop capture.
+Use **Stop monitoring**, then **Ctrl+C** in each Terminal tab to stop `tcpdump`.
+Commands contain a temporary loopback token; do not share them. Capture contents
+are available through the local loopback UI, not LAN endpoints. Local clients
+of the same server share its capture.
 
-The radar reads only named telemetry variables from user settings, cached
-organization settings and the system managed-settings file; credentials,
-endpoint paths and exporter headers stay hidden. These files are evidence,
-not a determination of a running session's effective configuration: process
-environment, project overrides and Enterprise server-side capture are not
-verified. No observed connection does not mean telemetry is disabled, and a
-connection does not establish what was sent.
+Configuration and connection sampling runs only while Radar is open and the
+browser page is visible. A connection does not prove an upload, and absence of
+observed traffic does not mean telemetry is disabled. Native-process sampling
+can miss short-lived connections and Node wrappers.
 
-Sampling runs every five seconds only while the radar is open and the page
-is visible, with bounded subprocess execution and shared recent results.
-Observation history is held in server memory, capped at 100 connections and
-five minutes; the next read clears it after more than 30 seconds without a
-sample. Connection sampling does not inspect payloads. Neither mode contacts
-the collector, changes Claude settings or blocks traffic. Native-process
-sampling may miss short-lived connections, Node wrappers, UDP and other providers;
-unsupported platforms and failed samples are shown explicitly.
-
-This is local machine information, not per-browser-user isolation: people
-with access to the same ccdeck server see that server's observations.
 
 ### Temperature, per machine
 

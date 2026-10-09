@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { pressState } from "../panel-press";
 import type { RadarSnapshot } from "../traffic-radar";
+import { captureAddress, configuredDestinations, type RadarSession } from "../telemetry-inspection";
 import type { CaptureAction, CaptureSnapshot, CapturedExport } from "../use-telemetry-capture";
 
 type Json = null | string | number | boolean | Json[] | { [key: string]: Json };
@@ -96,110 +97,142 @@ export function DecodedPayload({ payload, signal }: { payload: Obj; signal: Capt
       </div>; })}
     </section>;
   })}
-    <details className="tr-details"><summary>Decoded OTLP JSON</summary><p className="tr-note">Decoded protobuf contents, not the complete network request. Transport authentication headers are not displayed.</p><Value value={payload} /></details>
+
   </div>;
 }
-export function TelemetryCapture({ capture, radar, failed, busy, pendingAction = null, error, command, action }: {
+export function TelemetryCapture({ capture, radar, failed, busy, pendingAction = null, error, command, commands = [], action, sessionFilter = "all", sessions = [] }: {
   capture: CaptureSnapshot | null; radar: RadarSnapshot | null; failed: boolean; busy: boolean; pendingAction?: CaptureAction | null; error: string; command: string;
-  action: (kind: CaptureAction, destination?: string) => Promise<void>;
+  commands?: { destination: string; command: string }[];
+  action: (kind: CaptureAction, destination?: string | string[]) => Promise<void>;
+  sessionFilter?: string; sessions?: RadarSession[];
 }) {
-  const configured = radar?.config?.variables.filter(v => v.key.endsWith("ENDPOINT")).map(v => {
-    try { const u = new URL(v.value); return `${u.hostname}:${u.port || (u.protocol === "https:" ? "443" : "80")}`; } catch { return ""; }
-  }).find(v => /^\d+\.\d+\.\d+\.\d+:\d+$/.test(v)) ?? "";
-  const [destination, setDestination] = useState("");
+  const configured = configuredDestinations(radar?.config?.variables ?? []);
+  const addresses = [...new Set(configured.map(captureAddress).filter((v): v is string => !!v))];
+  const [destination, setDestination] = useState("all");
+  const [custom, setCustom] = useState("");
+  const [selectedObservation, setSelectedObservation] = useState<number | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [messageDestination, setMessageDestination] = useState("all");
   const [filter, setFilter] = useState("all");
+  const [pausedObservationIds, setPausedObservationIds] = useState<number[] | null>(null);
   const [paused, setPaused] = useState<CapturedExport[] | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [detail, setDetail] = useState<{ id: number; payload?: Obj; protobufBase64?: string; error?: string } | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [view, setView] = useState<"summary" | "json">("summary");
+  const [detail, setDetail] = useState<{ id: number; payload?: Obj; error?: string } | null>(null);
+  const [retry, setRetry] = useState(0);
   const inspector = useRef<HTMLElement | null>(null);
   const retained = capture?.events ?? [];
-  const events = paused ? paused.filter(e => retained.some(current => current.id === e.id)) : retained;
-  const rows = events.filter(e => filter === "all" || e.signal === filter);
-  const chosen = retained.find(e => e.id === (selected ?? rows[0]?.id));
+  const events = paused ? paused.map(e => retained.find(current => current.id === e.id)).filter((e): e is CapturedExport => !!e) : retained;
+  const rows = events.filter(e => (filter === "all" || e.signal === filter) && (messageDestination === "all" || messageDestination === e.destination) &&
+    (sessionFilter === "all" || (sessionFilter === "unidentified" ? !e.sessionIds?.length : e.sessionIds?.includes(sessionFilter))));
+  const observations = (capture?.observations ?? []).filter(e => (pausedObservationIds === null || pausedObservationIds.includes(e.id)) && filter === "all" && (sessionFilter === "all" || sessionFilter === "unidentified") && (messageDestination === "all" || messageDestination === e.destination));
+  const observation = observations.find(e => e.id === selectedObservation);
+  const chosen = selectedObservation !== null ? undefined : selected === null ? rows[0] : rows.find(e => e.id === selected);
   const id = chosen?.id;
+  useEffect(() => { setSelected(null); setSelectedObservation(null); }, [sessionFilter, filter, messageDestination]);
   useEffect(() => {
-    setDetail(null);
+    setDetail(null); setCopied(null);
     if (id === undefined) return;
     const controller = new AbortController();
     let alive = true;
     const timeout = setTimeout(() => controller.abort(), 5000);
     fetch(`/api/system/traffic-radar/capture/event?id=${id}`, { signal: controller.signal }).then(async response => {
-      if (!response.ok) throw new Error("Event is no longer retained. Select a newer event.");
+      if (!response.ok) throw new Error("This message has expired. Select a newer message.");
       const data = await response.json();
-      if (!controller.signal.aborted) setDetail({ id, payload: data.payload, protobufBase64: data.protobufBase64 });
-    }).catch(value => { if (alive) setDetail({ id, error: controller.signal.aborted ? "Loading timed out. Select another export or reopen Radar to retry." : value instanceof Error ? value.message : "Could not read this event." }); })
+      if (alive && !controller.signal.aborted) setDetail({ id, payload: data.payload });
+    }).catch(value => { if (alive) setDetail({ id, error: controller.signal.aborted ? "Loading timed out. Try again." : value instanceof Error ? value.message : "Could not read this message." }); })
       .finally(() => clearTimeout(timeout));
     return () => { alive = false; clearTimeout(timeout); controller.abort(); };
-  }, [id]);
+  }, [id, retry]);
   const running = !!capture && ["awaiting", "receiving", "capturing"].includes(capture.state);
-  const state = failed ? "Capture visibility interrupted" : !capture ? "Reading capture status…" : ({
-    idle: "Capture is off", awaiting: "Waiting for local activation", receiving: "Local receiver ready · waiting for capture bytes", capturing: "Capture input received",
-    stopped: "Local receiver stopped", expired: "Capture session expired", interrupted: "Capture input interrupted", error: "Capture format could not be read",
+  const active = capture?.sources?.filter(s => s.active).length ?? 0;
+  const sourceCount = capture?.sources?.length ?? 1;
+  const state = failed ? "Monitor connection lost" : !capture ? "Reading monitor…" : ({
+    idle: "Monitoring stopped", awaiting: "Terminal activation needed", receiving: "Listening · waiting for traffic", capturing: "Monitoring traffic",
+    stopped: "Monitoring stopped", expired: "Monitoring expired", interrupted: "Capture disconnected", error: "Capture could not be read",
   })[capture.state];
-  const copy = async () => { try { await navigator.clipboard.writeText(command); setCopied(true); } catch { setCopied(false); } };
   const pressProps = (kind: CaptureAction) => {
     const state = pressState(pendingAction ?? (busy ? "capture" : null), kind);
     return { disabled: state.disabled, "aria-busy": state.busy };
   };
   const inspect = (event: CapturedExport) => {
-    setSelected(event.id);
+    setSelectedObservation(null); setSelected(event.id);
     if (typeof window !== "undefined" && window.matchMedia?.("(max-width: 640px)").matches) {
-      inspector.current?.focus({ preventScroll: true });
-      inspector.current?.scrollIntoView({ block: "start", behavior: "auto" });
+      inspector.current?.focus({ preventScroll: true }); inspector.current?.scrollIntoView({ block: "start", behavior: "auto" });
     }
   };
-  const prepare = () => { setCopied(false); setPaused(null); setSelected(null); void action("prepare", destination || (capture?.state === "awaiting" ? capture.destination : null) || configured); };
+  const prepare = () => {
+    setCopied(null); setPaused(null); setPausedObservationIds(null); setSelected(null); setSelectedObservation(null);
+    const targets = destination === "custom" ? [custom.trim()] : destination === "all" ? addresses : [destination];
+    void action("prepare", targets.length ? targets : capture?.sources?.map(s => s.destination) ?? (capture?.destination ? [capture.destination] : []));
+  };
+  const activationCommands = commands.length ? commands : command ? [{ destination: capture?.destination ?? "Collector", command }] : [];
+  const copy = async (text: string, key: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(key); } catch { setCopied("failed"); }
+  };
+  const sessionName = (ids: string[] = []) => ids.length ? ids.map(id => `${sessions.find(s => s.id === id)?.label ?? "Session"} · ${id.slice(0, 8)}`).join(", ") : "Unidentified session";
+  const encrypted = (capture?.issues.encrypted ?? 0) > 0;
+  const liveAddresses = new Set([...(capture?.sources?.map(s => s.destination) ?? []), ...addresses]);
+  const connections = radar?.connections.filter(c => c.active && liveAddresses.has(c.destination)) ?? [];
   return <div className="tr-telemetry">
     <div className="tr-capture-bar">
-      <div><h3 role="status">{state}</h3><p className="tr-note">{capture?.destination ? `${capture.destination} · ${capture.interface} · ` : ""}Passive observation. Nothing is redirected, blocked or changed in Claude.</p></div>
+      <div><h3 role="status"><span className={`tr-live-dot${running && active ? " is-live" : ""}`} />{state}</h3>
+        <p className="tr-note">{running ? `${active} of ${sourceCount} destination${sourceCount === 1 ? "" : "s"} listening. ` : "See messages sent to your configured collectors. "}Claude settings stay unchanged.</p></div>
       <div className="tr-capture-actions">
-        {running ? <button className="btn" {...pressProps("stop")} onClick={() => void action("stop")}>Stop receiving</button>
-          : <button className="btn" {...pressProps("prepare")} disabled={pressProps("prepare").disabled || !capture || failed} onClick={prepare}>{pendingAction === "prepare" ? "Preparing…" : "Prepare capture"}</button>}
-        {capture?.state === "awaiting" && !command && <button className="btn" {...pressProps("prepare")} onClick={prepare}>{pendingAction === "prepare" ? "Preparing…" : "Prepare a new command"}</button>}
-        <button className="btn" {...pressProps("clear")} disabled={pressProps("clear").disabled || !capture?.events.length} onClick={() => { setSelected(null); setPaused(null); void action("clear"); }}>Clear captured contents</button>
+        {running ? <button className="btn" {...pressProps("stop")} onClick={() => void action("stop")}>Stop monitoring</button>
+          : <button className="btn tr-start" {...pressProps("prepare")} disabled={pressProps("prepare").disabled || !capture || failed || radar?.status === "unsupported" || (destination === "all" && !addresses.length) || (destination === "custom" && !custom.trim())} onClick={prepare}>{pendingAction === "prepare" ? "Starting…" : "Start monitoring"}</button>}
+        <button className="btn" {...pressProps("clear")} disabled={pressProps("clear").disabled || (!capture?.events.length && !capture?.observations?.length)} onClick={() => { setSelected(null); setSelectedObservation(null); setPaused(null); setPausedObservationIds(null); void action("clear"); }}>Clear messages</button>
       </div>
     </div>
-    {!running && <label className="tr-destination">Collector IPv4 and port<input className="tr-input" value={destination || configured} onChange={e => setDestination(e.target.value)} placeholder="192.0.2.16:4317" /></label>}
+    {!running && <div className="tr-destination">
+      <label>Destination<select className="tr-select" aria-label="Capture destination" value={destination} onChange={e => setDestination(e.target.value)}><option value="all">All configured IPv4 destinations ({addresses.length})</option>{addresses.map(address => <option key={address} value={address}>{address}</option>)}<option value="custom">Another IPv4 address…</option></select></label>
+      {destination === "custom" && <input className="tr-input" aria-label="Collector IPv4 and port" value={custom} onChange={e => setCustom(e.target.value)} placeholder="192.168.1.10:4317" />}
+      {!addresses.length && destination === "all" && <span className="tr-note">No capturable IPv4 address found. Choose another address to continue.</span>}
+    </div>}
+    {radar?.status === "unsupported" && <p className="tr-capture-error" role="status">Live capture is available on macOS. You can still inspect a local file.</p>}
     {error && <p className="tr-capture-error" role="alert">{error}</p>}
-    {capture?.state === "awaiting" && !command && <p className="tr-note">Activation has not been observed. Prepare a new command to show the instructions again; the previous token will be invalidated.</p>}
-    {command && running && <details className="tr-activation tr-details" open><summary>Activate locally in Terminal</summary>
-      <p>Copy this command into your own Terminal. Only tcpdump asks for administrator permission; ccdeck and the decoder stay unprivileged.</p>
-      <pre className="tr-command">{command}</pre><button className="btn" onClick={() => void copy()}>{copied ? "Command copied" : "Copy command"}</button>
-      <p className="tr-note">The command contains a temporary local token. Do not share it. Press Ctrl+C in Terminal to stop tcpdump. Stopping the receiver here invalidates the token but may leave tcpdump waiting until its next write.</p>
+    {running && !activationCommands.length && capture?.state === "awaiting" && <div className="tr-activation"><p>Activation is pending. Generate the Terminal instructions again to continue.</p><button className="btn" {...pressProps("prepare")} onClick={prepare}>Show activation instructions</button><p className="tr-note">The previous token will be invalidated.</p></div>}
+    {activationCommands.length > 0 && running && <details className="tr-activation" open={!active}><summary>Activate in Terminal{sourceCount > 1 ? ` · ${active}/${sourceCount} listening` : ""}</summary>
+      <p>Run each command in a separate Terminal tab. Only tcpdump asks for administrator permission.</p>
+      {activationCommands.map(entry => <div className="tr-command-entry" key={entry.destination}><div><code>{entry.destination}</code><button className="btn" onClick={() => void copy(entry.command, entry.destination)}>{copied === entry.destination ? "Copied" : "Copy command"}</button></div><pre className="tr-command">{entry.command}</pre></div>)}
+      <p className="tr-note">Press Ctrl+C in each Terminal tab to stop tcpdump. Monitoring expires after 10 minutes. Commands contain a temporary local token; do not share them.</p>
     </details>}
+    {copied === "failed" && <p className="tr-capture-error" role="alert">Clipboard unavailable. Select the text and copy it manually.</p>}
+    {failed && <p className="tr-capture-error" role="alert">Displayed messages are from the last successful read. Reconnecting automatically.</p>}
     <div className="tr-workspace">
-      <section className="tr-feed" aria-label="Captured telemetry exports">
-        <h3>Observed exports ({events.length})</h3>
-        <div className="tr-filter"><label>Signal<select className="tr-select" value={filter} onChange={e => { setSelected(null); setFilter(e.target.value); }}><option value="all">All signals</option><option value="logs">Logs · events</option><option value="metrics">Metrics · usage</option><option value="traces">Traces · operations</option></select></label>
-          <button className="btn" disabled={!events.length} onClick={() => setPaused(paused ? null : [...events])}>{paused ? "Resume list" : "Pause list"}</button></div>
-        {paused && <p className="tr-note">List paused; capture continues. Retention still applies.</p>}
-        {rows.length ? <ul className="tr-connections">{rows.map(event => <li key={event.id}><button className="btn tr-row" aria-pressed={chosen?.id === event.id} onClick={() => inspect(event)}>
-          <span className="tr-event-top"><strong>{event.signal}</strong><time dateTime={new Date(event.at).toISOString()}>{stamp(event.at)}</time></span>
-          <strong className="tr-event-name">{event.name}</strong><span>{event.count} records · {event.bytes.toLocaleString()} bytes</span>
-          <span>{outcomeLabel(event)}</span>{event.content.length > 0 && <span>Includes fields: {event.content.join(", ")}</span>}
-        </button></li>)}</ul> : <div className="tr-empty-capture"><h4>{filter !== "all" && events.length ? "No exports match this signal" : "No decoded exports yet"}</h4>
-          <p className="tr-note">{filter !== "all" && events.length ? "Choose All signals to see the other exports." : "Activate capture to see actual OTLP/gRPC contents. Older uploads and encrypted payloads cannot be recovered here. Existing connections may need to reconnect naturally before decoding begins."}</p>
+      <section className="tr-feed" aria-label="Captured telemetry messages">
+        <div className="tr-feed-head"><h3>Messages <span className="tr-count">{rows.length + observations.length}</span></h3><button className="btn" disabled={!events.length && !observations.length} onClick={() => { setPaused(paused ? null : [...events]); setPausedObservationIds(paused ? null : (capture?.observations ?? []).map(entry => entry.id)); }}>{paused ? "Resume list" : "Pause list"}</button></div>
+        <div className="tr-filter"><label>Type<select className="tr-select" aria-label="Message type" value={filter} onChange={e => { setSelected(null); setFilter(e.target.value); }}><option value="all">All types</option><option value="logs">Events</option><option value="metrics">Metrics</option><option value="traces">Traces</option></select></label><label>To<select className="tr-select" aria-label="Message destination" value={messageDestination} onChange={e => { setSelected(null); setMessageDestination(e.target.value); }}><option value="all">All destinations</option>{[...new Set([...addresses, ...(capture?.sources?.map(s => s.destination) ?? []), ...retained.map(e => e.destination)])].map(address => <option key={address} value={address}>{address}</option>)}</select></label></div>
+        {paused && <p className="tr-note">List paused. Monitoring continues.</p>}
+        {encrypted && <div className="tr-observation" role="status"><strong>Encrypted traffic observed</strong><p className="tr-note">The connection is visible; its contents cannot be read. Inspect the collector for its JSON.</p></div>}
+        {(capture?.issues.joined_midstream ?? 0) > 0 && <p className="tr-warning">Waiting for a new HTTP/2 connection to decode messages. Existing traffic is not reconstructable.</p>}
+        {rows.length ? <ul className="tr-connections">{rows.map(event => <li key={event.id}><button className="tr-message" aria-pressed={chosen?.id === event.id} onClick={() => inspect(event)}>
+          <span className="tr-event-top"><span className="tr-signal">{event.signal === "logs" ? "Event" : event.signal === "metrics" ? "Metric" : "Trace"}</span><time dateTime={new Date(event.at).toISOString()}>{stamp(event.at)}</time></span>
+          <strong className="tr-event-name">{event.name}</strong><span>{sessionName(event.sessionIds)}</span><code>{event.destination}</code>
+          <span className="tr-event-bottom"><span className={`tr-receipt ${event.outcome === "accepted" ? "tr-tone-ok" : event.outcome === "rejected" || event.outcome === "partial" ? "tr-tone-enabled" : ""}`}>{event.outcome === "accepted" ? "Accepted" : event.outcome === "unconfirmed" ? "Receipt unconfirmed" : event.outcome === "partial" ? "Partially accepted" : event.outcome === "rejected" ? "Rejected" : "Receipt unknown"}</span><span>{event.count} {event.count === 1 ? "record" : "records"} · {event.bytes.toLocaleString()} B</span></span>
+        </button></li>)}</ul> : !observations.length && <div className="tr-empty-capture"><h4>{events.length || observations.length ? "No matching messages" : running ? "Waiting for messages" : "Ready when you are"}</h4>
+          <p className="tr-note">{events.length ? "Try another session or message type." : running ? "Messages appear here once capture is activated and new decodable traffic arrives." : "Start monitoring, run the Terminal command, then use Claude. Select a message here to see what was sent."}</p>
         </div>}
+        {observations.length > 0 && <ul className="tr-connections tr-unreadable">{observations.map(entry => <li key={entry.id}><button className="tr-message" aria-pressed={selectedObservation === entry.id} onClick={() => { setSelected(null); setSelectedObservation(entry.id); }}><span className="tr-event-top"><span>Connection observation</span><time>{stamp(entry.at)}</time></span><strong>{entry.reason === "encrypted" ? "Encrypted traffic" : "Contents unavailable"}</strong><code>{entry.destination}</code><span>Unidentified session · no decoded JSON</span></button></li>)}</ul>}
+        {connections.length > 0 && <details className="tr-details"><summary>Connections to these collectors ({connections.length})</summary><ul className="tr-live-connections">{connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>Claude · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A connection alone does not prove a telemetry message was sent. These connections are not filtered by session.</p></details>}
       </section>
-      <section className="tr-inspector" aria-label="Telemetry contents" ref={inspector} tabIndex={-1}>
-        <h3>What this export contains</h3>
-        {chosen ? <><h4>{chosen.name}</h4><dl className="tr-facts">
-          <div><dt>Destination</dt><dd><code>{chosen.destination}</code></dd></div><div><dt>Observed</dt><dd>{stamp(chosen.at)}</dd></div>
-          <div><dt>Message size</dt><dd>{chosen.bytes.toLocaleString()} bytes · gRPC message, compressed when gzip is used; excludes HTTP/2 and IP framing</dd></div>
-          <div><dt>Receipt</dt><dd>{outcomeLabel(chosen)}</dd></div>
-          {chosen.response && <div><dt>Response</dt><dd>gRPC status {chosen.response.grpcStatus ?? "unknown"} at {stamp(chosen.response.at)}{chosen.response.rejected !== null && ` · ${chosen.response.rejected} rejected`}{chosen.response.message && <Value value={chosen.response.message} />}</dd></div>}
-        </dl><p className="tr-note">Collector acceptance is not proof of storage in the final backend. Content below comes from the captured export, not local conversation files.</p>
-          {detail?.id === chosen.id ? detail.payload ? <><DecodedPayload payload={detail.payload} signal={chosen.signal} />
-            <details className="tr-details"><summary>Captured protobuf bytes (Base64)</summary><p className="tr-note">The protobuf message after decompression, including fields unknown to the v1.9.0 decoder schema. Not HTTP/2 framing or authentication headers.</p><Value value={detail.protobufBase64 ?? "Unavailable"} /></details>
-          </> : <p role="alert">{detail.error}</p> : <p className="tr-note" role="status">Loading captured contents…</p>}
-        </> : <p className="tr-note">{selected !== null ? "This selected event is no longer retained. Select another export." : "Select an export to inspect its body, attributes and resource metadata."}</p>}
-        <details className="tr-details" open={Object.keys(capture?.issues ?? {}).length > 0}><summary>Capture coverage and limits</summary>
-          <p className="tr-note">IPv4, plaintext OTLP/gRPC over HTTP/2; uncompressed and gzip messages. This captures traffic to the selected address from any process on this machine, not only Claude. It does not inspect model API requests, Codex traffic elsewhere, or Enterprise server-side capture.</p>
-          <p className="tr-note">No capture file is written. Contents stay in local server memory: up to 100 exports, a 5-minute window and a bounded memory budget. Activation expires after 10 minutes. Closing this modal does not stop capture; use Stop receiving and Ctrl+C in Terminal.</p>
-          <ul>{Object.entries(capture?.issues ?? {}).map(([code, count]) => <li key={code}>{issueText[code] ?? "An inspection limitation was observed."} ({count})</li>)}</ul>
-        </details>
+      <section className="tr-inspector" aria-label="Message contents" ref={inspector} tabIndex={-1}>
+        {observation ? <div className="tr-inspector-empty"><h3>{observation.reason === "encrypted" ? "Encrypted contents" : "Contents unavailable"}</h3><code>{observation.destination}</code><p className="tr-note">{issueText[observation.reason] ?? "This connection could not be decoded."}</p><p className="tr-note">There is no decoded JSON or confirmed session ID for this observation.</p></div> : chosen ? <>
+          <div className="tr-inspector-head"><h3>{chosen.name}</h3><p className="tr-note">{sessionName(chosen.sessionIds)}</p></div>
+          <div className="tr-detail-tabs" role="group" aria-label="Message format"><button className="btn" aria-pressed={view === "summary"} onClick={() => setView("summary")}>Overview</button><button className="btn" aria-pressed={view === "json"} onClick={() => setView("json")}>JSON</button>
+            <button className="btn tr-copy-json" disabled={!detail?.payload || detail.id !== chosen.id} onClick={() => void copy(JSON.stringify(detail?.payload, null, 2), "json")}>{copied === "json" ? "Copied" : "Copy JSON"}</button></div>
+          {detail?.id === chosen.id ? detail.payload ? view === "json" ? <><p className="tr-note">Decoded OTLP fields. Unknown protobuf fields and transport headers are excluded.</p><Value value={detail.payload} /></> : <>
+            <dl className="tr-facts"><div><dt>Destination</dt><dd><code>{chosen.destination}</code></dd></div><div><dt>Time</dt><dd>{stamp(chosen.at)}</dd></div><div><dt>Receipt</dt><dd>{outcomeLabel(chosen)}</dd></div><div><dt>Size</dt><dd>{chosen.bytes.toLocaleString()} bytes · {chosen.count} {chosen.count === 1 ? "record" : "records"}</dd></div>
+              {chosen.response?.message && <div><dt>Response</dt><dd><Value value={chosen.response.message} /></dd></div>}
+            </dl><DecodedPayload payload={detail.payload} signal={chosen.signal} />
+          </> : <div role="alert"><p>{detail.error}</p><button className="btn" onClick={() => setRetry(retry + 1)}>Retry</button></div> : <p className="tr-note" role="status">Loading message contents…</p>}
+        </> : <div className="tr-inspector-empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true"><path d="M8 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h3M16 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3M10 8l-3 4 3 4M14 8l3 4-3 4" /></svg><h3>{selected !== null ? "Message no longer available" : "See what was sent"}</h3><p className="tr-note">{selected !== null ? "The selected message is no longer retained or does not match your filter. Select another message." : "Select a message to explore its contents or inspect the full JSON."}</p></div>}
       </section>
     </div>
+    <footer className="tr-monitor-footer"><span>{failed ? "Connection interrupted" : running ? "Local capture" : "Not monitoring"}{capture?.bytes ? ` · ${capture.bytes.toLocaleString()} capture bytes` : ""}</span><details><summary>Monitoring limits</summary><div>
+      <p>Plaintext IPv4 OTLP/gRPC only. HTTPS contents cannot be decoded. Traffic to the chosen addresses can come from any process, not only Claude.</p>
+      <p>Messages stay in local memory: up to 100 exports for 5 minutes. No capture file is written. Closing this modal does not stop capture; use Stop monitoring and Ctrl+C in Terminal.</p>
+      {Object.entries(capture?.issues ?? {}).map(([code, count]) => <p key={code}>{issueText[code] ?? "An inspection limitation was observed."} ({count})</p>)}
+    </div></details></footer>
   </div>;
 }

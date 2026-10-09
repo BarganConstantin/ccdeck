@@ -27,10 +27,10 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
       const token = req.headers['x-radar-capture'];
       if (!capture.accepts(token)) return reply(res, 401, { error: 'Capture session ended or unauthorized.' });
       const data = await body(req, 262_144);
-      return reply(res, capture.ingest(token, data) ? 200 : 409, { ok: capture.read().state === 'capturing' });
+      return reply(res, capture.ingest(token, data, Number(req.headers['x-radar-source'] ?? 0)) ? 200 : 409, { ok: capture.read().state === 'capturing' });
     }
     if (req.method === 'POST' && action === '/capture/prepare') {
-      const data = JSON.parse((await body(req, 1024)).toString());
+      const data = JSON.parse((await body(req, 4096)).toString());
       return reply(res, 200, await capture.prepare(data.destination, req.socket.localPort));
     }
     if (req.method === 'POST' && action === '/capture/stop') { capture.stop(); return reply(res, 200, { ok: true }); }

@@ -52,6 +52,7 @@ export function radarVariables(settings, source) {
   if (!env || typeof env !== "object" || Array.isArray(env)) return [];
   return RADAR_KEYS.filter(key => Object.hasOwn(env, key)).map(key => ({
     key, value: safeRadarValue(key, env[key]), source,
+    ...(BOOLEAN_KEYS.includes(key) && ["1", "0", "true", "false"].includes(String(env[key]).trim()) ? { rawValue: String(env[key]).trim() } : {}),
   }));
 }
 

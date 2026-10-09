@@ -28,7 +28,7 @@ describe('telemetry capture route authorization', () => {
     const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/system/traffic-radar`;
     const denied = await fetch(base + '/ingest', { method: 'POST', body: Buffer.alloc(0) }); expect(denied.status).toBe(401);
     const setup = await capture.prepare('192.0.2.16:4317', 4329);
-    const token = /'([a-f0-9]{64})'$/.exec(setup.command)![1];
+    const token = /'([a-f0-9]{64})' '0'$/.exec(setup.command)![1];
     const response = await fetch(base + '/ingest', { method: 'POST', headers: { 'x-radar-capture': token }, body: pcap(packet(request())) });
     expect(response.status).toBe(200);
     const state = await fetch(base + '/capture').then(r => r.json());

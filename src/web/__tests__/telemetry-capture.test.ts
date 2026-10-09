@@ -61,11 +61,39 @@ describe('passive OTLP capture', () => {
   });
 });
 describe('capture lifecycle and privacy', () => {
+  it('retains unreadable connection observations without inventing an export or session ID', async () => {
+    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async () => 'en0' });
+    cleanup.push(() => capture.dispose());
+    const setup = await capture.prepare('192.0.2.16:4317', 4329);
+    const token = /'([a-f0-9]{64})' '0'$/.exec(setup.command)![1];
+    capture.ingest(token, pcap(packet(Buffer.from([22, 3, 3, 0, 10]))));
+    expect(capture.read().events).toEqual([]);
+    expect(capture.read().observations[0]).toMatchObject({ destination: '192.0.2.16:4317', reason: 'encrypted' });
+    expect(capture.read().observations[0]).not.toHaveProperty('sessionIds');
+    capture.clear(); expect(capture.read().observations).toEqual([]);
+  });
+  it('captures independent destinations without mixing parsers, tokens or receipts', async () => {
+    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async host => host.endsWith('16') ? 'en0' : 'en1' });
+    cleanup.push(() => capture.dispose());
+    const setup = await capture.prepare(['192.0.2.16:4317', '192.0.2.17:4318'], 4329);
+    expect(setup.commands).toHaveLength(2);
+    expect(setup.commands[1].command).toContain("-i 'en1'");
+    const token = /'([a-f0-9]{64})' '0'$/.exec(setup.command)![1];
+    capture.ingest(token, pcap(packet(request())), 0);
+    capture.ingest(token, pcap(packet(request(), { host: '192.0.2.17', port: 4318 })), 1);
+    expect(capture.read().events.map(e => e.destination)).toEqual(['192.0.2.17:4318', '192.0.2.16:4317']);
+    expect(capture.read().events.every(e => e.sessionIds.includes('fixture-session'))).toBe(true);
+    expect(capture.read().sources.every(s => s.active)).toBe(true);
+    expect(JSON.stringify(capture.read())).not.toContain(token);
+    expect(capture.ingest(token, Buffer.alloc(0), 8)).toBe(false);
+    capture.stop(); expect(capture.read().sources.every(s => !s.active)).toBe(true);
+  });
+
   async function prepare() {
     let clock = 1700000000000;
     const capture = createTrafficCapture({ now: () => clock, platform: 'darwin', findInterface: async () => 'en0' }); cleanup.push(() => capture.dispose());
     const setup = await capture.prepare('192.0.2.16:4317', 4329);
-    const token = /'([a-f0-9]{64})'$/.exec(setup.command)![1];
+    const token = /'([a-f0-9]{64})' '0'$/.exec(setup.command)![1];
     return { capture, setup, token, advance: (ms: number) => { clock += ms; } };
   }
   it('keeps tokens and payloads out of status reads; details are on demand', async () => {
@@ -80,9 +108,9 @@ describe('capture lifecycle and privacy', () => {
     capture.ingest(token, Buffer.alloc(0)); expect(capture.read().state).toBe('receiving'); expect(capture.read().events).toEqual([]);
   });
   it('invalidates tokens immediately on stop and clears captured contents explicitly', async () => {
-    const { capture, token } = await prepare(); capture.ingest(token, pcap(packet(request()))); const id = capture.read().events[0].id;
+    const { capture, token, advance } = await prepare(); capture.ingest(token, pcap(packet(request()))); const id = capture.read().events[0].id;
     capture.stop(); expect(capture.accepts(token)).toBe(false); expect(capture.ingest(token, Buffer.alloc(0))).toBe(false);
-    expect(capture.detail(id)).not.toBeNull(); capture.clear(); expect(capture.detail(id)).toBeNull();
+    expect(capture.detail(id)).not.toBeNull(); advance(6000); expect(capture.read().state).toBe('stopped'); capture.clear(); expect(capture.detail(id)).toBeNull();
   });
   it('expires tokens and retained contents without relying on an open modal', async () => {
     const { capture, token, advance } = await prepare(); capture.ingest(token, pcap(packet(request())));

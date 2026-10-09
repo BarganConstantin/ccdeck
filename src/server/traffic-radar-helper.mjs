@@ -1,8 +1,9 @@
 import { pathToFileURL } from "node:url";
 
-export async function streamCapture({ base, token, input = process.stdin, send = fetch, report = message => process.stderr.write(message + '\n') }) {
+export async function streamCapture({ base, token, source = 0, input = process.stdin, send = fetch, report = message => process.stderr.write(message + '\n') }) {
   const url = new URL(base);
   if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || !/^[a-f0-9]{64}$/.test(token)) throw new Error('Invalid local capture destination.');
+  if (!Number.isInteger(source) || source < 0 || source > 7) throw new Error('Invalid capture source.');
   let stopped = false, sequence = Promise.resolve();
   const finish = () => { stopped = true; input.destroy(); };
   const post = bytes => {
@@ -10,7 +11,7 @@ export async function streamCapture({ base, token, input = process.stdin, send =
       if (stopped) return;
       try {
         const response = await send(new URL('/api/system/traffic-radar/ingest', url), {
-          method: 'POST', headers: { 'x-radar-capture': token, 'content-type': 'application/octet-stream' },
+          method: 'POST', headers: { 'x-radar-capture': token, 'x-radar-source': String(source), 'content-type': 'application/octet-stream' },
           body: bytes, signal: AbortSignal.timeout(3000), redirect: 'error',
         });
         if (!response.ok) finish();
@@ -36,7 +37,7 @@ export async function streamCapture({ base, token, input = process.stdin, send =
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  streamCapture({ base: process.argv[2], token: process.argv[3] }).catch(() => {
+  streamCapture({ base: process.argv[2], token: process.argv[3], source: Number(process.argv[4] ?? 0) }).catch(() => {
     process.stderr.write('Could not start the local capture helper.\n'); process.exitCode = 1;
   });
 }

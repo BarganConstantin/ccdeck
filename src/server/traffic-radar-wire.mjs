@@ -7,7 +7,7 @@ const PATHS = Object.fromEntries([['logs', 'Logs'], ['metrics', 'Metrics'], ['tr
   `/opentelemetry.proto.collector.${signal === 'traces' ? 'trace' : signal}.v1.${name}Service/Export`, signal,
 ]));
 
-export function createWireCapture({ host, port, onExport, onResponse, onIssue }) {
+export function createWireCapture({ host, port, onExport, onResponse, onIssue, onObservation }) {
   let pending = Buffer.alloc(0);
   let read32, link, nanos;
   const flows = new Map();
@@ -188,6 +188,7 @@ export function createWireCapture({ host, port, onExport, onResponse, onIssue })
             if (remainder.length) { d.next = (d.next + remainder.length) >>> 0; frames(flow, side, remainder, at); }
           }
         } catch (error) {
+          onObservation?.({ at, destination: `${host}:${port}`, reason: ["encrypted", "joined_midstream", "payload_limit", "stream_limit", "unsupported_compression", "unknown_export", "connection_closed"].includes(error.message) ? error.message : "decode_failed", source: flow.key });
           issue(['encrypted', 'joined_midstream', 'payload_limit', 'stream_limit', 'unsupported_compression', 'unknown_export', 'connection_closed'].includes(error.message) ? error.message : 'decode_failed');
           flow.ignored = true;
           flow.out.buffer = flow.in.buffer = Buffer.alloc(0);

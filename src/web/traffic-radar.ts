@@ -1,6 +1,7 @@
 export interface RadarVariable {
   key: string;
   value: string;
+  rawValue?: string;
   source: string;
 }
 

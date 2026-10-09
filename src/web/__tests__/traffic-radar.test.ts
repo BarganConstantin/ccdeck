@@ -17,7 +17,7 @@ describe("Telemetry Radar privacy boundary", () => {
       OTEL_LOG_USER_PROMPTS: "1",
     }, permissions: { secret } }, "User settings");
     expect(variables).toEqual([
-      { key: "OTEL_LOG_USER_PROMPTS", value: "Enabled", source: "User settings" },
+      { key: "OTEL_LOG_USER_PROMPTS", value: "Enabled", rawValue: "1", source: "User settings" },
       { key: "OTEL_EXPORTER_OTLP_ENDPOINT", value: "https://collector.example:4317", source: "User settings" },
       { key: "OTEL_EXPORTER_OTLP_HEADERS", value: "Configured (hidden)", source: "User settings" },
     ]);

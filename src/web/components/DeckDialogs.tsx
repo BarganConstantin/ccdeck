@@ -137,7 +137,7 @@ export default function DeckDialogs({
       )}
       {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
       {trafficRadarOpen && <Suspense fallback={null}>
-        <TrafficRadar onClose={() => setTrafficRadarOpen(false)} />
+        <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && agent.provider !== "codex").map(agent => ({ id: agent.sessionId, label: agent.cwdBasename ?? agent.label }))} onClose={() => setTrafficRadarOpen(false)} />
       </Suspense>}
       {feedbackOpen && (
         <FeedbackDialog
