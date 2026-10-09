@@ -60,10 +60,10 @@ const { codexCwdInWorkspace, electWriters, sameCodexTree, writesCodexLog } = log
   codexCwdInWorkspace: (cwd: string | null, workspace: string, platform?: string) => boolean;
   electWriters: (decks: Deck[], platform?: string) => Set<Deck>;
   sameCodexTree: (a: unknown, b: unknown, platform?: string) => boolean;
-  writesCodexLog: (o: { decks: Deck[]; pid: number; cwd: string | null; platform?: string }) => boolean;
+  writesCodexLog: (o: { decks: Deck[]; pid: number; cwd: string | null; codexHome?: string; platform?: string }) => boolean;
 };
 
-type Deck = { pid: number; port: number; workspace?: string; persist?: string | null; codex?: boolean; codexHome?: string | null };
+type Deck = { pid: number; port: number; workspace?: string; persist?: string | null; codex?: boolean; codexHome?: string | null; codexHomes?: string[] };
 
 // Belt and braces: the server sweeps the discovery dir it resolves and the
 // watcher walks the Codex home it resolves, so if either override were ignored
@@ -170,6 +170,15 @@ describe("deciding which deck logs a rollout it is tailing", () => {
   // at the bottom of this file is the same thing with the deck running.
   it("writes when the other deck is tailing a different Codex tree", () => {
     expect(writes([self, deck(THEIR_PID, 4317, { codexHome: "/proj/.codex" })])).toBe(true);
+  });
+
+  it("elects writers per profile when decks monitor overlapping account sets", () => {
+    const mine = deck(MY_PID, 4325, { codexHomes: ['/home/u/.codex', '/home/u/codex-2'] });
+    const other = deck(THEIR_PID, 4317, { codexHomes: ['/home/u/.codex'] });
+    expect(writesCodexLog({ decks: [mine, other], pid: MY_PID, cwd: CWD, codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(true);
+    expect(writesCodexLog({ decks: [mine, other], pid: MY_PID, cwd: CWD, codexHome: '/home/u/.codex', platform: 'linux' })).toBe(false);
+    const another = deck(THEIR_PID, 4317, { codexHomes: ['/home/u/codex-2'] });
+    expect(writesCodexLog({ decks: [mine, another], pid: MY_PID, cwd: CWD, codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(false);
   });
 
   it("still defers to a lower-port deck reading the same tree", () => {
