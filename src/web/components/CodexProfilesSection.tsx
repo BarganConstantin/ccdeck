@@ -78,13 +78,15 @@ export default function CodexProfilesSection() {
       if (!response.ok) throw new Error('Quota unavailable');
       const value = await response.json() as ProfileQuota;
       setQuotas((current) => ({ ...current, [id]: value }));
+    } catch {
+      setQuotas((current) => ({ ...current, [id]: { ok: false, reason: 'fetch_error' } }));
+      return;
+    } finally { quotaRequests.current.delete(id); }
       const request = profileRequest.current + 1;
       await refreshProfiles().catch(() => {
         if (request === profileRequest.current) setError(true);
       });
-    } catch {
-      setQuotas((current) => ({ ...current, [id]: { ok: false, reason: 'fetch_error' } }));
-    } finally { quotaRequests.current.delete(id); }
+
   }
 
   async function refreshProfiles(signal?: AbortSignal) {
