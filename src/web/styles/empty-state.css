@@ -10,50 +10,12 @@
   color: var(--muted);
   user-select: none;
 }
-.empty-hero .orbit-stack {
-  position: relative;
-  width: 224px; height: 224px;
-  margin: 0 auto 24px;
-}
-.empty-hero .orbit {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
-}
-.empty-hero .orbit.r1 { animation: spin 48s linear infinite; }
-.empty-hero .orbit.r2 { inset: 28px; animation: spin 36s linear infinite reverse; border-color: color-mix(in srgb, var(--usage-purple) 24%, transparent); }
-.empty-hero .orbit.r3 { inset: 56px; animation: spin 28s linear infinite; border-color: color-mix(in srgb, var(--ok) 24%, transparent); }
-.empty-hero .orbit .dot {
-  position: absolute;
-  width: 10px; height: 10px;
-  border-radius: 3px;
-  top: -5px; left: 50%; margin-left: -5px;
-}
-.empty-hero .orbit.r1 .dot { background: var(--accent); }
-.empty-hero .orbit.r2 .dot { background: var(--usage-purple); width: 8px; height: 8px; margin-left: -4px; top: -4px; }
-.empty-hero .orbit.r3 .dot { background: var(--ok); width: 6px; height: 6px; margin-left: -3px; top: -3px; border-radius: 2px; }
-.empty-hero .orbit .dot.b { top: auto; bottom: -5px; opacity: .55; }
-.empty-hero .orbit.r2 .dot.b { bottom: -4px; }
-.empty-hero .orbit.r3 .dot.b { bottom: -3px; }
-.empty-hero .core {
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 52px; height: 52px;
-  margin: -26px 0 0 -26px;
-  display: grid; place-items: center;
-  border-radius: 14px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  color: var(--accent);
-  box-shadow: var(--shadow-1);
-  animation: corepulse 6s ease-in-out infinite;
-}
-.empty-hero .orbit-stack[data-running="false"] .orbit,
-.empty-hero .orbit-stack[data-running="false"] .core { animation-play-state: paused; }
-@keyframes corepulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.04); }
+.empty-hero .empty-symbol {
+  display: grid;
+  place-items: center;
+  width: 40px; height: 40px;
+  margin: 0 auto 20px;
+  color: var(--muted);
 }
 .empty-hero h2 {
   color: var(--text);
@@ -82,12 +44,6 @@
   .empty-hero { display: none; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 640px), (max-height: 620px) {
-  .empty-hero .orbit-stack { width: 168px; height: 168px; margin-bottom: 18px; }
-  .empty-hero .orbit.r2 { inset: 20px; }
-  .empty-hero .orbit.r3 { inset: 40px; }
-}
-
 /* ---------------- the crash pane (#1853) ---------------- */
 /* Shown by components/ErrorBoundary.tsx when a render throws and there is no
    deck left to draw. It stands in for the whole app, so it fills the pane the

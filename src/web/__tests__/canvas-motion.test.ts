@@ -175,7 +175,7 @@ describe("reduced motion reaches the canvas, not just the panels", () => {
   it("sees the motion it is sweeping for, so a passing run means something", () => {
     // If a rename ever slips the canvas out of CANVAS, this collapses first.
     expect(moving.length).toBeGreaterThan(20);
-    for (const sel of [".tool-burst", ".tool-burst.sub.status-err", ".empty-hero .core",
+    for (const sel of [".tool-burst", ".tool-burst.sub.status-err",
                        ".react-flow__node", ".tool-conn.status-inflight", ".cluster-card"]) {
       expect(moving.some(m => m.sel === sel), sel).toBe(true);
     }

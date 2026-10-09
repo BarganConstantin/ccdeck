@@ -4,26 +4,15 @@
 // components: the hero for an empty board, which says why it is empty and what
 // would fill it, and the one for a tab the browser is holding behind other deck
 // tabs (#830). App.tsx picks between them.
-import { useEffect, useState } from "react";
 import { PRODUCT } from "../brand";
 import { captureHints } from "../provider-copy";
 import type { Providers } from "../providers";
 import { emptyScope } from "../scope";
 import FilmLink from "./FilmLink";
 
-/** A quiet diagram of the CLI hub and the agents it will show. */
-function OrbitScene({ active = true }: { active?: boolean }) {
-  const [visible, setVisible] = useState(() => typeof document === "undefined" || !document.hidden);
-  useEffect(() => {
-    const changed = () => setVisible(!document.hidden);
-    document.addEventListener("visibilitychange", changed);
-    return () => document.removeEventListener("visibilitychange", changed);
-  }, []);
-  return <div className="orbit-stack" aria-hidden="true" data-running={active && visible}>
-    <div className="core"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 8 4 4-4 4M13 16h5" /></svg></div>
-    <div className="orbit r1"><span className="dot" /><span className="dot b" /></div>
-    <div className="orbit r2"><span className="dot" /><span className="dot b" /></div>
-    <div className="orbit r3"><span className="dot" /><span className="dot b" /></div>
+function TerminalSymbol() {
+  return <div className="empty-symbol" aria-hidden="true">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 8 4 4-4 4M13 16h5" /></svg>
   </div>;
 }
 
@@ -34,7 +23,7 @@ function OrbitScene({ active = true }: { active?: boolean }) {
 export function TabCapHero({ reservedRight = 0 }: { reservedRight?: number }) {
   return (
     <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
-      <OrbitScene active={false} />
+      <TerminalSymbol />
       <h2>Too many {PRODUCT} tabs are open</h2>
       <p>
         This browser keeps at most six live connections to one address, and
@@ -52,7 +41,7 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
   const offline = !live;
   return (
     <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
-      <OrbitScene active={live} />
+      <TerminalSymbol />
       {offline ? (
         <>
           <h2>{everConnected ? "Disconnected from server" : "Server unreachable"}</h2>

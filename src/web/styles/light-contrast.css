@@ -60,13 +60,6 @@
   border-color: rgba(185,28,28,0.45);
 }
 
-:root[data-color-scheme="light"] .empty-hero .orbit { border-color: rgba(3,105,161,0.30); }
-:root[data-color-scheme="light"] .empty-hero .orbit.r2 { border-color: rgba(76,29,149,0.30); }
-:root[data-color-scheme="light"] .empty-hero .orbit.r3 { border-color: rgba(21,128,61,0.32); }
-:root[data-color-scheme="light"] .empty-hero .core {
-  box-shadow: var(--shadow-1);
-}
-
 :root[data-color-scheme="light"] .conn-banner {
   border-bottom-color: rgba(185,28,28,0.45);
 }
