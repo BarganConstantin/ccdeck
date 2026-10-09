@@ -172,6 +172,7 @@ export interface CodexQuotaData {
   reachedType?: string | null;
   promo?: string | null;
   partial?: boolean;
+  coverage?: "standard_limits";
   resetCredits?: ResetCredits | null;
   reason?: string;
   fetchedAt?: number;

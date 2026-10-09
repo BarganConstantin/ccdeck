@@ -270,7 +270,7 @@ const PRESSES: Press[] = [
   [".tr-message:active", "0.97", "transform"],
   [".tr-help summary:active", "0.97", "transform"],
   [".tr-inline-copy:active", "0.97", "transform"],
-  [".tr-json-tree summary:active", "0.97", "transform"],
+  [".tr-json-node > summary:active", "0.97", "transform"],
   [".tr-file-picker:active", "0.97", "transform"],
   ["button.btn:active:not(:disabled)", "0.97", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —
@@ -367,6 +367,7 @@ const PRESSES: Press[] = [
   // An inactive account's one verb, a word on the control fill: a labelled
   // control, 0.97 like every other one.
   [".ap-switch:active:not(:disabled)", "0.97", "transform"],
+  [".ap-codex-check:active:not(:disabled)", "0.97", "transform"],
   // #856's two disclosures: a warning that opens its reason, a pace note that
   // opens its number. Text-weight, and still a thing being pressed — the
   // reason #355 gave — so 0.97 of a word.

@@ -51,7 +51,7 @@ export async function handleCodexQuota(req, res) {
   );
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
-  const quota = await fetchCodexQuota({ force });
+  const quota = await fetchCodexQuota({ force, enableNative: true });
   send(res, 200, quota);
 }
 

@@ -83,7 +83,7 @@
   /* Every switch in the deck, one control since #886. */
   .switch:active:not(:disabled),
   .ap-field select:active:not(:disabled),
-  .ap-switch:active:not(:disabled), .ap-issue:active, .ap-notice-fix:active,
+  .ap-switch:active:not(:disabled), .ap-codex-check:active:not(:disabled), .ap-issue:active, .ap-notice-fix:active,
   button.qb-pace:active,
   .aa-tab:active,
   .aa-result-fix:active,

@@ -268,6 +268,8 @@ describe("a percentage width under a horizontal margin", () => {
     // than written another way so it enters the margin check below, which is
     // what this list is for.
     expect([...percentWidth].sort()).toEqual([
+      // The managed Codex profile label fills its form; its margins are vertical.
+      "ap-codex-label",
       // The Projects report's per-day chart: a column and its stacked segments,
       // each filling the fixed-width day slot the flex plot hands them. Named
       // here so they enter the margin check below; no rule gives them a margin.

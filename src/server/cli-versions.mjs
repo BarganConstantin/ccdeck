@@ -49,7 +49,7 @@ async function probe(runImpl, cand) {
   return undefined;
 }
 
-const ask = (fn) => { try { return Boolean(fn()); } catch { return false; } };
+const ask = async (fn) => { try { return Boolean(await fn()); } catch { return false; } };
 
 /**
  * `{ claudeVersion?, codexVersion? }` — each present only when its CLI is on the
@@ -66,7 +66,7 @@ export async function detectCliVersions({
 } = {}) {
   const out = {};
   try {
-    if (ask(claudePresent)) {
+    if (await ask(claudePresent)) {
       // The candidate list is claude-dir.mjs's answer to "where does `claude`
       // live", so a version is found on the same installs the deck already
       // recognises — not only the one on the launcher's PATH. First hit wins; a
@@ -81,7 +81,7 @@ export async function detectCliVersions({
     // No candidate list exists for Codex — the deck reads its sessions off disk
     // and never spawns the CLI — so the bare name goes through run()'s own PATH
     // and shim resolution, which is the same resolution every other spawn uses.
-    if (ask(codexPresent)) {
+    if (await ask(codexPresent)) {
       const v = await probe(runImpl, "codex");
       if (v) out.codexVersion = v;
     }

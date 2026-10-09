@@ -190,7 +190,7 @@ const persist = flags.noPersist
   // share a path still elect one writer for it.
   : canonicalLogPath(flags.history ?? join(deckLogDir(), "events.jsonl"));
 
-const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftoverCodexHooks, codexHomeField } =
+const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftoverCodexHooks, codexHomeField, codexHomesField } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
 // CODEX_SESSIONS_DIR comes along because the startup report names the directory
 // the watcher tails, and the watcher lives in that module. Recomputing the path
@@ -219,7 +219,7 @@ const workspace = canonicalWorkspace(rawWorkspace);
 // and no directory is created either way — Codex hooks are not used any more,
 // so `--codex` only means "watch even though ~/.codex/ is not there yet",
 // which is the right answer for a machine where Codex arrives later.
-const wantCodex = wantsCli({ off: flags.noCodex, on: flags.codex, installed: hasCodexInstalled });
+const wantCodex = !flags.noCodex && (flags.codex || await hasCodexInstalled());
 
 // The same question for the other CLI, and the one nobody was asking. README
 // offers "Claude Code CLI or OpenAI Codex CLI (or both)"; a Codex-only machine
@@ -242,6 +242,7 @@ const wantClaude = wantsCli({ off: flags.noClaude, on: flags.claude, installed: 
 // with the other three, because the second-start question below is asked of
 // nothing but inputs already settled. A --no-codex start reads no tree: null.
 const codexHome = codexHomeField(wantCodex);
+const codexHomes = await codexHomesField(wantCodex);
 
 const WEB_DIST = join(PKG_ROOT, "dist", "web", "index.html");
 if (!existsSync(WEB_DIST)) {
@@ -330,7 +331,7 @@ dieWithParent(() => shutdown(0));
 // read alone could not close the window two starts at login fell through.
 bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
 {
-  const ended = await settleSecondStart({ flags, workspace, persist, wantCodex, wantClaude, codexHome, openBrowser, RESPAWN });
+  const ended = await settleSecondStart({ flags, workspace, persist, wantCodex, wantClaude, codexHome, codexHomes, openBrowser, RESPAWN });
   // A yield or an attach: this start ends here, having said why.
   if (ended !== null) process.exit(ended);
 }

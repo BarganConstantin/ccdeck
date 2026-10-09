@@ -244,7 +244,7 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
               <SortHead col={`${w.id}_reset`} label={`${w.label} reset`} sort={sort} next={nextReportSort} onSort={onSort} />
             </Fragment>)}
             <SortHead col="status" label="Status" sort={sort} next={nextReportSort} onSort={onSort} />
-            <SortHead col="updated" label="Updated" className="ap-report-upd-h" sort={sort} next={nextReportSort} onSort={onSort} />
+            <SortHead col="updated" label="Updated" sort={sort} next={nextReportSort} onSort={onSort} />
           </tr>
         </thead>
         <tbody>

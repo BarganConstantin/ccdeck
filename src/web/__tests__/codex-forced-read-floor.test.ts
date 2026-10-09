@@ -249,7 +249,7 @@ describe("a burst of forced reads, the shape any open page can produce", () => {
     // mounting at once get the reading, not four stale copies of nothing.
     const { fetchCodexQuota } = await freshModule();
     const results = await Promise.all(
-      Array.from({ length: 5 }, () => fetchCodexQuota({ force: true })),
+      Array.from({ length: 5 }, () => fetchCodexQuota({ force: true, readSelection: async () => ({ selectionEnabled: false }) })),
     );
 
     expect(usageCalls()).toHaveLength(1);

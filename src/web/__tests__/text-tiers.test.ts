@@ -212,6 +212,8 @@ describe("what was migrated to the secondary tier", () => {
       // The crash pane's one sentence: that reloading usually clears it and a
       // report tells the makers what broke (#1853). Prose the reader reads to
       // decide which of the two buttons under it to press, on the panel surface.
+      // The empty canvas film action remains readable secondary text.
+      ".empty-hero .film-action",
       ".error-fallback-note",
       // The feedback dialog's kinds (#1853): a word to choose by, sitting on
       // the segmented track, which is a fill mixed from the foreground, where
@@ -240,20 +242,37 @@ describe("what was migrated to the secondary tier", () => {
       // The custom-sound cards' captions, by bed again: --muted on the card's
       // --sm-fill is 4.25:1 in dark (#1788).
       ".sm-custom-card-copy > span",
+      // Radar destination/readiness evidence, disclosed purpose, scalar values
+      // and copy controls intentionally use the readable secondary text tier.
+      ".tr-active-destinations > span",
       ".tr-attributes dt > span",
       ".tr-count",
       ".tr-destination label, .tr-filter label",
       ".tr-destinations li > span",
       ".tr-empty",
+      ".tr-event-top time",
       ".tr-facts dt",
+      ".tr-history",
+      ".tr-identity p",
+      ".tr-inline-copy",
       ".tr-input::placeholder",
+      ".tr-inspection-limit .tr-details > summary",
+      ".tr-inspection-limit > svg",
       ".tr-inspector-empty svg",
+      ".tr-inspector-head h3 svg",
+      ".tr-json-boolean, .tr-json-null",
       ".tr-live-connections span",
       ".tr-message > span, .tr-message > code",
       ".tr-monitor-footer",
       ".tr-note",
+      ".tr-purpose",
       ".tr-raw-flag",
+      ".tr-row-icon",
+      ".tr-select-wrap > svg",
       ".tr-session-filter",
+      ".tr-signal",
+      ".tr-source-error",
+      ".tr-source-ready",
       ".tr-sources li > span:last-child",
       ".tr-tab",
       ".tr-tone-unknown",

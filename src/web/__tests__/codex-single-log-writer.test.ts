@@ -60,10 +60,10 @@ const { codexCwdInWorkspace, electWriters, sameCodexTree, writesCodexLog } = log
   codexCwdInWorkspace: (cwd: string | null, workspace: string, platform?: string) => boolean;
   electWriters: (decks: Deck[], platform?: string) => Set<Deck>;
   sameCodexTree: (a: unknown, b: unknown, platform?: string) => boolean;
-  writesCodexLog: (o: { decks: Deck[]; pid: number; cwd: string | null; platform?: string }) => boolean;
+  writesCodexLog: (o: { decks: Deck[]; pid: number; cwd: string | null; codexHome?: string; platform?: string }) => boolean;
 };
 
-type Deck = { pid: number; port: number; workspace?: string; persist?: string | null; codex?: boolean; codexHome?: string | null };
+type Deck = { pid: number; port: number; workspace?: string; persist?: string | null; codex?: boolean; codexHome?: string | null; codexHomes?: string[] };
 
 // Belt and braces: the server sweeps the discovery dir it resolves and the
 // watcher walks the Codex home it resolves, so if either override were ignored
@@ -172,6 +172,15 @@ describe("deciding which deck logs a rollout it is tailing", () => {
     expect(writes([self, deck(THEIR_PID, 4317, { codexHome: "/proj/.codex" })])).toBe(true);
   });
 
+  it("elects writers per profile when decks monitor overlapping account sets", () => {
+    const mine = deck(MY_PID, 4325, { codexHomes: ['/home/u/.codex', '/home/u/codex-2'] });
+    const other = deck(THEIR_PID, 4317, { codexHomes: ['/home/u/.codex'] });
+    expect(writesCodexLog({ decks: [mine, other], pid: MY_PID, cwd: CWD, codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(true);
+    expect(writesCodexLog({ decks: [mine, other], pid: MY_PID, cwd: CWD, codexHome: '/home/u/.codex', platform: 'linux' })).toBe(false);
+    const another = deck(THEIR_PID, 4317, { codexHomes: ['/home/u/codex-2'] });
+    expect(writesCodexLog({ decks: [mine, another], pid: MY_PID, cwd: CWD, codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(false);
+  });
+
   it("still defers to a lower-port deck reading the same tree", () => {
     // The half that must not move: this is the duplication the election exists
     // to end, and it is the ordinary case.
@@ -195,6 +204,64 @@ describe("deciding which deck logs a rollout it is tailing", () => {
     const mine = deck(MY_PID, 4325);
     delete mine.codexHome;
     expect(writes([mine, deck(THEIR_PID, 4317)])).toBe(false);
+  });
+
+  it("keeps legacy readers in the election when the watcher supplies the rollout home", () => {
+    const old = deck(THEIR_PID, 4317);
+    delete old.codexHome;
+    expect(writesCodexLog({ decks: [self, old], pid: MY_PID, cwd: CWD,
+      codexHome: self.codexHome, platform: 'linux' })).toBe(false);
+    // The legacy reader's own election must agree with the current watcher.
+    expect(writesCodexLog({ decks: [self, old], pid: THEIR_PID, cwd: CWD,
+      platform: 'linux' })).toBe(true);
+  });
+
+  it("elects the lower-port alternate-home reader beside a legacy reader with an unknown home", () => {
+    const mine = deck(MY_PID, 4317, { codexHomes: ['/home/u/.codex', '/home/u/codex-2'] });
+    const old = deck(THEIR_PID, 4325);
+    delete old.codexHome;
+    expect(writesCodexLog({ decks: [mine, old], pid: MY_PID, cwd: CWD,
+      codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(true);
+    expect(writesCodexLog({ decks: [mine, old], pid: THEIR_PID, cwd: CWD,
+      platform: 'linux' })).toBe(false);
+  });
+
+  it.each([
+    [4317, 4318, 4319], [4317, 4319, 4318],
+    [4318, 4317, 4319], [4318, 4319, 4317],
+    [4319, 4317, 4318], [4319, 4318, 4317],
+  ])("excludes a losing wildcard reader beside primary-only and alternate readers at %i/%i/%i", (primaryPort, legacyPort, alternatePort) => {
+    const primary = deck(MY_PID, primaryPort, { codexHomes: ['/home/u/.codex'] });
+    const legacy = deck(THEIR_PID, legacyPort);
+    delete legacy.codexHome;
+    const alternate = deck(79, alternatePort, { codexHomes: ['/home/u/.codex', '/home/u/codex-2'] });
+    const decks = [primary, legacy, alternate];
+    const legacyWins = legacyPort < primaryPort && legacyPort < alternatePort;
+    // Legacy primary-home election sees the wildcard and both A primary homes.
+    expect(writesCodexLog({ decks, pid: legacy.pid, cwd: CWD, platform: 'linux' })).toBe(legacyWins);
+    expect(writesCodexLog({ decks, pid: alternate.pid, cwd: CWD,
+      codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(!legacyWins);
+  });
+
+  it.each([
+    [4317, 4318, 4319, THEIR_PID],
+    [4317, 4319, 4318, MY_PID],
+    [4318, 4317, 4319, THEIR_PID],
+    [4318, 4319, 4317, 79],
+    [4319, 4317, 4318, THEIR_PID],
+    [4319, 4318, 4317, 79],
+  ])("elects one mixed-version writer with modern/known/unknown ports %i/%i/%i", (modernPort, legacyPort, unknownPort, owner) => {
+    const modern = deck(MY_PID, modernPort, { codexHomes: ['/home/u/.codex', '/home/u/codex-2'] });
+    const legacy = deck(THEIR_PID, legacyPort, { codexHome: '/home/u/codex-2' });
+    const unknown = deck(79, unknownPort);
+    delete unknown.codexHome;
+    const decks = [modern, legacy, unknown];
+    expect(writesCodexLog({ decks, pid: modern.pid, cwd: CWD,
+      codexHome: '/home/u/codex-2', platform: 'linux' })).toBe(owner === modern.pid);
+    expect(writesCodexLog({ decks, pid: legacy.pid, cwd: CWD,
+      platform: 'linux' })).toBe(owner === legacy.pid);
+    expect(writesCodexLog({ decks, pid: unknown.pid, cwd: CWD,
+      platform: 'linux' })).toBe(owner === unknown.pid);
   });
 
   it("treats two spellings of one Codex tree as one where the filesystem does", () => {

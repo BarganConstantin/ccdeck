@@ -71,11 +71,17 @@ const prev = {
   USERPROFILE: process.env.USERPROFILE,
   CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
   CODEX_HOME: process.env.CODEX_HOME,
+  CCDECK_CODEX_HOMES: process.env.CCDECK_CODEX_HOMES,
 };
 process.env.HOME = FAKE_HOME;
 process.env.USERPROFILE = FAKE_HOME;
 process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 process.env.CODEX_HOME = FAKE_CODEX;
+const ALTERNATE_CODEX = join(FAKE_HOME, "alternate-codex");
+mkdirSync(ALTERNATE_CODEX);
+process.env.CCDECK_CODEX_HOMES = JSON.stringify([ALTERNATE_CODEX]);
+writeFileSync(join(FAKE_CODEX, "AGENTS.md"), "Default home instructions");
+writeFileSync(join(ALTERNATE_CODEX, "AGENTS.md"), "Alternate home instructions");
 
 // The AGENTS.md scan is throttled per session on the wall clock, so the second
 // case steps `Date.now` past it rather than sleeping 4.2s (#994).
@@ -134,7 +140,7 @@ const tick = (ms: number) => new Promise(r => setTimeout(r, ms));
 describe("the AGENTS.md scan and the deck elected to write the log", () => {
   const SID = "4d81aa30-2222-4000-8000-fedcba987654";
   const CWD = join(FAKE_HOME, "codex-workspace");
-  const DAY = join(FAKE_CODEX, "sessions", "2026", "08", "18");
+  const DAY = join(ALTERNATE_CODEX, "sessions", "2026", "08", "18");
   const ROLLOUT = join(DAY, `rollout-2026-08-18T10-00-00-${SID}.jsonl`);
   // A pid that is alive and is not ours: the process that started this one. A
   // record whose pid is dead is swept, and would elect nobody.
@@ -238,6 +244,8 @@ describe("the AGENTS.md scan and the deck elected to write the log", () => {
     expect(await waitFor(() => drawnContext().length > 0)).toBe(true);
     const files = (drawnContext()[0].context as { memoryFiles: Array<{ path: string }> }).memoryFiles;
     expect(files.map(f => f.path)).toContain(join(CWD, "AGENTS.md"));
+    expect(files.map(f => f.path)).toContain(join(ALTERNATE_CODEX, "AGENTS.md"));
+    expect(files.map(f => f.path)).not.toContain(join(FAKE_CODEX, "AGENTS.md"));
 
     // …and writes none of it. The whole batch belongs to the other deck: the
     // root, the prompt and the memory scan alike.

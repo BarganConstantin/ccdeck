@@ -128,7 +128,7 @@ async function observeClaude(n) {
 
 async function observeCodex(n) {
   const quota = await import(pathToFileURL(join(PKG_ROOT, "src/server/codex-quota.mjs")).href);
-  const reading = await quota.fetchCodexQuota();
+  const reading = await quota.fetchCodexQuota({ enableNative: true });
   const who = quota.codexQuotaAccount(reading);
   const key = who ? codexAccountKey(who.accountId, who.email) : null;
   if (!key) return;
