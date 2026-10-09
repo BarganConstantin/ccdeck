@@ -266,6 +266,8 @@ Each one fires the bundled `hook.js`, which POSTs the event JSON to the running 
 
 **OpenAI Codex** — Codex CLI hooks do not fire reliably on Windows, so nothing is installed at all. The server tails Codex's own rollout files at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` and reconstructs the equivalent stream — session start, prompts, tool calls, token usage, model. No hook install, no trust prompt. Set `CODEX_HOME` to override the path.
 
+To monitor **multiple separate Codex logins**, start ccdeck with `CCDECK_CODEX_HOMES` set to a JSON array of additional absolute Codex home directories. For example, `CCDECK_CODEX_HOMES='["/home/me/.codex-work","/home/me/.codex-personal"]' npx ccdeck` on Linux. The main `CODEX_HOME` (or `~/.codex`) is included automatically. Run `CODEX_HOME=/home/me/.codex-work codex login` separately to sign in to an isolated home. The Accounts panel lists discovered homes, shows read-only quota when the login is valid, and lets you copy a command to start a new CLI with the selected home (PowerShell on Windows). Browser selection does not alter running Codex processes or their credentials. Additional homes are only observed; their OAuth refresh tokens are never rotated by this multi-profile reader. Usage totals outside the Accounts profile cards may still reflect the default Codex home only.
+
 Quota is the one thing that is not just reading. It needs a live token, so when the one in `~/.codex/auth.json` is within 90 seconds of expiring the deck refreshes it exactly as the CLI does and writes the rotated credential back — one refresh at a time, re-reading the file inside the lock, and atomically, because OpenAI's refresh tokens are single-use and a rotation that never reaches disk costs you a `codex login`. It happens only while the page is open or a quota notification is on (see [Accounts](#accounts)), and nothing else in `auth.json` is touched.
 
 ## What it touches
@@ -484,6 +486,7 @@ Environment:
 |---|---|
 | `AGENT_DAG_PORT` | Default port, same as `-p` |
 | `CODEX_HOME` | Override `~/.codex` |
+| `CCDECK_CODEX_HOMES` | JSON array of additional absolute Codex home directories to monitor and list in Accounts; restart ccdeck after changing it |
 | `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage, never ask npm about releases, never read the status pages, and never send reports or feedback |
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, but keep the managed installs |
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |
