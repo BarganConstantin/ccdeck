@@ -182,19 +182,24 @@ phone. Three views keep configuration, observed traffic and saved files separate
 Choose all configured IPv4 destinations, one destination or a custom IPv4
 address and port, then press **Start monitoring**. Run each generated command
 in a separate Terminal tab on macOS/Linux, or **PowerShell** tab on Windows.
-macOS includes `tcpdump`; Linux needs `tcpdump` installed. These commands use
-`sudo` only for the capture tool, while ccdeck and the helper remain unprivileged.
-Windows needs [Wireshark with Npcap](https://www.wireshark.org/download.html).
-Its generated command streams `dumpcap` directly through Node so PowerShell
-cannot convert the binary packets to text. If Npcap restricts capture to
-administrators, run that command in an administrator PowerShell tab. ccdeck does
-not install drivers or change capture permissions automatically.
+macOS includes `tcpdump`; install Wireshark’s official
+[ChmodBPF permission helper](https://www.wireshark.org/docs/wsug_html_chunked/ChBuildInstallOSXInstall.html)
+to allow capture without a Terminal command. Linux needs `tcpdump` and packet
+capture permissions for the user running ccdeck. Windows needs
+[Wireshark with Npcap](https://www.wireshark.org/download.html), with capture access
+for that user. ccdeck stays unprivileged and explains missing permissions; it
+does not install drivers or change permissions automatically.
+
+Choose your destinations and press **Start monitoring** once. ccdeck manages
+capture directly, retries after a capture-process failure or network interface
+change, and remembers the enabled destinations across server restarts. No
+Terminal tab or repeated ten-minute activation is needed. A blocked capture
+shows its permission or reconnecting state rather than claiming to be listening.
 
 Each destination gets its own decoder, up to eight destinations per capture.
 Linux captures routed and loopback traffic through `any`; macOS resolves the
-route's interface and Windows resolves its Npcap adapter or loopback interface. The UI
-shows how many destinations have actually been activated. Preparing commands
-alone does not start capture.
+route's interface and Windows resolves its Npcap adapter or loopback interface.
+The UI shows how many destinations are actually listening.
 
 Passive decoding supports plaintext IPv4 OTLP/gRPC over HTTP/2, including gzip.
 Encrypted or incomplete traffic appears as an observation without invented
@@ -212,11 +217,12 @@ payload budget; unreadable observations are also capped at 100 for five minutes.
 No capture file is written. **Pause list** pauses display, not capture or retention;
 **Clear messages** clears exports and unreadable observations.
 
-Activation expires after ten minutes. Closing the modal does not stop capture.
-Use **Stop monitoring**, then **Ctrl+C** in each activation tab to stop the capture tool.
-Commands contain a temporary loopback token; do not share them. Capture contents
-are available through the local loopback UI, not LAN endpoints. Local clients
-of the same server share its capture.
+Monitoring continues until **Stop monitoring** or until ccdeck exits. An enabled
+monitor resumes when ccdeck next starts on the same port; Stop is remembered too.
+Closing the modal or browser does not stop capture. Only the opt-in and collector
+destinations are saved, never packet contents, tokens or decoded messages.
+Capture contents are available through the local loopback UI, not LAN endpoints.
+Local clients of the same server share its capture.
 
 Configuration and connection sampling runs only while Radar is open and the
 browser page is visible. A connection does not prove an upload, and absence of

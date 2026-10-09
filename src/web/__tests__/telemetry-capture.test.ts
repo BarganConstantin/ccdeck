@@ -112,10 +112,13 @@ describe('capture lifecycle and privacy', () => {
     capture.stop(); expect(capture.accepts(token)).toBe(false); expect(capture.ingest(token, Buffer.alloc(0))).toBe(false);
     expect(capture.detail(id)).not.toBeNull(); advance(6000); expect(capture.read().state).toBe('stopped'); capture.clear(); expect(capture.detail(id)).toBeNull();
   });
-  it('expires tokens and retained contents without relying on an open modal', async () => {
+  it('keeps monitoring enabled past ten minutes while retaining only recent contents', async () => {
     const { capture, token, advance } = await prepare(); capture.ingest(token, pcap(packet(request())));
     advance(300001); expect(capture.read().events).toEqual([]); expect(capture.read().state).toBe('interrupted');
-    advance(300000); expect(capture.accepts(token)).toBe(false);
+    advance(600000); expect(capture.accepts(token)).toBe(true);
+    expect(capture.read().expiresAt).toBeNull();
+    capture.ingest(token, Buffer.alloc(0)); expect(capture.read().state).toBe('receiving');
+    capture.stop(); expect(capture.accepts(token)).toBe(false);
   });
   it('checks IPv4, port and interface inputs before generating a shell command', async () => {
     for (const value of ['localhost:4317', '192.0.2.16:0', '192.0.2.16:65536', '999.0.2.1:4317', '192.0.2.1:4317;whoami']) expect(() => captureDestination(value)).toThrow();

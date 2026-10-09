@@ -78,11 +78,12 @@ clear next action when capture needs assistance.
   sockets and tcpdump `any`, including loopback. Windows uses PowerShell native
   process/connection APIs and Wireshark dumpcap with Npcap. Windows cwd may be
   unknown; do not infer a workspace or session from an address.
-- Windows activation is a PowerShell command invoking the Node helper, which
-  launches dumpcap directly with binary pcap output (`-F pcap`). A PowerShell 5 binary
-  pipeline would corrupt the capture. Handle local addresses with Npcap loopback,
-  and routed addresses with the adapter GUID. The helper also works when the
-  server runs through Electron's binary by setting ELECTRON_RUN_AS_NODE.
+- Capture now runs directly in ccdeck with one supervised child per destination,
+  using binary pcap stdout (`-F pcap` for dumpcap). Failed children retry, with a
+  fresh interface and decoder. `traffic-radar-monitor.mjs` owns this supervision
+  and per-port opt-in preferences. App startup resumes enabled destinations;
+  Stop disables the saved preference. Tokens and packet contents are not saved.
+  The older helper command remains for CLI smoke tests and compatibility.
 - Capture dependencies and privileges are explicit. No drivers are installed
   automatically. On 2026-10-09 the owner explicitly approved installing all
   dependencies on `rdp`. Wireshark 4.6.9 and Npcap 1.89 were installed from
@@ -96,8 +97,14 @@ clear next action when capture needs assistance.
   real Npcap loopback packets: decoded JSON matched the synthetic export, its
   session ID was recovered, and the collector response was `accepted`. This
   verifies the capture path; it does not prove Claude sent that test payload.
-- Monitoring still needs manual activation, expires after 10 minutes, and retains
-  messages for 5 minutes. This change does not implement always-on capture.
+- Monitoring has no ten-minute expiry. It continues while ccdeck runs and resumes
+  after a restart on the same port, until explicitly stopped. Retention remains
+  bounded to 100 exports / 5 minutes / 4 MB. Permission failures remain visible.
+- On 2026-10-09 Wireshark's signed, notarized ChmodBPF package was installed on
+  the owner's Mac through the system administrator prompt. This grants packet
+  capture access; ccdeck itself remains unprivileged. Real managed capture and
+  restart/Stop persistence were verified on macOS and Windows with synthetic
+  OTLP traffic. Do not claim that a synthetic fixture came from Claude.
 - What's new now has a Check for updates button inside Electron. It asks the
   existing updater through the authenticated tray stream; it does not use npm
   to update a bundled app. Modern desktop reports include `canCheck: true` so a

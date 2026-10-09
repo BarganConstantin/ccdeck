@@ -23,7 +23,6 @@ export async function streamCapture({ base, token, source = 0, input = process.s
     return sequence;
   };
   const heartbeat = setInterval(() => { if (!stopped) void post(Buffer.alloc(0)); }, 1000);
-  const deadline = setTimeout(finish, 600_000);
   report('Telemetry Radar: sending capture bytes only to local ccdeck; no file is written. Press Ctrl+C to stop capture.');
   try {
     for await (const chunk of input) {
@@ -34,7 +33,7 @@ export async function streamCapture({ base, token, source = 0, input = process.s
   } catch {
     if (!stopped) report('Capture input interrupted.');
   } finally {
-    stopped = true; clearInterval(heartbeat); clearTimeout(deadline);
+    stopped = true; clearInterval(heartbeat);
     report('Telemetry Radar: local receiver stopped. Press Ctrl+C if the capture tool is still running.');
   }
 }

@@ -2,6 +2,10 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createServer as tcpServer, connect } from 'node:net';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { capturePreferences } from '../src/server/traffic-radar-monitor.mjs';
 import { spawn } from 'node:child_process';
 import { createTrafficRadar } from '../src/server/traffic-radar.mjs';
 import { captureInterface, captureTool } from '../src/server/traffic-radar-platform.mjs';
@@ -18,7 +22,15 @@ catch (error) { console.log(JSON.stringify({ captureSetup: error.message })); if
 if (!process.argv.includes('--live')) process.exit(0);
 
 const { request, response, LOGS } = await import('../src/web/__tests__/traffic-capture-fixture.mjs');
-const capture = createTrafficCapture();
+const managed = process.argv.includes('--managed');
+const directory = managed ? await mkdtemp(join(tmpdir(), 'radar-native-monitor-')) : null;
+const options = { managed, preferences: directory ? capturePreferences(directory) : null };
+let capture = createTrafficCapture(options);
+const waitListening = async () => {
+  const end = Date.now() + 15000;
+  while (Date.now() < end && !capture.read().sources.every(s => s.active)) await new Promise(r => setTimeout(r, 100));
+  assert.ok(capture.read().sources.length && capture.read().sources.every(s => s.active), 'Managed capture must be listening without a Terminal command');
+};
 const ingest = createServer((req, res) => void handleTrafficCapture(req, res, new URL(req.url, 'http://localhost'), capture));
 const collector = tcpServer(socket => { let answered = false; socket.on('data', () => { if (!answered) { answered = true; socket.write(response()); } }); });
 let child, client, runner;
@@ -31,7 +43,9 @@ try {
   const token = /'([a-f0-9]{64})'/.exec(setup.command)[1];
   const base = `http://127.0.0.1:${localPort}`;
   const tool = await captureTool(process.platform), iface = await captureInterface('127.0.0.1', process.platform);
-  if (process.platform === 'win32') {
+  if (managed) {
+    await waitListening();
+  } else if (process.platform === 'win32') {
     // Run the exact PowerShell command shown in Radar, including helper CLI arguments.
     const activation = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', setup.command], { stdio: ['ignore', 'inherit', 'inherit'], windowsHide: true });
     runner = new Promise((resolve, reject) => {
@@ -65,10 +79,22 @@ try {
   assert.ok(event, 'Expected a decoded export from real loopback packets');
   assert.equal(event.outcome, 'accepted');
   assert.deepEqual(capture.detail(event.id).payload, LOGS);
+  if (managed) {
+    capture.dispose(); client.destroy();
+    capture = createTrafficCapture(options);
+    await capture.resume(localPort); await waitListening();
+    client = connect(port, '127.0.0.1'); await new Promise(r => client.once('connect', r)); client.write(request());
+    const end = Date.now() + 10000;
+    while (Date.now() < end && !capture.read().events.some(e => e.outcome === 'accepted')) await new Promise(r => setTimeout(r, 100));
+    const resumed = capture.read().events[0]; assert.equal(resumed?.outcome, 'accepted'); assert.deepEqual(capture.detail(resumed.id).payload, LOGS);
+    await capture.stop(); await capture.resume(localPort); assert.equal(capture.read().enabled, false);
+    console.log(JSON.stringify({ managedRestart: 'passed', stoppedAfterResume: true }));
+  }
   console.log(JSON.stringify({ liveCapture: 'passed', backend: capture.read().backend, sessionIds: event.sessionIds, outcome: event.outcome }));
 } finally {
   capture.stop(); child?.kill(); client?.destroy(); for (const socket of sockets) socket.destroy();
   ingest.closeAllConnections(); await Promise.all([new Promise(r => ingest.close(r)), new Promise(r => collector.close(r))]);
   if (runner) await runner;
   capture.dispose();
+  if (directory) await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }

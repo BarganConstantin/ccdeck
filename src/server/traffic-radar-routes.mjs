@@ -34,7 +34,7 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
       const data = JSON.parse((await body(req, 4096)).toString());
       return reply(res, 200, await capture.prepare(data.destination, req.socket.localPort));
     }
-    if (req.method === 'POST' && action === '/capture/stop') { capture.stop(); return reply(res, 200, { ok: true }); }
+    if (req.method === 'POST' && action === '/capture/stop') { await capture.stop(); return reply(res, 200, { ok: true }); }
     if (req.method === 'POST' && action === '/capture/clear') { capture.clear(); return reply(res, 200, { ok: true }); }
     return reply(res, 404, { error: 'Unknown capture action.' });
   } catch (error) { return reply(res, 400, { error: error instanceof CaptureSetupError ? error.message : 'Could not complete capture setup. Use a valid IPv4 destination and check its network route.' }); }

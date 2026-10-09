@@ -13,10 +13,10 @@ describe('telemetry content inspection', () => {
     expect(markup).toContain('HTTPS contents cannot be decoded');
     expect(markup).not.toMatch(/safe|protected|telemetry is disabled/i);
   });
-  it('shows permissions, expiry, plaintext-only coverage and process attribution limits', () => {
+  it('shows permissions, continuous capture, plaintext-only coverage and process attribution limits', () => {
     const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'awaiting' }} command='synthetic command' />);
     expect(markup).toContain('Only tcpdump asks for administrator permission'); expect(markup).toContain('Ctrl+C');
-    expect(markup).toContain('not only Claude'); expect(markup).toContain('after 10 minutes'); expect(markup).toContain('Closing this modal does not stop capture');
+    expect(markup).toContain('not only Claude'); expect(markup).toContain('continues until you stop it'); expect(markup).toContain('Closing this modal does not stop capture');
   });
   it('makes incomplete capture and encryption limitations visible', () => {
     const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'capturing', issues: { encrypted: 1, joined_midstream: 1 } }} />);
@@ -55,4 +55,14 @@ describe('telemetry content inspection', () => {
 it('explains Windows PowerShell activation without a text pipeline or macOS-only instructions', () => {
   const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'awaiting', shell: 'PowerShell', platform: 'win32' }} command='synthetic command' />);
   expect(markup).toContain('Activate in PowerShell'); expect(markup).toContain('Wireshark with Npcap'); expect(markup).not.toContain('Only tcpdump');
+});
+
+it('shows continuous managed monitoring without Terminal steps or a time limit', () => {
+  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, managed: true, enabled: true, state: 'receiving', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: true, bytes: 0 }] }} command='must not be shown' />);
+  expect(markup).toContain('Continuous local monitoring'); expect(markup).toContain('after a ccdeck restart'); expect(markup).toContain('Stop monitoring');
+  expect(markup).not.toContain('Activate in'); expect(markup).not.toContain('must not be shown'); expect(markup).not.toContain('10 minutes');
+});
+it('keeps Stop available while retrying a denied capture and explains the required permission', () => {
+  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, platform: 'darwin', managed: true, enabled: true, state: 'interrupted', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: false, bytes: 0, error: 'Packet capture permission is required.' }] }} />);
+  expect(markup).toContain('Capture permission needed'); expect(markup).toContain('Stop monitoring'); expect(markup).toContain('ChmodBPF'); expect(markup).toContain('retries automatically');
 });

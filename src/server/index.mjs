@@ -20,6 +20,7 @@ export { challengeDeck, challengeProof, isProcessAlive };
 // The gates in front of the route table — see src/server/request-gates.mjs,
 // which also holds the per-process token the strictest of them checks.
 import { GUARDED_READS, OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
+import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { trafficRadar } from "./traffic-radar.mjs";
 import { handleTrafficCapture, isAuthorizedTrafficIngest } from "./traffic-radar-routes.mjs";
 // How much the event ring may hold and what one event is charged against it —
@@ -498,6 +499,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // and that will differ on the next boot. Every test in this suite boots
       // that way. Comparing the candidate would hand those decks a manifest.
       boundPort = server.address()?.port ?? candidate;
+      void trafficCapture.resume(boundPort).catch(() => {});
+      server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
       if (codex) startCodexWatcher(workspace);
       // What a session is producing between its tool calls. Claude only — it
