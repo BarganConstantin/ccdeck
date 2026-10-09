@@ -1,7 +1,7 @@
 /* ---------------- the edges: controls where their panels open ----------------
    components/EdgeRails.tsx says why. The geometry is two tokens in the
    geometry block (tokens.css): --topbar-h, the bar these stripes hang under,
-   and --edge-w, one control height (--ctl-h) wide, with upright icons.
+   and --edge-w, the shared stripe width, with upright icons.
 
    The stripes are fixed to the window's edges; `.app` keeps their width free
    with its own inline padding, so every grid column, banner and panel inside
@@ -99,7 +99,7 @@
 /* Upright icons, centred in a fixed target. Labels live in the hint on
    desktop; the phone dock and topbar keep their normal horizontal words. */
 .rail-btn-stripe {
-  width: 26px;
+  width: 36px;
   height: 32px;
   justify-content: center;
   padding: 0;
@@ -179,7 +179,7 @@
 }
 
 /* ── the phone: one dock along the bottom ────────────────────────────────── */
-/* Under 641px the stripes would take 60px of a 390px screen, so the four
+/* Under 641px the stripes would take 80px of a 390px screen, so the four
    panels and Settings stand in a dock instead, where a thumb is, and the three
    rare dialogs behind a More. 56px tall, a 48px target in it. */
 .edge-dock { display: none; }

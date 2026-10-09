@@ -1,36 +1,23 @@
-/* The caption strip uses the same palette as the deck, with OS window buttons.
-   The browser never reserves this space: only the sandboxed desktop bridge does. */
-/* Fixed rails, floating panels and dialogs belong to the deck's viewport,
-   below the caption, rather than to the full OS window. */
-:root[data-desktop-chrome="true"] .app {
-  height: calc(100dvh - 34px);
-  contain: layout;
-}
-/* The skip link's hidden transform must clear the caption as well. */
-:root[data-desktop-chrome="true"] .skip-link:not(:focus) {
-  transform: translateY(calc(-200% - 34px));
-}
-.desktop-titlebar {
-  height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-left: 10px;
-  padding-right: calc(3 * 48px); /* three native caption buttons */
+/* Electron shares the deck's existing toolbar with native window controls.
+   The CSS environment width follows the OS button area when the window resizes. */
+:root[data-desktop-chrome="true"] .topbar {
   background: var(--panel);
-  color: var(--text);
-  border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
-  user-select: none;
+  gap: 12px;
+  padding-left: 10px;
+  padding-right: calc(100vw - env(titlebar-area-width, calc(100vw - 144px)) + 12px);
 }
-.desktop-titlebar[data-platform="darwin"] { padding-left: calc(3 * 28px); /* macOS traffic lights */ padding-right: 12px; }
-.desktop-window-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
+:root[data-desktop-chrome="true"][data-desktop-platform="darwin"] .topbar {
+  padding-left: calc(3 * 28px); /* macOS traffic lights */
+  padding-right: 18px;
+}
+/* Content and controls keep pointer events, focus and tooltips. The empty
+   toolbar space remains a native drag/double-click region. */
+:root[data-desktop-chrome="true"] .topbar :is(.readout, .actions, button, a, input, select, [role="button"], [tabindex]) {
+  -webkit-app-region: no-drag;
 }
 .desktop-menu.btn {
-  -webkit-app-region: no-drag;
+  flex: none;
   display: grid;
   place-items: center;
   width: 28px;
