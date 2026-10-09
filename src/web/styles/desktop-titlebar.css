@@ -1,10 +1,11 @@
 /* Electron shares the deck's existing toolbar with native window controls.
    The CSS environment width follows the OS button area when the window resizes. */
+:root[data-desktop-chrome="true"] { --topbar-h: 38px; }
 :root[data-desktop-chrome="true"] .topbar {
   background: var(--panel);
   -webkit-app-region: drag;
   gap: 12px;
-  padding-left: 10px;
+  padding-left: max(6px, calc((var(--edge-w) - 28px) / 2));
   padding-right: calc(100vw - env(titlebar-area-width, calc(100vw - 144px)) + 12px);
 }
 :root[data-desktop-chrome="true"][data-desktop-platform="darwin"] .topbar {

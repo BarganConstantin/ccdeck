@@ -1,10 +1,10 @@
 // Keep native caption buttons; only their surrounding chrome belongs to ccdeck.
-export const TITLEBAR_HEIGHT = 44;
+export const TITLEBAR_HEIGHT = 38;
 export function windowChrome(platform) {
   return {
     titleBarStyle: "hidden",
     ...(platform === "darwin"
-      ? { trafficLightPosition: { x: 12, y: 15 } }
+      ? { trafficLightPosition: { x: 12, y: 12 } }
       : { titleBarOverlay: { color: "#191a1c", symbolColor: "#d4d4d4", height: TITLEBAR_HEIGHT }, autoHideMenuBar: true }),
   };
 }
