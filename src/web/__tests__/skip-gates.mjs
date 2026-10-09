@@ -159,6 +159,8 @@ export const GATES = [
   { file: "backup-root-shared.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "codex-auth-rename-retry.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "codex-auth-temp-collision.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
+  // The desktop launcher fixture is a POSIX shell; Windows exercises its PowerShell launcher in the same suite.
+  { file: "codex-terminal-selection.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // Three mode assertions on the deck's discovery record, the same shape as
   // prefs-corrupt-1002's two below: the token file's 0600, the same 0600 after
   // the atomic rewrite has replaced the inode, and the 0700 on the directory
