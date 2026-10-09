@@ -149,7 +149,8 @@ Three consequences that decide everything else:
 - **Dark is the default, light is a full peer.** `:root` is the dark ramp;
   `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
   where contrast bugs live, because every terminal-adjacent colour assumes dark.
-  There are exactly two themes — `Theme = "dark" | "light"` in `theme.ts`.
+  Light and Dark are joined by optional Rider Black and VS Code Black palettes;
+  the supported choices and keyboard cycle live in `theme.ts`.
 - **Density serves the glance.** The target is concrete so a screenshot can pass
   or fail it: **at 1440×900 with the detail rail open, eight sessions in the list
   and twenty nodes on the canvas fit without scrolling.** 13px base, 30px
@@ -674,3 +675,23 @@ color. Unknown attribution remains explicit. Detailed capture limits stay in the
 footer, and Terminal activation expands only when action is needed. On mobile,
 messages precede the inspector in one scrolling column. Views remain mounted so
 changing tabs preserves the selected message and imported file.
+
+### Rider Black
+
+An optional theme inspired by the JetBrains dark UI palette: a charcoal
+canvas (#1e1f22), separate gray tool surfaces (#2b2d30), flat nodes and blue focus
+accents. Readable secondary text stays above 4.5:1; status and category colors
+keep their meanings. Light and Dark retain their palettes. The choice persists
+before first paint and keyboard theme switching cycles through all available themes.
+
+Radar shows socket evidence independently of settings-file evidence. Missing
+configuration never means telemetry is off, and stopped capture refers only to
+Radar. Observed addresses can be selected explicitly without being labeled as
+configured collectors or confirmed telemetry.
+
+### VS Code Black
+
+A separate theme based on VS Code Dark Modern: #1f1f1f working canvas, #181818
+tool panels, #2b2b2b separators and #4daafc accents. Selection uses #264f78 with
+white text. Both IDE palettes keep flat surfaces and ccdeck’s semantic color
+mapping. Settings lays out four previews on desktop and two per row on phones.

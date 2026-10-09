@@ -19,7 +19,7 @@ import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
-import type { Theme } from "./theme";
+import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -306,7 +306,7 @@ export function useDeckShortcuts({
           focusSession(next.id);
         }
       }
-      if (e.key === "t" || e.key === "T") setTheme(t => (t === "dark" ? "light" : "dark"));
+      if (e.key === "t" || e.key === "T") setTheme(nextTheme);
       // The last topbar control to get a key, and the only one that reads
       // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked
       // keyboard sends the upper case for the same press — and this one does

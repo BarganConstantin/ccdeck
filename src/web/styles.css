@@ -20,6 +20,8 @@
    sheet-source.ts, so a test that pins a rule does not have to know which part
    holds it. */
 @import "./styles/tokens.css";                   /* the theme tokens: colours, model hues, the mono stack, the shared gradients */
+@import "./styles/rider-black.css";              /* optional charcoal IDE theme */
+@import "./styles/vscode-black.css";             /* optional VS Code inspired theme */
 @import "./styles/utilities.css";                /* shared utilities */
 @import "./styles/topbar.css";                   /* the topbar, the update-ready notice, the worded buttons */
 @import "./styles/menus.css";                    /* the sound and appearance menus, and the switch */
