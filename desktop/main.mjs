@@ -347,7 +347,7 @@ function attach(found) {
 function publishUpdateState() {
   if (!deck || !updater) return;
   const { status, version = null } = updater.state;
-  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version } })
+  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version, canCheck: true } })
     .catch(err => trace(`could not publish update state: ${err?.message ?? err}`));
 }
 

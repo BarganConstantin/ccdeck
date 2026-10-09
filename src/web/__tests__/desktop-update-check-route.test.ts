@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { handleDesktopUpdateCheck } from '../../server/desktop-update-routes.mjs';
+import { handleDesktopUpdateCheck, handleDesktopUpdateReport } from '../../server/desktop-update-routes.mjs';
 import { trayClients, sseClients } from '../../server/sse-clients.mjs';
 import { isAuthorizedMutation } from '../../server/request-gates.mjs';
+import { Readable } from 'node:stream';
+import { HOOK_TOKEN } from '../../server/request-gates.mjs';
 import { createServer } from 'node:http';
 import { openTrayStream } from '../../../desktop/deck-link.mjs';
 const cleanup: (() => void | Promise<void>)[] = [];
@@ -11,7 +13,9 @@ describe('native update check relay', () => {
   it('refuses a disconnected desktop app', () => {
     const res = response(); handleDesktopUpdateCheck({}, res); expect(res.status).toBe(409); expect(res.body).toContain('app_disconnected');
   });
-  it('sends only to the tray, throttles repeated checks and remains a guarded mutation', () => {
+  it('sends only to the tray, throttles repeated checks and remains a guarded mutation', async () => {
+    const report = Object.assign(Readable.from([JSON.stringify({ status: 'current', version: null, canCheck: true })]), { headers: { 'x-ccdeck-token': HOOK_TOKEN } });
+    await handleDesktopUpdateReport(report, response());
     vi.useFakeTimers(); vi.setSystemTime(1900000000000);
     const app = { write: vi.fn(() => true), destroyed: false, writableEnded: false };
     const browser = { write: vi.fn(() => true) };
@@ -19,6 +23,13 @@ describe('native update check relay', () => {
     const res = response(); handleDesktopUpdateCheck({}, res); handleDesktopUpdateCheck({}, res);
     expect(res.status).toBe(202); expect(app.write).toHaveBeenCalledTimes(1); expect(app.write.mock.calls[0][0]).toContain('event: desktop-update-check'); expect(browser.write).not.toHaveBeenCalled();
     expect(isAuthorizedMutation({ method: 'POST', headers: { host: '127.0.0.1:4317' } })).toBe(false);
+  });
+  it('refuses an older desktop app that does not support the window check', async () => {
+    const report = Object.assign(Readable.from([JSON.stringify({ status: 'current', version: null })]), { headers: { 'x-ccdeck-token': HOOK_TOKEN } });
+    await handleDesktopUpdateReport(report, response());
+    trayClients.add({ write: vi.fn(() => true), destroyed: false, writableEnded: false });
+    const res = response(); handleDesktopUpdateCheck({}, res);
+    expect(res.status).toBe(409); expect(res.body).toContain('app_update_required');
   });
   it('delivers the new SSE event to the Electron callback', async () => {
     const server = createServer((_req, res) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write('event: desktop-update-check\ndata: {}\n\n'); });

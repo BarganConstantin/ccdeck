@@ -56,7 +56,7 @@ export async function captureInterface(host, platform, run = systemCommand) {
   }
   if (platform === 'win32') {
     if (host.startsWith('127.')) return '\\Device\\NPF_Loopback';
-    const text = await run('powershell.exe', powershell(`$route=Find-NetRoute -RemoteIPAddress '${host}'; $index=($route | Select-Object -First 1).InterfaceIndex; $adapter=Get-NetAdapter -IncludeHidden | Where-Object { $_.ifIndex -eq $index } | Select-Object -First 1; '\\Device\\NPF_{'+$adapter.InterfaceGuid.ToString().Trim('{}')+'}'`));
+    const text = await run('powershell.exe', powershell(`if(Get-NetIPAddress -IPAddress '${host}' -ErrorAction SilentlyContinue) { '\\Device\\NPF_Loopback'; exit }; $route=Find-NetRoute -RemoteIPAddress '${host}'; $index=($route | Select-Object -First 1).InterfaceIndex; $adapter=Get-NetAdapter -IncludeHidden | Where-Object { $_.ifIndex -eq $index } | Select-Object -First 1; '\\Device\\NPF_{'+$adapter.InterfaceGuid.ToString().Trim('{}')+'}'`));
     return text?.trim() ?? null;
   }
   return null;

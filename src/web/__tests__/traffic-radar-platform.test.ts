@@ -72,6 +72,13 @@ describe('capture backends', () => {
     expect(await captureInterface('192.0.2.16', 'win32', run)).toContain('01234567');
     expect(run.mock.calls[0][1].at(-1)).toContain('Find-NetRoute');
   });
+  it.each(['darwin', 'win32'])('runs the helper as Node when ccdeck is hosted by Electron on %s', async platform => {
+    const capture = createTrafficCapture({ platform, electron: true, execPath: "C:\\Node's Tools\\electron.exe", findTool: async () => platform === 'win32' ? 'dumpcap.exe' : '/usr/sbin/tcpdump', findInterface: async () => platform === 'win32' ? '\\Device\\NPF_Loopback' : 'lo0' });
+    disposers.push(() => capture.dispose());
+    const setup = await capture.prepare('127.0.0.1:4317', 4329);
+    expect(setup.command).toContain(platform === 'win32' ? "$env:ELECTRON_RUN_AS_NODE='1'" : 'env ELECTRON_RUN_AS_NODE=1');
+    if (platform === 'win32') expect(setup.command).toContain("Node''s Tools");
+  });
   it.each(['win32','linux'])('explains missing capture dependencies on %s', async platform => {
     await expect(captureTool(platform, async () => null)).rejects.toThrow(platform === 'win32' ? 'Wireshark with Npcap' : 'Install tcpdump');
   });

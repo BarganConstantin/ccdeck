@@ -155,7 +155,7 @@ export function updateCheckState(f: UpdateCheckFacts, reasons: Record<string, st
   const v = f.version;
   if (f.app?.inApp && v?.checkDisabled) {
     const l = appLine(f.app, f.running);
-    return l && { canCheck: true, checking: f.checking || f.app.update?.status === "checking", line: f.unreachable ? line("Could not reach the desktop updater. Try again or use the ccdeck menu.", { tone: "warn" }) : f.checking ? line(CHECKING) : l };
+    return l && { canCheck: true, checking: f.checking || f.app.update?.status === "checking", line: f.unreachable ? line("The desktop updater did not accept the check. Try the ccdeck menu or update the desktop app.", { tone: "warn" }) : f.checking ? line(CHECKING) : l };
   }
   if (v?.checkDisabled) return { canCheck: false, checking: false, line: note(CHECKS_OFF) };
 

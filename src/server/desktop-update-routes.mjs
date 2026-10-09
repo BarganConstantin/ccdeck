@@ -22,7 +22,7 @@ function cleanDesktopUpdate(value) {
     ? value.version.trim().slice(0, 80)
     : null;
   if (value.status === "ready" && !version) return null;
-  return { status: value.status, version };
+  return { status: value.status, version, ...(value.canCheck === true ? { canCheck: true } : {}) };
 }
 
 function broadcastDesktopUpdate() {
@@ -75,6 +75,7 @@ async function handleDesktopUpdateRequest(req, res, event) {
 let lastCheckAt = 0;
 export function handleDesktopUpdateCheck(_req, res) {
   if (trayClients.size === 0) return send(res, 409, { ok: false, reason: 'app_disconnected' });
+  if (!desktopUpdateState.canCheck) return send(res, 409, { ok: false, reason: 'app_update_required' });
   if (Date.now() - lastCheckAt >= 1000) {
     lastCheckAt = Date.now();
     for (const client of trayClients) writeSse(client, 'event: desktop-update-check\ndata: {}\n\n');
