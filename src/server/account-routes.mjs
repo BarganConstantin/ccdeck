@@ -34,6 +34,13 @@ const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 // When it does, the import skips its own detached collection — see importAccount.
 export const CHECKS_IMPORTS = process.platform === "darwin";
 
+// Read-only opt-in Codex profile discovery. Exposes opaque references only;
+// never serializes CODEX_HOME, auth.json contents, or OAuth credentials.
+export async function handleCodexProfiles(_req, res) {
+  const { discoverCodexProfiles } = await import('./codex-profiles.mjs');
+  send(res, 200, { profiles: await discoverCodexProfiles() });
+}
+
 export async function handleClaudeAccounts(req, res) {
   const { fetchClaudeAccounts } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href
