@@ -296,7 +296,7 @@ Each one fires the bundled `hook.js`, which POSTs the event JSON to the running 
 
 To use **multiple separate Codex logins**, open **Accounts → Add Codex account**, give the profile a label, and run its copied sign-in command in a terminal. Sign-in uses the official [Codex login flow](https://learn.chatgpt.com/docs/auth); each profile keeps its own login, configuration and history. Existing logins remain in place. You can also register existing homes at startup with `CCDECK_CODEX_HOMES`, a JSON array of additional absolute directories: for example, `CCDECK_CODEX_HOMES='["/home/me/.codex-work","/home/me/.codex-personal"]' npx ccdeck` on Linux.
 
-**Use account** saves the default for ccdeck's Codex quota and account notifications. Selection is serialized across local processes and persists across restarts. Running sessions keep their previous account; restart them to apply a different account. All configured profile session trees stay monitored independently of selection. Token renewal belongs to Codex. ccdeck never rotates managed-profile refresh tokens itself; system-store inspection uses the official Codex app-server, which may renew a login while reading quota. System-store account metadata depends on the installed CLI protocol and may not include a workspace ID.
+**Use account** saves the default for ccdeck's Codex quota and account notifications. Selection is serialized across local processes and persists across restarts. Running sessions keep their previous account; restart them to apply a different account. All configured profile session trees stay monitored independently of selection. Token renewal belongs to Codex. ccdeck never rotates managed-profile refresh tokens itself; system-store inspection uses the official Codex app-server, which may renew a login while reading quota. System-store account metadata depends on the installed CLI protocol and may not include a workspace ID. Native quota readings cover standard Codex limits; additional limits and credits are not included.
 
 For plain `codex` commands to use this default, click **Enable terminal selection**, run the copied setup command once, then open a new terminal. Supported shells are zsh, bash and PowerShell (PowerShell 5 uses `--shell powershell5`). The installed launcher uses durable local metadata, so ccdeck can be closed. An explicit `CODEX_HOME` always takes priority. **Remove terminal selection** provides the reverse command; it removes only ccdeck's shell integration and keeps profile data. Individual launch commands remain available without terminal setup. Terminal setup applies to shell commands, not an independently launched IDE extension.
 
@@ -427,7 +427,7 @@ ccdeck [options]
       --no-codex           Skip Codex capture (Claude only)
       --claude             Force Claude capture even if Claude Code wasn't found
       --no-claude          Skip Claude entirely — no hooks, no claude-swap,
-                           no Accounts panel (Codex only)
+                           Codex accounts remain available (Codex only)
       --ref <name>         The ccdeck.dev page this command was copied from;
                            sent once, with the first install report
       --uninstall          Remove ccdeck's hooks from settings files, and name

@@ -611,7 +611,7 @@ export async function fetchCodexQuota({ force = false, readSelection: read = rea
         used_percent: window.usedPercent, limit_window_seconds: window.seconds, resets_at: window.resetAt,
       })).filter(Boolean).sort((a, b) => a.rank - b.rank);
       result = { ok: true, windows, extraWindows: [], plan: native.plan, planLabel: planLabel(native.plan),
-        email: native.label, partial: true, refreshed: false, fetchedAt: native.fetchedAt };
+        email: native.label, partial: true, coverage: "standard_limits", refreshed: false, fetchedAt: native.fetchedAt };
       _accountOfQuota.set(result, { accountId: `profile:${selected.profileId}`, profileId: selected.profileId, email: native.label });
     } else result = { ok: false, reason: native.reason ?? (native.plan === 'api' ? 'api_key_mode' : 'no_token'), fetchedAt: native.fetchedAt };
   }

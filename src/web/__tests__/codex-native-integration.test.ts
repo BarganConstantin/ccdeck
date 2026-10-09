@@ -85,7 +85,7 @@ describe('system-store account integration', () => {
     const nativeRead = vi.fn(async () => native());
     const a = await fetchCodexQuota({ enableNative: true, readSelection: async () => selected, nativeRead });
     const b = await fetchCodexQuota({ enableNative: true, readSelection: async () => ({ ...selected, profileId: 'another-profile' }), nativeRead });
-    expect(a).toMatchObject({ ok: true, partial: true });
+    expect(a).toMatchObject({ ok: true, partial: true, coverage: "standard_limits" });
     expect(codexQuotaAccount(a)?.accountId).not.toEqual(codexQuotaAccount(b)?.accountId);
     expect(nativeRead).toHaveBeenCalledWith(f.home, { includeQuota: true, force: true });
     const failed = async () => ({ ok: false, signedIn: false, reason: 'rpc_timeout' });
