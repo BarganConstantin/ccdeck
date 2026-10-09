@@ -128,7 +128,7 @@ describe('durable terminal selection', () => {
     expect(codexTerminalCommand('install', 'powershell', 'win32')).toContain('--rc $PROFILE.CurrentUserAllHosts');
     expect(codexTerminalCommand('uninstall', 'powershell5', 'win32')).toContain('--rc $PROFILE.CurrentUserAllHosts');
     for (const action of ['install', 'uninstall']) {
-      expect(codexTerminalCommand(action, 'bash')).toContain('ELECTRON_RUN_AS_NODE=1');
+      expect(codexTerminalCommand(action, 'bash', 'darwin')).toContain('ELECTRON_RUN_AS_NODE=1');
       expect(codexTerminalCommand(action, 'powershell', 'win32')).toContain('finally { $env:ELECTRON_RUN_AS_NODE = $ccdeckPreviousNodeMode }');
     }
   });
