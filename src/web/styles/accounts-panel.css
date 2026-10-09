@@ -62,8 +62,21 @@
 .ap-codex-list { margin: 0; padding: 0; list-style: none; }
 .ap-codex-row { display: flex; flex-direction: column; gap: 2px; padding: 7px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
 .ap-codex-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 4px 0 0; }
-.ap-codex-check { align-self: flex-start; border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 5px; padding: 4px 7px; margin-top: 3px; font-size: 11px; cursor: pointer; }
-.ap-codex-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ap-codex-check {
+  align-self: flex-start;
+  border: 1px solid var(--ctl-edge);
+  background: var(--ctl-fill);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 4px 7px;
+  margin-top: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+.ap-codex-check:hover:not(:disabled) { border-color: var(--text); }
+.ap-codex-check:active:not(:disabled) { transform: scale(0.97); }
+.ap-codex-check:disabled { cursor: default; opacity: var(--dim-off); }
 .ap-foot {
   flex-shrink: 0;
   padding: 10px var(--panel-inset) 12px;

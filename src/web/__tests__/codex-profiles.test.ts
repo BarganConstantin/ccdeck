@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { configuredCodexHomes, codexProfileSessionDirs, discoverCodexProfiles, readCodexProfileQuota, resolveCodexProfile, codexProfileLaunchCommand } from '../../server/codex-profiles.mjs';
 import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -42,6 +42,24 @@ describe('Codex profile discovery', () => {
       expect(profiles[0].id).not.toBe(profiles[1].id);
       expect(JSON.stringify(profiles)).not.toContain('PRIVATE_TOKEN');
       expect(JSON.stringify(profiles)).not.toContain(root);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('distinguishes identical emails in different workspaces even with expired credentials', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-identity-'));
+    try {
+      const homes = [join(root, 'a'), join(root, 'b')];
+      for (const [index, directory] of homes.entries()) {
+        await mkdir(directory);
+        const claims = { email: 'same@example.com', exp: 1, 'https://api.openai.com/auth': { chatgpt_account_id: `workspace-${index}` } };
+        await writeFile(join(directory, 'auth.json'), JSON.stringify({ tokens: { id_token: `header.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.signature`, access_token: 'SECRET' } }));
+      }
+      const profiles = await discoverCodexProfiles({ env: { CODEX_HOME: homes[0], CCDECK_CODEX_HOMES: JSON.stringify([homes[1]]) } });
+      expect(profiles[0].label).toContain('same@example.com');
+      expect(profiles[1].label).toContain('same@example.com');
+      expect(profiles[0].label).not.toBe(profiles[1].label);
+      expect(JSON.stringify(profiles)).not.toContain('SECRET');
+      expect(JSON.stringify(profiles)).not.toContain('workspace-');
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
@@ -112,5 +130,78 @@ describe('Codex profile discovery', () => {
       });
       expect(throttled).toEqual({ ok: false, reason: 'http_429' });
     } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('rejects an in-flight quota response after auth.json is replaced without evicting the newer account', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-quota-race-'));
+    try {
+      await writeFile(join(root, 'auth.json'), JSON.stringify({ tokens: { access_token: 'OLD_LOGIN' } }));
+      const env = { CODEX_HOME: root };
+      const [profile] = await discoverCodexProfiles({ env });
+      let signalStarted!: () => void;
+      const started = new Promise<void>((resolve) => { signalStarted = resolve; });
+      let finishOld!: (value: unknown) => void;
+      const old = readCodexProfileQuota(profile.id, {
+        env,
+        fetch: (_url: string, opts: { headers: Record<string, string> }) => {
+          expect(opts.headers.Authorization).toBe('Bearer OLD_LOGIN');
+          signalStarted();
+          return new Promise((resolve) => { finishOld = resolve; });
+        },
+      });
+      await started;
+      await writeFile(join(root, 'auth.json'), JSON.stringify({ tokens: { access_token: 'NEW_LOGIN_DIFFERENT_LENGTH' } }));
+      const newer = await readCodexProfileQuota(profile.id, {
+        env,
+        fetch: async (_url: string, opts: { headers: Record<string, string> }) => {
+          expect(opts.headers.Authorization).toBe('Bearer NEW_LOGIN_DIFFERENT_LENGTH');
+          return { ok: true, json: async () => ({ rate_limit: { primary_window: { used_percent: 71 } } }) };
+        },
+      });
+      finishOld({ ok: true, json: async () => ({ rate_limit: { primary_window: { used_percent: 19 } } }) });
+      expect(await old).toEqual({ ok: false, reason: 'profile_changed' });
+      expect(newer.windows[0].usedPercent).toBe(71);
+      expect((await readCodexProfileQuota(profile.id, { env })).windows[0].usedPercent).toBe(71);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('omits missing and invalid quota percentages instead of reporting invented zero usage', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-quota-window-'));
+    try {
+      await writeFile(join(root, 'auth.json'), JSON.stringify({ tokens: { access_token: 'TOKEN_WINDOW' } }));
+      const env = { CODEX_HOME: root };
+      const [profile] = await discoverCodexProfiles({ env });
+      const result = await readCodexProfileQuota(profile.id, { env, fetch: async () => ({
+        ok: true,
+        json: async () => ({ rate_limit: {
+          primary_window: { used_percent: null },
+          secondary_window: { used_percent: -5 },
+        } }),
+      }) });
+      expect(result.windows).toEqual([]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('shows a stale confirmed reading on 429/offline only while credentials are unchanged', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-quota-stale-'));
+    let currentTime = 1_800_000_000_000;
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => currentTime);
+    try {
+      await writeFile(join(root, 'auth.json'), JSON.stringify({ tokens: { access_token: 'TOKEN_FIRST' } }));
+      const env = { CODEX_HOME: root };
+      const [profile] = await discoverCodexProfiles({ env });
+      const original = await readCodexProfileQuota(profile.id, { env, fetch: async () => ({
+        ok: true, json: async () => ({ rate_limit: { primary_window: { used_percent: 42 } } }),
+      }) });
+      currentTime += 61_000;
+      const throttled = await readCodexProfileQuota(profile.id, { env, fetch: async () => ({ ok: false, status: 429 }) });
+      expect(throttled).toEqual({ ok: false, reason: 'http_429', stale: true, lastGood: original });
+      currentTime += 61_000;
+      const offline = await readCodexProfileQuota(profile.id, { env, fetch: async () => { throw Error('network down'); } });
+      expect(offline).toEqual({ ok: false, reason: 'fetch_error', stale: true, lastGood: original });
+      await writeFile(join(root, 'auth.json'), JSON.stringify({ tokens: { access_token: 'TOKEN_REPLACED_DIFFERENT' } }));
+      const next = await readCodexProfileQuota(profile.id, { env, fetch: async () => ({ ok: false, status: 429 }) });
+      expect(next).toEqual({ ok: false, reason: 'http_429' });
+    } finally { now.mockRestore(); await rm(root, { recursive: true, force: true }); }
   });
 });

@@ -77,11 +77,10 @@ export function railItems({
     ariaLabel: "Session list", glyph: <SessionListGlyph />, kind: "panel",
     open: sessionListOpen, controls: "session-list", onPress: toggleSessionList, buttonRef: toggles.sessionList,
   };
-  // Gone without Claude Code rather than present and inert: every account in
-  // the panel is a Claude account, and a Codex-only machine has none to show.
+  // Accounts is available whenever either provider has profiles to inspect.
   const accounts: RailItem = {
     id: "accounts", label: "Accounts", short: "Accounts", key: { cap: "A", aria: "A", single: true },
-    ariaLabel: "Accounts", hint: "Claude accounts", glyph: <AccountsGlyph />, kind: "panel",
+    ariaLabel: "Accounts", hint: "Agent accounts", glyph: <AccountsGlyph />, kind: "panel",
     open: accountsPanelOpen, controls: "accounts-panel", onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
   const usage: RailItem = {
@@ -125,7 +124,7 @@ export function railItems({
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
-    left: providers.claude ? [accounts, sessionList] : [sessionList],
+    left: (providers.claude || providers.codex) ? [accounts, sessionList] : [sessionList],
     right: [[usage, machine], [history, browserWatch, ...(setTrafficRadarOpen ? [{
       id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,

@@ -1,5 +1,5 @@
 // Explicit Codex homes are separate profiles, not snapshots of auth.json.
-// This read-only discovery layer never loads, copies or refreshes credentials.
+// Discovery reads display metadata only; credentials are never copied or refreshed.
 import { access, realpath, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { posix, win32, join } from 'node:path';
@@ -59,9 +59,19 @@ export async function discoverCodexProfiles(options = {}) {
     seen.add(canonical);
     let installed = false;
     try { await access(join(directory, 'auth.json')); installed = true; } catch { /* No login yet. */ }
+    let identity = null;
+    try {
+      const auth = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'));
+      let claims = {};
+      try { claims = JSON.parse(Buffer.from(auth.tokens?.id_token?.split('.')[1] ?? '', 'base64url').toString()); } catch { /* Account ID may still be available. */ }
+      const email = typeof claims.email === 'string' ? claims.email.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 254) : null;
+      const account = auth.tokens?.account_id ?? claims['https://api.openai.com/auth']?.chatgpt_account_id;
+      const workspace = typeof account === 'string' ? createHash('sha256').update(account).digest('hex').slice(0, 8) : null;
+      identity = email ? `${email}${workspace ? ` · ${workspace}` : ''}` : workspace ? `Account ${workspace}` : null;
+    } catch { /* Missing or malformed login metadata uses the profile label. */ }
     profiles.push({
       id: createHash('sha256').update(canonical).digest('hex').slice(0, 20),
-      label: profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`,
+      label: identity ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
       active: profiles.length === 0,
       signedInFilePresent: installed, // file presence is NOT authentication validity
     });
@@ -98,21 +108,26 @@ export async function codexProfileLaunchCommand(id, options = {}) {
 /** Read-only per-profile quota. The main CODEX_HOME keeps its existing quota
  * poller; alternate profiles never trigger single-use OAuth refreshes. */
 const profileQuotaCache = new Map();
+async function credentialFileVersion(directory) {
+  try {
+    const info = await stat(join(directory, 'auth.json'));
+    return `${info.dev}:${info.ino}:${info.size}:${info.mtimeMs}:${info.ctimeMs}`;
+  } catch { return 'missing'; }
+}
+
 export async function readCodexProfileQuota(id, options = {}) {
   const directory = await resolveCodexProfile(id, options);
   if (!directory) return { ok: false, reason: 'unknown_profile' };
   // Invalidate cached quota after a login / account replacement. The file may
   // contain an entirely different ChatGPT account within the cache lifetime.
-  let credentialVersion;
-  try {
-    const info = await stat(join(directory, 'auth.json'));
-    credentialVersion = `${info.dev}:${info.ino}:${info.size}:${info.mtimeMs}:${info.ctimeMs}`;
-  } catch { credentialVersion = 'missing'; }
+  const credentialVersion = await credentialFileVersion(directory);
   const now = Date.now();
   const cached = profileQuotaCache.get(id);
   if (cached?.credentialVersion === credentialVersion && cached.pending) return cached.pending;
   if (cached?.credentialVersion === credentialVersion && now - cached.at < 60_000) return cached.value;
-  const pending = (async () => {
+  // Last-good readings may be shown as stale only for the same auth file.
+  const lastGood = cached?.credentialVersion === credentialVersion ? cached.lastGood : null;
+  const request = (async () => {
     let auth;
     try { auth = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8')); }
     catch { return { ok: false, reason: 'no_token' }; }
@@ -145,8 +160,12 @@ export async function readCodexProfileQuota(id, options = {}) {
     try { body = await response.json(); }
     catch { return { ok: false, reason: 'decode_error' }; }
     const window = (value) => {
-      const pct = Number(value?.used_percent);
-      return value && Number.isFinite(pct) ? { usedPercent: pct, resetAt: value.resets_at ?? null, seconds: value.limit_window_seconds ?? null } : null;
+      const raw = value?.used_percent;
+      if (raw == null || raw === '') return null;
+      const pct = Number(raw);
+      return Number.isFinite(pct) && pct >= 0 && pct <= 100
+        ? { usedPercent: pct, resetAt: value.resets_at ?? null, seconds: value.limit_window_seconds ?? null }
+        : null;
     };
     return {
       ok: true, fetchedAt: Date.now(),
@@ -154,10 +173,26 @@ export async function readCodexProfileQuota(id, options = {}) {
       windows: [window(body?.rate_limit?.primary_window), window(body?.rate_limit?.secondary_window)].filter(Boolean),
     };
   })();
-  profileQuotaCache.set(id, { at: now, pending, credentialVersion });
+  const pending = request.then(async (value) => {
+    // A login may have changed while the remote service was responding. Never
+    // publish (or cache) a quota reading from a superseded auth.json.
+    if (await credentialFileVersion(directory) !== credentialVersion) {
+      return { ok: false, reason: 'profile_changed' };
+    }
+    const retryable = value.reason === 'fetch_error' || value.reason === 'http_429'
+      || /^http_5\d\d$/.test(value.reason ?? '');
+    return !value.ok && retryable && lastGood
+      ? { ...value, stale: true, lastGood }
+      : value;
+  });
+  profileQuotaCache.set(id, { at: now, pending, credentialVersion, lastGood });
   const value = await pending;
   if (profileQuotaCache.get(id)?.pending === pending) {
-    profileQuotaCache.set(id, { at: Date.now(), value, credentialVersion });
+    if (value.reason === 'profile_changed') profileQuotaCache.delete(id);
+    else profileQuotaCache.set(id, {
+      at: Date.now(), value, credentialVersion,
+      lastGood: value.ok ? value : lastGood,
+    });
   }
   return value;
 }

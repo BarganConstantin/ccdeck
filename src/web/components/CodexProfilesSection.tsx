@@ -14,9 +14,25 @@ interface CodexProfile {
 interface ProfileQuota {
   ok: boolean;
   reason?: string;
+  stale?: boolean;
+  lastGood?: ProfileQuota;
   fetchedAt?: number;
   plan?: string | null;
   windows?: { usedPercent: number; seconds: number | null; resetAt: number | null }[];
+}
+
+function quotaSummary(quota: ProfileQuota, now: number): string {
+  const windows = quota.windows?.map((w) => `${Math.round(w.usedPercent)}% used (${w.seconds ? `${Math.round(w.seconds / 3600)}h` : 'window'})`).join(' · ');
+  const age = quota.fetchedAt ? ` · Read ${Math.max(0, Math.floor((now - quota.fetchedAt) / 1000))}s ago` : '';
+  return `${quota.plan ?? 'Codex'} · ${windows || 'No limits reported'}${age}`;
+}
+
+function quotaStatus(quota: ProfileQuota, now: number): string {
+  if (quota.ok) return quotaSummary(quota, now);
+  const error = `Quota unavailable: ${quota.reason?.replaceAll('_', ' ') ?? 'unknown'}`;
+  return quota.stale && quota.lastGood
+    ? `${error} · Last confirmed (stale): ${quotaSummary(quota.lastGood, now)}`
+    : error;
 }
 
 export default function CodexProfilesSection() {
@@ -25,6 +41,12 @@ export default function CodexProfilesSection() {
   const [quotas, setQuotas] = useState<Record<string, ProfileQuota | null>>({});
   const [launch, setLaunch] = useState<Record<string, string>>({});
   const [selectedId, setSelectedId] = useState(() => readStored(SELECTED_CODEX_PROFILE_KEY) ?? "");
+  const [clock, setClock] = useState(Date.now);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   function selectProfile(id: string) {
     setSelectedId(id);
@@ -84,21 +106,19 @@ export default function CodexProfilesSection() {
           <ul className="ap-codex-list">
             {profiles.map((profile) => (
               <li key={profile.id} className="ap-codex-row">
-                <span>{profile.label}{profile.active ? " · Server default" : ""}{selectedId === profile.id ? " · Selected" : ""}</span>
+                <span>{profile.label}{profile.active ? " · Server default" : ""}{selectedId === profile.id ? " · Launch target" : ""}</span>
                 <span className="ap-codex-hint">{profile.signedInFilePresent ? "Login file found" : "No login file"}</span>
-                <button className="ap-codex-check" type="button" disabled={selectedId === profile.id} onClick={() => selectProfile(profile.id)}>{selectedId === profile.id ? "Selected" : "Select"}</button>
+                <button className="ap-codex-check" type="button" disabled={selectedId === profile.id} onClick={() => selectProfile(profile.id)}>{selectedId === profile.id ? "Launch target" : "Choose for new CLI"}</button>
                 {profile.signedInFilePresent && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} disabled={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
                 {selectedId === profile.id && <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>}
                 {launch[profile.id] && <span className="ap-codex-hint" role="status">{launch[profile.id]}</span>}
                 {Object.hasOwn(quotas, profile.id) && (quotas[profile.id] === null
                   ? <span className="ap-codex-hint" role="status">Checking quota…</span>
-                  : quotas[profile.id]?.ok
-                    ? <span className="ap-codex-hint">{quotas[profile.id]?.plan ?? 'Codex'} · {quotas[profile.id]?.windows?.map((w) => `${Math.round(w.usedPercent)}% used (${w.seconds ? `${Math.round(w.seconds / 3600)}h` : 'window'})`).join(' · ') || 'No limits reported'}{quotas[profile.id]?.fetchedAt ? ` · Read ${Math.max(0, Math.floor((Date.now() - quotas[profile.id]!.fetchedAt!) / 1000))}s ago` : ''}</span>
-                    : <span className="ap-codex-hint" role="status">Quota unavailable: {quotas[profile.id]?.reason?.replaceAll('_', ' ')}</span>)}
+                  : <span className="ap-codex-hint" role="status">{quotaStatus(quotas[profile.id]!, clock)}</span>)}
               </li>
             ))}
           </ul>
-          <p className="ap-codex-hint">Select an account, then copy its command into a terminal to start Codex with that profile. Existing sessions and the server default are unaffected. A login file does not guarantee an active session.</p>
+          <p className="ap-codex-hint">Choose a launch target and copy its command into a terminal to start a new Codex CLI session. This browser choice does not switch running sessions, server defaults, or credentials. A login file does not guarantee an active session.</p>
         </>}
     </section>
   );
