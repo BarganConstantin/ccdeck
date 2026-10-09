@@ -1,5 +1,5 @@
 .modal.tr-modal { width: min(1180px, 94vw); height: min(820px, 90dvh); max-height: 90dvh; }
-.tr-beta { flex-shrink: 0; padding: 2px 6px; border: 1px solid var(--line); border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text-secondary); font-size: 11px; font-weight: 500; line-height: 1.4; }
+.tr-beta { flex-shrink: 0; padding: 2px 6px; border: 1px solid var(--line); border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--muted); font-size: 11px; font-weight: 500; line-height: 1.4; }
 .tr-body { display: flex; flex-direction: column; min-height: 0; flex: 1; font-size: 13px; }
 .tr-body h3 { font-size: 14px; margin: 0; font-weight: 600; }
 .tr-body h4 { font-size: 13px; margin: 24px 0 8px; }
