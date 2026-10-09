@@ -7,16 +7,15 @@
    between a character and a sticker. Its feet land exactly on the minimap's top
    border, and the two numbers that put them there are named so the next person
    can see what it is standing on: React Flow gives every canvas panel a 15px
-   margin, and the minimap's 150px drawing inside `.react-flow__minimap`'s 1px
-   edge is a 152px box — measured at 152 on a real deck, which is how the first
-   pass's 150 was caught sitting it two pixels low. Change the minimap's size
-   and --minimap-h is the one number to move.
+   margin, and the minimap's 105px drawing inside `.react-flow__minimap`'s 1px
+   edge is a 107px box. Its 140px drawing is 142px wide with that edge. Keep
+   these ledge dimensions in step with MINIMAP_SIZE in BoardFlow.tsx.
 
    --fm-x is where along that ledge it is standing, written by the component. */
 .fm {
   --flow-gutter: 15px;   /* .react-flow__panel's own margin */
-  --minimap-h: 152px;    /* MiniMap's 150 drawing plus the 1px edge each side */
-  --minimap-w: 202px;    /* its 200 drawing, the same 1px edge each side */
+  --minimap-h: 107px;    /* MiniMap's 105 drawing plus the 1px edge each side */
+  --minimap-w: 142px;    /* its 140 drawing, the same 1px edge each side */
   position: absolute;
   right: var(--flow-gutter);
   /* THE SCENE SITS ON THE CANVAS FLOOR, NOT ON THE LEDGE, and the ledge is a

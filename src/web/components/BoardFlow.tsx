@@ -37,6 +37,9 @@ import SessionClusters from "./SessionClusters";
 import SessionGroupNode from "./SessionGroupNode";
 import ToolBursts from "./ToolBursts";
 
+// Stable geometry keeps MiniMap memoised; surfaces stay in CSS.
+const MINIMAP_SIZE = { width: 140, height: 105 };
+
 const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
@@ -204,6 +207,7 @@ export default function BoardFlow({
         handleRelayout={handleRelayout} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
       />
       <MiniMap
+        style={MINIMAP_SIZE}
         zoomable
         pannable
         nodeColor={minimapNodeFill}

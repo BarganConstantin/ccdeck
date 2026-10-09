@@ -524,7 +524,7 @@ describe("the character", () => {
     // character with soft edges is the one thing it cannot be.
     expect(decl(".fm-sprite", "width")).toBe("54px");
     expect(54 % SPRITE_W).toBe(0);
-    expect(decl(".fm", "--minimap-h")).toBe("152px");
+    expect(decl(".fm", "--minimap-h")).toBe("107px");
   });
 
   it("does not eat a press meant for the canvas", () => {
@@ -961,7 +961,7 @@ describe("the character", () => {
     // the ledge moved with the character — which is one way to find out that a
     // floor is not a vehicle.
     expect(decl(".fm", "width")).toBe("var(--minimap-w)");
-    expect(decl(".fm", "--minimap-w")).toBe("202px");
+    expect(decl(".fm", "--minimap-w")).toBe("142px");
     expect(decl(".fm", "transform")).toBeNull();
     expect(decl(".fm-walker, .fm-prop", "position")).toBe("absolute");
     // 21px is what centres a 12px object under a 54px one when both are

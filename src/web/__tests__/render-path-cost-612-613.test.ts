@@ -381,17 +381,15 @@ describe("nothing on the render path reads a CSS custom property", () => {
     expect(boardFlow).toMatch(/maskColor=\{palette\["--minimap-mask"\]\}/);
   });
 
-  it("hands MiniMap a memoised nodeColor and no style object at all", () => {
-    // The props that defeated `memo(MiniMap)` and `memo(MiniMapNodes)`. The
-    // node colour must be an identifier — an inline arrow here is a new
-    // identity on every render, which is the whole of #613. The style object
-    // that used to be the second such prop is gone: the minimap's surface,
-    // edge and radius are the stylesheet's now (.react-flow__minimap), on the
-    // same tokens as the control stack, so there is no object to memoise.
+  it("hands MiniMap memoised colors and stable geometry", () => {
+    // Inline colors or geometry would defeat React Flow memoisation.
+    // Width and height must reach MiniMap itself so pan and zoom use the
+    // actual SVG dimensions; surface colors stay in the stylesheet.
     const minimap = /<MiniMap\b[\s\S]*?\/>/.exec(boardFlow);
     expect(minimap, "no <MiniMap> in components/BoardFlow.tsx").not.toBeNull();
     expect(minimap![0]).toMatch(/nodeColor=\{[A-Za-z_$][\w$]*\}/);
-    expect(minimap![0]).not.toMatch(/\bstyle=/);
+    expect(minimap![0]).toMatch(/style=\{MINIMAP_SIZE\}/);
+    expect(boardFlow).toMatch(/const MINIMAP_SIZE = \{ width: 140, height: 105 \}/);
     expect(minimap![0]).not.toMatch(/=>/);
     expect(minimap![0]).not.toMatch(/cssVar/);
   });
