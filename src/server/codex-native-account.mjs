@@ -6,6 +6,7 @@
 // cannot prove that two same-email workspaces are the same account. Managed
 // home labels remain essential. Recheck account/read after every quota read.
 import { spawn } from 'node:child_process';
+import { stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { posix, win32 } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
@@ -21,6 +22,12 @@ const DEADLINE_MS = 12_000;
 const MAX_OUTPUT = 1024 * 1024;
 const MAX_LINE = 64 * 1024;
 const hash = value => createHash('sha256').update(value).digest('hex');
+async function authFileVersion(home, path, readStat = stat) {
+  try {
+    const info = await readStat(path.join(home, 'auth.json'));
+    return `${info.dev}:${info.ino}:${info.size}:${info.mtimeMs}:${info.ctimeMs}`;
+  } catch (error) { return error.code === 'ENOENT' ? 'missing' : null; }
+}
 const dependencyId = value => {
   if (!value || !['function', 'object'].includes(typeof value)) return 0;
   if (!dependencyIds.has(value)) dependencyIds.set(value, ++nextDependency);
@@ -73,6 +80,9 @@ function rpcRead(home, options) {
   try { executable = options.executable ?? lookup('codex', platform, { pathEnv: env.PATH ?? env.Path ?? '' }); }
   catch { return Promise.resolve(failure('cli_unavailable', now)); }
   if (!executable) return Promise.resolve(failure('cli_unavailable', now));
+  // PATH lookup happens in the deck's cwd, before the child moves to its home.
+  const path = platform === 'win32' ? win32 : posix;
+  if (!path.isAbsolute(executable)) executable = path.resolve(process.cwd(), executable);
   const spec = candidateSpec(executable, ['app-server'], platform);
   if (isBatch(executable, platform) && !win32.isAbsolute(spec.file)) {
     const root = env.SystemRoot ?? env.systemroot;
@@ -184,7 +194,7 @@ export function readNativeCodexAccount(home, options = {}) {
   const env = { ...(options.env ?? process.env) };
   const includeQuota = options.includeQuota === true;
   const key = JSON.stringify([home, includeQuota, platform, options.executable ?? null, env.PATH ?? env.Path ?? '',
-    dependencyId(options.spawn), dependencyId(options.pathLookup), dependencyId(options.killChild), dependencyId(options.now), options.deadlineMs ?? null, options.maxOutputBytes ?? null]);
+    dependencyId(options.spawn), dependencyId(options.pathLookup), dependencyId(options.killChild), dependencyId(options.now), dependencyId(options.stat), options.deadlineMs ?? null, options.maxOutputBytes ?? null]);
   const started = now();
   const held = cache.get(key);
   if (held && (held.pending || (!options.force && started >= held.at && started - held.at < CACHE_MS))) return (held.pending ?? Promise.resolve(structuredClone(held.value))).then(value => structuredClone(value));
@@ -196,7 +206,24 @@ export function readNativeCodexAccount(home, options = {}) {
     cache.delete(settled[0]);
   }
   const entry = { at: started, pending: null, value: null };
-  const pending = Promise.resolve().then(() => rpcRead(home, { ...options, platform, env, now, includeQuota }))
+  const pending = Promise.resolve().then(async () => {
+    // One shared wall-clock budget; verification cannot reuse either cache or
+    // the first process's in-memory auth snapshot. Keep admission held throughout.
+    const deadline = Date.now() + bounded(options.deadlineMs, DEADLINE_MS);
+    const fileVersion = await authFileVersion(home, path, options.stat);
+    if (fileVersion === null) return failure('profile_unavailable', now);
+    const initialRemaining = deadline - Date.now();
+    if (initialRemaining <= 0) return failure('timeout', now);
+    const value = await rpcRead(home, { ...options, platform, env, now, includeQuota, deadlineMs: initialRemaining });
+    if (!includeQuota || !value.ok || !value.signedIn || value.plan === 'api') return value;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return failure('timeout', now);
+    const fresh = await rpcRead(home, { ...options, platform, env, now, includeQuota: false, deadlineMs: remaining });
+    if (!fresh.ok) return failure(fresh.reason ?? 'rpc_error', now);
+    if (await authFileVersion(home, path, options.stat) !== fileVersion) return failure('profile_changed', now);
+    if (!fresh.signedIn || fresh.identityVersion !== value.identityVersion) return failure('profile_changed', now, fresh);
+    return { ...value, fetchedAt: now() };
+  })
     .catch(() => failure('rpc_error', now)).then(value => {
     entry.pending = null; entry.at = now(); entry.value = value;
     return structuredClone(value);

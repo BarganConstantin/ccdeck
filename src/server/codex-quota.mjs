@@ -602,7 +602,7 @@ export async function fetchCodexQuota({ force = false, readSelection: read = rea
   finally { if (entry) entry.active--; }
   if (enableNative && result.reason === "no_token") {
     const fingerprint = authoritative ? null : await codexCredentialFingerprint({ home });
-    const native = await nativeRead(home, { includeQuota: true, force: force || selected.selectionEnabled });
+    const native = await nativeRead(home, { includeQuota: true, force: true });
     if (!authoritative && await codexCredentialFingerprint({ home }) !== fingerprint) {
       return { ok: false, reason: 'profile_changed' };
     }

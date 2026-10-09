@@ -25,7 +25,7 @@ function fake(handler?: (message: Message, child: Child) => void) {
     } });
     children.push(child); return child;
   });
-  const options = { spawn, executable: 'synthetic-codex', killChild: (child: Child) => child.kill(), env: { PATH: '/synthetic/bin' } };
+  const options = { spawn, executable: 'synthetic-codex', stat: async () => { throw Object.assign(new Error('missing fixture'), { code: 'ENOENT' }); }, killChild: (child: Child) => child.kill(), env: { PATH: '/synthetic/bin' } };
   return { options, spawn, messages, children };
 }
 function reply(child: Child, id: number, result: unknown) { child.stdout.write(JSON.stringify({ id, result }) + '\n'); }
@@ -43,11 +43,12 @@ describe('native Codex account adapter (synthetic children only)', () => {
       { usedPercent: 130, seconds: 18000, resetAt: 12345 }, { usedPercent: 22, seconds: 604800, resetAt: 23456 },
     ] });
     expect(value.identityVersion).toMatch(/^[a-f0-9]{64}$/);
-    expect(f.messages.map(m => m.method)).toEqual(['initialize', 'initialized', 'account/read', 'account/rateLimits/read', 'account/read']);
+    expect(f.messages.map(m => m.method)).toEqual(['initialize', 'initialized', 'account/read', 'account/rateLimits/read', 'account/read', 'initialize', 'initialized', 'account/read']);
     expect(f.messages[0].params).toEqual({ clientInfo: { name: 'ccdeck', version: '3.39.1' } });
     expect(f.messages.filter(m => m.method === 'account/read').every(m => m.params?.refreshToken === false)).toBe(true);
     expect(JSON.stringify(value)).not.toMatch(/SECRET|private\/home|synthetic/);
-    expect(f.children[0].kill).toHaveBeenCalledOnce();
+    expect(f.children).toHaveLength(2);
+    expect(f.children.every(child => child.kill.mock.calls.length === 1)).toBe(true);
   });
 
   it('captures the exact home and environment once and strips ambient API keys', async () => {
@@ -66,11 +67,11 @@ describe('native Codex account adapter (synthetic children only)', () => {
     const metadata = await readNativeCodexAccount(HOME, options);
     expect(metadata.windows).toEqual([]);
     const [a, b] = await Promise.all([readNativeCodexAccount(HOME, { ...options, includeQuota: true }), readNativeCodexAccount(HOME, { ...options, includeQuota: true })]);
-    expect(a.windows).toHaveLength(2); expect(b).toEqual(a); expect(f.spawn).toHaveBeenCalledTimes(2);
+    expect(a.windows).toHaveLength(2); expect(b).toEqual(a); expect(f.spawn).toHaveBeenCalledTimes(3);
     a.windows[0].usedPercent = 999;
     expect((await readNativeCodexAccount(HOME, { ...options, includeQuota: true })).windows[0].usedPercent).toBe(130);
-    clock += 59999; await readNativeCodexAccount(HOME, options); expect(f.spawn).toHaveBeenCalledTimes(2);
-    clock++; await readNativeCodexAccount(HOME, options); expect(f.spawn).toHaveBeenCalledTimes(3);
+    clock += 59999; await readNativeCodexAccount(HOME, options); expect(f.spawn).toHaveBeenCalledTimes(3);
+    clock++; await readNativeCodexAccount(HOME, options); expect(f.spawn).toHaveBeenCalledTimes(4);
   });
 
   it('forced reads bypass settled quota and metadata caches while sharing active reads', async () => {
@@ -84,9 +85,83 @@ describe('native Codex account adapter (synthetic children only)', () => {
     const opts = { ...f.options, includeQuota: true, force: true };
     const [a, b] = await Promise.all([readNativeCodexAccount(HOME, opts), readNativeCodexAccount(HOME, opts)]);
     expect(a.label).toBe(email); expect(b.label).toBe(email);
-    expect(f.spawn).toHaveBeenCalledTimes(3);
+    expect(f.spawn).toHaveBeenCalledTimes(5);
     expect((await readNativeCodexAccount(HOME, { ...f.options, force: true })).label).toBe(email);
-    expect(f.spawn).toHaveBeenCalledTimes(4);
+    expect(f.spawn).toHaveBeenCalledTimes(6);
+  });
+
+  it('rejects a relogin visible only to the genuinely fresh verification process', async () => {
+    const f = fake((m, c) => {
+      if (m.id === undefined) return;
+      const email = c === f.children[0] ? 'old@example.com' : 'new@example.com';
+      reply(c, m.id, m.method === 'initialize' ? {} : m.method === 'account/read' ? { account: { ...account, email } } : limits);
+    });
+    // A settled metadata read must not satisfy the verification step either.
+    await readNativeCodexAccount(HOME, f.options);
+    f.children.splice(0); f.spawn.mockClear();
+    expect(await readNativeCodexAccount(HOME, { ...f.options, includeQuota: true })).toMatchObject({ ok: false, reason: 'profile_changed', windows: [] });
+    expect(f.spawn).toHaveBeenCalledTimes(2);
+    expect(f.children.every(child => child.kill.mock.calls.length === 1)).toBe(true);
+  });
+
+  it('rejects a file replacement even when both native processes report the same email and plan', async () => {
+    const { mkdtemp, writeFile, rm, stat } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const home = await mkdtemp(join(tmpdir(), 'ccdeck-native-relogin-'));
+    try {
+      await writeFile(join(home, 'auth.json'), 'synthetic original');
+      const f = fake((m, c) => {
+        if (m.id === undefined) return;
+        const respond = () => reply(c, m.id!, m.method === 'initialize' ? {} : m.method === 'account/read' ? { account } : limits);
+        if (m.method === 'account/rateLimits/read') void writeFile(join(home, 'auth.json'), 'synthetic replacement with different workspace').then(respond);
+        else respond();
+      });
+      expect(await readNativeCodexAccount(home, { ...f.options, stat, includeQuota: true })).toMatchObject({ ok: false, reason: 'profile_changed', windows: [] });
+      expect(f.spawn).toHaveBeenCalledTimes(2);
+    } finally { await rm(home, { recursive: true, force: true }); }
+  });
+
+  it('does not publish quota when fresh-process verification fails', async () => {
+    const f = fake((m, c) => {
+      if (m.id === undefined) return;
+      if (c !== f.children[0]) c.stdout.write(JSON.stringify({ id: m.id, error: { code: -32601 } }) + '\n');
+      else reply(c, m.id, m.method === 'initialize' ? {} : m.method === 'account/read' ? { account } : limits);
+    });
+    expect(await readNativeCodexAccount(HOME, { ...f.options, includeQuota: true })).toMatchObject({ ok: false, reason: 'unsupported', windows: [] });
+    expect(f.spawn).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps fresh verification inside the original deadline', async () => {
+    vi.useFakeTimers();
+    const f = fake((m, c) => {
+      if (m.id === undefined || c !== f.children[0]) return;
+      if (m.method === 'account/rateLimits/read') setTimeout(() => reply(c, m.id!, limits), 20);
+      else reply(c, m.id, m.method === 'initialize' ? {} : { account });
+    });
+    const pending = readNativeCodexAccount(HOME, { ...f.options, includeQuota: true, deadlineMs: 30 });
+    await vi.advanceTimersByTimeAsync(30);
+    expect(await pending).toMatchObject({ ok: false, reason: 'timeout', windows: [] });
+    expect(f.spawn).toHaveBeenCalledTimes(2);
+    expect(f.children.every(child => child.kill.mock.calls.length === 1)).toBe(true);
+  });
+
+  it('resolves relative PATH executables before changing the child cwd', async () => {
+    const f = fake();
+    await readNativeCodexAccount(HOME, { ...f.options, executable: undefined, pathLookup: () => './bin/codex' });
+    const { resolve } = await import('node:path');
+    expect(f.spawn.mock.calls[0][0]).toBe(resolve('./bin/codex'));
+    expect(f.spawn.mock.calls[0][2]).toMatchObject({ cwd: HOME });
+  });
+
+  it('anchors a bare dot-PATH candidate to the lookup cwd', async () => {
+    const f = fake();
+    const lookup = vi.fn(() => 'codex');
+    await readNativeCodexAccount(HOME, { ...f.options, executable: undefined, pathLookup: lookup, env: { PATH: '.' } });
+    const { resolve } = await import('node:path');
+    expect(lookup).toHaveBeenCalledWith('codex', process.platform, { pathEnv: '.' });
+    expect(f.spawn.mock.calls[0][0]).toBe(resolve('codex'));
+    expect(f.spawn.mock.calls[0][2]).toMatchObject({ cwd: HOME });
   });
 
   it('does not share cache or account state across homes', async () => {
@@ -213,6 +288,7 @@ describe('native Codex account adapter (synthetic children only)', () => {
     const f = fake(() => {});
     const pending = Array.from({ length: 64 }, (_, i) => readNativeCodexAccount(HOME + '-' + i, { ...f.options, deadlineMs: 100 }));
     expect(await readNativeCodexAccount(HOME + '-overflow', { ...f.options, deadlineMs: 100 })).toMatchObject({ ok: false, reason: 'native_busy' });
+    await vi.advanceTimersByTimeAsync(0); // allow the stat-only admission snapshot to finish
     expect(f.spawn).toHaveBeenCalledTimes(64);
     await vi.advanceTimersByTimeAsync(100); await Promise.all(pending);
     expect(f.children.every(c => c.kill.mock.calls.length === 1)).toBe(true);
