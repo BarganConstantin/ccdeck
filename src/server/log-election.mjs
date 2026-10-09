@@ -213,7 +213,7 @@ export function sameCodexTree(a, b, platform = process.platform) {
  * challenge, and is simply looking somewhere else. The same deck launched with
  * a stale CODEX_HOME is the duller version of it.
  */
-export function writesCodexLog({ decks, pid, cwd, platform = process.platform }) {
+export function writesCodexLog({ decks, pid, cwd, codexHome = null, platform = process.platform }) {
   const live = Array.isArray(decks) ? decks : [];
   const self = live.find(d => d && d.pid === pid) ?? null;
   // No record of our own on disk — the window before the first heartbeat writes
@@ -227,7 +227,10 @@ export function writesCodexLog({ decks, pid, cwd, platform = process.platform })
   for (const d of live) {
     if (!d || d.pid === self.pid) continue;
     if (d.codex === false) continue;
-    if (!sameCodexTree(self.codexHome, d.codexHome, platform)) continue;
+    if (codexHome) {
+      const roots = Array.isArray(d.codexHomes) ? d.codexHomes : [d.codexHome];
+      if (!roots.some(root => sameCodexTree(root, codexHome, platform))) continue;
+    } else if (!sameCodexTree(self.codexHome, d.codexHome, platform)) continue;
     if (!codexCwdInWorkspace(cwd, d.workspace ?? "", platform)) continue;
     group.push(d);
   }

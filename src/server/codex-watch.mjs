@@ -9,14 +9,15 @@
 // reads the ring or the SSE clients. index.mjs starts the watcher. The bodies
 // are unchanged.
 import { stat } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { PRODUCT } from "./brand.mjs";
 import { STOP, sidFromRolloutName, walkRolloutDays } from "./codex-dir.mjs";
+import { codexProfileSessionDirs } from "./codex-profiles.mjs";
 // What one rollout line means as a hook payload, and the shape of the header
 // record that says whose rollout it is — see codex-translate.mjs. The watcher
 // below still decides which lines are read and where each one goes.
 import { codexObjToPayload, codexSessionModel, sessionMeta } from "./codex-translate.mjs";
-import { codexCwdInWorkspace, writesCodexLog } from "./log-election.mjs";
+import { canonicalLogPath, codexCwdInWorkspace, writesCodexLog } from "./log-election.mjs";
 // The one spelling of a rollout's cwd — see canonical-path.mjs.
 import { canonicalCwd } from "./canonical-path.mjs";
 import { eventLogPath } from "./event-log.mjs";
@@ -162,15 +163,16 @@ let codexWorkspace = "";
 async function listRecentCodexRollouts(all = false) {
   const out = [];
   const older = [];
-  let dayDirs = 0;
-  await walkRolloutDays((dir, files) => {
-    const into = dayDirs < 2 ? out : older;
-    for (const f of files) if (f.endsWith(".jsonl")) into.push(join(dir, f));
-    // Two day-directories deep is the whole point of this listing: it runs every
-    // tick. Anything older is still watched, by codexOlderRollouts, at a
-    // bounded number of stats a tick rather than a readdir of every day.
-    if (++dayDirs >= 2 && !all) return STOP;
-  });
+  // Each home needs its own two newest days. Otherwise a busy default account
+  // can prevent the newest rollout in an alternate account from being seen.
+  for (const sessionsDir of await codexProfileSessionDirs()) {
+    let dayDirs = 0;
+    await walkRolloutDays((dir, files) => {
+      const into = dayDirs < 2 ? out : older;
+      for (const f of files) if (f.endsWith(".jsonl")) into.push(join(dir, f));
+      if (++dayDirs >= 2 && !all) return STOP;
+    }, { sessionsDir });
+  }
   return { files: out, older };
 }
 
@@ -566,7 +568,8 @@ async function scanRollouts(firstRun) {
       // lines, and the answer must be the same for every event in it — a root
       // written by one deck and its tool calls by another is worse than either.
       const persist = !eventLogPath()
-        || writesCodexLog({ decks: await liveDecks(), pid: process.pid, cwd: state.cwd });
+        || writesCodexLog({ decks: await liveDecks(), pid: process.pid, cwd: state.cwd,
+          codexHome: canonicalLogPath(dirname(dirname(dirname(dirname(dirname(path)))))), });
 
       emitCodexLines(state, consume, persist);
 
