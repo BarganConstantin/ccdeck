@@ -17,6 +17,15 @@
   margin: 0 auto 20px;
   color: var(--muted);
 }
+.empty-hero .empty-cursor { animation: empty-cursor-blink 1.4s steps(1, end) infinite; }
+.empty-hero .empty-symbol[data-active="false"] .empty-cursor { animation: none; }
+@keyframes empty-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-hero .empty-cursor { animation: none; }
+}
 .empty-hero h2 {
   color: var(--text);
   font-size: 18px; font-weight: 600;

@@ -141,6 +141,7 @@ the entire conversation.
   `SessionClusters.tsx`, rather than recursively updating layout state.
 
 - The owner rejected the orbital empty-canvas illustration as overly decorative.
-  Keep this surface minimal: a static terminal outline without a tile, rings,
-  glow or continuous animation. Preserve readable text rather than lowering
+  Keep this surface minimal: a terminal outline without a tile, rings or glow. The owner later requested
+  subtle motion: only its cursor blinks while connected and visible, with a
+  steady cursor under reduced motion. Preserve readable text rather than lowering
   text opacity; the helper details and tour remain available.
