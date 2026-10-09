@@ -52,3 +52,42 @@ Screenshot evidence in `/private/tmp/ccdeck-rail-qa/`: `radar-redesign-live.png`
 isolated fixtures. The real local capture snapshot listens on one address,
 `192.168.88.16:4317`, with **0 decoded messages and 2 observations**. Genuine
 Claude JSON capture remains unverified; do not present fixtures as that proof.
+
+## Final refinement — 2026-10-09
+
+Independent critique identified oversized rows, repeated limitations, stale copy
+feedback, misleading Clear messages naming and inconsistent controls. A browser
+pass additionally reproduced hidden overflow regions escaping the modal focus
+trap. All are fixed; the baseline critique is persisted under
+`.impeccable/critique/2026-10-09T12-57-44Z__src-web-components-trafficradar-tsx.md`.
+Its 28/40 score describes the starting UI, not an invented final score.
+
+RadarSelect preserves native option and keyboard behavior with authored chevrons.
+Rows use `--tr-row-gap` (4px) and `--tr-selection` (theme-derived selected surface).
+Inspector copy feedback resets on observation selection and expires after two
+seconds. Clear history requires the existing armed-press convention, ignores
+rapid double presses, and disarms on blur or after five seconds. New technical
+disclosures retain the complete capture explanation without repeating it in every
+row. No capture/protocol/backend changes were made.
+
+The finish reviewer found one mobile keyboard defect: synthetic arrow clicks
+moved focus to the inspector. Arrow/Home/End now select directly and preserve row
+focus. Explicit activation still reveals the inspector. The final browser pass
+verified consecutive navigation and Enter at 320px in both themes.
+
+Verification: 139 tests across 11 files; TypeScript; build; git diff --check.
+Brave covered Rider Black and White Contrast at 1280, 1235, 900, 390 and 320px,
+including monitoring start/stop, pause/arrivals/resume, filters/session selection,
+local JSONL, decoded overview/tree/raw/copy, 2,000-message bounded rendering,
+partial listener state, modal Tab/Shift+Tab wraps, copy reset/expiry, clear history
+confirmation, reduced motion and mobile keyboard activation. No package lint
+script is available. No full screen-reader or packaged Electron test was run in
+this refinement. Screenshots and logs live in `/private/tmp/ccdeck-rail-qa/`
+(`radar-polish-*`) and `/private/tmp/ccdeck-radar-polish-*`.
+
+Real capture remains one listening destination, two connection observations and
+zero decoded messages. Decoded fixture tests are not evidence of real Claude
+payload decoding. Server and capture history were preserved while rebuilding UI.
+
+Independent finish review: **ship** after the scored mobile keyboard fix. The
+reviewer’s verdict covers that fix; it is not a fresh whole-app certification.

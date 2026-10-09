@@ -68,7 +68,10 @@ function tabbablesIn(dialog: HTMLElement | null): HTMLElement[] {
     // The style engine and a second selector sweep are asked only where content
     // actually overflows, which is one or two elements in a dialog rather than
     // all of them.
-    return overflowing && isScrollStop({
+    if (!overflowing) return false;
+    // Closed disclosures retain overflow boxes but cannot receive focus.
+    const rendered = el.checkVisibility ? el.checkVisibility() : el.getClientRects().length > 0;
+    return rendered && isScrollStop({
       overflowing,
       overflow: getComputedStyle(el).overflowY,
       hasFocusable: el.querySelector(TABBABLE_SELECTOR) != null,

@@ -697,6 +697,17 @@ Scoped geometry uses `--tr-inset` (16px), `--tr-control-h` (32px minimum) and
 the feed precedes the inspector in one scrolling column, and selecting activity
 brings the inspector into view. Keep existing palette and font tokens, readable
 neutral text, 120–140ms feedback, reduced-motion and forced-colors treatments.
+Activity rows use a 4px rhythm and compact event-first layout; timestamps and
+collector addresses are secondary. Native `RadarSelect` fields share geometry
+and authored chevrons. Secondary utilities use quiet buttons; format switches
+use a neutral selected surface. Destination copy uses an icon, clears feedback
+on selection and expires success after two seconds. Clear history includes
+observations and uses a deliberate second press, cancelled on blur or after five
+seconds. Arrow selection keeps focus in the feed on mobile; explicit activation
+still reveals the inspector. Hidden overflow regions cannot become modal focus
+stops. Unreadable contents show one short diagnosis with Technical details
+available on demand.
+
 Monitoring limits remain disclosed in the footer; activation instructions expand
 when needed. Surface direction and review evidence live in
 `.impeccable/surfaces/telemetry-radar.md`.
