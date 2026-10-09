@@ -666,15 +666,40 @@ are literals today.
 
 ### Telemetry Radar
 
-An inspection workspace with three tabs: Monitor, Configuration and File. A compact
-settings summary and shared session selector sit above the split message list and
-inspector. The Monitor is the initial view; JSON is a first-class inspection mode.
-Configuration evidence, capture state and collector receipts use distinct language.
-Enabled content flags use warning color; positive receipts alone use the success
-color. Unknown attribution remains explicit. Detailed capture limits stay in the
-footer, and Terminal activation expands only when action is needed. On mobile,
-messages precede the inspector in one scrolling column. Views remain mounted so
-changing tabs preserves the selected message and imported file.
+A compact network inspector within the existing theme system. Monitor opens
+first; Configuration and File remain mounted to preserve inspection and imports.
+A one-line purpose and disclosed About Radar help precede the tabs and shared
+session selector. The settings summary belongs in Configuration. Monitor leads
+with listener state, Start/Stop and a destination strip, then a narrow chronological
+activity feed beside a wider contextual inspector. Decoded messages and connection
+observations share the feed with separate counts; unreadable observations expose
+destination, time, source, unknown session and capture limits directly.
+
+**The Evidence Rule.** Listener readiness, traffic observed, decoded contents and
+collector receipts are separate facts. Full listener readiness uses `--ok`;
+partial readiness uses `--warn`, an explicit listening count and per-address
+Listening / Not listening labels. Enabled content flags also use warning color.
+Positive collector receipts use success color; decoded Event / Metric / Trace
+labels are neutral metadata, never an accent eyebrow. Missing settings do not
+prove telemetry is off; connections do not prove decoded exports or attribution.
+
+Initial and explicit selection stay pinned as activity arrives. Pause list freezes
+visible entries while monitoring continues and counts arrivals; Resume reveals
+them. Session, type and destination filters reset selection. Arrow keys and
+Home/End select feed rows; tabs support keyboard navigation. History starts with
+100 entries and expands by 100. Overview and JSON expose decoded contents; the
+reusable JSON inspector offers lazy native disclosure branches in batches of 50
+and complete raw JSON, highlighting only up to 200,000 characters. Copy JSON
+copies decoded fields; File keeps original JSON/JSONL distinct from network proof.
+
+Scoped geometry uses `--tr-inset` (16px), `--tr-control-h` (32px minimum) and
+`--tr-radius` (6px). At 640px and below, inset becomes 14px and controls 40px;
+the feed precedes the inspector in one scrolling column, and selecting activity
+brings the inspector into view. Keep existing palette and font tokens, readable
+neutral text, 120–140ms feedback, reduced-motion and forced-colors treatments.
+Monitoring limits remain disclosed in the footer; activation instructions expand
+when needed. Surface direction and review evidence live in
+`.impeccable/surfaces/telemetry-radar.md`.
 
 ### Rider Black
 

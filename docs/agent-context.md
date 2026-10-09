@@ -71,6 +71,29 @@ coverage before reporting "not sending" or "working". Preserve Claude settings
 during passive inspection. Avoid filling the modal with setup jargon; show a
 clear next action when capture needs assistance.
 
+## Radar UI finish handoff — 2026-10-09
+
+- Finish-review disposition: ship after both scored fixes. Partial readiness uses
+  amber, a listening count and per-address readiness; decoded type labels are
+  neutral metadata. The code-led inspector stays within the existing theme system;
+  backend and capture protocol are unchanged.
+- Help is disclosed and settings evidence moved to Configuration. Monitor combines
+  decoded exports and observations chronologically, with separate counts, pinned
+  initial/explicit selection and Pause list arrivals. Filters reset inspection.
+  `JsonInspector.tsx` uses lazy details branches, batches of 50 and a 200,000-character
+  raw highlighting budget; raw JSON stays complete. `radar-monitor-state.ts` is
+  the pure state helper. Radar geometry is scoped in `traffic-radar.css`.
+- Supplied QA passed: 216 tests / 11 files, TypeScript and final build; Brave in
+  White Contrast / Rider Black at 1280, 1235, 900, 390 and 320px covered monitoring,
+  pause/selection, filters/sessions, JSONL, JSON tree/raw/copy, keyboard navigation,
+  2,000 events rendered as 100 then 200, and destination/permission/error/read-retry
+  states. Documentation pass inspected source and the five `radar-redesign-*.png`
+  screenshots in `/private/tmp/ccdeck-rail-qa/`; it did not rerun runtime QA.
+- Real local snapshot: one listening address `192.168.88.16:4317`, **0 decoded
+  messages / 2 observations**. Genuine Claude JSON capture remains unverified;
+  decoded browser fixtures are separate evidence. Recheck live status next session.
+  See `DESIGN.md` and `.impeccable/surfaces/telemetry-radar.md` for the UI contract.
+
 ## Radar platform support and desktop updates
 
 - `src/server/traffic-radar-platform.mjs` owns native inspection and capture-tool
