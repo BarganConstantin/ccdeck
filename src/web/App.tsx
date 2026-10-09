@@ -218,7 +218,7 @@ function Inner() {
   const { workspace, providers, providersRef } = useDeckScope(live);
   /** How wide the left column is drawn: the open panel's own width, or 0 —
    *  never anything the two panels make between them (LeftColumn.tsx). The
-   *  accounts panel is Claude's alone, so without Claude Code it is no width. */
+   *  accounts panel has no width when neither provider is installed. */
   const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !(providers.claude || providers.codex) ? null : leftPanel);
   const columnSettleRef = useColumnSettle(leftColumnTarget);
   const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && (providers.claude || providers.codex);

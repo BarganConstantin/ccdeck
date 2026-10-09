@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { copyText } from "../copy-text";
 import { readStored, writeStored } from "../storage";
 
-const SELECTED_CODEX_PROFILE_KEY = "ccdeck.codex.selectedProfile";
+const SELECTED_CODEX_PROFILE_KEY = "agent-dag.codex.selectedProfile";
 
 interface CodexProfile {
   id: string;
