@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { readNativeCodexAccount } from '../../server/codex-native-account.mjs';
 
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 const HOME = process.platform === 'win32' ? 'C:\\synthetic\\codex-home' : '/synthetic/codex-home';
 const account = { type: 'chatgpt', email: 'person@example.com', planType: 'plus' };
 const limits = { rateLimits: { limitId: 'codex', primary: { usedPercent: 130, windowDurationMins: 300, resetsAt: 12345 }, secondary: { usedPercent: 22, windowDurationMins: 10080, resetsAt: 23456 } } };
@@ -226,6 +226,7 @@ describe('native Codex account adapter (synthetic children only)', () => {
   });
 
   it('uses Windows PATH lookup and the shared shim quoting rules', async () => {
+    vi.stubEnv('comspec', ''); vi.stubEnv('ComSpec', '');
     const f = fake();
     const lookup = vi.fn(() => 'C:\\Program Files\\Codex\\codex.cmd');
     await readNativeCodexAccount('C:\\profiles\\work', { ...f.options, executable: undefined, pathLookup: lookup, platform: 'win32', env: { ...f.options.env, SystemRoot: 'C:\\Windows' } });
@@ -233,6 +234,15 @@ describe('native Codex account adapter (synthetic children only)', () => {
     expect(f.spawn.mock.calls[0][0]).toBe('C:\\Windows\\System32\\cmd.exe');
     expect(f.spawn.mock.calls[0][1]).toEqual(expect.arrayContaining(['/d', '/s', '/c']));
     expect(f.spawn.mock.calls[0][1][3]).toContain('C:\\Program Files\\Codex\\codex.cmd');
+    expect(f.spawn.mock.calls[0][2]).toMatchObject({ windowsVerbatimArguments: true, shell: false });
+  });
+
+  it('preserves the supplied absolute Windows command interpreter spelling', async () => {
+    const interpreter = 'C:\\Windows\\system32\\cmd.exe';
+    vi.stubEnv('comspec', interpreter); vi.stubEnv('ComSpec', interpreter);
+    const f = fake();
+    await readNativeCodexAccount('C:\\profiles\\work', { ...f.options, executable: 'C:\\Program Files\\Codex\\codex.cmd', platform: 'win32' });
+    expect(f.spawn.mock.calls[0][0]).toBe(interpreter);
     expect(f.spawn.mock.calls[0][2]).toMatchObject({ windowsVerbatimArguments: true, shell: false });
   });
 
