@@ -138,7 +138,7 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
       session.sources[source].lastInputAt = now();
       session.sources[source].bytes += chunk.length;
       session.lastInputAt = now();
-      if (chunk.length) session.state = 'capturing';
+      if (chunk.length && (!managed || session.sources[source].bytes > 24)) session.state = 'capturing';
       else if (['awaiting', 'interrupted'].includes(session.state)) session.state = 'receiving';
       session.bytes += chunk.length;
       try { parsers[source].feed(chunk); } catch { void stop('error').catch(() => {}); return false; }

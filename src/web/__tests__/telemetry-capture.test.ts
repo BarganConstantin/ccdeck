@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { Readable } from 'node:stream';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Readable, PassThrough } from 'node:stream';
 import { createWireCapture } from '../../server/traffic-radar-wire.mjs';
 import { captureDestination, createTrafficCapture } from '../../server/traffic-radar-capture.mjs';
 import { streamCapture } from '../../server/traffic-radar-helper.mjs';
 import { LOGS, frame, headers, packet, pcap, request, response } from './traffic-capture-fixture.mjs';
 const cleanup: (() => void)[] = [];
-afterEach(() => { for (const dispose of cleanup.splice(0)) dispose(); });
+afterEach(() => { for (const dispose of cleanup.splice(0)) dispose(); vi.useRealTimers(); });
 function reader() {
   const events: any[] = [], receipts: any[] = [], issues: string[] = [];
   const decoder = createWireCapture({ host: '192.0.2.16', port: 4317, onExport: (value: unknown) => { events.push(value); return events.length; }, onResponse: (id: number, value: unknown) => receipts.push({ id, ...value as object }), onIssue: (value: string) => issues.push(value) });
@@ -124,6 +124,12 @@ describe('capture lifecycle and privacy', () => {
     for (const value of ['localhost:4317', '192.0.2.16:0', '192.0.2.16:65536', '999.0.2.1:4317', '192.0.2.1:4317;whoami']) expect(() => captureDestination(value)).toThrow();
     const capture = createTrafficCapture({ platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0;whoami' }); cleanup.push(() => capture.dispose());
     await expect(capture.prepare('192.0.2.16:4317', 4329)).rejects.toThrow('interface');
+  });
+  it('keeps the compatibility helper alive beyond ten minutes until its input ends', async () => {
+    vi.useFakeTimers(); const input = new PassThrough();
+    const job = streamCapture({ base: 'http://127.0.0.1:4329', token: 'a'.repeat(64), input, report: () => {}, send: async () => ({ ok: true }) });
+    await vi.advanceTimersByTimeAsync(660000); expect(input.destroyed).toBe(false);
+    input.end(); await job;
   });
   it('streams only to loopback and follows no redirects', async () => {
     const calls: any[] = [];

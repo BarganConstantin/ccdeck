@@ -92,7 +92,7 @@ try {
   }
   console.log(JSON.stringify({ liveCapture: 'passed', backend: capture.read().backend, sessionIds: event.sessionIds, outcome: event.outcome }));
 } finally {
-  capture.stop(); child?.kill(); client?.destroy(); for (const socket of sockets) socket.destroy();
+  await capture.stop(); child?.kill(); client?.destroy(); for (const socket of sockets) socket.destroy();
   ingest.closeAllConnections(); await Promise.all([new Promise(r => ingest.close(r)), new Promise(r => collector.close(r))]);
   if (runner) await runner;
   capture.dispose();

@@ -23,7 +23,9 @@ describe('continuous managed capture', () => {
     await capture.prepare('192.0.2.16:4317', 4329); await tick();
     expect(capture.read()).toMatchObject({ managed: true, enabled: true, expiresAt: null, state: 'awaiting' });
     children[0].stderr.write('tcpdump: listening on en0');
-    children[0].stdout.write(pcap(packet(request()), packet(response(), { side: 'in' })));
+    children[0].stdout.write(pcap()); expect(capture.read().state).toBe('receiving');
+    children[0].stdout.write(Buffer.concat([packet(request()), packet(response(), { side: 'in' })]));
+    expect(capture.read().state).toBe('capturing');
     const first = capture.read().events[0]; expect(first.outcome).toBe('accepted'); expect(capture.detail(first.id).payload).toEqual(LOGS);
     iface = 'en1'; children[0].emit('exit', 1); expect(capture.read().state).toBe('interrupted');
     await tick(); await tick(); expect(launch).toHaveBeenCalledTimes(2); expect(launch.mock.calls[1][1]).toContain('en1');

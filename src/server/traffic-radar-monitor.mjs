@@ -21,6 +21,9 @@ export function capturePreferences(directory = join(homedir(), '.agents-deck')) 
   };
 }
 
+const activeMonitors = new Set();
+const stopAtExit = () => { for (const stop of activeMonitors) stop(); };
+
 // A child per destination keeps pcap headers and TCP decoders independent.
 // Retry after a crash or adapter change; an explicit stop cancels every retry.
 export function monitorDestination({ platform, tool, host, port, resolveInterface, reset, ingest, status, launch = spawn, retryMs = 3000 }) {
@@ -38,6 +41,7 @@ export function monitorDestination({ platform, tool, host, port, resolveInterfac
         ? ['-i', iface, '-F', 'pcap', '-s', '0', '-f', `host ${host} and tcp port ${port}`, '-w', '-']
         : ['-i', iface, '-nn', '-U', '-s', '0', '-w', '-', `host ${host} and tcp port ${port}`];
       child = launch(tool, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, shell: false });
+      const capturing = child;
       let ended = false, error = '', stderr = '';
       const listening = () => {
         if (ready || stopped || ended) return;
@@ -45,7 +49,7 @@ export function monitorDestination({ platform, tool, host, port, resolveInterfac
         heartbeat = setInterval(() => { if (!stopped) ingest(Buffer.alloc(0)); }, 1000); heartbeat.unref?.();
       };
       const end = () => {
-        if (ended) return; ended = true; stopHeartbeat();
+        if (ended) return; ended = true; stopHeartbeat(); capturing.stdout.destroy(); capturing.kill();
         if (!stopped) { status(error || 'Capture disconnected. Retrying automatically.'); retryLater(); }
       };
       child.stderr.on('data', bytes => {
@@ -62,6 +66,11 @@ export function monitorDestination({ platform, tool, host, port, resolveInterfac
       child.once('error', reason => { if (['EACCES', 'EPERM'].includes(reason.code)) error = 'Packet capture permission is required.'; end(); }); child.once('exit', end);
     } catch { if (!stopped) { status('Capture interface unavailable. Retrying automatically.'); retryLater(); } }
   }
-  void start();
-  return () => { stopped = true; clearTimeout(retry); stopHeartbeat(); child?.stdout.destroy(); child?.kill(); };
+  const stop = () => {
+    stopped = true; clearTimeout(retry); stopHeartbeat(); child?.stdout.destroy(); child?.kill();
+    activeMonitors.delete(stop); if (!activeMonitors.size) process.removeListener("exit", stopAtExit);
+  };
+  if (!activeMonitors.size) process.once("exit", stopAtExit);
+  activeMonitors.add(stop); void start();
+  return stop;
 }

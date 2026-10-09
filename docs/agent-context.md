@@ -89,11 +89,11 @@ clear next action when capture needs assistance.
   dependencies on `rdp`. Wireshark 4.6.9 and Npcap 1.89 were installed from
   official, signed packages; the Npcap driver runs without a reboot. The free
   Npcap installer was completed through its GUI, not an OEM silent switch.
-- `scripts/verify-radar-platform.mjs` is an OS smoke probe. `--live` creates only
+- `scripts/verify-radar-platform.mjs` is an OS smoke probe. `--live --managed` creates only
   synthetic loopback traffic and verifies real packet capture, decoded JSON and
   collector acceptance. It requires capture privileges and dev dependencies.
   The live Linux check passed in an isolated Docker container. The live Windows
-  check passed on `rdp`, executing the generated PowerShell command and capturing
+  check passed on `rdp`, executing managed capture and capturing
   real Npcap loopback packets: decoded JSON matched the synthetic export, its
   session ID was recovered, and the collector response was `accepted`. This
   verifies the capture path; it does not prove Claude sent that test payload.
@@ -103,7 +103,7 @@ clear next action when capture needs assistance.
 - On 2026-10-09 Wireshark's signed, notarized ChmodBPF package was installed on
   the owner's Mac through the system administrator prompt. This grants packet
   capture access; ccdeck itself remains unprivileged. Real managed capture and
-  restart/Stop persistence were verified on macOS and Windows with synthetic
+  restart/Stop persistence were verified on macOS, Windows and Linux with synthetic
   OTLP traffic. Do not claim that a synthetic fixture came from Claude.
 - What's new now has a Check for updates button inside Electron. It asks the
   existing updater through the authenticated tray stream; it does not use npm
@@ -128,3 +128,8 @@ clear next action when capture needs assistance.
 Keep this handoff concise: update decisions and unresolved requirements, and use
 source files and Git history for implementation details rather than recording
 the entire conversation.
+
+- Continuous-monitor QA also exercised the actual local daemon restart from Brave,
+  real synthetic JSON and collector acceptance, modal close/reopen, and Stop in
+  Rider Black / White Contrast at 1280, 390 and 320px. A pcap header alone is
+  readiness, not traffic; verify the status again after the first real export.
