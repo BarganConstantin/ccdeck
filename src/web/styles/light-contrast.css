@@ -64,7 +64,7 @@
 :root[data-color-scheme="light"] .empty-hero .orbit.r2 { border-color: rgba(76,29,149,0.30); }
 :root[data-color-scheme="light"] .empty-hero .orbit.r3 { border-color: rgba(21,128,61,0.32); }
 :root[data-color-scheme="light"] .empty-hero .core {
-  box-shadow: 0 0 28px rgba(76,29,149,0.40), 0 0 64px rgba(3,105,161,0.25);
+  box-shadow: var(--shadow-1);
 }
 
 :root[data-color-scheme="light"] .conn-banner {

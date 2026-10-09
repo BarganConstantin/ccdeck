@@ -4,48 +4,55 @@
 // components: the hero for an empty board, which says why it is empty and what
 // would fill it, and the one for a tab the browser is holding behind other deck
 // tabs (#830). App.tsx picks between them.
+import { useEffect, useState } from "react";
 import { PRODUCT } from "../brand";
 import { captureHints } from "../provider-copy";
 import type { Providers } from "../providers";
 import { emptyScope } from "../scope";
 import FilmLink from "./FilmLink";
 
+/** A quiet diagram of the CLI hub and the agents it will show. */
+function OrbitScene({ active = true }: { active?: boolean }) {
+  const [visible, setVisible] = useState(() => typeof document === "undefined" || !document.hidden);
+  useEffect(() => {
+    const changed = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", changed);
+    return () => document.removeEventListener("visibilitychange", changed);
+  }, []);
+  return <div className="orbit-stack" aria-hidden="true" data-running={active && visible}>
+    <div className="core"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 8 4 4-4 4M13 16h5" /></svg></div>
+    <div className="orbit r1"><span className="dot" /><span className="dot b" /></div>
+    <div className="orbit r2"><span className="dot" /><span className="dot b" /></div>
+    <div className="orbit r3"><span className="dot" /><span className="dot b" /></div>
+  </div>;
+}
+
 /** The hero for a tab whose stream is queued behind other deck tabs' streams
  *  (#830). Not the server: the server is fine, and the other deck tabs in this
  *  browser are live. Said as what to do, because the browser connects this tab
  *  the moment one of the others closes. */
-export function TabCapHero() {
+export function TabCapHero({ reservedRight = 0 }: { reservedRight?: number }) {
   return (
-    <div className="empty-hero">
-      <div className="orbit-stack" aria-hidden>
-        <div className="core" />
-        <div className="orbit r1"><span className="dot" /><span className="dot b" /></div>
-        <div className="orbit r2"><span className="dot" /><span className="dot b" /></div>
-        <div className="orbit r3"><span className="dot" /><span className="dot b" /></div>
-      </div>
+    <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
+      <OrbitScene active={false} />
       <h2>Too many {PRODUCT} tabs are open</h2>
       <p>
         This browser keeps at most six live connections to one address, and
         other <code>{PRODUCT}</code> tabs are holding them. Close one and this
         tab connects on its own.
       </p>
-    </div>
+    </div></div>
   );
 }
 
-export function EmptyHero({ live, everConnected, providers, workspace, onTour }: {
+export function EmptyHero({ live, everConnected, providers, workspace, onTour, reservedRight = 0 }: {
   live: boolean; everConnected: boolean; providers: Providers; workspace: string | null;
-  onTour: () => void;
+  onTour: () => void; reservedRight?: number;
 }) {
   const offline = !live;
   return (
-    <div className="empty-hero">
-      <div className="orbit-stack" aria-hidden>
-        <div className="core" />
-        <div className="orbit r1"><span className="dot" /><span className="dot b" /></div>
-        <div className="orbit r2"><span className="dot" /><span className="dot b" /></div>
-        <div className="orbit r3"><span className="dot" /><span className="dot b" /></div>
-      </div>
+    <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
+      <OrbitScene active={live} />
       {offline ? (
         <>
           <h2>{everConnected ? "Disconnected from server" : "Server unreachable"}</h2>
@@ -70,7 +77,7 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour }:
         <button type="button" className="btn empty-tour" onClick={onTour}>Take the tour</button>
       )}
       {!offline && <FilmLink film="tour" />}
-    </div>
+    </div></div>
   );
 }
 
@@ -112,6 +119,7 @@ function agentNoneCopy(providers: Providers, workspace: string | null) {
           it told a connected reader to check the one thing the page already
           knew. What can really keep the canvas empty is a capture path, and
           each of those says so below. */}
+      <details className="empty-help"><summary>Session not showing up?</summary>
       {captureHints(providers).map(hint => (
         <p className="hint-row" key={hint.provider}>
           {hint.spans.map((span, i) =>
@@ -120,7 +128,7 @@ function agentNoneCopy(providers: Providers, workspace: string | null) {
               : <span key={i}>{span.text}</span>,
           )}
         </p>
-      ))}
+      ))}</details>
     </>
   );
 }
