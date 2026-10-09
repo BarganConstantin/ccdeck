@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { addCodexProfile, readCodexSelection, selectCodexProfile } from '../../server/codex-selection.mjs';
-import { configureCodexTerminal, codexLoginCommand } from '../../server/codex-terminal.mjs';
+import { configureCodexTerminal, codexLoginCommand, codexTerminalCommand } from '../../server/codex-terminal.mjs';
 import { terminalCodexHome } from '../../server/codex-terminal-runner.mjs';
 
 const roots: string[] = [];
@@ -81,5 +81,21 @@ describe('durable terminal selection', () => {
     expect(codexLoginCommand("/profiles/it's work", 'linux')).toContain("'\\''");
     expect(codexLoginCommand("C:\\profiles\\it's work", 'win32')).toContain("it''s work");
     expect(codexLoginCommand('/profiles/a', 'linux')).toContain('codex login');
+  });
+  it('carries the server registry into setup commands and uses the current PowerShell profile', () => {
+    expect(codexTerminalCommand('install', 'bash')).toContain('--store ');
+    expect(codexTerminalCommand('install', 'powershell', 'win32')).toContain('--rc $PROFILE.CurrentUserAllHosts');
+    expect(codexTerminalCommand('uninstall', 'powershell5', 'win32')).toContain('--rc $PROFILE.CurrentUserAllHosts');
+  });
+  it('preserves the effective macOS Bash login file instead of shadowing it', async () => {
+    const f = await fixture();
+    const profile = join(f.root, '.profile');
+    await writeFile(profile, '# Existing login settings\n');
+    const result = await configureCodexTerminal('install', { ...f.options, home: f.root, platform: 'darwin', shell: 'bash', executable: process.execPath });
+    expect(result.rc).toBe(profile);
+    expect(await readFile(profile, 'utf8')).toContain('# Existing login settings');
+    await expect(readFile(join(f.root, '.bash_profile'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    await configureCodexTerminal('uninstall', { ...f.options, home: f.root, platform: 'darwin', shell: 'bash' });
+    expect(await readFile(profile, 'utf8')).toBe('# Existing login settings\n');
   });
 });
