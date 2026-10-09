@@ -70,9 +70,11 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
           is about the server, and the tour would be a promise about a canvas
           that cannot fill. */}
       {!offline && (
-        <button type="button" className="btn empty-tour" onClick={onTour}>Take the tour</button>
+        <div className="empty-actions" role="group" aria-label="Explore ccdeck">
+          <button type="button" className="btn empty-tour" onClick={onTour}>Take the tour</button>
+          <FilmLink film="tour" action />
+        </div>
       )}
-      {!offline && <FilmLink film="tour" />}
     </div></div>
   );
 }
