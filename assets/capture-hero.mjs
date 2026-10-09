@@ -439,7 +439,6 @@ function pageScript(C) {
     for (const d of document.querySelectorAll(".modal.guide, .modal.release-notes")) d.querySelector('button[aria-label^="Close"]')?.click();
     await waitFor("the canvas", () => document.querySelectorAll(".react-flow__node").length >= C.frame.nodes);
     await waitFor("the waiting chip", () => document.querySelector(".topbar .waiting-stat"));
-    await waitFor("this month's usage", () => document.querySelector(".topbar .month-usage b"));
     press("Re-arrange the canvas");
     await wait(1500);
     // Settled: the same viewport for a second and a half.

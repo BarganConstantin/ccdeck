@@ -499,8 +499,11 @@ describe("markup, read as source", () => {
     expect(models).not.toMatch(/staleCls|up-stale/);
     expect(sessions).not.toMatch(/staleCls|up-stale/);
     expect(css).not.toMatch(/\.up-stale\b/);
-    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
-    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    // The scope sentence is boardScopeTitle's since Settings › General's
+    // single-key switch: BOARD_SCOPE_TITLE while H opens the history, the same
+    // sentence naming Usage history once it does not (WCAG 2.1.4).
+    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
+    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
     expect(models).toContain('<section className="up-section">');
     expect(sessions).toContain('<section className="up-section">');
     // The words that carry it: the noun of the period SHOWN, not the one pressed.

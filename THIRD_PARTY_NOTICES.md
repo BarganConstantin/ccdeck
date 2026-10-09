@@ -16,13 +16,22 @@ listed here are compiled into that bundle and are physically present in the
 published tarball — which is what makes these notices required rather than
 merely courteous.
 
-Two things are deliberately **not** listed:
+These are deliberately **not** listed:
 
 - **Test and type tooling** (`vitest`, `typescript`, `@vitejs/plugin-react`) and
   **type-only packages** (`@types/*`). These are devDependencies that never reach
   the published bundle — `@types/*` erase at compile time.
-- **The server, launcher and hook** (`src/server`, `bin`, `hook`). They import
-  nothing but Node built-ins, so they carry no third-party code at all.
+- **The launcher and hook** (`bin`, `hook`). They import only Node built-ins.
+
+The server additionally ships `src/server/traffic-radar-codec.mjs`, a bundled
+HPACK and protobuf decoder. It needs no installed runtime dependencies. Its
+complete package list and copyright/licence texts travel alongside it in
+`src/server/traffic-radar-codec-LICENSES.md`; the source and reproducible build
+are `traffic-radar-codec-source.mjs` and `scripts/build-radar-codec.mjs`.
+`traffic-radar-otlp.json` is generated from OpenTelemetry's Apache-2.0 licensed
+protobuf definitions, version v1.9.0:
+https://github.com/open-telemetry/opentelemetry-proto/tree/v1.9.0.
+The Apache-2.0 licence reproduced below also covers these definitions.
 
 `vite` used to be named in that first bullet and is not any more, because it is
 the exception the bullet cannot hold: it is a build tool that also **writes code

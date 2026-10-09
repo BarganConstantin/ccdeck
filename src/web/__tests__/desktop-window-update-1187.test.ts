@@ -112,11 +112,12 @@ describe("the one-button window wiring", () => {
     const body = modal.slice(modal.indexOf('<section className="modal-body">'));
     const update = body.indexOf("onClick={onUpdateRestart}");
     expect(update).toBeGreaterThan(-1);
-    // Ahead of the intro, the tour and the deck's own Restart.
+    // Ahead of the intro and of the action strip that holds the tour and the
+    // deck's own Restart (ReleaseActions.tsx, since the owner asked for one
+    // strip in place of three stacked rows).
     expect(update).toBeLessThan(body.indexOf('<p className="modal-note">'));
-    expect(update).toBeLessThan(body.indexOf("onClick={onTour}"));
-    expect(update).toBeLessThan(body.indexOf("onClick={onRestart}"));
-    expect(body).toMatch(/\{onTour && !updateVersion && \(/);
+    expect(update).toBeLessThan(body.indexOf("<ReleaseActions"));
+    expect(body).toMatch(/<ReleaseActions onTour=\{updateVersion \? undefined : onTour\} onRestart=\{onRestart\}/);
   });
 
   it("wears its own chip, not the stale chip's warning", () => {

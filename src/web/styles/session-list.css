@@ -17,10 +17,14 @@
    `.sl-row-meta`) is what actually holds the width — measured flat at a
    2000-character session label, the same check #369 put on the two panels
    beside this one. This is the shape `.accounts-panel` and `.usage-panel`
-   already had; the session list was the one panel with a nested scroller. */
+   already had; the session list was the one panel with a nested scroller.
+   ITS OWN WIDTH, which it never had: the grid's track gave it 240px, so in a
+   switch, with Accounts' `auto` template in force, it was as wide as its
+   longest row. It is drawn inside the left column now, out of flow, at this
+   width from its first frame to its last (styles/left-column.css). */
 .session-list {
-  grid-column: 1;
-  grid-row: 2 / -1;
+  /* Same width as Accounts, so switching panels keeps the canvas in place. */
+  width: 288px;
   background: var(--panel);
   border-right: 1px solid var(--line);
   display: flex;

@@ -24,6 +24,7 @@ import { lapsed, laneSplit } from "../lane-view";
 import { resetCountdown } from "../relative-time";
 import { type useRequestSlot } from "../use-request-slot";
 import { laneName } from "../other-accounts-order";
+import { resetSinceReading } from "../accounts-usage-report";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
@@ -34,7 +35,9 @@ function fullness(pct: number): "mid" | "hi" | undefined {
   return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
 }
 
-function LaneBar({ lane, nowSec, frozen, sortedBy }: { lane: Lane; nowSec: number; frozen?: boolean; sortedBy?: boolean }) {
+function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
+  lane: Lane; nowSec: number; readAt: number | null; frozen?: boolean; sortedBy?: boolean;
+}) {
   const capped = Math.min(100, Math.max(0, lane.pct));
   // A window whose reset has passed since it was read is over, and the number
   // is the old window's: a record too, however recent the collection.
@@ -45,25 +48,37 @@ function LaneBar({ lane, nowSec, frozen, sortedBy }: { lane: Lane; nowSec: numbe
   const color  = record ? "var(--muted)" : capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
   // And a reset from a reading that old has most likely happened already.
   const reset  = lane.resetAt && !record ? resetCountdown(lane.resetAt, nowSec) : null;
+  // RESET, FROZEN OR NOT, where the number was — as the shut row, the Usage
+  // panel's bar and the capacity report say it. A row nothing has read for a
+  // quarter of an hour is frozen, and it is the row most likely to have reset:
+  // asked only of rows that were not frozen, the open row went on printing
+  // 96% for a window the shut row above it and the report both called reset.
+  // Not 0% either, which nobody has read. When it reset and what it read
+  // before are on hover and said, in the report's words.
+  const before = rolled ? resetSinceReading(lane, readAt, nowSec) : null;
   return (
     <div className="ap-lane" data-sort-key={sortedBy ? "" : undefined}>
       <span className="ap-lane-label" title={lane.label}>{lane.label}</span>
       <div className="ap-lane-track">
-        <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || record ? 0.4 : 1 }} />
+        {/* EMPTY ONCE IT HAS RESET, the way the Usage panel draws a window
+            that has: the totals count it as unused, and a bar still 96% full
+            beside the word "reset" said the opposite of the word. */}
+        {!rolled && <div className="ap-lane-fill" style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: color, opacity: capped === 0 || record ? 0.4 : 1 }} />}
       </div>
       {/* Whole, as the shut row and the Usage panel print it: claude-swap keeps
           the utilisation as it came, and 85.555555% beside a shut-row 86% is
           one window read two ways. */}
-      <span className="ap-lane-pct" style={{ color }}>{Math.round(capped)}%</span>
+      {rolled
+        ? <span className="ap-lane-pct" style={{ color }} data-reset="" title={before ?? undefined}>
+            {before ? <><span aria-hidden>reset</span><span className="vis-hidden">{before}</span></> : "reset"}
+          </span>
+        : <span className="ap-lane-pct" style={{ color }}>{Math.round(capped)}%</span>}
       {/* When the window rolls over, at the end of its own bar rather than on a
           line under it: two resets under two bars made the live row five lines
           tall for two facts. The word is said to a screen reader and in the
-          title; on screen a countdown beside a quota reads as one. Once it has
-          rolled over, the same place says so. */}
-      <span className="ap-lane-reset"
-        title={reset ? `${lane.label} resets in ${reset}` : rolled && !frozen ? `${lane.label} has reset since this reading` : undefined}>
+          title; on screen a countdown beside a quota reads as one. */}
+      <span className="ap-lane-reset" title={reset ? `${lane.label} resets in ${reset}` : undefined}>
         {reset && <><span className="vis-hidden">resets in </span>{reset}</>}
-        {rolled && !frozen && "reset"}
       </span>
     </div>
   );
@@ -333,7 +348,7 @@ export default function AccountRow({
         <div className="ap-detail" id={`ap-detail-${a.num}`}>
           <div className="ap-lanes">
             {a.lanes.length
-              ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} frozen={frozen} sortedBy={l.id === keyLane?.id} />)
+              ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} readAt={a.fetchedAt} frozen={frozen} sortedBy={l.id === keyLane?.id} />)
               : <div className="ap-hint">No usage recorded yet.</div>}
           </div>
           <div className="ap-meta">

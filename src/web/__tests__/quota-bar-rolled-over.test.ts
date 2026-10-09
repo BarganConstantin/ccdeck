@@ -88,16 +88,23 @@ describe("an open account row whose window has reset since its collection", () =
   /** The 5h lane's markup, from its label to the end of its reset slot. */
   const fiveHour = (html: string) => /title="5h"[^]*?class="ap-lane-reset"[^]*?<\/span><\/div>/.exec(html)?.[0] ?? "";
 
-  it("draws the old number as a record, not in the warning ink", () => {
+  // Until accounts-open-row-reset the old number stayed on the face, muted,
+  // with "reset" in the countdown's slot — and a frozen row printed only the
+  // number. Now "reset" takes the number's place on every row, as the shut row
+  // and the capacity report put it, and the number moves to the title.
+  it("says reset where the old number was, in the record's ink, not the warning's", () => {
     const lane = fiveHour(row(account(NOW - 600)));
-    expect(lane).toContain('class="ap-lane-pct" style="color:var(--muted)"');
+    expect(lane).toMatch(/<span class="ap-lane-pct" style="color:var\(--muted\)"[^>]*><span aria-hidden="true">reset<\/span>/);
     expect(lane).not.toContain("var(--err)");
+    expect(lane).not.toContain(">92%<");
+    expect(lane).not.toContain("ap-lane-fill");
   });
 
-  it("says the window has reset where the countdown was", () => {
+  it("keeps when it reset and what it read on hover and for a screen reader", () => {
     const lane = fiveHour(row(account(NOW - 600)));
-    expect(text(lane)).toContain("reset");
-    expect(lane).toContain("5h has reset since this reading");
+    expect(lane).toContain('title="Reset 10m ago, 92% when read 10m ago"');
+    expect(lane).toContain('<span class="vis-hidden">Reset 10m ago, 92% when read 10m ago</span>');
+    expect(lane).toContain('<span class="ap-lane-reset"></span>');
   });
 
   it("keeps a window still running in its level's ink, with its countdown", () => {

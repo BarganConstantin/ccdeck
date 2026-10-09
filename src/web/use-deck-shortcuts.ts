@@ -14,10 +14,12 @@ import { isCanvasNodeElement } from "./canvas-node-element";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
+import { isUndoChord } from "./rearrange-undo";
 import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
+import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
-import type { Theme } from "./theme";
+import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -48,6 +50,9 @@ export interface DeckShortcuts {
   focusSession: (sessionId: string) => void;
   requestClear: (source: ClearSource) => void;
   handleRelayout: () => void;
+  /** Re-arrange's Undo, while the canvas offers it: true when it put the board
+   *  back, false once the offer has gone (use-board-layout.ts). */
+  undoRearrange: () => boolean;
   handleFit: () => void;
   togglePause: () => void;
   toggleSessionList: () => void;
@@ -68,7 +73,7 @@ export function useDeckShortcuts({
   pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
   keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
-  handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
+  handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
   setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
 }: DeckShortcuts): void {
@@ -126,6 +131,18 @@ export function useDeckShortcuts({
         if (!e.repeat) openSettings();
         return;
       }
+      // The second chord, and only while it has something to do: ⌘Z or Ctrl+Z
+      // puts back the board R just replaced, for as long as the canvas offers
+      // it. Held to the same two gates — a field keeps its own undo, and the
+      // canvas is not reached behind a dialog — and a chord, so it answers with
+      // the single-key shortcuts off. Once the offer has gone the chord is the
+      // browser's again, untouched.
+      if (isUndoChord(e)) {
+        if (isTypingTarget(target)) return;
+        if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
+        if (!e.repeat && undoRearrange()) e.preventDefault();
+        return;
+      }
       // Ctrl/Cmd/Alt chords are the browser's, not ours — Ctrl+C is copy and
       // Ctrl+R is reload, and both arrive here as the bare letter. Asked before
       // the canvas branch below rather than after the gate it used to sit
@@ -153,6 +170,12 @@ export function useDeckShortcuts({
       // Arrows belong to the card, whatever React Flow does or does not do with
       // them. Delete does not: it is the deck's Remove from board (#1668).
       if (intent.kind === "node") return;
+      // WCAG 2.1.4: with Settings › General's switch off, no key that types a
+      // character does anything from here down — every letter, `?` and Space
+      // — so dictation that lands on the page cannot drive the deck. Asked
+      // after the chords, Escape and a focused card's own Enter and Space,
+      // which are not this list's; Delete is a named key and stays too.
+      if (characterKeyMuted(e.key, singleKeyShortcutsOn())) return;
       // `?` closes the sheet it opened, whatever in the sheet has focus — see
       // closesKeySheet. Asked before the gate below, which kept the key for the
       // sheet's ×, and not on a held key's repeat, which would shut the sheet
@@ -283,7 +306,7 @@ export function useDeckShortcuts({
           focusSession(next.id);
         }
       }
-      if (e.key === "t" || e.key === "T") setTheme(t => (t === "dark" ? "light" : "dark"));
+      if (e.key === "t" || e.key === "T") setTheme(nextTheme);
       // The last topbar control to get a key, and the only one that reads
       // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked
       // keyboard sends the upper case for the same press — and this one does
@@ -321,5 +344,5 @@ export function useDeckShortcuts({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause]);
+  }, [requestClear, handleRelayout, undoRearrange, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause]);
 }

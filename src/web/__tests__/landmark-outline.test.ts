@@ -363,7 +363,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     expect(code(usageAll)).not.toMatch(/<h4/);
   });
 
-  it("keeps <h4> to the dialogs, plus the one panel section that really has subsections", () => {
+  it("keeps <h4> to dialogs and panel sections with subsections", () => {
     // aria-modal="true" prunes everything outside the dialog from the tree, and
     // all of these dialogs name themselves with aria-label or aria-labelledby
     // rather than with a heading — so their internal levels are a separate
@@ -390,7 +390,10 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       "components/RemoteControl.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
+      "components/TelemetryCapture.tsx",
+      "components/TelemetryFile.tsx",
       "components/ToolModal.tsx",
+      "components/TrafficRadar.tsx",
     ]);
   });
 });

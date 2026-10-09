@@ -1,0 +1,103 @@
+/* ---------------- the left column ---------------- */
+/* ONE ELEMENT FOR THE SLOT THE SESSION LIST AND ACCOUNTS SHARE (2026-10-08).
+   The two panels were grid items of their own, and the column was whatever the
+   first track made of them. A switch has both in it for the 200ms the leaving
+   one takes to go, and the track then opened to the session list's longest
+   row, 360px on the demo deck and half the window on a busy one, before it
+   snapped to 240px.
+
+   Now the column owns the slot, the bed, the edge and the motion. Its width is
+   App's (leftColumnWidth in use-left-column.ts): the open panel's own, or 0.
+   The panels are out of flow inside it, each at its own width from its first
+   frame to its last, so neither can size the column and neither ever reflows.
+
+   THE MOTION. The width eases from wherever it is to the new panel's, and
+   the canvas, the grid's 1fr beside it, rides the edge frame by frame; the
+   board is re-packed once, when the column settles (use-canvas-size.ts).
+   Transitions, not keyframes, so pressing L and A back and forth retargets
+   from the frame on screen instead of restarting.
+     · open: the column grows from nothing and the panel slides in with its
+       edge, the same duration and curve, so the panel's right edge IS the
+       column's edge on every frame;
+     · switch: the panel leaving fades out fast where it stands, and the one
+       arriving fades in a beat later, at its own width, on top;
+     · close: the panel slides out with the edge as the column closes, and
+       fades as it goes, a little faster than it came.
+   240ms on the iOS drawer curve, brisk because the column changes tens of
+   times a day and half of those are from the keyboard. */
+:root {
+  --column-move: 240ms;
+  --column-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.left-column {
+  grid-column: 1;
+  grid-row: 2 / -1;
+  position: relative;
+  width: var(--left-col-w);
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  transition: width var(--column-move) var(--column-ease);
+}
+/* Out is faster than in, and the panel that leaves is held exactly this long. */
+.left-column.closing { transition-duration: var(--side-exit); }
+@starting-style {
+  .left-column { width: 0; }
+}
+
+/* Each panel keeps its own width, and its own bed for the cross-fade; the edge
+   is the column's, so a panel narrower than the column for a moment draws no
+   line of its own inside it. */
+.left-column > .session-list,
+.left-column > .accounts-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  border-right-color: transparent;
+  transition:
+    transform var(--column-move) var(--column-ease),
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1) 40ms;
+}
+/* How a panel arrives: alone, it came with the column and slides in with the
+   edge; beside another, the column was already open and it fades in where it
+   stands. */
+@starting-style {
+  .left-column > :only-child { transform: translateX(-100%); }
+  .left-column > :not(:only-child) { opacity: 0; }
+}
+/* How a panel leaves: under the one arriving, faded out before that one is
+   halfway in, and no longer the reader's (LeftColumn.tsx makes it inert). Its
+   transform keeps easing, so one caught mid-slide does not jump. */
+.left-column > .leaving {
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform var(--column-move) var(--column-ease);
+}
+.left-column.closing > .leaving {
+  transform: translateX(-100%);
+  transition:
+    opacity var(--side-exit) linear,
+    transform var(--side-exit) var(--column-ease);
+}
+
+/* REDUCED MOTION: the column is at its new width on the first frame and does
+   not travel. The panel leaving is gone at once, and the one arriving
+   dissolves in where it stands — opacity only, which moves nothing. Never a
+   frame at a width neither panel has: the width is still leftColumnWidth's. */
+@media (prefers-reduced-motion: reduce) {
+  .left-column { transition: none; }
+  .left-column > .session-list,
+  .left-column > .accounts-panel { transition: opacity 140ms ease; }
+  .left-column > .leaving,
+  .left-column.closing > .leaving { transform: none; transition: none; }
+  @starting-style {
+    .left-column > :only-child { opacity: 0; }
+  }
+}

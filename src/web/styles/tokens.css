@@ -382,10 +382,22 @@
    own control stack; the sole remaining boundary of that kind is Pause
    against `$`. The step is worth just as much at one crossing as at four, and
    the two variants still derive from this number, so there is no arithmetic
-   left that could produce a second one. */
+   left that could produce a second one.
+
+   --topbar-h and --edge-w are the deck's chrome, read by every rule that
+   places something against it: the grid's first row, the rail panels and the
+   detail sheet hanging under the bar, the stripes standing beside it
+   (edge-rails.css). The bar is 44px since its panel toggles left for the
+   window's edges — it was 52 while it held eight controls and their open
+   states — and a stripe is one control height wide, a topbar button turned
+   on its side. Under 641px the stripes give way to a dock along the bottom,
+   --dock-h tall, so --edge-w is nothing there. */
 :root {
   --panel-inset: 14px;
   --ctl-h: 30px;
+  --topbar-h: 44px;
+  --edge-w: var(--ctl-h);
+  --dock-h: 56px;
   /* THE RADIUS HIERARCHY: three steps, one meaning each. A tag or a chip inside
      a control group, a control, a surface. The chrome used to be 10px panels,
      a 12px dialog, an 18px bar and 999px pills on most small things, which is
@@ -698,23 +710,24 @@ button:focus-visible { outline-offset: 1px; }
 .app {
   display: grid;
   grid-template-columns: 1fr 360px;
-  grid-template-rows: 52px auto 1fr;
+  grid-template-rows: var(--topbar-h) auto 1fr;
   height: 100vh;
 }
-/* When a left sidebar is open, add a left column. The .app:has() check keeps
-   everything declarative — no extra body class plumbing needed. Sessions and
-   Accounts share the slot and are mutually exclusive, so only one width rule
-   can ever apply; accounts gets more room for its bars and email addresses. */
-.app:has(.session-list) {
-  grid-template-columns: 240px 1fr 360px;
-}
-/* AUTO, so the track follows the panel's own width rather than fixing it.
-   That is what lets the panel animate: a track cannot be transitioned from two
-   columns to three, and the closed state has no first column at all — but a
-   track sized to its content can start at nothing and grow with the thing in
-   it, and `:has()` has already moved the canvas to column 2 by the time the
-   first frame paints. */
-.app:has(.accounts-panel) {
+/* When the left column is open, add a column for it. The .app:has() check
+   keeps everything declarative — no extra body class plumbing needed.
+   AUTO, so the track is as wide as the column, which is one element holding
+   whichever of the session list and Accounts is open (styles/left-column.css).
+   That is what lets it move: a track cannot be transitioned from two columns
+   to three, and the closed state has no first column at all, but a track sized
+   to its content starts at nothing and follows the column's width frame by
+   frame, and `:has()` has already moved the canvas to column 2 by the time the
+   first frame paints.
+   KEYED ON THE COLUMN, NOT ON EITHER PANEL (2026-10-08). There was a rule for
+   each panel, 240px for the list and `auto` for Accounts, and a switch has both
+   panels in the column while the leaving one fades: the later rule won, the
+   track went `auto` around a session list with no width of its own, and it
+   opened to the list's longest row before snapping to 240px. */
+.app:has(.left-column) {
   grid-template-columns: auto 1fr 360px;
 }
 .app:has(.session-list) .canvas-wrap,

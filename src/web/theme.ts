@@ -22,7 +22,11 @@
 // drift apart.
 import { readStored } from "./storage";
 
-export type Theme = "dark" | "light";
+export type Theme = "dark" | "light" | "rider-black" | "vscode-black";
+export const THEMES: Theme[] = ["light", "dark", "rider-black", "vscode-black"];
+export function nextTheme(theme: Theme): Theme {
+  return THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+}
 
 /** Where the preference lives. Pinned by display-name.test.ts: renaming it
  *  reads as an empty store and silently discards everyone's choice. */
@@ -31,7 +35,7 @@ export const THEME_KEY = "agent-dag.theme";
 /**
  * The theme a stored value asks for, and what no choice falls back to.
  *
- * "light" and "dark" are choices, and a choice wins whatever the OS says.
+ * Every supported theme is a choice, and a choice wins whatever the OS says.
  * Anything else — absent, null from a store the browser refused, or a value a
  * future version might have written — is no choice at all, and the deck
  * follows the OS (#885): a first run on a light desktop used to open dark.
@@ -40,7 +44,7 @@ export const THEME_KEY = "agent-dag.theme";
  * default is dark, the one the stylesheet already paints with no attribute.
  */
 export function resolveTheme(stored: string | null | undefined, prefersLight = false): Theme {
-  if (stored === "light" || stored === "dark") return stored;
+  if (stored === "light" || stored === "dark" || stored === "rider-black" || stored === "vscode-black") return stored;
   return prefersLight ? "light" : "dark";
 }
 

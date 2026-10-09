@@ -2,12 +2,13 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
-import { usePanelPresence, isMounted } from "./panel-exit";
+import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
+import LeftColumn from "./components/LeftColumn";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -34,8 +35,10 @@ import { usePanelReturn } from "./use-panel-return";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
-import { SessionRun, SettingsRun, SourceRun } from "./components/TopbarRuns";
-import { ReadoutGroup } from "./components/TopbarReadouts";
+import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
+import { railItems } from "./rail-items";
+import { useMediaQuery } from "./use-media-query";
+import { ReadoutGroup, WaitingNames } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
 import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
@@ -56,7 +59,7 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
-import { useLeftColumn } from "./use-left-column";
+import { leftColumnWidth, useColumnSettle, useLeftColumn } from "./use-left-column";
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
@@ -74,7 +77,6 @@ import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
 import { initialState } from "./reducer";
-import { useMonthlyUsage } from "./use-monthly-usage";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
@@ -119,13 +121,16 @@ function Inner() {
   // The left column: the session list and the accounts panel share one slot,
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
-  const { sessionListOpen, accountsPanelOpen, toggleSessionList, toggleAccountsPanel,
+  const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
           closeSessionList, closeAccountsPanel } = useLeftColumn();
-  const monthly = useMonthlyUsage();
-  /** The panel outlives its own `false` by the length of its exit, so closing
-   *  it animates instead of cutting 288px out of the layout in one frame.
-   *  Must match `--side-exit` in the sheet. */
+  /** Both panels outlive their own `false` by the length of their exit: a
+   *  close slides the panel out with the column's edge, and a switch fades the
+   *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
   const accountsPhase = usePanelPresence(accountsPanelOpen, 200);
+  const sessionListPhase = usePanelPresence(sessionListOpen, 200);
+  /** Drawn, and leaving, from the render that flips the flag: the same render
+   *  the column's width changes in (panel-exit.ts, isDrawn). */
+  const sessionListDrawn = isDrawn(sessionListOpen, sessionListPhase);
   /** The rail's two panels leave the same way — see --rail-exit in the sheet.
    *  Faster than the accounts panel because they travel less: 8px and a fade,
    *  against 288px of layout. */
@@ -211,6 +216,12 @@ function Inner() {
   // What this deck may see — its workspace scope and which CLIs it watches —
   // comes from /api/health, re-asked on every reconnect, in use-deck-scope.ts.
   const { workspace, providers, providersRef } = useDeckScope(live);
+  /** How wide the left column is drawn: the open panel's own width, or 0 —
+   *  never anything the two panels make between them (LeftColumn.tsx). The
+   *  accounts panel is Claude's alone, so without Claude Code it is no width. */
+  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !providers.claude ? null : leftPanel);
+  const columnSettleRef = useColumnSettle(leftColumnTarget);
+  const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && providers.claude;
 
   // The "started under an old npm name" notice lives in use-old-name-notice.ts.
   const oldNameNotice = useOldNameNotice(version);
@@ -303,8 +314,8 @@ function Inner() {
   // The board's arrangement — the stored positions and pins it was restored
   // from, the placeholders, the layout signature, the epoch R and the reframe
   // move, and the frame it was packed for — and R itself, in use-board-layout.ts.
-  const layout = useBoardLayout(fitLeft);
-  const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout } = layout;
+  const layout = useBoardLayout(camera);
+  const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout, rearrangeUndo } = layout;
 
   /** The card the last focus framed, and when — so a re-pack that lands just
    *  after it (the reframe effect below) can frame it again where it went. */
@@ -323,7 +334,8 @@ function Inner() {
   // How big the canvas is, measured once by one observer and kept two ways:
   // quantised for the layout, whole for the drift watchdog below. See
   // use-canvas-size.ts.
-  const { canvasRef, canvasSize, paneSizeRef } = useCanvasSize();
+  // Held while the left column moves, so the board is re-packed once, after.
+  const { canvasRef, canvasSize, paneSizeRef } = useCanvasSize(columnSettleRef);
   const autoFit = useAutoFitSwitch(fitLeft);
   const { autoFitDisabledRef, disableAutoFit } = autoFit;
 
@@ -395,8 +407,8 @@ function Inner() {
   // panel: the topbar button that opens it, or the card the detail panel was
   // about — use-panel-return.ts.
   const panelReturn = usePanelReturn({
-    sessionListShown: sessionListOpen, usageShown: isMounted(usagePhase), machineShown: isMounted(machinePhase),
-    accountsShown: isMounted(accountsPhase) && providers.claude, detailShown, primarySelectedId, canvasRef,
+    sessionListShown: sessionListDrawn, usageShown: isMounted(usagePhase), machineShown: isMounted(machinePhase),
+    accountsShown: accountsDrawn, detailShown, primarySelectedId, canvasRef,
   });
 
   // What the floating panels cover of the canvas, and the frame the layout and
@@ -492,7 +504,7 @@ function Inner() {
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
-    handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
+    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
   });
@@ -540,6 +552,27 @@ function Inner() {
   // use-prefs-read.ts.
   usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
 
+  // The eight controls of the chrome, each defined once, and the edge each
+  // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
+  // the two stripes and the utilities are one dock along the bottom.
+  const phone = useMediaQuery(PHONE_QUERY);
+  const rails = railItems({
+    providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
+    usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
+    watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
+    toggles: panelReturn.toggles,
+  });
+  // How many of the waiting sessions the topbar names, for the count's hint,
+  // which lists the rest.
+  const [queueNamed, setQueueNamed] = useState(0);
+  /** The waiting queue's "+N more": the session list, whose top rows are the
+   *  same sessions in the same order, opened if it is shut, and focus on its
+   *  first row once it is drawn. */
+  const showWaitingList = useCallback(() => {
+    if (!sessionListOpen) toggleSessionList();
+    requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
+  }, [sessionListOpen, toggleSessionList]);
+
   return (
     <div className="app">
       {/* The deck's regions, and why each one is the element it is (#381).
@@ -582,57 +615,33 @@ function Inner() {
       <header className="topbar">
         {/* The observation group, and the notes on each readout in it — components/TopbarReadouts.tsx. */}
         <ReadoutGroup
-          versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause} monthly={monthly}
+          versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause}
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
           waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
-          incidents={incidents}
+          incidents={incidents} queueNamed={phone ? 0 : queueNamed}
         />
+        {/* Who is waiting, by name, in the room the bar has left — and none of
+            it on a phone, where the bar holds the count alone. Mounted while
+            nothing waits too, so the ribbon after it stands in one place
+            whether or not somebody is waiting. */}
+        {!phone && (
+          <WaitingNames waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef}
+            focusSession={focusSession} now={now} onFit={setQueueNamed} onMore={showWaitingList} />
+        )}
         {selected && (
           <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
         )}
-        <div className="actions">
-          {/* Three runs, 4px inside and 12px between, and the settings run a
-              further 12px out, so it stands at the 24px that separates this
-              whole group from the readout: control to control, run to run,
-              role to role. Spacing only, no rules drawn between them.
-              The first two runs open things: your sessions and what they
-              spend (Session list, Usage and its History), then who spends it,
-              on what, and what it watched (Accounts, Machine, Browser watch).
-              The third is the utilities: the gear that opens Settings, and
-              Feedback.
-              Re-layout, Clear and now Pause are gone from here entirely. All
-              three are canvas verbs and they are on the canvas, in the React
-              Flow control stack beside Recenter — the same place `F` already
-              had no topbar button of its own. Pause was held back a release
-              because it carried a count no glyph can print; the pill at the
-              other end of this bar carries it instead, which is what let the
-              last text button in the row go.
-              Two runs now, so the 18px between them draws one seam rather than
-              two. Nothing else in the bar moved: `.actions` is `flex: none` on
-              a `space-between` header, so the icon runs were pinned to the
-              right edge before and are pinned there still — what the removal
-              gives back is width in the middle, where the selected-agent ribbon
-              and the readouts share it. */}
-          <SessionRun
-            sessionListOpen={sessionListOpen} toggleSessionList={toggleSessionList}
-            usagePanelOpen={usagePanelOpen} setUsagePanelOpen={setUsagePanelOpen}
-            setUsageHistoryOpen={setUsageHistoryOpen} toggles={panelReturn.toggles}
-          />
-          <SourceRun
-            providers={providers} accountsPanelOpen={accountsPanelOpen} toggleAccountsPanel={toggleAccountsPanel}
-            machinePanelOpen={machinePanelOpen} setMachinePanelOpen={setMachinePanelOpen}
-            watchOn={watchOn} watchUnseen={watchUnseen} setBrowserWatchOpen={setBrowserWatchOpen}
-            toggles={panelReturn.toggles}
-          />
-          {/* The gear that opens Settings, and Feedback —
-              components/TopbarRuns.tsx. */}
-          <SettingsRun
-            openSettings={openSettings}
-            onFeedback={() => dialogs.openFeedback()}
-            watchUnseen={watchUnseen} setUsageHistoryOpen={setUsageHistoryOpen} setBrowserWatchOpen={setBrowserWatchOpen}
-          />
-        </div>
+        {/* Settings and Feedback, in the corner every product keeps them in.
+            The panel toggles are on the edges their panels open from. */}
+        {!phone && <div className="actions"><UtilityRun items={rails.utilities} /></div>}
       </header>
+
+      {/* The left stripe, ahead of the column it opens so Tab reaches the
+          control before the region it discloses — or, on a phone, the dock
+          that stands in for both stripes and the utilities. */}
+      {phone
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right[1], rails.utilities[1]]} />
+        : <EdgeRail side="left" label="Left column" groups={[rails.left]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -647,27 +656,34 @@ function Inner() {
         everConnected={everConnected} live={live} paused={paused}
       />
 
-      {/* Claude-only, and now conditional on Claude Code actually being here.
-          Every account in it is a Claude account, the store behind it is
-          claude-swap's, and both of its empty states end at `claude auth login`
-          — which on a Codex-only machine dead-ends at "the claude CLI could not
-          be run: not on PATH". The panel is also open by default, so that was
-          the first thing such a user saw. */}
-      {isMounted(accountsPhase) && providers.claude && (
-        <AccountsPanel leaving={accountsPhase === "leaving"} onReport={dialogs.openFeedback}
-          onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }} />
-      )}
-
-      {sessionListOpen && (
-        <SessionList
-          state={stateRef.current}
-          now={now}
-          selectedIds={selectedIds}
-          onSelect={openSession}
-          onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
-          removedIds={removedAgentIds}
-          onBringBackAll={bringBackAll}
-        />
+      {/* The left column, one element both panels are drawn in: its width is
+          the open panel's, eased from the last one, and a switch cross-fades
+          the two inside it — components/LeftColumn.tsx. */}
+      {(sessionListDrawn || accountsDrawn) && (
+        <LeftColumn width={leftColumnTarget}>
+          {/* Claude-only, and now conditional on Claude Code actually being here.
+              Every account in it is a Claude account, the store behind it is
+              claude-swap's, and both of its empty states end at `claude auth login`
+              — which on a Codex-only machine dead-ends at "the claude CLI could not
+              be run: not on PATH". The panel is also open by default, so that was
+              the first thing such a user saw. */}
+          {accountsDrawn && (
+            <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
+              onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }} />
+          )}
+          {sessionListDrawn && (
+            <SessionList
+              leaving={isLeaving(sessionListOpen, sessionListPhase)}
+              state={stateRef.current}
+              now={now}
+              selectedIds={selectedIds}
+              onSelect={openSession}
+              onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
+              removedIds={removedAgentIds}
+              onBringBackAll={bringBackAll}
+            />
+          )}
+        </LeftColumn>
       )}
       {/* <main>, the canvas: the listeners that have to sit on all of it, and
           the drag-to-remove zone and the peek drawn over it —
@@ -704,6 +720,10 @@ function Inner() {
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
         />
       </CanvasMain>
+
+      {/* The right stripe, ahead of the two panels it opens so Tab reaches the
+          control before the region it discloses. */}
+      {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only
@@ -751,7 +771,7 @@ function Inner() {
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs
         dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
-        lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
+        upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify} fm={fm}
       />

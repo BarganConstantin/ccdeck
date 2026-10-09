@@ -123,8 +123,10 @@ export interface VersionCheck {
    *  worth showing. */
   versionChecking: boolean;
   /** Returns the round trip, so a caller that has to know when the answer
-   *  landed can wait for it — `startUpgrade` is the one (#620). */
-  loadVersion: (force?: boolean) => Promise<void>;
+   *  landed can wait for it — `startUpgrade` is one (#620). It resolves to the
+   *  answer, or null when the deck gave none, which is how What's new tells
+   *  "npm could not be reached" from "the deck could not be". */
+  loadVersion: (force?: boolean) => Promise<VersionInfo | null>;
 }
 
 /**
@@ -146,12 +148,12 @@ export function useVersionCheck(live: boolean): VersionCheck {
   // Returns the round trip so a caller that has to know when the answer landed
   // can wait for it — startUpgrade is the one, and holds its press lock until
   // /api/version has reported the run it just started (#620).
-  const loadVersion = useCallback((force = false) => {
+  const loadVersion = useCallback((force = false): Promise<VersionInfo | null> => {
     if (force) { lastForcedRef.current = Date.now(); setVersionChecking(true); }
     return fetch(force ? "/api/version?refresh=1" : "/api/version")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setVersion(d as VersionInfo); })
-      .catch(() => {})
+      .then(d => { if (d) setVersion(d as VersionInfo); return (d as VersionInfo | null) ?? null; })
+      .catch(() => null)
       .finally(() => { if (force) setVersionChecking(false); });
   }, []);
   // Every unforced poll is answered from the server's on-disk marker, so once a

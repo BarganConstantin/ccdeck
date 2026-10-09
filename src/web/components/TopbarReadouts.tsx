@@ -1,6 +1,6 @@
 // The topbar's observation group, and the readouts in it: the status strip (the
-// stream's pill and the month's usage), the count of sessions blocked on you,
-// and what the browser answered when notifications were asked for.
+// stream's pill), the count of sessions blocked on you and the queue that names
+// them, and what the browser answered when notifications were asked for.
 //
 // Moved out of App.tsx's markup unchanged: the readouts first, and then the
 // group itself (ReadoutGroup, at the end) — the wordmark, the version chip, the
@@ -8,36 +8,31 @@
 // these are, #372) and the reasons each sits where it does. App.tsx hands the
 // group each hook's return whole, and it is taken apart there under the names
 // the markup already used.
-import type { MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import type { BlockedSession } from "../ambient-counts";
 import { MARK_SMALL_ON_LIGHT_SRC, MARK_SMALL_SRC, PRODUCT } from "../brand";
-import { fmtMonthlyCost } from "../monthly-usage";
-import { shortAgo } from "../relative-time";
 import { statusPill } from "../status-pill";
-import { fmtTokens } from "../token-format";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useLiveAnnouncements } from "../use-live-announcements";
-import type { useMonthlyUsage } from "../use-monthly-usage";
 import type { useOsNotifications } from "../use-os-notifications";
 import type { PauseControls } from "../use-pause-gate";
 import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
-import { waitingSentence } from "../agent-copy";
 import type { Incident } from "../provider-status";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { namesThatFit, queueEntryDetail, queueEntryName, queueName, waitWhat } from "../waiting-queue";
 import { IncidentChips } from "./ProviderIncidents";
+import { elapsedShort } from "./SessionList";
+import { useHint } from "./use-hint";
 import VersionChip from "./VersionChip";
 
-type MonthlyUsage = ReturnType<typeof useMonthlyUsage>;
-
-export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsage, monthlyUsageUnavailable }: {
+export function StatusStrip({ live, paused, pauseGate }: {
   /** Whether the event stream is connected right now. */
   live: boolean;
   paused: boolean;
   pauseGate: PauseControls["pauseGate"];
-  monthUsageRef: MonthlyUsage["monthUsageRef"];
-  monthlyUsage: MonthlyUsage["monthlyUsage"];
-  monthlyUsageUnavailable: MonthlyUsage["monthlyUsageUnavailable"];
 }) {
+  const singleKeys = useSingleKeyShortcuts();
   return (
     <span className="status">
       {/* Three states, not two. Read through the gate rather than a
@@ -48,11 +43,11 @@ export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsa
           canvas verbs went in #527 — so one fact stopped being split
           across two ends of a row, and the pill, which already knew the
           number, says it.
-          The ghost below is what keeps that free. The pill LEADS this
-          strip, so its width is upstream of everything after it — the
-          machine meter, the token total, the dollar figure: a count going
-          9 → 10 would walk all three, which is #504 one bar over, and the
-          count moves on its own where a label never did. A copy of the
+          The ghost below is what keeps that free. The pill's width is
+          upstream of everything after it in the readout — the blocked
+          count and any incident chip: a count going 9 → 10 would walk
+          them, which is #504 one bar over, and the count moves on its own
+          where a label never did. A copy of the
           widest label this tone can reach sits in the same grid cell as
           the live one, so the box measures its own worst case in whatever
           font the platform hands it. The alternative was a min-width in
@@ -68,14 +63,14 @@ export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsa
       {(() => {
         const pill = statusPill({
           connected: live, paused,
-          held: pauseGate.size, dropped: pauseGate.dropped,
+          held: pauseGate.size, dropped: pauseGate.dropped, singleKeys,
         });
         // Nothing at rest (#719). The ghost above explains why the box
         // measures its own worst case; this is the case where the box
-        // itself is not earned. `.status` is a flex row, so the 14px gap
-        // leaves with it and the strip closes up without anything
-        // shifting on its own — the tone only ever changes because Space
-        // was pressed or the stream died.
+        // itself is not earned. The strip is then empty, and `:empty` takes
+        // it out of the row with the 24px gap before it, so the readout
+        // closes up without anything shifting on its own — the tone only
+        // ever changes because Space was pressed or the stream died.
         if (pill.resting) return null;
         return (
           <span className={`pill ${pill.tone}`} title={pill.title}>
@@ -86,75 +81,242 @@ export function StatusStrip({ live, paused, pauseGate, monthUsageRef, monthlyUsa
           </span>
         );
       })()}
-      {/* Month-to-date usage comes from ccusage, not from the cards that
-          happen to remain on this board (#737). The label and both values
-          live in one element so the period can never be separated from
-          the figures it qualifies. A successful empty month is explicitly
-          0 tokens / $0.00; a ccusage failure says unavailable rather than
-          dressing the current board total up as history.
-          THE MACHINE METER WENT THE SAME WAY, and it is the one that had
-          been earning its width. A 50x24 box drew a 60-second CPU
-          sparkline and a memory bar, and it was the only readout here
-          that was not about agents. What it could not do is stop: it is a
-          trace that moves whether or not anything on the canvas is
-          happening, in the corner of a bar the eye returns to for the one
-          thing this deck is for. The panel it disclosed says everything
-          it said and eleven things it could not, and the button in the
-          run below opens that panel without drawing anything at all. A
-          glance costs a click now; the bar costs no attention.
-          What is left is the one thing the bar is FOR: whether the stream
-          is alive. That is a fact about right now, which is the only
-          tense a topbar can keep. */}
-      <span
-        ref={monthUsageRef}
-        className="month-usage"
-        title={monthlyUsage
-          ? `${monthlyUsage.tokens.toLocaleString()} tokens · ${fmtMonthlyCost(monthlyUsage.cost)} spent since the 1st of this local calendar month`
-          : monthlyUsageUnavailable
-            ? "Monthly usage is unavailable — ccusage could not be read"
-            : "Loading usage since the 1st of this local calendar month"}
-      >
-        <span className="month-usage-label">this month</span>
-        {monthlyUsage ? (
-          <>
-            <b>{fmtTokens(monthlyUsage.tokens)}</b>
-            <span className="month-usage-unit">tokens</span>
-            <span className="month-usage-sep" aria-hidden>·</span>
-            <b>{fmtMonthlyCost(monthlyUsage.cost)}</b>
-          </>
-        ) : (
-          <span className="month-usage-pending">{monthlyUsageUnavailable ? "unavailable" : "…"}</span>
-        )}
-      </span>
+      {/* WHAT IS LEFT IS THE ONE THING THE STRIP IS FOR: whether the stream
+          is alive. That is a fact about right now, which is the only tense a
+          topbar can keep, and the two readouts that used to follow the pill
+          went for not keeping it.
+          The machine meter was the one that had been earning its width. A 50x24 box drew a 60-second CPU sparkline and a
+          memory bar, and it was the only readout here that was not about
+          agents. What it could not do is stop: it is a trace that moves
+          whether or not anything on the canvas is happening, in the corner
+          of a bar the eye returns to for the one thing this deck is for. The
+          panel it disclosed says everything it said and eleven things it
+          could not, and the Machine button opens that panel without drawing
+          anything at all.
+          The month-to-date phrase went the same way ("this month", its
+          tokens and its dollars, #737). A month's total is a fact about the
+          weeks behind you, not about this minute: it moved by a sliver an
+          hour, and keeping it current cost a ccusage run every five minutes
+          — a walk of every transcript on disk — for as long as the tab was
+          in front and the window wide enough to draw it.
+          The Usage panel (U) answers "today", "this month" and "all time"
+          from the same logs, with the split by model and by kind of token
+          the phrase never had room for.
+          A glance costs a click or a key now; the bar costs no attention,
+          and the machine no read nobody asked for. */}
     </span>
   );
 }
 
-export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, now }: {
+/** One queued session in a line, for a hint that lists the ones the bar has
+ *  no room to name: "web-api — Bash · 6m". */
+function queueLine(w: BlockedSession, now: number): string {
+  return `${w.label} — ${waitWhat(w.waiting)} · ${elapsedShort(w.waiting.since, undefined, now)}`;
+}
+
+/** Up to six of them, and how many more past those. */
+function queueLines(sessions: BlockedSession[], now: number): string {
+  const lines = sessions.slice(0, 6).map(w => queueLine(w, now));
+  if (sessions.length > 6) lines.push(`and ${sessions.length - 6} more`);
+  return lines.join("\n");
+}
+
+/** The count of sessions blocked on you, in amber: the bar's one alarm, and
+ *  the last thing on it ever lost to a narrow window (see .readout). A click
+ *  goes to the one that has waited longest, and so does W, which then walks
+ *  the rest (#825). Its hint names the key, and lists the sessions the queue
+ *  beside it has no room to name — all of them, where the queue has folded. */
+export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, now, named }: {
   /** The sessions blocked on you, longest-stuck first; the caller shows this only when there is one. */
   waitingSessions: BlockedSession[];
   /** Where W starts from, so a click here and the next W press agree (#825). */
   waitingCursorRef: MutableRefObject<string | null>;
   focusSession: (sessionId: string) => void;
   now: number;
+  /** How many of them the queue beside the count names. */
+  named: number;
 }) {
+  const singleKeys = useSingleKeyShortcuts();
+  const hint = useHint("below");
+  const unnamed = waitingSessions.slice(named);
+  const count = waitingSessions.length;
   return (
-    <button
-      type="button"
-      className="waiting-stat"
-      onClick={() => {
-        // The same place W starts, so the next press moves on (#825).
-        waitingCursorRef.current = waitingSessions[0].id;
-        focusSession(waitingSessions[0].id);
-      }}
-      title={`Blocked waiting for you — click, or press W, to go to the one that has been stuck longest:\n${
-        waitingSessions.map(w => `  ${w.label}: ${waitingSentence(w.waiting)} (${shortAgo(now - w.waiting.since)})`).join("\n")
-      }`}
-      aria-label={`${waitingSessions.length} session${waitingSessions.length === 1 ? "" : "s"} waiting for you`}
-    >
-      <span className="ap-pulse" aria-hidden />
-      <b>{waitingSessions.length}</b> <span className="ws-word">waiting</span>
-    </button>
+    <>
+      <button
+        type="button"
+        className="waiting-stat"
+        onClick={() => {
+          // The same place W starts, so the next press moves on (#825).
+          waitingCursorRef.current = waitingSessions[0].id;
+          focusSession(waitingSessions[0].id);
+        }}
+        aria-label={`${count} session${count === 1 ? "" : "s"} waiting for you`}
+        aria-keyshortcuts={singleKeys ? "W" : undefined}
+        {...hint.bind({
+          label: "Go to the longest wait",
+          keys: singleKeys ? "W" : undefined,
+          detail: unnamed.length > 0 ? queueLines(unnamed, now) : undefined,
+        })}
+      >
+        <span className="ap-pulse" aria-hidden />
+        <b>{count}</b> waiting
+      </button>
+      {hint.node}
+    </>
+  );
+}
+
+/** One queued session's words: its name, how long it has waited, and what on
+ *  — the session list row's order, "waiting 6m · Bash", so the two read the
+ *  same. The wait is the line's number and stands in the foreground; what it
+ *  is on is the annotation (DESIGN.md, duration beats description). */
+function QueueEntryWords({ w, now }: { w: BlockedSession; now: number }) {
+  return (
+    <>
+      <span className="we-name">{queueName(w.label)}</span>
+      <span className="we-wait">{elapsedShort(w.waiting.since, undefined, now)}</span>
+      <span className="we-what">· {waitWhat(w.waiting)}</span>
+    </>
+  );
+}
+
+/** How far the queue's first name stands from the count: the readout's own
+ *  12px, where the bar's 24 would set the names apart as another group. The
+ *  queue box takes the bar's 24px gap back with a margin, so with nothing in
+ *  it the bar is the width it was without it. */
+export const QUEUE_LEAD_PX = 12;
+/** How recently a session must have started waiting for its name to arrive
+ *  with an entrance rather than simply be there. */
+const FRESH_MS = 2_000;
+/** The space between two names, `.wait-list`'s gap. A number here rather than
+ *  a read of the style, which the render path does not make (#612). */
+export const QUEUE_GAP_PX = 4;
+
+/**
+ * WHO IS WAITING, BY NAME (the bar's one job, spelled out). With the panel
+ * toggles gone to the window's edges (EdgeRails.tsx), the room the controls
+ * and the month's phrase held goes to the sessions the count counts: each by
+ * name, what it is stopped on and how long, longest wait first — a press, or
+ * Enter, from its card.
+ *
+ * AS MANY AS FIT, THEN "+N MORE". The box takes whatever width the bar has
+ * left (`flex: 1 1 0`) and nothing it does not, and every name is measured in
+ * a hidden ruler at the width it would draw, so the queue never clips a name
+ * in half: it names the ones that fit whole and says how many more there are.
+ * "+N more" opens the session list, whose top rows are the same sessions in the
+ * same order, and moves focus there.
+ *
+ * NAMES FOLD BEFORE THE COUNT. A box that only takes what is left is the first
+ * thing a narrowing bar takes back, so the names go to nothing while the
+ * readout beside them is still whole; under that, the readout gives from the
+ * left as it always has and the count is the last thing on the bar. On a
+ * phone the bar holds the count alone and this is not drawn.
+ *
+ * NOTHING WAITING IS NOTHING HERE. No "Nothing waiting on you": the deck cannot
+ * see a Codex session's block (README, Blocked on you), so on a machine running
+ * Codex that sentence would be a claim it cannot back, and on one running
+ * Claude Code alone the absent amber count already says it.
+ *
+ * QUIET FOR A SCREEN READER. The count's region speaks when a session starts
+ * waiting (block-announce.ts); the names are buttons with whole names and no
+ * region of their own, so nothing is said twice.
+ *
+ * Neutral text: the amber is the count's alone, and a row of amber names would
+ * be a row of alarms.
+ */
+export function WaitingNames({ waitingSessions, waitingCursorRef, focusSession, now, onFit, onMore }: {
+  /** The sessions blocked on you, longest-stuck first. */
+  waitingSessions: BlockedSession[];
+  /** Where W starts from, so a click on a name and the next W press agree (#825). */
+  waitingCursorRef: MutableRefObject<string | null>;
+  focusSession: (sessionId: string) => void;
+  now: number;
+  /** Told how many names fit, for the count's hint. */
+  onFit: (named: number) => void;
+  /** Opens the session list, where every one of them is, and focuses it. */
+  onMore: () => void;
+}) {
+  const singleKeys = useSingleKeyShortcuts();
+  const hint = useHint("below");
+  const boxRef = useRef<HTMLDivElement>(null);
+  const rulerRef = useRef<HTMLSpanElement>(null);
+  const [fit, setFit] = useState(0);
+  const ids = waitingSessions.map(w => w.id).join("\n");
+
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const ruler = rulerRef.current;
+    if (!box || !ruler) return;
+    const measure = () => {
+      const marks = Array.from(ruler.children) as HTMLElement[];
+      const moreMark = marks.pop();
+      setFit(namesThatFit({
+        widths: marks.map(m => m.getBoundingClientRect().width),
+        room: box.clientWidth - QUEUE_LEAD_PX,
+        gap: QUEUE_GAP_PX,
+        more: moreMark?.getBoundingClientRect().width ?? 0,
+      }));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const seen = new ResizeObserver(measure);
+    seen.observe(box);
+    seen.observe(ruler);
+    return () => seen.disconnect();
+  }, [ids]);
+
+  const named = waitingSessions.slice(0, fit);
+  const rest = waitingSessions.slice(fit);
+  useEffect(() => { onFit(named.length); }, [named.length, onFit]);
+
+  const go = (id: string) => {
+    waitingCursorRef.current = id;
+    focusSession(id);
+  };
+  return (
+    <div className="wait-names" ref={boxRef}>
+      <ul className="wait-list">
+        {named.map(w => (
+          <li key={w.id} data-fresh={now - w.waiting.since < FRESH_MS || undefined}>
+            <button
+              type="button"
+              className="wait-entry"
+              onClick={() => go(w.id)}
+              aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since)}
+              {...hint.bind({ label: w.label, detail: queueEntryDetail(w.waiting) })}
+            >
+              <QueueEntryWords w={w} now={now} />
+            </button>
+          </li>
+        ))}
+        {named.length > 0 && rest.length > 0 && (
+          <li>
+            <button
+              type="button"
+              className="wait-more"
+              onClick={onMore}
+              aria-label={`${rest.length} more waiting; open the session list`}
+              aria-keyshortcuts={singleKeys ? "L" : undefined}
+              {...hint.bind({
+                label: "Open the session list",
+                keys: singleKeys ? "L" : undefined,
+                detail: queueLines(rest, now),
+              })}
+            >+{rest.length} more</button>
+          </li>
+        )}
+      </ul>
+      {/* Every name at the width it would draw, and "+N more" at its widest,
+          laid out where nothing sees them, so the queue knows what fits
+          before it draws a name it would have to cut. */}
+      {waitingSessions.length > 0 && <span className="wait-ruler" ref={rulerRef} aria-hidden>
+        {waitingSessions.map(w => (
+          <span key={w.id} className="wait-entry"><QueueEntryWords w={w} now={now} /></span>
+        ))}
+        <span className="wait-more">+{waitingSessions.length} more</span>
+      </span>}
+      {hint.node}
+    </div>
   );
 }
 
@@ -193,14 +355,13 @@ export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
 }
 
 export function ReadoutGroup({
-  versionCheck, welcome, desktopUpdate, pause, monthly, announcements, notify,
-  waitingSessions, waitingCursorRef, focusSession, live, now, incidents,
+  versionCheck, welcome, desktopUpdate, pause, announcements, notify,
+  waitingSessions, waitingCursorRef, focusSession, live, now, incidents, queueNamed,
 }: {
   versionCheck: ReturnType<typeof useVersionCheck>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
   desktopUpdate: ReturnType<typeof useDesktopUpdate>;
   pause: PauseControls;
-  monthly: MonthlyUsage;
   announcements: ReturnType<typeof useLiveAnnouncements>;
   notify: ReturnType<typeof useOsNotifications>;
   /** The sessions blocked on you, longest-stuck first. */
@@ -213,12 +374,13 @@ export function ReadoutGroup({
   now: number;
   /** What the providers' status pages report, incidents only (#1311). */
   incidents: Incident[];
+  /** How many of the waiting sessions the queue beside the count names. */
+  queueNamed: number;
 }) {
   const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
   const { chipVersion, openReleaseNotes } = welcome;
   const { readyAppUpdate } = desktopUpdate;
   const { paused, pauseGate } = pause;
-  const { monthlyUsage, monthlyUsageUnavailable, monthUsageRef } = monthly;
   const { blockedSaid, watchSaid, incidentSaid } = announcements;
   const { notifySaid } = notify;
   return (
@@ -236,7 +398,7 @@ export function ReadoutGroup({
        all was. Both dividers and both readouts have since gone, and the
        24px between the groups is what is left doing the work.
        LEFT, not centred. A centred group's x-position is a function of
-       both neighbours' widths, so the `live` pill would slide sideways
+       both neighbours' widths, so the stream pill would slide sideways
        every time something after it gained a digit — and a status light
        that has to be noticed cannot be a moving target. Everything ahead
        of it here (the logo, the wordmark, the version chip) has bounded
@@ -276,24 +438,22 @@ export function ReadoutGroup({
       {/* NOT a live region, and #372 is the issue that took the
           `role="status"` off it. Nothing in this strip is a status
           *message*: it is a permanently visible readout the user can read
-          whenever they want one, and every number in it still moves on its
-          own — tokens climbs on every event carrying usage, and the cost
-          label reprices its `$/h` rate on each frame while something is
-          live. `role="status"` also carries an implicit
+          whenever they want one, and every number it has carried moved on
+          its own — tokens climbed on every event carrying usage, the cost
+          label repriced its `$/h` rate on each frame while something was
+          live, and a paused pill counts its queue as events arrive.
+          `role="status"` also carries an implicit
           `aria-atomic="true"`, so what a screen reader actually did with
           each of those increments was re-read the WHOLE strip rather than
           the one number that moved. That is a property of the role, not of
           how many numbers are in the row: it held when the row also carried
-          the sessions, agents and events counters, and it holds now that
-          they are gone. Continuous speech of numbers nobody asked for is how
+          the sessions, agents and events counters and the month's usage, and
+          it holds for the pill alone. Continuous speech of numbers nobody asked for is how
           a page teaches its user to turn the screen reader off, and it was
           being spent on the least urgent thing in the topbar.
           WCAG 4.1.3 was satisfied here — for the wrong content. The alarm
           that is worth a live region has one of its own, below. */}
-      <StatusStrip
-        live={live} paused={paused} pauseGate={pauseGate}
-        monthUsageRef={monthUsageRef} monthlyUsage={monthlyUsage} monthlyUsageUnavailable={monthlyUsageUnavailable}
-      />
+      <StatusStrip live={live} paused={paused} pauseGate={pauseGate} />
       {/* The deck's one alarm, said out loud — and the only live region in
           the topbar (#372).
           MOUNTED UNCONDITIONALLY, which is the half that looks redundant and
@@ -360,10 +520,13 @@ export function ReadoutGroup({
           is the last thing clipped — which has to be the alarm, the reason the
           deck is open. After it, a pair of incident chips pushed the count
           off the bar at 700px. An outage upstream is context for a
-          diagnosis; the count is the thing the user acts on. */}
+          diagnosis; the count is the thing the user acts on. The names of
+          who is waiting come after the count, outside this group, and fold
+          before any of it (WaitingNames). */}
       <IncidentChips incidents={incidents} />
       {waitingSessions.length > 0 && (
-        <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
+        <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession}
+          now={now} named={queueNamed} />
       )}
       {/* The ask, and it lives HERE rather than in a settings panel.
           Every browser requires a user gesture to raise the permission

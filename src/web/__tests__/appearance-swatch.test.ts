@@ -24,6 +24,8 @@ function value(body: string, prop: string): string {
 const THEMES = {
   dark: block(":root,\n:root[data-theme=\"dark\"]"),
   light: block(':root[data-theme="light"]'),
+  "rider-black": block(':root[data-theme="rider-black"]'),
+  "vscode-black": block(':root[data-theme="vscode-black"]'),
 };
 /** Which token each preview variable copies. */
 const COPIES = {
@@ -35,7 +37,7 @@ const COPIES = {
 } as const;
 
 describe("the theme previews are drawn in the themes they preview", () => {
-  for (const theme of ["dark", "light"] as const) {
+  for (const theme of ["dark", "light", "rider-black", "vscode-black"] as const) {
     it(`copies the ${theme} tokens exactly`, () => {
       const swatch = block(`.appearance-preview[data-swatch="${theme}"]`);
       for (const [copy, token] of Object.entries(COPIES)) {

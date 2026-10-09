@@ -1,0 +1,81 @@
+/* ---------------- the chrome's hint ----------------
+   One for the whole chrome (components/use-hint.tsx): the control's name and,
+   while it does something, its key — beside a stripe on the side its panel
+   opens towards, under the topbar's controls, over the dock's. A popover's
+   elevation (the contact line under --shadow-2), on the popover layer: over
+   the panels it sits beside, under every dialog. */
+.hint {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  max-width: 280px;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  box-shadow: var(--shadow-contact), var(--shadow-2);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 18px;
+}
+/* A hint for a control inside a dialog, one above .modal-backdrop like the
+   add-account dialog's own overlay, or it would draw under the scrim. */
+.hint.hint-over-dialog { z-index: 101; }
+.hint:has(.hint-key) { padding-right: 4px; }
+.hint-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+}
+/* Whole, always: for a queued session whose name the bar cut, saying it whole
+   is the hint's one job, so a long one wraps inside the hint rather than
+   running past its edge. */
+.hint-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* The keycap: the same chip the shortcuts sheet prints a key in. */
+.hint-key {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border: 1px solid var(--sm-edge);
+  border-radius: var(--r-tag);
+  background: var(--sm-fill);
+  color: var(--text);
+  font: 11px/16px var(--font-mono);
+  text-align: center;
+}
+/* What the name alone does not say: whose block it is and what it is on, or
+   whether Browser watch is watching. Its lines are the caller's. */
+.hint-detail {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: pre-line;
+}
+.hint:has(.hint-key) .hint-detail { padding-right: 6px; }
+/* 150ms from 4px off, towards the control's own side, the first time; at once
+   when the reader is already moving from one control to the next, where a
+   delay and a slide on every neighbour would be a hint chasing the pointer. */
+.hint-right { animation: hint-from-left 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.hint-left { animation: hint-from-right 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.hint-below { animation: hint-from-above 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.hint-above { animation: hint-from-below 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.hint[data-instant] { animation: none; }
+@keyframes hint-from-left { from { opacity: 0; transform: translateX(-4px); } }
+@keyframes hint-from-right { from { opacity: 0; transform: translateX(4px); } }
+@keyframes hint-from-above { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes hint-from-below { from { opacity: 0; transform: translateY(4px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hint-right,
+  .hint-left,
+  .hint-below,
+  .hint-above { animation: none; }
+}

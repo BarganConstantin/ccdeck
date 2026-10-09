@@ -31,11 +31,14 @@ import { KEY_HELP, KEY_HELP_NOTE, documentedKeys } from "../key-help";
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
 // The keydown handler moved to use-deck-shortcuts.ts, the canvas stack to
-// components/CanvasControls.tsx, the topbar's settings run to
-// components/TopbarRuns.tsx and the dialogs to components/DeckDialogs.tsx; the
-// keys and the rest of the deck are read as one.
+// components/CanvasControls.tsx, the chrome's controls — the topbar's settings
+// run among them, now beside the edge stripes — to rail-items.tsx and
+// components/EdgeRails.tsx, their hint to components/use-hint.tsx, and the
+// dialogs to components/DeckDialogs.tsx; the keys and the rest of the deck are
+// read as one.
 const app = read("App.tsx") + "\n" + read("use-deck-shortcuts.ts") + "\n" + read("components/CanvasControls.tsx")
-  + "\n" + read("components/TopbarRuns.tsx") + "\n" + read("components/DeckDialogs.tsx");
+  + "\n" + read("rail-items.tsx") + "\n" + read("components/EdgeRails.tsx") + "\n" + read("components/use-hint.tsx")
+  + "\n" + read("components/DeckDialogs.tsx");
 const sheet = read("components/KeyboardHelp.tsx");
 
 /** The body of the deck's one window keydown handler. Sliced rather than
@@ -131,6 +134,22 @@ describe("the short list that used to sit in the detail rail", () => {
     expect([...app.matchAll(/<kbd>/g)]).toHaveLength(0);
   });
 
+  it("lets the chrome's hint name a key only one at a time, and only a key the sheet lists", () => {
+    // The hint (use-hint.tsx) draws one keycap, the key of the control under
+    // the pointer, from that control's own definition (rail-items.tsx) — not
+    // a list of keys, so it is not the second list above. What would make it
+    // drift is a control naming a key the sheet does not document, or one the
+    // handler does not answer: every single key a chrome control names is in
+    // the table, and the gear's chord is the table's "," row.
+    expect([...app.matchAll(/<kbd className="hint-key">/g)]).toHaveLength(1);
+    const named = [...app.matchAll(/key: \{ cap: "([A-Z])", aria: "\1", single: true \}/g)].map(m => m[1]);
+    expect(named.sort()).toEqual(["A", "B", "H", "L", "S", "U"]);
+    const documented = documentedKeys();
+    for (const k of named) expect(documented, k).toContain(k.toLowerCase());
+    expect(app).toMatch(/key: \{ cap: settingsCap, aria: "Control\+, Meta\+,", single: false \}/);
+    expect(KEY_HELP.flatMap(g => g.rows).find(r => r.binds.includes(","))?.chord).toBe(true);
+  });
+
   it("keeps every key the rail used to name, in the one list that is left", () => {
     // The rail's rows, verbatim from the version that carried them. None of
     // them may have left the deck along with the panel that listed them —
@@ -145,7 +164,9 @@ describe("the short list that used to sit in the detail rail", () => {
 describe("the way in", () => {
   it("binds ? to the sheet, and the sheet to ?", () => {
     expect(app).toMatch(/if \(e\.key === "\?"\) setKeyHelpOpen\(o => !o\);/);
-    expect(app).toMatch(/\{keyHelpOpen && <KeyboardHelp onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
+    // Over several lines since it gained a third door, Settings at General
+    // for the single-key switch; the flag and the close are the same.
+    expect(app).toMatch(/\{keyHelpOpen && \(\s*<KeyboardHelp\s+onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
     // The sheet is mounted in components/DeckDialogs.tsx, which App.tsx hands the dialogs' state.
     expect(read("App.tsx")).toMatch(/<DeckDialogs\b[^>]*\bdialogs=\{dialogs\}/);
   });
@@ -157,7 +178,10 @@ describe("the way in", () => {
     // clicks an agent. It is in the canvas control stack, beside Recenter,
     // Re-arrange and Clear — where this deck put its commands when the topbar
     // was cut back — and not in the topbar, which is the thing that was cut.
-    expect(app).toMatch(/title="Keyboard shortcuts \(\?\)"/);
+    // The tooltip names `?` while `?` opens the sheet; with Settings › General's
+    // single-key switch off it is the button alone that does, and it says why
+    // `?` is quiet (WCAG 2.1.4).
+    expect(app).toContain('title={singleKeys ? withKey("Keyboard shortcuts", "?", true) : "Keyboard shortcuts — the single-key ones are off"}');
     expect(app).toMatch(/aria-label="Open the keyboard shortcuts"/);
     expect(app).not.toMatch(/className="btn icon-btn"[\s\S]{0,200}Keyboard shortcuts/);
   });

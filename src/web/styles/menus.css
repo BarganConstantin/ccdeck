@@ -1,22 +1,23 @@
 /* ---------------- Settings ---------------- */
 
 /* THE ONE SETTINGS SURFACE (SettingsModal.tsx): `.modal`'s shell, a nav down
-   the side and the section beside it. PINNED AT THE TOP AND AS TALL AS THE
-   SECTION. It was centred at a fixed 640px so the nav would not jump under the
-   pointer as the sections swapped, and that left Notifications three quarters
-   empty and General nearly two thirds. Pinning the top keeps the promise the
-   fixed height was for, without the floor: the top edge, and so the header and
-   the tab that was just pressed, never move; only the bottom edge follows the
-   section. The floor that remains is the shortest section's, so the two short
-   ones open at one height. The section scrolls inside once the dialog reaches
-   the window's bottom. 760px holds a 176px nav and a section as wide as the
-   Appearance modal's was. */
-.modal-backdrop:has(> .settings-modal) { align-items: flex-start; }
+   the side and the section beside it. ONE HEIGHT, WHICHEVER SECTION IS OPEN.
+   It followed its section with the top pinned, and every press in the nav
+   moved the bottom edge: 412px on General, 320 on Notifications, 618 on Sounds
+   and 378 on Music & character at 1440×900, the frame jumping under the
+   pointer. macOS System Settings, Linear's settings and Raycast's preferences
+   keep one frame and change the pane inside it; so does this. 720px holds
+   Sounds, the tallest, with a custom sound or two to spare, and is clamped
+   40px off each edge of a shorter window, where the section scrolls inside
+   (.settings-pane) and the header and the nav stay. No floor and no ceiling
+   besides it, so nothing a section draws reaches the frame. Centred like
+   every dialog: a height that never changes keeps it in one place.
+   760px holds a 176px nav and a section as wide as the Appearance modal's
+   was. */
 .modal.settings-modal {
   width: min(760px, calc(100vw - 32px));
-  min-height: min(320px, calc(100vh - min(12vh, 96px) - 16px));
-  max-height: calc(100vh - min(12vh, 96px) - 16px);
-  margin-top: min(12vh, 96px);
+  height: min(720px, calc(100dvh - 80px));
+  max-height: none;
 }
 .settings-body {
   display: grid;
@@ -79,13 +80,47 @@
 .settings-tab:active { transform: scale(0.97); }
 /* Drawn inside, so the nav's own edge does not clip the ring. */
 .settings-tab:focus-visible { outline-offset: -2px; }
+/* THE ONE THING IN THE DIALOG THAT SCROLLS, and only when a window is too
+   short for its section; a scroll that reaches either end stays here rather
+   than handing on to the page behind the scrim. Keyed by its section in the
+   markup, so each section opens at its top.
+   THE GUTTER IS KEPT ON BOTH EDGES. The deck's scrollbars take a real 10px
+   track wherever the platform draws one (tokens.css), so a section that
+   overflowed slid its controls 10px left the moment it was chosen; kept on
+   the right only, the gutter set the controls 10px further from the right
+   edge than from the nav. Kept on both, the section sits centred and still,
+   and where scrollbars overlay the content nothing is reserved on either side.
+   SOFT EDGES, as a macOS pane fades content under its bars: the top 16px and
+   the bottom 32px fade out, each exactly the padding there, so a section at
+   rest shows nothing faded and only content passing under an edge dissolves
+   into it, which is the sign there is more. scroll-padding keeps a control the
+   keyboard scrolls to clear of the fade, focus ring and all. */
 .settings-pane {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-height: 0;
-  padding: 16px 20px 20px;
+  padding: 16px 20px 32px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  scroll-padding: 16px 0 32px;
+  -webkit-mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 32px), transparent);
+}
+/* The section's name over it, the one 16px line in the dialog: a step over the
+   13px rows and the 12px captions, and 8px more room under it than the groups
+   take between them, so it heads the page rather than reading as one more
+   group. A section that ends a third of the way down the frame then reads as a
+   page that ends, not a box half-filled. 22px of line puts its middle level
+   with the first tab's (12px of nav padding and half of a 30px tab). Scrolls
+   with its section; the tab beside it already says where the reader is. */
+.settings-pane-title {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
 }
 /* ONE CADENCE FOR EVERY SECTION. A group is a caption over its controls, 10px
    apart; two subjects in one section are parted by a hairline with 16px either
@@ -151,14 +186,10 @@
    Nothing scrolls sideways. The glyph and the name are centred together. The
    chosen one is raised exactly as it is down the side; a bar under it, in a
    grid of two rows, pointed at the tab below rather than at the section. The
-   dialog takes the screen's height, 16px off each edge, rather than a
-   desktop's offset. */
+   dialog takes the screen's whole height, 16px off each edge, for every
+   section, and the section scrolls under the nav. */
 @media (max-width: 640px) {
-  .modal.settings-modal {
-    min-height: min(320px, calc(100vh - 32px));
-    max-height: calc(100vh - 32px);
-    margin-top: 16px;
-  }
+  .modal.settings-modal { height: calc(100dvh - 32px); }
   .settings-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -171,7 +202,24 @@
     border-bottom: 1px solid var(--line);
   }
   .settings-tab { justify-content: center; text-align: center; }
-  .settings-pane { padding: 14px 14px 16px; }
+  .settings-pane {
+    padding: 14px 14px 32px;
+    scroll-padding: 14px 0 32px;
+    -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 32px), transparent);
+  }
+  /* The chosen tab sits right over the section here, raised, so the name a
+     third time would only push the section down. Off the screen and still the
+     section's heading to a screen reader, as .vis-hidden does it. */
+  .settings-pane-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 /* Half of a 320px screen holds "Music & character" or its glyph beside it,
    not both, so under 360px the names keep the room and all four glyphs go
@@ -198,7 +246,7 @@
    3% shrink is a lurch, not a click. */
 .appearance-themes {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 0 -8px;
 }
@@ -278,6 +326,23 @@
   --tp-rule: #c8cdd6;
   --tp-mark: #7c8493;
   --tp-accent: #0369a1;
+}
+.appearance-preview[data-swatch="rider-black"] {
+  --tp-canvas: #1e1f22;
+  --tp-surface: #2b2d30;
+  --tp-rule: #393b40;
+  --tp-mark: #6f737a;
+  --tp-accent: #83acfc;
+}
+.appearance-preview[data-swatch="vscode-black"] {
+  --tp-canvas: #1f1f1f;
+  --tp-surface: #181818;
+  --tp-rule: #2b2b2b;
+  --tp-mark: #616161;
+  --tp-accent: #4daafc;
+}
+@media (max-width: 640px) {
+  .appearance-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .tp-canvas { fill: var(--tp-canvas); }
 .tp-surface { fill: var(--tp-surface); }

@@ -47,6 +47,11 @@ export interface SessionNote {
    *  model has not answered yet. Said in the tooltip, because how far to trust
    *  a line depends on it. */
   source: "recap" | "job" | "activity" | "prompt";
+  /** A prompt note on a Codex session. The reply's line is read off Claude
+   *  Code's transcript alone (src/server/event-pipeline.mjs), so a Codex
+   *  session keeps its prompt as the note for the whole turn, and its tooltip
+   *  cannot say the model has not answered. */
+  codex?: true;
   /** The note's identity for putting it away (recap-note.ts). A recap is its
    *  own sentence, so it keys by when it was written, as it always has. Any
    *  other note keys by the TURN and what kind of thing it says: a "now" line
@@ -55,7 +60,7 @@ export interface SessionNote {
   key: string;
 }
 
-type NoteLine = Pick<SessionNote, "kind" | "text" | "reply" | "at" | "source">;
+type NoteLine = Pick<SessionNote, "kind" | "text" | "reply" | "at" | "source" | "codex">;
 
 /** The word in front of the note. Words and not a colour alone: the session
  *  list's row is a button whose name is its contents, so this is heard where it
@@ -94,7 +99,7 @@ export function jobLine(job: BackgroundJob): NoteLine | null {
 }
 
 type NoteBearing = Pick<AgentNodeData,
-  "kind" | "sessionId" | "state" | "closedAt" | "startedAt" | "prompts" | "recap" | "activity" | "job">;
+  "kind" | "sessionId" | "state" | "closedAt" | "startedAt" | "prompts" | "recap" | "activity" | "job" | "provider">;
 
 /** The session's newest prompt, or null when the deck has seen none. */
 function newestPrompt(a: NoteBearing): PromptEntry | null {
@@ -144,7 +149,11 @@ function statusNote(a: NoteBearing): SessionNote | null {
   }
   if (prompt && a.state === "active") {
     const text = promptLine(prompt.text);
-    if (text) return keyed({ kind: "now", text, at: prompt.at, source: "prompt" });
+    if (text) {
+      const line: NoteLine = { kind: "now", text, at: prompt.at, source: "prompt" };
+      if (a.provider === "codex") line.codex = true;
+      return keyed(line);
+    }
   }
   return null;
 }
@@ -174,7 +183,9 @@ export function noteSource(note: SessionNote): string {
   switch (note.source) {
     case "recap": return "Claude Code's recap";
     case "job": return "Claude Code's own line for this background session";
-    case "prompt": return "The prompt this turn began with — the model has not answered yet";
+    case "prompt": return note.codex
+      ? "The prompt this turn began with — the deck takes no line from a Codex reply"
+      : "The prompt this turn began with — the model has not answered yet";
     default: return note.kind === "last" ? "What the session did last, until Claude Code's recap" : "From the session's newest reply";
   }
 }

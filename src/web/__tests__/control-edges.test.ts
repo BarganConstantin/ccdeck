@@ -106,7 +106,18 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const RULES = topLevel(bare);
 
-const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
+function splitTop(list: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i] === "(") depth++;
+    else if (list[i] === ")") depth--;
+    else if (list[i] === "," && depth === 0) { parts.push(list.slice(start, i)); start = i + 1; }
+  }
+  parts.push(list.slice(start));
+  return parts.map(s => s.trim()).filter(Boolean);
+}
+const selectors = (list: string) => splitTop(list).map(s => s.replace(/\s+/g, " ").trim());
 
 /** Every top-level rule naming this exact selector, concatenated in source
  *  order — one element's cascade may be written in more than one place. */
@@ -479,6 +490,13 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: ".tr-input", beds: ["--panel"] },
+  { at: ".tr-select", beds: ["--panel"] },
+  { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
+  { at: ".btn.tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
+  { at: ".tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -490,14 +508,13 @@ const CONTROLS: Control[] = [
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
-  // The on state of an icon toggle (#370). Its own state delta — this fill
-  // against the bare bar, which is a different question from this edge against
-  // this fill — is toggle-state.test.ts'.
-  { at: 'button.btn.icon-btn[aria-pressed="true"]', beds: [...TOPBAR, "--panel"] },
-  // A toolbar button that is open: the resting edge every other .btn wears,
-  // on the control fill. A closed one draws no edge at all, so this edge is
-  // the state, and it has to be seen against both ends of the bar.
-  { at: '.topbar button.btn.icon-btn[aria-expanded="true"]', beds: TOPBAR },
+  // The on state of an icon toggle (#370) and a toolbar button that was open,
+  // the resting edge on the control fill, were swept here until the topbar's
+  // panel toggles left for the window's edges (2026-10-08) and `.icon-btn` left
+  // the sheet with them. An open panel is a line on its stripe's inner edge
+  // now, a fill rather than an edge, so its 3:1 is measured where the line is
+  // drawn: edge-rails-geometry.test.ts, against the stripe and the open fill
+  // in both themes.
   // `button.btn.warn` was swept here until the topbar Pause button, its only
   // wearer, moved to the canvas control stack. The rule is gone from the sheet
   // rather than kept unworn, so there is nothing left to measure — and the
@@ -705,13 +722,9 @@ function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme): number 
  * whose resting edge the sweep above already measures, is not — it is a lift.
  */
 const EXEMPT_RINGS = new Set([
-  // An --accent-dim glow ADDED on hover to a button whose own border does not
-  // move. 1.91:1 dark / 1.39:1 light, and the file already refuses to let
-  // --accent-dim be a border-color anywhere for exactly that reason; as a glow
-  // over an edge that is still there it takes nothing away.
-  // The open-panel state lost its fill and so its halo (#836): it is a line
-  // under its content now, and hover repaints nothing it needs.
-  'button.btn.icon-btn[aria-pressed="true"]:hover',
+  // An --accent-dim glow added on hover to a pressed icon toggle was excused
+  // here, over an edge that stayed; the toggle left the sheet with the topbar's
+  // panel buttons (2026-10-08), and so did its glow.
   // A currentColor hairline on a canvas label that is lifting under the
   // pointer. .cluster-label is exempt at rest for the reason below — it reads
   // its own name at 4.5:1 — and session-hue.test.ts owns its rim as decoration.
@@ -829,6 +842,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
       ".switch:focus-visible",
+      '.tr-body :is(button, input, select, summary):focus-visible',
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",
     ]);
@@ -865,7 +879,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    expect(EDGED_CONTROLS.length).toBeLessThan(115);
+    expect(EDGED_CONTROLS.length).toBeLessThan(120);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

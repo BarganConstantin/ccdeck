@@ -21,6 +21,7 @@ import type { useBrowserWatchBadge } from "../use-browser-watch-badge";
 import type { useClaudeFm } from "../use-claude-fm";
 import type { useClearFlow } from "../use-clear-flow";
 import type { useCustomTones } from "../use-custom-tones";
+import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useDialogs } from "../use-dialogs";
 import type { useLanPairRequests } from "../use-lan-pair-requests";
@@ -53,9 +54,10 @@ import ToolModal from "./ToolModal";
 // the new build no longer has — fails that dialog alone; see LazyDialog.tsx.
 const UsageHistoryModal = lazyDialog(() => import("./UsageHistoryModal"), "Usage history");
 const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), "Browser Watch");
+const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar");
 
 export default function DeckDialogs({
-  dialogs, welcome, desktopUpdate, versionCheck, restart, lanPairs, attention, clearFlow, watchBadge, announcements,
+  dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
   appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, fm,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
@@ -63,6 +65,8 @@ export default function DeckDialogs({
   desktopUpdate: ReturnType<typeof useDesktopUpdate>;
   versionCheck: ReturnType<typeof useVersionCheck>;
   restart: ReturnType<typeof useAutoRestart>;
+  /** The banner's install and copy, which What's new offers too. */
+  upgrade: ReturnType<typeof useDeckUpgrade>;
   lanPairs: ReturnType<typeof useLanPairRequests>;
   attention: Attention;
   clearFlow: ReturnType<typeof useClearFlow>;
@@ -85,6 +89,7 @@ export default function DeckDialogs({
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
           setKeyHelpOpen, feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill } = dialogs;
+  const { trafficRadarOpen, setTrafficRadarOpen } = dialogs;
   const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion } = welcome;
   const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate, askDesktopUpdateRestart } = desktopUpdate;
   const { version } = versionCheck;
@@ -93,7 +98,7 @@ export default function DeckDialogs({
   const { setWatchOn, markWatchSeen } = watchBadge;
   const { setWatchSaid } = announcements;
   const { palette } = appearance;
-  const { settingsOpen, settingsSection, showSection, closeSettings } = menus;
+  const { settingsOpen, settingsSection, showSection, closeSettings, openSettings } = menus;
   return (
     <>
       {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
@@ -131,6 +136,9 @@ export default function DeckDialogs({
         </Suspense>
       )}
       {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
+      {trafficRadarOpen && <Suspense fallback={null}>
+        <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && agent.provider !== "codex").map(agent => ({ id: agent.sessionId, label: agent.cwdBasename ?? agent.label }))} onClose={() => setTrafficRadarOpen(false)} />
+      </Suspense>}
       {feedbackOpen && (
         <FeedbackDialog
           initialKind={feedbackPrefill?.initialKind}
@@ -197,6 +205,8 @@ export default function DeckDialogs({
              501 and one without a writable log 409, and the button is not
              offered for either (#1163). */
           onRestart={!readyAppUpdate && version?.canRestart ? () => { closeReleaseNotes(); void askRestart(); } : undefined}
+          updateCheck={readyAppUpdate ? undefined
+            : { versionCheck, upgrade, restart, desktopUpdate, running: chipVersion, onHandOff: closeReleaseNotes }}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those
@@ -220,7 +230,13 @@ export default function DeckDialogs({
           waiting for an answer. Escape agrees with the paint order — the prompt
           carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
           before arrival. */}
-      {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} onTour={() => { setKeyHelpOpen(false); openTour(); }} />}
+      {keyHelpOpen && (
+        <KeyboardHelp
+          onClose={() => setKeyHelpOpen(false)}
+          onTour={() => { setKeyHelpOpen(false); openTour(); }}
+          onSettings={() => { setKeyHelpOpen(false); openSettings("general"); }}
+        />
+      )}
       {tourOpen && (
         <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={closeTour} />
       )}

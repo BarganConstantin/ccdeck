@@ -59,6 +59,13 @@ describe("the deck under a Windows Contrast theme (#871)", () => {
     expect(css.split(OPEN).length - 1).toBe(1);
     expect(rules.length).toBeGreaterThan(5);
   });
+  it("keeps the selected Radar export and section distinct with a system-color outline", () => {
+    for (const sel of ['.tr-tab[aria-selected="true"]', '.tr-message[aria-pressed="true"]', '.tr-detail-tabs .btn[aria-pressed="true"]']) {
+      expect(bodyOf(sel), sel).toMatch(/outline:\s*2px solid Highlight/);
+    }
+    expect(bodyOf('.tr-tab[aria-selected="true"]')).toMatch(/border-bottom-color:\s*Highlight/);
+    expect(bodyOf('.tr-detail-tabs .btn[aria-pressed="true"]')).toMatch(/border-color:\s*Highlight/);
+  });
 
   it("redraws every dot whose word carries the state in the text colour", () => {
     for (const sel of RESTING_WORDED) {

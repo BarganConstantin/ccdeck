@@ -49,7 +49,27 @@ describe("W is a key, the button is its twin, and the sheet says so (#825)", () 
 
   it("lets the waiting button set where W moves on from", () => {
     expect(app).toMatch(/waitingCursorRef\.current = waitingSessions\[0\]\.id;\s*focusSession\(waitingSessions\[0\]\.id\);/);
-    expect(app).toMatch(/click, or press W, to go to the one that has been stuck longest/);
+    // W only while W does anything — Settings › General's single-key switch
+    // (WCAG 2.1.4). The count used to say "click, or press W" in its title;
+    // since the topbar's hint replaced titles (use-hint.tsx) it names W in a
+    // keycap and in aria-keyshortcuts, both only while the switch is on, and
+    // the click is offered either way. edge-keys-switch.test.ts draws both.
+    expect(app).toContain('aria-keyshortcuts={singleKeys ? "W" : undefined}');
+    expect(app).toContain('keys: singleKeys ? "W" : undefined');
+  });
+
+  it("lets a name in the waiting queue set where W moves on from, in W's own order", () => {
+    // The queue names the blocked sessions in blockedSessions() order — the
+    // order nextWaiting walks — and a press on one puts W's cursor on it, so
+    // the next W goes to the name after it, and the last wraps to the first.
+    // A name pressed and a W pressed can never disagree about "next".
+    expect(app).toMatch(/const go = \(id: string\) => \{\s*waitingCursorRef\.current = id;\s*focusSession\(id\);\s*\};/);
+    expect(app).toMatch(/const named = waitingSessions\.slice\(0, fit\);/);
+    expect(app).toMatch(/\{named\.map\(w => \([\s\S]{0,200}?onClick=\{\(\) => go\(w\.id\)\}/);
+    const q = queue("old", "mid", "new");
+    for (const [pressed, then] of [["old", "mid"], ["mid", "new"], ["new", "old"]]) {
+      expect(nextWaiting(q, pressed)!.id, `W after a press on ${pressed}`).toBe(then);
+    }
   });
 
   it("lists W in the sheet", () => {

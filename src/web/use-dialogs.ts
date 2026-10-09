@@ -51,6 +51,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
   const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
+  const [trafficRadarOpen, setTrafficRadarOpen] = useState(false);
   /** The feedback dialog, opened from the topbar's Feedback button, the account
    *  issue popover and the error boundary (#1853). */
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -87,7 +88,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
   // is the shortcuts sheet — use-modal-gate.ts.
   const { keyHelpOpenRef, modalOpenRef } = useModalGate({
     openedTool, usageHistoryOpen, contextFor, tourOpen, summaryFor, browserWatchOpen, keyHelpOpen, releaseNotes,
-    feedbackOpen,
+    feedbackOpen, trafficRadarOpen,
   });
   return {
     setOpenedToolKey, openTool, openedTool,
@@ -96,6 +97,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
     keyHelpOpen, setKeyHelpOpen,
     usageHistoryOpen, setUsageHistoryOpen,
     browserWatchOpen, setBrowserWatchOpen,
+    trafficRadarOpen, setTrafficRadarOpen,
     feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill, openFeedback,
     keyHelpOpenRef, modalOpenRef,
   };

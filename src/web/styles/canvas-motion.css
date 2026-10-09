@@ -131,12 +131,8 @@
      goes. Their exit is opacity only already, so it needs no answer here. */
   .sysdetail,
   .usage-panel { animation: fadeIn 140ms ease both; }
-  /* The panel arrives and leaves without travelling. Its width is a layout
-     property and the whole point of the animation is the 288px the canvas
-     moves, so reduced motion takes the movement and keeps the arrival: the
-     panel is simply there, and simply gone. */
-  .accounts-panel { animation: fadeIn 140ms ease both; }
-  .accounts-panel.leaving { animation: canvas-fade-out var(--side-exit) linear both; }
+  /* The left column's two panels: answered with the column itself, at the
+     end of styles/left-column.css. */
   /* The bar is the feedback and it stays; only the rise goes. Reduced motion
      means gentler, not blind. */
   .tool-spark-bar.latest { animation: none; }

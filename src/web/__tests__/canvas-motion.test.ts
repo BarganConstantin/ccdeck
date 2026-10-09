@@ -262,6 +262,12 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  it is the spec for what a pressable control does rather than a record of
  *  which ones had been got to. */
 const PRESSES: Press[] = [
+  [".tr-details > summary:active", "0.97", "transform"],
+  [".tr-activation > summary:active", "0.97", "transform"],
+  [".tr-monitor-footer summary:active", "0.97", "transform"],
+  [".tr-tab:active", "0.97", "transform"],
+  [".tr-message:active", "0.97", "transform"],
+  [".tr-file-picker:active", "0.97", "transform"],
   ["button.btn:active:not(:disabled)", "0.97", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —
   // `.sd-close` at 0.97 and `.detail-close`, `.ctx-modal-close` and `.uh-close`
@@ -303,6 +309,15 @@ const PRESSES: Press[] = [
   // which had its own entry here. The rows are gone and the section is the
   // button above, so the two entries went with them.
   [".topbar .waiting-stat:active", "0.97", "transform"],
+  // The names the queue beside it gives each waiting session, and its "+N
+  // more" — labelled controls, so 0.97 like the count they continue.
+  [".topbar .wait-entry:active", "0.97", "transform"],
+  [".topbar .wait-more:active", "0.97", "transform"],
+  // The chrome's eight panel and dialog controls, wherever they stand: the
+  // edge stripes, the phone's dock, the topbar's corner (EdgeRails.tsx). One
+  // rule for all three placements, because they are one control; 0.97 because
+  // each carries its word.
+  [".rail-btn:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.
   [".topbar .brand button.v:active", "0.97", "transform"],
@@ -357,6 +372,9 @@ const PRESSES: Press[] = [
   [".ap-notice-fix:active", "0.97", "transform"],
   [".ap-proj-copy:active", "0.97", "transform"],
   [".aa-tab:active", "0.97", "transform"],
+  // The sign-in's "Paste a code, if the page shows one" disclosure: a
+  // sentence that opens the code field. A labelled control, so 0.97.
+  [".aa-code > summary:active", "0.97", "transform"],
   [".cat-filter:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
@@ -387,6 +405,9 @@ const PRESSES: Press[] = [
   // #820's Resume, the one pressable part of the auto-fit strip. A labelled
   // control, so 0.97 like every other one.
   [".autofit-resume:active", "0.97", "transform"],
+  // Re-arrange's Undo, the one pressable part of its strip, and Resume's twin
+  // beside it. A labelled control, so 0.97.
+  [".rearrange-undo-act:active", "0.97", "transform"],
   // The spoken-voice disclosure under the custom-sound cards: a full-width
   // row, like `.up-disclose`. A labelled control, so 0.97.
   [".sm-voice summary:active", "0.97", "transform"],
@@ -480,6 +501,10 @@ const EXEMPT: string[] = [
   // LAN dialog's above. It discloses two paragraphs and changes nothing else,
   // and it answers the press by its text lifting to --text while it is open.
   ".ap-report-how > summary",
+  // The file input is an invisible hit target stretched over its visible label.
+  // The label owns the press feedback; transforming this overlay would only
+  // move the hit target and is not visible to the user.
+  ".tr-file-picker input",
   // A machine's row in the LAN list. The whole row is the door to that deck's
   // dialog, and a dense list of machines answers a press the way a desktop list
   // does: its tone deepens and nothing moves. A row that scaled slid the name

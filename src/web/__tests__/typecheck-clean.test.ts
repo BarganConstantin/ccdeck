@@ -53,13 +53,13 @@ describe("what npm pack ships", () => {
     // prepublishOnly runs on `npm publish` and NOT on `npm pack`, so a pack for
     // verification could tarball a stale dist/web — which is the one artifact a
     // pack is usually made to check.
-    expect(pkg.scripts.prepack).toBe("vite build");
-    expect(pkg.scripts.prepublishOnly).toBe("vite build");
+    expect(pkg.scripts.prepack).toBe("npm run build");
+    expect(pkg.scripts.prepublishOnly).toBe("npm run build");
   });
 
   it("has no second name for the build", () => {
     // `build:web` was byte-identical to `build` and nothing referenced it.
     expect(pkg.scripts["build:web"]).toBeUndefined();
-    expect(pkg.scripts.build).toBe("vite build");
+    expect(pkg.scripts.build).toBe("node scripts/build-radar-codec.mjs && vite build");
   });
 });

@@ -32,6 +32,18 @@
   .fb-tool,
   .fb-foot .btn { min-height: 32px; }
   .fb-shot > .fb-shot-remove::after { inset: -6px; }
+  /* The canvas strips' one word each, Resume and Re-arrange's Undo, take the
+     floor too, and Undo drops the chord it names: a fingertip has no key to
+     press. The chip is 38px tall here, so the strip stacks 8px over that. */
+  .autofit-resume,
+  .rearrange-undo-act { min-height: 32px; }
+  .rearrange-undo-key { display: none; }
+  /* What's new's update line: its one button takes the floor, and the line
+     keeps that height whether the button is there or not, so an answer that
+     brings one still moves nothing. */
+  .release-notes .rn-line-act,
+  .release-notes .rn-update-line { min-height: 32px; }
+  .autofit-chip ~ .rearrange-undo { transform: translateY(-46px); }
 }
 
 /* ---------------- forced colours (#871) ----------------
@@ -48,6 +60,9 @@
    length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
+  .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
+  .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .tr-detail-tabs .btn[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
   .topbar .status .pill.live::before,
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,
@@ -96,10 +111,15 @@
   .ap-live::before,
   .topbar .brand button.v .v-dot,
   .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
-  /* An open toolbar button keeps a boundary in the theme's own highlight, so
-     open and closed still differ once every fill has been painted Canvas. A
-     system colour is honoured as written here, so nothing opts out. */
-  .topbar button.btn.icon-btn[aria-expanded="true"] { border-color: Highlight; }
+  /* An open panel's line on its stripe, or on the dock's top edge, is a
+     fill, which the theme paints Canvas like the stripe under it: it opts out
+     and draws in the highlight, so open and closed still differ once the
+     control fill has gone too. */
+  .rail-btn-stripe::before,
+  .rail-btn-dock::before { forced-color-adjust: none; background: Highlight; }
+  /* What's new's Check for updates while a check is out: the accent every
+     busy button takes is gone here, so the edge takes the highlight. */
+  .release-notes .rn-act[aria-busy="true"] { border-color: Highlight; }
   /* A pressed chip, a paused canvas and the open tab are drawn as a fill, and
      the theme paints every fill Canvas, so each looked like its neighbours:
      they fill with the highlight, the way an on switch does, and keep it
@@ -109,6 +129,17 @@
   .react-flow__controls-button[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"]:hover,
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The sign-in's rings and stage marks carry where a sign-in is in their
+     colour as well as their shape, so they are redrawn in system colours: the
+     turning arc and the current stage in the highlight, a finished or failed
+     mark in the text colour beside the words that say which, and the track
+     and the stages still to come in grey. */
+  .aa-orbit, .aa-spin, .aa-stage-icon { forced-color-adjust: none; }
+  .aa-orbit-track, .aa-spin-track, .aa-stage-later { stroke: GrayText; }
+  .aa-orbit-arc, .aa-spin-arc { stroke: Highlight; }
+  .aa-stage-now { fill: Highlight; }
+  .aa-orbit-close, .aa-orbit-cross, .aa-stage-tick, .aa-stage-cross { stroke: CanvasText; }
+  .aa-stage:not(:last-child)::after { background: GrayText; }
   /* The feedback dialog's chosen kind is the same chip, raised by a fill and
      an edge the theme would repaint like its neighbours'. On a line of its
      own because its selector carries `:has()`, and one selector a browser
@@ -134,12 +165,19 @@
      at higher specificity) and the face carries the ring. */
   .react-flow__node.rf-selected .agent-node,
   .react-flow__node.rf-selected .agent-node > .lod-face { outline-color: Highlight; }
+  /* A note under the pointer is a lift and a tint, a shadow and a fill the
+     theme drops, and an edge it repaints CanvasText either way: a hairline
+     outline carries it instead. A hairline in the text colour, so it is not
+     the selected card's Highlight ring, and a note is never selected or
+     focused itself, so it meets neither. */
+  .canvas-wrap[data-lod="detail"] .recap-note:hover,
+  .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face { outline: 1px solid CanvasText; outline-offset: 2px; }
   /* The order's caret takes the select's own system colour rather than the
      --muted it rests in, which a contrast theme does not repaint (#1579). */
   .ap-rest-sort svg { color: ButtonText; }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
-  .bw-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+  .rail-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,
@@ -218,5 +256,15 @@
   .sm-row input[type="range"]::-moz-range-track { background: GrayText; }
   .sm-row input[type="range"]::-moz-range-progress { background: Highlight; }
   .sm-row input[type="range"]::-moz-range-thumb { background: Highlight; }
-}
 
+  /* The canvas strips' words — Resume, and Re-arrange's Undo — are set apart
+     from the status beside them by weight and by a fill under the pointer,
+     and the theme paints that fill Canvas. An edge in the button colour
+     carries each instead, Highlight under the pointer, so the one control in
+     each strip still reads as one. A border and not an outline, which would
+     replace the keyboard's ring. */
+  .autofit-resume,
+  .rearrange-undo-act { border: 1px solid ButtonText; }
+  .autofit-resume:hover,
+  .rearrange-undo-act:hover { border-color: Highlight; }
+}

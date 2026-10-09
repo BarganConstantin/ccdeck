@@ -13,12 +13,16 @@
 // honoured and specificity and source order deciding between rules, for each of
 // the three things that can share the row with the panel.
 import { describe, it, expect } from "vitest";
-import { cascade, mediaApplies, sheetRules, splitTop } from "./sheet-cascade";
+import { cascade, el, mediaApplies, selects, sheetRules, splitTop } from "./sheet-cascade";
 
 /** The Accounts panel's own width: the `auto` track is sized to it. */
 const ACCOUNTS_PANEL = 288;
-/** The topbar's row: a sheet below it leaves every control in the bar. */
-const TOPBAR = 52;
+/** The session list's own width: since 2026-10-08 its track is `auto` too,
+ *  sized to the left column the list is drawn in (styles/left-column.css). */
+const SESSION_LIST = 288;
+
+/** A custom property's value at `width`, as the root declares it. */
+const token = (name: string, width: number) => cascade(sel => selects(sel, [el("html", [], { states: ["root"] })]), name, width);
 
 type Left = "none" | "sessions" | "accounts";
 
@@ -30,6 +34,7 @@ function appCompound(sel: string, left: Left): number | null {
   const present = (cls: string) =>
     (cls === "session-list" && left === "sessions")
     || (cls === "accounts-panel" && left === "accounts")
+    || (cls === "left-column" && left !== "none")
     || cls === "detail";
   let spec = 10;
   for (const p of m[1].match(/:has\(\.[\w-]+\)|:not\(:has\(\.[\w-]+\)\)/g) ?? []) {
@@ -68,11 +73,19 @@ function resolve(subject: "app" | "detail", prop: string, left: Left, width: num
   return cascade(sel => matches(sel, subject, left), prop, width);
 }
 
-/** `Npx`, `Nvw`, a bare 0 and `min()` of them: all a sheet's box needs here. */
+/** `Npx`, `Nvw`, a bare 0, `min()` of them and a custom property the root
+ *  declares — the topbar's height is one since the bar became 44px (tokens.css)
+ *  — which is all a sheet's box needs here. */
 function length(v: string, width: number): number {
   const s = v.trim();
   const min = /^min\((.*)\)$/.exec(s);
   if (min) return Math.min(...splitTop(min[1]).map(a => length(a, width)));
+  const named = /^var\((--[\w-]+)\)$/.exec(s);
+  if (named) {
+    const value = token(named[1], width);
+    if (value == null) throw new Error(`no value for ${named[1]} at ${width}px`);
+    return length(value, width);
+  }
   if (s === "0") return 0;
   const m = /^(-?[\d.]+)(px|vw)$/.exec(s);
   if (!m) throw new Error(`unread length: ${v}`);
@@ -84,8 +97,8 @@ function fixedTracks(template: string, left: Left): number {
   return splitTop(template.replace(/\s+(?![^(]*\))/g, ",")).reduce((sum, t) => {
     if (/fr\)?$/.test(t)) return sum;
     if (t === "auto") {
-      expect(left, "an auto track with no Accounts panel to size it").toBe("accounts");
-      return sum + ACCOUNTS_PANEL;
+      expect(left, "an auto track with no left panel to size it").not.toBe("none");
+      return sum + (left === "accounts" ? ACCOUNTS_PANEL : SESSION_LIST);
     }
     return sum + length(t, 0);
   }, 0);
@@ -123,8 +136,25 @@ describe("a selected session on a narrow window (#1790)", () => {
         expect(right).toBeGreaterThanOrEqual(0);
         // Its left edge, and the × pinned inside its right one, both on screen.
         expect(width - right - w).toBeGreaterThanOrEqual(0);
-        expect(top).toBeGreaterThanOrEqual(TOPBAR);
-        expect(resolve("detail", "bottom", left, width)).toBe("0");
+        // Under the topbar: no higher than the grid's first row, the bar's
+        // own, read from the same sheet rather than from a number this test
+        // keeps — the bar was 52px, and is 44 since its panel toggles left for
+        // the window's edges (2026-10-08).
+        const bar = length(splitTop(resolve("app", "grid-template-rows", left, width)!.replace(/\s+(?![^(]*\))/g, ","))[0], width);
+        expect(bar).toBe(44);
+        expect(top).toBeGreaterThanOrEqual(bar);
+      }
+    });
+
+    it(`ends the panel above the phone's dock at ${width}px, so its foot is not drawn under it`, () => {
+      // Under 641px the controls stand in a dock along the bottom
+      // (edge-rails.css), fixed over everything docked (z-index 25 against the
+      // sheet's 20). A sheet that ran to the window's foot had its last 56px
+      // under the dock — its last rows out of reach. It ends where the dock
+      // begins, by the dock's own height, safe area and all.
+      const dock = cascade(sel => selects(sel, [el("div", ["edge-dock"])]), "height", width);
+      for (const left of LEFTS) {
+        expect(resolve("detail", "bottom", left, width), left).toBe(dock);
       }
     });
   }
@@ -144,9 +174,11 @@ describe("a selected session on a narrow window (#1790)", () => {
   });
 
   it("keeps the wide layout exactly as it was: a 360px column beside the canvas", () => {
-    for (const width of [641, 900, 1280]) {
+    for (const width of [648, 900, 1280]) {
       expect(layout("none", width)).toMatchObject({ template: "1fr 360px", overlay: false });
-      expect(layout("sessions", width)).toMatchObject({ template: "240px 1fr 360px", overlay: false });
+      // `auto` since 2026-10-08: the track is the left column's, which is the
+      // session list's 288px while the list is in it (styles/left-column.css).
+      expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
     }
     // With Accounts open the panel and the column are 648px between them, so
     // from 641 to 647px the column gives up what the window lacks (#1840) —

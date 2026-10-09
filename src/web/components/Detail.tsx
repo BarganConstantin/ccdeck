@@ -20,6 +20,7 @@ import { noteSource, noteTag, sessionNoteShown } from "../session-note";
 import { fmtTokens } from "../token-format";
 import type { AgentNodeData, PromptEntry, ToolCall } from "../types";
 import { agentCost, otherModelIds } from "../usage-models";
+import { withKey } from "../single-key-shortcuts";
 
 export default function Detail({
   agent,
@@ -28,6 +29,7 @@ export default function Detail({
   onShowSummary,
   onExportSession,
   onRemove,
+  singleKeys = true,
 }: {
   agent: AgentNodeData;
   now: number;
@@ -36,6 +38,10 @@ export default function Detail({
   onShowSummary?: (sessionId: string) => void;
   onExportSession?: (sessionId: string) => void;
   onRemove?: () => void;
+  /** Whether L reopens the session list (Settings › General's switch), so the
+   *  Remove button's tooltip names it only then. A prop rather than a hook:
+   *  this component calls none, and is rendered by calling it. */
+  singleKeys?: boolean;
 }) {
   // The panel and the card it was opened from are on screen together, so this
   // is the card's clock rather than a second one written out here (#374). The
@@ -146,8 +152,8 @@ export default function Detail({
               className="btn hero-action-btn"
               onClick={onRemove}
               title={agent.kind === "root"
-                ? "Take this session's cards off the board (Delete). The session carries on; the session list (L) brings it back"
-                : "Take this card and the ones under it off the board (Delete). The session list (L) brings it back"}
+                ? `Take this session's cards off the board (Delete). The session carries on; ${withKey("the session list", "L", singleKeys)} brings it back`
+                : `Take this card and the ones under it off the board (Delete). ${withKey("The session list", "L", singleKeys)} brings it back`}
             >Remove from board</button>
           )}
         </div>

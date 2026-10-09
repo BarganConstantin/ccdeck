@@ -403,7 +403,7 @@ describe("the usage panel's dot reaches a rule at all", () => {
     // that holds it on screen while it leaves — see panel-exit.ts. What this
     // is about is that something mounts it at all.
     expect(app).toMatch(/\{(?:usagePanelOpen|isMounted\(usagePhase\)) && \(\s*<UsagePanel/);
-    expect(app).toMatch(/\{sessionListOpen && \(\s*<SessionList/);
+    expect(app).toMatch(/\{sessionListDrawn && \(\s*<SessionList/);
   });
 });
 
