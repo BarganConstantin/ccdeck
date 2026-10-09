@@ -47,7 +47,10 @@ describe('Codex profile discovery', () => {
     const [profile] = await discoverCodexProfiles({ env });
     expect(await codexProfileLaunchCommand(profile.id, { env, platform: 'darwin' }))
       .toBe("CODEX_HOME='/tmp/profile'\\''s private' codex");
-    expect(await codexProfileLaunchCommand(profile.id, { env, platform: 'win32' })).toBeNull();
+    const windowsEnv = { CODEX_HOME: "C:\\Users\\dev's home\\.codex" };
+    const [windowsProfile] = await discoverCodexProfiles({ env: windowsEnv, platform: 'win32' });
+    expect(await codexProfileLaunchCommand(windowsProfile.id, { env: windowsEnv, platform: 'win32' }))
+      .toBe("$env:CODEX_HOME = 'C:\\Users\\dev''s home\\.codex'; codex");
   });
 
   it('reads each profile quota with its own token, without refreshing or leaking credentials', async () => {

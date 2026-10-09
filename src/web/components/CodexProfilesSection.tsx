@@ -85,9 +85,9 @@ export default function CodexProfilesSection() {
               <li key={profile.id} className="ap-codex-row">
                 <span>{profile.label}{profile.active ? " · Server default" : ""}{selectedId === profile.id ? " · Selected" : ""}</span>
                 <span className="ap-codex-hint">{profile.signedInFilePresent ? "Login file found" : "No login file"}</span>
-                <button className="ap-codex-check" type="button" disabled={selectedId === profile.id} onClick={() => selectProfile(profile.id)}>{selectedId === profile.id ? "Selected for next launch" : "Select for next launch"}</button>
+                <button className="ap-codex-check" type="button" disabled={selectedId === profile.id} onClick={() => selectProfile(profile.id)}>{selectedId === profile.id ? "Selected" : "Select"}</button>
                 {profile.signedInFilePresent && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} disabled={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
-                <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>
+                {selectedId === profile.id && <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>}
                 {launch[profile.id] && <span className="ap-codex-hint" role="status">{launch[profile.id]}</span>}
                 {Object.hasOwn(quotas, profile.id) && (quotas[profile.id] === null
                   ? <span className="ap-codex-hint" role="status">Checking quota…</span>
@@ -97,7 +97,7 @@ export default function CodexProfilesSection() {
               </li>
             ))}
           </ul>
-          <p className="ap-codex-hint">Selection is saved in this browser for your next launch command. It does not change running sessions or the server default. A login file does not guarantee an active session.</p>
+          <p className="ap-codex-hint">Select an account, then copy its command into a terminal to start Codex with that profile. Existing sessions and the server default are unaffected. A login file does not guarantee an active session.</p>
         </>}
     </section>
   );

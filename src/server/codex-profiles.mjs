@@ -71,7 +71,11 @@ export async function resolveCodexProfile(id, options = {}) {
 export async function codexProfileLaunchCommand(id, options = {}) {
   const directory = await resolveCodexProfile(id, options);
   if (!directory) return null;
-  if ((options.platform ?? process.platform) === 'win32') return null;
+  if ((options.platform ?? process.platform) === 'win32') {
+    // PowerShell: single quotes are escaped by doubling, and the override is
+    // process-local to the PowerShell terminal where this command is pasted.
+    return `$env:CODEX_HOME = '${directory.replaceAll("'", "''")}'; codex`;
+  }
   return `CODEX_HOME='${directory.replaceAll("'", "'\\''")}' codex`;
 }
 
