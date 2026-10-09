@@ -86,6 +86,19 @@ describe("telemetry capture interactions", () => {
     expect(textOf(one(view.tree, e => e.props.className === "tr-inspector"))).not.toContain("Synthetic logs 3");
     view.unmount();
   });
+  it("exposes list freezing separately from monitoring and updates its help on resume", () => {
+    const view = mount(TelemetryCapture, props);
+    const pause = () => one(view.tree, e => e.type === "button" && /^(Pause|Resume) list$/.test(textOf(e)))!;
+    expect(pause().props["aria-pressed"]).toBe(false);
+    (pause().props.onClick as () => void)();
+    expect(pause().props["aria-pressed"]).toBe(true);
+    expect(pause().props.title).toBe("Show new entries received while the list was paused");
+    expect(props.action).not.toHaveBeenCalled();
+    (pause().props.onClick as () => void)();
+    expect(pause().props["aria-pressed"]).toBe(false);
+    expect(props.action).not.toHaveBeenCalled();
+    view.unmount();
+  });
   it("reports arrivals while the list is paused without adding them to its rows", () => {
     const view = mount(TelemetryCapture, props);
     (one(view.tree, e => e.type === "button" && textOf(e) === "Pause list")!.props.onClick as () => void)();
