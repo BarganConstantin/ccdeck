@@ -54,7 +54,7 @@ import ToolModal from "./ToolModal";
 // the new build no longer has — fails that dialog alone; see LazyDialog.tsx.
 const UsageHistoryModal = lazyDialog(() => import("./UsageHistoryModal"), "Usage history");
 const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), "Browser Watch");
-const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Traffic Radar");
+const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar");
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,

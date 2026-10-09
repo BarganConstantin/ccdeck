@@ -158,9 +158,9 @@ Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.d
 - Optional: [claude-swap](https://github.com/realiti4/claude-swap) for the Accounts panel; the deck can install it for you
 - Nothing else. On Apple Silicon the deck fetches [`macmon`](https://github.com/vladkens/macmon) itself for the temperature rows; see below.
 
-### Claude Traffic Radar (macOS)
+### Claude Telemetry Radar (macOS)
 
-Open **Traffic Radar** from the right rail (or **More → Traffic Radar** on a
+Open **Telemetry Radar** from the right rail (or **More → Telemetry Radar** on a
 phone) to inspect telemetry configuration sources
 and established TCP connections attributed to native Claude Code processes.
 Each connection shows its remote IP and port, PID, current working directory

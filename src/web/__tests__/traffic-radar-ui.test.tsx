@@ -11,7 +11,7 @@ const snapshot: RadarSnapshot = {
   config: { sources: [{ name: "User settings", status: "read" }], variables: [] },
 };
 
-describe("Traffic Radar status language", () => {
+describe("Telemetry Radar status language", () => {
   it("never labels an empty connection sample as disabled or safe", () => {
     expect(radarStatus(snapshot)).toBe("No connections observed in this sample");
     const markup = renderToStaticMarkup(<TrafficRadarView snapshot={snapshot} />);

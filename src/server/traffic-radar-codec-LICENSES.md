@@ -1,4 +1,4 @@
-# Traffic Radar bundled decoder licences
+# Telemetry Radar bundled decoder licences
 
 Generated from the installed build packages; shipped with the decoder.
 

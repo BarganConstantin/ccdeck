@@ -32,4 +32,4 @@ const server = createServer(async (req, res) => {
     res.end(content);
   } catch { send(res, 404, { error: 'Preview resource unavailable' }); }
 });
-server.listen(4329, '127.0.0.1', () => process.stdout.write('Traffic Radar preview http://127.0.0.1:4329 — no agent hooks, watchers, LAN or reports.\n'));
+server.listen(4329, '127.0.0.1', () => process.stdout.write('Telemetry Radar preview http://127.0.0.1:4329 — no agent hooks, watchers, LAN or reports.\n'));

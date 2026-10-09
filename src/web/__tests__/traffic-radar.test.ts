@@ -8,7 +8,7 @@ const secret = "private-secret-value";
 const socket = (pid = 42, destination = "192.0.2.16:4317") => `p${pid}\nn127.0.0.1:5000->${destination}\n`;
 const configuration = { sources: [], variables: [] };
 
-describe("Traffic Radar privacy boundary", () => {
+describe("Telemetry Radar privacy boundary", () => {
   it("allows only named telemetry variables, never arbitrary settings", () => {
     const variables = radarVariables({ env: {
       ANTHROPIC_API_KEY: secret,

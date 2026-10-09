@@ -127,7 +127,7 @@ export function railItems({
     // before choosing where to start a session.
     left: providers.claude ? [accounts, sessionList] : [sessionList],
     right: [[usage, machine], [history, browserWatch, ...(setTrafficRadarOpen ? [{
-      id: "traffic-radar", label: "Traffic Radar", short: "Radar", ariaLabel: "Traffic Radar",
+      id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
       detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),
     }] : [])]],

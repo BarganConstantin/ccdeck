@@ -20,7 +20,7 @@ export async function streamCapture({ base, token, input = process.stdin, send =
   };
   const heartbeat = setInterval(() => { if (!stopped) void post(Buffer.alloc(0)); }, 1000);
   const deadline = setTimeout(finish, 600_000);
-  report('Traffic Radar: sending capture bytes only to local ccdeck; no file is written. Press Ctrl+C to stop tcpdump.');
+  report('Telemetry Radar: sending capture bytes only to local ccdeck; no file is written. Press Ctrl+C to stop tcpdump.');
   try {
     for await (const chunk of input) {
       for (let offset = 0; offset < chunk.length && !stopped; offset += 65_536) await post(chunk.subarray(offset, offset + 65_536));
@@ -31,7 +31,7 @@ export async function streamCapture({ base, token, input = process.stdin, send =
     if (!stopped) report('Capture input interrupted.');
   } finally {
     stopped = true; clearInterval(heartbeat); clearTimeout(deadline);
-    report('Traffic Radar: local receiver stopped. Press Ctrl+C if tcpdump is still running.');
+    report('Telemetry Radar: local receiver stopped. Press Ctrl+C if tcpdump is still running.');
   }
 }
 

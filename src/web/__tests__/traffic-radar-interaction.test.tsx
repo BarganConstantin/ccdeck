@@ -13,7 +13,7 @@ const snapshot: RadarSnapshot = {
   ],
 };
 
-describe("Traffic Radar modal interactions", () => {
+describe("Telemetry Radar modal interactions", () => {
   it("separates live connections from history and inspects the clicked row", () => {
     const view = mount(TrafficRadarView, { snapshot });
     const feed = () => one(view.tree, e => e.props.className === "tr-feed")!;
