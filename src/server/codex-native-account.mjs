@@ -18,6 +18,7 @@ const dependencyIds = new WeakMap();
 let nextDependency = 0;
 const CACHE_LIMIT = 64;
 const CACHE_MS = 60_000;
+const activeQuotaFloor = (entry, now) => entry.quotaValue && Number.isFinite(entry.quotaAt) && now - entry.quotaAt < CACHE_MS;
 const DEADLINE_MS = 12_000;
 const MAX_OUTPUT = 1024 * 1024;
 const MAX_LINE = 64 * 1024;
@@ -199,9 +200,9 @@ export function readNativeCodexAccount(home, options = {}) {
   const held = cache.get(key);
   if (held && (held.pending || (!options.force && started >= held.at && started - held.at < CACHE_MS))) return (held.pending ?? Promise.resolve(structuredClone(held.value))).then(value => structuredClone(value));
   cache.delete(key);
-  for (const [id, entry] of cache) if (!entry.pending && (started < entry.at || started - entry.at >= CACHE_MS)) cache.delete(id);
+  for (const [id, entry] of cache) if (!entry.pending && !activeQuotaFloor(entry, started) && (started < entry.at || started - entry.at >= CACHE_MS)) cache.delete(id);
   if (cache.size >= CACHE_LIMIT) {
-    const settled = [...cache].find(([, entry]) => !entry.pending);
+    const settled = [...cache].find(([, entry]) => !entry.pending && !activeQuotaFloor(entry, started));
     if (!settled) return Promise.resolve(failure('native_busy', now));
     cache.delete(settled[0]);
   }
@@ -216,7 +217,7 @@ export function readNativeCodexAccount(home, options = {}) {
     const initialRemaining = deadline - Date.now();
     if (initialRemaining <= 0) return failure('timeout', now);
     // Force means verify identity now, never bypass the per-home usage floor.
-    if (includeQuota && entry.quotaValue && started - entry.quotaAt < CACHE_MS) {
+    if (includeQuota && activeQuotaFloor(entry, started)) {
       const fresh = await rpcRead(home, { ...options, platform, env, now, includeQuota: false, deadlineMs: initialRemaining });
       if (!fresh.ok) return failure(fresh.reason ?? 'rpc_error', now);
       if (fileVersion !== entry.quotaFileVersion || await authFileVersion(home, path, options.stat) !== fileVersion) return failure('profile_changed', now);

@@ -1,7 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
-import { readNativeCodexAccount } from '../../server/codex-native-account.mjs';
+let readNativeCodexAccount: typeof import('../../server/codex-native-account.mjs').readNativeCodexAccount;
+beforeEach(async () => {
+  vi.resetModules();
+  ({ readNativeCodexAccount } = await import('../../server/codex-native-account.mjs'));
+});
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 const HOME = process.platform === 'win32' ? 'C:\\synthetic\\codex-home' : '/synthetic/codex-home';
@@ -119,6 +123,32 @@ describe('native Codex account adapter (synthetic children only)', () => {
     expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: false, reason: 'rpc_error' });
     expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: false, reason: 'rpc_error', stale: true });
     expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
+  });
+
+  it('retains another home quota floor when metadata cleanup sees a backwards clock', async () => {
+    const f = fake(); let clock = 100000; const now = () => clock;
+    const options = { ...f.options, now, includeQuota: true, force: true };
+    const first = await readNativeCodexAccount(HOME, options);
+    clock = 99999;
+    await readNativeCodexAccount(HOME + '-b', { ...options, includeQuota: false });
+    expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: true, stale: true, fetchedAt: first.fetchedAt });
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
+  });
+
+  it('refuses cache pressure instead of evicting settled active quota floors, then admits after expiry', async () => {
+    const f = fake(); let clock = 100000; const now = () => clock;
+    const options = { ...f.options, now, includeQuota: true, force: true };
+    for (let i = 0; i < 64; i++) expect((await readNativeCodexAccount(HOME + '-' + i, options)).ok).toBe(true);
+    const before = f.spawn.mock.calls.length;
+    expect(await readNativeCodexAccount(HOME + '-overflow', options)).toMatchObject({ ok: false, reason: 'native_busy' });
+    expect(f.spawn).toHaveBeenCalledTimes(before);
+    clock--;
+    expect(await readNativeCodexAccount(HOME + '-overflow', options)).toMatchObject({ ok: false, reason: 'native_busy' });
+    expect((await readNativeCodexAccount(HOME + '-0', options)).stale).toBe(true);
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(64);
+    clock = 160000;
+    expect((await readNativeCodexAccount(HOME + '-overflow', options)).ok).toBe(true);
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(65);
   });
 
   it('rejects a relogin visible only to the genuinely fresh verification process', async () => {
