@@ -29,7 +29,7 @@
   font-weight: 600;
   color: var(--muted);
 }
-.desktop-menu {
+.desktop-menu.btn {
   -webkit-app-region: no-drag;
   display: grid;
   place-items: center;
