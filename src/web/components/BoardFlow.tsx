@@ -192,11 +192,13 @@ export default function BoardFlow({
       {/* A status and an action, not one big button. The words say what
           the state is and are not a control; Resume is the one thing here
           that can be pressed, and it does what the whole chip used to. */}
-      {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
-      {/* Re-arrange's way back, for a few seconds after R — on the canvas
-          beside the chip, and stacked above it when both are up, since a
-          board built by hand is one auto-fit has usually stood down on. */}
-      <RearrangeUndo undo={rearrangeUndo} />
+      <div className="canvas-notices">
+        {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
+        {/* Re-arrange's way back, for a few seconds after R — beside the
+            chip when both are up, since a board built by hand is one
+            auto-fit has usually stood down on. */}
+        <RearrangeUndo undo={rearrangeUndo} />
+      </div>
       {/* No React Flow fit-view button (#840). Recenter below does the same
           fit and also turns autofit back on, so two near-identical buttons
           sat side by side and the reader had to guess the difference. F
