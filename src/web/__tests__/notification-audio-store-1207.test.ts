@@ -140,7 +140,7 @@ describe("the bridge and who may use it (#1207)", () => {
   const preload = desktop("preload.cjs");
 
   it("exposes four calls by id and nothing that takes a path", () => {
-    expect(preload.match(/exposeInMainWorld\(/g)).toHaveLength(1);
+    expect(preload.match(/exposeInMainWorld\("ccdeckNotificationAudio"/g)).toHaveLength(1);
     const calls = [...preload.matchAll(/^\s+(\w+): .*ipcRenderer\.invoke\("ccdeck:notification-audio:(\w+)"/gm)];
     expect(calls.map(m => [m[1], m[2]])).toEqual([["list", "list"], ["get", "get"], ["put", "put"], ["remove", "remove"]]);
     expect(preload).not.toMatch(/ipcRenderer\.(send|on)\b|require\("(fs|path|child_process)"\)/);
@@ -158,8 +158,9 @@ describe("the bridge and who may use it (#1207)", () => {
     const door = main.match(/function fromDeckPage\(event\) \{[\s\S]*?\n\}/)?.[0] ?? "";
     expect(door).toMatch(/event\.sender\.id !== win\.webContents\.id/);
     expect(door).toMatch(/navigationFor\(url, `http:\/\/127\.0\.0\.1:\$\{deck\.port\}`\) === "stay"/);
-    // One registration, and it is the one that checks the sender first.
-    expect(main.match(/ipcMain\.handle\(/g)).toHaveLength(1);
+    // The audio registration checks the sender before calling its store.
+    const audio = main.match(/function installNotificationAudioIpc\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(audio.match(/ipcMain\.handle\(/g)).toHaveLength(1);
     expect(main).toMatch(/ipcMain\.handle\(`ccdeck:notification-audio:\$\{name\}`, \(event, arg\) => \{\n\s+if \(!fromDeckPage\(event\)\) throw/);
   });
 

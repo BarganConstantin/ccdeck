@@ -16,14 +16,14 @@
   align-items: center;
   gap: 10px;
   padding-left: 10px;
-  padding-right: 150px;
+  padding-right: calc(3 * 48px); /* three native caption buttons */
   background: var(--panel);
   color: var(--text);
   border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
   user-select: none;
 }
-.desktop-titlebar[data-platform="darwin"] { padding-left: 84px; padding-right: 12px; }
+.desktop-titlebar[data-platform="darwin"] { padding-left: calc(3 * 28px); /* macOS traffic lights */ padding-right: 12px; }
 .desktop-window-name {
   font-size: 12px;
   font-weight: 600;
@@ -34,13 +34,11 @@
   display: grid;
   place-items: center;
   width: 28px;
-  height: 26px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: 4px;
   background: transparent;
   color: var(--muted);
-  cursor: pointer;
 }
 .desktop-menu:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
-.desktop-menu:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

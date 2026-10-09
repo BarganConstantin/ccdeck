@@ -32,7 +32,7 @@ export default function DesktopTitlebar() {
   return (
     <div className="desktop-titlebar" data-platform={desktop.platform}>
       {desktop.platform !== "darwin" && (
-        <button type="button" className="desktop-menu" aria-label="Application menu" title="Application menu" aria-haspopup="menu"
+        <button type="button" className="desktop-menu btn" aria-label="Application menu" title="Application menu" aria-haspopup="menu"
           onClick={() => { void desktop.menu().catch(() => {}); }}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />

@@ -356,7 +356,9 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // App.tsx is off this list now: the one getComputedStyle it held was cssVar,
     // which moved to use-appearance.ts. The render-heavy component no longer
     // touches it at all, which is the confinement this case exists for.
-    expect(callers).toEqual(["components/use-modal-dismiss.ts", "use-appearance.ts"]);
+    // Desktop caption colours are resolved in an effect on mount/theme changes,
+    // never during a canvas render or animation frame.
+    expect(callers).toEqual(["components/DesktopTitlebar.tsx", "components/use-modal-dismiss.ts", "use-appearance.ts"]);
   });
 
   it("never calls cssVar — it only ever hands it to readPalette", () => {
