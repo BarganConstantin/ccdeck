@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,7 +9,7 @@ import { configureCodexTerminal, codexLoginCommand, codexTerminalCommand } from 
 import { terminalCodexHome } from '../../server/codex-terminal-runner.mjs';
 
 const roots: string[] = [];
-afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
+afterEach(async () => { vi.unstubAllEnvs(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'ccdeck-terminal-'));
   roots.push(root);
@@ -24,6 +24,29 @@ async function fixture() {
 }
 
 describe('durable terminal selection', () => {
+  it.skipIf(process.platform === 'win32')('carries desktop Node mode through setup, installed calls, and removal without changing caller environment', async () => {
+    const f = await fixture();
+    const runtime = join(f.root, 'desktop runtime');
+    const q = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+    const actualRuntime = process.env.CCDECK_TEST_TERMINAL_RUNTIME ?? process.execPath;
+    await writeFile(runtime, `#!/bin/sh\n[ "$ELECTRON_RUN_AS_NODE" = 1 ] || exit 91\nexec ${q(actualRuntime)} "$@"\n`);
+    await chmod(runtime, 0o700);
+    const bin = join(f.root, 'bin'); await mkdir(bin);
+    await symlink(process.execPath, join(bin, 'codex'));
+    vi.stubEnv('CCDECK_HOOK_RUNTIME', runtime);
+    vi.stubEnv('CCDECK_HOME', f.store);
+    const rc = join(f.root, 'profile');
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, CODEX_HOME: f.original, ELECTRON_RUN_AS_NODE: '0' };
+    const setup = codexTerminalCommand('install', 'bash')! + ` --rc ${q(rc)}`;
+    execFileSync('bash', ['-c', `${setup}; code=$?; [ "$ELECTRON_RUN_AS_NODE" = 0 ] || exit 92; exit "$code"`], { env, timeout: 10000 });
+    const exact = ['', 'spaces "quotes"', 'line\nbreak', 'é', 'trailing\\'];
+    const output = execFileSync('bash', ['-c', 'source "$1"; shift; codex "$@"; code=$?; [ "$ELECTRON_RUN_AS_NODE" = 0 ] || exit 92; exit "$code"', 'qa', rc, '-e', 'console.log(JSON.stringify({home:process.env.CODEX_HOME,args:process.argv.slice(1),mode:process.env.ELECTRON_RUN_AS_NODE}))', '--', ...exact], { env, encoding: 'utf8', timeout: 10000 });
+    expect(JSON.parse(output)).toEqual({ home: f.original, args: exact, mode: '1' });
+    expect(() => execFileSync('bash', ['-c', 'source "$1"; codex -e "process.exit(17)"', 'qa', rc], { env, timeout: 10000, stdio: 'pipe' })).toThrow(expect.objectContaining({ status: 17 }));
+    execFileSync('bash', ['-c', codexTerminalCommand('uninstall', 'bash')! + ` --rc ${q(rc)}`], { env, timeout: 10000 });
+    expect(await readFile(rc, 'utf8')).not.toContain('function');
+    expect(await readFile(rc, 'utf8')).not.toContain('ccdeck Codex');
+  });
   it('resolves the persisted default without a running deck and honors explicit overrides', async () => {
     const f = await fixture();
     expect(await terminalCodexHome(f.file, {})).toBe(f.selected.home);
@@ -60,8 +83,8 @@ describe('durable terminal selection', () => {
     if (process.platform === 'win32') {
       const script = join(f.root, 'launch.ps1');
       const exact = [strange, '', 'trailing\\', 'é unicode', 'line\nbreak'];
-      const encoded = Buffer.from(JSON.stringify([...args.slice(0, -1), ...exact])).toString('base64');
-      await writeFile(script, `. '${rc.replaceAll("'", "''")}'\n$probeArgs = ConvertFrom-Json ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')))\ncodex @probeArgs\nexit $LASTEXITCODE\n`);
+      const encoded = Buffer.from(JSON.stringify(['-e', `if(process.env.ELECTRON_RUN_AS_NODE!=='1')process.exit(91);${args[1]}`, '--', ...exact])).toString('base64');
+      await writeFile(script, `. '${rc.replaceAll("'", "''")}'\n$env:ELECTRON_RUN_AS_NODE = '0'\n$probeArgs = ConvertFrom-Json ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')))\ncodex @probeArgs\n$code = $LASTEXITCODE\nif ($env:ELECTRON_RUN_AS_NODE -ne '0') { exit 92 }\nexit $code\n`);
       for (const executable of ['pwsh', 'powershell.exe']) {
         shellOutput = execFileSync(executable, ['-NoProfile', '-File', script], { env, encoding: 'utf8' });
         expect(JSON.parse(shellOutput)).toEqual({ home: f.selected.home, args: exact });
@@ -104,6 +127,10 @@ describe('durable terminal selection', () => {
     expect(codexTerminalCommand('install', 'bash')).toContain('--store ');
     expect(codexTerminalCommand('install', 'powershell', 'win32')).toContain('--rc $PROFILE.CurrentUserAllHosts');
     expect(codexTerminalCommand('uninstall', 'powershell5', 'win32')).toContain('--rc $PROFILE.CurrentUserAllHosts');
+    for (const action of ['install', 'uninstall']) {
+      expect(codexTerminalCommand(action, 'bash')).toContain('ELECTRON_RUN_AS_NODE=1');
+      expect(codexTerminalCommand(action, 'powershell', 'win32')).toContain('finally { $env:ELECTRON_RUN_AS_NODE = $ccdeckPreviousNodeMode }');
+    }
   });
   it('preserves the effective macOS Bash login file instead of shadowing it', async () => {
     const f = await fixture();

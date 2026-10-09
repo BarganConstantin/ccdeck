@@ -9,11 +9,13 @@ import { deckDataDir } from './deck-home.mjs';
 import { codexSelectionPath } from './codex-selection.mjs';
 import { resolveWriteTarget, writeFileAtomic } from './atomic-write.mjs';
 import { pathLookup } from './exec-spec.mjs';
+import { hookRuntime } from './app-host.mjs';
 
 const BEGIN = '# >>> ccdeck Codex accounts >>>';
 const END = '# <<< ccdeck Codex accounts <<<';
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 const psQuote = value => `'${String(value).replaceAll("'", "''")}'`;
+const psNodeMode = command => `$ccdeckPreviousNodeMode = $env:ELECTRON_RUN_AS_NODE; try { $env:ELECTRON_RUN_AS_NODE = '1'; ${command} } finally { $env:ELECTRON_RUN_AS_NODE = $ccdeckPreviousNodeMode }`;
 const supported = new Set(['zsh', 'bash', 'powershell', 'powershell5']);
 export const defaultCodexShell = (env = process.env, platform = process.platform) =>
   platform === 'win32' ? 'powershell' : basename(env.SHELL ?? (platform === 'darwin' ? '/bin/zsh' : '/bin/bash'));
@@ -29,7 +31,8 @@ export function codexTerminalCommand(action = 'install', shell = null, platform 
   const q = platform === 'win32' ? psQuote : quote;
   const store = deckDataDir();
   const rc = platform === 'win32' && shell.startsWith('powershell') ? ' --rc $PROFILE.CurrentUserAllHosts' : '';
-  return `${platform === 'win32' ? '& ' : ''}${q(process.execPath)} ${q(script)} ${action} --shell ${shell} --store ${q(store)}${rc}`;
+  const command = `${platform === 'win32' ? '& ' : ''}${q(hookRuntime())} ${q(script)} ${action} --shell ${shell} --store ${q(store)}${rc}`;
+  return platform === 'win32' ? `& { ${psNodeMode(command)} }` : `ELECTRON_RUN_AS_NODE=1 ${command}`;
 }
 
 async function rcFor(shell, home, env, platform) {
@@ -88,12 +91,12 @@ export async function configureCodexTerminal(action, options = {}) {
     }
     const runner = join(directory, 'codex-terminal-runner.mjs');
     const file = codexSelectionPath({ store: data });
-    const node = options.node ?? process.execPath;
+    const node = options.node ?? hookRuntime(env);
     const line = shell.startsWith('powershell')
       // Windows PowerShell's native argv conversion strips embedded quotes and
       // empty arguments. Transport strings as JSON/base64, then spawn normally.
-      ? `function global:codex { $ccdeckCodexArgs = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject ([string[]]@($args)) -Compress))); & ${psQuote(node)} ${psQuote(runner)} ${psQuote(file)} ${psQuote(executable)} --ccdeck-args-base64 $ccdeckCodexArgs }`
-      : `codex() { command ${quote(node)} ${quote(runner)} ${quote(file)} ${quote(executable)} "$@"; }`;
+      ? `function global:codex { $ccdeckCodexArgs = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject ([string[]]@($args)) -Compress))); ${psNodeMode(`& ${psQuote(node)} ${psQuote(runner)} ${psQuote(file)} ${psQuote(executable)} --ccdeck-args-base64 $ccdeckCodexArgs`)} }`
+      : `codex() { ELECTRON_RUN_AS_NODE=1 command ${quote(node)} ${quote(runner)} ${quote(file)} ${quote(executable)} "$@"; }`;
     next += `${next.endsWith('\n') || next === '' ? '' : '\n'}${BEGIN}\n${line}\n${END}\n`;
   }
   await mkdir(join(rc, '..'), { recursive: true });
