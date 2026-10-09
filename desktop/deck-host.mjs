@@ -64,15 +64,21 @@ export function shellEnv({ env = process.env, platform = process.platform, run =
   const shell = env.SHELL || (platform === "darwin" ? "/bin/zsh" : "/bin/sh");
   const names = ["PATH", ...SHELL_VARS];
   try {
-    // -i and -l so the profile files that set them are read; one line per
-    // name behind a marker keeps anything a profile prints out of the answer.
+    // -i and -l read the profile files. NUL frames preserve multiline values;
+    // the marker separates the first record from profile greeting output.
     // The names are this file's constants, so nothing a value holds is ever
     // part of the command.
-    const script = `printf '${MARK}%s\\n' ${names.map(k => `"${k}=$${k}"`).join(" ")}`;
+    const script = `printf '${MARK}%s\\0' ${names.map(k => `"${k}=$${k}"`).join(" ")}`;
     const out = String(run(shell, ["-ilc", script], { encoding: "utf8", timeout: 5000 }));
     const got = {};
-    for (const chunk of out.split(MARK).slice(1)) {
-      const line = chunk.split("\n")[0];
+    // NUL cannot occur in an environment value; unlike newline or MARK it
+    // safely frames pretty-printed JSON and paths containing the marker.
+    const framed = out.includes("\0");
+    const chunks = framed ? out.split("\0") : out.split(MARK).slice(1);
+    for (const chunk of chunks) {
+      const start = framed ? chunk.indexOf(MARK) : -1;
+      if (framed && start < 0) continue;
+      const line = framed ? chunk.slice(start + MARK.length) : chunk.split("\n")[0];
       const at = line.indexOf("=");
       const name = line.slice(0, at);
       const value = line.slice(at + 1);

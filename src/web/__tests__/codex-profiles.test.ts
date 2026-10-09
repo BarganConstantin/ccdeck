@@ -33,12 +33,12 @@ describe('Codex profile discovery', () => {
   });
 
   it('keeps existing CODEX_HOME behavior with no configuration', () => {
-    expect(configuredCodexHomes({ CODEX_HOME: '/tmp/current' }, '/tmp')).toEqual(['/tmp/current']);
+    expect(configuredCodexHomes({ CODEX_HOME: '/tmp/current' }, '/tmp', 'darwin')).toEqual(['/tmp/current']);
   });
 
   it('accepts explicit distinct absolute profiles and ignores invalid entries', () => {
     const env = { CODEX_HOME: '/tmp/a', CCDECK_CODEX_HOMES: JSON.stringify(['/tmp/a', '/tmp/b', './relative', 5, '']) };
-    expect(configuredCodexHomes(env, '/tmp')).toEqual(['/tmp/a', '/tmp/b']);
+    expect(configuredCodexHomes(env, '/tmp', 'darwin')).toEqual(['/tmp/a', '/tmp/b']);
   });
 
   it('handles Windows paths without treating drive letters as separators', () => {
@@ -89,7 +89,7 @@ describe('Codex profile discovery', () => {
   it('quotes shell paths and scopes launch environment to a new process', async () => {
     const path = "/tmp/profile's private";
     const env = { CODEX_HOME: path };
-    const [profile] = await discoverCodexProfiles({ env });
+    const [profile] = await discoverCodexProfiles({ env, platform: 'darwin' });
     expect(await codexProfileLaunchCommand(profile.id, { env, platform: 'darwin' }))
       .toBe("CODEX_HOME='/tmp/profile'\\''s private' codex");
     const windowsEnv = { CODEX_HOME: "C:\\Users\\dev's home\\.codex" };
@@ -184,6 +184,19 @@ describe('Codex profile discovery', () => {
       expect(await old).toEqual({ ok: false, reason: 'profile_changed' });
       expect(newer.windows[0].usedPercent).toBe(71);
       expect((await readCodexProfileQuota(profile.id, { env })).windows[0].usedPercent).toBe(71);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('preserves over-quota usage instead of dropping the exhausted window', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-over-quota-'));
+    try {
+      await writeFile(join(root, 'auth.json'), JSON.stringify({ tokens: { access_token: 'OVER_QUOTA_TOKEN' } }));
+      const env = { CODEX_HOME: root };
+      const [profile] = await discoverCodexProfiles({ env });
+      const quota = await readCodexProfileQuota(profile.id, { env, fetch: async () => ({
+        ok: true, json: async () => ({ rate_limit: { primary_window: { used_percent: 130 } } }),
+      }) });
+      expect(quota.windows[0].usedPercent).toBe(130);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 

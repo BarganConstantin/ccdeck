@@ -166,7 +166,7 @@ export async function readCodexProfileQuota(id, options = {}) {
       const raw = value?.used_percent;
       if (raw == null || raw === '') return null;
       const pct = Number(raw);
-      return Number.isFinite(pct) && pct >= 0 && pct <= 100
+      return Number.isFinite(pct) && pct >= 0
         ? { usedPercent: pct, resetAt: value.resets_at ?? null, seconds: value.limit_window_seconds ?? null }
         : null;
     };

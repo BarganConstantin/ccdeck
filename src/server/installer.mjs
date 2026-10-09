@@ -602,4 +602,4 @@ export { AGENT_DAG_DIR, CLAUDE_DIR, CODEX_DIR };
 // This deck's discovery record, which moved to discovery.mjs. Exported from this
 // file before they moved, and still: bin/deck.js and the CLI import them from
 // here.
-export { codexHomeField, discoveryPath, ensureDiscovery, keepDiscovery, removeDiscovery, writeDiscovery } from "./discovery.mjs";
+export { codexHomesField, codexHomeField, discoveryPath, ensureDiscovery, keepDiscovery, removeDiscovery, writeDiscovery } from "./discovery.mjs";

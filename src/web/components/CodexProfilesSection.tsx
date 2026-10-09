@@ -40,6 +40,7 @@ function quotaStatus(quota: ProfileQuota, now: number): string {
 export default function CodexProfilesSection() {
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
   const profileRequest = useRef(0);
+  const quotaRequests = useRef(new Set<string>());
   const [error, setError] = useState(false);
   const [quotas, setQuotas] = useState<Record<string, ProfileQuota | null>>({});
   const [launch, setLaunch] = useState<Record<string, string>>({});
@@ -69,16 +70,21 @@ export default function CodexProfilesSection() {
   }
 
   async function checkQuota(id: string) {
+    if (quotaRequests.current.has(id)) return;
+    quotaRequests.current.add(id);
     setQuotas((current) => ({ ...current, [id]: null }));
     try {
       const response = await fetch(`/api/codex-profile-quota?id=${encodeURIComponent(id)}`);
       if (!response.ok) throw new Error('Quota unavailable');
       const value = await response.json() as ProfileQuota;
-      await refreshProfiles();
       setQuotas((current) => ({ ...current, [id]: value }));
+      const request = profileRequest.current + 1;
+      await refreshProfiles().catch(() => {
+        if (request === profileRequest.current) setError(true);
+      });
     } catch {
       setQuotas((current) => ({ ...current, [id]: { ok: false, reason: 'fetch_error' } }));
-    }
+    } finally { quotaRequests.current.delete(id); }
   }
 
   async function refreshProfiles(signal?: AbortSignal) {
@@ -119,7 +125,7 @@ export default function CodexProfilesSection() {
                 <span>{profile.label}{profile.active ? " · Server default" : ""}{selectedId === profile.id ? " · Launch target" : ""}</span>
                 <span className="ap-codex-hint">{profile.signedInFilePresent ? "Login file found" : "No login file"}</span>
                 <button className="ap-codex-check" type="button" disabled={selectedId === profile.id} onClick={() => selectProfile(profile.id)}>{selectedId === profile.id ? "Launch target" : "Choose for new CLI"}</button>
-                {profile.signedInFilePresent && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} disabled={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
+                {profile.signedInFilePresent && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} aria-busy={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
                 {selectedId === profile.id && <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>}
                 {launch[profile.id] && <span className="ap-codex-hint" role="status">{launch[profile.id]}</span>}
                 {Object.hasOwn(quotas, profile.id) && (quotas[profile.id] === null

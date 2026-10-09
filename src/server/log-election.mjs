@@ -234,5 +234,13 @@ export function writesCodexLog({ decks, pid, cwd, codexHome = null, platform = p
     if (!codexCwdInWorkspace(cwd, d.workspace ?? "", platform)) continue;
     group.push(d);
   }
+  if (codexHome) {
+    // Legacy decks only compare primary homes. Prefer those readers for this
+    // log so an alternate-home reader cannot elect itself beside a legacy writer.
+    const primary = group.filter(d => sameCodexTree(d.codexHome, codexHome, platform)
+      && typeof d.persist === "string" && d.persist !== ""
+      && sameCodexTree(d.persist, self.persist, platform));
+    if (primary.length) return electWriters(primary, platform).has(self);
+  }
   return electWriters(group, platform).has(self);
 }

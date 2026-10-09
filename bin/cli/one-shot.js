@@ -145,7 +145,7 @@ function printLogs(deckLogDir, { say, tone, dash, bullet }) {
  */
 async function defaultShape(deckLogDir) {
   const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-election.mjs")).href);
-  const { hasCodexInstalled, codexHomeField } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
+  const { hasCodexInstalled, codexHomeField, codexHomesField } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
   const { hasClaudeInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-dir.mjs")).href);
 
   // The default shape, spelled the same way deck.js's boot spells it. NOT the
@@ -165,6 +165,7 @@ async function defaultShape(deckLogDir) {
   // one" exactly the deck the next `ccdeck` stops (#1134). Worked out by the
   // function the start and the discovery record use, so all three agree.
   mine.codexHome = codexHomeField(mine.codex);
+  mine.codexHomes = codexHomesField(mine.codex);
   return mine;
 }
 
