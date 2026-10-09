@@ -185,7 +185,7 @@ export const GATES = [
   // standing in for the user's $SHELL with a profile that exports the opt-outs.
   // The app never asks a shell on Windows, where a GUI app gets the user's own
   // environment; that branch, the parse and the merge are un-gated beside it.
-  { file: "desktop-shell-env.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
+  { file: "desktop-shell-env.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
   // The hook command's fallback to the node on PATH once the recorded one is
   // gone, run through a real /bin/sh with stand-in nodes that write down their

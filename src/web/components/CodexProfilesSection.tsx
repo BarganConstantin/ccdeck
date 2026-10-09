@@ -82,11 +82,10 @@ export default function CodexProfilesSection() {
       setQuotas((current) => ({ ...current, [id]: { ok: false, reason: 'fetch_error' } }));
       return;
     } finally { quotaRequests.current.delete(id); }
-      const request = profileRequest.current + 1;
-      await refreshProfiles().catch(() => {
-        if (request === profileRequest.current) setError(true);
-      });
-
+    const request = profileRequest.current + 1;
+    await refreshProfiles().catch(() => {
+      if (request === profileRequest.current) setError(true);
+    });
   }
 
   async function refreshProfiles(signal?: AbortSignal) {
