@@ -117,4 +117,14 @@ describe('system-store account integration', () => {
     expect(result).toEqual({ ok: false, reason: 'profile_changed' });
   });
 
+  it('preserves native floor staleness and original data age in card and ambient APIs', async () => {
+    const f = await fixture();
+    const selected = { home: f.home, profileId: f.id, revision: 1, selectionEnabled: true, homes: [f.home] };
+    for (const ok of [true, false]) {
+      const nativeRead = async () => ({ ...native(), ok, stale: true, fetchedAt: 12345, ...(ok ? {} : { reason: 'rpc_error' }) });
+      expect(await fetchCodexQuota({ enableNative: true, nativeRead, readSelection: async () => selected })).toMatchObject({ ok, stale: true, fetchedAt: 12345 });
+      expect(await readCodexProfileQuota(f.id, { ...f.options, selection: selected, nativeRead })).toMatchObject({ ok, stale: true, fetchedAt: 12345 });
+    }
+  });
+
 });

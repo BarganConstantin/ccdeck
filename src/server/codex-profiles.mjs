@@ -124,8 +124,10 @@ export async function readCodexProfileQuota(id, options = {}) {
   if (options.enableNative && (authoritative || credentialVersion === 'missing')) {
     const native = await (options.nativeRead ?? readNativeCodexAccount)(directory, { includeQuota: true, force: true });
     if (!authoritative && await credentialFileVersion(directory) !== credentialVersion) return { ok: false, reason: 'profile_changed' };
-    if (!native.ok || !native.signedIn || native.plan === 'api') return { ok: false, reason: native.reason ?? (native.plan === 'api' ? 'api_key_mode' : 'no_token') };
-    return { ok: true, partial: true, identityVersion: native.identityVersion, fetchedAt: native.fetchedAt, plan: native.plan, windows: native.windows };
+    if (!native.ok || !native.signedIn || native.plan === 'api') return { ok: false, reason: native.reason ?? (native.plan === 'api' ? 'api_key_mode' : 'no_token'), fetchedAt: native.fetchedAt,
+      ...(native.stale ? { stale: true } : {}) };
+    return { ok: true, partial: true, identityVersion: native.identityVersion, fetchedAt: native.fetchedAt, plan: native.plan, windows: native.windows,
+      ...(native.stale ? { stale: true } : {}) };
   }
   const now = Date.now();
   const cached = profileQuotaCache.get(id);

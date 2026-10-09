@@ -74,7 +74,7 @@ describe('native Codex account adapter (synthetic children only)', () => {
     clock++; await readNativeCodexAccount(HOME, options); expect(f.spawn).toHaveBeenCalledTimes(4);
   });
 
-  it('forced reads bypass settled quota and metadata caches while sharing active reads', async () => {
+  it('forced quota verifies identity without bypassing the usage floor and shares active verification', async () => {
     let email = 'before@example.com';
     const f = fake((m, c) => {
       if (m.id !== undefined) reply(c, m.id, m.method === 'initialize' ? {} : m.method === 'account/read' ? { account: { ...account, email } } : limits);
@@ -84,10 +84,37 @@ describe('native Codex account adapter (synthetic children only)', () => {
     email = 'after@example.com';
     const opts = { ...f.options, includeQuota: true, force: true };
     const [a, b] = await Promise.all([readNativeCodexAccount(HOME, opts), readNativeCodexAccount(HOME, opts)]);
-    expect(a.label).toBe(email); expect(b.label).toBe(email);
-    expect(f.spawn).toHaveBeenCalledTimes(5);
+    expect(a).toMatchObject({ ok: false, reason: 'profile_changed', windows: [] }); expect(b).toEqual(a);
+    expect(f.spawn).toHaveBeenCalledTimes(4);
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
     expect((await readNativeCodexAccount(HOME, { ...f.options, force: true })).label).toBe(email);
-    expect(f.spawn).toHaveBeenCalledTimes(6);
+    expect(f.spawn).toHaveBeenCalledTimes(5);
+  });
+
+  it('limits forced quota bursts to one usage RPC per minute and preserves data age', async () => {
+    const f = fake(); let clock = 100000; const now = () => clock;
+    const options = { ...f.options, now, includeQuota: true, force: true };
+    const first = await readNativeCodexAccount(HOME, options);
+    for (let i = 0; i < 5; i++) {
+      clock += 1000;
+      expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: true, stale: true, fetchedAt: first.fetchedAt });
+    }
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
+    clock = 160000;
+    expect((await readNativeCodexAccount(HOME, options)).ok).toBe(true);
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(2);
+  });
+
+  it('holds the usage floor after an RPC failure rather than retrying remote refresh on every force', async () => {
+    const f = fake((m, c) => {
+      if (m.id === undefined) return;
+      if (m.method === 'account/rateLimits/read') c.stdout.write(JSON.stringify({ id: m.id, error: { code: -32000 } }) + '\n');
+      else reply(c, m.id, m.method === 'initialize' ? {} : { account });
+    });
+    const options = { ...f.options, includeQuota: true, force: true };
+    expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: false, reason: 'rpc_error' });
+    expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: false, reason: 'rpc_error', stale: true });
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
   });
 
   it('rejects a relogin visible only to the genuinely fresh verification process', async () => {

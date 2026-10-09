@@ -205,7 +205,8 @@ export function readNativeCodexAccount(home, options = {}) {
     if (!settled) return Promise.resolve(failure('native_busy', now));
     cache.delete(settled[0]);
   }
-  const entry = { at: started, pending: null, value: null };
+  let attemptedQuota = false;
+  const entry = { at: started, pending: null, value: null, quotaAt: held?.quotaAt, quotaValue: held?.quotaValue, quotaFileVersion: held?.quotaFileVersion };
   const pending = Promise.resolve().then(async () => {
     // One shared wall-clock budget; verification cannot reuse either cache or
     // the first process's in-memory auth snapshot. Keep admission held throughout.
@@ -214,7 +215,18 @@ export function readNativeCodexAccount(home, options = {}) {
     if (fileVersion === null) return failure('profile_unavailable', now);
     const initialRemaining = deadline - Date.now();
     if (initialRemaining <= 0) return failure('timeout', now);
+    // Force means verify identity now, never bypass the per-home usage floor.
+    if (includeQuota && entry.quotaValue && started >= entry.quotaAt && started - entry.quotaAt < CACHE_MS) {
+      const fresh = await rpcRead(home, { ...options, platform, env, now, includeQuota: false, deadlineMs: initialRemaining });
+      if (!fresh.ok) return failure(fresh.reason ?? 'rpc_error', now);
+      if (fileVersion !== entry.quotaFileVersion || await authFileVersion(home, path, options.stat) !== fileVersion) return failure('profile_changed', now);
+      const old = entry.quotaValue;
+      if (old.ok && (!fresh.signedIn || fresh.identityVersion !== old.identityVersion)) return failure('profile_changed', now);
+      return { ...old, stale: true };
+    }
+    if (includeQuota) { attemptedQuota = true; entry.quotaAt = started; entry.quotaFileVersion = fileVersion; }
     const value = await rpcRead(home, { ...options, platform, env, now, includeQuota, deadlineMs: initialRemaining });
+    if (includeQuota) entry.quotaValue = value;
     if (!includeQuota || !value.ok || !value.signedIn || value.plan === 'api') return value;
     const remaining = deadline - Date.now();
     if (remaining <= 0) return failure('timeout', now);
@@ -225,6 +237,7 @@ export function readNativeCodexAccount(home, options = {}) {
     return { ...value, fetchedAt: now() };
   })
     .catch(() => failure('rpc_error', now)).then(value => {
+    if (attemptedQuota) entry.quotaValue = value;
     entry.pending = null; entry.at = now(); entry.value = value;
     return structuredClone(value);
   });
