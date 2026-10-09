@@ -136,7 +136,7 @@ async function claudePlan(env) {
 /** The Codex plan, never refreshing a token to learn it. */
 async function codexPlan() {
   const { getCodexAuth } = await import("./codex-auth.mjs");
-  const auth = await getCodexAuth({ allowRefresh: false });
+  const auth = await getCodexAuth({ allowRefresh: false, selectedReadOnly: true });
   if (auth?.apiKeyMode) return "api";
   return auth?.ok ? codexPlanToken(auth.planType) : undefined;
 }

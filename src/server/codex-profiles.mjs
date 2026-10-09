@@ -1,40 +1,16 @@
 // Explicit Codex homes are separate profiles, not snapshots of auth.json.
 // Discovery reads display metadata only; credentials are never copied or refreshed.
 import { access, realpath, readFile, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { posix, win32, join } from 'node:path';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { codexHome } from './codex-dir.mjs';
-
-/**
- * Parse explicitly configured Codex homes. The active CODEX_HOME always wins;
- * additional directories are opt-in via a JSON array, not a path delimiter
- * (Windows drives and paths containing colons must remain unambiguous).
- * Reject relative paths to avoid interpreting homes against a changing cwd.
- */
-export function configuredCodexHomes(env = process.env, home = homedir(), platform = process.platform) {
-  const path = platform === 'win32' ? win32 : posix;
-  const current = codexHome(env, home, platform);
-  let extras = [];
-  if (env.CCDECK_CODEX_HOMES?.trim()) {
-    try {
-      const parsed = JSON.parse(env.CCDECK_CODEX_HOMES);
-      if (Array.isArray(parsed)) extras = parsed;
-    } catch { /* Invalid optional configuration must not break current Codex. */ }
-  }
-  const result = [current];
-  for (const entry of extras) {
-    if (typeof entry !== 'string' || !entry.trim() || !path.isAbsolute(entry.trim())) continue;
-    const candidate = path.resolve(entry.trim());
-    if (!result.includes(candidate)) result.push(candidate);
-  }
-  return result;
-}
+import { readCodexSelection, codexProfileId, codexSelectionError } from './codex-selection.mjs';
+export { configuredCodexHomes } from './codex-selection.mjs';
 
 /** Resolve each explicitly trusted home once before scanning rollout trees.
  * Deduping canonical directories avoids reading a symlink alias twice. */
 export async function codexProfileSessionDirs(options = {}) {
-  const homes = configuredCodexHomes(options.env, options.home, options.platform);
+  const selection = options.selection ?? await readCodexSelection(options);
+  const homes = selection.homes;
   const seen = new Set();
   const result = [];
   for (const home of homes) {
@@ -49,7 +25,8 @@ export async function codexProfileSessionDirs(options = {}) {
 
 /** The ID identifies a home, never an OAuth token or an email address. */
 export async function discoverCodexProfiles(options = {}) {
-  const homes = configuredCodexHomes(options.env, options.home, options.platform);
+  const selection = options.selection ?? await readCodexSelection(options);
+  const homes = selection.homes;
   const seen = new Set();
   const profiles = [];
   for (const directory of homes) {
@@ -71,11 +48,15 @@ export async function discoverCodexProfiles(options = {}) {
       identity = email ? `${email}${workspace ? ` · ${workspace}` : ''}` : workspace ? `Account ${workspace}` : null;
     } catch { /* Missing or malformed login metadata uses the profile label. */ }
     if (await credentialFileVersion(directory) !== credentialVersion) identity = null;
+    const id = selection.profiles?.find(p => p.home === directory)?.id ?? await codexProfileId(directory);
+    const managedLabel = selection.managedProfiles?.find(p => p.id === id)?.label;
     profiles.push({
-      id: createHash('sha256').update(canonical).digest('hex').slice(0, 20),
+      id,
       identityVersion: createHash('sha256').update(credentialVersion).digest('hex'),
-      label: identity ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
-      active: profiles.length === 0,
+      label: identity ?? managedLabel ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
+      ...(managedLabel ? { managedLabel } : {}),
+      active: id === selection.profileId,
+      available: await stat(directory).then(info => info.isDirectory(), () => false),
       signedInFilePresent: installed, // file presence is NOT authentication validity
     });
   }
@@ -86,11 +67,10 @@ export async function discoverCodexProfiles(options = {}) {
  * at server startup. Never accept a path from an HTTP request. */
 export async function resolveCodexProfile(id, options = {}) {
   if (typeof id !== 'string' || !/^[a-f0-9]{20}$/.test(id)) return null;
-  const homes = configuredCodexHomes(options.env, options.home, options.platform);
+  const selection = options.selection ?? await readCodexSelection(options);
+  const homes = selection.homes;
   for (const directory of homes) {
-    let canonical;
-    try { canonical = await realpath(directory); } catch { canonical = directory; }
-    if (createHash('sha256').update(canonical).digest('hex').slice(0, 20) === id) return directory;
+    if ((selection.profiles?.find(p => p.home === directory)?.id ?? await codexProfileId(directory)) === id) return directory;
   }
   return null;
 }
@@ -98,8 +78,12 @@ export async function resolveCodexProfile(id, options = {}) {
 /** Command for a new terminal session. An environment override only applies
  * to the launched process; no existing session or global auth is modified. */
 export async function codexProfileLaunchCommand(id, options = {}) {
-  const directory = await resolveCodexProfile(id, options);
+  const selection = options.selection ?? await readCodexSelection(options);
+  const directory = await resolveCodexProfile(id, { ...options, selection });
   if (!directory) return null;
+  if (selection.selectionEnabled && !await stat(directory).then(info => info.isDirectory(), () => false)) {
+    throw codexSelectionError('profile_unavailable');
+  }
   if ((options.platform ?? process.platform) === 'win32') {
     // PowerShell environment changes persist in the current shell, so restore
     // the previous value even if Codex exits unsuccessfully.
@@ -121,6 +105,9 @@ async function credentialFileVersion(directory) {
 export async function readCodexProfileQuota(id, options = {}) {
   const directory = await resolveCodexProfile(id, options);
   if (!directory) return { ok: false, reason: 'unknown_profile' };
+  if (!await stat(directory).then(info => info.isDirectory(), () => false)) {
+    return { ok: false, reason: 'profile_unavailable' };
+  }
   // Invalidate cached quota after a login / account replacement. The file may
   // contain an entirely different ChatGPT account within the cache lifetime.
   const credentialVersion = await credentialFileVersion(directory);

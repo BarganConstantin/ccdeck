@@ -165,7 +165,7 @@ async function defaultShape(deckLogDir) {
   // one" exactly the deck the next `ccdeck` stops (#1134). Worked out by the
   // function the start and the discovery record use, so all three agree.
   mine.codexHome = codexHomeField(mine.codex);
-  mine.codexHomes = codexHomesField(mine.codex);
+  mine.codexHomes = await codexHomesField(mine.codex);
   return mine;
 }
 
