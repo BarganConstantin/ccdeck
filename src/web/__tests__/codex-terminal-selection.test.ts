@@ -1,0 +1,85 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { addCodexProfile, readCodexSelection, selectCodexProfile } from '../../server/codex-selection.mjs';
+import { configureCodexTerminal, codexLoginCommand } from '../../server/codex-terminal.mjs';
+import { terminalCodexHome } from '../../server/codex-terminal-runner.mjs';
+
+const roots: string[] = [];
+afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
+async function fixture() {
+  const root = await mkdtemp(join(tmpdir(), 'ccdeck-terminal-'));
+  roots.push(root);
+  const original = join(root, 'original');
+  const store = join(root, 'store');
+  await mkdir(original);
+  const options = { store, env: { CODEX_HOME: original } };
+  const added = await addCodexProfile({ label: 'Work', operationId: 'add-work' }, options);
+  const current = await readCodexSelection(options);
+  const selected = await selectCodexProfile({ id: added.id, expectedRevision: current.revision, operationId: 'select-work' }, options);
+  return { root, original, store, options, selected, file: join(store, 'codex-accounts.json') };
+}
+
+describe('durable terminal selection', () => {
+  it('resolves the persisted default without a running deck and honors explicit overrides', async () => {
+    const f = await fixture();
+    expect(await terminalCodexHome(f.file, {})).toBe(f.selected.home);
+    expect(await terminalCodexHome(f.file, { CODEX_HOME: f.original })).toBe(f.original);
+    expect(await terminalCodexHome(join(f.root, 'absent.json'), {})).toBeNull();
+  });
+  it('fails closed for a corrupt registry or unavailable selected home', async () => {
+    const f = await fixture();
+    await rm(f.selected.home, { recursive: true });
+    await expect(terminalCodexHome(f.file, {})).rejects.toThrow('unavailable');
+    await writeFile(f.file, '{broken');
+    await expect(terminalCodexHome(f.file, {})).rejects.toThrow('cannot be read');
+  });
+  it('installs a self-contained launcher, forwards exact arguments, and removes only its shell block', async () => {
+    const f = await fixture();
+    const rc = join(f.root, 'shell-profile');
+    const existing = '# User configuration\nexport MY_SETTING="preserved"\n';
+    await writeFile(rc, existing);
+    const shell = process.platform === 'win32' ? 'powershell' : 'bash';
+    const options = { ...f.options, rc, shell, executable: process.execPath };
+    await configureCodexTerminal('install', options);
+    const first = await readFile(rc, 'utf8');
+    await configureCodexTerminal('install', options);
+    expect(await readFile(rc, 'utf8')).toBe(first);
+    const runner = join(f.store, 'codex-terminal', 'codex-terminal-runner.mjs');
+    const env = { ...process.env };
+    delete env.CODEX_HOME;
+    const strange = 'spaces "quotes" & dollar $ and apostrophe\'';
+    const out = execFileSync(process.execPath, [runner, f.file, process.execPath, '-e', 'console.log(JSON.stringify({home:process.env.CODEX_HOME,args:process.argv.slice(1)}))', '--', strange], { env, encoding: 'utf8' });
+    expect(JSON.parse(out)).toEqual({ home: f.selected.home, args: [strange] });
+    const args = ['-e', 'console.log(JSON.stringify({home:process.env.CODEX_HOME,args:process.argv.slice(1)}))', '--', strange];
+    let shellOutput;
+    if (process.platform === 'win32') {
+      const script = join(f.root, 'launch.ps1');
+      await writeFile(script, `. '${rc.replaceAll("'", "''")}'\ncodex @args\nexit $LASTEXITCODE\n`);
+      shellOutput = execFileSync('pwsh', ['-NoProfile', '-File', script, ...args], { env, encoding: 'utf8' });
+    } else {
+      shellOutput = execFileSync('bash', ['-c', 'source "$1"; shift; codex "$@"', 'qa', rc, ...args], { env, encoding: 'utf8' });
+    }
+    expect(JSON.parse(shellOutput)).toEqual({ home: f.selected.home, args: [strange] });
+    await configureCodexTerminal('uninstall', options);
+    expect(await readFile(rc, 'utf8')).toBe(existing);
+    // The copied helper remains usable after removal of the shell block and
+    // has no import of an npx-cache or package installation path.
+    expect(await readFile(runner, 'utf8')).not.toContain('ccdeck-codex-accounts');
+  });
+  it('preserves the child exit code', async () => {
+    const f = await fixture();
+    const runner = fileURLToPath(new URL('../../server/codex-terminal-runner.mjs', import.meta.url));
+    try { execFileSync(process.execPath, [runner, f.file, process.execPath, '-e', 'process.exit(17)'], { stdio: 'pipe' }); }
+    catch (error) { expect((error as { status: number }).status).toBe(17); return; }
+    throw new Error('Expected exit code 17');
+  });
+  it('quotes official login commands for both shell families', () => {
+    expect(codexLoginCommand("/profiles/it's work", 'linux')).toContain("'\\''");
+    expect(codexLoginCommand("C:\\profiles\\it's work", 'win32')).toContain("it''s work");
+    expect(codexLoginCommand('/profiles/a', 'linux')).toContain('codex login');
+  });
+});

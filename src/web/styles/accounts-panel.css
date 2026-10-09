@@ -77,6 +77,7 @@
 .ap-codex-check:hover:not(:disabled) { border-color: var(--text); }
 .ap-codex-check:active:not(:disabled) { transform: scale(0.97); }
 .ap-codex-check:disabled { cursor: default; opacity: var(--dim-off); }
+.ap-codex-label { display: block; box-sizing: border-box; width: 100%; min-width: 0; margin: 4px 0; border: 1px solid var(--ctl-edge); border-radius: 4px; background: var(--ctl-fill); color: var(--text); padding: 6px 8px; font: inherit; }
 .ap-foot {
   flex-shrink: 0;
   padding: 10px var(--panel-inset) 12px;

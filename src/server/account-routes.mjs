@@ -38,7 +38,43 @@ export const CHECKS_IMPORTS = process.platform === "darwin";
 // never serializes CODEX_HOME, auth.json contents, or OAuth credentials.
 export async function handleCodexProfiles(_req, res) {
   const { discoverCodexProfiles } = await import('./codex-profiles.mjs');
-  send(res, 200, { profiles: await discoverCodexProfiles() });
+  const { readCodexSelection } = await import('./codex-selection.mjs');
+  const selection = await readCodexSelection();
+  send(res, 200, { profiles: await discoverCodexProfiles({ selection }), revision: selection.revision });
+}
+
+export async function handleCodexProfileMutation(req, res, action) {
+  const raw = await readBody(req, res, 4096).catch(() => null);
+  let body;
+  try { body = JSON.parse(raw ?? ''); } catch { return send(res, 400, { ok: false, reason: 'bad_request' }); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return send(res, 400, { ok: false, reason: 'bad_request' });
+  const { selectCodexProfile, addCodexProfile } = await import('./codex-selection.mjs');
+  try {
+    const result = action === 'select' ? await selectCodexProfile(body) : await addCodexProfile(body);
+    // Registry paths are local implementation details; only explicit command
+    // requests below return a home as part of a copyable terminal command.
+    send(res, 200, { ok: true, id: result.id ?? result.profileId, revision: result.revision, status: result.status });
+  } catch (error) {
+    const reason = error?.code ?? 'operation_failed';
+    const conflicts = ['selection_conflict', 'operation_conflict', 'selection_busy'];
+    send(res, conflicts.includes(reason) ? 409 : reason === 'unknown_profile' ? 404 : 400, { ok: false, reason });
+  }
+}
+
+export async function handleCodexProfileLogin(req, res) {
+  const { resolveCodexProfile } = await import('./codex-profiles.mjs');
+  const { codexLoginCommand } = await import('./codex-terminal.mjs');
+  const directory = await resolveCodexProfile(new URL(req.url, 'http://localhost').searchParams.get('id'));
+  if (!directory) return send(res, 404, { ok: false, reason: 'unknown_profile' });
+  send(res, 200, { command: codexLoginCommand(directory) });
+}
+
+export async function handleCodexTerminalCommand(req, res) {
+  const { codexTerminalCommand } = await import('./codex-terminal.mjs');
+  const url = new URL(req.url, 'http://localhost');
+  const command = codexTerminalCommand(url.searchParams.get('action') ?? 'install', url.searchParams.get('shell'));
+  if (!command) return send(res, 400, { ok: false, reason: 'unsupported_shell' });
+  send(res, 200, { command });
 }
 
 export async function handleCodexProfileQuota(req, res) {

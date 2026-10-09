@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { copyText } from "../copy-text";
-import { readStored, writeStored } from "../storage";
-
-const SELECTED_CODEX_PROFILE_KEY = "agent-dag.codex.selectedProfile";
 
 interface CodexProfile {
   id: string;
@@ -44,7 +41,11 @@ export default function CodexProfilesSection() {
   const [error, setError] = useState(false);
   const [quotas, setQuotas] = useState<Record<string, ProfileQuota | null>>({});
   const [launch, setLaunch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState(() => readStored(SELECTED_CODEX_PROFILE_KEY) ?? "");
+  const [revision, setRevision] = useState(0);
+  const [action, setAction] = useState<string | null>(null);
+  const actionRequest = useRef(false);
+  const [message, setMessage] = useState("");
+  const [newLabel, setNewLabel] = useState("");
   const [clock, setClock] = useState(Date.now);
 
   useEffect(() => {
@@ -52,9 +53,42 @@ export default function CodexProfilesSection() {
     return () => clearInterval(timer);
   }, []);
 
-  function selectProfile(id: string) {
-    setSelectedId(id);
-    writeStored(SELECTED_CODEX_PROFILE_KEY, id);
+  async function mutate(action: 'select' | 'add', id?: string) {
+    if (actionRequest.current) return;
+    actionRequest.current = true;
+    setAction(id ?? 'add');
+    setMessage('');
+    try {
+      const response = await fetch(`/api/codex-profile-${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, label: newLabel.trim(), expectedRevision: revision, operationId: crypto.randomUUID() }),
+      });
+      const result = await response.json() as { ok: boolean; reason?: string; id?: string };
+      if (!response.ok || !result.ok) throw new Error(result.reason ?? 'operation_failed');
+      if (action === 'add' && result.id) {
+        setNewLabel('');
+        await copyCommand('login', result.id);
+        setMessage('Profile created. Run its sign-in command in a terminal, then complete the official Codex login.');
+      } else setMessage('Default saved for new sessions. Restart open Codex sessions to use this account. Enable terminal integration once to apply it to the codex command.');
+      await refreshProfiles().catch(() => setError(true));
+    } catch (error) {
+      const conflict = error instanceof Error && ['selection_conflict', 'operation_conflict', 'selection_busy'].includes(error.message);
+      setMessage(conflict ? 'Another selection changed the default. Refreshing accounts; try again.' : 'Could not complete the operation. Refresh accounts and try again.');
+      await refreshProfiles().catch(() => {});
+    } finally { actionRequest.current = false; setAction(null); }
+  }
+
+  async function copyCommand(kind: 'login' | 'terminal', id?: string, remove = false) {
+    const key = id ?? 'terminal';
+    try {
+      const url = kind === 'login' ? `/api/codex-profile-login?id=${encodeURIComponent(id ?? '')}`
+        : `/api/codex-terminal-command?action=${remove ? 'uninstall' : 'install'}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Unavailable');
+      const result = await response.json() as { command: string };
+      const copied = await copyText(result.command);
+      setLaunch(current => ({ ...current, [key]: copied ? 'Command copied. Run it in your terminal.' : result.command }));
+    } catch { setLaunch(current => ({ ...current, [key]: 'Could not prepare command' })); }
   }
 
   async function copyLaunch(id: string) {
@@ -92,12 +126,12 @@ export default function CodexProfilesSection() {
     const request = ++profileRequest.current;
     const response = await fetch("/api/codex-profiles", { signal });
     if (!response.ok) throw new Error("Unable to load Codex profiles");
-    const result = await response.json() as { profiles: CodexProfile[] };
+    const result = await response.json() as { profiles: CodexProfile[]; revision?: number };
     if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
     if (signal?.aborted || request !== profileRequest.current) return;
     setProfiles(result.profiles);
+    setRevision(result.revision ?? 0);
     setError(false);
-    setSelectedId(current => result.profiles.some(profile => profile.id === current) ? current : result.profiles[0]?.id ?? "");
   }
 
   useEffect(() => {
@@ -123,11 +157,12 @@ export default function CodexProfilesSection() {
           <ul className="ap-codex-list">
             {profiles.map((profile) => (
               <li key={profile.id} className="ap-codex-row">
-                <span>{profile.label}{profile.active ? " · Server default" : ""}{selectedId === profile.id ? " · Launch target" : ""}</span>
+                <span>{profile.label}{profile.active ? " · Default for new sessions" : ""}</span>
                 <span className="ap-codex-hint">{profile.signedInFilePresent ? "Login file found" : "No login file"}</span>
-                <button className="ap-codex-check" type="button" disabled={selectedId === profile.id} onClick={() => selectProfile(profile.id)}>{selectedId === profile.id ? "Launch target" : "Choose for new CLI"}</button>
+                <button className="ap-codex-check" type="button" aria-pressed={profile.active} aria-busy={action === profile.id} onClick={() => { if (!profile.active) void mutate('select', profile.id); }}>{profile.active ? "Default account" : "Use account"}</button>
                 {profile.signedInFilePresent && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} aria-busy={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
-                {selectedId === profile.id && <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>}
+                <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>
+                <button className="ap-codex-check" type="button" onClick={() => void copyCommand('login', profile.id)}>{profile.signedInFilePresent ? "Sign in again" : "Sign in"}</button>
                 {launch[profile.id] && <span className="ap-codex-hint" role="status">{launch[profile.id]}</span>}
                 {Object.hasOwn(quotas, profile.id) && (quotas[profile.id] === null
                   ? <span className="ap-codex-hint" role="status">Checking quota…</span>
@@ -138,7 +173,15 @@ export default function CodexProfilesSection() {
               </li>
             ))}
           </ul>
-          <p className="ap-codex-hint">Choose a launch target and copy its command into a terminal to start a new Codex CLI session. This browser choice does not switch running sessions, server defaults, or credentials. A login file does not guarantee an active session.</p>
+          <form onSubmit={event => { event.preventDefault(); void mutate('add'); }}>
+            <label className="ap-codex-hint">New account label <input required className="ap-codex-label" aria-label="New Codex account label" value={newLabel} maxLength={80} onChange={event => setNewLabel(event.target.value)} /></label>
+            <button className="ap-codex-check" type="submit" aria-busy={action === 'add'}>Add Codex account</button>
+          </form>
+          {message && <p className="ap-codex-hint" role="status">{message}</p>}
+          <button className="ap-codex-check" type="button" onClick={() => void copyCommand('terminal')}>Enable terminal selection</button>
+          <button className="ap-codex-check" type="button" onClick={() => void copyCommand('terminal', undefined, true)}>Remove terminal selection</button>
+          {launch.terminal && <p className="ap-codex-hint" role="status">{launch.terminal}</p>}
+          <p className="ap-codex-hint">The default applies to new sessions. Existing sessions keep their account until restarted. Terminal selection needs a one-time setup; an explicit CODEX_HOME takes priority. Codex manages sign-in and renewal. A login file does not guarantee an active session.</p>
         </>}
     </section>
   );

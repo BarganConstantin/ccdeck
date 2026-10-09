@@ -158,7 +158,7 @@ import { send, sendInternalError } from "./http-io.mjs";
 export { sendInternalError };
 // The accounts surface's routes — see account-routes.mjs. The boot wires the
 // stale-copy repair and starts auto-switch through the same module.
-import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexProfileQuota, handleCodexProfileLaunch, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
+import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexProfileQuota, handleCodexProfileLaunch, handleCodexProfileMutation, handleCodexProfileLogin, handleCodexTerminalCommand, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
@@ -380,6 +380,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/codex-profiles") return guard(handleCodexProfiles(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-profile-quota") return guard(handleCodexProfileQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-profile-launch") return guard(handleCodexProfileLaunch(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/codex-profile-select") return guard(handleCodexProfileMutation(req, res, "select"), res);
+    if (req.method === "POST" && url.pathname === "/api/codex-profile-add") return guard(handleCodexProfileMutation(req, res, "add"), res);
+    if (req.method === "GET" && url.pathname === "/api/codex-profile-login") return guard(handleCodexProfileLogin(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/codex-terminal-command") return guard(handleCodexTerminalCommand(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/admin")  return guard(handleClaudeAccountAdmin(req, res), res);
