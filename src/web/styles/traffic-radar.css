@@ -18,7 +18,7 @@
 .tr-observed-summary .tr-note { margin-bottom: 0; }
 .tr-navigation { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 var(--tr-inset); border-bottom: 1px solid var(--line); }
 .tr-tabs { display: flex; align-self: stretch; gap: 20px; }
-.tr-tab { appearance: none; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-secondary); padding: 11px 0 10px; font: inherit; cursor: pointer; }
+.tr-tab { appearance: none; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-secondary); padding: 10px 0 10px; font: inherit; cursor: pointer; }
 .tr-tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 .tr-tab:hover { color: var(--text); }
 .tr-session-filter { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; min-width: 0; }
@@ -50,7 +50,7 @@
 .tr-feed-head h3 { overflow-wrap: anywhere; }
 .tr-count { color: var(--text-secondary); font-weight: 400; margin-left: 6px; font-variant-numeric: tabular-nums; }
 .tr-connections li + li { margin-top: 2px; }
-.tr-message { appearance: none; display: flex; flex-direction: column; gap: var(--tr-row-gap); width: 100%; border: 1px solid transparent; border-radius: var(--tr-radius); padding: 9px 10px; text-align: left; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.tr-message { appearance: none; display: flex; flex-direction: column; gap: var(--tr-row-gap); width: 100%; border: 1px solid transparent; border-radius: var(--tr-radius); padding: 8px 10px; text-align: left; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
 .tr-message:hover { background: var(--ctl-fill); }
 .tr-message[aria-pressed="true"] { background: var(--tr-selection); border-left-color: var(--accent); }
 .tr-message > span, .tr-message > code { color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
@@ -139,7 +139,7 @@
   .tr-inspector { overflow: visible; padding: 16px 14px; }
   .tr-inspector-empty { min-height: 160px; }
   .tr-variables > div { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .tr-tab, .tr-body .btn { min-height: 40px; }
+  .tr-tab, .tr-body .btn, .tr-start { min-height: 40px; }
   .tr-input, .tr-select { min-height: 40px; }
   .tr-telemetry, .tr-file, .tr-page { flex: none; }
   .tr-capture-actions { width: 100%; }
@@ -182,7 +182,7 @@
 .tr-inline-copy { appearance: none; display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid transparent; background: transparent; color: var(--text-secondary); padding: 0; border-radius: var(--tr-radius); cursor: pointer; transition: transform 120ms ease-out, background 140ms ease; }
 .tr-inline-copy:hover { color: var(--text); background: var(--ctl-fill); }
 .tr-inline-copy:active { transform: scale(0.97); }
-.tr-body .btn { min-height: var(--tr-control-h); border-radius: var(--tr-radius); }
+.tr-body .btn, .tr-start { min-height: var(--tr-control-h); border-radius: var(--tr-radius); }
 .tr-json-key { color: var(--text); font-weight: 500; }
 .tr-json-string { color: var(--ok); }
 .tr-json-number { color: var(--accent); }
@@ -222,7 +222,7 @@
 
 /* Native option behavior, with the same fields and neutral utility actions as the surrounding deck. */
 .tr-select-wrap { position: relative; display: inline-flex; align-items: center; min-width: 0; }
-.tr-select-wrap .tr-select { appearance: none; width: 100%; padding-right: 28px; min-height: var(--tr-control-h); background: transparent; }
+.tr-select-wrap .tr-select { appearance: none; width: 100%; padding-right: 32px; min-height: var(--tr-control-h); background: transparent; }
 .tr-select-wrap > svg { position: absolute; right: 10px; pointer-events: none; color: var(--text-secondary); }
 .tr-select:hover, .tr-input:hover { border-color: var(--text); }
 .tr-select:disabled { opacity: var(--dim-off); }
