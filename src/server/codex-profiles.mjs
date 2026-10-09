@@ -1,6 +1,6 @@
 // Explicit Codex homes are separate profiles, not snapshots of auth.json.
 // This read-only discovery layer never loads, copies or refreshes credentials.
-import { access, realpath, readFile } from 'node:fs/promises';
+import { access, realpath, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { posix, win32, join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -81,10 +81,17 @@ const profileQuotaCache = new Map();
 export async function readCodexProfileQuota(id, options = {}) {
   const directory = await resolveCodexProfile(id, options);
   if (!directory) return { ok: false, reason: 'unknown_profile' };
+  // Invalidate cached quota after a login / account replacement. The file may
+  // contain an entirely different ChatGPT account within the cache lifetime.
+  let credentialVersion;
+  try {
+    const info = await stat(join(directory, 'auth.json'));
+    credentialVersion = `${info.dev}:${info.ino}:${info.size}:${info.mtimeMs}:${info.ctimeMs}`;
+  } catch { credentialVersion = 'missing'; }
   const now = Date.now();
   const cached = profileQuotaCache.get(id);
-  if (cached?.pending) return cached.pending;
-  if (cached && now - cached.at < 60_000) return cached.value;
+  if (cached?.credentialVersion === credentialVersion && cached.pending) return cached.pending;
+  if (cached?.credentialVersion === credentialVersion && now - cached.at < 60_000) return cached.value;
   const pending = (async () => {
     let auth;
     try { auth = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8')); }
@@ -127,8 +134,10 @@ export async function readCodexProfileQuota(id, options = {}) {
       windows: [window(body?.rate_limit?.primary_window), window(body?.rate_limit?.secondary_window)].filter(Boolean),
     };
   })();
-  profileQuotaCache.set(id, { at: now, pending });
+  profileQuotaCache.set(id, { at: now, pending, credentialVersion });
   const value = await pending;
-  profileQuotaCache.set(id, { at: Date.now(), value });
+  if (profileQuotaCache.get(id)?.pending === pending) {
+    profileQuotaCache.set(id, { at: Date.now(), value, credentialVersion });
+  }
   return value;
 }

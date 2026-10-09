@@ -73,6 +73,10 @@ describe('Codex profile discovery', () => {
       expect(JSON.stringify([first, second])).not.toContain('ACCESS_');
       await readCodexProfileQuota(profiles[0].id, { env, fetch: mockFetch });
       expect(seen).toHaveLength(2);
+      // Re-login can replace auth.json while the previous account's quota is cached.
+      await writeFile(join(a, 'auth.json'), JSON.stringify({ tokens: { access_token: 'REPLACED_ACCOUNT_TOKEN' } }));
+      await readCodexProfileQuota(profiles[0].id, { env, fetch: mockFetch });
+      expect(seen).toEqual(['Bearer ACCESS_A', 'Bearer ACCESS_B', 'Bearer REPLACED_ACCOUNT_TOKEN']);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

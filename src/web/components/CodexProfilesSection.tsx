@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { copyText } from "../copy-text";
+import { readStored, writeStored } from "../storage";
+
+const SELECTED_CODEX_PROFILE_KEY = "ccdeck.codex.selectedProfile";
 
 interface CodexProfile {
   id: string;
@@ -20,6 +23,12 @@ export default function CodexProfilesSection() {
   const [error, setError] = useState(false);
   const [quotas, setQuotas] = useState<Record<string, ProfileQuota | null>>({});
   const [launch, setLaunch] = useState<Record<string, string>>({});
+  const [selectedId, setSelectedId] = useState(() => readStored(SELECTED_CODEX_PROFILE_KEY) ?? "");
+
+  function selectProfile(id: string) {
+    setSelectedId(id);
+    writeStored(SELECTED_CODEX_PROFILE_KEY, id);
+  }
 
   async function copyLaunch(id: string) {
     try {
@@ -54,7 +63,12 @@ export default function CodexProfilesSection() {
       })
       .then((result) => {
         if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
-        if (!controller.signal.aborted) setProfiles(result.profiles);
+        if (!controller.signal.aborted) {
+          setProfiles(result.profiles);
+          if (!result.profiles.some((profile) => profile.id === selectedId)) {
+            setSelectedId(result.profiles[0]?.id ?? "");
+          }
+        }
       })
       .catch(() => { if (!controller.signal.aborted) setError(true); });
     return () => controller.abort();
@@ -69,8 +83,9 @@ export default function CodexProfilesSection() {
           <ul className="ap-codex-list">
             {profiles.map((profile) => (
               <li key={profile.id} className="ap-codex-row">
-                <span>{profile.label}{profile.active ? " · Current" : ""}</span>
+                <span>{profile.label}{profile.active ? " · Server default" : ""}{selectedId === profile.id ? " · Selected" : ""}</span>
                 <span className="ap-codex-hint">{profile.signedInFilePresent ? "Login file found" : "No login file"}</span>
+                <button className="ap-codex-check" type="button" disabled={selectedId === profile.id} onClick={() => selectProfile(profile.id)}>{selectedId === profile.id ? "Selected for next launch" : "Select for next launch"}</button>
                 {profile.signedInFilePresent && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} disabled={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
                 <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>
                 {launch[profile.id] && <span className="ap-codex-hint" role="status">{launch[profile.id]}</span>}
@@ -82,7 +97,7 @@ export default function CodexProfilesSection() {
               </li>
             ))}
           </ul>
-          <p className="ap-codex-hint">Launch commands start a separate Codex session in your terminal. Existing sessions stay on their current account. A login file does not guarantee an active session.</p>
+          <p className="ap-codex-hint">Selection is saved in this browser for your next launch command. It does not change running sessions or the server default. A login file does not guarantee an active session.</p>
         </>}
     </section>
   );
