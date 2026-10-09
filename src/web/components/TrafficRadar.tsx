@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import type { RadarSnapshot } from "../traffic-radar";
 import { configuredDestinations, configuredState, type RadarSession } from "../telemetry-inspection";
+import { tabStripMove } from "../tablist-keys";
 import { useTrafficRadar } from "../use-traffic-radar";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useTelemetryCapture } from "../use-telemetry-capture";
@@ -29,6 +30,15 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
   const [page, setPage] = useState<"monitor" | "configuration" | "file">("monitor");
   const [fileSessions, setFileSessions] = useState<string[]>([]);
   const [session, setSession] = useState("all");
+  const pages = ["monitor", "configuration", "file"] as const;
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const move = tabStripMove(event, pages.indexOf(page), pages.length);
+    if (move.kind !== "select") return;
+    event.preventDefault();
+    const next = pages[move.index];
+    setPage(next);
+    document.getElementById(`tr-tab-${next}`)?.focus();
+  };
   const variables = snapshot?.config?.variables ?? [];
   const destinations = configuredDestinations(variables);
   const state = configuredState(variables);
@@ -42,13 +52,8 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
       {destinations.length > 0 && <div className="tr-endpoints">{destinations.map(destination => <code key={destination}>{destination}</code>)}</div>}
     </div>
     <div className="tr-navigation">
-      <div className="tr-tabs" role="tablist" aria-label="Radar views">{([['monitor', 'Monitor'], ['configuration', 'Configuration'], ['file', 'File']] as const).map(([id, label]) =>
-        <button key={id} id={`tr-tab-${id}`} role="tab" aria-selected={page === id} aria-controls={`tr-panel-${id}`} tabIndex={page === id ? 0 : -1} onClick={() => setPage(id)} onKeyDown={e => {
-          const ids = ['monitor', 'configuration', 'file'] as const;
-          const at = ids.indexOf(id);
-          const next = e.key === 'ArrowRight' ? ids[(at + 1) % 3] : e.key === 'ArrowLeft' ? ids[(at + 2) % 3] : e.key === 'Home' ? ids[0] : e.key === 'End' ? ids[2] : null;
-          if (next) { e.preventDefault(); setPage(next); document.getElementById(`tr-tab-${next}`)?.focus(); }
-        }}>{label}</button>)}</div>
+      <div className="tr-tabs" role="tablist" aria-label="Radar views" onKeyDown={handleTabKeyDown}>{([['monitor', 'Monitor'], ['configuration', 'Configuration'], ['file', 'File']] as const).map(([id, label]) =>
+        <button key={id} id={`tr-tab-${id}`} className="tr-tab" role="tab" aria-selected={page === id} aria-controls={`tr-panel-${id}`} tabIndex={page === id ? 0 : -1} onClick={() => setPage(id)}>{label}</button>)}</div>
       <label className="tr-session-filter">Session<select className="tr-select" value={session} onChange={e => setSession(e.target.value)} aria-label="Session">
         <option value="all">All sessions</option>{[...choices].map(([id, label]) => <option key={id} value={id}>{label} · {id.slice(0, 8)}</option>)}<option value="unidentified">Unidentified session</option>
       </select></label>

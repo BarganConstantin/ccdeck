@@ -510,7 +510,7 @@ describe("what each of the four toggles announces", () => {
     expect(chrome.left.map(i => i.id)).toEqual(["accounts", "session-list"]);
     const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [chrome.left] }));
     expect(html).toMatch(/data-rail-item="session-list"[^>]*>\s*<svg /);
-    expect(html).toMatch(/<span class="rail-word">Session list<\/span>/);
+    expect(buttons(html).get("session-list") && attr(buttons(html).get("session-list")!, "aria-label")).toBe("Session list");
     // And on a phone, in the dock — the stripes give way to it there.
     const dock = draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] }));
     expect(attr(buttons(dock).get("session-list")!, "aria-expanded")).toBe("false");

@@ -106,7 +106,18 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const RULES = topLevel(bare);
 
-const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
+function splitTop(list: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i] === "(") depth++;
+    else if (list[i] === ")") depth--;
+    else if (list[i] === "," && depth === 0) { parts.push(list.slice(start, i)); start = i + 1; }
+  }
+  parts.push(list.slice(start));
+  return parts.map(s => s.trim()).filter(Boolean);
+}
+const selectors = (list: string) => splitTop(list).map(s => s.replace(/\s+/g, " ").trim());
 
 /** Every top-level rule naming this exact selector, concatenated in source
  *  order — one element's cascade may be written in more than one place. */
@@ -481,8 +492,11 @@ interface Control {
 const CONTROLS: Control[] = [
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
-  { at: '.tr-nav .btn[aria-pressed="true"]', fillFrom: '.tr-nav .btn[aria-pressed="true"]', beds: ["--panel"] },
-  { at: '.btn.tr-row[aria-pressed="true"]', fillFrom: '.btn.tr-row[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
+  { at: ".btn.tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
+  { at: ".tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -828,6 +842,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
       ".switch:focus-visible",
+      '.tr-body :is(button, input, select, summary):focus-visible',
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",
     ]);
