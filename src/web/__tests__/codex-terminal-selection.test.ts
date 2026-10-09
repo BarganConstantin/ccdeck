@@ -24,7 +24,7 @@ async function fixture() {
 }
 
 describe('durable terminal selection', () => {
-  it.skipIf(process.platform === 'win32')('carries desktop Node mode through setup, installed calls, and removal without changing caller environment', async () => {
+  it.skipIf(process.platform === "win32")('carries desktop Node mode through setup, installed calls, and removal without changing caller environment', async () => {
     const f = await fixture();
     const runtime = join(f.root, 'desktop runtime');
     const q = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
