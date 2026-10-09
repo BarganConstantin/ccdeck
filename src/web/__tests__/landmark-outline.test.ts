@@ -391,6 +391,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
       "components/TelemetryCapture.tsx",
+      "components/TelemetryFile.tsx",
       "components/ToolModal.tsx",
       "components/TrafficRadar.tsx",
     ]);

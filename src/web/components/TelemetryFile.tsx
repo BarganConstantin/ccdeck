@@ -29,7 +29,7 @@ export function TelemetryFile({ sessionFilter = "all", onSessions }: { sessionFi
   const chosen = selected === null ? shown[0] : matches.find(row => row.line === selected);
   return <div className="tr-file">
     <div className="tr-file-toolbar"><div><h3>Inspect a telemetry file</h3><p className="tr-note">Open a local JSON or JSONL file. It stays in your browser and is not uploaded.</p></div>
-      <label className="btn tr-file-picker">{loading ? "Reading…" : name ? "Choose another file" : "Open file"}<input type="file" accept=".json,.jsonl,.ndjson,application/json" aria-label="Open telemetry file" disabled={loading} onChange={e => { void inspect(e.target.files?.[0]); e.target.value = ""; }} /></label></div>
+      <label className="btn tr-file-picker">{loading ? "Reading…" : name ? "Choose another file" : "Open file"}<input type="file" accept=".json,.jsonl,.ndjson,application/json" aria-label="Open telemetry file" onChange={e => { void inspect(e.target.files?.[0]); e.target.value = ""; }} /></label></div>
     {error && <p className="tr-capture-error" role="alert">{error}</p>}
     <div className="tr-workspace"><section className="tr-feed" aria-label="File records">
       <h3>{name || "File records"} <span className="tr-count">{matches.length}</span></h3>

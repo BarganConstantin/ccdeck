@@ -263,6 +263,11 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  which ones had been got to. */
 const PRESSES: Press[] = [
   [".tr-details > summary:active", "0.97", "transform"],
+  [".tr-activation > summary:active", "0.97", "transform"],
+  [".tr-monitor-footer summary:active", "0.97", "transform"],
+  [".tr-tab:active", "0.97", "transform"],
+  [".tr-message:active", "0.97", "transform"],
+  [".tr-file-picker:active", "0.97", "transform"],
   ["button.btn:active:not(:disabled)", "0.97", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —
   // `.sd-close` at 0.97 and `.detail-close`, `.ctx-modal-close` and `.uh-close`
@@ -496,6 +501,10 @@ const EXEMPT: string[] = [
   // LAN dialog's above. It discloses two paragraphs and changes nothing else,
   // and it answers the press by its text lifting to --text while it is open.
   ".ap-report-how > summary",
+  // The file input is an invisible hit target stretched over its visible label.
+  // The label owns the press feedback; transforming this overlay would only
+  // move the hit target and is not visible to the user.
+  ".tr-file-picker input",
   // A machine's row in the LAN list. The whole row is the door to that deck's
   // dialog, and a dense list of machines answers a press the way a desktop list
   // does: its tone deepens and nothing moves. A row that scaled slid the name
