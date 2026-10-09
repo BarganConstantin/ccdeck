@@ -16,6 +16,13 @@ describe("monitored Codex home sets", () => {
     expect(sameShape(base, { ...base, codexHomes: ['/profiles/a'] })).toBe(true);
     expect(sameShape(base, { ...base, codexHomes: ['/profiles/a', '/profiles/b'] })).toBe(false);
   });
+  it("does not defer to an unknown legacy primary home", () => {
+    const modern = { ...base, codexHomes: ['/profiles/a', '/profiles/b'] };
+    const legacy = { ...base, pid: 200, port: 4319, codexHome: undefined };
+    const decks = [modern, legacy];
+    expect(writesCodexLog({ decks, pid: modern.pid, cwd: '/work', codexHome: '/profiles/b', platform: 'linux' })).toBe(true);
+    expect(writesCodexLog({ decks, pid: legacy.pid, cwd: '/work', platform: 'linux' })).toBe(false);
+  });
   it("lets a legacy primary-home writer own its tree even at a higher port", () => {
     const modern = { ...base, codexHomes: ['/profiles/a', '/profiles/b'] };
     const legacy = { ...base, pid: 200, port: 4319, codexHome: '/profiles/b' };

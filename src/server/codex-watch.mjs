@@ -8,7 +8,7 @@
 // cwd and the chunked reader from the modules that own them — nothing here
 // reads the ring or the SSE clients. index.mjs starts the watcher. The bodies
 // are unchanged.
-import { stat } from "node:fs/promises";
+import { stat, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { PRODUCT } from "./brand.mjs";
 import { STOP, sidFromRolloutName, walkRolloutDays } from "./codex-dir.mjs";
@@ -160,20 +160,27 @@ let codexWorkspace = "";
 // land in today's dir, so this captures live activity without scanning years
 // of history every tick. With `all`, the rest of the tree is listed too, as
 // `older` — the walk codexOlderRollouts is filled from.
+const rolloutHome = path => dirname(dirname(dirname(dirname(dirname(path)))));
+
 async function listRecentCodexRollouts(all = false) {
   const out = [];
   const older = [];
+  const availableHomes = new Set();
+  const sweepHomes = new Set();
   // Each home needs its own two newest days. Otherwise a busy default account
   // can prevent the newest rollout in an alternate account from being seen.
   for (const sessionsDir of await codexProfileSessionDirs()) {
+    try { await readdir(sessionsDir); availableHomes.add(dirname(sessionsDir)); } catch { continue; }
+    const before = out.length;
     let dayDirs = 0;
     await walkRolloutDays((dir, files) => {
       const into = dayDirs < 2 ? out : older;
       for (const f of files) if (f.endsWith(".jsonl")) into.push(join(dir, f));
       if (++dayDirs >= 2 && !all) return STOP;
     }, { sessionsDir });
+    if (out.length > before) sweepHomes.add(dirname(sessionsDir));
   }
-  return { files: out, older };
+  return { files: out, older, availableHomes, sweepHomes };
 }
 
 /** Which of the two ways a rollout can fail to say whose it is has been printed
@@ -425,9 +432,9 @@ function emitCodexLines(state, consume, persist) {
  * or a session that sat idle past the window — is read from where this deck
  * stopped, joined late. The listing takes the entry back if the path is listed.
  */
-function sweepCodexCursors(now) {
+function sweepCodexCursors(now, availableHomes) {
   for (const [p, s] of codexFileState) {
-    if (now - (s.seenAt ?? 0) > CODEX_STATE_TTL_MS) {
+    if (availableHomes.has(rolloutHome(p)) && now - (s.seenAt ?? 0) > CODEX_STATE_TTL_MS) {
       codexFileState.delete(p);
       codexOlderRollouts.set(p, s.offset);
     }
@@ -452,15 +459,21 @@ function catalogOlderRollouts(older) {
  * for each that has grown since its last look, opened joined late from the
  * size it had then. See codexOlderRollouts.
  */
-async function openGrownOlderRollouts(now) {
+async function openGrownOlderRollouts(now, availableHomes) {
   const opened = [];
   const due = Math.min(CODEX_OLDER_STATS_PER_TICK, codexOlderRollouts.size);
   for (let i = 0; i < due; i++) {
     const path = nextOlderRollout();
     if (path == null) break;
+    if (!availableHomes.has(rolloutHome(path))) continue;
     const was = codexOlderRollouts.get(path);
     let st;
-    try { st = await stat(path); } catch { codexOlderRollouts.delete(path); continue; }
+    try { st = await stat(path); } catch (error) {
+      if (error.code === "ENOENT") {
+        try { await readdir(dirname(path)); codexOlderRollouts.delete(path); } catch { /* unavailable subtree: retain offset */ }
+      }
+      continue;
+    }
     if (was == null || st.size <= was) { codexOlderRollouts.set(path, st.size); continue; }
     const header = await readCodexHeader(path);
     if (!header || !header.sid) continue; // the size it grew from is kept; next round
@@ -510,7 +523,7 @@ async function scanRollouts(firstRun) {
     // `null` rather than 0 for "never", so a clock that starts near the epoch,
     // or a faked one, cannot make boot look recent.
     const walkAll = codexOlderWalkedAt == null || Math.abs(now - codexOlderWalkedAt) >= CODEX_STATE_TTL_MS;
-    const { files, older } = await listRecentCodexRollouts(walkAll);
+    const { files, older, availableHomes, sweepHomes } = await listRecentCodexRollouts(walkAll);
     if (walkAll) { codexOlderWalkedAt = now; catalogOlderRollouts(older); }
     const listed = new Set(files);
     // Every rollout this tick has a reason to read, with its stat and cursor:
@@ -542,7 +555,7 @@ async function scanRollouts(firstRun) {
       state.mtimeMs = st.mtimeMs;
       due.push({ path, st, state });
     }
-    due.push(...await openGrownOlderRollouts(now));
+    due.push(...await openGrownOlderRollouts(now, availableHomes));
 
     for (const { path, st, state } of due) {
       if (state.skip) { state.offset = st.size; continue; }
@@ -569,7 +582,7 @@ async function scanRollouts(firstRun) {
       // written by one deck and its tool calls by another is worse than either.
       const persist = !eventLogPath()
         || writesCodexLog({ decks: await liveDecks(), pid: process.pid, cwd: state.cwd,
-          codexHome: canonicalLogPath(dirname(dirname(dirname(dirname(dirname(path)))))), });
+          codexHome: canonicalLogPath(rolloutHome(path)), });
 
       emitCodexLines(state, consume, persist);
 
@@ -585,7 +598,7 @@ async function scanRollouts(firstRun) {
       // lines, and a batch whose roots and tool calls went to one deck's log
       // while its memory list went to every deck's is the split the election
       // exists to prevent (#447).
-      if (state.rootOpened) maybeResolveCodexMemory(state.sid, state.cwd, persist);
+      if (state.rootOpened) maybeResolveCodexMemory(state.sid, state.cwd, persist, rolloutHome(path));
     }
 
     // AN EMPTY LISTING IS NOT EVIDENCE THAT ANYTHING WENT AWAY, and skipping
@@ -602,7 +615,7 @@ async function scanRollouts(firstRun) {
     // Nothing is lost by waiting: an empty listing means no file can be read
     // this tick anyway, and a tree that really is empty stays empty, so the
     // first tick that lists anything at all sweeps what is genuinely stale.
-    if (files.length) sweepCodexCursors(now);
+    if (files.length) sweepCodexCursors(now, sweepHomes);
   } catch {
     /* swallow — watcher must never crash the server */
   }
