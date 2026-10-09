@@ -40,7 +40,7 @@ describe('durable terminal selection', () => {
   it('installs a self-contained launcher, forwards exact arguments, and removes only its shell block', async () => {
     const f = await fixture();
     const rc = join(f.root, 'shell-profile');
-    const existing = '# User configuration\nexport MY_SETTING="preserved"\n';
+    const existing = process.platform === 'win32' ? '# User configuration\n$env:MY_SETTING="preserved"\n' : '# User configuration\nexport MY_SETTING="preserved"\n';
     await writeFile(rc, existing);
     const shell = process.platform === 'win32' ? 'powershell' : 'bash';
     const options = { ...f.options, rc, shell, executable: process.execPath };

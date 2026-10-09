@@ -4,7 +4,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { dirname, isAbsolute, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { spawnSpec } from './exec-spec.mjs';
 
 export async function terminalCodexHome(file, env = process.env) {
@@ -60,7 +60,7 @@ export async function runSelectedCodex(file, executable, args, { env = process.e
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(await realpath(process.argv[1]).catch(() => process.argv[1])).href) {
+if (process.argv[1] && await realpath(fileURLToPath(import.meta.url)) === await realpath(process.argv[1]).catch(() => null)) {
   const [file, executable, ...args] = process.argv.slice(2);
   if (!file || !executable) { console.error('Codex terminal integration is incomplete. Reinstall it from ccdeck.'); process.exitCode = 1; }
   else {

@@ -212,6 +212,8 @@ describe("what was migrated to the secondary tier", () => {
       // The crash pane's one sentence: that reloading usually clears it and a
       // report tells the makers what broke (#1853). Prose the reader reads to
       // decide which of the two buttons under it to press, on the panel surface.
+      // The empty canvas film action remains readable secondary text.
+      ".empty-hero .film-action",
       ".error-fallback-note",
       // The feedback dialog's kinds (#1853): a word to choose by, sitting on
       // the segmented track, which is a fill mixed from the foreground, where
