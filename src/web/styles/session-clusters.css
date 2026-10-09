@@ -230,7 +230,7 @@
   box-shadow: 0 4px 14px rgba(0,0,0,0.45), 0 0 0 1px currentColor;
 }
 /* `.cluster-label.dragging` used to sit here, and its light-theme twin below
-   `:root[data-theme="light"] .cluster-label:hover`. Both are gone with the grab
+   `:root[data-color-scheme="light"] .cluster-label:hover`. Both are gone with the grab
    cursor above, because nothing in the app has ever put `dragging` on this
    element: React Flow writes that class onto `.react-flow__node-*`, and App.tsx
    writes `dragging-any` onto `.canvas-wrap`. dead-css.test.ts could not have
@@ -250,7 +250,7 @@
 .react-flow__node-sessionGroup:active { cursor: grabbing; }
 /* The handle is a backing node — never let it show selection/hover chrome. */
 .react-flow__node-sessionGroup.selected { box-shadow: none; }
-:root[data-theme="light"] .cluster-label {
+:root[data-color-scheme="light"] .cluster-label {
   background: var(--bg-soft);
   box-shadow: 0 1px 4px rgba(15,23,42,0.08);
 }
@@ -261,9 +261,9 @@
    would have dropped the only text in this layer under AA. Same gesture,
    mirrored: the pill deepens instead, and the ratio goes up rather than down.
    A hover that lowers a contrast is not a hover. */
-:root[data-theme="light"] .cluster-label:hover {
+:root[data-color-scheme="light"] .cluster-label:hover {
   filter: brightness(0.9);
-  /* The ring had to come back with it. `:root[data-theme="light"]
+  /* The ring had to come back with it. `:root[data-color-scheme="light"]
      .cluster-label` is (0,3,0) against the hover's (0,2,0), so this theme kept
      the resting 1px/4px shadow under the pointer and the currentColor outline
      the dark hover draws never appeared. Measured, light theme, hovered:

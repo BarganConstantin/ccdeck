@@ -69,8 +69,8 @@ describe("the topbar mark is the kit's small mark", () => {
     // its mono-dark twin. The theme is a stored choice (data-theme), not
     // prefers-color-scheme, so the sheet switches on the attribute.
     expect(rule(".topbar .brand .logo-on-light")).toMatch(/display:\s*none/);
-    expect(rule(':root[data-theme="light"] .topbar .brand .logo-on-dark')).toMatch(/display:\s*none/);
-    expect(rule(':root[data-theme="light"] .topbar .brand .logo-on-light')).toMatch(/display:\s*block/);
+    expect(rule(':root[data-color-scheme="light"] .topbar .brand .logo-on-dark')).toMatch(/display:\s*none/);
+    expect(rule(':root[data-color-scheme="light"] .topbar .brand .logo-on-light')).toMatch(/display:\s*block/);
   });
 
   it("follows the kit's chrome pattern: height in fours, the name as tall, half of it between", () => {

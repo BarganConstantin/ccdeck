@@ -102,10 +102,14 @@ export function generateThemes(root, { check = false } = {}) {
   const html = readFileSync(htmlPath, "utf8");
   const marker = /\/\* theme-ids:start \*\/[\s\S]*?\/\* theme-ids:end \*\//g;
   if ([...html.matchAll(marker)].length !== 1) fail("index.html needs exactly one theme-ids marker");
+  const lightMarker = /\/\* theme-light-ids:start \*\/[\s\S]*?\/\* theme-light-ids:end \*\//g;
+  if ([...html.matchAll(lightMarker)].length !== 1) fail("index.html needs exactly one theme-light-ids marker");
+  const lightIds = compiled.themes.filter(t => t.colorScheme === "light").map(t => t.id);
+  const bootHtml = html.replace(lightMarker, `/* theme-light-ids:start */ ${JSON.stringify(lightIds)} /* theme-light-ids:end */`);
   const outputs = new Map([
     [join(root, "src/web/styles/themes.css"), compiled.css],
     [join(dir, "catalog.generated.ts"), compiled.catalog],
-    [htmlPath, html.replace(marker, `/* theme-ids:start */ ${JSON.stringify(compiled.ids)} /* theme-ids:end */`)],
+    [htmlPath, bootHtml.replace(marker, `/* theme-ids:start */ ${JSON.stringify(compiled.ids)} /* theme-ids:end */`)],
   ]);
   const changed = [...outputs].filter(([path, text]) => {
     try { return readFileSync(path, "utf8") !== text; } catch (error) { if (error.code === "ENOENT") return true; throw error; }

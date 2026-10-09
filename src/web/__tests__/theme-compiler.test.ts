@@ -38,16 +38,16 @@ describe("JSON theme compiler", () => {
       mkdirSync(dir, { recursive: true }); mkdirSync(join(root, "src/web/styles"));
       writeFileSync(join(dir, "schema.json"), JSON.stringify(load("schema")));
       for (const definition of definitions) writeFileSync(join(dir, `${definition.id}.json`), JSON.stringify(definition));
-      writeFileSync(join(root, "src/web/index.html"), 'var themes = /* theme-ids:start */ [] /* theme-ids:end */;');
+      writeFileSync(join(root, "src/web/index.html"), 'var themes = /* theme-ids:start */ [] /* theme-ids:end */; var lightThemes = /* theme-light-ids:start */ [] /* theme-light-ids:end */;');
       generateThemes(root);
       expect(() => generateThemes(root, { check: true })).not.toThrow();
-      const custom = { ...definitions[2], id: "extra-theme", name: "Extra Theme", order: 50 };
+      const custom = { ...definitions[1], id: "extra-theme", name: "Extra Theme", order: 50 };
       writeFileSync(join(dir, "extra-theme.json"), JSON.stringify(custom));
       expect(() => generateThemes(root, { check: true })).toThrow("out of date");
       expect(readFileSync(join(dir, "catalog.generated.ts"), "utf8")).not.toContain("Extra Theme");
       generateThemes(root);
       expect(readFileSync(join(dir, "catalog.generated.ts"), "utf8")).toContain("Extra Theme");
-      expect(readFileSync(join(root, "src/web/index.html"), "utf8")).toContain("extra-theme");
+      expect(readFileSync(join(root, "src/web/index.html"), "utf8")).toContain('/* theme-light-ids:start */ ["light","extra-theme"]');
       expect(() => generateThemes(root, { check: true })).not.toThrow();
     } finally { rmSync(root, { recursive: true, force: true }); }
   });

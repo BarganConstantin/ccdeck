@@ -146,10 +146,10 @@ Three consequences that decide everything else:
 - **Calm by default, loud only for a real event.** Colour carries state, not
   decoration. A screen with nothing wrong on it is almost monochrome, and no
   resting colour may wear a state's hue — see *State hues are exclusive* below.
-- **Dark is the default, light is a full peer.** `:root` is the dark ramp;
-  `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
+- **Rider Black is the default, light is a full peer.** `:root` is the dark CSS fallback;
+  `:root[data-color-scheme="light"]` shares light-mode component rules across palettes. Light is
   where contrast bugs live, because every terminal-adjacent colour assumes dark.
-  Light and Dark are joined by optional Rider Black and VS Code Black palettes;
+  Light and Dark are joined by IDE, Omarchy, Matrix, contrast and Catppuccin palettes;
   the supported choices come from `themes/*.json`; `theme.ts` owns their cycle.
 - **Density serves the glance.** The target is concrete so a screenshot can pass
   or fail it: **at 1440×900 with the detail rail open, eight sessions in the list
@@ -307,7 +307,7 @@ by adding light values. Claude FM's props alias them (`--fm-prop-light` /
 `--fm-prop-shadow` on `.fm-held[data-prop="scope"]`).
 
 **Its ink is not exempt.** `--fm-ink` is `var(--bg)` on `.fm-sprite` and
-`var(--text)` under `:root[data-theme="light"] .fm-sprite`, which also swaps the
+`var(--text)` under `:root[data-color-scheme="light"] .fm-sprite`, which also swaps the
 sprite's `--accent` to `--pixel-character-body`. That light rule is deliberate —
 without it the sprite's eyes and hat band go wrong in light. Keep it.
 
@@ -678,7 +678,7 @@ changing tabs preserves the selected message and imported file.
 
 ### Rider Black
 
-An optional theme inspired by the JetBrains dark UI palette: a charcoal
+The default theme for a new or invalid preference, inspired by the JetBrains dark UI palette: a charcoal
 canvas (#1e1f22), separate gray tool surfaces (#2b2d30), flat nodes and blue focus
 accents. Readable secondary text stays above 4.5:1; status and category colors
 keep their meanings. Light and Dark retain their palettes. The choice persists
@@ -694,7 +694,7 @@ configured collectors or confirmed telemetry.
 A separate theme based on VS Code Dark Modern: #1f1f1f working canvas, #181818
 tool panels, #2b2b2b separators and #4daafc accents. Selection uses #264f78 with
 white text. Both IDE palettes keep flat surfaces and ccdeck’s semantic color
-mapping. Settings lays out four previews on desktop and two per row on phones.
+mapping. Settings lays out three previews per row on desktop and two per row on phones.
 
 ### JSON theme definitions
 
@@ -705,3 +705,16 @@ typed catalog metadata and the first-paint ID list. Vite regenerates on build an
 reloads after JSON changes so CSS and the cached canvas palette stay in step.
 Shared geometry, motion and model mappings remain in `styles/tokens.css`.
 See `src/web/themes/README.md` for adding a palette and checking generated output.
+
+### Contrast and Catppuccin palettes
+
+Black Contrast pairs near-black flat surfaces with white reading text and sky
+blue actions. White Contrast pairs white surfaces with dark ink and deep blue
+actions. Reading text, including secondary labels, clears 7:1 on all main
+surfaces; control edges and focus accents clear 3:1. Shared light-mode rules
+follow `data-color-scheme` so custom light palettes receive the correct brand
+variant and status treatments before paint.
+
+Catppuccin Mocha uses violet neutrals, a mauve accent and pastel semantic colors
+from the official palette, with secondary text lifted for monitoring density.
+All three remain versioned JSON definitions; references are in the themes README.

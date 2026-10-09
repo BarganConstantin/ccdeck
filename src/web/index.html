@@ -49,21 +49,21 @@
          Vite leaves untouched in the built HTML (it rewrites only scripts with
          a src or type="module"). Deliberately dependency-free, and kept honest
          against resolveTheme() in theme.ts by theme-first-paint.test.ts, which
-         runs this exact text. With nothing stored, the OS decides (#885). -->
+         runs this exact text. With nothing stored, Rider Black is selected. -->
     <script>
       (function () {
         // Generated from JSON alongside the CSS and Settings catalog.
-        var themes = /* theme-ids:start */ ["light","dark","rider-black","vscode-black","omarchy","matrix"] /* theme-ids:end */;
-        var stored = null, light = false;
+        var themes = /* theme-ids:start */ ["light","dark","rider-black","vscode-black","omarchy","matrix","black-contrast","white-contrast","catppuccin-mocha"] /* theme-ids:end */;
+        var lightThemes = /* theme-light-ids:start */ ["light","white-contrast"] /* theme-light-ids:end */;
+        var stored = null;
         // `window.localStorage` is a GETTER that throws where site data is
         // blocked, so the property read is inside the try, not just getItem.
         // A refused store must cost a preference and never the boot.
         try { stored = window.localStorage.getItem("agent-dag.theme"); } catch (e) {}
-        // No choice stored: follow the OS. Guarded the same way, because an
-        // embed without matchMedia must not stop the parse either.
-        try { light = window.matchMedia("(prefers-color-scheme: light)").matches; } catch (e) {}
-        document.documentElement.setAttribute("data-theme",
-          themes.indexOf(stored) >= 0 ? stored : light ? "light" : "dark");
+        // Rider Black is the default; saved choices always win.
+        var theme = themes.indexOf(stored) >= 0 ? stored : "rider-black";
+        document.documentElement.setAttribute("data-theme", theme);
+        document.documentElement.setAttribute("data-color-scheme", lightThemes.indexOf(theme) >= 0 ? "light" : "dark");
       })();
     </script>
   </head>

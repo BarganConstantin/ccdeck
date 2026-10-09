@@ -48,7 +48,9 @@ The generator updates:
 Commit generated output with its JSON definitions. `npm run themes:check` verifies
 that output is current without rewriting it. Existing theme IDs and the storage
 key stay stable so upgrades preserve preferences. Dark remains the default CSS
-palette; Light and Dark remain the fallback choices when no preference is stored.
+fallback palette. Rider Black is selected before first paint when no valid
+preference is stored. Light palettes share component behavior through
+`data-color-scheme`, including logo variants, readable status fills and overlays.
 
 This is a build-time catalog. A Settings importer or visual theme editor can use
 the versioned format later; adding those controls is a separate feature.
@@ -60,3 +62,6 @@ the versioned format later; adding those controls is a separate feature.
 
 Both are flat color palettes with no animated backgrounds. Shared layout, brand
 artwork and keyboard behavior remain part of ccdeck's interface.
+
+- **Black Contrast** and **White Contrast** follow the crisp light/dark separation of [VS Code high contrast themes](https://github.com/microsoft/vscode/tree/main/extensions/theme-defaults/themes), adapted to ccdeck with visible control boundaries and at least 7:1 contrast for reading text on all three main surfaces.
+- **Catppuccin Mocha** adapts the [official Mocha palette](https://catppuccin.com/palette/): dark violet neutrals, mauve actions and pastel data colors. Secondary text is lifted for dense monitoring screens.

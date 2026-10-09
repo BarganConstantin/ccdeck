@@ -33,20 +33,10 @@ export function nextTheme(theme: Theme): Theme {
  *  reads as an empty store and silently discards everyone's choice. */
 export const THEME_KEY = "agent-dag.theme";
 
-/**
- * The theme a stored value asks for, and what no choice falls back to.
- *
- * Every supported theme is a choice, and a choice wins whatever the OS says.
- * Anything else — absent, null from a store the browser refused, or a value a
- * future version might have written — is no choice at all, and the deck
- * follows the OS (#885): a first run on a light desktop used to open dark.
- * `prefersLight` is the OS's answer, passed in rather than asked for so this
- * stays pure and the bootstrap can be held against it input for input. Its
- * default is dark, the one the stylesheet already paints with no attribute.
- */
-export function resolveTheme(stored: string | null | undefined, prefersLight = false): Theme {
+/** Saved preferences win; first runs and unknown values start in Rider Black. */
+export function resolveTheme(stored: string | null | undefined, _prefersLight = false): Theme {
   if (typeof stored === "string" && Object.hasOwn(THEME_DEFINITIONS, stored)) return stored as Theme;
-  return prefersLight ? "light" : "dark";
+  return "rider-black";
 }
 
 /** Does the OS ask for light? `window` is absent in bare node and `matchMedia`
@@ -60,5 +50,5 @@ export function prefersLight(): boolean {
  *  blocked profile raises on the `localStorage` getter itself, so a store the
  *  browser will not hand over costs a preference and never the mount. */
 export function storedTheme(): Theme {
-  return resolveTheme(readStored(THEME_KEY), prefersLight());
+  return resolveTheme(readStored(THEME_KEY));
 }

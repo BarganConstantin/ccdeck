@@ -424,19 +424,19 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
-:root[data-theme="light"] .tool-burst {
+:root[data-color-scheme="light"] .tool-burst {
   box-shadow: 0 2px 8px rgba(15,23,42,0.10), 0 0 0 1px rgba(15,23,42,0.04);
 }
-:root[data-theme="light"] .tool-burst.status-inflight {
+:root[data-color-scheme="light"] .tool-burst.status-inflight {
   border-color: rgba(126,34,206,0.55);
   box-shadow: 0 0 0 1px rgba(126,34,206,0.20), 0 6px 14px rgba(126,34,206,0.18);
 }
-:root[data-theme="light"] .tool-burst.status-done {
+:root[data-color-scheme="light"] .tool-burst.status-done {
   border-color: rgba(21,128,61,0.50);
 }
-:root[data-theme="light"] .tool-burst.status-err {
+:root[data-color-scheme="light"] .tool-burst.status-err {
   border-color: rgba(185,28,28,0.55);
-  /* THE RED CAME BACK. `:root[data-theme="light"] .tool-burst` above is
+  /* THE RED CAME BACK. `:root[data-color-scheme="light"] .tool-burst` above is
      (0,3,0) and beats `.tool-burst.status-err`'s (0,2,0), so redoing only the
      border here left the failed bubble wearing the same neutral slate shadow
      as every success beside it — separated by one 0.55-alpha line. Measured in
@@ -456,12 +456,12 @@
    too and is written EARLIER, so on the light theme the hover resolved to the
    resting shadow and `transition: box-shadow 120ms` animated a property that
    never changed. Dark's geometry, in slate at --shadow-2's own weight. */
-:root[data-theme="light"] .tool-burst.clickable:hover {
+:root[data-color-scheme="light"] .tool-burst.clickable:hover {
   box-shadow: 0 6px 18px rgba(15,23,42,0.16), 0 0 0 1px var(--cat-accent, rgba(15,23,42,0.14));
 }
-:root[data-theme="light"] .tool-conn.status-inflight {
+:root[data-color-scheme="light"] .tool-conn.status-inflight {
   stroke: rgba(126,34,206,0.85);
 }
-:root[data-theme="light"] .tool-conn.status-done { stroke: rgba(21,128,61,0.85); }
-:root[data-theme="light"] .tool-conn.status-err  { stroke: rgba(185,28,28,0.85); }
+:root[data-color-scheme="light"] .tool-conn.status-done { stroke: rgba(21,128,61,0.85); }
+:root[data-color-scheme="light"] .tool-conn.status-err  { stroke: rgba(185,28,28,0.85); }
 

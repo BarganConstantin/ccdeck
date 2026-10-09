@@ -348,7 +348,7 @@ describe("4. the sparkline that prints its counts nowhere (#368.4)", () => {
   /** Base rule plus the light override, merged the way the cascade merges them. */
   function spark(cls: string, theme: Theme): { fill: Rgba; opacity: number } {
     const base = rule(`.tool-spark-bar${cls}`);
-    const light = rule(`:root[data-theme="light"] .tool-spark-bar${cls}`);
+    const light = rule(`:root[data-color-scheme="light"] .tool-spark-bar${cls}`);
     const pick = (p: string) => (theme === "light" ? decl(light, p) ?? decl(base, p) : decl(base, p));
     return { fill: resolve(pick("fill")!, theme), opacity: +(pick("opacity") ?? 1) };
   }
@@ -387,11 +387,11 @@ describe("4. the sparkline that prints its counts nowhere (#368.4)", () => {
 
   it("lifts the dark bar only, and leaves --muted-dim its decorative jobs", () => {
     expect(declOf(".tool-spark-bar", "fill")).toBe("var(--muted)");
-    expect(declOf(':root[data-theme="light"] .tool-spark-bar', "fill")).toBe("var(--muted-dim)");
+    expect(declOf(':root[data-color-scheme="light"] .tool-spark-bar', "fill")).toBe("var(--muted-dim)");
     // The two louder tiers each carry an extra class, so they out-specify the
     // light idle override whatever the source order.
     for (const cls of [".active", ".latest"]) {
-      expect(decl(rule(`:root[data-theme="light"] .tool-spark-bar${cls}`), "fill"), cls).not.toBeNull();
+      expect(decl(rule(`:root[data-color-scheme="light"] .tool-spark-bar${cls}`), "fill"), cls).not.toBeNull();
     }
   });
 });

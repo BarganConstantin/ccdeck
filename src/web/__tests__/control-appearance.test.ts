@@ -382,7 +382,7 @@ describe("the questions this sweep asks, asked of themselves", () => {
     expect(restingMatch(".glyph-btn:hover", ["glyph-btn", "sd-close"])).toBe(false);
     expect(restingMatch('button.btn.icon-btn[aria-pressed="true"]', ["btn", "icon-btn"])).toBe(false);
     expect(restingMatch(".ap-header .glyph-btn", ["glyph-btn"])).toBe(true);
-    expect(restingMatch(':root[data-theme="light"] .glyph-btn', ["glyph-btn"])).toBe(true);
+    expect(restingMatch(':root[data-color-scheme="light"] .glyph-btn', ["glyph-btn"])).toBe(true);
     expect(restingMatch(".detail-panel:hover .glyph-btn", ["glyph-btn"])).toBe(false);
     // A rule for a class the set does not carry is not this control's.
     expect(restingMatch(".btn.primary", ["btn"])).toBe(false);

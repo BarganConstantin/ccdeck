@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
 import { THEMES, nextTheme, resolveTheme } from "../theme";
@@ -12,7 +13,7 @@ function contrast(a: string, b: string) {
   const [lo, hi] = [luminance(a), luminance(b)].sort((a, b) => a - b);
   return (hi + .05) / (lo + .05);
 }
-for (const theme of ["rider-black", "vscode-black", "omarchy", "matrix"] as const) describe(theme, () => {
+for (const theme of THEMES.filter(id => id !== "light" && id !== "dark")) describe(theme, () => {
   const sheet = css.slice(css.indexOf(`:root[data-theme="${theme}"] {`));
   const tokens = Object.fromEntries([...`${base}\n${sheet.split("}")[0]}`.matchAll(/(--[\w-]+):\s*(#[a-f\d]{6})\s*;/gi)].map(m => [m[1], m[2]]));
   it("cycles each theme and preserves the explicit choice on either OS theme", () => {
@@ -27,9 +28,21 @@ for (const theme of ["rider-black", "vscode-black", "omarchy", "matrix"] as cons
       }
     });
   }
+  if (theme === "black-contrast" || theme === "white-contrast") {
+    for (const surface of ["--bg", "--bg-soft", "--panel"]) {
+      it(`provides 7:1 reading contrast and clear control edges on ${surface}`, () => {
+        for (const ink of ["--text", "--text-secondary", "--muted", "--text-dim"]) {
+          expect(contrast(tokens[ink], tokens[surface]), ink).toBeGreaterThanOrEqual(7);
+        }
+        for (const edge of ["--ctl-edge", "--sm-edge", "--chrome-edge", "--accent"]) {
+          expect(contrast(tokens[edge], tokens[surface]), edge).toBeGreaterThanOrEqual(3);
+        }
+      });
+    }
+  }
   it("keeps the selected text and primary action readable", () => {
-    const selection = { "rider-black": ["#dfe1e5", "#2e436e"], "vscode-black": ["#ffffff", "#264f78"], omarchy: ["#c0caf5", "#292e42"], matrix: ["#c5e6c6", "#23482a"] }[theme];
-    expect(contrast(selection[0], selection[1])).toBeGreaterThanOrEqual(4.5);
+    const definition = JSON.parse(readFileSync(new URL(`../themes/${theme}.json`, import.meta.url), "utf8"));
+    expect(contrast(definition.selection.foreground, definition.selection.background)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(tokens["--bg"], tokens["--accent"])).toBeGreaterThanOrEqual(4.5);
   });
 });

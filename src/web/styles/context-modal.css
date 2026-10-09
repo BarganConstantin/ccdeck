@@ -476,9 +476,9 @@
 .recap-note.status-needs .recap-note-mark { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
 .recap-note.status-failed .recap-note-mark { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
 .recap-note.status-done .recap-note-mark { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
-:root[data-theme="light"] .recap-note.status-needs .recap-note-mark { color: var(--warn); }
-:root[data-theme="light"] .recap-note.status-failed .recap-note-mark { color: var(--err); }
-:root[data-theme="light"] .recap-note.status-done .recap-note-mark { color: var(--ok); }
+:root[data-color-scheme="light"] .recap-note.status-needs .recap-note-mark { color: var(--warn); }
+:root[data-color-scheme="light"] .recap-note.status-failed .recap-note-mark { color: var(--err); }
+:root[data-color-scheme="light"] .recap-note.status-done .recap-note-mark { color: var(--ok); }
 /* The dot in front of a status note's word: a little smaller than the ※, which
    is drawn to the same box with nothing at its centre. */
 .note-glyph { transform: scale(0.85); }
@@ -635,9 +635,9 @@
 /* Keeps the idle tier where it measured fine — see the note on .tool-spark-bar.
    The two rules below carry an extra class each, so they out-specify this one
    whatever the order: the active and latest bars stay theirs in light. */
-:root[data-theme="light"] .tool-spark-bar { fill: var(--muted-dim); }
-:root[data-theme="light"] .tool-spark-bar.active { fill: var(--accent); opacity: 0.85; }
-:root[data-theme="light"] .tool-spark-bar.latest {
+:root[data-color-scheme="light"] .tool-spark-bar { fill: var(--muted-dim); }
+:root[data-color-scheme="light"] .tool-spark-bar.active { fill: var(--accent); opacity: 0.85; }
+:root[data-color-scheme="light"] .tool-spark-bar.latest {
   fill: var(--inflight);
   filter: drop-shadow(0 0 3px rgba(126, 34, 206, 0.45));
 }
@@ -818,7 +818,7 @@
    band's #7e22ce, #075985 against #0369a1): a band colour dark enough for a
    3:1 bar is not dark enough for 10px words on its own wash. The sweep in
    usage-series-contrast.test.ts measures the word on every bed. */
-:root[data-theme="light"] .model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
+:root[data-color-scheme="light"] .model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
   color: color-mix(in srgb, var(--chip-hue) 80%, var(--text));
   border-color: color-mix(in srgb, var(--chip-hue) 55%, transparent);
   background: color-mix(in srgb, var(--chip-hue) 14%, transparent);

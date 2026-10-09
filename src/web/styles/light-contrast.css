@@ -9,19 +9,19 @@
    at the bottom — 4.39:1 and 3.90:1 for `live`, so the state of the connection
    was under AA at the darker end. Composited against white once, here, the
    number is the same wherever the pill lands. */
-:root[data-theme="light"] .topbar .status .pill.live {
+:root[data-color-scheme="light"] .topbar .status .pill.live {
   border-color: rgba(21,128,61,0.45);
   background: #e8f2eb;
 }
-:root[data-theme="light"] .topbar .status .pill.paused {
+:root[data-color-scheme="light"] .topbar .status .pill.paused {
   border-color: rgba(180,83,9,0.50);
   background: #f8eee6;
 }
-:root[data-theme="light"] .topbar .status .pill.dead {
+:root[data-color-scheme="light"] .topbar .status .pill.dead {
   border-color: rgba(185,28,28,0.50);
   background: #f8e8e8;
 }
-:root[data-theme="light"] .agent-node.state-active {
+:root[data-color-scheme="light"] .agent-node.state-active {
   border-color: rgba(126,34,206,0.65);
   /* The dark rule's reasoning, in the other theme — including its silence
      about box-shadow. This twin is (0,4,0), so it outranked the hover whatever
@@ -33,48 +33,48 @@
    dark rules, where 0.5 over #14161b still reads; over a white node they landed
    at 2.26:1 and 3.12:1 against the node interior — under the 3:1 that 1.4.11
    asks of a boundary. The tokens themselves are 5.02:1 and 6.47:1. */
-:root[data-theme="light"] .agent-node.state-done { border-color: var(--ok); }
-:root[data-theme="light"] .agent-node.state-err  { border-color: var(--err); }
+:root[data-color-scheme="light"] .agent-node.state-done { border-color: var(--ok); }
+:root[data-color-scheme="light"] .agent-node.state-err  { border-color: var(--err); }
 
-:root[data-theme="light"] .state-pill.state-active {
+:root[data-color-scheme="light"] .state-pill.state-active {
   border-color: rgba(126,34,206,0.45);
   background: rgba(126,34,206,0.10);
 }
-:root[data-theme="light"] .state-pill.state-active::before { box-shadow: 0 0 5px rgba(126,34,206,0.55); }
+:root[data-color-scheme="light"] .state-pill.state-active::before { box-shadow: 0 0 5px rgba(126,34,206,0.55); }
 /* --ok on its own 10% wash is 4.39:1 — the one pill that misses AA, because
    green is the lightest of the three state hues. Deepened on the pill itself
    rather than by moving --ok, which would drag every cost figure and status
    dot in the light theme with it. */
-:root[data-theme="light"] .state-pill.state-done {
+:root[data-color-scheme="light"] .state-pill.state-done {
   border-color: rgba(21,128,61,0.45);
   background: rgba(21,128,61,0.10);
   color: #166534;
 }
-:root[data-theme="light"] .state-pill.state-err {
+:root[data-color-scheme="light"] .state-pill.state-err {
   border-color: rgba(185,28,28,0.50);
   background: rgba(185,28,28,0.10);
 }
 
-:root[data-theme="light"] .modal-section .err-tag {
+:root[data-color-scheme="light"] .modal-section .err-tag {
   background: rgba(185,28,28,0.10);
   border-color: rgba(185,28,28,0.45);
 }
 
-:root[data-theme="light"] .empty-hero .orbit { border-color: rgba(3,105,161,0.30); }
-:root[data-theme="light"] .empty-hero .orbit.r2 { border-color: rgba(76,29,149,0.30); }
-:root[data-theme="light"] .empty-hero .orbit.r3 { border-color: rgba(21,128,61,0.32); }
-:root[data-theme="light"] .empty-hero .core {
+:root[data-color-scheme="light"] .empty-hero .orbit { border-color: rgba(3,105,161,0.30); }
+:root[data-color-scheme="light"] .empty-hero .orbit.r2 { border-color: rgba(76,29,149,0.30); }
+:root[data-color-scheme="light"] .empty-hero .orbit.r3 { border-color: rgba(21,128,61,0.32); }
+:root[data-color-scheme="light"] .empty-hero .core {
   box-shadow: 0 0 28px rgba(76,29,149,0.40), 0 0 64px rgba(3,105,161,0.25);
 }
 
-:root[data-theme="light"] .conn-banner {
+:root[data-color-scheme="light"] .conn-banner {
   border-bottom-color: rgba(185,28,28,0.45);
 }
 
 
 /* react-flow edge dashflow uses --inflight which is now deep purple → fine */
-:root[data-theme="light"] .react-flow__edge-path { stroke: rgba(3,105,161,0.40); }
+:root[data-color-scheme="light"] .react-flow__edge-path { stroke: rgba(3,105,161,0.40); }
 
 /* mini-map node strokes more visible */
-:root[data-theme="light"] .react-flow__minimap-node { stroke: rgba(15,23,42,0.25); }
+:root[data-color-scheme="light"] .react-flow__minimap-node { stroke: rgba(15,23,42,0.25); }
 

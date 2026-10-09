@@ -13,7 +13,7 @@
   z-index: 100;
   animation: fadeIn 140ms ease-out;
 }
-:root[data-theme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
+:root[data-color-scheme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
 
 .modal {
   width: min(820px, 92vw);

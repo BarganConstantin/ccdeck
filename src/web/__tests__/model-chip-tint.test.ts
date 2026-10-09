@@ -70,7 +70,7 @@ describe("the sheet", () => {
     // Light overrides matched the tooltip too, so the defect was in both. Since
     // #1285 the family rule names the hue for both themes and the light rule
     // only says how a chip draws it — keyed on the same attribute values.
-    const light = /:root\[data-theme="light"\] \.model-chip:is\(([^)]*)\)/.exec(css);
+    const light = /:root\[data-color-scheme="light"\] \.model-chip:is\(([^)]*)\)/.exec(css);
     expect(light, "the light chip rule is gone").not.toBeNull();
     for (const family of ["opus", "sonnet", "haiku", "fable", "mythos"]) {
       expect(light![1], family).toContain(`[data-family="${family}"]`);

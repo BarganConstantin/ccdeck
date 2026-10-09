@@ -23,6 +23,18 @@ export const THEME_DEFINITIONS = {
   "matrix": {
     "name": "Matrix",
     "colorScheme": "dark"
+  },
+  "black-contrast": {
+    "name": "Black Contrast",
+    "colorScheme": "dark"
+  },
+  "white-contrast": {
+    "name": "White Contrast",
+    "colorScheme": "light"
+  },
+  "catppuccin-mocha": {
+    "name": "Catppuccin Mocha",
+    "colorScheme": "dark"
   }
 } as const;
 export type Theme = keyof typeof THEME_DEFINITIONS;

@@ -34,7 +34,7 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
       .filter(([, b]) => /animation:[^;]*\binfinite\b/.test(b) && /(?:^|[;\s])filter:\s*drop-shadow/.test(b))
       .map(([sel]) => sel);
     expect(glowing).toEqual([]);
-    for (const sel of [".tool-conn.status-inflight", ':root[data-theme="light"] .tool-conn.status-inflight',
+    for (const sel of [".tool-conn.status-inflight", ':root[data-color-scheme="light"] .tool-conn.status-inflight',
                        ".react-flow__edge.rf-edge-selected .react-flow__edge-path"]) {
       expect(decl(bodyOf(sel), "filter"), sel).toBeNull();
     }

@@ -335,7 +335,7 @@
    the hat band cannot drift apart — they are the two marks on this character
    that have to be darker than everything around them. */
 .fm-sprite { --fm-ink: var(--bg); }
-:root[data-theme="light"] .fm-sprite { --fm-ink: var(--text); }
+:root[data-color-scheme="light"] .fm-sprite { --fm-ink: var(--text); }
 /* UI link blue is too dark for the character's large filled silhouette. On
    the drawing, not the button (#1793): the button is what draws the focus
    ring, and the global ring is `var(--accent)` resolved on it, so an
@@ -343,7 +343,7 @@
    light canvas, 2.04:1 on the minimap. Everything the sprite paints is inside
    its svg, so every part of it still gets the sky blue; the ring keeps the
    theme's accent. */
-:root[data-theme="light"] .fm-sprite svg { --accent: var(--pixel-character-body); }
+:root[data-color-scheme="light"] .fm-sprite svg { --accent: var(--pixel-character-body); }
 
 /* The headphones, in the same --muted every glyph on this canvas is drawn in,
    and the body in the deck's accent so the character belongs to this palette

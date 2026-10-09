@@ -818,7 +818,7 @@ describe("the character", () => {
 
   it("stays fully visible with music off in either theme", () => {
     expect(decl(".fm-sprite", "opacity")).toBe("1");
-    expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBeNull();
+    expect(decl(':root[data-color-scheme="light"] .fm-sprite', "opacity")).toBeNull();
     // Both themes drive the same three tokens, so nothing is hard-coded to one
     // of them: the canvas shows through the eyes on either.
     expect(decl(".fm-body, .fm-leg", "fill")).toBe("var(--accent)");
@@ -846,11 +846,11 @@ describe("the character", () => {
     // band are the two marks on this character that both have to be darker than
     // everything around them, and two copies of that fact would drift.
     expect(decl(".fm-sprite", "--fm-ink")).toBe("var(--bg)");
-    expect(decl(':root[data-theme="light"] .fm-sprite', "--fm-ink")).toBe("var(--text)");
+    expect(decl(':root[data-color-scheme="light"] .fm-sprite', "--fm-ink")).toBe("var(--text)");
     // The light theme's sky-blue body is set on the drawing, not the button
     // that draws the focus ring (#1793), so the ring keeps the theme's accent.
-    expect(decl(':root[data-theme="light"] .fm-sprite svg', "--accent")).toBe("var(--pixel-character-body)");
-    expect(decl(':root[data-theme="light"] .fm-sprite', "--accent")).toBeNull();
+    expect(decl(':root[data-color-scheme="light"] .fm-sprite svg', "--accent")).toBe("var(--pixel-character-body)");
+    expect(decl(':root[data-color-scheme="light"] .fm-sprite', "--accent")).toBeNull();
     // Blinking leaves a dark eyelid instead of erasing the face.
     const blink = /@keyframes fm-blink \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(blink).toContain("scaleY(0.35)");
