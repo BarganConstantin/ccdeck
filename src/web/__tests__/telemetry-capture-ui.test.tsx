@@ -9,9 +9,9 @@ const props = { capture, radar: null, failed: false, busy: false, error: '', com
 describe('telemetry content inspection', () => {
   it('explains activation without declaring an idle receiver safe or telemetry disabled', () => {
     const markup = renderToStaticMarkup(<TelemetryCapture {...props} />);
-    expect(markup).toContain('Start monitoring'); expect(markup).toContain('Ready when you are');
+    expect(markup).toContain('Start monitoring'); expect(markup).toContain('Message capture is off');
     expect(markup).toContain('HTTPS contents cannot be decoded');
-    expect(markup).not.toMatch(/safe|protected|telemetry is off/i);
+    expect(markup).not.toMatch(/safe|protected|telemetry is disabled/i);
   });
   it('shows permissions, expiry, plaintext-only coverage and process attribution limits', () => {
     const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'awaiting' }} command='synthetic command' />);

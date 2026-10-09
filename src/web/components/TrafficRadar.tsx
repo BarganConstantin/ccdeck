@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { RadarSnapshot } from "../traffic-radar";
-import { configuredDestinations, configuredState, type RadarSession } from "../telemetry-inspection";
+import { configuredDestinations, configuredState, observedDestinations, type RadarSession } from "../telemetry-inspection";
 import { useTrafficRadar } from "../use-traffic-radar";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useTelemetryCapture } from "../use-telemetry-capture";
@@ -32,14 +32,16 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
   const variables = snapshot?.config?.variables ?? [];
   const destinations = configuredDestinations(variables);
   const state = configuredState(variables);
+  const observed = failed ? [] : observedDestinations(snapshot);
   const choices = new Map(sessions.map(s => [s.id, s.label]));
   for (const event of captureState?.capture?.events ?? []) for (const id of event.sessionIds ?? []) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
   for (const id of fileSessions) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
   return <div className="tr-body">
     <div className="tr-summary">
-      <div className="tr-summary-state"><span className={`tr-state ${failed || !snapshot ? "tr-tone-unknown" : state === "Enabled in settings" ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{failed ? "Configuration unavailable" : !snapshot ? "Reading settings…" : state}</span>
-        <span className="tr-note">{destinations.length ? `${destinations.length} configured destination${destinations.length === 1 ? "" : "s"}` : "No destination found in settings"}</span></div>
+      <div className="tr-summary-state"><span className={`tr-state ${failed || !snapshot ? "tr-tone-unknown" : state === "Enabled in settings" ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{failed ? "Configuration unavailable" : !snapshot ? "Reading settings…" : state === "Unknown" ? "Configuration unknown" : state}</span>
+        <span className="tr-note">{destinations.length ? `${destinations.length} configured destination${destinations.length === 1 ? "" : "s"}` : "No destination found in the settings files read. Telemetry may still be running."}</span></div>
       {destinations.length > 0 && <div className="tr-endpoints">{destinations.map(destination => <code key={destination}>{destination}</code>)}</div>}
+      {!destinations.length && observed.length > 0 && <div className="tr-observed-summary"><span className="tr-state">Claude connections observed</span><div className="tr-endpoints">{observed.map(address => <code key={address}>{address}</code>)}</div><p className="tr-note">These are active connections, not confirmed telemetry messages. Choose an observed address below to inspect its traffic.</p></div>}
     </div>
     <div className="tr-navigation">
       <div className="tr-tabs" role="tablist" aria-label="Radar views">{([['monitor', 'Monitor'], ['configuration', 'Configuration'], ['file', 'File']] as const).map(([id, label]) =>
@@ -55,7 +57,7 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
     </div>
     {/* Keep views mounted: selecting Configuration must not discard the selected message or imported file. */}
     <div className="tr-page" id="tr-panel-monitor" role="tabpanel" aria-labelledby="tr-tab-monitor" hidden={page !== "monitor"}>
-      {captureState ? <TelemetryCapture {...captureState} radar={snapshot} sessionFilter={session} sessions={sessions} /> : <p className="tr-empty">Reading monitor status…</p>}
+      {captureState ? <TelemetryCapture {...captureState} radar={failed && snapshot ? { ...snapshot, status: "unavailable" } : snapshot} sessionFilter={session} sessions={sessions} /> : <p className="tr-empty">Reading monitor status…</p>}
     </div>
     <div className="tr-page" id="tr-panel-configuration" role="tabpanel" aria-labelledby="tr-tab-configuration" hidden={page !== "configuration"}>
       {snapshot ? <Configuration snapshot={snapshot} stale={failed} sessionLabel={session === "all" ? undefined : choices.get(session) ?? session} /> : <p className="tr-empty">{failed ? "Could not read settings. Sampling will retry." : "Reading local settings…"}</p>}
@@ -76,6 +78,7 @@ export function Configuration({ snapshot, sessionLabel, stale = false }: { snaps
     {sessionLabel && <p className="tr-note">Selected session: {sessionLabel}. These shared settings are evidence; this session’s runtime values are unverified.</p>}
     <h4>Destinations</h4>
     {destinations.length ? <ul className="tr-destinations">{destinations.map(v => <li key={`${v.source}:${v.key}`}><code>{v.value}</code><span>{v.source} · {v.key}</span></li>)}</ul> : <p className="tr-note">No destination found in the sources read. This does not mean telemetry is off.</p>}
+    {!destinations.length && snapshot.connections.length > 0 && <><h4>Observed Claude connections</h4><ul className="tr-live-connections">{snapshot.connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>{stale || c.active === null ? "Visibility unavailable" : c.active ? "Active connection" : "Previously observed"} · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A running process can keep previously loaded settings after a settings file disappears. Connections alone do not identify telemetry or prove a message was sent.</p></>}
     <h4>Telemetry and content</h4>
     {flags.length ? <dl className="tr-variables">{flags.map(v => <div key={`${v.source}:${v.key}`}>
       <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{v.source}</span></dt><dd><span className={`tr-state ${v.value.startsWith("Enabled") ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{v.value}</span>{v.rawValue !== undefined && <code className="tr-raw-flag">{v.rawValue}</code>}</dd>
