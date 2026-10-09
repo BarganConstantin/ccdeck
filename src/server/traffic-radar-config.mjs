@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, win32 } from "node:path";
+import { posix, win32 } from "node:path";
 
 const BOOLEAN_KEYS = [
   "CLAUDE_CODE_ENABLE_TELEMETRY", "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
@@ -68,7 +68,7 @@ async function readBoundedJson(path) {
 }
 
 export async function readRadarConfig({ home = homedir(), env = process.env, platform = process.platform, readJson = readBoundedJson } = {}) {
-  const pathJoin = platform === 'win32' ? win32.join : join;
+  const pathJoin = platform === 'win32' ? win32.join : posix.join;
   const dir = env.CLAUDE_CONFIG_DIR || pathJoin(home, '.claude');
   const managed = platform === 'win32' ? pathJoin(env.ProgramFiles || 'C:\\Program Files', 'ClaudeCode', 'managed-settings.json')
     : platform === 'linux' ? '/etc/claude-code/managed-settings.json' : '/Library/Application Support/ClaudeCode/managed-settings.json';

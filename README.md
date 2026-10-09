@@ -158,7 +158,7 @@ Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.d
 - Optional: [claude-swap](https://github.com/realiti4/claude-swap) for the Accounts panel; the deck can install it for you
 - Nothing else. On Apple Silicon the deck fetches [`macmon`](https://github.com/vladkens/macmon) itself for the temperature rows; see below.
 
-### Claude Telemetry Radar (macOS)
+### Claude Telemetry Radar (macOS, Linux and Windows)
 
 Open **Telemetry Radar** from the right rail, or **More → Telemetry Radar** on a
 phone. Three views keep configuration, observed traffic and saved files separate:
@@ -181,9 +181,18 @@ phone. Three views keep configuration, observed traffic and saved files separate
 
 Choose all configured IPv4 destinations, one destination or a custom IPv4
 address and port, then press **Start monitoring**. Run each generated command
-in a separate Terminal tab. Only `tcpdump` needs administrator permission;
-ccdeck and the helper remain unprivileged. Each destination gets its own
-network interface and decoder, up to eight destinations per capture. The UI
+in a separate Terminal tab on macOS/Linux, or **PowerShell** tab on Windows.
+macOS includes `tcpdump`; Linux needs `tcpdump` installed. These commands use
+`sudo` only for the capture tool, while ccdeck and the helper remain unprivileged.
+Windows needs [Wireshark with Npcap](https://www.wireshark.org/download.html).
+Its generated command streams `dumpcap` directly through Node so PowerShell
+cannot convert the binary packets to text. If Npcap restricts capture to
+administrators, run that command in an administrator PowerShell tab. ccdeck does
+not install drivers or change capture permissions automatically.
+
+Each destination gets its own decoder, up to eight destinations per capture.
+Linux captures routed and loopback traffic through `any`; macOS resolves the
+route's interface and Windows resolves its Npcap adapter or loopback interface. The UI
 shows how many destinations have actually been activated. Preparing commands
 alone does not start capture.
 
@@ -204,7 +213,7 @@ No capture file is written. **Pause list** pauses display, not capture or retent
 **Clear messages** clears exports and unreadable observations.
 
 Activation expires after ten minutes. Closing the modal does not stop capture.
-Use **Stop monitoring**, then **Ctrl+C** in each Terminal tab to stop `tcpdump`.
+Use **Stop monitoring**, then **Ctrl+C** in each activation tab to stop the capture tool.
 Commands contain a temporary loopback token; do not share them. Capture contents
 are available through the local loopback UI, not LAN endpoints. Local clients
 of the same server share its capture.
@@ -212,7 +221,18 @@ of the same server share its capture.
 Configuration and connection sampling runs only while Radar is open and the
 browser page is visible. A connection does not prove an upload, and absence of
 observed traffic does not mean telemetry is disabled. Native-process sampling
-can miss short-lived connections and Node wrappers.
+can miss short-lived connections and Node wrappers. Windows samples native
+Claude processes with PowerShell; Linux uses process names and owned `/proc`
+sockets; macOS uses `ps`/`lsof`. A Windows workspace may be unknown because the
+connection API does not expose the process's working directory. Settings and
+file inspection do not require packet-capture tools.
+
+For platform verification, run `node scripts/verify-radar-platform.mjs`.
+Add `--live` to send an isolated synthetic loopback export through the real
+capture tool and verify its decoded contents and collector receipt. This needs
+capture permissions and development dependencies. See the
+[Wireshark capture reference](https://www.wireshark.org/docs/man-pages/dumpcap.html)
+for Npcap and binary pcap output.
 
 
 ### Temperature, per machine

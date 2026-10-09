@@ -41,7 +41,7 @@ describe("Telemetry Radar privacy boundary", () => {
       if (path.includes("/Library/")) throw Object.assign(new Error(secret), { code: "EACCES" });
       return { env: { OTEL_LOG_USER_PROMPTS: "0" } };
     });
-    const result = await readRadarConfig({ home: "/test", env: {}, readJson });
+    const result = await readRadarConfig({ home: "/test", env: {}, platform: "darwin", readJson });
     expect(result.sources.map(s => s.status)).toEqual(["read", "absent", "unavailable"]);
     expect(result.variables[0].value).toBe("Disabled");
     expect(JSON.stringify(result)).not.toContain(secret);
