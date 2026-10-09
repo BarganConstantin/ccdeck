@@ -95,9 +95,12 @@ export default function CodexProfilesSection() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const load = () => refreshProfiles(controller.signal).catch(() => {
-      if (!controller.signal.aborted) setError(true);
-    });
+    const load = () => {
+      const request = profileRequest.current + 1;
+      return refreshProfiles(controller.signal).catch(() => {
+        if (!controller.signal.aborted && request === profileRequest.current) setError(true);
+      });
+    };
     void load();
     const timer = setInterval(() => void load(), 15_000);
     return () => { controller.abort(); clearInterval(timer); };
@@ -106,9 +109,10 @@ export default function CodexProfilesSection() {
   return (
     <section className="ap-codex" aria-label="Codex profiles">
       <div className="ap-codex-title">Codex profiles</div>
-      {error ? <p role="alert" className="ap-codex-hint">Could not load Codex profiles.</p> :
+      {error && profiles === null ? <p role="alert" className="ap-codex-hint">Could not load Codex profiles.</p> :
         profiles === null ? <p className="ap-codex-hint">Checking profiles…</p> :
         <>
+          {error && <p role="alert" className="ap-codex-hint">Could not refresh Codex profiles. Showing the last roster.</p>}
           <ul className="ap-codex-list">
             {profiles.map((profile) => (
               <li key={profile.id} className="ap-codex-row">
