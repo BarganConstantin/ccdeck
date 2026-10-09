@@ -303,3 +303,8 @@
   .tr-help summary::before { display: none; }
   .tr-help-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
+
+/* List freezing and history removal remain discoverable utility controls. */
+.tr-feed-head .btn[aria-pressed="true"] { background: var(--ctl-fill); }
+.tr-monitor-footer summary { padding-inline: 6px; border-radius: var(--tr-radius); }
+.tr-monitor-footer summary:hover, .tr-monitor-footer details[open] > summary { background: var(--ctl-fill); color: var(--text); }

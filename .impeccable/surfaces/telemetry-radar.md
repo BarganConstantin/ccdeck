@@ -117,3 +117,23 @@ Independent finish-review disposition: **ship** for the stronger composition.
 No material fixes remain. A separate layout assessment noted mobile density as
 a non-blocking future refinement; all current controls and inspection paths remain
 reachable, with 40px targets and no unintended horizontal overflow.
+
+## Focused final review — 2026-10-09
+
+Preserved the incumbent composition, palette and split panes. Pause list and Clear
+history now use existing neutral button edges so they read as controls before
+hover. Pause exposes its pressed state and changes its tooltip when resuming.
+Monitoring limits gains the same neutral hover/open feedback as other disclosures.
+No capture behavior, layout, protocol or data retention changes.
+
+Verification: build, typecheck, 129 tests across nine relevant files and diff check
+passed. Brave checked Light and Rider Black at desktop, laptop, 390px and 320px:
+empty/stopped/error states, partial destinations, filters, selection, pause arrivals,
+clear confirmation, 2,000-event batching, long addresses, nested JSON pagination,
+raw JSON and exact copy. Keyboard focus and disclosure activation were checked;
+reduced motion remains respected. Sampled metadata text contrast exceeded 4.5:1
+in Light, Rider Black and White Contrast (minimum 5.33:1). This is a sampled check,
+not a full accessibility certification. Captures: `/private/tmp/ccdeck-rail-qa/`.
+Live capture still has two observations and no decoded messages; decoded tests
+use isolated fixtures. No packaged Electron or screen-reader run. No lint script;
+build retains the existing large-chunk warning.

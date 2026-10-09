@@ -1,0 +1,44 @@
+/* The caption strip uses the same palette as the deck, with OS window buttons.
+   The browser never reserves this space: only the sandboxed desktop bridge does. */
+/* Fixed rails, floating panels and dialogs belong to the deck's viewport,
+   below the caption, rather than to the full OS window. */
+:root[data-desktop-chrome="true"] .app {
+  height: calc(100dvh - 34px);
+  contain: layout;
+}
+/* The skip link's hidden transform must clear the caption as well. */
+:root[data-desktop-chrome="true"] .skip-link:not(:focus) {
+  transform: translateY(calc(-200% - 34px));
+}
+.desktop-titlebar {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 10px;
+  padding-right: calc(3 * 48px); /* three native caption buttons */
+  background: var(--panel);
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.desktop-titlebar[data-platform="darwin"] { padding-left: calc(3 * 28px); /* macOS traffic lights */ padding-right: 12px; }
+.desktop-window-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.desktop-menu.btn {
+  -webkit-app-region: no-drag;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+}
+.desktop-menu:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }

@@ -702,7 +702,8 @@ color transitions; presses shift utility controls by one pixel, with reduced
 motion disabling movement. Destination copy resets on selection and expires its
 success indication after two seconds. Clear history requires a deliberate second
 press, disarms on blur or after five seconds, and also removes observations.
-Monitoring limits stay available in the footer. Surface direction, checks and
+Pause list and Clear history use neutral control edges; pausing exposes its pressed
+state. Monitoring limits has neutral hover/open feedback in the footer. Surface direction, checks and
 limitations live in `.impeccable/surfaces/telemetry-radar.md`.
 
 ### Rider Black

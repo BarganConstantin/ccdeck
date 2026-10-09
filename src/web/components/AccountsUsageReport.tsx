@@ -20,7 +20,7 @@
 // poll that fails keeps the last roster on screen and says so, and so does one
 // that comes back empty, rather than the report emptying under the reader (the
 // Projects report's #1412).
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { Account } from "../claude-accounts";
 import { resetCountdown } from "../relative-time";
@@ -232,20 +232,17 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
         <caption className="vis-hidden">Each account's use and reset of each window, and what it can do now</caption>
         <colgroup>
           <col />
-          {REPORT_WINDOWS.map(w => <col key={w.id} className="ap-report-col-win" />)}
-          {REPORT_WINDOWS.map(w => <col key={`${w.id}-reset`} className="ap-report-col-reset" />)}
+          {REPORT_WINDOWS.map(w => <Fragment key={w.id}><col className="ap-report-col-win" /><col className="ap-report-col-reset" /></Fragment>)}
           <col className="ap-report-col-state" />
           <col className="ap-report-col-upd" />
         </colgroup>
         <thead>
           <tr>
             <SortHead col="account" label="Account" sort={sort} next={nextReportSort} onSort={onSort} />
-            {REPORT_WINDOWS.map(w => (
-              <SortHead key={w.id} col={w.id} label={`${w.label} used`} sort={sort} next={nextReportSort} onSort={onSort} />
-            ))}
-            {REPORT_WINDOWS.map(w => (
-              <SortHead key={`${w.id}-reset`} col={`${w.id}_reset`} label={`${w.label} reset`} sort={sort} next={nextReportSort} onSort={onSort} />
-            ))}
+            {REPORT_WINDOWS.map(w => <Fragment key={w.id}>
+              <SortHead col={w.id} label={`${w.label} used`} sort={sort} next={nextReportSort} onSort={onSort} />
+              <SortHead col={`${w.id}_reset`} label={`${w.label} reset`} sort={sort} next={nextReportSort} onSort={onSort} />
+            </Fragment>)}
             <SortHead col="status" label="Status" sort={sort} next={nextReportSort} onSort={onSort} />
             <SortHead col="updated" label="Updated" sort={sort} next={nextReportSort} onSort={onSort} />
           </tr>
@@ -261,8 +258,10 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
                   {r.heldOut && <span className="ap-report-tag">held out</span>}
                 </span>
               </th>
-              {REPORT_WINDOWS.map(w => <UsedCell key={w.id} cell={r.cells[w.id]} />)}
-              {REPORT_WINDOWS.map(w => <ResetCell key={`${w.id}-reset`} at={r.resets[w.id]} nowSec={nowSec} />)}
+              {REPORT_WINDOWS.map(w => <Fragment key={w.id}>
+                <UsedCell cell={r.cells[w.id]} />
+                <ResetCell at={r.resets[w.id]} nowSec={nowSec} />
+              </Fragment>)}
               <StateCell row={r} />
               <UpdatedCell row={r} nowSec={nowSec} />
             </tr>

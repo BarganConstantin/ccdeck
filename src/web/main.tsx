@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import DesktopTitlebar from "./components/DesktopTitlebar";
 import { pruneStaleState } from "./storage";
 import "reactflow/dist/style.css";
 import "./styles.css";
@@ -10,4 +11,5 @@ import "./styles.css";
 try { pruneStaleState(window.localStorage); } catch { /* private mode */ }
 
 const root = createRoot(document.getElementById("root")!);
-root.render(<App />);
+if (window.ccdeckWindow) document.documentElement.dataset.desktopChrome = "true";
+root.render(<><DesktopTitlebar /><App /></>);
