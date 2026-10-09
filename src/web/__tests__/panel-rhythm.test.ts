@@ -439,7 +439,13 @@ describe("the height of a button", () => {
    *  It is a compact verb at the end of a dense row of the map, under the 24px
    *  floor's own number, and is named here rather than excused by arithmetic
    *  that did not apply to it. */
-  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open"]);
+  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".tr-body .btn"]);
+
+  it("keeps Radar's documented local control floor at 32px and 40px on phones", () => {
+    expect(declIn(bodyOf('.modal.tr-modal'), '--tr-control-h')).toBe('32px');
+    expect(declIn(bodyOf('.tr-body .btn'), 'min-height')).toBe('var(--tr-control-h)');
+    expect(css).toMatch(/@media\s*\(max-width:\s*640px\)\s*\{\s*\.modal\.tr-modal\s*\{[^}]*--tr-control-h:\s*40px/);
+  });
 
   it("cannot be overridden into a second height by a rule further down", () => {
     // The height has to be unreachable, not merely stated. Any rule that sizes

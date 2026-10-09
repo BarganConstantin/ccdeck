@@ -270,7 +270,7 @@ const PRESSES: Press[] = [
   [".tr-message:active", "0.97", "transform"],
   [".tr-help summary:active", "0.97", "transform"],
   [".tr-inline-copy:active", "0.97", "transform"],
-  [".tr-json-tree summary:active", "0.97", "transform"],
+  [".tr-json-node > summary:active", "0.97", "transform"],
   [".tr-file-picker:active", "0.97", "transform"],
   ["button.btn:active:not(:disabled)", "0.97", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —

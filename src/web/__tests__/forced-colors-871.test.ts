@@ -74,6 +74,15 @@ describe("the deck under a Windows Contrast theme (#871)", () => {
     }
   });
 
+  it("keeps Radar listener readiness in system colors in the shared final block", () => {
+    expect(opts('.tr-live-dot')).toBe(true);
+    expect(background('.tr-live-dot')).toBe('GrayText');
+    expect(background('.tr-dot-ok')).toBe('Highlight');
+    expect(background('.tr-dot-attention')).toBe('CanvasText');
+    expect(background('.tr-dot-error')).toBe('CanvasText');
+    expect(bodyOf('.tr-message[aria-pressed="true"]')).toMatch(/border-color:\s*Highlight/);
+  });
+
   it("keeps live and resting apart: Highlight against GrayText", () => {
     for (const sel of RESTING) {
       expect(opts(sel), sel).toBe(true);

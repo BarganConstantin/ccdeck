@@ -325,14 +325,22 @@ function rootTokens(theme: Theme): Record<string, string> {
 
 const TOK: Record<Theme, Record<string, string>> = { dark: rootTokens("dark"), light: rootTokens("light") };
 
-/** var() with an optional fallback, and the `color-mix(in srgb, X N%, transparent)`
- *  form this sheet uses for every tint — which is just X at N% alpha. */
+/** Resolve tokens and two-color sRGB mixes, with premultiplied alpha. */
 function resolve(value: string, theme: Theme): Rgba {
   const v = value.trim();
-  const mix = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*transparent\)$/.exec(v);
+  const mix = /^color-mix\(in srgb,([\s\S]*)\)$/.exec(v);
   if (mix) {
-    const base = resolve(mix[1], theme);
-    return [base[0], base[1], base[2], base[3] * (+mix[2] / 100)];
+    const parts = topLevelParts(mix[1]).map(part => /^(.*?)(?:\s+([\d.]+)%)?$/.exec(part.trim())!);
+    if (parts.length !== 2) throw new Error(`unsupported mix: ${v}`);
+    const weights = parts.map(part => part[2] === undefined ? null : +part[2] / 100);
+    const first = weights[0] ?? (weights[1] === null ? 0.5 : 1 - weights[1]);
+    const second = weights[1] ?? 1 - first;
+    const total = first + second;
+    if (first < 0 || second < 0 || total <= 0) throw new Error(`invalid mix weights: ${v}`);
+    const a = resolve(parts[0][1], theme), b = resolve(parts[1][1], theme);
+    const alpha = (a[3] * first + b[3] * second) / total;
+    return [0, 1, 2].map(i => alpha === 0 ? 0 : (a[i] * a[3] * first + b[i] * b[3] * second) / (total * alpha))
+      .concat(alpha * Math.min(1, total)) as Rgba;
   }
   const ref = /^var\(\s*(--[\w-]+)\s*(?:,\s*([\s\S]+))?\)$/.exec(v);
   if (ref) {
@@ -343,6 +351,22 @@ function resolve(value: string, theme: Theme): Rgba {
   }
   return parseColor(v);
 }
+
+describe('the contrast sweep resolves sRGB color mixes', () => {
+  it('interpolates two opaque colors and preserves alpha for transparent tints', () => {
+    expect(resolve('color-mix(in srgb, #ff0000 25%, #0000ff)', 'dark')).toEqual([63.75, 0, 191.25, 1]);
+    expect(resolve('color-mix(in srgb, #ff0000 25%, transparent)', 'dark')).toEqual([255, 0, 0, 0.25]);
+    expect(resolve('color-mix(in srgb, #ff0000 25%, #0000ff 25%)', 'dark')).toEqual([127.5, 0, 127.5, 0.5]);
+  });
+  it('reads the selected Radar fill from each theme, including the panel contribution', () => {
+    for (const theme of ['dark', 'light'] as const) {
+      const actual = resolve('color-mix(in srgb, var(--accent) 7%, var(--panel))', theme);
+      const accent = resolve('var(--accent)', theme), panel = resolve('var(--panel)', theme);
+      for (const channel of [0, 1, 2]) expect(actual[channel]).toBeCloseTo(accent[channel] * 0.07 + panel[channel] * 0.93);
+      expect(actual[3]).toBe(1);
+    }
+  });
+});
 
 /** Every opaque bed a control is ever painted on, by the name the sheet gives
  *  it. The topbar is a gradient, so both of its ends count: a pill centred in
