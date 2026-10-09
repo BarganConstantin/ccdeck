@@ -11,6 +11,7 @@ export interface CaptureSnapshot {
   ok: boolean; managed?: boolean; enabled?: boolean; platform?: string; backend?: "tcpdump" | "dumpcap"; shell?: "Terminal" | "PowerShell"; sessionId: string | null; state: "idle" | "awaiting" | "receiving" | "capturing" | "stopped" | "expired" | "interrupted" | "error";
   destination: string | null; interface: string | null; startedAt: number | null; expiresAt: number | null;
   observations?: { id: number; at: number; destination: string; source: string; reason: string }[];
+  retention?: { windowMs: number; maxExports: number; payloadBudgetBytes: number; evictedExports: number };
   sources?: { destination: string; interface: string; active: boolean; bytes: number; error?: string | null }[];
   lastInputAt: number | null; bytes: number; issues: Record<string, number>; events: CapturedExport[];
 }

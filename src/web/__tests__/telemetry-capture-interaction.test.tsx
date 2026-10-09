@@ -58,6 +58,17 @@ describe("telemetry capture interactions", () => {
     expect(feed).toContain("Synthetic metrics 1"); expect(feed).not.toContain("Synthetic logs 2"); expect(feed).not.toContain("Synthetic traces 3");
     view.unmount();
   });
+  it("loads older history in batches and reports capacity evictions", () => {
+    const events = Array.from({ length: 150 }, (_, i) => event(150 - i, "logs"));
+    const view = mount(TelemetryCapture, { ...props, capture: { ...empty, events, retention: { windowMs: 86400000, maxExports: 2000, payloadBudgetBytes: 33554432, evictedExports: 12 } } });
+    expect(textOf(view.tree)).toContain("Last 24 hours");
+    expect(textOf(view.tree)).toContain("12 older messages removed");
+    expect(one(view.tree, e => e.type === "button" && textOf(e).includes("Synthetic logs 1Unidentified"))).toBeNull();
+    (one(view.tree, e => e.type === "button" && textOf(e) === "Show older messages")!.props.onClick as () => void)();
+    expect(one(view.tree, e => e.type === "button" && textOf(e).includes("Synthetic logs 1Unidentified"))).not.toBeNull();
+    expect(one(view.tree, e => e.type === "button" && textOf(e) === "Show older messages")).toBeNull();
+    view.unmount();
+  });
   it("offers a replacement command after reopening before activation", () => {
     const view = mount(TelemetryCapture, { ...props, capture: { ...empty, state: "awaiting", destination: "192.0.2.16:4317" } });
     (one(view.tree, e => e.type === "button" && textOf(e) === "Show activation instructions")!.props.onClick as () => void)();

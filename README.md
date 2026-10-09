@@ -212,8 +212,10 @@ are outside its coverage.
 The inspector distinguishes observed transfer, collector acceptance, partial
 success and rejection. Acceptance does not prove final backend storage. Contents
 come from captured traffic, not local conversation transcripts. Messages remain
-in local server memory: at most 100 exports for five minutes, with a bounded
-payload budget; unreadable observations are also capped at 100 for five minutes.
+in local server memory for 24 hours, up to 2,000 exports and a 32 MiB encoded
+payload budget; unreadable observations are capped at 2,000 for 24 hours. The
+oldest entries are removed when a limit is reached. Stop/Start and closing the
+modal preserve history; restarting ccdeck removes it.
 No capture file is written. **Pause list** pauses display, not capture or retention;
 **Clear messages** clears exports and unreadable observations.
 

@@ -5,9 +5,10 @@ import { captureInterface, captureInterfaceValid, captureTool, CaptureSetupError
 import { monitorDestination, capturePreferences } from "./traffic-radar-monitor.mjs";
 import { createWireCapture } from "./traffic-radar-wire.mjs";
 
-const WINDOW = 300_000;
+const WINDOW = 24 * 60 * 60 * 1000;
+const MAX_EXPORTS = 2000;
 
-const MAX_CHARS = 4_000_000;
+const MAX_CHARS = 32 * 1024 * 1024;
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 const psQuote = value => `'${String(value).replaceAll("'", "''")}'`;
 export function captureDestination(value) {
@@ -42,7 +43,7 @@ export function exportSummary(payload, signal) {
   return { count: records.length, name: String(records[0]?.eventName || records[0]?.name || signal).slice(0, 200), content: [...fields], sessionIds: [...sessionIds] };
 }
 export function createTrafficCapture({ now = Date.now, platform = process.platform, findInterface = host => captureInterface(host, platform), findTool = () => captureTool(platform), wire = createWireCapture, execPath = process.execPath, electron = !!process.versions.electron, managed = false, preferences = null, monitor = monitorDestination } = {}) {
-  let session = null, parsers = [], timer = null, nextId = 1, chars = 0;
+  let session = null, parsers = [], timer = null, nextId = 1, chars = 0, evictedExports = 0;
   const events = new Map();
   let observations = [];
   let monitors = [], localPort = null, generation = 0;
@@ -64,11 +65,12 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
   }
   function addExport(value) {
     const text = JSON.stringify(value.payload);
-    const cost = text.length + value.protobufBase64.length;
+    const cost = Buffer.byteLength(text, 'utf8') + Buffer.byteLength(value.protobufBase64, 'utf8');
     if (cost > 1_000_000) { session.issues.payload_limit = (session.issues.payload_limit ?? 0) + 1; return null; }
     const id = nextId++;
-    while (events.size >= 100 || (chars + cost > MAX_CHARS && events.size)) {
+    while (events.size >= MAX_EXPORTS || (chars + cost > MAX_CHARS && events.size)) {
       const first = events.keys().next().value; chars -= events.get(first).chars; events.delete(first);
+      evictedExports++;
     }
     events.set(id, { ...value, id, observedAt: now(), chars: cost, ...exportSummary(value.payload, value.signal), outcome: 'unconfirmed', response: null });
     chars += cost;
@@ -86,7 +88,8 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
       const names = await Promise.all(addresses.map(({ host }) => findInterface(host)));
       if (names.some(name => !captureInterfaceValid(name, platform))) throw new Error('Network interface unavailable. Check the destination and retry.');
       if (operation !== generation) throw new CaptureSetupError("Monitoring setup was cancelled.");
-      stop("stopped", false); const activeGeneration = generation; localPort = requestedPort; events.clear(); observations = []; chars = 0;
+      stop("stopped", false); const activeGeneration = generation; localPort = requestedPort;
+      prune();
       const token = randomBytes(32).toString('hex');
       const helper = fileURLToPath(new URL('./traffic-radar-helper.mjs', import.meta.url));
       const sources = addresses.map(({ host, port }, index) => {
@@ -104,7 +107,7 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
       const parser = ({ host, port }) => wire({ host, port, onExport: addExport, onResponse: (id, response) => {
         const event = events.get(id);
         if (event) { event.response = response; event.outcome = response.outcome; }
-      }, onObservation: value => { observations.unshift({ id: nextId++, ...value, observedAt: now() }); observations = observations.slice(0, 100); }, onIssue: code => { session.issues[code] = (session.issues[code] ?? 0) + 1; } });
+      }, onObservation: value => { observations.unshift({ id: nextId++, ...value, observedAt: now() }); observations = observations.slice(0, MAX_EXPORTS); }, onIssue: code => { session.issues[code] = (session.issues[code] ?? 0) + 1; } });
       parsers = addresses.map(parser);
       await persist(true);
       if (activeGeneration !== generation) throw new CaptureSetupError("Monitoring setup was cancelled.");
@@ -150,13 +153,14 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
         startedAt: session?.startedAt ?? null, expiresAt: session?.expiresAt ?? null, lastInputAt: session?.lastInputAt ?? null,
         sources: session?.sources.map(({ command, ...source }) => ({ ...source, active: source.lastInputAt !== null && now() - source.lastInputAt <= 5000 && !!session.token })) ?? [],
         observations: [...observations],
+        retention: { windowMs: WINDOW, maxExports: MAX_EXPORTS, payloadBudgetBytes: MAX_CHARS, evictedExports },
         bytes: session?.bytes ?? 0, issues: { ...session?.issues },
         events: [...events.values()].reverse().map(({ payload, protobufBase64, chars, flow, ...event }) => event),
       };
     },
     detail(id) { prune(); const event = events.get(id); return event ? { payload: event.payload, protobufBase64: event.protobufBase64 } : null; },
     stop,
-    clear() { events.clear(); observations = []; chars = 0; },
+    clear() { events.clear(); observations = []; chars = 0; evictedExports = 0; },
     dispose() { stop("stopped", false); events.clear(); observations = []; if (timer) clearInterval(timer); timer = null; },
   };
   return api;

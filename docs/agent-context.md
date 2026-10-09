@@ -99,7 +99,9 @@ clear next action when capture needs assistance.
   verifies the capture path; it does not prove Claude sent that test payload.
 - Monitoring has no ten-minute expiry. It continues while ccdeck runs and resumes
   after a restart on the same port, until explicitly stopped. Retention remains
-  bounded to 100 exports / 5 minutes / 4 MB. Permission failures remain visible.
+  bounded to 2,000 exports / 24 hours / 32 MiB encoded payloads. History survives
+  Stop/Start within the process; it is cleared by restart or Clear messages. The
+  UI reports capacity evictions and renders history in batches of 100. Permission failures remain visible.
 - On 2026-10-09 Wireshark's signed, notarized ChmodBPF package was installed on
   the owner's Mac through the system administrator prompt. This grants packet
   capture access; ccdeck itself remains unprivileged. Real managed capture and
