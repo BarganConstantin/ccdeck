@@ -98,12 +98,93 @@ describe("the header of the column the rows are ordered by", () => {
       accounts: PANEL, nowSec: NOW, held: null, sort: { key: "seven_day", dir: "desc" }, onSort: () => {},
     }));
     expect(out).toContain('<th scope="col" aria-sort="descending"><button type="button" class="sd-sort" title="Sort by 7d used">7d used<span class="sd-sort-dir" aria-hidden="true">↓</span></button></th>');
-    expect(out.match(/aria-sort="none"/g)).toHaveLength(4);
+    expect(out.match(/aria-sort="none"/g)).toHaveLength(6);
   });
 
   it("is held in the dialog, not in storage: the report opens in the panel's order every time", () => {
     const modal = sourceOf("components/AccountsUsageReport.tsx");
     expect(modal).toContain("useState<{ sort: ReportSort; order: string[] } | null>(null)");
     expect(modal).not.toMatch(/localStorage|sessionStorage/);
+  });
+});
+
+describe("dedicated reset columns", () => {
+  const withResets = (num: number, five: number | null, seven: number | null, over: Partial<Account> = {}) =>
+    acct(num, `account${num}@x.io`, 20, 30, {
+      lanes: [
+        { id: "five_hour", label: "5h", pct: 20, resetAt: five },
+        { id: "seven_day", label: "7d", pct: 30, resetAt: seven },
+      ], ...over,
+    });
+
+  it("sorts both windows by seconds even when countdowns would round to the same text", () => {
+    const rows = usageReport([
+      withResets(1, NOW + 121, NOW + 4 * 86400 + 30),
+      withResets(2, NOW + 120, NOW + 4 * 86400 + 10),
+      withResets(3, NOW + 122, NOW + 4 * 86400 + 20),
+    ], NOW).rows;
+    expect(sortReportRows(rows, { key: "five_hour_reset", dir: "asc" }).map(r => r.num)).toEqual([2, 1, 3]);
+    expect(sortReportRows(rows, { key: "five_hour_reset", dir: "desc" }).map(r => r.num)).toEqual([3, 1, 2]);
+    expect(sortReportRows(rows, { key: "seven_day_reset", dir: "asc" }).map(r => r.num)).toEqual([2, 3, 1]);
+    expect(sortReportRows(rows, { key: "seven_day_reset", dir: "desc" }).map(r => r.num)).toEqual([1, 3, 2]);
+  });
+
+  it("keeps missing and invalid timestamps last and preserves ties in both directions", () => {
+    const rows = usageReport([
+      withResets(1, null, null),
+      withResets(2, NOW + 120, NOW + 120),
+      withResets(3, NOW + 120, NOW + 120),
+      withResets(4, Number.NaN, Number.POSITIVE_INFINITY),
+      withResets(5, NOW + 60, NOW + 60),
+    ], NOW).rows;
+    for (const key of ["five_hour_reset", "seven_day_reset"] as const) {
+      expect(sortReportRows(rows, { key, dir: "asc" }).map(r => r.num)).toEqual([5, 2, 3, 1, 4]);
+      expect(sortReportRows(rows, { key, dir: "desc" }).map(r => r.num)).toEqual([2, 3, 5, 1, 4]);
+      expect(nextReportSort(null, key)).toEqual({ key, dir: "asc" });
+      expect(nextReportSort({ key, dir: "asc" }, key)).toEqual({ key, dir: "desc" });
+      expect(nextReportSort({ key, dir: "desc" }, key)).toEqual({ key, dir: "asc" });
+    }
+    expect(rows.map(r => r.num)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("retains recorded times for stale, expired-login and already-reset windows", () => {
+    const accounts = [
+      withResets(1, NOW + 120, NOW + 7200, { stale: true }),
+      withResets(2, NOW + 60, NOW + 3600, { error: "invalid_grant", alive: false }),
+      withResets(3, NOW - 60, NOW - 120),
+    ];
+    const rows = usageReport(accounts, NOW).rows;
+    expect(sortReportRows(rows, { key: "five_hour_reset", dir: "asc" }).map(r => r.num)).toEqual([3, 2, 1]);
+    expect(sortReportRows(rows, { key: "seven_day_reset", dir: "desc" }).map(r => r.num)).toEqual([1, 2, 3]);
+    expect(rows[0].status).toBe("ready");
+    expect(rows[1].status).toBe("stale");
+    expect(rows[2].cells.five_hour).toMatchObject({ counted: false, why: "reset", estimate: 0 });
+  });
+
+  it("renders reset headers as accessible sort buttons and separates usage from reset cells", () => {
+    for (const key of ["five_hour_reset", "seven_day_reset"] as const) {
+      for (const dir of ["asc", "desc"] as const) {
+        const out = renderToStaticMarkup(createElement(UsageReportBody, {
+          accounts: [withResets(1, NOW + 120, NOW + 86400, { active: true })], nowSec: NOW, held: null, sort: { key, dir },
+        }));
+        const label = key === "five_hour_reset" ? "5h reset" : "7d reset";
+        expect(out).toContain(`<th scope="col" aria-sort="${dir === "asc" ? "ascending" : "descending"}"><button type="button" class="sd-sort" title="Sort by ${label}">${label}`);
+        expect(out.match(/aria-sort="none"/g)).toHaveLength(6);
+        const used = [...out.matchAll(/<td class="ap-report-cell"[^>]*>(.*?)<\/td>/g)].map(m => m[1]);
+        expect(used).toEqual(['<span class="ap-report-pct">20%</span>', '<span class="ap-report-pct">30%</span>']);
+        expect(out.match(/class="ap-report-reset-cell"/g)).toHaveLength(2);
+        expect(out).toContain('class="ap-report-current">Current');
+        expect(out).toContain('role="region" aria-label="Account capacity table"');
+      }
+    }
+  });
+
+  it("distinguishes missing resets from passed resets without inventing a countdown", () => {
+    const out = renderToStaticMarkup(createElement(UsageReportBody, {
+      accounts: [withResets(1, null, NOW - 60)], nowSec: NOW, held: null,
+    }));
+    expect(out).toContain('<span aria-hidden="true">—</span><span class="vis-hidden">No reset time</span>');
+    expect(out).toContain('<span class="vis-hidden">reset already </span>passed</time>');
+    expect(out).toContain(`dateTime="${new Date((NOW - 60) * 1000).toISOString()}"`);
   });
 });

@@ -91,6 +91,6 @@ describe("what a capacity cell that is not current says to a screen reader", () 
     }
     const current = fiveCell(acct(33));
     expect(current).not.toContain("data-uncounted");
-    expect(heard(current)).toMatch(/^33%resets in /);
+    expect(heard(current)).toBe("33%");
   });
 });

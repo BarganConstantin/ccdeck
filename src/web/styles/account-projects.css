@@ -216,7 +216,7 @@
    one quiet surface rather than by rules, so the only line left is the one
    under the column names. */
 .ap-report-modal {
-  width: min(600px, calc(100vw - 32px));
+  width: min(840px, calc(100vw - 32px));
   /* One step above --muted, for the labels a reader has to find — the column
      names, a card's window, a stale reading's age — and still short of the
      prose tier. Mixed from tokens, so both themes re-tune it with them. */
@@ -226,7 +226,8 @@
 .ap-report-modal h2.ap-proj-title { margin: 0; font-size: 16px; }
 .ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; }
 /* The stuck names' own 8px above them is part of the gap in flow. */
-.ap-report-table { margin-top: -8px; }
+.ap-report-table-scroll { margin-top: -8px; overflow-x: auto; flex-shrink: 0; }
+.ap-report-table-scroll:focus-visible { outline-offset: -2px; }
 /* The body scrolls with enough accounts, and a scroller is a Tab stop in the
    browsers that make it one: the ring goes inside, where the dialog's own
    clipping cannot cut it off. */
@@ -303,19 +304,19 @@
 .ap-report-basis { margin: 0; font-size: 11px; color: var(--report-meta); }
 .ap-report-num { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
 
-/* The rows: a name, each window's use with its own reset beside it, and the
-   state. Fixed layout so a long address is cut rather than widening the
-   dialog; the column names stay at the top while the rows scroll. */
-.ap-report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
-.ap-report-col-win { width: 96px; }
-.ap-report-col-state { width: 88px; }
-.ap-report-col-upd { width: 88px; }
+/* Keep every column on phones: only the table scrolls horizontally, while
+   the summary keeps the dialog's width. Long account names still truncate. */
+.ap-report-table { width: 100%; min-width: 740px; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.ap-report-col-win { width: 80px; }
+.ap-report-col-reset { width: 96px; }
+.ap-report-col-state { width: 96px; }
+.ap-report-col-upd { width: 104px; }
 .ap-report-table th,
 .ap-report-table td { padding: 6px 0 6px 12px; text-align: left; vertical-align: baseline; }
 .ap-report-table :is(th, td):first-child { padding-left: 0; }
 .ap-report-table thead th {
   position: sticky;
-  top: -20px;
+  top: 0;
   z-index: 1;
   /* Room above the names once they are stuck under the dialog's title, which
      has no rule of its own to stand them off — four and four, with the sort
@@ -336,6 +337,7 @@
    is wider than the ink. The arrow's slot is held open on every column. */
 .ap-report-table .sd-sort {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: 4px;
   min-height: 24px;
@@ -382,8 +384,8 @@
 .ap-report-pct { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
 .ap-report-pct[data-level="mid"] { color: var(--warn); }
 .ap-report-pct[data-level="hi"] { color: var(--err); font-weight: 600; }
-.ap-report-in {
-  margin-left: 6px;
+.ap-report-reset-cell {
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--report-meta);
@@ -468,36 +470,8 @@
 @media (max-width: 480px) {
   .ap-report-sums { grid-template-columns: 1fr; }
 }
-/* Narrow: a tighter frame, and each row's reset under its number rather than
-   beside it, so the names keep the room. */
+/* Narrow: tighten the frame, preserving all columns in the table scroller. */
 @media (max-width: 520px) {
   .ap-report-modal .ap-proj-head { padding: 16px 16px 0; }
   .ap-report-body { gap: 20px; padding: 16px; }
-  .ap-report-table thead th { top: -16px; }
-  .ap-report-col-win { width: 64px; }
-  .ap-report-col-state { width: 96px; }
-  /* No room for a fifth column: the age goes, and the rows keep their state. */
-  .ap-report-col-upd { width: 0; }
-  .ap-report-upd,
-  .ap-report-upd-h { display: none; }
-  .ap-report-in { display: block; margin-left: 0; }
-  .ap-report-acct-in { flex-wrap: wrap; row-gap: 2px; }
-  /* A 64px column has room for "5h used" and nothing beside it: the button
-     gives up its inset, and the arrow hangs in the gutter before the next
-     column rather than breaking the name onto two lines. */
-  .ap-report-table .sd-sort { position: relative; margin-left: 0; padding: 0; white-space: nowrap; }
-  .ap-report-table .sd-sort-dir { position: absolute; left: 100%; }
-  /* Every header cell is stuck with a background of its own, so the next one
-     paints over whatever hangs past this one's edge — the sorted one stands
-     above its neighbours. */
-  .ap-report-table thead th:not([aria-sort="none"]) { z-index: 2; }
-}
-/* A phone's narrowest: the percent columns take only what "100%" needs and the
-   rows drop their own reset, which the cards above still give, so the names
-   keep a column wide enough to read. */
-@media (max-width: 360px) {
-  .ap-report-table .sd-sort { white-space: normal; }
-  .ap-report-col-win { width: 48px; }
-  .ap-report-col-state { width: 88px; }
-  .ap-report-in { display: none; }
 }
