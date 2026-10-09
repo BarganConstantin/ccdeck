@@ -688,8 +688,8 @@ function Inner() {
         viewport={viewport} stateRef={stateRef} peek={peek}
       >
         {agentCount === 0 && (!live && tabCapped
-          ? <TabCapHero />
-          : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} />)}
+          ? <TabCapHero reservedRight={railInsetRef.current} />
+          : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={railInsetRef.current} />)}
         {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
             bar was gated on categories present on the canvas NOW, while the
             filter is independent state that nothing trims — so hide a category,

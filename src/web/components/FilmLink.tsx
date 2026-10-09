@@ -7,12 +7,12 @@
 // provider chips already use.
 import { FILMS, type Film } from "../film-links";
 
-export default function FilmLink({ film }: { film: Film }) {
+export default function FilmLink({ film, action = false }: { film: Film; action?: boolean }) {
   const { href, subject } = FILMS[film];
   return (
-    <a className="film-link" href={href} target="_blank" rel="noopener noreferrer"
+    <a className={action ? "film-link film-action" : "film-link"} href={href} target="_blank" rel="noopener noreferrer"
       title={`The ${subject} video on ccdeck.dev, 30 seconds — opens in your browser`}>
-      Watch · 30 s
+      {action ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" /></svg><span>Watch video</span><span className="film-duration">30 s</span></> : "Watch · 30 s"}
       <span className="vis-hidden">: the {subject} video on ccdeck.dev, opens in your browser</span>
     </a>
   );

@@ -139,3 +139,9 @@ the entire conversation.
   separate from DOM measurements in `use-node-measurements.ts`; compare each
   source with itself. Commit moving chrome measurements on the next frame in
   `SessionClusters.tsx`, rather than recursively updating layout state.
+
+- The owner rejected the orbital empty-canvas illustration as overly decorative.
+  Keep this surface minimal: a terminal outline without a tile, rings or glow. The owner later requested
+  subtle motion: only its cursor blinks while connected and visible, with a
+  steady cursor under reduced motion. Preserve readable text rather than lowering
+  text opacity; the helper details and tour remain available.

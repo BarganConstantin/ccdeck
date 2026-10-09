@@ -1448,8 +1448,8 @@ describe("nothing at rest paints --inflight itself (#1649)", () => {
 
   it("draws the empty canvas, which only shows when nothing runs, in neither theme's --inflight", () => {
     const hero = SHEET.filter(r => !r.at).flatMap(r => r.selectors).filter(s => s.startsWith(".empty-hero"));
-    // The orbits, their dots and the core must all be in the sweep.
-    for (const s of [".empty-hero .orbit.r2", ".empty-hero .orbit.r2 .dot", ".empty-hero .core"]) expect(hero, s).toContain(s);
+    // The static terminal symbol must be included in the palette sweep.
+    for (const s of [".empty-hero .empty-symbol"]) expect(hero, s).toContain(s);
     for (const theme of themes) {
       for (const sel of new Set(hero)) {
         const colours = paintsOf(sel, theme);

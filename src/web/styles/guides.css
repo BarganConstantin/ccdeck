@@ -194,7 +194,7 @@
 /* The welcome's way back, on the empty canvas: the hero is pointer-transparent
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */
-.empty-hero .empty-tour { pointer-events: auto; margin-top: 18px; }
+.empty-hero .empty-tour { pointer-events: auto; min-height: 36px; padding: 0 16px; font-size: 12px; font-weight: 500; border-radius: 6px; }
 
 /* The way from a panel to its 30-second video on ccdeck.dev (FilmLink.tsx).
    Quiet: the accent's small words, the ink of the LAN card's `See how it
@@ -222,6 +222,17 @@
 .ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: 10px; }
 .ap-lan-how + .film-link { margin-left: 12px; font-size: 10px; }
 /* Beside the hero's tour button, and given its pointer back like it. */
-.empty-hero .film-link { pointer-events: auto; margin-left: 12px; }
+.empty-hero .empty-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.empty-hero .film-link { pointer-events: auto; margin-left: 0; }
+.empty-hero .film-action { min-height: 36px; padding: 0 12px; gap: 8px; border-radius: 6px; font-size: 12px; color: var(--text-secondary); transition: background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.empty-hero .film-action:hover { background: var(--ctl-fill); color: var(--text); text-decoration: none; }
+.empty-hero .film-duration { font-size: 11px; color: var(--muted); }
+.empty-hero .film-action svg { flex: none; }
+@container (max-width: 360px) {
+  .empty-hero .empty-actions { flex-direction: column; gap: 4px; }
+}
 /* The last line of the accounts and Usage columns, on their inset. */
 .film-foot { padding: 4px var(--panel-inset) 8px; }
+@media (prefers-reduced-motion: reduce) {
+  .empty-hero .film-action { transition: background 140ms ease; }
+}

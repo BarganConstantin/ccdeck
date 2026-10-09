@@ -143,14 +143,6 @@
   .tool-burst.clickable { transition: box-shadow 120ms ease, opacity 180ms ease, filter 180ms ease; }
   .tool-burst.clickable:hover { translate: none; }
 
-  /* Three rings turning under a pulsing core is the largest continuous motion
-     in the app and the only one with no state to report. Same diagram, still. */
-  .empty-hero .orbit.r1,
-  .empty-hero .orbit.r2,
-  .empty-hero .orbit.r3,
-  .empty-hero .core,
-  .empty-hero .core::after { animation: none; }
-
   @keyframes canvas-fade-out { to { opacity: 0; } }
 }
 
