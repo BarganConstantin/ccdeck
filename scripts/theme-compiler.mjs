@@ -79,7 +79,10 @@ export function compileThemes(definitions, allowedTokens) {
     return `${selector} {\n${theme.id === "dark" ? "  /* Generated from themes/*.json. Run npm run themes:generate; do not edit. */\n" : ""}${declarations}\n  color-scheme: ${theme.colorScheme};\n}\n`;
   }).join("\n") + themes.map(theme => {
     const pairs = { canvas: "bg", surface: "panel", rule: "line", mark: "muted-dim", accent: "accent" };
-    return `\n.appearance-preview[data-swatch="${theme.id}"] {\n${Object.entries(pairs).map(([key, token]) => `  --tp-${key}: ${theme.tokens[token]};`).join("\n")}\n}\n` + (theme.selection ? `:root[data-theme="${theme.id}"] ::selection {\n  background: ${theme.selection.background};\n  color: ${theme.selection.foreground};\n}\n` : "");
+    // A swatch must resolve references in its own theme rather than borrowing
+    // the active page's palette (e.g. a Light swatch on a Dark page).
+    const swatchValue = value => value.replace(/var\(\s*--([\w-]+)\s*\)/g, (_, token) => swatchValue(theme.tokens[token]));
+    return `\n.appearance-preview[data-swatch="${theme.id}"] {\n${Object.entries(pairs).map(([key, token]) => `  --tp-${key}: ${swatchValue(theme.tokens[token])};`).join("\n")}\n}\n` + (theme.selection ? `:root[data-theme="${theme.id}"] ::selection {\n  background: ${theme.selection.background};\n  color: ${theme.selection.foreground};\n}\n` : "");
   }).join("");
   const metadata = Object.fromEntries(themes.map(({ id, name, colorScheme }) => [id, { name, colorScheme }]));
   const catalog = `// Generated from themes/*.json. Run npm run themes:generate; do not edit.\nexport const THEME_DEFINITIONS = ${JSON.stringify(metadata, null, 2)} as const;\nexport type Theme = keyof typeof THEME_DEFINITIONS;\n`;

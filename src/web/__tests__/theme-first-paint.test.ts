@@ -25,7 +25,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { prefersLight, resolveTheme, storedTheme, THEME_KEY, type Theme } from "../theme";
+import { prefersLight, resolveTheme, storedTheme, THEME_KEY, THEMES, type Theme } from "../theme";
 import { sourceOf } from "./client-source";
 import { sheetText } from "./sheet-source";
 
@@ -191,7 +191,7 @@ describe("the inline bootstrap in index.html", () => {
   it("reaches the same answer as resolveTheme for every input, so the two copies cannot drift", () => {
     // The bootstrap is dependency-free by necessity, which makes it a second
     // implementation of one rule. This is the seam that keeps it honest.
-    for (const stored of [null, "light", "dark", "rider-black", "vscode-black", "", "LIGHT", "system", "purple"]) {
+    for (const stored of [null, ...THEMES, "", "LIGHT", "system", "purple", "toString", "__proto__"]) {
       const expected: Theme = resolveTheme(stored);
       expect(boot(stored).applied).toBe(expected);
       for (const os of [false, true]) {

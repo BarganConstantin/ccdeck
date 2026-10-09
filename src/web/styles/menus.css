@@ -308,39 +308,7 @@
 }
 .appearance-theme[aria-checked="true"] .appearance-check { opacity: 1; }
 
-/* Each swatch's palette is its theme's tokens, copied: --bg for the canvas,
-   --panel for the bar, the column and the card (the bar's gradient drawn flat),
-   --line for every rule, --muted-dim for the session's tag, --accent for
-   the one bar. appearance-swatch.test.ts fails the day a token moves and its
-   copy here does not. */
-.appearance-preview[data-swatch="dark"] {
-  --tp-canvas: #0b0c10;
-  --tp-surface: #14161b;
-  --tp-rule: #1f2229;
-  --tp-mark: #50535b;
-  --tp-accent: #7dd3fc;
-}
-.appearance-preview[data-swatch="light"] {
-  --tp-canvas: #eef1f6;
-  --tp-surface: #ffffff;
-  --tp-rule: #c8cdd6;
-  --tp-mark: #7c8493;
-  --tp-accent: #0369a1;
-}
-.appearance-preview[data-swatch="rider-black"] {
-  --tp-canvas: #1e1f22;
-  --tp-surface: #2b2d30;
-  --tp-rule: #393b40;
-  --tp-mark: #6f737a;
-  --tp-accent: #83acfc;
-}
-.appearance-preview[data-swatch="vscode-black"] {
-  --tp-canvas: #1f1f1f;
-  --tp-surface: #181818;
-  --tp-rule: #2b2b2b;
-  --tp-mark: #616161;
-  --tp-accent: #4daafc;
-}
+/* Theme-specific preview variables are generated from the JSON palettes. */
 @media (max-width: 640px) {
   .appearance-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

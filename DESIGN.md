@@ -150,7 +150,7 @@ Three consequences that decide everything else:
   `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
   where contrast bugs live, because every terminal-adjacent colour assumes dark.
   Light and Dark are joined by optional Rider Black and VS Code Black palettes;
-  the supported choices and keyboard cycle live in `theme.ts`.
+  the supported choices come from `themes/*.json`; `theme.ts` owns their cycle.
 - **Density serves the glance.** The target is concrete so a screenshot can pass
   or fail it: **at 1440×900 with the detail rail open, eight sessions in the list
   and twenty nodes on the canvas fit without scrolling.** 13px base, 30px
@@ -632,7 +632,7 @@ are literals today.
 **Do**
 
 - Take colour from a token. If a value needs a new tier, add the tier to
-  `styles/tokens.css` in both theme blocks and let the contrast tests judge it.
+  the matching `themes/*.json` palettes and let the contrast tests judge it.
 - Monospace every value and give every live number `tabular-nums`; leave sentences
   in the sans stack.
 - Give every state a mark **and** a word.
@@ -695,3 +695,13 @@ A separate theme based on VS Code Dark Modern: #1f1f1f working canvas, #181818
 tool panels, #2b2b2b separators and #4daafc accents. Selection uses #264f78 with
 white text. Both IDE palettes keep flat surfaces and ccdeck’s semantic color
 mapping. Settings lays out four previews on desktop and two per row on phones.
+
+### JSON theme definitions
+
+`src/web/themes/*.json` owns each theme's ID, name, order, color scheme and
+semantic tokens. The versioned format supports inheritance and selection colors.
+`scripts/theme-compiler.mjs` validates and generates palettes, theme previews,
+typed catalog metadata and the first-paint ID list. Vite regenerates on build and
+reloads after JSON changes so CSS and the cached canvas palette stay in step.
+Shared geometry, motion and model mappings remain in `styles/tokens.css`.
+See `src/web/themes/README.md` for adding a palette and checking generated output.

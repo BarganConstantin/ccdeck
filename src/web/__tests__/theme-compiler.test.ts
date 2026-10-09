@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { compileThemes } from "../../../scripts/theme-compiler.mjs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { compileThemes, generateThemes } from "../../../scripts/theme-compiler.mjs";
 
 const load = (name: string) => JSON.parse(readFileSync(new URL(`../themes/${name}.json`, import.meta.url), "utf8"));
 const definitions = ["dark", "light", "rider-black", "vscode-black"].map(load);
@@ -23,6 +25,31 @@ describe("JSON theme compiler", () => {
     expect(result.css).toContain(':root[data-theme="custom-example"]');
     expect(result.css).toContain('.appearance-preview[data-swatch="custom-example"]');
     expect(result.themes.at(-1).selection).toEqual({ background: "#264f78", foreground: "#ffffff" });
+  });
+  it("resolves a preview's references against its own theme", () => {
+    const result = compileThemes(change("rider-black", { tokens: { accent: "var(--text)" } }), allowed);
+    const swatch = result.css.split('.appearance-preview[data-swatch="rider-black"]')[1].split("}")[0];
+    expect(swatch).toContain("--tp-accent: #d8dae0;");
+  });
+  it("discovers new JSON files and detects stale generated artifacts without rewriting in check mode", () => {
+    const root = mkdtempSync(join(tmpdir(), "ccdeck-theme-generator-"));
+    const dir = join(root, "src/web/themes");
+    try {
+      mkdirSync(dir, { recursive: true }); mkdirSync(join(root, "src/web/styles"));
+      writeFileSync(join(dir, "schema.json"), JSON.stringify(load("schema")));
+      for (const definition of definitions) writeFileSync(join(dir, `${definition.id}.json`), JSON.stringify(definition));
+      writeFileSync(join(root, "src/web/index.html"), 'var themes = /* theme-ids:start */ [] /* theme-ids:end */;');
+      generateThemes(root);
+      expect(() => generateThemes(root, { check: true })).not.toThrow();
+      const custom = { ...definitions[2], id: "extra-theme", name: "Extra Theme", order: 50 };
+      writeFileSync(join(dir, "extra-theme.json"), JSON.stringify(custom));
+      expect(() => generateThemes(root, { check: true })).toThrow("out of date");
+      expect(readFileSync(join(dir, "catalog.generated.ts"), "utf8")).not.toContain("Extra Theme");
+      generateThemes(root);
+      expect(readFileSync(join(dir, "catalog.generated.ts"), "utf8")).toContain("Extra Theme");
+      expect(readFileSync(join(root, "src/web/index.html"), "utf8")).toContain("extra-theme");
+      expect(() => generateThemes(root, { check: true })).not.toThrow();
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
   it("rejects missing or cyclic inheritance", () => {
     expect(() => compileThemes(change("rider-black", { extends: "missing" }), allowed)).toThrow("unknown parent");

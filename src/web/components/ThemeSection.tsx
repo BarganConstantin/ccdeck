@@ -5,9 +5,8 @@
 // deck, and from inside Settings too (SettingsModal.tsx answers it there) —
 // while the single-key shortcuts are on, which is also when the cap is drawn.
 import type { KeyboardEvent } from "react";
-import { THEMES, type Theme } from "../theme";
+import { THEME_DEFINITIONS, THEMES, type Theme } from "../theme";
 
-const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark", "rider-black": "Rider Black", "vscode-black": "VS Code Black" };
 
 /**
  * The deck at a distance, in one theme's own colours: the top bar, the
@@ -94,7 +93,7 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
           >
             <ThemePreview theme={choice} />
             <span className="appearance-theme-name">
-              {THEME_NAME[choice]}
+              {THEME_DEFINITIONS[choice].name}
               <svg className="appearance-check" viewBox="0 0 12 12" aria-hidden focusable="false">
                 <path d="M2.5 6.4 4.9 8.7 9.5 3.6" />
               </svg>
