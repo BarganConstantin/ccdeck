@@ -91,4 +91,26 @@ describe('Codex profile discovery', () => {
       expect(seen).toEqual(['Bearer ACCESS_A', 'Bearer ACCESS_B', 'Bearer REPLACED_ACCOUNT_TOKEN']);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
+
+  it('reports revoked authentication and quota throttling without publishing secrets', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-quota-fail-'));
+    try {
+      const a = join(root, 'a');
+      await mkdir(a);
+      await writeFile(join(a, 'auth.json'), JSON.stringify({ tokens: { access_token: 'SECRET_ACCESS_TOKEN' } }));
+      const env = { CODEX_HOME: a };
+      const [profile] = await discoverCodexProfiles({ env });
+      const unauthorized = await readCodexProfileQuota(profile.id, {
+        env, fetch: async () => ({ ok: false, status: 401 }),
+      });
+      expect(unauthorized).toEqual({ ok: false, reason: 'reauth_required' });
+      expect(JSON.stringify(unauthorized)).not.toContain('SECRET_ACCESS_TOKEN');
+      // Changing auth.json invalidates the cache and permits another read.
+      await writeFile(join(a, 'auth.json'), JSON.stringify({ tokens: { access_token: 'NEW_ACCESS_TOKEN' } }));
+      const throttled = await readCodexProfileQuota(profile.id, {
+        env, fetch: async () => ({ ok: false, status: 429 }),
+      });
+      expect(throttled).toEqual({ ok: false, reason: 'http_429' });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
 });

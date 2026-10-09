@@ -140,7 +140,7 @@ export async function readCodexProfileQuota(id, options = {}) {
         headers, cache: 'no-store', signal: AbortSignal.timeout(12_000),
       });
     } catch { return { ok: false, reason: 'fetch_error' }; }
-    if (!response.ok) return { ok: false, reason: `http_${response.status}` };
+    if (!response.ok) return { ok: false, reason: response.status === 401 ? 'reauth_required' : `http_${response.status}` };
     let body;
     try { body = await response.json(); }
     catch { return { ok: false, reason: 'decode_error' }; }
