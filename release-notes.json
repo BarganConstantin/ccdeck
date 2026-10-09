@@ -75,6 +75,24 @@
     "3.38.2",
     "3.38.6"
   ],
+  "3.39.0": [
+    {
+      "title": "🔎 Inspect Claude Code telemetry on macOS",
+      "body": "Telemetry Radar shows Claude Code's configured telemetry and can inspect traffic at destinations you choose. When settings are absent, it can show observed connections separately; a connection alone does not prove telemetry or reveal message contents. Capture starts only after you run its generated command in Terminal, which uses macOS tcpdump with administrator permission. Captured telemetry can contain prompt or response content, and other apps sending to the same destination may appear too. Messages stay in ccdeck's memory for up to five minutes; no capture file is written."
+    },
+    {
+      "title": "🧭 Open panels from the edges",
+      "body": "Open the session list, Claude accounts, Usage, This machine, Usage history and Browser Watch from the window edges. You can keep several panels open beside the canvas; on a phone, the same controls sit in a bottom dock."
+    },
+    {
+      "title": "More control while you work",
+      "body": "Turn off single-key shortcuts if typed letters should not control the deck, see each stage while adding a Claude account, and undo a recent rearrangement. The topbar also names the Claude Code session waiting on you."
+    },
+    {
+      "title": "🎨 Two new dark themes",
+      "body": "Choose Rider Black or VS Code Black in Settings › Appearance. Both add a darker canvas with flatter panels and distinct focus accents; your existing Light or Dark choice stays as it was."
+    }
+  ],
   "3.38.5": [
     {
       "title": "🔧 Settings are in one place now",

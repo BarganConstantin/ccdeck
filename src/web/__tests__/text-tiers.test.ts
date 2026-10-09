@@ -240,6 +240,24 @@ describe("what was migrated to the secondary tier", () => {
       // The custom-sound cards' captions, by bed again: --muted on the card's
       // --sm-fill is 4.25:1 in dark (#1788).
       ".sm-custom-card-copy > span",
+      ".tr-attributes dt > span",
+      ".tr-count",
+      ".tr-destination label, .tr-filter label",
+      ".tr-destinations li > span",
+      ".tr-empty",
+      ".tr-facts dt",
+      ".tr-input::placeholder",
+      ".tr-inspector-empty svg",
+      ".tr-live-connections span",
+      ".tr-message > span, .tr-message > code",
+      ".tr-monitor-footer",
+      ".tr-note",
+      ".tr-raw-flag",
+      ".tr-session-filter",
+      ".tr-sources li > span:last-child",
+      ".tr-tab",
+      ".tr-tone-unknown",
+      ".tr-variables dt > span, .tr-variables dt > code",
     ]);
   });
 
