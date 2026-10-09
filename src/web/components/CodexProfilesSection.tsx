@@ -43,6 +43,8 @@ function quotaStatus(quota: ProfileQuota, now: number): string {
 export default function CodexProfilesSection() {
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
   const profileRequest = useRef(0);
+  const profileRefreshes = useRef(0);
+  const profileController = useRef<AbortController | null>(null);
   const quotaRequests = useRef(new Set<string>());
   const [error, setError] = useState(false);
   const [quotas, setQuotas] = useState<Record<string, ProfileQuota | null>>({});
@@ -128,21 +130,27 @@ export default function CodexProfilesSection() {
     });
   }
 
-  async function refreshProfiles(signal?: AbortSignal) {
+  async function refreshProfiles(signal = profileController.current?.signal) {
+    if (signal?.aborted) return;
     const request = ++profileRequest.current;
-    const response = await fetch("/api/codex-profiles", { signal });
-    if (!response.ok) throw new Error("Unable to load Codex profiles");
-    const result = await response.json() as { profiles: CodexProfile[]; revision?: number };
-    if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
-    if (signal?.aborted || request !== profileRequest.current) return;
-    setProfiles(result.profiles);
-    setRevision(result.revision ?? 0);
-    setError(false);
+    profileRefreshes.current++;
+    try {
+      const response = await fetch("/api/codex-profiles", { signal });
+      if (!response.ok) throw new Error("Unable to load Codex profiles");
+      const result = await response.json() as { profiles: CodexProfile[]; revision?: number };
+      if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
+      if (signal?.aborted || request !== profileRequest.current) return;
+      setProfiles(result.profiles);
+      setRevision(result.revision ?? 0);
+      setError(false);
+    } finally { profileRefreshes.current--; }
   }
 
   useEffect(() => {
     const controller = new AbortController();
+    profileController.current = controller;
     const load = () => {
+      if (controller.signal.aborted || profileRefreshes.current > 0) return;
       const request = profileRequest.current + 1;
       return refreshProfiles(controller.signal).catch(() => {
         if (!controller.signal.aborted && request === profileRequest.current) setError(true);
@@ -150,7 +158,7 @@ export default function CodexProfilesSection() {
     };
     void load();
     const timer = setInterval(() => void load(), 15_000);
-    return () => { controller.abort(); clearInterval(timer); };
+    return () => { controller.abort(); profileRequest.current++; clearInterval(timer); };
   }, []);
 
   return (
