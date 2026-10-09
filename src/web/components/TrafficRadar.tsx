@@ -1,3 +1,4 @@
+import { RadarIcon } from "./RadarIcon";
 import { RadarSelect } from "./RadarSelect";
 import { useState, type KeyboardEvent } from "react";
 import type { RadarSnapshot } from "../traffic-radar";
@@ -17,7 +18,7 @@ export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () =
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
     <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" aria-describedby="tr-purpose" onClick={e => e.stopPropagation()}>
       <header className="modal-head">
-        <div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div>
+        <div className="tr-identity"><RadarIcon kind="radar" /><div><div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div><p id="tr-purpose">Inspect Claude Code’s collector traffic.</p></div></div>
         <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
       </header>
       <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} />
@@ -48,22 +49,19 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
   for (const event of captureState?.capture?.events ?? []) for (const id of event.sessionIds ?? []) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
   for (const id of fileSessions) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
   return <div className="tr-body">
-    <div className="tr-purpose">
-      <p id="tr-purpose">Inspect Claude Code’s collector traffic.</p>
-      <details className="tr-help"><summary>About Radar</summary><div>
-        <h3>What does Radar show?</h3>
-        <p>See what Claude Code sends to your telemetry collectors. Destinations can be configured by you or your organization.</p>
-        <p>Radar inspects configured OpenTelemetry exports, including prompts or responses when enabled and captured. It does not show everything Claude knows about you, ordinary AI requests, or Anthropic’s separate service telemetry.</p>
-        <p>An address does not identify who owns a collector or who can access its data. Encrypted connections can be observed, but their contents cannot be decoded here.</p>
-        <a href="https://code.claude.com/docs/en/monitoring-usage" target="_blank" rel="noreferrer">Claude Code telemetry documentation</a>
-      </div></details>
-    </div>
     <div className="tr-navigation">
       <div className="tr-tabs" role="tablist" aria-label="Radar views" onKeyDown={handleTabKeyDown}>{([['monitor', 'Monitor'], ['configuration', 'Configuration'], ['file', 'File']] as const).map(([id, label]) =>
         <button key={id} id={`tr-tab-${id}`} className="tr-tab" role="tab" aria-selected={page === id} aria-controls={`tr-panel-${id}`} tabIndex={page === id ? 0 : -1} onClick={() => setPage(id)}>{label}</button>)}</div>
       <label className="tr-session-filter">Session<RadarSelect value={session} onChange={e => setSession(e.target.value)} aria-label="Session">
         <option value="all">All sessions</option>{[...choices].map(([id, label]) => <option key={id} value={id}>{label} · {id.slice(0, 8)}</option>)}<option value="unidentified">Unidentified session</option>
       </RadarSelect></label>
+      <details className="tr-help"><summary><RadarIcon kind="info" /><span className="tr-help-label">About Radar</span></summary><div>
+        <h3>What does Radar show?</h3>
+        <p>See what Claude Code sends to your telemetry collectors. Destinations can be configured by you or your organization.</p>
+        <p>Radar inspects configured OpenTelemetry exports, including prompts or responses when enabled and captured. It does not show everything Claude knows about you, ordinary AI requests, or Anthropic’s separate service telemetry.</p>
+        <p>An address does not identify who owns a collector or who can access its data. Encrypted connections can be observed, but their contents cannot be decoded here.</p>
+        <a href="https://code.claude.com/docs/en/monitoring-usage" target="_blank" rel="noreferrer">Claude Code telemetry documentation</a>
+      </div></details>
     </div>
     {/* Keep views mounted: selecting Configuration must not discard the selected message or imported file. */}
     <div className="tr-page" id="tr-panel-monitor" role="tabpanel" aria-labelledby="tr-tab-monitor" hidden={page !== "monitor"}>
