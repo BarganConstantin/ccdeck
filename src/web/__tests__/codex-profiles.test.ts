@@ -59,7 +59,7 @@ describe('Codex profile discovery', () => {
     const windowsEnv = { CODEX_HOME: "C:\\Users\\dev's home\\.codex" };
     const [windowsProfile] = await discoverCodexProfiles({ env: windowsEnv, platform: 'win32' });
     expect(await codexProfileLaunchCommand(windowsProfile.id, { env: windowsEnv, platform: 'win32' }))
-      .toBe("$env:CODEX_HOME = 'C:\\Users\\dev''s home\\.codex'; codex");
+      .toBe("$previousCodexHome = $env:CODEX_HOME; try { $env:CODEX_HOME = 'C:\\Users\\dev''s home\\.codex'; codex } finally { $env:CODEX_HOME = $previousCodexHome }");
   });
 
   it('reads each profile quota with its own token, without refreshing or leaking credentials', async () => {

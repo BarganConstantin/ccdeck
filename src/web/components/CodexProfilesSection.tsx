@@ -14,6 +14,7 @@ interface CodexProfile {
 interface ProfileQuota {
   ok: boolean;
   reason?: string;
+  fetchedAt?: number;
   plan?: string | null;
   windows?: { usedPercent: number; seconds: number | null; resetAt: number | null }[];
 }
@@ -92,7 +93,7 @@ export default function CodexProfilesSection() {
                 {Object.hasOwn(quotas, profile.id) && (quotas[profile.id] === null
                   ? <span className="ap-codex-hint" role="status">Checking quota…</span>
                   : quotas[profile.id]?.ok
-                    ? <span className="ap-codex-hint">{quotas[profile.id]?.plan ?? 'Codex'} · {quotas[profile.id]?.windows?.map((w) => `${Math.round(w.usedPercent)}% used (${w.seconds ? `${Math.round(w.seconds / 3600)}h` : 'window'})`).join(' · ') || 'No limits reported'}</span>
+                    ? <span className="ap-codex-hint">{quotas[profile.id]?.plan ?? 'Codex'} · {quotas[profile.id]?.windows?.map((w) => `${Math.round(w.usedPercent)}% used (${w.seconds ? `${Math.round(w.seconds / 3600)}h` : 'window'})`).join(' · ') || 'No limits reported'}{quotas[profile.id]?.fetchedAt ? ` · Read ${Math.max(0, Math.floor((Date.now() - quotas[profile.id]!.fetchedAt!) / 1000))}s ago` : ''}</span>
                     : <span className="ap-codex-hint" role="status">Quota unavailable: {quotas[profile.id]?.reason?.replaceAll('_', ' ')}</span>)}
               </li>
             ))}
