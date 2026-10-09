@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { posix, win32 } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 
 const BOOLEAN_KEYS = [
@@ -68,12 +68,15 @@ async function readBoundedJson(path) {
   } finally { await file.close(); }
 }
 
-export async function readRadarConfig({ home = homedir(), env = process.env, readJson = readBoundedJson } = {}) {
-  const dir = claudeConfigDir(env, home);
+export async function readRadarConfig({ home = homedir(), env = process.env, platform = process.platform, readJson = readBoundedJson } = {}) {
+  const pathJoin = platform === 'win32' ? win32.join : posix.join;
+  const dir = claudeConfigDir(env, home, platform);
+  const managed = platform === 'win32' ? pathJoin(env.ProgramFiles || 'C:\\Program Files', 'ClaudeCode', 'managed-settings.json')
+    : platform === 'linux' ? '/etc/claude-code/managed-settings.json' : '/Library/Application Support/ClaudeCode/managed-settings.json';
   const files = [
-    ["User settings", join(dir, "settings.json")],
-    ["Cached organization settings", join(dir, "remote-settings.json")],
-    ["Managed settings", "/Library/Application Support/ClaudeCode/managed-settings.json"],
+    ["User settings", pathJoin(dir, "settings.json")],
+    ["Cached organization settings", pathJoin(dir, "remote-settings.json")],
+    ["Managed settings", managed],
   ];
   const sources = await Promise.all(files.map(async ([name, path]) => {
     try {

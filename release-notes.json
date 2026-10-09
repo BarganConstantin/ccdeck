@@ -75,6 +75,16 @@
     "3.38.2",
     "3.38.6"
   ],
+  "3.39.1": [
+    {
+      "title": "🎨 More themes, with clearer contrast",
+      "body": "Choose Omarchy, Matrix, Black Contrast, White Contrast or Catppuccin Mocha in Settings › Appearance. Fresh installations start with Rider Black; your saved theme choice is preserved."
+    },
+    {
+      "title": "A little more room on the canvas",
+      "body": "The minimap is smaller, leaving more room for the character and your sessions. Undo and Resume now sit beside each other at the bottom of the canvas. Telemetry Radar is marked Beta while it is being tested and improved."
+    }
+  ],
   "3.39.0": [
     {
       "title": "🔎 Inspect Claude Code telemetry on macOS",

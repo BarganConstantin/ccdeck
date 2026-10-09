@@ -165,11 +165,7 @@
    canvas offers the board it replaced. The auto-fit chip's strip, because it
    is the same kind of thing — a state in words and the one action that
    answers it — on the same surface, edge, radius and type, bottom centre.
-   Above the chip when both are up, which is the usual case: a board arranged
-   by hand is a board auto-fit has stood down on. The chip is 30px tall (2px
-   of padding twice, Resume's 24px, a 1px edge twice), and the strip sits 8px
-   over it; if the chip comes or goes under it, it travels there on the curve
-   it arrived on rather than jumping — a transform, so nothing is laid out. */
+   Alongside the chip when both are up, inside the shared notices row. */
 .rearrange-undo {
   position: absolute;
   left: 0;
@@ -191,7 +187,39 @@
   animation: rearrangeUndoIn 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
   transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.autofit-chip ~ .rearrange-undo { transform: translateY(-38px); }
+/* One measured floor obstacle, with both notices on the same baseline. */
+.canvas-notices {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 6;
+  width: max-content;
+  max-width: calc(100% - 28px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.canvas-notices .autofit-chip,
+.canvas-notices .rearrange-undo {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  margin: 0;
+  transform: none;
+  pointer-events: auto;
+}
+.canvas-notices .autofit-chip { flex-shrink: 0; }
+.canvas-notices .rearrange-undo { min-width: 0; }
+.canvas-notices .rearrange-undo-act { flex-shrink: 0; }
+.canvas-notices .rearrange-undo-state { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 480px) {
+  .canvas-notices { gap: 6px; }
+  .canvas-notices .rearrange-undo-key { display: none; }
+}
 /* Out quicker than it came in, and deaf to a press on the way: the offer has
    already ended by the time this runs. */
 .rearrange-undo.leaving {

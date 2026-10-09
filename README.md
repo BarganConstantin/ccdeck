@@ -158,7 +158,7 @@ Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.d
 - Optional: [claude-swap](https://github.com/realiti4/claude-swap) for the Accounts panel; the deck can install it for you
 - Nothing else. On Apple Silicon the deck fetches [`macmon`](https://github.com/vladkens/macmon) itself for the temperature rows; see below.
 
-### Claude Telemetry Radar (macOS)
+### Claude Telemetry Radar (macOS, Linux and Windows)
 
 Open **Telemetry Radar** from the right rail, or **More → Telemetry Radar** on a
 phone. Three views keep configuration, observed traffic and saved files separate:
@@ -181,11 +181,25 @@ phone. Three views keep configuration, observed traffic and saved files separate
 
 Choose all configured IPv4 destinations, one destination or a custom IPv4
 address and port, then press **Start monitoring**. Run each generated command
-in a separate Terminal tab. Only `tcpdump` needs administrator permission;
-ccdeck and the helper remain unprivileged. Each destination gets its own
-network interface and decoder, up to eight destinations per capture. The UI
-shows how many destinations have actually been activated. Preparing commands
-alone does not start capture.
+in a separate Terminal tab on macOS/Linux, or **PowerShell** tab on Windows.
+macOS includes `tcpdump`; install Wireshark’s official
+[ChmodBPF permission helper](https://www.wireshark.org/docs/wsug_html_chunked/ChBuildInstallOSXInstall.html)
+to allow capture without a Terminal command. Linux needs `tcpdump` and packet
+capture permissions for the user running ccdeck. Windows needs
+[Wireshark with Npcap](https://www.wireshark.org/download.html), with capture access
+for that user. ccdeck stays unprivileged and explains missing permissions; it
+does not install drivers or change permissions automatically.
+
+Choose your destinations and press **Start monitoring** once. ccdeck manages
+capture directly, retries after a capture-process failure or network interface
+change, and remembers the enabled destinations across server restarts. No
+Terminal tab or repeated ten-minute activation is needed. A blocked capture
+shows its permission or reconnecting state rather than claiming to be listening.
+
+Each destination gets its own decoder, up to eight destinations per capture.
+Linux captures routed and loopback traffic through `any`; macOS resolves the
+route's interface and Windows resolves its Npcap adapter or loopback interface.
+The UI shows how many destinations are actually listening.
 
 Passive decoding supports plaintext IPv4 OTLP/gRPC over HTTP/2, including gzip.
 Encrypted or incomplete traffic appears as an observation without invented
@@ -198,21 +212,35 @@ are outside its coverage.
 The inspector distinguishes observed transfer, collector acceptance, partial
 success and rejection. Acceptance does not prove final backend storage. Contents
 come from captured traffic, not local conversation transcripts. Messages remain
-in local server memory: at most 100 exports for five minutes, with a bounded
-payload budget; unreadable observations are also capped at 100 for five minutes.
+in local server memory for 24 hours, up to 2,000 exports and a 32 MiB encoded
+payload budget; unreadable observations are capped at 2,000 for 24 hours. The
+oldest entries are removed when a limit is reached. Stop/Start and closing the
+modal preserve history; restarting ccdeck removes it.
 No capture file is written. **Pause list** pauses display, not capture or retention;
 **Clear messages** clears exports and unreadable observations.
 
-Activation expires after ten minutes. Closing the modal does not stop capture.
-Use **Stop monitoring**, then **Ctrl+C** in each Terminal tab to stop `tcpdump`.
-Commands contain a temporary loopback token; do not share them. Capture contents
-are available through the local loopback UI, not LAN endpoints. Local clients
-of the same server share its capture.
+Monitoring continues until **Stop monitoring** or until ccdeck exits. An enabled
+monitor resumes when ccdeck next starts on the same port; Stop is remembered too.
+Closing the modal or browser does not stop capture. Only the opt-in and collector
+destinations are saved, never packet contents, tokens or decoded messages.
+Capture contents are available through the local loopback UI, not LAN endpoints.
+Local clients of the same server share its capture.
 
 Configuration and connection sampling runs only while Radar is open and the
 browser page is visible. A connection does not prove an upload, and absence of
 observed traffic does not mean telemetry is disabled. Native-process sampling
-can miss short-lived connections and Node wrappers.
+can miss short-lived connections and Node wrappers. Windows samples native
+Claude processes with PowerShell; Linux uses process names and owned `/proc`
+sockets; macOS uses `ps`/`lsof`. A Windows workspace may be unknown because the
+connection API does not expose the process's working directory. Settings and
+file inspection do not require packet-capture tools.
+
+For platform verification, run `node scripts/verify-radar-platform.mjs`.
+Add `--live` to send an isolated synthetic loopback export through the real
+capture tool and verify its decoded contents and collector receipt. This needs
+capture permissions and development dependencies. See the
+[Wireshark capture reference](https://www.wireshark.org/docs/man-pages/dumpcap.html)
+for Npcap and binary pcap output.
 
 
 ### Temperature, per machine

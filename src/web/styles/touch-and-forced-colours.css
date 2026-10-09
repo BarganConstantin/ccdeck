@@ -43,7 +43,6 @@
      brings one still moves nothing. */
   .release-notes .rn-line-act,
   .release-notes .rn-update-line { min-height: 32px; }
-  .autofit-chip ~ .rearrange-undo { transform: translateY(-46px); }
 }
 
 /* ---------------- forced colours (#871) ----------------

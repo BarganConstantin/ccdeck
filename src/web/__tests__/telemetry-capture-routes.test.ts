@@ -21,7 +21,7 @@ describe('telemetry capture route authorization', () => {
     expect(status).toBe(403); expect(body).toContain('this machine only');
   });
   it('accepts only the active temporary token and returns payloads through the selected detail route', async () => {
-    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async () => 'en0' }); cleanup.push(() => capture.dispose());
+    const capture = createTrafficCapture({ platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0' }); cleanup.push(() => capture.dispose());
     const server = createServer((req, res) => void handleTrafficCapture(req, res, new URL(req.url!, 'http://localhost'), capture));
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     cleanup.push(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));

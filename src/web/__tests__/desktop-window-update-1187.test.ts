@@ -77,7 +77,7 @@ describe("the one-button window wiring", () => {
   it("publishes updater state and routes the window request through the native gate", () => {
     const main = read("../../../desktop/main.mjs");
     const config = read("../../../desktop/electron-builder.config.cjs");
-    expect(main).toContain('deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version } })');
+    expect(main).toContain('deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version, canCheck: true } })');
     expect(main).toContain("restartReadyUpdate(updater, version)");
     // The window having shown the offer counts as this version's one notice,
     // so the native sheet does not ask again on top of it (#1182).

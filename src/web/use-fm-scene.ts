@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ballRollTo, crossSteps, facingFor, nextActivity, nextIdleMs,
-  walkMsFor, WALK_MIN_MS, WALK_SPAN_PX,
+  walkMsFor, WALK_MIN_MS,
   type Act, type Facing, type Ground, type Obstacle, type Place, type Prop, type Step,
 } from "./claude-fm";
 import { BEAT_MS, nextDance, nextDanceMs, type Dance } from "./claude-fm-dance";
@@ -183,6 +183,13 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
      * only moment a trip is ever planned, so it is the only moment this is
      * asked.
      */
+    const ledgeReach = (): number => {
+      const el = scene.current;
+      const sprite = el?.querySelector<HTMLElement>(".fm-sprite");
+      if (!el || !sprite) return 0;
+      return Math.max(0, el.getBoundingClientRect().width - sprite.offsetWidth);
+    };
+
     const ground = (): Ground | undefined => {
       const el = scene.current;
       const walker = el?.querySelector<HTMLElement>(".fm-walker");
@@ -190,24 +197,23 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
       if (!el || !walker || floorSpan == null) return undefined;
       const ledgeH = el.getBoundingClientRect().bottom - walker.getBoundingClientRect().bottom;
       if (!(ledgeH > 0)) return undefined;
-      return { ledgeH, floorSpan };
+      return { ledgeH, floorSpan, ledgeSpan: ledgeReach() };
     };
 
     /**
      * Whatever is standing on the canvas floor in the character's way.
      *
      * The deck's controls sit on that floor and the character walks along it,
-     * so without this it strolls straight through the Auto-fit chip as though
-     * the chip were a picture of one. Read from the page each time a walk is
-     * planned: the chip only exists while auto-fit is off, and a walk planned
-     * when it was there must not assume it still is.
+     * so without this it strolls straight through the bottom notices. Read
+     * the whole row each time a walk is planned: Auto-fit and Undo appear
+     * independently, and a walk must adapt when either notice disappears.
      *
      * Converted into the character's own coordinates, which count leftward
      * from the scene's right edge.
      */
     const obstacle = (): Obstacle | null => {
       const el = scene.current;
-      const chip = document.querySelector<HTMLElement>(".autofit-chip");
+      const chip = document.querySelector<HTMLElement>(".canvas-notices");
       if (!el || !chip) return null;
       const box = el.getBoundingClientRect();
       const bar = chip.getBoundingClientRect();
@@ -242,7 +248,7 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
      */
     const reachable = (step: Step): number => {
       const floor = (step.place ?? "ledge") === "floor";
-      const room = floor ? floorReach() ?? WALK_SPAN_PX : WALK_SPAN_PX;
+      const room = floor ? floorReach() ?? ledgeReach() : ledgeReach();
       const aim = floor && step.floorFrac != null
         ? -Math.round(step.floorFrac * room)
         : step.x;
@@ -325,7 +331,7 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
       // was a trip, it must not be left standing on the canvas floor with
       // nothing scheduled to bring it home.
       setPlace("ledge");
-      setX(now => Math.max(-WALK_SPAN_PX, Math.min(0, now)));
+      setX(now => Math.max(-ledgeReach(), Math.min(0, now)));
       setWalkMs(0);
       // Whatever it was in the middle of, it is not any more. Leaving a prop
       // on the ledge that nothing will ever come back for is the one way this

@@ -6,9 +6,8 @@
 // they do to the chip (npm-latest.mjs). The offer, once npm names a newer
 // release, is whatever the update banner offers on this install
 // (VersionBanner.tsx): Update now, Update & restart, or the command to run.
-// Inside the desktop app, whose deck leaves updates to the app, there is no
-// check this page can start, so the line reports the app's own updater and
-// names the menu that can.
+// Inside the desktop app, the page asks the native updater through its tray
+// stream and reports the state Electron publishes back.
 //
 // A pure function of what the deck has already said, so every state and every
 // channel can be pinned without a browser.
@@ -99,13 +98,12 @@ function ago(at: number, now: number): string {
  *  once its update is ready: the door at the top of the dialog is that. */
 function appLine(app: NonNullable<UpdateCheckFacts["app"]>, running: string): UpdateLine | null {
   const u = app.update;
-  const where = `Check for updates in ${app.menu}`;
-  if (u?.status === "ready") return null;
+  if (u?.status === "ready") return note(`${u.version} is ready. Restart to update.`);
   if (u?.status === "checking") return note("The app is checking for updates…");
   if (u?.status === "downloading") return note(u.version ? `${u.version} is out. The app is downloading it.` : "The app is downloading an update.");
-  if (u?.status === "current") return note(`You're on the latest, ${app.version ?? running}. To check again, use ${where}.`);
-  if (u?.status === "error") return note(`The app's last update check failed. Try ${where}.`);
-  return note(`The app keeps itself up to date. To check now, use ${where}.`);
+  if (u?.status === "current") return note(`You're on the latest, ${app.version ?? running}. You can check again here.`);
+  if (u?.status === "error") return note(`The app's last update check failed. Try Check for updates again.`);
+  return note(`The app keeps itself up to date. Check for updates here.`);
 }
 
 /** npm names a newer release: the banner's offer for this install. */
@@ -157,7 +155,7 @@ export function updateCheckState(f: UpdateCheckFacts, reasons: Record<string, st
   const v = f.version;
   if (f.app?.inApp && v?.checkDisabled) {
     const l = appLine(f.app, f.running);
-    return l && { canCheck: false, checking: false, line: l };
+    return l && { canCheck: true, checking: f.checking || f.app.update?.status === "checking", line: f.unreachable ? line("The desktop updater did not accept the check. Try the ccdeck menu or update the desktop app.", { tone: "warn" }) : f.checking ? line(CHECKING) : l };
   }
   if (v?.checkDisabled) return { canCheck: false, checking: false, line: note(CHECKS_OFF) };
 
@@ -185,4 +183,15 @@ export async function runUpdateCheck(
 ): Promise<"answered" | "unreachable"> {
   const [answer] = await Promise.all([loadVersion(true), wait(CHECK_MIN_BUSY_MS)]);
   return answer ? "answered" : "unreachable";
+}
+
+/** Ask Electron's updater, rather than npm, through the app's authenticated stream. */
+export async function runDesktopUpdateCheck(request: typeof fetch = fetch): Promise<"answered" | "unreachable"> {
+  try {
+    const [response] = await Promise.all([
+      request('/api/desktop-update/check', { method: 'POST', signal: AbortSignal.timeout(8000) }),
+      new Promise(resolve => setTimeout(resolve, CHECK_MIN_BUSY_MS)),
+    ]);
+    return response.ok ? 'answered' : 'unreachable';
+  } catch { return 'unreachable'; }
 }

@@ -336,6 +336,7 @@ function attach(found) {
     // this the native sheet still owed its own, and arrived on top of the
     // window's offer, or after the person had already closed it, to ask the
     // same question a second time.
+    checkUpdate: () => { void updater?.check().then(() => publishUpdateState()).catch(() => publishUpdateState()); },
     updateSeen: request => {
       if (matchesReadyUpdate(updater, request?.version)) rememberUpdateNotice(updater.state.version);
     },
@@ -346,7 +347,7 @@ function attach(found) {
 function publishUpdateState() {
   if (!deck || !updater) return;
   const { status, version = null } = updater.state;
-  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version } })
+  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version, canCheck: true } })
     .catch(err => trace(`could not publish update state: ${err?.message ?? err}`));
 }
 

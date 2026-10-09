@@ -16,7 +16,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { desktopAppVersion, trayMenuName } from "../desktop-update";
 import { inDesktopApp } from "../in-app";
 import { selfPressAccepted } from "../panel-press";
-import { CHECK_LABEL, CHECK_WHY, runUpdateCheck, updateCheckState, type UpdateLine, type UpdateLineAction } from "../update-check";
+import { CHECK_LABEL, CHECK_WHY, runDesktopUpdateCheck, runUpdateCheck, updateCheckState, type UpdateLine, type UpdateLineAction } from "../update-check";
 import type { useAutoRestart } from "../use-auto-restart";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useDesktopUpdate } from "../use-desktop-update";
@@ -70,13 +70,18 @@ function useUpdateCheck(wiring: UpdateCheckWiring | undefined) {
   }, UPGRADE_BLOCK_TEXT);
   if (!state) return null;
 
+  const nativeCheck = inDesktopApp() && versionCheck.version?.checkDisabled;
+  const checkWhy = nativeCheck ? "Ask the desktop app whether a newer ccdeck is out." : CHECK_WHY;
   const check = async () => {
     // Busy, never disabled (#620): a second press meets this ref, and one
     // made while the chip's check is out joins that check instead.
     if (!selfPressAccepted(pressingRef.current || versionChecking)) return;
+    if (nativeCheck && desktopUpdate.appUpdate?.status === "checking") return;
     pressingRef.current = true;
     setPressing(true);
-    const result = await runUpdateCheck(versionCheck.loadVersion);
+    const result = nativeCheck
+      ? await runDesktopUpdateCheck()
+      : await runUpdateCheck(versionCheck.loadVersion);
     pressingRef.current = false;
     setPressing(false);
     setUnreachable(result === "unreachable");
@@ -89,7 +94,7 @@ function useUpdateCheck(wiring: UpdateCheckWiring | undefined) {
     if (action.kind === "install") void upgrade.startUpgrade();
     else void restart.askRestart({ upgrade: true });
   };
-  return { state, check, act };
+  return { state, check, act, checkWhy };
 }
 
 export default function ReleaseActions({ onTour, onRestart, updateCheck }: {
@@ -123,7 +128,7 @@ export default function ReleaseActions({ onTour, onRestart, updateCheck }: {
           {update && canCheck && (
             <button type="button" className="btn rn-act" onClick={() => void update.check()}
               aria-busy={update.state.checking || undefined}
-              aria-describedby={`${id}-check`} {...hint.bind({ label: CHECK_WHY })}>
+              aria-describedby={`${id}-check`} {...hint.bind({ label: update.checkWhy })}>
               <UpdateCheckGlyph />{CHECK_LABEL}
             </button>
           )}
@@ -138,7 +143,7 @@ export default function ReleaseActions({ onTour, onRestart, updateCheck }: {
       {update && <UpdateLineView line={update.state.line} onAct={update.act} bindHint={hint.bind} whyId={`${id}-act`} />}
       {/* What each hint says, for a reader who never sees a hint. */}
       <span hidden id={`${id}-tour`}>{TOUR_WHY}</span>
-      <span hidden id={`${id}-check`}>{CHECK_WHY}</span>
+      <span hidden id={`${id}-check`}>{update?.checkWhy ?? CHECK_WHY}</span>
       <span hidden id={`${id}-restart`}>{RESTART_WHY}</span>
       {hint.node}
     </div>

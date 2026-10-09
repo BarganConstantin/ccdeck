@@ -1,23 +1,13 @@
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
-import { basename } from "node:path";
+import { systemCommand, powershell, WINDOWS_PROCESSES, windowsSockets, linuxSockets } from './traffic-radar-platform.mjs';
 import { readRadarConfig } from "./traffic-radar-config.mjs";
-
-function systemCommand(file, args) {
-  return new Promise(resolve => {
-    execFile(file, args, { timeout: 2_000, maxBuffer: 262_144, encoding: "utf8", windowsHide: true }, (error, stdout, stderr) => {
-      if (!error) return resolve(stdout);
-      if (file === "/usr/sbin/lsof" && error.code === 1 && !stdout && !stderr) return resolve("");
-      resolve(null);
-    });
-  });
-}
 
 export function claudePids(text) {
   const pids = [];
   for (const line of String(text ?? "").split("\n")) {
     const match = /^\s*(\d+)\s+(.+?)\s*$/.exec(line);
-    if (match && ["claude", "claude-native"].includes(basename(match[2]))) {
+    if (match && ["claude", "claude-native"].includes(match[2].split(/[\\/]/).at(-1)?.replace(/\.exe$/i, "").toLowerCase())) {
       const pid = Number(match[1]);
       if (Number.isSafeInteger(pid) && pid > 0) pids.push(pid);
     }
@@ -29,7 +19,8 @@ export function parseRadarSockets(text, pids) {
   const allowed = new Set(pids);
   const sockets = new Map();
   let pid = null;
-  for (const line of String(text ?? "").split("\n")) {
+  for (const rawLine of String(text ?? "").split("\n")) {
+    const line = rawLine.trimEnd();
     if (/^p\d+$/.test(line)) pid = Number(line.slice(1));
     if (!allowed.has(pid) || !line.startsWith("n")) continue;
     const peer = line.slice(1).split("->")[1];
@@ -48,7 +39,8 @@ export function parseRadarWorkspaces(text, pids, home = homedir()) {
   const allowed = new Set(pids);
   const workspaces = new Map();
   let pid = null;
-  for (const line of String(text ?? "").split("\n")) {
+  for (const rawLine of String(text ?? "").split("\n")) {
+    const line = rawLine.trimEnd();
     if (/^p\d+$/.test(line)) pid = Number(line.slice(1));
     if (allowed.has(pid) && line.startsWith("n/")) {
       const path = line.slice(1);
@@ -58,7 +50,7 @@ export function parseRadarWorkspaces(text, pids, home = homedir()) {
   return workspaces;
 }
 
-export function createTrafficRadar({ platform = process.platform, now = Date.now, run = systemCommand, config = readRadarConfig } = {}) {
+export function createTrafficRadar({ platform = process.platform, now = Date.now, run = systemCommand, config = readRadarConfig, readLinuxSockets = linuxSockets } = {}) {
   let pending = null;
   let cached = null;
   let previousAt = null;
@@ -79,8 +71,8 @@ export function createTrafficRadar({ platform = process.platform, now = Date.now
       previousConfig = null;
     }
     const base = { ok: true, sampledAt, platform, pollMs: 5_000, processCount: 0, connections: [], alerts: [] };
-    if (platform !== "darwin") return { ...base, status: "unsupported", config: null };
-    const [configuration, processes] = await Promise.all([config(), run("/bin/ps", ["-axo", "pid=,comm="])]);
+    if (!["darwin", "linux", "win32"].includes(platform)) return { ...base, status: "unsupported", config: null };
+    const [configuration, processes] = await Promise.all([config({ platform }), platform === "win32" ? run("powershell.exe", powershell(WINDOWS_PROCESSES)) : run("/bin/ps", ["-axo", "pid=,comm="])]);
     const nextConfig = new Map(configuration.variables.filter(v => !v.key.endsWith("HEADERS")).map(v => [`${v.source}:${v.key}`, v.value]));
     if (previousConfig) {
       for (const [key, value] of nextConfig) {
@@ -94,7 +86,9 @@ export function createTrafficRadar({ platform = process.platform, now = Date.now
     const selected = pids.slice(0, 64);
     let sockets = "";
     let cwd = "";
-    if (selected.length) [sockets, cwd] = await Promise.all([
+    if (selected.length && platform === "linux") ({ sockets, cwd } = await readLinuxSockets(selected));
+    else if (selected.length && platform === "win32") sockets = await run("powershell.exe", powershell(windowsSockets(selected)));
+    else if (selected.length) [sockets, cwd] = await Promise.all([
       run("/usr/sbin/lsof", ["-nP", "-a", "-p", selected.join(","), "-iTCP", "-sTCP:ESTABLISHED", "-Fpn"]),
       run("/usr/sbin/lsof", ["-nP", "-a", "-p", selected.join(","), "-d", "cwd", "-Fpn"]),
     ]);
