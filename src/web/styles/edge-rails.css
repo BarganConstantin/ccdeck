@@ -161,8 +161,12 @@
 
 .rail-btn-stripe .rail-badge {
   position: absolute;
-  top: -3px;
-  right: -1px;
+  top: -2px;
+  right: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  line-height: 14px;
   pointer-events: none;
 }
 
