@@ -15,7 +15,7 @@ function JsonNode({ value, name, root = false }: { value: Json; name?: string | 
     return <JsonCollection value={value} name={name} root={root} />;
   }
   const kind = value === null ? "null" : typeof value;
-  return <div className="tr-json-scalar">
+  return <div>
     {name !== undefined && <JsonKey name={name} />}
     <span className={`tr-json-${kind}`}>{JSON.stringify(value)}</span>
   </div>;
@@ -29,7 +29,7 @@ function JsonCollection({ value, name, root }: { value: Json[] | { [key: string]
   const keys = useMemo(() => Array.isArray(value) ? null : Object.keys(value), [value]);
   const count = array ? value.length : keys!.length;
   const shown = Math.min(limit, count);
-  return <details className="tr-json-node" open={expanded} onToggle={event => {
+  return <details open={expanded} onToggle={event => {
     // Native toggle events from descendants must not change this branch.
     if (event.target === event.currentTarget) setExpanded(event.currentTarget.open);
   }}>
@@ -38,16 +38,16 @@ function JsonCollection({ value, name, root }: { value: Json[] | { [key: string]
       <span>{array ? "[" : "{"}{count === 0 ? (array ? "]" : "}") : "…"}</span>
       {count > 0 && <span className="tr-count">{count} {array ? (count === 1 ? "item" : "items") : (count === 1 ? "key" : "keys")}</span>}
     </summary>
-    {expanded && count > 0 && <div className="tr-json-children">
+    {expanded && count > 0 && <div>
       {Array.from({ length: shown }, (_, index) => {
         const key = keys ? keys[index] : index;
         const child = Array.isArray(value) ? value[index] : value[key];
         return <JsonNode key={key} name={key} value={child} />;
       })}
-      {shown < count && <button type="button" className="btn tr-json-more" onClick={() => setLimit(current => current + BATCH_SIZE)}>
+      {shown < count && <button type="button" className="btn" onClick={() => setLimit(current => current + BATCH_SIZE)}>
         Show {Math.min(BATCH_SIZE, count - shown)} more ({count - shown} remaining)
       </button>}
-      <div className="tr-json-close">{array ? "]" : "}"}</div>
+      <div>{array ? "]" : "}"}</div>
     </div>}
   </details>;
 }
@@ -72,13 +72,13 @@ function RawJson({ value }: { value: Json }) {
     if (offset < text.length) parts.push(text.slice(offset));
     return parts;
   }, [value]);
-  return <pre className="tr-value tr-json-raw">{contents}</pre>;
+  return <pre className="tr-value">{contents}</pre>;
 }
 
 /** Inspect JSON without mounting closed descendants or truncating the raw value. */
 export function JsonInspector({ value, initialMode = "tree" }: { value: Json; initialMode?: Mode }) {
   const [mode, setMode] = useState<Mode>(initialMode);
-  return <div className="tr-json-inspector">
+  return <div>
     <div className="tr-detail-tabs" role="group" aria-label="JSON view">
       <button type="button" className="btn" aria-pressed={mode === "tree"} onClick={() => setMode("tree")}>Tree</button>
       <button type="button" className="btn" aria-pressed={mode === "raw"} onClick={() => setMode("raw")}>Raw JSON</button>

@@ -266,4 +266,12 @@
   .rearrange-undo-act { border: 1px solid ButtonText; }
   .autofit-resume:hover,
   .rearrange-undo-act:hover { border-color: Highlight; }
+
+  .tr-live-dot { forced-color-adjust: none; background: GrayText; }
+  .tr-dot-ok { background: Highlight; }
+  .tr-dot-error, .tr-dot-attention { background: CanvasText; }
+  .tr-message[aria-pressed="true"] { border-color: Highlight; }
+
+  .tr-select-wrap > svg { color: ButtonText; }
+  .tr-message[aria-pressed="true"] { border-color: Highlight; }
 }
