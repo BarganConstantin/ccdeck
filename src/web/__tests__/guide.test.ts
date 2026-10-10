@@ -170,7 +170,7 @@ describe("where the guides open from", () => {
   });
 
   it("gives the empty canvas its way back, and only while the server is there", () => {
-    expect(app).toMatch(/\{!offline && \(\s*<button type="button" className="btn empty-tour" onClick=\{onTour\}>Take the tour<\/button>/);
+    expect(app).toMatch(/\{!offline && \(\s*<div className="empty-actions"[^>]*>\s*<button type="button" className="btn empty-tour" onClick=\{onTour\}>Take the tour<\/button>/);
     // The hero is pointer-transparent so a drag starting on it pans; the one
     // control on it has to be given its pointer back or it is a drawing of a
     // button.

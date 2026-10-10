@@ -320,6 +320,7 @@ function rootTokens(theme: Theme): Record<string, string> {
   for (const [, name, value] of body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
     out[name] = value.trim();
   }
+  for (const [, name, value] of bodyOf(".modal.tr-modal").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
   return out;
 }
 
@@ -333,6 +334,12 @@ function resolve(value: string, theme: Theme): Rgba {
   if (mix) {
     const base = resolve(mix[1], theme);
     return [base[0], base[1], base[2], base[3] * (+mix[2] / 100)];
+  }
+  const blend = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*(.+)\)$/.exec(v);
+  if (blend) {
+    const a = resolve(blend[1], theme), b = resolve(blend[3], theme);
+    const p = +blend[2] / 100, alpha = a[3] * p + b[3] * (1 - p);
+    return [0, 1, 2].map(i => alpha ? (a[i] * a[3] * p + b[i] * b[3] * (1 - p)) / alpha : 0).concat(alpha) as Rgba;
   }
   const ref = /^var\(\s*(--[\w-]+)\s*(?:,\s*([\s\S]+))?\)$/.exec(v);
   if (ref) {
@@ -495,8 +502,9 @@ const CONTROLS: Control[] = [
   { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
-  { at: ".btn.tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
-  { at: ".tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
+  { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
+  { at: ".tr-input:hover", beds: ["--panel"] },
+  { at: ".tr-select:hover", beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -879,7 +887,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    expect(EDGED_CONTROLS.length).toBeLessThan(120);
+    expect(EDGED_CONTROLS.length).toBeLessThan(125);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

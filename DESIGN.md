@@ -666,15 +666,45 @@ are literals today.
 
 ### Telemetry Radar
 
-An inspection workspace with three tabs: Monitor, Configuration and File. A compact
-settings summary and shared session selector sit above the split message list and
-inspector. The Monitor is the initial view; JSON is a first-class inspection mode.
-Configuration evidence, capture state and collector receipts use distinct language.
-Enabled content flags use warning color; positive receipts alone use the success
-color. Unknown attribution remains explicit. Detailed capture limits stay in the
-footer, and Terminal activation expands only when action is needed. On mobile,
-messages precede the inspector in one scrolling column. Views remain mounted so
-changing tabs preserves the selected message and imported file.
+A focused inspector in ccdeck’s existing visual world, with a 1060 × 740px
+preferred window capped by the viewport. Identity and purpose share the header;
+Monitor / Configuration / File use a compact segmented strip alongside the session
+selector and About Radar. On phones, About retains its accessible name behind
+an information icon. Configuration and File stay mounted to preserve inspection
+and imported content.
+
+The monitoring toolbar groups listener state, traffic evidence and destination
+with Start/Stop and Clear history. A subdued activity feed occupies 34% of the
+workspace (at least 300px), beside the plain reading surface of the inspector.
+`--tr-toolbar`, `--tr-feed-surface` and `--tr-divider` derive surfaces from the
+existing theme. High-contrast themes retain their stronger separators. At 640px
+and below the feed precedes inspection in a single scrolling column.
+
+RadarIcon uses one authored 1.5px stroke family to distinguish connections,
+events, metrics and traces. Selected rows have an accent outline and subtle wash;
+metadata and timestamps remain secondary. Inspector headers pair the event type
+with the selected name; facts align across fine rules. Unreadable content has one
+neutral diagnostic group, a useful next step and disclosed complete technical
+limits. It must never look like a capture failure merely because JSON is absent.
+
+Listener readiness, observed traffic, decoded contents and collector receipts
+remain separate facts. Full readiness uses `--ok`, actionable partial readiness
+`--warn`, genuine failures `--err`. Initial and explicit selection stay pinned
+while arrivals continue. Pause list freezes visible entries and counts arrivals;
+Stop monitoring stops capture. Arrow/Home/End keep focus on rows, including on
+mobile; explicit activation reveals the inspector. History renders in batches of
+100. JSON offers lazy branches, batched children, complete raw data and exact
+copy of decoded fields. File retains original local JSON/JSONL separately.
+
+Controls share 32px geometry (40px on phones) and 6px corners. Native selects keep
+platform keyboard behavior with authored chevrons. Hover and selection use short
+color transitions; presses shift utility controls by one pixel, with reduced
+motion disabling movement. Destination copy resets on selection and expires its
+success indication after two seconds. Clear history requires a deliberate second
+press, disarms on blur or after five seconds, and also removes observations.
+Pause list and Clear history use neutral control edges; pausing exposes its pressed
+state. Monitoring limits has neutral hover/open feedback in the footer. Surface direction, checks and
+limitations live in `.impeccable/surfaces/telemetry-radar.md`.
 
 ### Rider Black
 

@@ -4,6 +4,7 @@ import { ReactFlowProvider, useReactFlow } from "reactflow";
 // for why `{open && <Panel/>}` cannot do that on its own.
 import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
+import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
@@ -613,6 +614,7 @@ function Inner() {
           back in play (ownsKeystroke() leaves a <main> alone). */}
       <a className="skip-link" href="#canvas">Skip to the canvas</a>
       <header className="topbar">
+        <DesktopTitlebar />
         {/* The observation group, and the notes on each readout in it — components/TopbarReadouts.tsx. */}
         <ReadoutGroup
           versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause}
@@ -693,8 +695,8 @@ function Inner() {
         viewport={viewport} stateRef={stateRef} peek={peek}
       >
         {agentCount === 0 && (!live && tabCapped
-          ? <TabCapHero />
-          : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} />)}
+          ? <TabCapHero reservedRight={railInsetRef.current} />
+          : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={railInsetRef.current} />)}
         {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
             bar was gated on categories present on the canvas NOW, while the
             filter is independent state that nothing trims — so hide a category,

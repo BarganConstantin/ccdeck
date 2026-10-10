@@ -175,7 +175,7 @@ describe("reduced motion reaches the canvas, not just the panels", () => {
   it("sees the motion it is sweeping for, so a passing run means something", () => {
     // If a rename ever slips the canvas out of CANVAS, this collapses first.
     expect(moving.length).toBeGreaterThan(20);
-    for (const sel of [".tool-burst", ".tool-burst.sub.status-err", ".empty-hero .core",
+    for (const sel of [".tool-burst", ".tool-burst.sub.status-err",
                        ".react-flow__node", ".tool-conn.status-inflight", ".cluster-card"]) {
       expect(moving.some(m => m.sel === sel), sel).toBe(true);
     }
@@ -262,11 +262,15 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  it is the spec for what a pressable control does rather than a record of
  *  which ones had been got to. */
 const PRESSES: Press[] = [
+  [".empty-hero .empty-help summary:active", "0.97", "transform"],
   [".tr-details > summary:active", "0.97", "transform"],
   [".tr-activation > summary:active", "0.97", "transform"],
   [".tr-monitor-footer summary:active", "0.97", "transform"],
   [".tr-tab:active", "0.97", "transform"],
   [".tr-message:active", "0.97", "transform"],
+  [".tr-help summary:active", "0.97", "transform"],
+  [".tr-inline-copy:active", "0.97", "transform"],
+  [".tr-json-tree summary:active", "0.97", "transform"],
   [".tr-file-picker:active", "0.97", "transform"],
   ["button.btn:active:not(:disabled)", "0.97", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —

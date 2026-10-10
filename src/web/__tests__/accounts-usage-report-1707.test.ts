@@ -245,8 +245,9 @@ describe("the resets", () => {
     const html = renderToStaticMarkup(createElement(UsageReportBody, {
       accounts: [acct(1, 10, 10, {}, [NOW + 2 * HOUR + 1800]), acct(2, 10, 10, {}, [NOW + 45 * 60])], nowSec: NOW, held: null,
     }));
-    expect(html).toContain('<span class="ap-report-in"><span class="vis-hidden">resets in </span>2h 30m</span>');
-    expect(html).toContain('<span class="ap-report-in"><span class="vis-hidden">resets in </span>45m</span>');
+    expect(html).toContain('<span class="vis-hidden">resets in </span>2h 30m</time>');
+    expect(html).toContain('<span class="vis-hidden">resets in </span>45m</time>');
+    expect(html.match(/class="ap-report-reset-cell"/g)).toHaveLength(4);
   });
 });
 

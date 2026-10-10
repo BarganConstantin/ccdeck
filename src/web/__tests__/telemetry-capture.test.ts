@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { Readable } from 'node:stream';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Readable, PassThrough } from 'node:stream';
 import { createWireCapture } from '../../server/traffic-radar-wire.mjs';
 import { captureDestination, createTrafficCapture } from '../../server/traffic-radar-capture.mjs';
 import { streamCapture } from '../../server/traffic-radar-helper.mjs';
 import { LOGS, frame, headers, packet, pcap, request, response } from './traffic-capture-fixture.mjs';
 const cleanup: (() => void)[] = [];
-afterEach(() => { for (const dispose of cleanup.splice(0)) dispose(); });
+afterEach(() => { for (const dispose of cleanup.splice(0)) dispose(); vi.useRealTimers(); });
 function reader() {
   const events: any[] = [], receipts: any[] = [], issues: string[] = [];
   const decoder = createWireCapture({ host: '192.0.2.16', port: 4317, onExport: (value: unknown) => { events.push(value); return events.length; }, onResponse: (id: number, value: unknown) => receipts.push({ id, ...value as object }), onIssue: (value: string) => issues.push(value) });
@@ -62,7 +62,8 @@ describe('passive OTLP capture', () => {
 });
 describe('capture lifecycle and privacy', () => {
   it('retains unreadable connection observations without inventing an export or session ID', async () => {
-    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async () => 'en0' });
+    let clock = 1700000000000;
+    const capture = createTrafficCapture({ now: () => clock, platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0' });
     cleanup.push(() => capture.dispose());
     const setup = await capture.prepare('192.0.2.16:4317', 4329);
     const token = /'([a-f0-9]{64})' '0'$/.exec(setup.command)![1];
@@ -70,10 +71,12 @@ describe('capture lifecycle and privacy', () => {
     expect(capture.read().events).toEqual([]);
     expect(capture.read().observations[0]).toMatchObject({ destination: '192.0.2.16:4317', reason: 'encrypted' });
     expect(capture.read().observations[0]).not.toHaveProperty('sessionIds');
+    clock += 23 * 60 * 60 * 1000; expect(capture.read().observations).toHaveLength(1);
+    clock += 60 * 60 * 1000 + 1; expect(capture.read().observations).toEqual([]);
     capture.clear(); expect(capture.read().observations).toEqual([]);
   });
   it('captures independent destinations without mixing parsers, tokens or receipts', async () => {
-    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async host => host.endsWith('16') ? 'en0' : 'en1' });
+    const capture = createTrafficCapture({ platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async host => host.endsWith('16') ? 'en0' : 'en1' });
     cleanup.push(() => capture.dispose());
     const setup = await capture.prepare(['192.0.2.16:4317', '192.0.2.17:4318'], 4329);
     expect(setup.commands).toHaveLength(2);
@@ -91,7 +94,7 @@ describe('capture lifecycle and privacy', () => {
 
   async function prepare() {
     let clock = 1700000000000;
-    const capture = createTrafficCapture({ now: () => clock, platform: 'darwin', findInterface: async () => 'en0' }); cleanup.push(() => capture.dispose());
+    const capture = createTrafficCapture({ now: () => clock, platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0' }); cleanup.push(() => capture.dispose());
     const setup = await capture.prepare('192.0.2.16:4317', 4329);
     const token = /'([a-f0-9]{64})' '0'$/.exec(setup.command)![1];
     return { capture, setup, token, advance: (ms: number) => { clock += ms; } };
@@ -112,15 +115,56 @@ describe('capture lifecycle and privacy', () => {
     capture.stop(); expect(capture.accepts(token)).toBe(false); expect(capture.ingest(token, Buffer.alloc(0))).toBe(false);
     expect(capture.detail(id)).not.toBeNull(); advance(6000); expect(capture.read().state).toBe('stopped'); capture.clear(); expect(capture.detail(id)).toBeNull();
   });
-  it('expires tokens and retained contents without relying on an open modal', async () => {
+  it('keeps monitoring enabled past ten minutes while retaining only recent contents', async () => {
     const { capture, token, advance } = await prepare(); capture.ingest(token, pcap(packet(request())));
-    advance(300001); expect(capture.read().events).toEqual([]); expect(capture.read().state).toBe('interrupted');
-    advance(300000); expect(capture.accepts(token)).toBe(false);
+    advance(300001); expect(capture.read().events).toHaveLength(1); expect(capture.read().state).toBe('interrupted');
+    advance(600000); expect(capture.accepts(token)).toBe(true);
+    expect(capture.read().expiresAt).toBeNull();
+    capture.ingest(token, Buffer.alloc(0)); expect(capture.read().state).toBe('receiving');
+    capture.stop(); expect(capture.accepts(token)).toBe(false);
+  });
+  it('keeps export details for 24 hours across Stop and Start, then expires them', async () => {
+    const { capture, token, advance } = await prepare();
+    capture.ingest(token, pcap(packet(request())));
+    const id = capture.read().events[0].id;
+    advance(23 * 60 * 60 * 1000);
+    await capture.stop();
+    await capture.prepare('192.0.2.16:4317', 4329);
+    expect(capture.detail(id).payload).toEqual(LOGS);
+    advance(60 * 60 * 1000);
+    expect(capture.read().events).toHaveLength(1);
+    advance(1);
+    expect(capture.read().events).toEqual([]);
+    expect(capture.detail(id)).toBeNull();
+  });
+  it('bounds a busy 24-hour history and exposes discarded-message counts', async () => {
+    let callbacks: any;
+    const capture = createTrafficCapture({ platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0', wire: options => { callbacks = options; return { feed() {}, close() {} }; } });
+    cleanup.push(() => capture.dispose());
+    await capture.prepare('192.0.2.16:4317', 4329);
+    const value = { signal: 'logs', payload: LOGS, protobufBase64: '', destination: '192.0.2.16:4317', at: 0, bytes: 1 };
+    const first = callbacks.onExport(value);
+    for (let i = 0; i < 2000; i++) callbacks.onExport(value);
+    expect(capture.read().events).toHaveLength(2000);
+    expect(capture.detail(first)).toBeNull();
+    expect(capture.read().retention.evictedExports).toBe(1);
+    capture.clear();
+    expect(capture.read().retention.evictedExports).toBe(0);
+    const large = { ...value, payload: { text: 'é'.repeat(200000) } };
+    for (let i = 0; i < 100; i++) callbacks.onExport(large);
+    expect(capture.read().events.length).toBeLessThan(100);
+    expect(capture.read().retention.evictedExports).toBeGreaterThan(0);
   });
   it('checks IPv4, port and interface inputs before generating a shell command', async () => {
     for (const value of ['localhost:4317', '192.0.2.16:0', '192.0.2.16:65536', '999.0.2.1:4317', '192.0.2.1:4317;whoami']) expect(() => captureDestination(value)).toThrow();
-    const capture = createTrafficCapture({ platform: 'darwin', findInterface: async () => 'en0;whoami' }); cleanup.push(() => capture.dispose());
+    const capture = createTrafficCapture({ platform: 'darwin', findTool: async () => '/usr/sbin/tcpdump', findInterface: async () => 'en0;whoami' }); cleanup.push(() => capture.dispose());
     await expect(capture.prepare('192.0.2.16:4317', 4329)).rejects.toThrow('interface');
+  });
+  it('keeps the compatibility helper alive beyond ten minutes until its input ends', async () => {
+    vi.useFakeTimers(); const input = new PassThrough();
+    const job = streamCapture({ base: 'http://127.0.0.1:4329', token: 'a'.repeat(64), input, report: () => {}, send: async () => ({ ok: true }) });
+    await vi.advanceTimersByTimeAsync(660000); expect(input.destroyed).toBe(false);
+    input.end(); await job;
   });
   it('streams only to loopback and follows no redirects', async () => {
     const calls: any[] = [];

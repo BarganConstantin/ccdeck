@@ -240,6 +240,23 @@ describe("what was migrated to the secondary tier", () => {
       // The custom-sound cards' captions, by bed again: --muted on the card's
       // --sm-fill is 4.25:1 in dark (#1788).
       ".sm-custom-card-copy > span",
+      // The Radar redesign adds explanatory text and neutral utility labels.
+      ".empty-hero .film-action",
+      ".tr-active-destinations > span",
+      ".tr-event-top time",
+      ".tr-history",
+      ".tr-identity p",
+      ".tr-inline-copy",
+      ".tr-inspection-limit .tr-details > summary",
+      ".tr-inspection-limit > svg",
+      ".tr-inspector-head h3 svg",
+      ".tr-json-boolean, .tr-json-null",
+      ".tr-purpose",
+      ".tr-row-icon",
+      ".tr-select-wrap > svg",
+      ".tr-signal",
+      ".tr-source-error",
+      ".tr-source-ready",
       ".tr-attributes dt > span",
       ".tr-count",
       ".tr-destination label, .tr-filter label",
@@ -258,7 +275,7 @@ describe("what was migrated to the secondary tier", () => {
       ".tr-tab",
       ".tr-tone-unknown",
       ".tr-variables dt > span, .tr-variables dt > code",
-    ]);
+    ].sort());
   });
 
   it("left the timestamps, counts, labels and system lines where they were", () => {

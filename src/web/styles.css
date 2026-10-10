@@ -22,6 +22,7 @@
 @import "./styles/themes.css";                   /* generated JSON palettes and previews */
 @import "./styles/tokens.css";                   /* shared model mappings, geometry and motion */
 @import "./styles/utilities.css";                /* shared utilities */
+@import "./styles/desktop-titlebar.css";
 @import "./styles/topbar.css";                   /* the topbar, the update-ready notice, the worded buttons */
 @import "./styles/menus.css";                    /* the sound and appearance menus, and the switch */
 @import "./styles/selection-ribbon.css";         /* the selected-agent ribbon */

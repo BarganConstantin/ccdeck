@@ -113,6 +113,8 @@ export function openTrayStream(deck, on, { retryMs = 1500 } = {}) {
             try { on.notify?.(JSON.parse(f.data)); } catch { /* ignore */ }
           } else if (f.event === "desktop-update-restart") {
             try { on.restartUpdate?.(JSON.parse(f.data)); } catch { /* ignore */ }
+          } else if (f.event === "desktop-update-check") {
+            try { on.checkUpdate?.(); } catch { /* ignore */ }
           } else if (f.event === "desktop-update-seen") {
             try { on.updateSeen?.(JSON.parse(f.data)); } catch { /* ignore */ }
           } else if (f.event === "replay-end") {
