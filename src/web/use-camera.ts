@@ -150,8 +150,10 @@ export function useCamera() {
    *  for a caller that checks later whether its move is still the latest. */
   const moveCamera = useCallback((want: { x: number; y: number; zoom: number }, duration: number): number => {
     const epoch = ++cameraEpochRef.current;
-    applyViewport(want, duration);
+    // Immediate moves emit onMove synchronously. Stamp first, so a press of
+    // Recenter is recognised as a deck fit instead of disabling auto-fit again.
     lastFitTimeRef.current = Date.now();
+    applyViewport(want, duration);
     // Remembered only while an animation is actually running: a move that went
     // straight to the pane is already there, and nothing about it is pending.
     pendingFitRef.current = shouldAnimateViewport({ durationMs: duration, documentHidden: document.hidden })
