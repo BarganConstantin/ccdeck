@@ -743,18 +743,9 @@ const EXEMPT_RINGS = new Set([
   // check at the bottom of this describe is the one that would have said so
   // the moment the exemption outlived what it excused.
   ".cluster-label:hover",
-  // The same shape on a tool burst: a hover lift in the burst's own category
-  // hue, over a chip identified by the tool name written across it.
-  ".tool-burst.clickable:hover",
-  // And the light twins of those two, which #1025 added because neither hover
-  // reached this theme at all: `:root[data-color-scheme="light"] .cluster-label` and
-  // `… .tool-burst` are (0,3,0) and outranked the (0,2,0) and (0,3,0)-earlier
-  // hovers, so the light sheet kept the RESTING shadow under the pointer. They
-  // are the same hairline over the same still-present edge, so they are the
-  // same lift and carry the same exemption — and the same unmeasurable ring
-  // colours, `currentColor` and `var(--cat-accent, …)`.
+  // The light cluster label keeps the same decorative hairline. Tool bursts
+  // now lift with a diffuse shadow, so they no longer need ring exemptions.
   ':root[data-color-scheme="light"] .cluster-label:hover',
-  ':root[data-color-scheme="light"] .tool-burst.clickable:hover',
 ]);
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:

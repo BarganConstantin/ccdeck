@@ -233,12 +233,37 @@ export function costAtSpeed(
   const rates = ratesForModel(modelId, now, speed);
   if (!rates) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 
-  const input      = usdAt(billedInputTokens(usage, modelId, now), rates.input);
-  const output     = usdAt(usage.outputTokens, rates.output);
-  const cacheRead  = usdAt(usage.cacheReadTokens, rates.cacheRead);
-  const cw = cacheWriteBreakdown(usage, rates);
-  const cacheWrite = cw.usd5m + cw.usd1h;
-  return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
+  const out: CostBreakdown = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+  for (const share of contextShares(usage, modelId)) {
+    const u = share.usage;
+    const r = contextRates(rates, share.long);
+    out.input += usdAt(billedInputTokens(u, modelId, now), r.input);
+    out.output += usdAt(u.outputTokens, r.output);
+    out.cacheRead += usdAt(u.cacheReadTokens, r.cacheRead);
+    const cw = cacheWriteBreakdown(u, r);
+    out.cacheWrite += cw.usd5m + cw.usd1h;
+  }
+  out.total = out.input + out.output + out.cacheRead + out.cacheWrite;
+  return out;
+}
+
+/** Split only the request tier this build has a published rate for.
+ *  Missing tier evidence stays at base rates; never infer it from totals. */
+export function contextShares(usage: TokenUsage, modelId: string | undefined): Array<{ usage: TokenUsage; long: boolean }> {
+  if (!usage.longContext || !/^claude[-_]haiku[-_]5[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i.test(bareModelId(modelId ?? ""))) {
+    return [{ usage, long: false }];
+  }
+  const long = usage.longContext;
+  return [{ usage: withoutShares(usage, [long]), long: false }, { usage: long, long: true }];
+}
+
+export function contextRates(rates: ModelRates, long: boolean): ModelRates {
+  if (!long) return rates;
+  return {
+    input: rates.input * 5, output: rates.output * 5, cacheRead: rates.cacheRead * 5,
+    cacheWrite: rates.cacheWrite * 5,
+    ...(rates.cacheWrite1h === undefined ? {} : { cacheWrite1h: rates.cacheWrite1h * 5 }),
+  };
 }
 
 /** One speed's share of a usage object. */
@@ -281,6 +306,9 @@ function withoutShares(usage: TokenUsage, shares: readonly TokenUsage[]): TokenU
     out.cacheCreate5mTokens = less(u => u.cacheCreate5mTokens);
   }
   if (usage.reasoningOutputTokens !== undefined) out.reasoningOutputTokens = usage.reasoningOutputTokens;
+  if (usage.longContext) {
+    out.longContext = withoutShares(usage.longContext, shares.flatMap(u => u.longContext ? [u.longContext] : []));
+  }
   return out;
 }
 

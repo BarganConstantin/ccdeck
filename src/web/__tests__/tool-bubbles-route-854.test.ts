@@ -27,7 +27,7 @@ const shortcuts = read("../shortcuts.ts");
 
 describe("the bubbles stay decoration, and the keyboard has its own way in (#854)", () => {
   it("keeps the bubble layer out of the accessibility tree, and no bubble takes focus", () => {
-    expect(bursts).toMatch(/<div className="tool-bursts-layer" aria-hidden>/);
+    expect(bursts).toMatch(/<div className="tool-bursts-layer" aria-hidden(?:\s|>)/);
     const layer = bursts.slice(bursts.indexOf('className="tool-bursts-layer"'));
     expect(layer).not.toMatch(/tabIndex/);
     expect(layer).not.toMatch(/role="button"/);
