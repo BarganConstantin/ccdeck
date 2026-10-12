@@ -123,3 +123,25 @@ Representative secondary text contrast on the rendered default theme: header/dai
 First combined captures: `/tmp/ccdeck-radio-review/sections-pass-1/` and `/tmp/ccdeck-radio-review/section-details/`. Confirmation: `/tmp/ccdeck-radio-review/sections-final/`, `/tmp/ccdeck-radio-review/sections-final-controls/` and `/tmp/ccdeck-radio-review/section-edge-cases/`. Tested 1440×960, 1024×768, 900×600, 390×844, 320×568 and short 390×500. The missing-metadata case is deliberately simulated in an isolated fixture; the long-name case uses a genuine captured directory name. Native Audio with controlled WAV streams verifies one active stream, switching, volume/mute, failure/retry and background playback. Daily Play/Pause state and focus after details dismissal were verified separately.
 
 Final macOS TypeScript and production build passed; **283 tests across 13 relevant suites** passed, including companion integration. `git diff --check` passed. Existing large-chunk warning remains. Physical touch hardware, audio hardware output, Electron packaging and other browser engines were not tested in this pass. Changes are committed as separate map, playback, discovery, inspector, mobile-context and documentation slices; no push was requested.
+
+
+### Emil design engineering pass — October 12
+
+Read and applied the installed `emil-design-eng` skill across the header, persistent player, map controls/markers, inspector, discovery search/filters, daily station, collection tabs and saved station controls. Preserve the established composition and tokens; use immediate keyboard actions and restrained pointer feedback, with no list entrance animation or new motion dependency.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Native and custom search cancel icons | One custom clear action; focus returns to the field | Remove duplicate affordances and allow immediate typing. |
+| Mute/Unmute changes button width | Reserved 88px desktop / 80px narrow width | Keep volume and transport positions stable. |
+| Hover styles also activate on touch | Hover gated by fine pointer and hover support | Avoid sticky hover after tapping. |
+| Hover can replace the muted/playing accent | Persistent muted and playing indicators retain priority | Keep the playback state understandable under the pointer. |
+| Keyboard camera and detail transitions | Immediate camera updates and detail presentation | Frequent keyboard commands remain direct. |
+| Inconsistent press feedback | 140ms transform feedback with the skill's ease-out curve | Confirm pointer presses without animating layout or slowing keyboard navigation. |
+| Generic inspector entrance easing | Restrained 160ms custom ease-out | Match the existing modal's responsive feel. |
+| Directory limit footer repeats browsing guidance | Footer removed as requested | Leave more room for station results. |
+
+Two focused iterations: first inspect rendered desktop, search and narrow player states; then preserve the muted accent during hover, suppress marker transitions during keyboard input and restore pointer modality on wheel input. Confirmation screenshots: `/tmp/ccdeck-radio-review/emil-final/` and `/tmp/ccdeck-radio-review/emil-touch/`. The existing user screenshots provide the before evidence.
+
+Chromium checks passed for one visible search clear action, clearing/refocusing, exact unchanged button/slider/transport bounds after mute and unmute at 1440×960, 1024×768, 900×600, 390×844 and 320×568, immediate keyboard modal/map/inspector interaction, pointer press feedback and reduced motion. Emulated touch verifies no sticky play hover, station details dismissal, modal bounds, and native playback retained across close/reopen. Repeated the map focus workflow across all six regions, mouse click/pan/wheel/double-click, genuine Tab navigation, keyboard pan/zoom, details/cluster focus restoration and emulated multi-touch at narrow/short sizes.
+
+Final TypeScript and production build passed. **255 tests across 10 relevant Radio/FM/modal/rail suites passed**, and `git diff --check` passed. The existing build chunk-size warning remains. Browser playback uses controlled WAV streams with captured real station metadata; this verifies UI and shared playback behavior, not broadcaster availability or audio hardware output. Physical touch hardware and other browser engines were not tested. Each correction is a separate local commit.

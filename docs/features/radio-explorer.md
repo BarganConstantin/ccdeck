@@ -27,3 +27,8 @@ Run the backend on an available port, for example `AGENT_DAG_PORT=4386 node src/
 The radio directory and library suites cover mirror failover, bounded queries, safe station normalization, metadata restore, favorites/recent storage and daily/random selection. Existing player and modal suites cover compatibility with the canvas. Browser verification uses native audio fixtures to check switching, one active player, retry, pause/resume, volume/mute, persistence without autoplay, filtering, errors and responsive bounds. Map geometry tests cover camera bounds, anchored zoom, clusters, coincident points and missing coordinates. See [redesign audit and validation](radio-redesign-review.md) for captured screenshots, technical findings and limits of the checks.
 
 Station passport, listening statistics, song recognition and richer collections are outside this first version.
+
+
+### Interaction refinement
+
+The search field keeps one clear action and returns focus to typing when cleared. Mute/Unmute reserves its width, including narrow windows, to keep volume and transport controls stationary. Hover feedback applies to precise pointers; selected, playing and muted states remain persistent. Keyboard camera and inspector actions respond immediately. Pointer press feedback uses short transform transitions and respects reduced motion. Discovery results retain their count above the list; the redundant limit footer is removed.
