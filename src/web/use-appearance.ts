@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
+import { CHARACTER_KEY, storedCharacter, type Character } from "./character";
 import { type MinimapNode, minimapNodeColor } from "./minimap";
 import { type Palette, paletteReader, readPalette, samePalette } from "./palette";
 import { writeStored } from "./storage";
@@ -42,6 +43,7 @@ export function useAppearance() {
   // won't hand over blanks the deck instead of costing a preference.
   const [theme, setTheme] = useState<Theme>(storedTheme);
   const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
+  const [character, setCharacter] = useState<Character>(storedCharacter);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -90,6 +92,10 @@ export function useAppearance() {
     writeStored(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0");
   }, [characterEnabled]);
 
+  useEffect(() => {
+    writeStored(CHARACTER_KEY, character);
+  }, [character]);
+
   /**
    * The window's own title bar, which only an INSTALLED deck has.
    *
@@ -118,5 +124,5 @@ export function useAppearance() {
     if (bar && panel) bar.setAttribute("content", panel);
   }, [palette]);
 
-  return { theme, setTheme, characterEnabled, setCharacterEnabled, palette, minimapNodeFill };
+  return { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter, palette, minimapNodeFill };
 }

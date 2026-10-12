@@ -68,7 +68,7 @@ export default function SettingsModal({
     if (focusedTabToFollow(document.activeElement?.id, section)) selectedTabRef.current?.focus();
   }, [section]);
 
-  const { theme, setTheme, characterEnabled, setCharacterEnabled } = appearance;
+  const { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter } = appearance;
   const singleKeys = useSingleKeyShortcuts();
 
   const moveSection = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -153,6 +153,8 @@ export default function SettingsModal({
         return (
           <MusicSection
             characterEnabled={characterEnabled}
+            character={character}
+            onCharacter={setCharacter}
             onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
             fmVolume={fmVolume}
             onFmVolume={setFmVolume}

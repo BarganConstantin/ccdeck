@@ -226,6 +226,7 @@ export default function BoardFlow({
           so on a deck with no network this is nothing at all. */}
       {characterEnabled && (
         <ClaudeFm
+          character={appearance.character}
           volume={fmVolume}
           muted={fmMuted}
           source={fmSource}
