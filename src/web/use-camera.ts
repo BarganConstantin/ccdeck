@@ -186,16 +186,26 @@ export function useCamera() {
       const vp = rf.getViewport();
       if (!Number.isFinite(vp.zoom) || vp.zoom <= 0) return;
 
-      // Screen rects back through the current viewport into flow space, so
-      // this works from any starting zoom and never consults the node store —
-      // which also holds the invisible per-session drag handles.
-      const fx = (sx: number) => (sx - paneRect.left - vp.x) / vp.zoom;
-      const fy = (sy: number) => (sy - paneRect.top - vp.y) / vp.zoom;
-      const rects = drawn.map(el => el.getBoundingClientRect());
-      const minX = Math.min(...rects.map(r => fx(r.left)));
-      const maxX = Math.max(...rects.map(r => fx(r.right)));
-      const minY = Math.min(...rects.map(r => fy(r.top)));
-      const maxY = Math.max(...rects.map(r => fy(r.bottom)));
+      // Fit where the nodes are GOING, not a frame of their CSS transition.
+      // R fits after 80ms, while node transforms ease for 320ms; measuring
+      // screen rectangles then frames the old/intermediate arrangement and
+      // leaves the final nodes under a side panel. Keep the DOM visibility
+      // filter, but pair its unscaled dimensions with the store's targets.
+      const targets = new Map(rf.getNodes().map(n => [n.id, n]));
+      const rects = drawn.flatMap(el => {
+        const node = targets.get((el as HTMLElement).dataset.id ?? "");
+        if (!node) return [];
+        const pos = node.positionAbsolute ?? node.position;
+        const width = node.width ?? (el as HTMLElement).offsetWidth;
+        const height = node.height ?? (el as HTMLElement).offsetHeight;
+        if (!(width > 0 && height > 0)) return [];
+        return [{ left: pos.x, right: pos.x + width, top: pos.y, bottom: pos.y + height }];
+      });
+      if (rects.length === 0) return;
+      const minX = Math.min(...rects.map(r => r.left));
+      const maxX = Math.max(...rects.map(r => r.right));
+      const minY = Math.min(...rects.map(r => r.top));
+      const maxY = Math.max(...rects.map(r => r.bottom));
       const w = maxX - minX, h = maxY - minY;
       if (!(w > 0 && h > 0)) return;
 
