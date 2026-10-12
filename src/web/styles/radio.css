@@ -76,7 +76,7 @@
 .radio-map-tools { position: absolute; top: 12px; right: 0; display: flex; flex-direction: column; gap: 5px; }
 .radio-map-tools .btn { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; background: var(--panel); border: 1px solid var(--line); font-size: 18px; }
 .radio-map-help { font-size: 10px; color: var(--text-secondary); padding: 9px 0 12px; margin: 0; flex: none; }
-.radio-inspector { position: absolute; left: 0; bottom: 34px; width: min(310px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 10px; animation: radioDetails 160ms ease-out; }
+.radio-inspector { position: absolute; left: 0; bottom: 12px; width: min(310px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 10px; animation: radioDetails 160ms ease-out; }
 .radio-inspector-title { display: flex; align-items: center; gap: 6px; }
 .radio-inspector-title > div { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
 .radio-inspector-title strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-box-orient: vertical; }
@@ -204,7 +204,7 @@
   .radio-map-heading { margin-bottom: 6px; }
   .radio-map-heading .radio-eyebrow { display: none; }
   .radio-map-help { padding-block: 6px; }
-  .radio-inspector { padding: 8px; }
+.radio-inspector { position: absolute; left: 0; bottom: 12px; width: min(310px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 10px; animation: radioDetails 160ms ease-out; }
   .radio-inspector-actions { margin-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { .radio-panel, .radio-inspector, .radio-cluster-preview { animation: none; } .radio-pin-dot, .radio-controls > .btn { transition: none; } }
@@ -227,7 +227,7 @@
 .radio-station-information p { margin: 0 0 8px; line-height: 1.5; overflow-wrap: anywhere; }
 .radio-station-information .btn { display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .radio-station-information svg { width: 14px; }
-.radio-inspector-restore { position: absolute; bottom: 34px; left: 0; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 44px); background: var(--panel); }
+.radio-inspector-restore { position: absolute; bottom: 12px; left: 0; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 44px); background: var(--panel); }
 .radio-inspector-restore span { color: var(--text-secondary); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .radio-pin:focus-visible .radio-pin-dot { fill: var(--text); stroke: var(--accent); stroke-width: 2px; }
 .radio-pin.clustered:focus-visible text { fill: var(--bg); }
@@ -235,10 +235,10 @@
   .radio-map { display: flex; flex-direction: column; gap: 6px; }
   .radio-map-canvas { flex: 1; height: 0; min-height: 0; }
   .radio-inspector, .radio-inspector-restore { position: static; width: 100%; max-width: none; flex: none; box-shadow: none; animation: none; }
-  .radio-inspector { padding: 8px; }
+.radio-inspector { position: absolute; left: 0; bottom: 12px; width: min(310px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 10px; animation: radioDetails 160ms ease-out; }
   .radio-inspector-title .icon-btn, .radio-inspector-actions .icon-btn { min-width: 44px; width: 44px; height: 44px; }
   .radio-inspector-actions .btn { min-height: 44px; }
-  .radio-inspector-restore { min-height: 44px; }
+.radio-inspector-restore { position: absolute; bottom: 12px; left: 0; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 44px); background: var(--panel); }
   .radio-discovery > .radio-inspector, .radio-discovery > .radio-inspector-restore { margin-block: 6px; }
   .radio-map-tools .btn { width: 44px; height: 44px; }
   .radio-station .icon-btn { min-width: 44px; width: 44px; height: 44px; }
