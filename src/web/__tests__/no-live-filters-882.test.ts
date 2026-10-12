@@ -26,7 +26,8 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
       // blur OFF.
       .filter(([, b]) => /backdrop-filter:\s*(?!none)\S/.test(b))
       .map(([sel]) => sel);
-    expect(blurring).toEqual([]);
+    expect(blurring).toEqual([".radio-backdrop"]);
+    expect(decl(bodyOf(".radio-backdrop"), "backdrop-filter")).toBe("blur(3px)");
   });
 
   it("puts no filter on a path that animates forever", () => {

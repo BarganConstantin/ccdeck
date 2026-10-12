@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { containPopoverKeys } from "../shortcuts";
 import { useModalDismiss } from "./use-modal-dismiss";
 import RadioIcon from "./RadioIcon";
@@ -23,9 +23,9 @@ export default function RadioLoading({ opening = false }: { opening?: boolean })
 }
 
 export function RadioOpening({ onClose }: { onClose: () => void }) {
-  const keyboardOpened = useRef(document.activeElement?.matches(":focus-visible") ?? false);
+  const [keyboardOpened] = useState(() => document.activeElement?.matches(":focus-visible") ?? false);
   const dialog = useModalDismiss(onClose);
-  return <div ref={dialog} className="radio-loading nodrag nopan" role="dialog" aria-modal="true" aria-label="Opening Radio" data-keyboard-interaction={keyboardOpened.current || undefined} onKeyDown={containPopoverKeys}>
+  return <div ref={dialog} className="radio-loading nodrag nopan" role="dialog" aria-modal="true" aria-label="Opening Radio" data-keyboard-interaction={keyboardOpened || undefined} onKeyDown={containPopoverKeys}>
     <button type="button" className="icon-btn" aria-label="Close radio" onClick={onClose}><RadioIcon name="close" /></button>
     <RadioLoading opening />
   </div>;

@@ -49,6 +49,7 @@ const html = (theme: Theme) => el("html", [], { states: ["root"], attrs: { "data
 /** Every select the deck renders, by the file that renders it, as the sheet
  *  sees it: its ancestors' classes, then its own. */
 const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
+  "components/RadioPanel.tsx": ["country", "sound"].map(name => ({ name: `Radio ${name}`, chain: [el("body"), el("div", ["radio-panel"]), el("section", ["radio-discovery"]), el("div", ["radio-filters"]), el("label"), el("select")] })),
   "components/RadarSelect.tsx": [{ name: "Radar filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] }],
   "components/ToneSection.tsx": [{
     name: "a tone's figure",

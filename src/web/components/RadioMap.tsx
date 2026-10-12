@@ -96,7 +96,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
     <div className="radio-map-heading">
       <h3>Map view · {region || "Custom"}</h3>
       <div className="radio-regions" role="group" aria-label="Map view, results stay unchanged">
-        {regions.map(place => <button key={place.name} type="button" aria-pressed={region === place.name} onClick={() => { setRegion(place.name); setCluster(null); moveCamera(place, true); }}>{place.name}</button>)}
+        {regions.map(place => <button className="radio-region" key={place.name} type="button" aria-pressed={region === place.name} onClick={() => { setRegion(place.name); setCluster(null); moveCamera(place, true); }}>{place.name}</button>)}
       </div>
       <span title="Only results with directory coordinates can be plotted. Positions may be approximate. Selected and current stations stay pinned when filters exclude them.">{mapped.length} of {stations.length} have locations{pinnedCount > 0 && <small>+ {pinnedCount} selected/current outside results</small>}</span>
     </div>
@@ -145,8 +145,8 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
           </g>;
         })}</g>
       </svg>
-      <div className="radio-map-tools" role="group" aria-label="Map zoom"><button className="btn" type="button" aria-label="Zoom map in" onClick={() => changeZoom(1.5)} disabled={view.zoom >= MAX_RADIO_ZOOM}>+</button><button className="btn" type="button" aria-label="Zoom map out" onClick={() => changeZoom(1 / 1.5)} disabled={view.zoom <= 1}>−</button></div>
-      {cluster && <div className="radio-cluster-preview"><header><strong>{cluster.length} nearby stations</strong><button type="button" className="icon-btn" aria-label="Close nearby stations" onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button key={station.id} type="button" onClick={() => { setCluster(null); onInspect(station); }}>{station.name}<span>{station.radio.country}</span></button>)}</div></div>}
+      <div className="radio-map-tools" role="group" aria-label="Map zoom"><button className="btn radio-map-button" type="button" aria-label="Zoom map in" onClick={() => changeZoom(1.5)} disabled={view.zoom >= MAX_RADIO_ZOOM}>+</button><button className="btn radio-map-button" type="button" aria-label="Zoom map out" onClick={() => changeZoom(1 / 1.5)} disabled={view.zoom <= 1}>−</button></div>
+      {cluster && <div className="radio-cluster-preview"><header><strong>{cluster.length} nearby stations</strong><button type="button" className="icon-btn" aria-label="Close nearby stations" onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button className="radio-cluster-station" key={station.id} type="button" onClick={() => { setCluster(null); onInspect(station); }}>{station.name}<span>{station.radio.country}</span></button>)}</div></div>}
       {!cluster && children}
     </div>
     <p id="radio-map-help" className="radio-map-help">Map view doesn’t filter stations. Drag or zoom to explore. <span className="vis-hidden">With the map focused, arrow keys pan, plus and minus zoom, and Home resets the view. Use the station list as a keyboard alternative.</span></p>
