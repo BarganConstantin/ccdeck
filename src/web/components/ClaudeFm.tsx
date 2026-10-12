@@ -49,7 +49,8 @@ import {
 } from "../fm-stations";
 import { useFmPlayer } from "../use-fm-player";
 import { useFmScene } from "../use-fm-scene";
-import FmSprite from "./FmSprite";
+import CharacterSprite from "./CharacterSprite";
+import type { Character } from "../character";
 
 const SOURCE_LABEL: Record<FmSource, string> = {
   "claude-fm": "Claude FM",
@@ -98,10 +99,11 @@ function streamHost(url: string): string {
 
 export default memo(
   function ClaudeFm({
-    fetchImpl, volume, muted = false, source = "claude-fm", playRequest = 0, customStation, onAvailabilityChange,
+    fetchImpl, volume, muted = false, source = "claude-fm", playRequest = 0, customStation, onAvailabilityChange, character = "deck",
   }: {
     fetchImpl?: typeof fetch;
     volume: number;
+    character?: Character;
     muted?: boolean;
     source?: FmSelection;
     /** Bumped by App each time somebody PICKS a station. A change of `source`
@@ -227,7 +229,7 @@ export default memo(
           title={playing ? `Stop ${label}` : `Play ${label} — streams from ${from}`}
           aria-label={playing ? `Stop ${label}` : `Play ${label}`}
         >
-          <FmSprite act={act} facing={facing} />
+          <CharacterSprite character={character} act={act} facing={facing} />
         </button>
         </div>
         {armed && !probe.audio && (probe.channel || probe.video) && (

@@ -1049,3 +1049,23 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
   margin-right: 7px;
 }
 
+
+/* Character choices are a compact preview strip within the existing group. */
+.character-picker { display: flex; gap: 8px; margin-top: 12px; }
+.character-choice {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+  padding: 10px; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); background: var(--panel); font: inherit; text-align: left; cursor: pointer;
+}
+.character-choice:hover { background: var(--ctl-fill); }
+.character-choice[aria-checked="true"] { border-color: var(--accent); }
+.character-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.character-preview { display: block; flex: 0 0 36px; width: 36px; height: 32px; }
+.character-preview svg { width: 36px; height: 28px; overflow: visible; }
+.character-check { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; visibility: hidden; }
+.character-choice[aria-checked="true"] .character-check { visibility: visible; }
+.character-preview :is(.fm-body, .fm-leg) { fill: var(--pixel-character-body, var(--accent)); }
+.character-preview .fm-eye { fill: var(--text); }
+@media (max-width: 420px) {
+  .character-picker { flex-direction: column; }
+}
