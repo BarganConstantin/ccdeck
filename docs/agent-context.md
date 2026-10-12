@@ -1,7 +1,18 @@
 # Owner's ccdeck work — continuation context
 
-Updated: 2026-10-09. This is a handoff, not a claim that processes or remote
+Updated: 2026-10-12. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
+
+## Current Linux preview — 2026-10-12
+
+- Primary checkout: `/home/constantin/Desktop/personal/ccdeck`, on `development`.
+- Published `main` and `development` are synchronized at 3.40.2.
+- Country-flag fix preview: `/home/constantin/Desktop/personal/ccdeck-wt/radio-svg-flags`,
+  branch `fix/radio-svg-flags`, targeting `development` by PR.
+- Vite runs at `http://localhost:5174/`, proxying this worktree's backend on 4318
+  (`CCDECK_DEV_SERVER_PORT=4318`, `AGENT_DAG_PORT=4318`). Keep the installed
+  desktop app on 4317 separate. Inspect processes before restarting anything.
+- The paths and release state below describe earlier work on the Mac.
 
 ## Checkout and running app
 

@@ -28,6 +28,13 @@ describe("radio favorite indicators", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it("draws the same country image in the player and station row", () => {
+    const html = renderToStaticMarkup(createElement(Panel, { saved: false }));
+    const flags = [...html.matchAll(/<img\b[^>]*class="radio-country-flag"[^>]*>/g)];
+    expect(flags).toHaveLength(2);
+    for (const [flag] of flags) expect(flag).toContain("/radio-flags/md.svg");
+  });
+
   it("styles both the current station and the list heart for each saved state", () => {
     for (const saved of [false, true, false]) {
       const html = renderToStaticMarkup(createElement(Panel, { saved }));
