@@ -10,7 +10,8 @@ retains the selected character when the companion is hidden.
 
 The requested inspiration was [Pixelots on Reddit](https://www.reddit.com/r/ShowYourProduct/comments/1x2dk3v/app_pixelots_virtual_pet_on_screen/)
 and the supplied orange pixel fox screenshots. The fox here is original artwork,
-with an amber coat, cream muzzle and belly, pointed ears, tail, and a rust hat.
+with an amber coat, cream muzzle and belly, pointed ears, and a tail. The fox
+wears no hat; its headphones appear during music playback.
 It uses fitted fox headphones and ccdeck's existing scene props. No Pixelots assets are
 bundled.
 
@@ -49,9 +50,9 @@ real stylesheet and confirms their computed limb colors remain amber, including
 the darker far seated leg. Independent final review approved the change after
 fixing the shared CSS overrides on these pose groups.
 
-The fox has fitted accessories that keep both ears visible. Its tail is clipped
+The fox has fitted headphones that keep both ears visible. Its tail is clipped
 into a separate body group, including rectangle runs crossing the hip boundary;
 it never belongs to the stepping legs and remains visible in seated poses.
 The corrected artwork was inspected in dark and light browser galleries with
-hat/headphones and idle, walk, seated and climbing poses. Three moving samples
+idle/headphones and idle, walk, seated and climbing poses. Three moving samples
 confirm that the tail shares the body's transform and no leg extends into it.

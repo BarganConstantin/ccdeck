@@ -17,12 +17,7 @@ export const FOX: readonly string[] = [
   "......oo..oo......",
 ];
 
-// Accessories fit between/around the ears rather than covering the silhouette.
-export const FOX_HAT: readonly string[] = [
-  "..hhhh..",
-  "..hkkh..",
-  ".hhhhhh.",
-];
+// Headphones fit around the ears rather than covering the silhouette.
 export const FOX_GEAR: readonly string[] = [
   ".....aaaaaaa......",
   "...aa.......aa....",

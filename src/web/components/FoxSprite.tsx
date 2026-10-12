@@ -1,6 +1,6 @@
 import { memo } from "react";
 import type { Act, Facing } from "../claude-fm";
-import { FOX, FOX_GEAR, FOX_HAT } from "../fox-sprite";
+import { FOX, FOX_GEAR } from "../fox-sprite";
 import { spriteRects, type SpriteRect } from "../claude-fm-sprite";
 
 const FILLS: Record<string, string> = {
@@ -9,7 +9,6 @@ const FILLS: Record<string, string> = {
 const GEAR_CLASSES: Record<string, string | undefined> = { p: "fm-pad" };
 const RECTS = spriteRects(FOX);
 const GEAR = spriteRects(FOX_GEAR);
-const HAT_RECTS = spriteRects(FOX_HAT);
 // A run can cross a part boundary. Clip it rather than assigning the whole
 // run by its starting column, which made the tail base walk with the feet.
 function clip(rects: SpriteRect[], left: number, right: number): SpriteRect[] {
@@ -49,10 +48,6 @@ export default memo(function FoxSprite({ act, facing }: { act: Act | null; facin
       </g>
       {EYES.map(r => <rect key={`e${r.x}`} x={r.x + (facing === "right" ? 1 : 0) - (r.x >= 9 ? 1 : 0)}
         y={r.y} width={r.w} height={1} className="fm-eye" style={{ fill: FILLS.n }} />)}
-    </g>
-    <g className="fm-hat">
-      {HAT_RECTS.map(r => <rect key={`h${r.y}-${r.x}`} x={5 + r.x} y={r.y}
-        width={r.w} height={1} fill={r.cell === "k" ? "#63351e" : "#bf5738"} />)}
     </g>
     {grips && <g className="fm-grip" style={{ fill: FILLS.f }}>
       <path className="fm-grip-left" d="M5 9H4V4H7V3H9V5H6V9Z" />
