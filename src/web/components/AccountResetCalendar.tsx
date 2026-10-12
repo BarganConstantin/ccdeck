@@ -58,7 +58,7 @@ export default function AccountResetCalendar({ accounts, nowSec, held }: {
       <h3>Weekly resets</h3>
       <p>Today and the next six days · {zone}</p>
     </div>
-    <ol className="ap-reset-week" aria-label="Seven-day reset counts">
+    <ol className="ap-reset-week" role="list" aria-label="Seven-day reset counts">
       {days.map((day, i) => <li key={day.key} data-today={i === 0 ? "" : undefined}>
         <time dateTime={day.key} title={fullDate(day.date)}>
           <span className="ap-reset-weekday">{i === 0 ? `Today · ${weekday(day.date)}` : weekday(day.date)}</span>

@@ -379,6 +379,8 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // assertions above are what enforce that, and they still run.
     const withH4 = BUNDLE.filter(([, src]) => /<h4[\s>]/.test(src)).map(([name]) => name).sort();
     expect(withH4).toEqual([
+      // Weekly resets is an h3 within Account capacity; its day groups are h4.
+      "components/AccountResetCalendar.tsx",
       "components/AddAccountDialog.tsx",
       // Browser Watch's sections, lifted out of BrowserWatchModal.tsx and still
       // rendered inside its dialog: their <h4>s are the dialog's, and the

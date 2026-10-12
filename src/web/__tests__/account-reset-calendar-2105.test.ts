@@ -119,7 +119,11 @@ describe("reset calendar content", () => {
   it("shows names, local times, weekly usage and seven explicit daily totals", () => {
     const output = html([account(1, at(13, 9, 27), { alias: "Work account" })]);
     expect(output).toContain("Work account");
-    expect(output).toContain("9:27 AM EDT");
+    // Windows may use en-GB: the same local instant is "09:27 GMT-4".
+    const localTime = new Date("2026-10-13T13:27:00Z").toLocaleTimeString(undefined, {
+      hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    });
+    expect(output).toContain(localTime);
     expect(output).toContain("60% used");
     expect(output).toContain('dateTime="2026-10-13T13:27:00.000Z"');
     expect(output.match(/class="ap-reset-count"/g)).toHaveLength(7);
