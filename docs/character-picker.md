@@ -1,6 +1,6 @@
 # Selectable canvas companion
 
-Settings → Music & character now offers Deck companion and Fox with previews.
+Settings → Music & character offers Deck companion, Fox and Penguin with previews.
 The existing companion remains the default. Selection applies immediately and
 persists in browser storage under `agent-dag.character`; missing, unsupported,
 or inaccessible storage falls back to Deck companion. The visibility switch
@@ -56,3 +56,21 @@ it never belongs to the stepping legs and remains visible in seated poses.
 The corrected artwork was inspected in dark and light browser galleries with
 idle/headphones and idle, walk, seated and climbing poses. Three moving samples
 confirm that the tail shares the body's transform and no leg extends into it.
+
+## Penguin
+
+Penguin adds an original rounded slate silhouette, cream face and belly,
+amber beak and short webbed feet. It wears no hat and uses the existing
+headphone exchange during music playback. Flippers share the existing wave and
+grip animations; the raised pose leaves the eyes and beak visible. Its seated
+feet remain inside the 18 × 14 grid instead of extending below the sprite.
+
+The third choice uses the same stored preference and scene lifecycle. The
+selector wraps when the settings pane cannot fit three choices. Browser checks
+pass in dark/light themes at 1280, 900, 700, 500, 390 and 320 pixel widths,
+including keyboard wraparound, Home/End, reload persistence, visibility retention
+and the 54 × 42 canvas footprint. Motion galleries cover idle, walking, seated
+and climbing poses, with and without headphones. Live audio playback was not
+exercised by these isolated checks.
+An additional 32-frame browser check tests the animated climbing paths against
+the eye and beak centers, confirming that the raised flippers leave them visible.
