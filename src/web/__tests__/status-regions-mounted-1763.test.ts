@@ -31,7 +31,6 @@ const readouts = (notifySaid: Said) => renderToStaticMarkup(createElement(Readou
   welcome: { chipVersion: null, openReleaseNotes: () => {} },
   desktopUpdate: { readyAppUpdate: null },
   pause: { paused: false, pauseGate: { size: 0, dropped: 0 } },
-  monthly: { monthlyUsage: null, monthlyUsageUnavailable: false, monthUsageRef: { current: null } },
   announcements: { blockedSaid: "", watchSaid: "", incidentSaid: "" },
   notify: { notifySaid },
   waitingSessions: [],

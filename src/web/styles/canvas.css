@@ -161,6 +161,103 @@
 .autofit-state { white-space: nowrap; }
 .autofit-resume:active { transform: scale(0.97); }
 
+/* Re-arrange's way back (rearrange-undo.ts): for a few seconds after R the
+   canvas offers the board it replaced. The auto-fit chip's strip, because it
+   is the same kind of thing — a state in words and the one action that
+   answers it — on the same surface, edge, radius and type, bottom centre.
+   Above the chip when both are up, which is the usual case: a board arranged
+   by hand is a board auto-fit has stood down on. The chip is 30px tall (2px
+   of padding twice, Resume's 24px, a 1px edge twice), and the strip sits 8px
+   over it; if the chip comes or goes under it, it travels there on the curve
+   it arrived on rather than jumping — a transform, so nothing is laid out. */
+.rearrange-undo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 6;
+  width: max-content;
+  max-width: calc(100% - 28px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 2px 10px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
+  background: var(--chrome-bg);
+  color: var(--muted);
+  font-size: 11px;
+  animation: rearrangeUndoIn 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.autofit-chip ~ .rearrange-undo { transform: translateY(-38px); }
+/* Out quicker than it came in, and deaf to a press on the way: the offer has
+   already ended by the time this runs. */
+.rearrange-undo.leaving {
+  animation: rearrangeUndoOut 140ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  pointer-events: none;
+}
+.rearrange-undo-state { white-space: nowrap; }
+/* Undo: Resume's word — the foreground at the weight the status is not, the
+   control fill under the pointer, no accent and no box of its own. */
+.rearrange-undo-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--r-tag);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.rearrange-undo-act:hover { background: var(--ctl-fill); }
+.rearrange-undo-act:active { transform: scale(0.97); }
+/* The chord, beside the word it presses, a step quieter than the word. The
+   pointer lifts it to the foreground with the word, as it lifts a category
+   chip: on the hover fill --muted comes to 4.23:1 in dark, and the weight
+   still tells the key from the action. */
+.rearrange-undo-key { color: var(--muted); font-weight: 400; }
+.rearrange-undo-act:hover .rearrange-undo-key { color: var(--text); }
+/* Both words sit flush in a strip whose edge is 2px away: the ring goes
+   inside the word's own box, as it does for the other controls set flush in
+   a container, instead of landing on the strip's edge as a second box. */
+.rearrange-undo-act:focus-visible,
+.autofit-resume:focus-visible { outline-offset: -2px; }
+@keyframes rearrangeUndoIn {
+  from { opacity: 0; translate: 0 6px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes rearrangeUndoOut {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 0 4px; }
+}
+@keyframes rearrangeUndoFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rearrangeUndoFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+/* No slide under reduced motion, in or out, and no travel when the chip comes
+   or goes: the strip fades where it stands, which says it arrived and left
+   without moving anything. */
+@media (prefers-reduced-motion: reduce) {
+  .rearrange-undo {
+    animation: rearrangeUndoFadeIn 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
+    transition: none;
+  }
+  .rearrange-undo.leaving { animation: rearrangeUndoFadeOut 140ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+}
+
 /* Filter chips above the canvas — small toolbar lets you toggle entire
    tool categories on/off when the canvas gets busy. Only appears when
    ≥2 categories are present, so a single-tool session stays uncluttered. */

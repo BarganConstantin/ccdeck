@@ -121,7 +121,10 @@ function statusTooltip(s: SessionNote): string {
   return [s.text, s.reply ? `Suggested reply: ${s.reply}` : "", noteSource(s)].filter(Boolean).join("\n");
 }
 
-function elapsedShort(start: number, end: number | undefined, now: number): string {
+/** "<1s" / "42s" / "3m" / "1h 15m": the compact clock a row prints, which the
+ *  topbar's waiting queue prints too, so a name there and its row here say
+ *  the same wait. */
+export function elapsedShort(start: number, end: number | undefined, now: number): string {
   const ms = (end ?? now) - start;
   if (ms < 1000) return "<1s";
   const s = Math.floor(ms / 1000);

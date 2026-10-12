@@ -388,11 +388,15 @@ describe("the height of a button", () => {
     expect(TOKENS["--ctl-h"]).toBeDefined();
     expect(px(TOKENS["--ctl-h"])).toBe(30);
     expect(decl("button.btn", "min-height")).toBe("var(--ctl-h)");
-    expect(decl("button.btn.icon-btn", "width")).toBe("var(--ctl-h)");
-    expect(decl("button.btn.icon-btn", "height")).toBe("var(--ctl-h)");
+    // The square icon button that wrote it twice left with the topbar's panel
+    // toggles (2026-10-08). The controls the bar holds now — Settings and
+    // Feedback — stand at the token, and a stripe on the window's edge is one
+    // of them turned on its side, the token wide.
+    expect(decl(".rail-btn-bar", "height")).toBe("var(--ctl-h)");
+    expect(TOKENS["--edge-w"]).toBe("var(--ctl-h)");
   });
 
-  it("is the same for a text button and an icon button, by arithmetic", () => {
+  it("is the same for a text button and the bar's own controls, by arithmetic", () => {
     // What the browser does, done here. The text button's box is its line box
     // plus its vertical padding plus its two borders; the icon button's is the
     // token. They came to 31.4 and 30.0, which is the step the topbar drew four
@@ -404,7 +408,7 @@ describe("the height of a button", () => {
     const border = px(splitTop(decl("button.btn", "border")!)[0]);
     const textHeight = Math.max(px(TOKENS["--ctl-h"]), font * ratio + padTop + padBottom + 2 * border);
     expect(textHeight).toBe(px(TOKENS["--ctl-h"]));
-    expect(px(decl("button.btn.icon-btn", "height"))).toBe(px(TOKENS["--ctl-h"]));
+    expect(decl(".rail-btn-bar", "height")).toBe("var(--ctl-h)");
   });
 
   it("has room to spare, so a wider default font cannot reopen the step", () => {
@@ -423,20 +427,30 @@ describe("the height of a button", () => {
   it("centres the label in a box whose height the label no longer sets", () => {
     expect(decl("button.btn", "display")).toBe("inline-flex");
     expect(decl("button.btn", "align-items")).toBe("center");
-    // And the icon button no longer repeats them: it is this control with its
-    // width pinned to its height, and that is all it has left to say.
-    expect(declIn(bodyOf("button.btn.icon-btn"), "display")).toBeNull();
-    expect(declIn(bodyOf("button.btn.icon-btn"), "align-items")).toBeNull();
+    // And the chrome's own control, on the bar, the stripes and the dock.
+    expect(decl(".rail-btn", "display")).toBe("inline-flex");
+    expect(decl(".rail-btn", "align-items")).toBe("center");
   });
+
+  /** Buttons that do stand at a second height, each named with its reason.
+   *  This list was empty only because the sweep used to measure every `.btn`
+   *  rule against `button.btn.icon-btn`'s weight, which a button that never
+   *  wore `.icon-btn` cannot borrow: the network map's Open was 24px all along.
+   *  It is a compact verb at the end of a dense row of the map, under the 24px
+   *  floor's own number, and is named here rather than excused by arithmetic
+   *  that did not apply to it. */
+  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open"]);
 
   it("cannot be overridden into a second height by a rule further down", () => {
     // The height has to be unreachable, not merely stated. Any rule that sizes
     // an element carrying `.btn` either uses the token or loses the cascade to
-    // `button.btn.icon-btn` — which is how `.session-list .sl-close`'s 26px and
-    // `.up-close`'s padding have always been decided, though neither rule says
-    // so. A per-button size that actually applied would put a second height
-    // back in the sheet.
-    const winner = specificity("button.btn.icon-btn");
+    // `button.btn` — which is how `.session-list .sl-close`'s 26px and
+    // `.up-close`'s padding were decided, though neither rule says so, while
+    // they wore `btn icon-btn`; `button.btn.icon-btn` left the sheet with the
+    // topbar's panel buttons (2026-10-08), so the floor is `button.btn`'s. A
+    // per-button size that actually applied would put a second height back in
+    // the sheet.
+    const winner = specificity("button.btn");
     const escapes: string[] = [];
     for (const rule of RULES) {
       for (const sel of selectors(rule.selector)) {
@@ -444,9 +458,13 @@ describe("the height of a button", () => {
         // A pseudo-element is a box of its own drawn inside the button (an open
         // panel's line is 2px tall), not a second height for the button.
         if (/::(?:before|after)$/.test(subject)) continue;
-        const carriesBtn = /\.(btn|icon-btn)\b/.test(subject)
-          || /\.(sl-close|up-close|ap-add|ap-refresh|ap-switch|uh-retry|uh-reload|up-refresh-btn|hero-action-btn)\b/.test(subject);
+        // `.sl-close` and `.up-close` were named here while they wore `btn
+        // icon-btn`; both are `.glyph-btn` now, a bare glyph with no box, so
+        // they are not a `.btn` and not this rule's.
+        const carriesBtn = /\.btn\b/.test(subject)
+          || /\.(ap-add|ap-refresh|ap-switch|uh-retry|uh-reload|up-refresh-btn|hero-action-btn)\b/.test(subject);
         if (!carriesBtn) continue;
+        if (KNOWN_SECOND_HEIGHTS.has(sel)) continue;
         for (const prop of ["height", "min-height", "max-height"]) {
           const value = declIn(rule.body, prop);
           if (value === null || value === "var(--ctl-h)") continue;

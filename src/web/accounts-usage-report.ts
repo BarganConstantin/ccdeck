@@ -25,7 +25,8 @@
 //   - nothing collected for a quarter of an hour — the server's `stale`, and
 //     this page's own clock against the reading's time, because the server's
 //     flag is only as fresh as the last poll that reached it;
-//   - a window whose reset has passed since it was read.
+//   - a window whose reset has passed since it was read, however old the
+//     reading — the row says it reset, and the total takes it as unused.
 //
 // AND AN AVERAGE PER WINDOW CANNOT SAY WHICH WINDOW HOLDS AN ACCOUNT BACK. An
 // account at 12% of its 5 hours and 100% of its week adds 88 points of "5h
@@ -62,6 +63,10 @@ export type Cell =
     estimate: number | null;
     /** Its reset, when the last reading had one still ahead. */
     resetAt: number | null;
+    /** Its reset, when it has passed since the last reading: what the row
+     *  says in place of that reading's number, which the totals no longer
+     *  take — "Reset 17h ago, 96% when read 18h ago". Null otherwise. */
+    reset: string | null;
   };
 
 export interface ReportRow {
@@ -167,28 +172,53 @@ export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
   const label = REPORT_WINDOWS.find(w => w.id === id)!.label;
   const lane = (a.lanes ?? []).find(l => l.id === id);
   const last = lane && Number.isFinite(lane.pct) ? clamp(lane.pct) : null;
-  // In the order a reader would fix them: a login that cannot be used says
-  // more than the age of the numbers it left behind.
   const issue = accountIssue(a, nowSec);
   const lapsed = lane?.resetAt != null && lane.resetAt <= nowSec;
+  const reset = resetSinceReading(lane, a.fetchedAt, nowSec);
   const unread = (why: Unread, say: string): Cell => ({
     counted: false, why, say, last,
     estimate: last == null ? null : lapsed ? 0 : last,
     resetAt: lapsed ? null : lane?.resetAt ?? null,
+    reset,
   });
+  // In the order a reader would fix them: a login that cannot be used says
+  // more than anything about the numbers it left behind.
   if (issue?.blocksSwitch) return unread("login", issue.text);
   if (last == null) return unread("none", `No ${label} reading`);
+  // A RESET OUTRANKS THE AGE. The total takes a window that has come back
+  // since its reading as unused, whatever the reading's age, so the row has
+  // to say that rather than how old the number is: an old reading checked
+  // for its age first was described as old and drawn at its old number,
+  // while the cards above counted it at 0, and the rows no longer added up
+  // to them.
+  if (reset) return unread("reset", reset);
   const old = a.stale || a.fetchedAt == null || nowSec * 1000 - a.fetchedAt > REPORT_STALE_MS;
   if (old) return unread("stale", a.fetchedAt ? `Updated ${ago(a.fetchedAt, nowSec)}` : "Never read");
-  if (lapsed) {
-    // Good news the numbers have not caught up with: the window has come back
-    // since this was read, so the account is likely emptier than it says.
-    return unread("reset", `Reset ${ago(lane!.resetAt! * 1000, nowSec)}, not updated`);
-  }
   return { counted: true, pct: last, resetAt: lane!.resetAt };
 }
 
 const clamp = (pct: number) => Math.min(100, Math.max(0, pct));
+
+/**
+ * What a window whose reset has passed since its last reading says in place
+ * of that reading's number: when it reset, and what it read before — "Reset
+ * 17h ago, 96% when read 18h ago". Null while the window is still running, or
+ * when it has no number.
+ *
+ * Good news the numbers have not caught up with: the window has come back
+ * since it was read, so the account is likely emptier than it says. The
+ * report's rows and the accounts panel's open row both say it, in these words,
+ * so one account reads the same wherever it is drawn.
+ */
+export function resetSinceReading(
+  lane: { pct: number; resetAt: number | null } | undefined,
+  fetchedAt: number | null,
+  nowSec: number,
+): string | null {
+  if (lane?.resetAt == null || lane.resetAt > nowSec || !Number.isFinite(lane.pct)) return null;
+  const read = fetchedAt ? `read ${ago(fetchedAt, nowSec)}` : "last read";
+  return `Reset ${ago(lane.resetAt * 1000, nowSec)}, ${shownUsed(clamp(lane.pct))}% when ${read}`;
+}
 
 /** A window's total over the rows. */
 export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTotal {
@@ -283,9 +313,11 @@ export function nextReportSort(current: ReportSort | null, key: ReportSortKey): 
 const STATUS_RANK: Record<Status, number> = { ready: 0, limited: 1, exhausted: 2, stale: 3 };
 
 /** The number a row shows in a window's column — its reading, or the last
- *  one it had, dimmed — so the order follows what the eye reads. */
+ *  one it had, dimmed — or, for a window whose row says reset, the 0 the
+ *  total takes it at, so the order follows what the eye reads. */
 function shownPct(c: Cell): number | null {
-  return c.counted ? c.pct : c.last;
+  if (c.counted) return c.pct;
+  return c.reset ? c.estimate : c.last;
 }
 
 /** The quantity a row sorts by in a column, smallest first; null where it has

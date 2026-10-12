@@ -1,6 +1,11 @@
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the
-   lightest text in the row and the row is a row of numbers.
+   lightest text in the row when the row was a row of numbers.
+   24px tall at least, the #509 floor the version chip, the incident chips and
+   the blocked count beside it already hold. 11px type at the strip's leading,
+   its padding and its edge came to 23, a pixel short of its neighbours, which
+   shows once the pill sits beside a bordered chip rather than a run of text:
+   the tops line up and the bottoms step.
    The transition is 200ms, which is `.conn-banner`'s duration — the pill and
    that banner report the same event from two places, and a state change that
    arrives at two speeds reads as two events. Bare `ease` because every colour
@@ -17,6 +22,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 24px;
   padding: 3px 8px;
   border-radius: 999px;
   background: var(--bg-soft);
@@ -29,12 +35,13 @@
   transition: background-color 200ms ease, box-shadow 200ms ease;
 }
 /* One box, every count (#504, relocated).
-   The pill leads the readout strip, so its width is upstream of the machine
-   meter, the tokens and the cost — everything to its right slides when it
-   grows. That did not matter while the label was one of three fixed words. It
-   matters now that the paused label carries the held queue, because the queue
-   climbs on its own: `paused · 9` → `paused · 10` is a digit nobody asked for
-   and three readouts moving because of it.
+   The pill leads the readout group after the brand, so its width is upstream
+   of everything to its right — the incident chips and the blocked count now,
+   the machine meter, the tokens and the cost when this was written — and all
+   of it slides when the pill grows. That did not matter while the label was
+   one of three fixed words. It matters now that the paused label carries the
+   held queue, because the queue climbs on its own: `paused · 9` → `paused ·
+   10` is a digit nobody asked for, and the alarm moving because of it.
    `inline-grid` with one named cell, so the invisible widest label and the live
    one stack instead of sitting side by side, and the box measures its own worst
    case in whatever face the platform supplies. A pixel `min-width` is this
@@ -193,24 +200,29 @@
    it is good news, and good news that shouts is noise. */
 .topbar .notify-said-blocked { color: var(--warn); }
 
+/* THE COUNT. The bar's one alarm and the only amber on it: a transparent pill
+   with an 85% --warn edge and --warn words (the 85% is argued on
+   `.brand button.v.stale`). 28px tall since the bar has the room — the height
+   the queue's names stand at beside it — with its number a step up the type
+   ladder, at 14px and 700, so it reads first from across a desk. */
 .topbar .waiting-stat {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 24px;
-  padding: 3px 10px;
+  min-height: 28px;
+  padding: 0 12px 0 10px;
   border-radius: 999px;
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
   color: var(--warn);
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.topbar .waiting-stat b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.topbar .waiting-stat b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .topbar .waiting-stat:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, transparent);
@@ -224,6 +236,132 @@
    its top and bottom and showed as two brackets. An inset ring is the one the
    focus rule allows a component to move. */
 .topbar .waiting-stat:focus-visible { outline-offset: -3px; }
+
+/* THE QUEUE: who is waiting, by name (WaitingNames in TopbarReadouts.tsx).
+   The box takes every pixel the bar has left and nothing it does not — a basis
+   of 0 and all the growth — so it is the first thing a narrowing bar takes
+   back, and the names fold away while the count is whole. It gives the bar's
+   24px gap back with a margin, so an empty box costs the bar nothing, and its
+   list stands 12px off the count instead: the queue reads as the count's own
+   continuation, not as a fourth group. */
+.topbar .wait-names {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  /* Its width is the bar's to give, never its names' to ask for: without this
+     the names it had drawn counted towards the bar's own least width, and a
+     window narrowed from 1440 kept a 1403px bar with Feedback off the edge. */
+  contain: inline-size;
+  margin-left: -24px;
+  overflow: hidden;
+}
+.topbar .wait-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.topbar .wait-list:not(:empty) { padding-left: 12px; }
+.topbar .wait-list li {
+  display: flex;
+  flex: none;
+}
+/* A session that has just started waiting arrives, 160ms from 4px back; one
+   the queue merely has room for again, as the window widens, is simply there —
+   an entrance on every refit would be the bar fidgeting. */
+.topbar .wait-list li[data-fresh] { animation: wait-in 160ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes wait-in { from { opacity: 0; transform: translateX(-4px); } }
+
+/* One name: edgeless at rest, like every control a word identifies on this
+   bar, and neutral — the amber is the count's, and a row of amber names would
+   be a row of alarms. The name in --text at 600; how long it has waited in
+   --text too, tabular, because the wait is the number that decides whether
+   somebody gets up (DESIGN.md, duration beats description); what it is on in
+   --muted, the annotation. On the bar's own bed, with no fill under it,
+   --muted is 4.70:1 or better in dark and 6.95:1 or better in light, the tier
+   every resting label on this bar sits at. Under the pointer the control fill
+   comes up and the whole line goes to --text. A long name is cut in its
+   middle (queueName) and the hint says it whole. */
+.topbar .wait-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.topbar .we-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.topbar .we-wait { font-variant-numeric: tabular-nums; }
+.topbar .we-what { margin-left: -2px; color: var(--muted); }
+.topbar .wait-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (hover: hover) {
+  .topbar .wait-entry:hover,
+  .topbar .wait-more:hover {
+    background: var(--ctl-fill);
+    color: var(--text);
+    transition: background-color 120ms ease, color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .topbar .wait-entry:hover .we-what { color: var(--text); }
+}
+.topbar .wait-entry:active,
+.topbar .wait-more:active { transform: scale(0.97); }
+/* Inside the edge, for the reason the count's ring is: the box clips. */
+.topbar .wait-entry:focus-visible,
+.topbar .wait-more:focus-visible { outline-offset: -2px; }
+/* Every name at the width it would draw, where nothing sees it or reaches it:
+   the queue measures this to know what fits before it draws a name it would
+   have to cut. */
+.topbar .wait-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  visibility: hidden;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .topbar .wait-list li[data-fresh] { animation: none; }
+  .topbar .wait-entry,
+  .topbar .wait-more { transition: none; }
+  .topbar .wait-entry:active,
+  .topbar .wait-more:active { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) and (hover: hover) {
+  .topbar .wait-entry:hover,
+  .topbar .wait-more:hover { transition: none; }
+}
 
 /* A provider's own incident (#1311), while its status page reports one. NOT
    the waiting chip's colour and NOT its shape: --warn and the pill are the
@@ -291,7 +429,7 @@
 
 /* The height is declared, not arrived at. Until #380 this rule set vertical
    padding and let the line box decide the rest, which came to 31.4px, while
-   `.icon-btn` below declared a flat 30px — so the topbar drew a 1.4px step at
+   `.icon-btn` declared a flat 30px — so the topbar drew a 1.4px step at
    every boundary between a text button and an icon one, five times over, with
    the two kinds of button agreeing on their centres (`align-items: center`)
    and on nothing else. A bar of controls is a row, and a row has one height.
@@ -305,9 +443,7 @@
    so no button's width moves.
 
    `inline-flex` is what centres the label inside a box whose height it no
-   longer sets. It also lets `.icon-btn` below drop its own copy of these three
-   declarations: a square icon button is this same control with its width
-   pinned to the height, and that is now all it has to say. */
+   longer sets. */
 button.btn {
   background: transparent;
   color: var(--text);
@@ -368,93 +504,6 @@ button.btn.danger:hover {
   color: var(--err);
   background: color-mix(in srgb, var(--err) 12%, transparent);
 }
-/* A square of the control height — the same box as the text button above with
-   its width pinned to its height, which is the whole of what "icon button"
-   means here. The 30px it used to write twice is where --ctl-h came from. */
-button.btn.icon-btn {
-  width: var(--ctl-h);
-  height: var(--ctl-h);
-  padding: 0;
-  font-size: 14px;
-  line-height: 1;
-}
-/* An icon toggle that is on. Until #370 the whole of that was `.primary` — an
-   --accent-dim wash and an --accent edge — and both channels are hue at very
-   nearly the same luminance. The wash is 1.91:1 and 1.89:1 against the two ends
-   of the topbar gradient in dark and 1.39:1 / 1.37:1 in light; the edge is
-   2.65-2.74:1 and 1.52-1.67:1 away from the --ctl-edge it replaces. Nothing
-   there reaches the 3:1 a non-text state difference needs, and in light nothing
-   reaches even 2:1 — so "is the usage panel open" was answerable from the
-   canvas and not from the control that opens it.
-   The fix is polarity, not a louder tint. The fill goes to the accent itself
-   and the glyph inverts with it — --text on the bar becomes --bg on the accent
-   — which is the one channel that survives greyscale, every colour vision
-   deficiency and a hue this sheet may re-tune later, because it does not depend
-   on which of the two colours is the blue one. The fill now stands 10.85:1 /
-   11.33:1 off the bare bar in dark and 5.93:1 / 5.24:1 in light, and the glyph
-   reads 11.72:1 / 5.24:1 on top of it, so the state is legible as text as well
-   as visible as a block. Deepening the wash instead does not reach: in dark the
-   alpha is still short at 0.40 (2.75:1) and by 0.50 it has taken --text down to
-   3.60:1 on top of itself, under AA, so no value clears both at once. Light is
-   the theme where one would have worked — 0.70 is 3.27:1 / 3.04:1 with --text
-   still at 5.79:1 — and taking it would have left one state drawn two different
-   ways in the two themes, which is the divergence #332 and #368 both refused.
-   .primary keeps the wash and is untouched. It means "this is the action to
-   take" — the add-account dialog's Done and Add buttons — which is a different
-   claim from "this is on", and one class saying both is why the toggle state
-   had nowhere left to go.
-   Keyed on the ARIA attribute rather than on a class so the pixels and the
-   accessibility tree are the same fact: a control cannot look pressed here
-   while reporting nothing, which is the other half of what #370 found. Both
-   attributes, because the deck has both kinds — the panel buttons disclose a
-   region (aria-expanded) and the sound button is a setting (aria-pressed).
-   The reasoning for each is on the buttons themselves in App.tsx. */
-button.btn.icon-btn[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
-}
-/* THE TOOLBAR BUTTON: the topbar's controls are this same button with the
-   chrome taken off. At rest there is no edge and no fill, only the glyph and
-   its word in --muted (4.70:1 or better on the bar in dark, 6.95:1 in light;
-   --text-secondary is the prose tier, and a label is not prose), so eight
-   controls read as one toolbar rather than eight floating chips, and the step
-   up to --text on hover and when open is a real one. 1.4.11 asks a control to be identifiable, and the glyph and the word
-   identify it, which is the same reading `.glyph-btn` and the canvas control
-   stack already rest on.
-   Hover brings up the control fill and the whole foreground. Open is the
-   pressed look: that fill, the resting edge every other .btn wears, and the
-   full foreground. Neutral in every state. An open panel used to be marked
-   with a cyan line under its word, but cyan is the sheet's colour for data,
-   live state and focus, a panel that is showing is none of those, and the
-   panel on screen already says it is open. The edge carries the state
-   difference #370 asked for: it is the same --ctl-edge control-edges.test.ts
-   holds to 3:1 against both ends of the bar, where a closed button has none.
-   The fill below stays for a setting that is on, which is what
-   aria-pressed means, and no topbar control carries it now. */
-.topbar button.btn.icon-btn {
-  border-color: transparent;
-  color: var(--muted);
-}
-.topbar button.btn.icon-btn:hover {
-  border-color: transparent;
-  background: var(--ctl-fill);
-  color: var(--text);
-}
-.topbar button.btn.icon-btn[aria-expanded="true"] {
-  border-color: var(--ctl-edge);
-  background: var(--ctl-fill);
-  color: var(--text);
-}
-.topbar button.btn.icon-btn[aria-expanded="true"]:hover {
-  background: color-mix(in srgb, var(--text) 12%, transparent);
-}
-/* `button.btn:hover` repaints the border and the glyph in --accent, and on this
-   chip --accent is the fill — so a pressed toggle would have had no pointer
-   feedback at all. The halo is the same `0 0 0 2px var(--accent-dim)` the
-   search field draws on focus, and it only adds: it sits outside the border
-   box, so every ratio above is exactly what it was. */
-button.btn.icon-btn[aria-pressed="true"]:hover {
-  box-shadow: 0 0 0 2px var(--accent-dim);
-}
-
+/* `.icon-btn`, the square of this button the topbar's eight panel toggles and
+   their open states were drawn with, left with them for the window's edges
+   (edge-rails.css, `.rail-btn`), and nothing else wore it. */

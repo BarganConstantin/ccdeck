@@ -272,5 +272,9 @@ export function useCamera() {
     return () => document.removeEventListener("visibilitychange", land);
   }, [applyViewport]);
 
-  return { applyViewport, moveCamera, fitLeft, cameraEpochRef, lastFitTimeRef };
+  /** Where the pane is right now, for a move that has to come back to it —
+   *  Re-arrange keeps it so its Undo can return the view it replaced. */
+  const currentViewport = useCallback(() => rf.getViewport(), [rf]);
+
+  return { applyViewport, moveCamera, fitLeft, currentViewport, cameraEpochRef, lastFitTimeRef };
 }

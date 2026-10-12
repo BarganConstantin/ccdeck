@@ -83,7 +83,7 @@
   .app:has(.accounts-panel) { grid-template-columns: auto minmax(0, 1fr); }
   .detail {
     position: fixed;
-    top: 52px;
+    top: var(--topbar-h);
     right: 0;
     bottom: 0;
     width: min(360px, 100vw);

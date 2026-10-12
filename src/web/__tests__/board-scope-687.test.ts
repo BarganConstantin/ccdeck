@@ -435,9 +435,10 @@ describe("every surface that prints one of these figures prints the shared label
     // constants and BOTH carried the sentence — the tokens figure falls by the
     // same 40% the dollars do, and the report named only the dollars.
     //
-    // #737 puts an aggregate back, but its source is ccusage and its period is
-    // explicit. This case still guards the original failure: a board total must
-    // never reappear in the bar and shrink when cards are pruned.
+    // #737 put an aggregate back, from ccusage with its period explicit, and it
+    // has left the bar since (2026-10-08). This case still guards the original
+    // failure: a board total must never reappear in the bar and shrink when
+    // cards are pruned — and no figure of any scope is in the strip now.
     // The strip is components/TopbarReadouts.tsx's; it ends where the next
     // component there starts.
     const readouts = code(read("components/TopbarReadouts.tsx"));
@@ -447,9 +448,7 @@ describe("every surface that prints one of these figures prints the shared label
     const strip = readouts.slice(opens, next === -1 ? undefined : next);
     expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx").toBeTruthy();
     expect(strip).not.toContain("boardTotals");
-    expect(strip).toContain("this month");
-    expect(strip).toContain("fmtTokens(monthlyUsage.tokens)");
-    expect(strip).toContain("fmtMonthlyCost(monthlyUsage.cost)");
+    expect(strip).not.toMatch(/fmtTokens|fmtCost|fmtMonthlyCost/);
   });
 
   it("labels the sidebar row and the end-of-session recap", () => {

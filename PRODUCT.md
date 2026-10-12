@@ -183,6 +183,9 @@ whoever ships that state does not call it "unsupported".
   rewritten deliberately, in public.
 - **"One canvas. No tabs. No kanban."** is a commitment, not a tagline. Anything
   that wants a tab bar is asking for the canvas.
+  The stripes on the window's edges that hold the panel buttons are show/hide
+  toggles, not tabs: several panels can be open at once, each beside the canvas,
+  and the canvas never leaves the screen.
 - **The voice rules apply off-screen too.** The menu-bar or tray count and the OS
   notification are often where *waiting* reaches the user first, precisely because
   they are not looking at the deck. A notification names the session, the wait and

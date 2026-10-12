@@ -86,6 +86,9 @@ export const react = {
   useLayoutEffect(run: () => void | (() => void), deps?: readonly unknown[]) { effect(true, run, deps); },
   useCallback<F>(fn: F, deps: readonly unknown[]) { return memo(() => fn, deps); },
   useMemo<T>(make: () => T, deps: readonly unknown[]) { return memo(make, deps); },
+  // A store outside React, read as it stands on each render: nothing here
+  // changes one between renders unless the test does, and then it renders.
+  useSyncExternalStore<T>(_subscribe: (onChange: () => void) => () => void, getSnapshot: () => T) { return getSnapshot(); },
 };
 
 /** One element the component drew. */

@@ -48,11 +48,13 @@ export interface StatusPill {
    * Per tone rather than one string for all three, and the difference is the
    * whole of what is being bought. What moves on its own is the count: while
    * the deck is paused it climbs unbidden, up to once a second, and every digit
-   * it gains would walk the machine meter, the tokens and the cost along with
-   * it — the pill leads the readout run, so everything after it is downstream
-   * of its width. That is #504 one bar over. What does NOT move on its own is
-   * the tone: `live` becomes `paused` because somebody pressed Space, and
-   * `dead` arrives with a banner that redraws the top of the page anyway.
+   * it gains would walk what follows it along with it — the incident chips and
+   * the blocked count now, the machine meter, the tokens and the cost when this
+   * was written: the pill leads the readout run, so everything after it is
+   * downstream of its width. That is #504 one bar over. What does NOT move on
+   * its own is the tone: `live` becomes `paused` because somebody pressed
+   * Space, and `dead` arrives with a banner that redraws the top of the page
+   * anyway.
    * Pinning all three to the paused tone's worst case would spend it
    * permanently — measured, a resting `live` pill goes from 49.89px to 102.64px
    * and holds the extra 52.75px for as long as the deck is running — to still
@@ -90,8 +92,9 @@ export interface StatusPill {
    * The layout consequence is the one `widest` already argues about: what moves
    * on its own is the count, and the count is inside a tone. A tone changes
    * because somebody pressed Space, or because the stream died and redrew the
-   * top of the page anyway. `.topbar .status` is a flex row with `gap: 14px`,
-   * so rendering nothing takes the gap with it and leaves no hole.
+   * top of the page anyway. The pill is the strip's one member, so rendering
+   * nothing leaves `.topbar .status` empty, and `:empty` takes the strip and
+   * the readout's 24px gap before it out of the row: no hole.
    */
   resting: boolean;
 }

@@ -75,7 +75,7 @@ describe("adding it up", () => {
 describe("what is left out, and why — never as 0%", () => {
   it("leaves out a window the account has no reading for", () => {
     expect(readingOf(acct(1, null, 10), "five_hour", NOW))
-      .toEqual({ counted: false, why: "none", say: "No 5h reading", last: null, estimate: null, resetAt: null });
+      .toEqual({ counted: false, why: "none", say: "No 5h reading", last: null, estimate: null, resetAt: null, reset: null });
   });
 
   it("leaves out a reading nothing has refreshed in a quarter of an hour, by the server's flag or this page's clock", () => {
@@ -94,7 +94,8 @@ describe("what is left out, and why — never as 0%", () => {
   it("leaves out a window whose reset has passed since it was read, and says when", () => {
     const c = readingOf(acct(1, 90, 10, {}, [NOW - 18 * 60]), "five_hour", NOW);
     expect(c).toMatchObject({ counted: false, why: "reset", last: 90 });
-    expect(c.counted === false && c.say).toMatch(/^Reset 18m ago, not updated$/);
+    // When it reset, and what it read before (accounts-report-reset-row).
+    expect(c.counted === false && c.say).toBe("Reset 18m ago, 90% when read 4m ago");
   });
 
   it("leaves out an account whose login no switch can get past", () => {
@@ -304,7 +305,8 @@ describe("the report, drawn", () => {
 
   it("dims a left-out reading's last number, and says once, in its state, why", () => {
     const out = html([acct(1, 33, 40, { stale: true, fetchedAt: (NOW - HOUR) * 1000 })]);
-    expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, not counted</span>');
+    // Counted at that number since #1713, and said so (accounts-report-cell-said).
+    expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, last reading, counted as is</span>');
     // Judged on its last numbers — one word, one line — and how old they are
     // said once, in the Updated column (#1713).
     expect(out).toContain('<td class="ap-report-state" data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"></i>Ready</span></td><td class="ap-report-upd" data-old="">1h ago</td>');

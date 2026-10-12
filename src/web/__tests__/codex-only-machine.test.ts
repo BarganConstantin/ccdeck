@@ -438,9 +438,10 @@ describe("what a Codex-only boot does on the user's behalf", () => {
 
 describe("which panels the UI draws for each machine", () => {
   // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-  // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+  // The panel toggles left the topbar for the window's edges (2026-10-08) and
+  // are defined in rail-items.tsx; App.tsx and it are read as one.
   const appSrc   = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")
-    + "\n" + readFileSync(fileURLToPath(new URL("../components/TopbarRuns.tsx", import.meta.url)), "utf8")
+    + "\n" + readFileSync(fileURLToPath(new URL("../rail-items.tsx", import.meta.url)), "utf8")
     + "\n" + readFileSync(fileURLToPath(new URL("../use-deck-shortcuts.ts", import.meta.url)), "utf8");
   const usageSrc = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
   // The two quota sections, lifted out of the panel; their gates stayed in it.
@@ -459,8 +460,15 @@ describe("which panels the UI draws for each machine", () => {
     expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain("providers.claude");
   });
 
-  it("hides the topbar accounts button too, rather than opening onto nothing", () => {
-    expect(leadUpTo(appSrc, 'aria-label="Toggle accounts panel"')).toContain("providers.claude");
+  it("hides the accounts button too, rather than opening onto nothing", () => {
+    // The left stripe — and the phone's dock, which draws the same list — holds
+    // Accounts only where Claude Code is; without it, Session list alone.
+    expect(appSrc).toMatch(/left: providers\.claude \? \[sessionList, accounts\] : \[sessionList\]/);
+    expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
+    expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\}/);
+    // And nowhere else: the right stripe and the utilities never carry it.
+    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, browserWatch\]\]/);
+    expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
 
   it("does not let the A shortcut toggle a panel that is not there", () => {

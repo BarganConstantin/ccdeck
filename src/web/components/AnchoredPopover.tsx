@@ -118,10 +118,10 @@ export default function AnchoredPopover({
     const anchor = document.getElementById(anchorId);
     // The row it hung off is gone — removed from another terminal, or moved.
     if (!anchor) { closeRef.current(); return; }
-    // Or it is still there and no longer drawn: the topbar's ⋯, which the
-    // sheet hides once the window is wider than a phone (TopbarMore.tsx). Its
-    // box is all zeros then, and placed against that the popover went to the
-    // window's top-left corner, still open and holding focus.
+    // Or it is still there and no longer drawn, the way the phone topbar's ⋯
+    // was once the window grew past a phone's width. Its box is all zeros
+    // then, and placed against that the popover went to the window's top-left
+    // corner, still open and holding focus.
     if (anchor.getClientRects().length === 0) {
       if (el.contains(document.activeElement)) fallbackRef.current?.()?.focus();
       closeRef.current();

@@ -33,7 +33,12 @@ import { feedbackSeed } from "../feedback-draft";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
-const runs = read("../components/TopbarRuns.tsx");
+// The topbar's utility run is UtilityRun now (components/EdgeRails.tsx), and the
+// controls it draws are defined in rail-items.tsx: the panel toggles left the
+// bar for the window's edges (2026-10-08) and Settings and Feedback stayed.
+const items = read("../rail-items.tsx");
+const rails = read("../components/EdgeRails.tsx");
+const edgeSheet = read("../styles/edge-rails.css").replace(/\/\*[\s\S]*?\*\//g, "");
 // The Appearance menu became Settings (2026-10-07): the dialog and each
 // section in it, read as one, so the negatives below still see every control
 // that used to be Appearance's and every one that joined it.
@@ -188,35 +193,56 @@ describe("the dialogs hook gives every opener one door", () => {
 // ── door one: the topbar ─────────────────────────────────────────────────────
 
 describe("the topbar's Feedback button", () => {
-  /** The opening tag and body of the button, up to its close. */
-  const button = (() => {
-    const at = runs.indexOf('aria-label="Send feedback"');
-    expect(at, "no Send feedback button in TopbarRuns.tsx").toBeGreaterThan(-1);
-    return runs.slice(runs.lastIndexOf("<button", at), runs.indexOf("</button>", at));
+  /** Feedback's definition, from its id to the end of the item. */
+  const item = (() => {
+    const at = items.indexOf('id: "feedback"');
+    expect(at, "no feedback control in rail-items.tsx").toBeGreaterThan(-1);
+    return items.slice(at, items.indexOf("};", at));
   })();
 
-  it("is a topbar icon button that opens the dialog through the one door", () => {
-    // Folded into the ⋯ with History and Browser watch at a phone's width.
-    expect(button).toMatch(/className="btn icon-btn tb-fold"/);
-    expect(button).toMatch(/onClick=\{onFeedback\}/);
-    expect(button).toMatch(/aria-haspopup="dialog"/);
-    expect(button).toMatch(/title="Send feedback/);
+  it("is a topbar control that opens the dialog through the one door", () => {
+    expect(item).toMatch(/ariaLabel: "Send feedback"/);
+    expect(item).toMatch(/kind: "dialog"/);
+    expect(item).toMatch(/onPress: onFeedback/);
+    // A modal behind it, so the button says so and holds no state.
+    expect(rails).toMatch(/aria-haspopup=\{disclosure \? undefined : "dialog"\}/);
+    // On the bar, in the utility run beside the gear, at every desktop width.
+    expect(items).toMatch(/utilities: \[settings, feedback\]/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
   });
 
-  it("draws its glyph on the topbar's one icon spec (#837), and says its word beside it", () => {
-    expect(button).toMatch(/<svg width="13" height="13" viewBox="0 0 14 14"[\s\S]*?strokeWidth="1\.4"/);
+  it("draws its glyph on the chrome's one icon spec (#837), and says its word beside it at every desktop width", () => {
+    expect(item).toMatch(/glyph: <FeedbackGlyph \/>/);
+    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const FeedbackGlyph = \(\) => \(\s*<Glyph>/);
     // It was a bare glyph beside the theme button, on the reasoning that the
-    // bar's words were a set of seven. At the toolbar's --muted, next to
-    // "Sound" and "Browser watch", the bubble read as nothing at all and the
-    // owner could not find it. It says its word now, from the width where the
-    // busiest bar still holds it (topbar-words-836.test.ts).
-    expect(button).toMatch(/<span className="tb-word-wide">Feedback<\/span>/);
+    // bar's words were a set of seven, and at the toolbar's --muted the bubble
+    // read as nothing at all; the owner could not find it. Then it said its
+    // word only from 1707px, where the busiest bar of eight controls still
+    // held it. The controls are on the edges now, so the bar has the room at
+    // every width the bar draws them: the word is the label, always, and no
+    // rule in the sheet hides it.
+    expect(item).toMatch(/label: "Feedback"/);
+    expect(rails).toMatch(/<span className="rail-word" ref=\{wordRef\}>\{variant === "dock" \? item\.short : item\.label\}<\/span>/);
+    expect(edgeSheet).not.toMatch(/rail-btn-bar[^{]*\.rail-word[^{]*\{[^}]*display:\s*none/);
+    expect(edgeSheet).not.toMatch(/\.utility-run[^{]*\{[^}]*display:\s*none/);
   });
 
-  it("is the settings run's one way to the dialog, routed through the dialogs hook's one door", () => {
-    expect(button.indexOf("onFeedback")).toBeGreaterThan(-1);
-    expect((runs.match(/onFeedback\(\)|onClick=\{onFeedback\}/g) ?? []).length).toBe(1);
-    expect(app).toMatch(/onFeedback=\{\(\) => dialogs\.openFeedback\(\)\}/);
+  it("is in the phone's dock too, by its whole name, behind More", () => {
+    // Under 641px the dock stands in for the stripes and the utilities, and
+    // the three rare dialogs — History, Browser watch, Feedback — sit behind
+    // More, where a row has the room to say "Send feedback" whole.
+    expect(item).toMatch(/menu: "Send feedback"/);
+    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\[1\], rails\.utilities\[1\]\]\}/);
+    expect(rails).toMatch(/item\.menu \?\? item\.label/);
+  });
+
+  it("is the chrome's one way to the dialog, routed through the dialogs hook's one door", () => {
+    // In the body that builds the controls, onFeedback is read once: by
+    // Feedback's own press, and by no other control.
+    const body = items.slice(items.indexOf("}): RailItems {"));
+    expect(body.match(/\bonFeedback\b/g), "onFeedback is read once, by Feedback's press").toHaveLength(1);
+    expect(body).toMatch(/onPress: onFeedback/);
+    expect(app).toMatch(/onFeedback: dialogs\.openFeedback,/);
   });
 });
 

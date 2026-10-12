@@ -680,10 +680,22 @@
    own control stack; the sole remaining boundary of that kind is Pause
    against `$`. The step is worth just as much at one crossing as at four, and
    the two variants still derive from this number, so there is no arithmetic
-   left that could produce a second one. */
+   left that could produce a second one.
+
+   --topbar-h and --edge-w are the deck's chrome, read by every rule that
+   places something against it: the grid's first row, the rail panels and the
+   detail sheet hanging under the bar, the stripes standing beside it
+   (edge-rails.css). The bar is 44px since its panel toggles left for the
+   window's edges — it was 52 while it held eight controls and their open
+   states — and a stripe is one control height wide, a topbar button turned
+   on its side. Under 641px the stripes give way to a dock along the bottom,
+   --dock-h tall, so --edge-w is nothing there. */
 :root {
   --panel-inset: 14px;
   --ctl-h: 30px;
+  --topbar-h: 44px;
+  --edge-w: var(--ctl-h);
+  --dock-h: 56px;
   /* THE RADIUS HIERARCHY: three steps, one meaning each. A tag or a chip inside
      a control group, a control, a surface. The chrome used to be 10px panels,
      a 12px dialog, an 18px bar and 999px pills on most small things, which is
@@ -996,7 +1008,7 @@ button:focus-visible { outline-offset: 1px; }
 .app {
   display: grid;
   grid-template-columns: 1fr 360px;
-  grid-template-rows: 52px auto 1fr;
+  grid-template-rows: var(--topbar-h) auto 1fr;
   height: 100vh;
 }
 /* When a left sidebar is open, add a left column. The .app:has() check keeps

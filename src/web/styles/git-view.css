@@ -8,13 +8,17 @@
    so opening it neither re-columns the board nor re-lays-out anything: the
    canvas keeps its size and the camera frames the session in the part the
    panel leaves (git-view-fit.ts). Its top is the canvas's own, measured, so a
-   banner under the topbar pushes it down with the canvas. */
+   banner under the topbar pushes it down with the canvas. Its right edge is
+   the right stripe's inner edge, and a sheet stands between the two stripes:
+   every panel toggle on the window's edges stays in sight and in reach while
+   the view is open (asking for a panel the view stands over closes it,
+   git-view-request.ts). On a phone it ends above the dock. */
 :root { --gv-ease: cubic-bezier(0.23, 1, 0.32, 1); }
 
 .gv-wide {
   position: fixed;
-  top: var(--gv-top, 52px);
-  right: 0;
+  top: var(--gv-top, var(--topbar-h));
+  right: var(--edge-w);
   bottom: 0;
   /* Over the rail (20) and the detail sheet, under the dialogs. */
   z-index: 22;
@@ -41,7 +45,8 @@
 /* A full sheet below 1100px: it covers the canvas, so it fades as it slides
    its last 32px rather than arriving as a wall. */
 .gv-wide[data-sheet] {
-  width: 100%;
+  left: var(--edge-w);
+  width: auto;
   border-left: none;
   transition: transform 200ms var(--gv-ease), opacity 200ms ease-out;
 }
@@ -503,6 +508,8 @@ button.btn.gv-retry { align-self: flex-start; margin-top: 4px; }
 }
 @media (max-width: 640px) {
   .gv-head { gap: 8px; padding-left: 8px; }
+  /* The dock holds the panel toggles there, and the view's foot was under it. */
+  .gv-wide { bottom: calc(var(--dock-h) + env(safe-area-inset-bottom)); }
 }
 
 /* ------------------------------------------------- reduced motion */

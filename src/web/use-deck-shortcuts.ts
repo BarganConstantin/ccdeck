@@ -16,6 +16,7 @@ import type { ClearSource } from "./clear-confirm";
 import { inKeyScope } from "./git-view-keys";
 import { gitViewNewest } from "./git-view-request";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
+import { isUndoChord } from "./rearrange-undo";
 import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
@@ -51,6 +52,9 @@ export interface DeckShortcuts {
   focusSession: (sessionId: string) => void;
   requestClear: (source: ClearSource) => void;
   handleRelayout: () => void;
+  /** Re-arrange's Undo, while the canvas offers it: true when it put the board
+   *  back, false once the offer has gone (use-board-layout.ts). */
+  undoRearrange: () => boolean;
   handleFit: () => void;
   togglePause: () => void;
   toggleSessionList: () => void;
@@ -77,7 +81,7 @@ export function useDeckShortcuts({
   pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
   keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
-  handleRelayout, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
+  handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
   setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
   gitViewOpenRef, toggleGitView, closeGitView,
@@ -145,6 +149,18 @@ export function useDeckShortcuts({
         if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
         e.preventDefault();
         if (!e.repeat) openSettings();
+        return;
+      }
+      // The second chord, and only while it has something to do: ⌘Z or Ctrl+Z
+      // puts back the board R just replaced, for as long as the canvas offers
+      // it. Held to the same two gates — a field keeps its own undo, and the
+      // canvas is not reached behind a dialog — and a chord, so it answers with
+      // the single-key shortcuts off. Once the offer has gone the chord is the
+      // browser's again, untouched.
+      if (isUndoChord(e)) {
+        if (isTypingTarget(target)) return;
+        if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
+        if (!e.repeat && undoRearrange()) e.preventDefault();
         return;
       }
       // Ctrl/Cmd/Alt chords are the browser's, not ours — Ctrl+C is copy and
@@ -358,5 +374,5 @@ export function useDeckShortcuts({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause, toggleGitView, closeGitView]);
+  }, [requestClear, handleRelayout, undoRearrange, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause, toggleGitView, closeGitView]);
 }

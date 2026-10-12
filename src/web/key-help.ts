@@ -88,6 +88,10 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "Z", action: "zoom to the selected agent and its session", binds: ["z", "Z"] },
       { cap: "Delete", action: "take the selected card off the board — the session list (L) brings it back", binds: ["Delete"] },
       { cap: "R", action: "re-arrange the canvas and drop the pins", binds: ["r", "R"] },
+      // Re-arrange's way back, for the few seconds the canvas offers it, after
+      // R or the stack's button alike. A chord, so it stays on the sheet with
+      // the single-key shortcuts off, where the button still re-arranges.
+      { cap: "Ctrl + Z", macCap: "⌘ Z", action: "undo a re-arrange, while the canvas offers it", binds: ["z", "Z"], chord: true },
       { cap: "C", action: "clear the canvas and the event log — asks first", binds: ["c", "C"] },
     ],
   },

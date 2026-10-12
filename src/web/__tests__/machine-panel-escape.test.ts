@@ -46,12 +46,16 @@ import {
   type EscapeContext,
   type EscapeOutcome,
 } from "../modal-dismiss";
+import { attr, buttons, createElement, draw, items } from "./edge-keys-rails";
+import { EdgeRail } from "../components/EdgeRails";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
+// The panel toggles left the topbar for the window's edges: rail-items.tsx
+// defines them and components/EdgeRails.tsx draws them; App.tsx and they are
+// read as one.
 const app = readFileSync(`${web}/App.tsx`, "utf8") + "\n" + readFileSync(`${web}/use-deck-shortcuts.ts`, "utf8")
-  + "\n" + readFileSync(`${web}/components/TopbarRuns.tsx`, "utf8");
+  + "\n" + readFileSync(`${web}/rail-items.tsx`, "utf8") + "\n" + readFileSync(`${web}/components/EdgeRails.tsx`, "utf8");
 const dismiss = readFileSync(`${web}/modal-dismiss.ts`, "utf8");
 const meter = readFileSync(`${web}/components/MachinePanel.tsx`, "utf8");
 /** The panel and every file lifted out of it, for what the panel never does. */
@@ -206,15 +210,19 @@ describe("the panel's label and the panel's behaviour agree", () => {
   });
 
   it("keeps the two ways out that are the two ways in", () => {
-    // The topbar button is a toggle, so the control that opened the panel
-    // closes it — and the panel's × calls the same setter. Read from App.tsx
-    // and the run it draws, because that is where the button and the mount
-    // live (the open state is use-right-panels.ts's): the meter that used to
-    // own both is gone, and the panel is a controlled component now.
-    expect(app, "the topbar button no longer toggles")
-      .toMatch(/onClick=\{\(\) => setMachinePanelOpen\(o => !o\)\}/);
-    expect(app, "the button does not say whether the panel is open")
-      .toMatch(/aria-expanded=\{machinePanelOpen\}/);
+    // The Machine button is a toggle, so the control that opened the panel
+    // closes it — and the panel's × calls the same setter. It stands on the
+    // right stripe now, beside the panel (2026-10-08): its press is read from
+    // rail-items.tsx, its state from the stripe as it is drawn, and the mount
+    // from App.tsx (the open state is use-right-panels.ts's). The meter that
+    // used to own both is gone, and the panel is a controlled component.
+    expect(app, "the stripe's button no longer toggles")
+      .toMatch(/onPress: \(\) => setMachinePanelOpen\(o => !o\)/);
+    const drawn = (machinePanelOpen: boolean) => buttons(draw(createElement(EdgeRail, {
+      side: "right", label: "Right panels", groups: items({ machinePanelOpen }).right,
+    }))).get("machine")!;
+    expect(attr(drawn(false), "aria-expanded"), "the button does not say whether the panel is open").toBe("false");
+    expect(attr(drawn(true), "aria-expanded"), "the button does not say whether the panel is open").toBe("true");
     expect(app, "the panel is on screen with nothing mounting it")
       .toMatch(/\{(?:machinePanelOpen|isMounted\(machinePhase\)) && \(\s*<MachinePanel usageOpen=\{usagePanelOpen\}[\s\S]{0,80}?onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\} \/>/);
   });

@@ -188,14 +188,16 @@
 }
 /* The small titled labels sit above the door so their own tooltips answer the
    pointer — each one says what the age or the trade means (#1115). They are a
-   few words wide, so the door keeps the row.
+   few words wide, so the door keeps the row. So is an open bar's "reset",
+   whose title is the only place the open row keeps the number it read before
+   the reset and when.
 
    The alias and the email are NOT raised. The email is `flex: 1` and spans
    about 152px of the 272px head, so raising it took most of the row away from
    the door while the hover tint still promised the row would open. The door
    carries the whole identity itself instead, in its title and its
    description, so a clipped name is recoverable from anywhere on the row. */
-.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note) {
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset]) {
   position: relative;
   z-index: 1;
 }

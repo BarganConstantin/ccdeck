@@ -102,9 +102,11 @@ describe("radius is a closed ladder (#887)", () => {
     expect(radii.length).toBeGreaterThan(150);
   });
 
-  it("draws the two 14px pills as pills, and the controls' 6px where 5px was", () => {
+  it("draws the small pills as pills, and the controls' 6px where 5px was", () => {
     expect(DECLS.find(d => d.sel === ".cost-bar.cost-bar-lg" && d.prop === "border-radius")?.value).toBe("999px");
-    expect(DECLS.find(d => d.sel === ".bw-badge" && d.prop === "border-radius")?.value).toBe("999px");
+    // Browser watch's unread badge, 14px on the topbar's button when #887 was
+    // cut and 16px on its stripe since (2026-10-08): a pill still, not 7px.
+    expect(DECLS.find(d => d.sel === ".rail-badge" && d.prop === "border-radius")?.value).toBe("999px");
     expect(DECLS.find(d => d.sel === ".ap-field select" && d.prop === "border-radius")?.value).toBe("6px");
   });
 });

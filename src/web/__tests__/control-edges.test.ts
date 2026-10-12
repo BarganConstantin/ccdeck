@@ -490,14 +490,13 @@ const CONTROLS: Control[] = [
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
-  // The on state of an icon toggle (#370). Its own state delta — this fill
-  // against the bare bar, which is a different question from this edge against
-  // this fill — is toggle-state.test.ts'.
-  { at: 'button.btn.icon-btn[aria-pressed="true"]', beds: [...TOPBAR, "--panel"] },
-  // A toolbar button that is open: the resting edge every other .btn wears,
-  // on the control fill. A closed one draws no edge at all, so this edge is
-  // the state, and it has to be seen against both ends of the bar.
-  { at: '.topbar button.btn.icon-btn[aria-expanded="true"]', beds: TOPBAR },
+  // The on state of an icon toggle (#370) and a toolbar button that was open,
+  // the resting edge on the control fill, were swept here until the topbar's
+  // panel toggles left for the window's edges (2026-10-08) and `.icon-btn` left
+  // the sheet with them. An open panel is a line on its stripe's inner edge
+  // now, a fill rather than an edge, so its 3:1 is measured where the line is
+  // drawn: edge-rails-geometry.test.ts, against the stripe and the open fill
+  // in both themes.
   // `button.btn.warn` was swept here until the topbar Pause button, its only
   // wearer, moved to the canvas control stack. The rule is gone from the sheet
   // rather than kept unworn, so there is nothing left to measure — and the
@@ -737,13 +736,9 @@ function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme): number 
  * whose resting edge the sweep above already measures, is not — it is a lift.
  */
 const EXEMPT_RINGS = new Set([
-  // An --accent-dim glow ADDED on hover to a button whose own border does not
-  // move. 1.91:1 dark / 1.39:1 light, and the file already refuses to let
-  // --accent-dim be a border-color anywhere for exactly that reason; as a glow
-  // over an edge that is still there it takes nothing away.
-  // The open-panel state lost its fill and so its halo (#836): it is a line
-  // under its content now, and hover repaints nothing it needs.
-  'button.btn.icon-btn[aria-pressed="true"]:hover',
+  // An --accent-dim glow added on hover to a pressed icon toggle was excused
+  // here, over an edge that stayed; the toggle left the sheet with the topbar's
+  // panel buttons (2026-10-08), and so did its glow.
   // A currentColor hairline on a canvas label that is lifting under the
   // pointer. .cluster-label is exempt at rest for the reason below — it reads
   // its own name at 4.5:1 — and session-hue.test.ts owns its rim as decoration.
