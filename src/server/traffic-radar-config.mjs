@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { posix, win32 } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { mkdir } from "node:fs/promises";
-import { readSettingsForWrite, writeFileAtomic } from "./atomic-write.mjs";
+import { readSettingsForWrite, stripBom, writeFileAtomic } from "./atomic-write.mjs";
 
 export const BOOLEAN_KEYS = [
   "CLAUDE_CODE_ENABLE_TELEMETRY", "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
@@ -66,7 +66,7 @@ async function readBoundedJson(path) {
     const buffer = Buffer.alloc(262_145);
     const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
     if (bytesRead > 262_144) throw new Error("oversize");
-    return JSON.parse(buffer.subarray(0, bytesRead).toString("utf8"));
+    return JSON.parse(stripBom(buffer.subarray(0, bytesRead).toString("utf8")));
   } finally { await file.close(); }
 }
 

@@ -168,3 +168,26 @@ the entire conversation.
   subtle motion: only its cursor blinks while connected and visible, with a
   steady cursor under reduced motion. Preserve readable text rather than lowering
   text opacity; the helper details and tour remain available.
+
+## Radar flag controls — Linux handoff, 2026-10-12
+
+- Active worktree: `/home/constantin/Desktop/personal/ccdeck-wt/radar-setting-toggles`,
+  branch `feat/radar-setting-toggles`. The separate `electron-polish` worktree
+  remains on `codex/release-3.39.3-live`.
+- Preview: `http://127.0.0.1:4329`, started with
+  `CLAUDE_CONFIG_DIR=/tmp/ccdeck-radar-toggles-qa node scripts/preview-traffic-radar.mjs`.
+  It uses disposable settings, not the owner's Claude configuration.
+- Flags use the shared switch and press rules. The working control stays enabled
+  and busy, sibling flags are disabled, and the handler rejects repeated presses.
+  Unreadable sources are Unavailable; organization policy remains Managed.
+  Unknown values offer explicit Enable/Disable actions.
+- Configuration has one scroll area; navigation stays reachable at 320/390px.
+  Saving updates the server cache and rejects older client polls, so an in-flight
+  read cannot undo a confirmed save.
+- The complete suite passed (1,036 files / 13,069 tests), typecheck and production
+  build passed. A subsequently added BOM regression also passed. Chrome DevTools
+  checked light/dark desktop and 320/390px layouts, saving, failure/retry, focus,
+  duplicate presses, unknown values, policy rejection and file-view retention.
+- The installed `/home/constantin/Applications/ccdeck-linux-x86_64.AppImage`
+  has not been replaced with this branch. These preview checks do not prove
+  capture of a real external Claude telemetry stream.

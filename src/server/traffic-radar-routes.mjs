@@ -1,6 +1,7 @@
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { CaptureSetupError } from './traffic-radar-platform.mjs';
 import { updateRadarFlag } from './traffic-radar-config.mjs';
+import { trafficRadar } from './traffic-radar.mjs';
 const BASE = '/api/system/traffic-radar';
 const loopback = req => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
 export function isAuthorizedTrafficIngest(req, url) {
@@ -24,7 +25,11 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
       let data;
       try { data = JSON.parse((await body(req, 4096)).toString()); }
       catch { return reply(res, 400, { error: 'Invalid settings request.' }); }
-      try { return reply(res, 200, await updateRadarFlag(data?.key, data?.enabled)); }
+      try {
+        const result = await updateRadarFlag(data?.key, data?.enabled);
+        trafficRadar.updateConfig(result.config);
+        return reply(res, 200, result);
+      }
       catch (error) { return reply(res, 400, { error: error.message }); }
     }
     if (req.method === 'GET' && action === '/capture') return reply(res, 200, capture.read());

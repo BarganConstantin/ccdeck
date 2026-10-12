@@ -45,6 +45,14 @@ describe('Radar individual flag settings', () => {
     await writeFile(path, '{"env":[]}');
     await expect(updateRadarFlag('OTEL_LOG_USER_PROMPTS', false, options)).rejects.toThrow('invalid env');
   });
+  it('reads BOM-prefixed settings and preserves other fields when saving', async () => {
+    const { path, options } = await fixture();
+    await writeFile(path, '\uFEFF' + JSON.stringify({ hooks: { Stop: [] }, env: { OTEL_LOG_USER_PROMPTS: '1' } }));
+    const boundedReader = { ...options, readJson: undefined };
+    expect((await readRadarConfig(boundedReader)).sources[0].status).toBe('read');
+    await updateRadarFlag('OTEL_LOG_USER_PROMPTS', false, boundedReader);
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ hooks: { Stop: [] }, env: { OTEL_LOG_USER_PROMPTS: '0' } });
+  });
   it('uses CLAUDE_CONFIG_DIR and preserves symlinked settings', async () => {
     const { home, path, options } = await fixture();
     const actual = join(home, 'dotfiles.json'); await writeFile(actual, '{}'); await symlink(actual, path);

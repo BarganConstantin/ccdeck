@@ -172,11 +172,12 @@ phone. Three views keep configuration, observed traffic and saved files separate
   their sources. Enabled flags are highlighted and recognized boolean values
   are shown as written. These are settings-file evidence, not confirmation of a
   running session's effective environment. Credentials and endpoint paths stay
-  hidden. Each telemetry/content flag has an **On/Off** control that saves its
+  hidden. Each recognized telemetry/content flag has a switch that saves its
   value to Claude's user settings for new sessions. Flags set by organization or
   managed settings show **Managed** and require an administrator to change;
   Radar does not rewrite cached organization policy. Controls are unavailable
-  when configuration cannot be verified.
+  when configuration cannot be verified. Unknown values offer explicit
+  **Enable** and **Disable** actions.
 - **File** opens a local JSON or JSONL file, lists its records and shows the
   original text. Files stay in the browser and are never uploaded. Search and
   session filtering narrow the list. Inputs are bounded to 10 MB and 10,000

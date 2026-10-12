@@ -39,7 +39,8 @@ describe('Telemetry flag controls', () => {
     click(); click();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ key: 'OTEL_LOG_USER_PROMPTS', enabled: false });
-    expect(one(view.tree, e => e.props.role === 'switch')!.props.disabled).toBe(true);
+    expect(one(view.tree, e => e.props.role === 'switch')!.props.disabled).toBe(false);
+    expect(one(view.tree, e => e.props.role === 'switch')!.props['aria-busy']).toBe(true);
     resolve({ ok: true, json: async () => ({ ok: true, config: { sources: [], variables: [{ ...configured.config.variables[0], value: 'Disabled', rawValue: '0' }] } }) });
     await vi.waitFor(() => expect(one(view.tree, e => e.props.role === 'switch')!.props['aria-checked']).toBe(false));
     expect(one(view.tree, e => e.props.role === 'status')).not.toBeNull();
@@ -56,23 +57,23 @@ describe('Telemetry flag controls', () => {
 });
 
 describe('Telemetry toggle keyboard focus', () => {
-  it('restores focus after saving without taking it from another control', async () => {
-    for (const movedElsewhere of [false, true]) {
-      let resolve!: (value: unknown) => void;
-      vi.stubGlobal('fetch', vi.fn(() => new Promise(r => { resolve = r; })));
-      vi.stubGlobal('requestAnimationFrame', (callback: () => void) => { callback(); return 1; });
-      const button = { isConnected: true, focus: vi.fn() };
-      const body = {};
-      const doc = { activeElement: button as unknown, body };
-      vi.stubGlobal('document', doc);
-      const configured = { ...snapshot, config: { sources: [], variables: [{ key: 'OTEL_LOG_USER_PROMPTS', source: 'User settings', value: 'Enabled', editable: true }] } };
-      const view = mount(Configuration, { snapshot: configured });
-      (one(view.tree, e => e.props.role === 'switch')!.props.onClick as (event: unknown) => void)({ currentTarget: button });
-      doc.activeElement = movedElsewhere ? { anotherControl: true } : body;
-      resolve({ ok: true, json: async () => ({ ok: true, config: configured.config }) });
-      await vi.waitFor(() => expect(one(view.tree, e => e.props.role === 'switch')!.props.disabled).toBe(false));
-      expect(button.focus).toHaveBeenCalledTimes(movedElsewhere ? 0 : 1);
-      view.unmount(); vi.unstubAllGlobals();
-    }
+  it('keeps the working switch enabled while blocking other flags', async () => {
+    let resolve!: (value: unknown) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(r => { resolve = r; })));
+    const configured = { ...snapshot, config: { sources: [], variables: [
+      { key: 'OTEL_LOG_USER_PROMPTS', source: 'User settings', value: 'Enabled', editable: true },
+      { key: 'OTEL_LOG_TOOL_DETAILS', source: 'User settings', value: 'Enabled', editable: true },
+    ] } };
+    const view = mount(Configuration, { snapshot: configured });
+    const prompt = () => one(view.tree, e => e.props.role === 'switch' && String(e.props['aria-label']).startsWith('Your prompts'))!;
+    const tool = () => one(view.tree, e => e.props.role === 'switch' && String(e.props['aria-label']).startsWith('Tool details'))!;
+    (prompt().props.onClick as () => void)();
+    expect(prompt().props.disabled).toBe(false);
+    expect(prompt().props['aria-busy']).toBe(true);
+    expect(tool().props.disabled).toBe(true);
+    resolve({ ok: true, json: async () => ({ ok: true, config: configured.config }) });
+    await vi.waitFor(() => expect(prompt().props['aria-busy']).toBe(false));
+    expect(tool().props.disabled).toBe(false);
+    view.unmount(); vi.unstubAllGlobals();
   });
 });
