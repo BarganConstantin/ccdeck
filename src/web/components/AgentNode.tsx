@@ -150,17 +150,6 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
               onClick={() => data.onOpenContext!(data.sessionId)}
             />
           )}
-          {/* A floor, and marked as one, when the deck did not see this session
-              start (#822). `startedAt` is the first event THIS page applied, and
-              a page opened late is built from the bounded replay ring, so for a
-              long session the clock started partway in — one tab read 118m
-              beside another's 12m for the same session. `synthetic` is how the
-              reducer already knows; it is the "?" beside the name. */}
-          <div className="time" title={data.synthetic
-            ? `The deck joined this session after it began, so it has run at least this long — first seen ${new Date(data.startedAt).toLocaleTimeString()}`
-            : `Started ${new Date(data.startedAt).toLocaleTimeString()}`}>
-            {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
-          </div>
         </div>
       </div>
 
@@ -169,38 +158,51 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           badge and the chip keep their own, which the browser prefers over
           this one under the pointer. */}
       <div className="sub" title={subRowTitle(data)}>
-        {data.kind === "root" ? "session" : "subagent"}
-        {data.childCount > 0 && (
-          <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
-        )}
-        {data.cwdBasename && data.kind === "subagent" ? ` · ${data.cwdBasename}` : ""}
-        {/* The chip README.md names as how the two CLIs are told apart, on the
-            nodes that have no model to put in it (#404). `provider` has been
-            carried on every node since Codex support landed and read by nothing
-            in the UI, so a Claude and a Codex session in one repo were two cards
-            separated by a session-id suffix and nothing else — and the model
-            chip, the documented workaround, is absent on synthetic nodes, on
-            subagents with no model event, and on every root before its first
-            ModelObserved.
+        <span className="sub-details">
+          {data.kind === "root" ? "session" : "subagent"}
+          {data.childCount > 0 && (
+            <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
+          )}
+          {data.cwdBasename && data.kind === "subagent" ? ` · ${data.cwdBasename}` : ""}
+          {/* The chip README.md names as how the two CLIs are told apart, on the
+              nodes that have no model to put in it (#404). `provider` has been
+              carried on every node since Codex support landed and read by nothing
+              in the UI, so a Claude and a Codex session in one repo were two cards
+              separated by a session-id suffix and nothing else — and the model
+              chip, the documented workaround, is absent on synthetic nodes, on
+              subagents with no model event, and on every root before its first
+              ModelObserved.
 
-            Only "codex" falls back, deliberately. The reducer stamps "claude" as
-            the DEFAULT for any event that names no provider — that is how events
-            recorded before the field existed replay — so a "Claude Code" chip
-            would print an assumption as an observation, on every model-less node
-            of the commonest deck. A "codex" stamp is only ever set from a rollout
-            this deck actually read. */}
-        {data.model
-          /* TINTED FROM THE MODEL, NOT FROM THE TOOLTIP. The sheet used to
-             match `[title*="opus"]`, and since #686 this tooltip lists every
-             model the card's spend covers — so a session that switched from
-             Sonnet to Opus matched two equal-specificity rules and took the
-             last one, drawing "Opus 5 +1" in Sonnet blue. */
-          ? <span className="model-chip" data-family={modelFamily(data.model)} title={modelChipTitle}>
-              {shortModel(data.model)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
-            </span>
-          : data.provider === "codex"
-            ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>
-            : null}
+              Only "codex" falls back, deliberately. The reducer stamps "claude" as
+              the DEFAULT for any event that names no provider — that is how events
+              recorded before the field existed replay — so a "Claude Code" chip
+              would print an assumption as an observation, on every model-less node
+              of the commonest deck. A "codex" stamp is only ever set from a rollout
+              this deck actually read. */}
+          {data.model
+            /* TINTED FROM THE MODEL, NOT FROM THE TOOLTIP. The sheet used to
+               match `[title*="opus"]`, and since #686 this tooltip lists every
+               model the card's spend covers — so a session that switched from
+               Sonnet to Opus matched two equal-specificity rules and took the
+               last one, drawing "Opus 5 +1" in Sonnet blue. */
+            ? <span className="model-chip" data-family={modelFamily(data.model)} title={modelChipTitle}>
+                {shortModel(data.model)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
+              </span>
+            : data.provider === "codex"
+              ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>
+              : null}
+        </span>
+        {/* A floor, and marked as one, when the deck did not see this session
+            start (#822). `startedAt` is the first event THIS page applied, and
+            a page opened late is built from the bounded replay ring, so for a
+            long session the clock started partway in — one tab read 118m
+            beside another's 12m for the same session. `synthetic` is how the
+            reducer already knows; it is the "?" beside the name. */}
+        <span className="time" title={data.synthetic
+          ? `The deck joined this session after it began, so it has run at least this long — first seen ${new Date(data.startedAt).toLocaleTimeString()}`
+          : `Started ${new Date(data.startedAt).toLocaleTimeString()}`}>
+          {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
+        </span>
       </div>
 
       {/* What Claude Code calls this session, on a row of its own for the

@@ -29,8 +29,8 @@ function card(over: Partial<AgentNodeData>): AgentNodeData {
 
 describe("the card's second row", () => {
   it("ellipsises at the card's width, which is why it needs the tooltip", () => {
-    expect(body(".agent-node .sub")).toMatch(/white-space:\s*nowrap;/);
-    expect(body(".agent-node .sub")).toMatch(/text-overflow:\s*ellipsis;/);
+    expect(body(".agent-node .sub-details")).toMatch(/white-space:\s*nowrap;/);
+    expect(body(".agent-node .sub-details")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 
   it("carries its whole text on hover", () => {
