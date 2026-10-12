@@ -127,7 +127,7 @@ describe("reset calendar content", () => {
     expect(output).toContain("60% used");
     expect(output).toContain('dateTime="2026-10-13T13:27:00.000Z"');
     expect(output.match(/class="ap-reset-count"/g)).toHaveLength(7);
-    expect(output).toContain("Today · Mon");
+    expect(output).toContain('class="ap-reset-weekday">Today');
     expect(output).toContain("America/New_York");
   });
 
@@ -147,8 +147,35 @@ describe("reset calendar content", () => {
     expect(output).toContain("1 outdated");
   });
 
+  it("leads with the next current reset and keeps old readings out of the main agenda", () => {
+    const output = html([
+      account(1, at(12, 11), { alias: "Old account", stale: true }),
+      account(2, at(13), { alias: "Upcoming account" }),
+    ]);
+    const next = output.slice(output.indexOf('class="ap-reset-next"'), output.indexOf('class="ap-reset-week"'));
+    expect(next).toContain("Upcoming account");
+    expect(next).not.toContain("Old account");
+    const main = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('<details class="ap-reset-disclosure"'));
+    expect(main).toContain("Upcoming account");
+    expect(main).not.toContain("Old account");
+    expect(output).toContain("Excluded from counts");
+    expect(output).not.toContain('<details class="ap-reset-disclosure" open');
+    expect(output).toContain("Old account");
+  });
+
   it("explains the empty schedule and escapes account names", () => {
     expect(html([])).toContain("No reported weekly resets in these seven days");
     expect(html([account(1, at(13), { alias: "<script>bad</script>" })])).toContain("&lt;script&gt;bad&lt;/script&gt;");
+  });
+
+  it("scales daily bars by scheduled reset counts, without old readings inflating them", () => {
+    const output = html([
+      account(1, at(13)), account(2, at(14)), account(3, at(14)),
+      account(4, at(13), { stale: true }), account(5, at(13), { stale: true }),
+    ]);
+    expect(output).toContain('--reset-height:50%');
+    expect(output).toContain('--reset-height:100%');
+    expect(output).toContain('1 scheduled resets, 2 outdated readings');
+    expect(output).toContain('2 scheduled resets');
   });
 });

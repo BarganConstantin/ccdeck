@@ -499,6 +499,8 @@ interface Control {
 const CONTROLS: Control[] = [
   { at: '.ap-report-views .btn[aria-pressed="true"]', fillFrom: '.ap-report-views .btn[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".ap-report-views .btn:hover", fillFrom: ".ap-report-views .btn:hover", beds: ["--panel"] },
+  { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".ap-reset-day-button:hover", fillFrom: ".ap-reset-day-button:hover", beds: ["--panel"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
   { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
