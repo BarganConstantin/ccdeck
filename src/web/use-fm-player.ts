@@ -51,6 +51,7 @@ export interface FmPlayer {
   /** The embed is wanted: the iframe is mounted while this is on. */
   armed: boolean;
   playing: boolean;
+  buffering: boolean;
   /** The embed's frame, which the component renders and this talks to. */
   frame: MutableRefObject<HTMLIFrameElement | null>;
   /** Post one command to the player, at its origin. */
@@ -68,6 +69,7 @@ export function useFmPlayer({
   /** Buffering keeps the iframe mounted; an explicit stop releases it. */
   const [armed, setArmed] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [buffering, setBuffering] = useState(false);
   // Playing is one of the features the usage reports name (feature-use.ts).
   useFeatureUse("claude-fm", playing);
   const playRequestRef = useRef(playRequest);
@@ -126,14 +128,16 @@ export function useFmPlayer({
     audio.current = player;
     setArmed(true);
     setPlaying(false);
+    setBuffering(false);
 
-    let connectionTimer: ReturnType<typeof setTimeout>;
+    let hasStarted = false;
     const current = () => audio.current === player;
     const released = () => {
-      clearTimeout(connectionTimer);
+      clearTimeout(connectionTimeout.current);
       stopDirect();
       setArmed(false);
       setPlaying(false);
+      setBuffering(false);
     };
     const failed = () => {
       if (!current()) return;
@@ -148,14 +152,23 @@ export function useFmPlayer({
       if (error instanceof DOMException && error.name === "NotAllowedError") { released(); return; }
       failed();
     };
-    connectionTimer = setTimeout(() => { if (current() && player.readyState < 2) failed(); }, 15_000);
-    connectionTimeout.current = connectionTimer;
+    connectionTimeout.current = setTimeout(() => { if (current() && !hasStarted) failed(); }, 15_000);
     player.addEventListener("playing", () => {
       if (!current()) return;
-      clearTimeout(connectionTimer);
+      clearTimeout(connectionTimeout.current);
+      hasStarted = true;
       setPlaying(true);
+      setBuffering(false);
       onAvailabilityChange?.(selection, false);
     });
+    const waiting = () => {
+      if (!current()) return;
+      setPlaying(false); setBuffering(hasStarted);
+      clearTimeout(connectionTimeout.current);
+      connectionTimeout.current = setTimeout(() => { if (current()) failed(); }, 15_000);
+    };
+    player.addEventListener("waiting", waiting);
+    player.addEventListener("stalled", waiting);
     player.addEventListener("ended", () => { if (current()) released(); });
     player.addEventListener("error", failed, { once: true });
 
@@ -218,6 +231,7 @@ export function useFmPlayer({
     playRequestRef.current = playRequest;
     setProbe(null);
     setDead(false);
+    setBuffering(false);
     setArmed(asked);
     setPlaying(asked);
     stopDirect();
@@ -352,6 +366,7 @@ export function useFmPlayer({
         stopDirect();
         setArmed(false);
         setPlaying(false);
+        setBuffering(false);
         return;
       }
       startDirect(probe.audio, probe.hls === true, source);
@@ -368,5 +383,5 @@ export function useFmPlayer({
     if (!next) setArmed(false);
   }, [probe, armed, playing, source, say, startDirect, stopDirect]);
 
-  return useMemo(() => ({ probe, dead, armed, playing, frame, say, press }), [probe, dead, armed, playing, say, press]);
+  return useMemo(() => ({ probe, dead, armed, playing, buffering, frame, say, press }), [probe, dead, armed, playing, buffering, say, press]);
 }
