@@ -455,6 +455,7 @@ export const GUARDED_READS = new Set([
   // the desktop app, bin/ and the hook never read them.
   "/api/quota",
   "/api/ccusage",
+  "/api/ccusage/session",
   "/api/codex-usage",
   "/api/cswap-auto",
   // Not a secret, and here for the other reason a read can be dangerous: it is

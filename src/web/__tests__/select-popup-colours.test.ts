@@ -50,6 +50,9 @@ const html = (theme: Theme) => el("html", [], { states: ["root"], attrs: { "data
  *  sees it: its ancestors' classes, then its own. */
 const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/RadioPanel.tsx": ["country", "sound"].map(name => ({ name: `Radio ${name}`, chain: [el("body"), el("div", ["radio-panel"]), el("section", ["radio-discovery"]), el("div", ["radio-filters"]), el("label"), el("select")] })),
+  "components/SessionUsageModal.tsx": [{ name: "session pricing",
+    chain: [el("body"), el("div", ["modal", "su-modal"]), el("div", ["modal-body", "su-body"]), el("label", ["su-pricing"]), el("select")],
+  }],
   "components/RadarSelect.tsx": [{ name: "Radar filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] }],
   "components/ToneSection.tsx": [{
     name: "a tone's figure",
