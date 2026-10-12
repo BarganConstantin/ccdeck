@@ -24,6 +24,7 @@ const CONTEXT_WINDOW_BIG = 1_000_000;
 const BIG_CONTEXT_PATTERNS: RegExp[] = [
   /\[1m\]/i,                                  // explicit suffix
   /^claude[-_]opus[-_]5\b/i,                  // Opus 5
+  /^claude[-_]haiku[-_]5[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i, // Haiku 5.5: 1M
   /^claude[-_]sonnet[-_]5\b/i,                // Sonnet 5
   /^claude[-_]opus[-_]4[-_.](?:6|7|8)\b/i,    // Opus 4.6+ (4.5 is 200K)
   /^claude[-_]sonnet[-_]4[-_.]6\b/i,          // Sonnet 4.6
@@ -49,6 +50,7 @@ const CODEX_CONTEXT_DEFAULTS: Array<{ match: RegExp; window: number }> = [
   { match: /^gpt[-_]5[-_.]5/i,                    window: 1_050_000 },
   { match: /^gpt[-_]5[-_.]4[-_](?:mini|nano)/i,   window:   400_000 },
   { match: /^gpt[-_]5[-_.]4/i,                    window: 1_050_000 },
+  { match: /^gpt[-_]5[-_.]3[-_]chat[-_]latest$/i, window:   128_000 },
   { match: /^gpt[-_]5[-_.]3[-_]codex[-_]spark/i,  window:   128_000 },
   { match: /^gpt[-_]5[-_.]3[-_]codex/i,           window:   400_000 },
   { match: /^gpt[-_]5[-_.]2/i,                    window:   400_000 },

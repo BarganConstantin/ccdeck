@@ -69,6 +69,10 @@ function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
   if (a.reasoningOutputTokens !== undefined || b.reasoningOutputTokens !== undefined) {
     out.reasoningOutputTokens = (a.reasoningOutputTokens ?? 0) + (b.reasoningOutputTokens ?? 0);
   }
+  if (a.longContext || b.longContext) {
+    const empty = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 };
+    out.longContext = addUsage(a.longContext ?? empty, b.longContext ?? empty);
+  }
   // A speed share is a subset of the counts it sits on (#754), so the sum of two
   // usages carries the sum of their shares, speed by speed; tokens neither side
   // named a speed for stay standard.
