@@ -9,6 +9,7 @@
 .agent-node {
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
+  width: 260px;
   min-width: 220px;
   max-width: 260px;
   padding: 10px 12px 10px 16px;
@@ -320,6 +321,7 @@
   gap: 8px;
 }
 .agent-node .head-right {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 6px;

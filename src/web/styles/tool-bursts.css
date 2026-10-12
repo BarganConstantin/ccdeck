@@ -102,7 +102,11 @@
      six-token, contrast-swept palette is overridden by the whole of sRGB;
      boosting them 20% on top was the canvas shouting in a colour it does not
      own. */
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 14px;
+  width: 14px;
   /* tiny continuous wobble while inflight — see .status-inflight rule */
 }
 .tool-burst .tb-name {
@@ -142,8 +146,8 @@
   animation: emoji-wobble 1.6s ease-in-out infinite;
 }
 .tool-burst.status-done {
-  border-color: rgba(134, 239, 172, 0.55);
-  background: linear-gradient(180deg, rgba(134,239,172,0.10), transparent), var(--panel);
+  border-color: var(--line);
+  background: var(--panel);
   /* SUCCESS IS FLAT, AND THAT IS WHAT MAKES FAILURE FINDABLE. A done bubble
      and an err bubble used to differ by a border alpha of 0.05 and a ring
      alpha of 0.13 — and the hues run the wrong way for the one thing that
@@ -151,8 +155,8 @@
      0.503, so the failed pill was literally DIMMER than the four successes
      beside it. Adding weight to the failure was the wrong repair: four
      successes is the ordinary case and the ordinary case should not glow at
-     all. So the success keeps its tint, its border and its tick, and gives up
-     the coloured ring and the coloured glow. It keeps the neutral elevation
+     all. So success keeps its green tick, with a neutral surface and border.
+     It keeps the neutral elevation
      every bubble has. The failure below keeps everything, which leaves it the
      only bubble on the canvas lit in its own colour. */
   box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.25);
@@ -231,8 +235,8 @@
   left: 4px;
   top: 6px;
   bottom: 6px;
-  width: 3px;
-  border-radius: 2px;
+  width: 1px;
+  border-radius: 1px;
   background: var(--cat-accent, transparent);
   opacity: 0.85;
 }
@@ -430,9 +434,6 @@
 :root[data-color-scheme="light"] .tool-burst.status-inflight {
   border-color: rgba(126,34,206,0.55);
   box-shadow: 0 0 0 1px rgba(126,34,206,0.20), 0 6px 14px rgba(126,34,206,0.18);
-}
-:root[data-color-scheme="light"] .tool-burst.status-done {
-  border-color: rgba(21,128,61,0.50);
 }
 :root[data-color-scheme="light"] .tool-burst.status-err {
   border-color: rgba(185,28,28,0.55);
