@@ -372,7 +372,7 @@ describe("nothing else in the deck invents a focus stop", () => {
     // distinction this regex is drawn to make.
     const offenders = components(web)
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))
-      .map(p => p.slice(web.length));
+      .map(p => p.slice(web.length).replaceAll("\\", "/"));
     expect(offenders).toEqual(["components/RadioMap.tsx"]);
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
     expect(map).toContain("tabIndex={0}");
