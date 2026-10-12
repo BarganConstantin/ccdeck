@@ -130,7 +130,7 @@ function BurstCamera({ connectors, bubbles }: { connectors: React.ReactNode; bub
     // aria-hidden on the whole layer, connectors and bubbles alike, and nothing
     // inside it takes focus — see the note on the bubble below for why this is
     // decoration rather than a control surface.
-    <div className="tool-bursts-layer" aria-hidden>
+    <div className="tool-bursts-layer" aria-hidden style={{ "--tool-burst-height": `${2 * BUBBLE_HALF_H}px` } as React.CSSProperties}>
       <svg className="tool-bursts-svg">
         <g transform={`translate(${x} ${y}) scale(${zoom})`}>{connectors}</g>
       </svg>
