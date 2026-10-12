@@ -13,8 +13,9 @@
 .radio-header h2 span { font-weight: 400; color: var(--text-secondary); }
 .radio-header-note { margin-left: auto; color: var(--text-secondary); font-size: 11px; }
 .radio-panel .icon-btn { display: grid; place-items: center; width: 32px; min-width: 32px; height: 32px; flex: none; background: none; border: 0; border-radius: var(--r-ctl); color: var(--text-secondary); cursor: pointer; padding: 0; }
-.radio-panel .radio-favorite[aria-pressed="true"] { color: var(--accent); }
-.radio-panel .radio-favorite[aria-pressed="true"] path { fill: var(--accent-dim); }
+.radio-panel .radio-favorite[aria-pressed="true"],
+.radio-panel .radio-favorite[aria-pressed="true"] > svg { color: var(--accent); }
+.radio-panel .radio-favorite[aria-pressed="true"] path { fill: currentColor; }
 .radio-panel button:disabled { opacity: var(--dim-off); cursor: default; }
 .radio-eyebrow { display: block; font-size: 10px; font-weight: 500; color: var(--text-secondary); line-height: 1.4; }
 .radio-player { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 24px; padding: 12px 20px; background: var(--bg-soft); border-bottom: 1px solid var(--line); flex: none; }
