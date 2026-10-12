@@ -188,7 +188,7 @@
 :root[data-color-scheme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
 :root[data-color-scheme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
 :root[data-color-scheme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
-.lod-face[data-alarm] { --lod-alarm: var(--warn); }
+.lod-face[data-alarm] { --lod-alarm: var(--warn); padding-inline: 6px; }
 .agent-node.synthetic > .lod-face { border-style: dashed; }
 .react-flow__node:hover .lod-face {
   background: color-mix(in srgb, var(--text) 6%, var(--panel));
@@ -265,6 +265,9 @@
    above it — and "Needs you" or "→ 5 · 3 live" is the thing the overview is
    for. A subagent keeps its name: it has no label above it. */
 @container lod (max-height: 36px) {
+  .lod-id { gap: 4px; }
+  .lod-inline { font-size: 11px; }
+  .lod-id .alert-mark { margin-left: 0; }
   .lod-signal,
   .lod-title { display: none; }
   .lod-face[data-kind="root"][data-signal] .lod-name { display: none; }

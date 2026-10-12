@@ -18,11 +18,12 @@
 .tool-conn {
   fill: none;
   stroke-width: 1.4;
-  stroke-dasharray: 5 4;
+  stroke-dasharray: none;
   stroke-linecap: round;
   transition: opacity 300ms ease;
 }
 .tool-conn.status-inflight {
+  stroke-dasharray: 5 5;
   stroke: var(--inflight);
   animation: dashflow 0.7s linear infinite;
   /* No drop-shadow (#882): a filter on a path whose dashes move forever is

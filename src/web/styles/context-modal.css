@@ -313,9 +313,9 @@
 .recap-tie-beads {
   fill: none;
   stroke: var(--tie);
-  stroke-width: 2.5;
+  stroke-width: 1.5;
   stroke-linecap: round;
-  stroke-dasharray: 0 7;
+  stroke-dasharray: 0 10;
 }
 .recap-tie-end {
   fill: var(--tie);
