@@ -1,6 +1,6 @@
 import { RadarIcon } from "./RadarIcon";
 import { RadarSelect } from "./RadarSelect";
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { RadarSnapshot } from "../traffic-radar";
 import { configuredDestinations, configuredState, observedDestinations, type RadarSession } from "../telemetry-inspection";
 import { tabStripMove } from "../tablist-keys";
@@ -13,7 +13,7 @@ import { TelemetryFile } from "./TelemetryFile";
 export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () => void; sessions?: RadarSession[] }) {
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
-  const { snapshot, failed } = useTrafficRadar();
+  const { snapshot, failed, updateConfig } = useTrafficRadar();
   const captureState = useTelemetryCapture();
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
     <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" aria-describedby="tr-purpose" onClick={e => e.stopPropagation()}>
@@ -21,13 +21,14 @@ export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () =
         <div className="tr-identity"><RadarIcon kind="radar" /><div><div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div><p id="tr-purpose">Inspect Claude Code’s collector traffic.</p></div></div>
         <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
       </header>
-      <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} />
+      <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} onConfigChange={updateConfig} />
     </div>
   </div>;
 }
 
-export function TrafficRadarView({ snapshot, failed = false, captureState, sessions = [] }: {
+export function TrafficRadarView({ snapshot, failed = false, captureState, sessions = [], onConfigChange }: {
   snapshot: RadarSnapshot | null; failed?: boolean; captureState?: ReturnType<typeof useTelemetryCapture>; sessions?: RadarSession[];
+  onConfigChange?: (config: RadarSnapshot["config"]) => void;
 }) {
   const [page, setPage] = useState<"monitor" | "configuration" | "file">("monitor");
   const [fileSessions, setFileSessions] = useState<string[]>([]);
@@ -74,14 +75,34 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
       {destinations.length > 0 && <div className="tr-endpoints">{destinations.map(destination => <code key={destination}>{destination}</code>)}</div>}
       {!destinations.length && observed.length > 0 && <div className="tr-observed-summary"><span className="tr-state">Claude connections observed</span><div className="tr-endpoints">{observed.map(address => <code key={address}>{address}</code>)}</div><p className="tr-note">These are active connections, not confirmed telemetry messages. Choose an observed address below to inspect its traffic.</p></div>}
     </div>
-      {snapshot ? <Configuration snapshot={snapshot} stale={failed} sessionLabel={session === "all" ? undefined : choices.get(session) ?? session} /> : <p className="tr-empty">{failed ? "Could not read settings. Sampling will retry." : "Reading local settings…"}</p>}
+      {snapshot ? <Configuration snapshot={snapshot} stale={failed} onConfigChange={onConfigChange} sessionLabel={session === "all" ? undefined : choices.get(session) ?? session} /> : <p className="tr-empty">{failed ? "Could not read settings. Sampling will retry." : "Reading local settings…"}</p>}
     </div>
     <div className="tr-page" id="tr-panel-file" role="tabpanel" aria-labelledby="tr-tab-file" hidden={page !== "file"}><TelemetryFile onSessions={setFileSessions} sessionFilter={session} /></div>
   </div>;
 }
 
-export function Configuration({ snapshot, sessionLabel, stale = false }: { snapshot: RadarSnapshot; sessionLabel?: string; stale?: boolean }) {
-  const variables = snapshot.config?.variables ?? [];
+export function Configuration({ snapshot, sessionLabel, stale = false, onConfigChange }: { snapshot: RadarSnapshot; sessionLabel?: string; stale?: boolean; onConfigChange?: (config: RadarSnapshot["config"]) => void }) {
+  const [savedConfig, setSavedConfig] = useState<RadarSnapshot["config"]>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => { setSavedConfig(null); }, [snapshot.config]);
+  const variables = (savedConfig ?? snapshot.config)?.variables ?? [];
+  const toggle = async (key: string, enabled: boolean) => {
+    if (savingRef.current || stale) return;
+    savingRef.current = true;
+    setSaving(key); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/system/traffic-radar/configuration", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, enabled }) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error ?? "Could not save this setting.");
+      setSavedConfig(result.config);
+      onConfigChange?.(result.config);
+      setNotice("Saved to user settings. Start a new Claude session to apply the change.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not save this setting. Try again."); }
+    finally { savingRef.current = false; setSaving(null); }
+  };
   const destinations = variables.filter(v => v.key.endsWith("ENDPOINT"));
   const flags = variables.filter(v => v.key.startsWith("OTEL_LOG_") || v.key.includes("ENABLE") || v.key.includes("TELEMETRY_BETA"));
   const names: Record<string, string> = { CLAUDE_CODE_ENABLE_TELEMETRY: "Telemetry", OTEL_LOG_USER_PROMPTS: "Your prompts", OTEL_LOG_ASSISTANT_RESPONSES: "Claude responses", OTEL_LOG_TOOL_DETAILS: "Tool details", OTEL_LOG_TOOL_CONTENT: "Tool contents", OTEL_LOG_RAW_API_BODIES: "Full API bodies", OTEL_LOG_MANAGED_SETTINGS: "Managed settings", CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: "Enhanced telemetry", ENABLE_ENHANCED_TELEMETRY_BETA: "Enhanced telemetry" };
@@ -94,8 +115,11 @@ export function Configuration({ snapshot, sessionLabel, stale = false }: { snaps
     {destinations.length ? <ul className="tr-destinations">{destinations.map(v => <li key={`${v.source}:${v.key}`}><code>{v.value}</code><span>{v.source} · {v.key}</span></li>)}</ul> : <p className="tr-note">No destination found in the sources read. This does not mean telemetry is off.</p>}
     {!destinations.length && snapshot.connections.length > 0 && <><h4>Observed Claude connections</h4><ul className="tr-live-connections">{snapshot.connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>{stale || c.active === null ? "Visibility unavailable" : c.active ? "Active connection" : "Previously observed"} · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A running process can keep previously loaded settings after a settings file disappears. Connections alone do not identify telemetry or prove a message was sent.</p></>}
     <h4>Telemetry and content</h4>
+    <p className="tr-note">Controls save shared user settings for new Claude sessions. Organization and managed flags require an administrator.</p>
+    {notice && <p className="tr-note" role="status">{notice}</p>}
+    {error && <p className="tr-warning" role="alert">{error}</p>}
     {flags.length ? <dl className="tr-variables">{flags.map(v => <div key={`${v.source}:${v.key}`}>
-      <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{v.source}</span></dt><dd><span className={`tr-state ${v.value.startsWith("Enabled") ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{v.value}</span>{v.rawValue !== undefined && <code className="tr-raw-flag">{v.rawValue}</code>}</dd>
+      <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{v.source}</span>{v.blockedReason && <span>{v.blockedReason}</span>}</dt><dd className="tr-flag-control"><span className={`tr-state ${v.value.startsWith("Enabled") ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{v.value}</span>{v.rawValue !== undefined && <code className="tr-raw-flag">{v.rawValue}</code>}<button type="button" className="tr-flag-toggle" role="switch" aria-checked={v.value.startsWith("Enabled")} aria-label={`${names[v.key] ?? v.key} (${v.source})`} disabled={stale || saving !== null || v.editable !== true} title={v.blockedReason ?? "Save to user settings for new Claude sessions"} onClick={() => void toggle(v.key, !v.value.startsWith("Enabled"))}>{saving === v.key ? "Saving…" : v.editable !== true ? "Managed" : v.value.startsWith("Enabled") ? "On" : "Off"}</button></dd>
     </div>)}</dl> : <p className="tr-note">No telemetry flags found in the settings read.</p>}
     <details className="tr-details"><summary>All variables and sources</summary>
       <dl className="tr-variables">{variables.map(v => <div key={`${v.source}:${v.key}`}><dt><code>{v.key}</code><span>{v.source}</span></dt><dd>{v.value}</dd></div>)}</dl>

@@ -27,3 +27,30 @@ describe("Telemetry Radar modal interactions", () => {
     expect(view.tree.modalOpenRef.current).toBe(true); view.unmount();
   });
 });
+
+describe('Telemetry flag controls', () => {
+  const configured = { ...snapshot, config: { sources: [], variables: [{ key: 'OTEL_LOG_USER_PROMPTS', source: 'User settings', value: 'Enabled', rawValue: '1', editable: true }] } };
+  it('saves only the selected flag, blocks repeated clicks, and confirms after success', async () => {
+    let resolve!: (value: unknown) => void;
+    const fetchMock = vi.fn(() => new Promise(r => { resolve = r; }));
+    vi.stubGlobal('fetch', fetchMock);
+    const view = mount(Configuration, { snapshot: configured });
+    const click = one(view.tree, e => e.props.role === 'switch')!.props.onClick as () => void;
+    click(); click();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ key: 'OTEL_LOG_USER_PROMPTS', enabled: false });
+    expect(one(view.tree, e => e.props.role === 'switch')!.props.disabled).toBe(true);
+    resolve({ ok: true, json: async () => ({ ok: true, config: { sources: [], variables: [{ ...configured.config.variables[0], value: 'Disabled', rawValue: '0' }] } }) });
+    await vi.waitFor(() => expect(one(view.tree, e => e.props.role === 'switch')!.props['aria-checked']).toBe(false));
+    expect(one(view.tree, e => e.props.role === 'status')).not.toBeNull();
+    view.unmount(); vi.unstubAllGlobals();
+  });
+  it('keeps the previous value and exposes a failed save', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: 'No write permission.' }) })));
+    const view = mount(Configuration, { snapshot: configured });
+    (one(view.tree, e => e.props.role === 'switch')!.props.onClick as () => void)();
+    await vi.waitFor(() => expect(one(view.tree, e => e.props.role === 'alert')).not.toBeNull());
+    expect(one(view.tree, e => e.props.role === 'switch')!.props['aria-checked']).toBe(true);
+    view.unmount(); vi.unstubAllGlobals();
+  });
+});

@@ -2,8 +2,10 @@ import { open } from "node:fs/promises";
 import { homedir } from "node:os";
 import { posix, win32 } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
+import { mkdir } from "node:fs/promises";
+import { readSettingsForWrite, writeFileAtomic } from "./atomic-write.mjs";
 
-const BOOLEAN_KEYS = [
+export const BOOLEAN_KEYS = [
   "CLAUDE_CODE_ENABLE_TELEMETRY", "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
   "ENABLE_ENHANCED_TELEMETRY_BETA", "OTEL_LOG_USER_PROMPTS",
   "OTEL_LOG_ASSISTANT_RESPONSES", "OTEL_LOG_TOOL_DETAILS",
@@ -86,5 +88,35 @@ export async function readRadarConfig({ home = homedir(), env = process.env, pla
       return { name, status: error?.code === "ENOENT" ? "absent" : "unavailable", variables: [] };
     }
   }));
-  return { sources: sources.map(({ name, status }) => ({ name, status })), variables: sources.flatMap(s => s.variables) };
+  const variables = sources.flatMap(s => s.variables);
+  const blockedKeys = new Set(variables.filter(v => v.source !== "User settings").map(v => v.key));
+  const uncertain = sources.some(s => s.status === "unavailable");
+  return { sources: sources.map(({ name, status }) => ({ name, status })), variables: variables.map(v => ({
+    ...v,
+    ...(BOOLEAN_KEYS.includes(v.key) ? { editable: !uncertain && !blockedKeys.has(v.key),
+      ...((uncertain || blockedKeys.has(v.key)) ? { blockedReason: uncertain ? "Settings could not be verified. Try again after they can be read." : "Controlled by organization or managed settings. Ask your administrator to change this flag." } : {}) } : {}),
+  })) };
+}
+
+// Serialize read/modify/write requests so toggling different flags preserves both.
+let settingsWrite = Promise.resolve();
+export function updateRadarFlag(key, enabled, options = {}) {
+  const write = settingsWrite.catch(() => {}).then(async () => {
+    if (!BOOLEAN_KEYS.includes(key) || typeof enabled !== "boolean") throw new Error("Choose a supported telemetry flag and an On or Off value.");
+    const config = await readRadarConfig(options);
+    if (config.sources.some(s => s.status === "unavailable")) throw new Error("Settings could not be verified. No changes were saved.");
+    if (config.variables.some(v => v.key === key && v.source !== "User settings")) throw new Error("This flag is controlled by organization or managed settings. Ask your administrator to change it.");
+    const { home = homedir(), env = process.env, platform = process.platform } = options;
+    const pathJoin = platform === "win32" ? win32.join : posix.join;
+    const dir = claudeConfigDir(env, home, platform);
+    const path = pathJoin(dir, "settings.json");
+    const { settings } = await readSettingsForWrite(path);
+    if (settings.env !== undefined && (!settings.env || typeof settings.env !== "object" || Array.isArray(settings.env))) throw new Error("User settings contain an invalid env object. No changes were saved.");
+    settings.env = { ...settings.env, [key]: enabled ? "1" : "0" };
+    await mkdir(dir, { recursive: true });
+    await writeFileAtomic(path, JSON.stringify(settings, null, 2) + "\n");
+    return { ok: true, config: await readRadarConfig(options) };
+  });
+  settingsWrite = write;
+  return write;
 }

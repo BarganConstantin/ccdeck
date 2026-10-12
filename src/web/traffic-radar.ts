@@ -3,6 +3,8 @@ export interface RadarVariable {
   value: string;
   rawValue?: string;
   source: string;
+  editable?: boolean;
+  blockedReason?: string;
 }
 
 export interface RadarSnapshot {

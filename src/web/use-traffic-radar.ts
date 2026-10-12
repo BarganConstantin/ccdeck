@@ -39,5 +39,6 @@ export function useTrafficRadar() {
     document.addEventListener("visibilitychange", visibility);
     return () => { alive = false; stop(); document.removeEventListener("visibilitychange", visibility); };
   }, []);
-  return { snapshot, failed };
+  const updateConfig = (config: RadarSnapshot["config"]) => setSnapshot(previous => previous ? { ...previous, config } : previous);
+  return { snapshot, failed, updateConfig };
 }
