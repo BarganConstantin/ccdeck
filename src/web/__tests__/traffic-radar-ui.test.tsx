@@ -57,3 +57,16 @@ describe("Telemetry Radar evidence and navigation", () => {
     expect(dialogs).toContain("{trafficRadarOpen && <Suspense");
   });
 });
+
+it('does not label unreadable sources as managed or unknown values as Off', () => {
+  const unavailable = { ...snapshot, config: { sources: [{ name: 'Managed settings', status: 'unavailable' as const }], variables: [{ key: 'OTEL_LOG_USER_PROMPTS', source: 'User settings', value: 'Enabled', editable: false, blockedReason: 'Settings could not be verified.' }] } };
+  const markup = renderToStaticMarkup(<TrafficRadarView snapshot={unavailable} />);
+  expect(markup).toContain('Configuration incomplete');
+  expect(markup).toContain('Unavailable');
+  expect(markup).not.toContain('>Managed</span>');
+  const unknown = { ...snapshot, config: { sources: [], variables: [{ key: 'OTEL_LOG_USER_PROMPTS', source: 'User settings', value: 'Unknown (value hidden)', editable: true }] } };
+  const unknownMarkup = renderToStaticMarkup(<Configuration snapshot={unknown} />);
+  expect(unknownMarkup).toContain('Enable Your prompts');
+  expect(unknownMarkup).toContain('Disable Your prompts');
+  expect(unknownMarkup).not.toContain('role="switch"');
+});

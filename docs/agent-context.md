@@ -179,3 +179,56 @@ the entire conversation.
   subtle motion: only its cursor blinks while connected and visible, with a
   steady cursor under reduced motion. Preserve readable text rather than lowering
   text opacity; the helper details and tour remain available.
+
+## Radar flag controls — Linux handoff, 2026-10-12
+
+- Radar implementation worktree: `/home/constantin/Desktop/personal/ccdeck-wt/radar-setting-toggles`,
+  branch `feat/radar-setting-toggles`. The separate `electron-polish` worktree
+  remains on `codex/release-3.39.3-live`.
+- Preview: `http://127.0.0.1:4329`, started with
+  `CLAUDE_CONFIG_DIR=/tmp/ccdeck-radar-toggles-qa node scripts/preview-traffic-radar.mjs`.
+  It uses disposable settings, not the owner's Claude configuration.
+- Flags use the shared switch and press rules. The working control stays enabled
+  and busy, sibling flags are disabled, and the handler rejects repeated presses.
+  Unreadable sources are Unavailable; organization policy remains Managed.
+  Unknown values offer explicit Enable/Disable actions.
+- Configuration has one scroll area; navigation stays reachable at 320/390px.
+  Saving updates the server cache and rejects older client polls, so an in-flight
+  read cannot undo a confirmed save.
+- The complete suite passed (1,036 files / 13,069 tests), typecheck and production
+  build passed. A subsequently added BOM regression also passed. Chrome DevTools
+  checked light/dark desktop and 320/390px layouts, saving, failure/retry, focus,
+  duplicate presses, unknown values, policy rejection and file-view retention.
+- The installed `/home/constantin/Applications/ccdeck-linux-x86_64.AppImage`
+  has not been replaced with this branch. These preview checks do not prove
+  capture of a real external Claude telemetry stream.
+
+## Radar Monitor simplification — 2026-10-12
+
+The owner requested a simpler Monitor screen. With no history it now shows one
+empty workspace, the destination and Start monitoring. The inspector appears
+when retained activity exists; filters, Pause/Resume and Clear history sit in
+a closed native Filters and history disclosure. Session filtering appears only
+when sessions or captured exports make it relevant. Capture limits remain
+available in the footer. Capture APIs and settings behavior are unchanged.
+
+Validated by typecheck, production build and the full suite (1,036 files,
+13,071 tests), plus Chrome DevTools at 1280px, 390px and 320px with light/dark
+themes. Synthetic browser activity verified the populated inspector, disclosed
+filters, Pause/Resume and clear confirmation. Preview remains port 4329 with
+disposable settings; this does not establish real Claude traffic capture.
+
+## Next-session starting point — 2026-10-12
+
+The Radar flag controls and simplified Monitor are integrated into local
+`development` in `/home/constantin/Desktop/personal/ccdeck`.
+Continue modal work from that checkout (or create a new branch/worktree from
+`development`). The feature worktree remains available. Port 4329 now serves the
+merged development checkout with the same disposable Radar settings. Rebuild `dist/web` in the checkout being served after
+frontend edits. The installed AppImage has not been replaced.
+
+Merge validation: all 1,050 test files / 13,158 tests passed, along with
+typecheck and production build. Browser smoke checks on port 4329 confirmed
+the merged v3.40.2 UI has the simplified Monitor and individual Configuration
+switches. The only merge conflict was the switch-count regression test:
+development removed the Music switch, so the combined source contains 17.

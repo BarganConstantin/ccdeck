@@ -166,7 +166,9 @@ Open **Telemetry Radar** from the right rail, or **More → Telemetry Radar** on
 phone. Three views keep configuration, observed traffic and saved files separate:
 
 - **Monitor** lists decoded messages and unreadable connection observations.
-  Filter by session, destination or message type, then select a message for its
+  The empty view shows one workspace. History controls and filters appear under
+  **Filters and history** once activity arrives; the inspector appears alongside
+  the list. Filter by session, destination or message type, then select a message for its
   readable overview or decoded **JSON**. Session attribution comes from IDs in
   the captured payload; absent IDs remain unidentified, and an export containing
   multiple session IDs is shown under each matching session.
@@ -174,7 +176,12 @@ phone. Three views keep configuration, observed traffic and saved files separate
   their sources. Enabled flags are highlighted and recognized boolean values
   are shown as written. These are settings-file evidence, not confirmation of a
   running session's effective environment. Credentials and endpoint paths stay
-  hidden.
+  hidden. Each recognized telemetry/content flag has a switch that saves its
+  value to Claude's user settings for new sessions. Flags set by organization or
+  managed settings show **Managed** and require an administrator to change;
+  Radar does not rewrite cached organization policy. Controls are unavailable
+  when configuration cannot be verified. Unknown values offer explicit
+  **Enable** and **Disable** actions.
 - **File** opens a local JSON or JSONL file, lists its records and shows the
   original text. Files stay in the browser and are never uploaded. Search and
   session filtering narrow the list. Inputs are bounded to 10 MB and 10,000

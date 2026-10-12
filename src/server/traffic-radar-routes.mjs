@@ -1,5 +1,7 @@
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { CaptureSetupError } from './traffic-radar-platform.mjs';
+import { updateRadarFlag } from './traffic-radar-config.mjs';
+import { trafficRadar } from './traffic-radar.mjs';
 const BASE = '/api/system/traffic-radar';
 const loopback = req => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
 export function isAuthorizedTrafficIngest(req, url) {
@@ -19,6 +21,17 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
   if (!loopback(req)) return reply(res, 403, { error: 'Telemetry contents are available on this machine only.' });
   const action = url.pathname.slice(BASE.length);
   try {
+    if (req.method === 'POST' && action === '/configuration') {
+      let data;
+      try { data = JSON.parse((await body(req, 4096)).toString()); }
+      catch { return reply(res, 400, { error: 'Invalid settings request.' }); }
+      try {
+        const result = await updateRadarFlag(data?.key, data?.enabled);
+        trafficRadar.updateConfig(result.config);
+        return reply(res, 200, result);
+      }
+      catch (error) { return reply(res, 400, { error: error.message }); }
+    }
     if (req.method === 'GET' && action === '/capture') return reply(res, 200, capture.read());
     if (req.method === 'GET' && action === '/capture/event') {
       const detail = capture.detail(Number(url.searchParams.get('id')));

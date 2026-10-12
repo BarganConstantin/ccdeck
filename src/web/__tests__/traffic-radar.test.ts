@@ -167,3 +167,16 @@ describe("on-demand observation", () => {
     expect(config).not.toHaveBeenCalled();
   });
 });
+
+describe('configuration save versus sampling', () => {
+  it('keeps the confirmed settings when an older sample is still in flight', async () => {
+    let resolveConfig!: (value: unknown) => void;
+    const radar = createTrafficRadar({ platform: 'darwin', now: () => 1000, run: async () => '', config: () => new Promise(resolve => { resolveConfig = resolve; }) });
+    const pending = radar.read();
+    const saved = { sources: [], variables: [{ key: 'OTEL_LOG_USER_PROMPTS', value: 'Disabled', source: 'User settings' }] };
+    radar.updateConfig(saved);
+    resolveConfig({ sources: [], variables: [{ ...saved.variables[0], value: 'Enabled' }] });
+    expect((await pending).config).toEqual(saved);
+    expect((await radar.read()).config).toEqual(saved);
+  });
+});
