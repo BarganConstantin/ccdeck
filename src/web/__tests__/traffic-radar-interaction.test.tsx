@@ -54,3 +54,25 @@ describe('Telemetry flag controls', () => {
     view.unmount(); vi.unstubAllGlobals();
   });
 });
+
+describe('Telemetry toggle keyboard focus', () => {
+  it('restores focus after saving without taking it from another control', async () => {
+    for (const movedElsewhere of [false, true]) {
+      let resolve!: (value: unknown) => void;
+      vi.stubGlobal('fetch', vi.fn(() => new Promise(r => { resolve = r; })));
+      vi.stubGlobal('requestAnimationFrame', (callback: () => void) => { callback(); return 1; });
+      const button = { isConnected: true, focus: vi.fn() };
+      const body = {};
+      const doc = { activeElement: button as unknown, body };
+      vi.stubGlobal('document', doc);
+      const configured = { ...snapshot, config: { sources: [], variables: [{ key: 'OTEL_LOG_USER_PROMPTS', source: 'User settings', value: 'Enabled', editable: true }] } };
+      const view = mount(Configuration, { snapshot: configured });
+      (one(view.tree, e => e.props.role === 'switch')!.props.onClick as (event: unknown) => void)({ currentTarget: button });
+      doc.activeElement = movedElsewhere ? { anotherControl: true } : body;
+      resolve({ ok: true, json: async () => ({ ok: true, config: configured.config }) });
+      await vi.waitFor(() => expect(one(view.tree, e => e.props.role === 'switch')!.props.disabled).toBe(false));
+      expect(button.focus).toHaveBeenCalledTimes(movedElsewhere ? 0 : 1);
+      view.unmount(); vi.unstubAllGlobals();
+    }
+  });
+});

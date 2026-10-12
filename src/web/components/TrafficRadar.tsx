@@ -89,8 +89,9 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
   const [error, setError] = useState("");
   useEffect(() => { setSavedConfig(null); }, [snapshot.config]);
   const variables = (savedConfig ?? snapshot.config)?.variables ?? [];
-  const toggle = async (key: string, enabled: boolean) => {
+  const toggle = async (key: string, enabled: boolean, button?: HTMLButtonElement) => {
     if (savingRef.current || stale) return;
+    const restoreFocus = button && document.activeElement === button;
     savingRef.current = true;
     setSaving(key); setError(""); setNotice("");
     try {
@@ -101,7 +102,12 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
       onConfigChange?.(result.config);
       setNotice("Saved to user settings. Start a new Claude session to apply the change.");
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save this setting. Try again."); }
-    finally { savingRef.current = false; setSaving(null); }
+    finally {
+      savingRef.current = false; setSaving(null);
+      if (restoreFocus) requestAnimationFrame(() => {
+        if (button.isConnected && document.activeElement === document.body) button.focus();
+      });
+    }
   };
   const destinations = variables.filter(v => v.key.endsWith("ENDPOINT"));
   const flags = variables.filter(v => v.key.startsWith("OTEL_LOG_") || v.key.includes("ENABLE") || v.key.includes("TELEMETRY_BETA"));
@@ -119,7 +125,7 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
     {notice && <p className="tr-note" role="status">{notice}</p>}
     {error && <p className="tr-warning" role="alert">{error}</p>}
     {flags.length ? <dl className="tr-variables">{flags.map(v => <div key={`${v.source}:${v.key}`}>
-      <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{v.source}</span>{v.blockedReason && <span>{v.blockedReason}</span>}</dt><dd className="tr-flag-control"><span className={`tr-state ${v.value.startsWith("Enabled") ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{v.value}</span>{v.rawValue !== undefined && <code className="tr-raw-flag">{v.rawValue}</code>}<button type="button" className="tr-flag-toggle" role="switch" aria-checked={v.value.startsWith("Enabled")} aria-label={`${names[v.key] ?? v.key} (${v.source})`} disabled={stale || saving !== null || v.editable !== true} title={v.blockedReason ?? "Save to user settings for new Claude sessions"} onClick={() => void toggle(v.key, !v.value.startsWith("Enabled"))}>{saving === v.key ? "Saving…" : v.editable !== true ? "Managed" : v.value.startsWith("Enabled") ? "On" : "Off"}</button></dd>
+      <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{v.source}</span>{v.blockedReason && <span>{v.blockedReason}</span>}</dt><dd className="tr-flag-control"><span className={`tr-state ${v.value.startsWith("Enabled") ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{v.value}</span>{v.rawValue !== undefined && <code className="tr-raw-flag">{v.rawValue}</code>}<button type="button" className="tr-flag-toggle" role="switch" aria-checked={v.value.startsWith("Enabled")} aria-label={`${names[v.key] ?? v.key} (${v.source})`} disabled={stale || saving !== null || v.editable !== true} title={v.blockedReason ?? "Save to user settings for new Claude sessions"} onClick={event => void toggle(v.key, !v.value.startsWith("Enabled"), event?.currentTarget)}>{saving === v.key ? "Saving…" : v.editable !== true ? "Managed" : v.value.startsWith("Enabled") ? "On" : "Off"}</button></dd>
     </div>)}</dl> : <p className="tr-note">No telemetry flags found in the settings read.</p>}
     <details className="tr-details"><summary>All variables and sources</summary>
       <dl className="tr-variables">{variables.map(v => <div key={`${v.source}:${v.key}`}><dt><code>{v.key}</code><span>{v.source}</span></dt><dd>{v.value}</dd></div>)}</dl>
