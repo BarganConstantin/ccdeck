@@ -15,7 +15,6 @@ export default function RadioLoading({ opening = false }: { opening?: boolean })
     <svg className="radio-tuning-art" viewBox="0 0 240 112" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <g className="radio-tuning-tower"><circle cx="40" cy="24" r="4" /><path d="M40 28v60 M40 36L24 88h32L40 36 M31 66h18 M28 77h24 M20 92h40" /><path d="M29 17a15 15 0 0 0 0 14 M51 17a15 15 0 0 1 0 14" /></g>
       <g className="radio-tuning-send"><path d="M75 26q7 8 0 16" /><path d="M102 26q7 8 0 16" /><path d="M129 26q7 8 0 16" /></g>
-      <g className="radio-tuning-receive"><path d="M131 69q-7 8 0 16" /><path d="M104 69q-7 8 0 16" /><path d="M77 69q-7 8 0 16" /></g>
       <g className="radio-tuning-receiver"><path d="M165 49l30-22" /><rect x="154" y="49" width="66" height="43" rx="7" /><path d="M161 92v3 M213 92v3 M163 60h17 M163 66h17 M163 72h17 M163 78h17" /><circle cx="202" cy="65" r="7" /><path d="M202 62v3l3 2 M197 81h10" /></g>
     </svg>
     <strong>{opening ? "Opening Radio" : "Tuning into the world"}</strong>

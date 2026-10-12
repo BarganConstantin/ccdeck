@@ -149,7 +149,7 @@ Final TypeScript and production build passed. **255 tests across 10 relevant Rad
 
 ### Loading signal illustration — October 12
 
-Applied Impeccable's animate workflow and Emil's motion decision framework to a real asynchronous waiting state. The focal sequence is an antenna sending blue signals to a receiver, followed by returning signals; the surrounding controls and map remain stationary. It is feature artwork, not a brand mark. No dependency or artificial loading delay was added.
+Applied Impeccable's animate workflow and Emil's motion decision framework to a real asynchronous waiting state. The focal sequence is an antenna sending three blue signals to a receiver with a short pause between cycles; the surrounding controls and map remain stationary. It is feature artwork, not a brand mark. No dependency or artificial loading delay was added.
 
 | Before | After | Why |
 | --- | --- | --- |
@@ -161,3 +161,5 @@ Applied Impeccable's animate workflow and Emil's motion decision framework to a 
 First combined desktop/mobile capture: `/tmp/ccdeck-radio-review/radio-tuning-pass-1/`. The short viewport revealed the caption below the list's visible area; fixed its size/spacing and confirmed at `/tmp/ccdeck-radio-review/radio-tuning-final/`. Controlled browser routes hold the actual lazy module and directory request to inspect these states without changing production timing. Chromium checks passed for opening animation, Tab containment and Escape dismissal, directory loading at desktop/390px/320px, reduced motion, removal on response, and cached reopening. Radio's own viewport bounds and horizontal containment passed; the underlying deck reported document width 867px at a 390px viewport, which this loading-only pass does not address.
 
 TypeScript and production build passed; 184 tests across five Radio/FM/modal suites passed. Existing large-chunk warning remains. No physical touch hardware, alternate browser engine or broadcaster playback test was run for this illustration-only change.
+
+The final direction follows the user’s approved refinement: the radio only receives signals. Removed the return-wave paths and animation; retained the static reduced-motion alternative and real request timing.

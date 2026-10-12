@@ -132,19 +132,15 @@
 .radio-tuning-art { width: min(240px, 100%); height: auto; flex: none; margin-bottom: 8px; }
 .radio-tuning-tower { color: var(--text-secondary); }
 .radio-tuning-receiver { color: var(--accent); }
-.radio-tuning-send, .radio-tuning-receive { color: var(--accent); }
-.radio-tuning-send path, .radio-tuning-receive path { opacity: .45; }
+.radio-tuning-send { color: var(--accent); }
+.radio-tuning-send path { opacity: .45; }
 .radio-tuning strong { color: var(--text); font-size: 13px; font-weight: 500; }
 .radio-tuning > span { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
-@keyframes radioSignalOut { 0%, 100% { opacity: .15; transform: translateX(-6px); } 35% { opacity: 1; } 70%, 99% { opacity: 0; transform: translateX(10px); } }
-@keyframes radioSignalBack { 0%, 100% { opacity: .15; transform: translateX(6px); } 35% { opacity: .8; } 70%, 99% { opacity: 0; transform: translateX(-10px); } }
+@keyframes radioSignalOut { 0%, 100% { opacity: 0; transform: translateX(-6px); } 20% { opacity: 1; } 55%, 99% { opacity: 0; transform: translateX(10px); } }
 @media (prefers-reduced-motion: no-preference) {
   .radio-tuning-send path { animation: radioSignalOut 1800ms linear infinite; }
-  .radio-tuning-receive path { animation: radioSignalBack 1800ms linear infinite; animation-delay: 900ms; }
   .radio-tuning-send path:nth-child(2) { animation-delay: 180ms; }
   .radio-tuning-send path:nth-child(3) { animation-delay: 360ms; }
-  .radio-tuning-receive path:nth-child(2) { animation-delay: 1080ms; }
-  .radio-tuning-receive path:nth-child(3) { animation-delay: 1260ms; }
 }
 .radio-tuning[data-paused] path { animation-play-state: paused; }
 [data-keyboard-interaction] .radio-tuning path { animation: none; }
