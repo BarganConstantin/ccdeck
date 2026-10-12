@@ -439,7 +439,31 @@ describe("the height of a button", () => {
    *  It is a compact verb at the end of a dense row of the map, under the 24px
    *  floor's own number, and is named here rather than excused by arithmetic
    *  that did not apply to it. */
-  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open"]);
+  // The desktop-only caption menu is a 28px square inside the 34px window
+  // strip, rather than a deck toolbar control. Pin that exception below.
+  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".tr-body .btn", ".desktop-menu.btn"]);
+
+  it("keeps the native caption menu a 28px target inside its desktop-only 34px strip", () => {
+    const menu = bodyOf(".desktop-menu.btn");
+    expect(px(declIn(menu, "width"))).toBe(28);
+    expect(px(declIn(menu, "height"))).toBe(28);
+    expect(px(declIn(menu, "width"))).toBeGreaterThanOrEqual(24);
+    expect(px(declIn(menu, "height"))).toBeGreaterThanOrEqual(24);
+    expect(declIn(menu, "padding")).toBe("0");
+    expect(declIn(menu, "-webkit-app-region")).toBe("no-drag");
+    expect(px(decl(".desktop-titlebar", "height"))).toBe(34);
+    const titlebar = read("../components/DesktopTitlebar.tsx");
+    expect(titlebar).toContain("if (!desktop) return null;");
+    expect(titlebar).toContain('className="desktop-menu btn"');
+    expect(titlebar).toContain('aria-label="Application menu"');
+    expect(titlebar).toContain("desktop.menu()");
+  });
+
+  it("keeps Radar's documented local control floor at 32px and 40px on phones", () => {
+    expect(declIn(bodyOf('.modal.tr-modal'), '--tr-control-h')).toBe('32px');
+    expect(declIn(bodyOf('.tr-body .btn'), 'min-height')).toBe('var(--tr-control-h)');
+    expect(css).toMatch(/@media\s*\(max-width:\s*640px\)\s*\{\s*\.modal\.tr-modal\s*\{[^}]*--tr-control-h:\s*40px/);
+  });
 
   it("cannot be overridden into a second height by a rule further down", () => {
     // The height has to be unreachable, not merely stated. Any rule that sizes

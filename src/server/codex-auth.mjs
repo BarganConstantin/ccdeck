@@ -14,10 +14,12 @@
 // a rejected promise from a background poll would take the server down.
 import { readFile, chmod, unlink } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { CODEX_HOME } from "./codex-dir.mjs";
+import { readCodexSelection } from "./codex-selection.mjs";
 import { createTemp, renameWithRetry, resolveWriteTarget } from "./atomic-write.mjs";
 import { PRODUCT } from "./brand.mjs";
+import { readNativeCodexAccount } from "./codex-native-account.mjs";
 
 // This file used to resolve CODEX_HOME itself, as `process.env.CODEX_HOME ??
 // join(homedir(), ".codex")`. `??` falls back on null and undefined only, so an
@@ -133,9 +135,9 @@ function expiryMs(accessToken) {
   return typeof exp === "number" ? exp * 1000 : null;
 }
 
-async function readAuthFile() {
+async function readAuthFile(home = CODEX_HOME) {
   try {
-    const parsed = JSON.parse(await readFile(AUTH_PATH, "utf8"));
+    const parsed = JSON.parse(await readFile(join(home, "auth.json"), "utf8"));
     return (parsed && typeof parsed === "object") ? parsed : null;
   } catch {
     return null;
@@ -363,10 +365,49 @@ function identityFrom(auth, refreshed) {
  *
  * Returns { ok: true, accessToken, accountId, … } or { ok: false, reason }
  * where reason is `no_token` (never logged in) / `refresh_rejected` (re-login
- * required) / `refresh_failed` (transient). Never throws.
+ * required) / `refresh_failed` (transient). Explicit alternate homes never
+ * refresh; selectedReadOnly follows the server selection without rotating tokens.
+ * Never throws.
  */
-export async function getCodexAuth({ allowRefresh = true } = {}) {
-  let auth = await readAuthFile();
+// Native Codex resolves managed/configured system stores; file remains the legacy default.
+export async function usesNativeCodexAccount(home, selectionEnabled = false) {
+  if (selectionEnabled) return true;
+  try {
+    const text = await readFile(join(home, 'config.toml'), 'utf8');
+    const root = text.split(/^\s*\[/m)[0];
+    const mode = root.match(/^\s*(?:cli_auth_credentials_store|"cli_auth_credentials_store"|'cli_auth_credentials_store')\s*=\s*["'](file|keyring|auto|ephemeral)["']\s*(?:#.*)?$/m)?.[1];
+    return mode === 'keyring' || mode === 'auto' || mode === 'ephemeral';
+  } catch (error) { return error.code !== 'ENOENT'; }
+}
+
+export async function getCodexAuth({ home = CODEX_HOME, allowRefresh = true, selectedReadOnly = false, enableNative = false, nativeRead = readNativeCodexAccount } = {}) {
+  if (selectedReadOnly) {
+    try {
+      const selected = await readCodexSelection();
+      const directory = selected.selectionEnabled ? selected.home : CODEX_HOME;
+      const fingerprint = await codexCredentialFingerprint({ home: directory });
+      const authoritative = enableNative && await usesNativeCodexAccount(directory, selected.selectionEnabled);
+      let auth = authoritative ? { ok: false, reason: 'no_token' } : await getCodexAuth({ home: directory, allowRefresh: false });
+      if (enableNative && (authoritative || (!auth.ok && auth.reason === 'no_token'))) {
+        const native = await nativeRead(directory, { force: true });
+        if (native.ok && native.signedIn) auth = {
+          ok: true, apiKeyMode: native.plan === 'api', planType: native.plan,
+          accountId: null, email: native.label, accessToken: null, refreshed: false, identityVersion: native.identityVersion, authSource: 'native',
+        };
+        else auth = { ok: false, reason: native.reason ?? 'no_token', metadataUnavailable: !native.ok };
+      }
+      const current = await readCodexSelection();
+      if (selected.selectionEnabled !== current.selectionEnabled || selected.home !== current.home
+        || selected.profileId !== current.profileId || selected.revision !== current.revision
+        || (!authoritative && await codexCredentialFingerprint({ home: directory }) !== fingerprint)) {
+        return { ok: false, reason: "profile_changed" };
+      }
+      return auth;
+    } catch { return { ok: false, reason: "selection_unavailable" }; }
+  }
+  // Only the legacy primary credential owner can rotate tokens.
+  allowRefresh = allowRefresh && resolve(home) === resolve(CODEX_HOME);
+  let auth = await readAuthFile(home);
 
   // An `OPENAI_API_KEY` login is a platform credential, not a ChatGPT session.
   // Flagged rather than rejected so the caller can say so plainly instead of
@@ -397,10 +438,11 @@ export async function getCodexAuth({ allowRefresh = true } = {}) {
  * credential that was refused: `codex login` writes a new pair, and a wait
  * that outlived it answered the user's ↻ with the old refusal.
  */
-export async function codexCredentialFingerprint() {
-  const tokens = (await readAuthFile())?.tokens;
+export async function codexCredentialFingerprint({ home = CODEX_HOME } = {}) {
+  const auth = await readAuthFile(home);
+  const tokens = auth?.tokens;
   if (!tokens?.access_token && !tokens?.refresh_token) return null;
-  return tokenHash(`${tokens.access_token ?? ""}\n${tokens.refresh_token ?? ""}`);
+  return tokenHash(JSON.stringify([resolve(home), auth.auth_mode, tokens.access_token, tokens.refresh_token, tokens.account_id, tokens.id_token]));
 }
 
 /**

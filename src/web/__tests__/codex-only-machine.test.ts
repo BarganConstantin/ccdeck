@@ -459,14 +459,14 @@ describe("which panels the UI draws for each machine", () => {
     // thing on screen, and every route out of it ends at the claude CLI.
     // The gate is one name since 2026-10-08, `accountsDrawn`, because the
     // left column mounts on it too; Claude Code is in its definition.
-    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain("{accountsDrawn && (");
-    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && providers\.claude;/);
+    expect(leadUpTo(appSrc, "<AccountsPanel claudeEnabled=")).toContain("{accountsDrawn && (");
+    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
   });
 
   it("hides the accounts button too, rather than opening onto nothing", () => {
     // The left stripe — and the phone's dock, which draws the same list — holds
     // Accounts only where Claude Code is; without it, Session list alone.
-    expect(appSrc).toMatch(/left: providers\.claude \? \[accounts, sessionList\] : \[sessionList\]/);
+    expect(appSrc).toMatch(/left: \(providers\.claude \|\| providers\.codex\) \? \[accounts, sessionList\] : \[sessionList\]/);
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
     expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
@@ -475,7 +475,7 @@ describe("which panels the UI draws for each machine", () => {
   });
 
   it("does not let the A shortcut toggle a panel that is not there", () => {
-    expect(appSrc).toMatch(/providersRef\.current\.claude\) toggleAccountsPanel/);
+    expect(appSrc).toMatch(/providersRef\.current\.claude \|\| providersRef\.current\.codex\) toggleAccountsPanel/);
   });
 
   it("renders each quota section only for the CLI it is about", () => {

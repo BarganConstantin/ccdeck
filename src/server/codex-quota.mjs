@@ -12,31 +12,22 @@ import { readFile } from "node:fs/promises";
 // quota-oauth.mjs, which owns it, rather than through quota.mjs, which only
 // re-exported it and brings the whole Claude quota chain with it.
 import { cooldownFromHeader } from "./quota-oauth.mjs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { CODEX_HOME } from "./codex-dir.mjs";
-import { codexCredentialFingerprint, getCodexAuth, forceCodexRefresh, isCredentialHost } from "./codex-auth.mjs";
+import { readCodexSelection } from "./codex-selection.mjs";
+import { usesNativeCodexAccount, decodeJwt, codexCredentialFingerprint, getCodexAuth, forceCodexRefresh, isCredentialHost } from "./codex-auth.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { resetLabel } from "./reset-label.mjs";
+import { readNativeCodexAccount } from "./codex-native-account.mjs";
 
 // Resolved by codex-dir.mjs rather than here. This file used to spell it
 // `process.env.CODEX_HOME ?? join(homedir(), ".codex")`, which keeps an empty
 // CODEX_HOME instead of falling back — and then read a CWD-relative
 // "config.toml" for the base URL every credential below is sent to (#375).
-const CONFIG_PATH = join(CODEX_HOME, "config.toml");
 const DEFAULT_BASE = "https://chatgpt.com/backend-api";
 
-let _cache   = null;
-let _cacheAt = 0;
 const CACHE_MS = 60_000;
-// The last reading that had lanes in it, apart from `_cache`, which also holds
-// failures. A 429 is the backend asking for a pause, not a statement that the
-// lanes read a minute ago have stopped being true, so they are what is held
-// through it — as quota.mjs keeps its own `_lastGood` for the same case.
-let _lastGood = null;
-
-// The last base URL we refused, so the refusal is said once rather than once a
-// minute for as long as the config stays that way.
-let _warnedBase = null;
+const FORCE_POLL_MS = 60_000;
 
 // ── base URL ───────────────────────────────────────────────────────────────
 // `chatgpt_base_url` in config.toml can point at a proxy, and the path style
@@ -50,10 +41,10 @@ let _warnedBase = null;
 // anything able to write that TOML (or to set $CODEX_HOME and point it at its
 // own) could redirect the token to a host of its choosing, over plaintext http
 // if it liked. isCredentialHost is where the two rules live.
-async function readBaseUrl() {
+async function readBaseUrl(home = CODEX_HOME) {
   let raw = null;
   try {
-    const text = await readFile(CONFIG_PATH, "utf8");
+    const text = await readFile(join(home, "config.toml"), "utf8");
     for (const line of text.split("\n")) {
       const m = line.replace(/#.*$/, "").match(/^\s*chatgpt_base_url\s*=\s*(.+?)\s*$/);
       if (m) { raw = m[1].replace(/^["']|["']$/g, "").trim(); break; }
@@ -247,56 +238,6 @@ async function requestUsage(base, auth) {
   });
 }
 
-// One outstanding fetch at a time. Several browser tabs mounting at once
-// otherwise each force their own round trip — and each one is another chance
-// to race over the single-use refresh token.
-let _inflight = null;
-
-// ── what a forced read may cost ────────────────────────────────────────────
-// The floor between two reads WE pay for, and it is the same number and the
-// same rule quota.mjs gives the Claude half — see FORCE_POLL_MS and maySelfPoll
-// there. The two routes are four lines apart in the router and had no business
-// disagreeing about what `?refresh=1` costs.
-//
-// `force` used to mean "skip the cache", and the cache was the ONLY thing
-// between a caller and chatgpt.com. `_inflight` deduplicates callers that
-// overlap and nothing else, so a caller that waits for one fetch to settle and
-// then asks again got a fresh round trip every time — two authenticated HTTPS
-// GETs carrying the user's live ChatGPT session, as fast as the round trip
-// allows, from any page the user happens to have open (#580). Reads on this
-// server were deliberately open (isTrustedRead), so "any page" was the real
-// threat model rather than a hypothetical one. The route is a guarded read now
-// (GUARDED_READS in request-gates.mjs), and the floor stays for the callers
-// that still reach it: the deck's own page and a client holding the token.
-//
-// The sharper half is the credential rather than the traffic. On a 401
-// doFetchCodexQuota spends the SINGLE-USE refresh token via forceCodexRefresh,
-// and `staleAccessToken` only stops that happening twice for the same rejected
-// token — every turn re-reads auth.json and sees the token the previous turn
-// rotated to, so a backend that keeps answering 401 rotated a fresh credential
-// once per request, racing the Codex CLI for each one. codex-auth.mjs's own
-// EXPIRY_SKEW_MS comment says what losing that race costs the user: a
-// `refresh_token_reused` that reads as "your login is broken", recoverable only
-// with `codex login`.
-const FORCE_POLL_MS = 60_000;
-
-// Set from a 429 or a rejected refresh: a backend that is refusing us must not
-// be asked once per request, whoever is asking. Same shape as quota.mjs's
-// _rateLimitedUntil, which is likewise never beaten by force.
-let _rateLimitedUntil = 0;
-const COOLDOWN_MS = 5 * 60_000;
-// Set when the cooldown above is for a refused login rather than a 429: the
-// fingerprint of the credential auth.json held when it was refused. That wait
-// is about the credential, and `codex login` — the very thing the panel tells
-// the user to run — replaces it; held to the clock alone, ↻ was answered with
-// the old refusal for five minutes after the login that fixed it.
-let _refusedWith = null;
-
-// Stamped when a fetch STARTS rather than when it lands: what the floor is
-// rationing is the round trip, and one that is still in flight has already been
-// paid for.
-let _lastFetchAt = 0;
-
 /**
  * Whether we may spend a request of the user's ChatGPT session right now.
  *
@@ -309,205 +250,381 @@ export function mayFetchQuota({ now, lastFetchAt, rateLimitedUntil }) {
   return now - lastFetchAt >= FORCE_POLL_MS;
 }
 
-/**
- * The answer to a read the floor refused.
- *
- * A reading, not an error — a user who clicks ↻ twice in a second must get the
- * numbers they already have rather than a red hint, which is exactly what
- * quota.mjs does with `{ ...held, stale: true }`. The timestamp stays the one
- * the data was fetched at, so the panel's age label keeps telling the truth
- * instead of vouching for a reading it did not take.
- */
-function heldReading(now) {
-  if (_cache) return { ..._cache, stale: true };
-  // Only reachable before the first fetch has ever landed — `finish` caches
-  // every outcome, failures included — and spelled the way the Claude side
-  // spells the same two states.
-  return { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
-}
-
-export function fetchCodexQuota({ force = false } = {}) {
-  const now = Date.now();
-  if (!force && _cache && now - _cacheAt < CACHE_MS) return Promise.resolve(_cache);
-  // Joining a run already in flight costs nothing, so it is offered before the
-  // floor: what refresh asks for is a reading newer than the cache, and a fetch
-  // that has not landed yet is one.
-  if (_inflight) return _inflight;
-  if (!mayFetchQuota({ now, lastFetchAt: _lastFetchAt, rateLimitedUntil: _rateLimitedUntil })) {
-    // Past the floor and inside a refused login's cooldown, the one question
-    // worth asking is whether auth.json still holds what was refused — a local
-    // read, and the wire stays quiet unless the answer is no.
-    if (_refusedWith && mayFetchQuota({ now, lastFetchAt: _lastFetchAt, rateLimitedUntil: 0 })) {
-      return track((async () => {
-        if (await codexCredentialFingerprint() === _refusedWith) return heldReading(Date.now());
-        _rateLimitedUntil = 0;
-        _refusedWith = null;
-        _lastFetchAt = Date.now();
-        return doFetchCodexQuota();
-      })());
-    }
-    return Promise.resolve(heldReading(now));
-  }
-  _lastFetchAt = now;
-  return track(doFetchCodexQuota());
-}
-
-/** `run`, as the one outstanding fetch every caller joins until it settles. */
-function track(run) {
-  _inflight = run.finally(() => { _inflight = null; });
-  return _inflight;
-}
-
-async function doFetchCodexQuota() {
-  const started = Date.now();
-  // Stamped at completion, not at entry: the two calls below can take up to
-  // 17s between them, and a cache entry that is already stale on arrival
-  // shortens the effective TTL for no reason.
-  const finish = (r) => {
-    _cache = r;
-    _cacheAt = Date.now();
-    if (r.ok && !r.stale) _lastGood = r;
-    return r;
-  };
-  const fail   = (reason) => finish({ ok: false, reason, fetchedAt: started });
-  // A refusal we were told about, rather than one we inferred: back off further
-  // than the ordinary floor before asking again. `retry-after` is honoured when
-  // the backend sends one, because it knows better than the constant does.
-  const cooldown = (res) => {
-    // Clamped, for the reason quota-oauth.mjs states at cooldownFromHeader: a `0`
-    // defeats the cooldown a 429 exists to impose, and a day freezes this
-    // poller for the life of the process.
-    _rateLimitedUntil = Date.now() + cooldownFromHeader(res?.headers?.get?.("retry-after"), COOLDOWN_MS);
-    _refusedWith = null;
-  };
-  // The same wait for a login that was refused, stamped with the credential it
-  // was refused for, so a new one ends it (see fetchCodexQuota).
-  const refused = async (res) => {
-    cooldown(res);
-    _refusedWith = await codexCredentialFingerprint();
-  };
-
-  let auth, base, res;
-  try {
-    auth = await getCodexAuth();
-    if (!auth.ok) return fail(auth.reason);
-
-    // An API key in auth.json is a platform credential, not a ChatGPT session —
-    // sending it here only produces a confusing 401.
-    if (auth.apiKeyMode) return fail("api_key_mode");
-
-    base = await readBaseUrl();
-    // Refused before the first byte goes out, and reported rather than
-    // swallowed: a panel that says "Codex quota is off because the configured
-    // base URL is not an OpenAI one" is a bug report the user can act on, where
-    // a silently empty gauge is a mystery. Logged once per distinct value so a
-    // 60-second poll does not turn a misconfiguration into a log flood.
-    if (!isCredentialHost(base)) {
-      if (_warnedBase !== base) {
-        _warnedBase = base;
-        console.error(
-          `${PRODUCT} codex-quota: not sending the ChatGPT token to ${base} — ` +
-          `chatgpt_base_url must be an https OpenAI host`,
-        );
-      }
-      return fail("untrusted_base_url");
-    }
-    res  = await requestUsage(base, auth);
-
-    // The JWT's own `exp` is not the last word: OpenAI revokes server-side, so
-    // a token that looks valid locally can still come back expired. One forced
-    // refresh + retry turns that from "bar goes dark" into a hiccup.
-    //
-    // 401 only. A 403 from chatgpt.com is usually a bot check or a blocked
-    // egress IP rather than a bad token, and rotating a single-use credential
-    // once a minute against a network-layer block is how a working login gets
-    // destroyed.
-    if (res.status === 401) {
-      const refreshed = await forceCodexRefresh(auth.accessToken);
-      if (!refreshed.ok) {
-        // The credential is gone and only `codex login` brings it back, so
-        // rotating another single-use token at the next request would burn the
-        // one the CLI is still holding. Wait.
-        if (refreshed.reason === "refresh_rejected") await refused(null);
-        return fail(refreshed.reason);
-      }
-      auth = refreshed;
-      res  = await requestUsage(base, auth);
-    }
-
-    if (!res.ok) {
-      // A second 401 means the token we just rotated to was rejected as well —
-      // the case that turned into one rotation per request. 429 is the backend
-      // saying the same thing in the ordinary way, and it says nothing against
-      // the lanes already read: they are held, stale, through the wait, and
-      // without any the panel is told the deck is waiting rather than to press
-      // a ↻ the cooldown refuses.
-      if (res.status === 401) {
-        await refused(res);
-        return fail("refresh_rejected");
-      }
-      if (res.status === 429) {
-        cooldown(res);
-        return _lastGood ? finish({ ..._lastGood, stale: true }) : fail("rate_limited");
-      }
-      return fail(`http_${res.status}`);
-    }
-  } catch (err) {
-    console.error(`${PRODUCT} codex-quota: fetch failed:`, err?.message ?? err);
-    return fail("fetch_error");
-  }
-
-  let data;
-  try { data = await res.json(); }
-  catch { return fail("decode_error"); }
-
-  const rl              = data?.rate_limit;
-  const windows         = windowsFrom(rl);
-  const { extras, damaged } = extraLimits(data);
-  const creditsRaw      = data?.credits;
-  const balance         = num(creditsRaw?.balance);
-
-  const result = {
-    ok:           true,
-    limitReached: rl?.limit_reached ?? false,
-    allowed:      rl?.allowed ?? true,
-
-    // Lanes, already ordered session → weekly → monthly and labelled by the
-    // window duration the API actually reported.
-    windows,
-    extraWindows: extras,
-
-    plan:      data?.plan_type ?? auth.planType ?? null,
-    planLabel: planLabel(data?.plan_type ?? auth.planType),
-    email:     data?.email ?? auth.email ?? null,
-
-    creditsBalance:   balance != null && balance > 0 ? String(creditsRaw.balance) : null,
-    creditsUnlimited: creditsRaw?.unlimited === true,
-    overageReached:   creditsRaw?.overage_limit_reached === true,
-    creditLimit:      creditLimitFrom(data),
-
-    spendControlReached: data?.spend_control?.reached === true,
-    reachedType:         data?.rate_limit_reached_type?.type ?? data?.rate_limit_reached_type ?? null,
-    promo:               data?.promo?.message ?? null,
-
-    // True when something in the payload did not decode — the UI says "partial"
-    // rather than pretending the missing lanes do not exist.
-    partial:   damaged || windows.length === 0,
-    refreshed: auth.refreshed === true,
-    fetchedAt: started,
-  };
-
-  result.resetCredits = await fetchResetCredits(base, auth);
-  _accountOfQuota.set(result, { accountId: auth.accountId ?? null, email: result.email });
-
-  return finish(result);
-}
-
 // Which account a reading was taken for — the ChatGPT account id and the
 // address — kept beside it rather than on it, as quota.mjs keeps Claude's, so
 // the panel is sent nothing new. A reading held over and re-served as stale is
 // a copy and is not tagged.
 const _accountOfQuota = new WeakMap();
+
+
+/** Independent quota state for one credential home. Selected readers never refresh. */
+export function createCodexQuotaReader({ home = CODEX_HOME, allowRefresh = false } = {}) {
+  allowRefresh = allowRefresh && resolve(home) === resolve(CODEX_HOME);
+  let _cache = null;
+  let _cacheAt = 0;
+  let _lastGood = null;
+  let _warnedBase = null;
+  let credentialFingerprint;
+  let credentialGeneration = 0;
+
+  // One outstanding fetch at a time. Several browser tabs mounting at once
+  // otherwise each force their own round trip — and each one is another chance
+  // to race over the single-use refresh token.
+  let _inflight = null;
+
+  // ── what a forced read may cost ────────────────────────────────────────────
+  // The floor between two reads WE pay for, and it is the same number and the
+  // same rule quota.mjs gives the Claude half — see FORCE_POLL_MS and maySelfPoll
+  // there. The two routes are four lines apart in the router and had no business
+  // disagreeing about what `?refresh=1` costs.
+  //
+  // `force` used to mean "skip the cache", and the cache was the ONLY thing
+  // between a caller and chatgpt.com. `_inflight` deduplicates callers that
+  // overlap and nothing else, so a caller that waits for one fetch to settle and
+  // then asks again got a fresh round trip every time — two authenticated HTTPS
+  // GETs carrying the user's live ChatGPT session, as fast as the round trip
+  // allows, from any page the user happens to have open (#580). Reads on this
+  // server were deliberately open (isTrustedRead), so "any page" was the real
+  // threat model rather than a hypothetical one. The route is a guarded read now
+  // (GUARDED_READS in request-gates.mjs), and the floor stays for the callers
+  // that still reach it: the deck's own page and a client holding the token.
+  //
+  // The sharper half is the credential rather than the traffic. On a 401
+  // doFetchCodexQuota spends the SINGLE-USE refresh token via forceCodexRefresh,
+  // and `staleAccessToken` only stops that happening twice for the same rejected
+  // token — every turn re-reads auth.json and sees the token the previous turn
+  // rotated to, so a backend that keeps answering 401 rotated a fresh credential
+  // once per request, racing the Codex CLI for each one. codex-auth.mjs's own
+  // EXPIRY_SKEW_MS comment says what losing that race costs the user: a
+  // `refresh_token_reused` that reads as "your login is broken", recoverable only
+  // with `codex login`.
+
+  // Set from a 429 or a rejected refresh: a backend that is refusing us must not
+  // be asked once per request, whoever is asking. Same shape as quota.mjs's
+  // _rateLimitedUntil, which is likewise never beaten by force.
+  let _rateLimitedUntil = 0;
+  const COOLDOWN_MS = 5 * 60_000;
+  // Set when the cooldown above is for a refused login rather than a 429: the
+  // fingerprint of the credential auth.json held when it was refused. That wait
+  // is about the credential, and `codex login` — the very thing the panel tells
+  // the user to run — replaces it; held to the clock alone, ↻ was answered with
+  // the old refusal for five minutes after the login that fixed it.
+  let _refusedWith = null;
+
+  // Stamped when a fetch STARTS rather than when it lands: what the floor is
+  // rationing is the round trip, and one that is still in flight has already been
+  // paid for.
+  let _lastFetchAt = 0;
+
+  /**
+   * The answer to a read the floor refused.
+   *
+   * A reading, not an error — a user who clicks ↻ twice in a second must get the
+   * numbers they already have rather than a red hint, which is exactly what
+   * quota.mjs does with `{ ...held, stale: true }`. The timestamp stays the one
+   * the data was fetched at, so the panel's age label keeps telling the truth
+   * instead of vouching for a reading it did not take.
+   */
+  function heldReading(now) {
+    if (_cache) return { ..._cache, stale: true };
+    // Only reachable before the first fetch has ever landed — `finish` caches
+    // every outcome, failures included — and spelled the way the Claude side
+    // spells the same two states.
+    return { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
+  }
+
+  function fetchQuota({ force = false } = {}) {
+    const now = Date.now();
+    if (!force && _cache && now - _cacheAt < CACHE_MS) return Promise.resolve(_cache);
+    // Joining a run already in flight costs nothing, so it is offered before the
+    // floor: what refresh asks for is a reading newer than the cache, and a fetch
+    // that has not landed yet is one.
+    if (_inflight) return _inflight;
+    if (!mayFetchQuota({ now, lastFetchAt: _lastFetchAt, rateLimitedUntil: _rateLimitedUntil })) {
+      // Past the floor and inside a refused login's cooldown, the one question
+      // worth asking is whether auth.json still holds what was refused — a local
+      // read, and the wire stays quiet unless the answer is no.
+      if (_refusedWith && mayFetchQuota({ now, lastFetchAt: _lastFetchAt, rateLimitedUntil: 0 })) {
+        return track((async () => {
+          if (await codexCredentialFingerprint({ home }) === _refusedWith) return heldReading(Date.now());
+          _rateLimitedUntil = 0;
+          _refusedWith = null;
+          _lastFetchAt = Date.now();
+          return doFetchCodexQuota();
+        })());
+      }
+      return Promise.resolve(heldReading(now));
+    }
+    _lastFetchAt = now;
+    return track(doFetchCodexQuota());
+  }
+
+  /** `run`, as the one outstanding fetch every caller joins until it settles. */
+  function track(run) {
+    const pending = run.finally(() => { if (_inflight === pending) _inflight = null; });
+    _inflight = pending;
+    return pending;
+  }
+
+  async function doFetchCodexQuota() {
+    const generation = credentialGeneration;
+    const started = Date.now();
+    // Stamped at completion, not at entry: the two calls below can take up to
+    // 17s between them, and a cache entry that is already stale on arrival
+    // shortens the effective TTL for no reason.
+    const finish = (r) => {
+      if (!allowRefresh && generation !== credentialGeneration) return { ok: false, reason: "profile_changed" };
+      _cache = r;
+      _cacheAt = Date.now();
+      if (r.ok && !r.stale) _lastGood = r;
+      return r;
+    };
+    const fail   = (reason) => finish({ ok: false, reason, fetchedAt: started });
+    // A refusal we were told about, rather than one we inferred: back off further
+    // than the ordinary floor before asking again. `retry-after` is honoured when
+    // the backend sends one, because it knows better than the constant does.
+    const cooldown = (res) => {
+      if (!allowRefresh && generation !== credentialGeneration) return;
+      // Clamped, for the reason quota-oauth.mjs states at cooldownFromHeader: a `0`
+      // defeats the cooldown a 429 exists to impose, and a day freezes this
+      // poller for the life of the process.
+      _rateLimitedUntil = Date.now() + cooldownFromHeader(res?.headers?.get?.("retry-after"), COOLDOWN_MS);
+      _refusedWith = null;
+    };
+    // The same wait for a login that was refused, stamped with the credential it
+    // was refused for, so a new one ends it (see fetchCodexQuota).
+    const refused = async (res) => {
+      cooldown(res);
+      const fingerprint = await codexCredentialFingerprint({ home });
+      if (allowRefresh || generation === credentialGeneration) _refusedWith = fingerprint;
+    };
+
+    let auth, base, res;
+    try {
+      auth = await getCodexAuth({ home, allowRefresh });
+      if (!auth.ok) return fail(auth.reason);
+
+      // An API key in auth.json is a platform credential, not a ChatGPT session —
+      // sending it here only produces a confusing 401.
+      if (auth.apiKeyMode) return fail("api_key_mode");
+
+      if (!allowRefresh) {
+        const exp = decodeJwt(auth.accessToken)?.exp;
+        if (typeof exp === "number" && exp * 1000 <= Date.now()) return fail("expired");
+      }
+      base = await readBaseUrl(home);
+      // Refused before the first byte goes out, and reported rather than
+      // swallowed: a panel that says "Codex quota is off because the configured
+      // base URL is not an OpenAI one" is a bug report the user can act on, where
+      // a silently empty gauge is a mystery. Logged once per distinct value so a
+      // 60-second poll does not turn a misconfiguration into a log flood.
+      if (!isCredentialHost(base)) {
+        if (_warnedBase !== base) {
+          _warnedBase = base;
+          console.error(
+            `${PRODUCT} codex-quota: not sending the ChatGPT token to ${base} — ` +
+            `chatgpt_base_url must be an https OpenAI host`,
+          );
+        }
+        return fail("untrusted_base_url");
+      }
+      res  = await requestUsage(base, auth);
+
+      // The JWT's own `exp` is not the last word: OpenAI revokes server-side, so
+      // a token that looks valid locally can still come back expired. One forced
+      // refresh + retry turns that from "bar goes dark" into a hiccup.
+      //
+      // 401 only. A 403 from chatgpt.com is usually a bot check or a blocked
+      // egress IP rather than a bad token, and rotating a single-use credential
+      // once a minute against a network-layer block is how a working login gets
+      // destroyed.
+      if (res.status === 401 && allowRefresh) {
+        const refreshed = await forceCodexRefresh(auth.accessToken);
+        if (!refreshed.ok) {
+          // The credential is gone and only `codex login` brings it back, so
+          // rotating another single-use token at the next request would burn the
+          // one the CLI is still holding. Wait.
+          if (refreshed.reason === "refresh_rejected") await refused(null);
+          return fail(refreshed.reason);
+        }
+        auth = refreshed;
+        res  = await requestUsage(base, auth);
+      }
+
+      if (!res.ok) {
+        // A second 401 means the token we just rotated to was rejected as well —
+        // the case that turned into one rotation per request. 429 is the backend
+        // saying the same thing in the ordinary way, and it says nothing against
+        // the lanes already read: they are held, stale, through the wait, and
+        // without any the panel is told the deck is waiting rather than to press
+        // a ↻ the cooldown refuses.
+        if (res.status === 401) {
+          await refused(res);
+          return fail(allowRefresh ? "refresh_rejected" : "reauth_required");
+        }
+        if (res.status === 429) {
+          cooldown(res);
+          return _lastGood ? finish({ ..._lastGood, stale: true }) : fail("rate_limited");
+        }
+        return fail(`http_${res.status}`);
+      }
+    } catch (err) {
+      console.error(`${PRODUCT} codex-quota: fetch failed:`, err?.message ?? err);
+      return fail("fetch_error");
+    }
+
+    let data;
+    try { data = await res.json(); }
+    catch { return fail("decode_error"); }
+
+    const rl              = data?.rate_limit;
+    const windows         = windowsFrom(rl);
+    const { extras, damaged } = extraLimits(data);
+    const creditsRaw      = data?.credits;
+    const balance         = num(creditsRaw?.balance);
+
+    const result = {
+      ok:           true,
+      limitReached: rl?.limit_reached ?? false,
+      allowed:      rl?.allowed ?? true,
+
+      // Lanes, already ordered session → weekly → monthly and labelled by the
+      // window duration the API actually reported.
+      windows,
+      extraWindows: extras,
+
+      plan:      data?.plan_type ?? auth.planType ?? null,
+      planLabel: planLabel(data?.plan_type ?? auth.planType),
+      email:     data?.email ?? auth.email ?? null,
+
+      creditsBalance:   balance != null && balance > 0 ? String(creditsRaw.balance) : null,
+      creditsUnlimited: creditsRaw?.unlimited === true,
+      overageReached:   creditsRaw?.overage_limit_reached === true,
+      creditLimit:      creditLimitFrom(data),
+
+      spendControlReached: data?.spend_control?.reached === true,
+      reachedType:         data?.rate_limit_reached_type?.type ?? data?.rate_limit_reached_type ?? null,
+      promo:               data?.promo?.message ?? null,
+
+      // True when something in the payload did not decode — the UI says "partial"
+      // rather than pretending the missing lanes do not exist.
+      partial:   damaged || windows.length === 0,
+      refreshed: auth.refreshed === true,
+      fetchedAt: started,
+    };
+
+    result.resetCredits = await fetchResetCredits(base, auth);
+    if (allowRefresh) _accountOfQuota.set(result, { accountId: auth.accountId ?? null, email: result.email });
+
+    return finish(result);
+  }
+
+  // A re-login invalidates every kind of held state, including refused-login
+  // cooldowns and pending requests. An older request may finish, but cannot cache.
+  async function fetchReadOnlyQuota(options) {
+    const fingerprint = await codexCredentialFingerprint({ home });
+    if (fingerprint !== credentialFingerprint) {
+      credentialFingerprint = fingerprint;
+      credentialGeneration++;
+      _cache = null;
+      _cacheAt = 0;
+      _lastGood = null;
+      _inflight = null;
+      _rateLimitedUntil = 0;
+      _refusedWith = null;
+      _lastFetchAt = 0;
+    }
+    const generation = credentialGeneration;
+    const result = await fetchQuota(options);
+    if (generation !== credentialGeneration || await codexCredentialFingerprint({ home }) !== fingerprint) {
+      return { ok: false, reason: "profile_changed" };
+    }
+    if (result.ok && !result.stale) {
+      const auth = await getCodexAuth({ home, allowRefresh: false });
+      if (await codexCredentialFingerprint({ home }) !== fingerprint) return { ok: false, reason: "profile_changed" };
+      if (auth.ok && !auth.apiKeyMode) {
+        _accountOfQuota.set(result, { accountId: auth.accountId ?? null, email: result.email });
+      }
+    }
+    return result;
+  }
+
+  return { fetch: allowRefresh ? fetchQuota : fetchReadOnlyQuota };
+}
+
+const legacyReader = createCodexQuotaReader({ allowRefresh: true });
+const selectedReaders = new Map();
+
+const MAX_SELECTED_READERS = 64;
+
+// Keep active readers so repeated calls still share their in-flight request.
+// Removed roster homes and the least recently used idle readers can be rebuilt.
+function selectedReader(selection) {
+  if (Array.isArray(selection.homes)) {
+    const homes = new Set(selection.homes);
+    for (const [home, entry] of selectedReaders) {
+      if (!homes.has(home) && entry.active === 0) selectedReaders.delete(home);
+    }
+  }
+  let entry = selectedReaders.get(selection.home);
+  if (entry) {
+    selectedReaders.delete(selection.home);
+    selectedReaders.set(selection.home, entry);
+    return entry;
+  }
+  if (selectedReaders.size >= MAX_SELECTED_READERS) {
+    const idle = [...selectedReaders].find(([, entry]) => entry.active === 0);
+    if (!idle) return null;
+    selectedReaders.delete(idle[0]);
+  }
+  entry = { reader: createCodexQuotaReader({ home: selection.home }), active: 0 };
+  selectedReaders.set(selection.home, entry);
+  return entry;
+}
+
+/** Capture the selected target once; reject a completion from any old revision. */
+export async function fetchCodexQuota({ force = false, readSelection: read = readCodexSelection, enableNative = false, nativeRead = readNativeCodexAccount } = {}) {
+  let selected;
+  try { selected = await read(); }
+  catch { return { ok: false, reason: "selection_unavailable" }; }
+  const home = selected.selectionEnabled ? selected.home : CODEX_HOME;
+  if (typeof home !== "string" || !home.trim()) return { ok: false, reason: "selection_unavailable" };
+  if (selected.available === false) return { ok: false, reason: "profile_unavailable" };
+  const authoritative = enableNative && await usesNativeCodexAccount(home, selected.selectionEnabled);
+  let entry = null;
+  if (selected.selectionEnabled && !authoritative) {
+    entry = selectedReader(selected);
+    if (!entry) return { ok: false, reason: "waiting", fetchedAt: Date.now() };
+    entry.active++;
+  }
+  let result;
+  try { result = authoritative ? { ok: false, reason: "no_token" } : await (entry?.reader ?? legacyReader).fetch({ force }); }
+  finally { if (entry) entry.active--; }
+  if (enableNative && result.reason === "no_token") {
+    const fingerprint = authoritative ? null : await codexCredentialFingerprint({ home });
+    const native = await nativeRead(home, { includeQuota: true, force: true });
+    if (!authoritative && await codexCredentialFingerprint({ home }) !== fingerprint) {
+      return { ok: false, reason: 'profile_changed' };
+    }
+    if (native.ok && native.signedIn && native.plan !== 'api') {
+      const windows = native.windows.map(window => toWindow({
+        used_percent: window.usedPercent, limit_window_seconds: window.seconds, resets_at: window.resetAt,
+      })).filter(Boolean).sort((a, b) => a.rank - b.rank);
+      result = { ok: true, windows, extraWindows: [], plan: native.plan, planLabel: planLabel(native.plan),
+        email: native.label, partial: true, coverage: "standard_limits", refreshed: false, fetchedAt: native.fetchedAt,
+        ...(native.stale ? { stale: true } : {}) };
+      _accountOfQuota.set(result, { accountId: `profile:${selected.profileId}`, profileId: selected.profileId, email: native.label });
+    } else result = { ok: false, reason: native.reason ?? (native.plan === 'api' ? 'api_key_mode' : 'no_token'), fetchedAt: native.fetchedAt,
+      ...(native.stale ? { stale: true } : {}) };
+  }
+  let current;
+  try { current = await read(); }
+  catch { return { ok: false, reason: "selection_unavailable" }; }
+  if (current.selectionEnabled !== selected.selectionEnabled || (selected.selectionEnabled && (
+    current.home !== selected.home || current.profileId !== selected.profileId || current.revision !== selected.revision
+  ))) return { ok: false, reason: "profile_changed" };
+  return result;
+}
 
 /** The account a fetchCodexQuota reading was taken for, or null — for
  *  account-watch.mjs, whose notifications are about one account at a time. */

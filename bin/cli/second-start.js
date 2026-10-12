@@ -32,14 +32,14 @@ import { reportIncompleteFlags, reportUnknownFlags } from "./startup.js";
  * to go on and boot. Nothing here exits the process: bin/deck.js does, so every
  * way out is one its exit handlers already cover (#980).
  */
-export async function settleSecondStart({ flags, workspace, persist, wantCodex, wantClaude, codexHome, openBrowser, RESPAWN }) {
+export async function settleSecondStart({ flags, workspace, persist, wantCodex, wantClaude, codexHome, codexHomes, openBrowser, RESPAWN }) {
   // `--port` alone, not AGENT_DAG_PORT: the variable is how somebody RUNS a
   // deck rather than which one they mean — the line `--stop` draws in
   // bin/cli/one-shot.js.
   const askedPort = flags.port != null && isPortValue(flags.port) ? Number(flags.port) : null;
   const plan = secondStart({
     live: await liveDecks().catch(() => []),
-    want: { workspace, persist, codex: wantCodex, claude: wantClaude, codexHome },
+    want: { workspace, persist, codex: wantCodex, claude: wantClaude, codexHome, codexHomes },
     port: askedPort,
     ours: PKG_VERSION,
     fresh: flags.new === true,

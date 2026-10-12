@@ -151,13 +151,13 @@ export async function scanClaudeMdFiles(cwd) {
  * worth pinning directly, rather than through a watcher, a temp home and a
  * 1.5s poll.
  */
-export async function scanAgentsMdFiles(cwd) {
+export async function scanAgentsMdFiles(cwd, codexHome = CODEX_HOME) {
   if (!cwd || typeof cwd !== "string") return [];
   // Codex has no `.codex/AGENTS.md` per-directory convention to mirror CC's
   // `.claude/CLAUDE.md`, so the per-level list is the single filename.
   const paths = memoryWalkPaths(cwd, ["AGENTS.md"]);
   // The user-global instructions file, which Codex loads for every session
   // whatever the cwd — the counterpart of ~/.claude/CLAUDE.md.
-  paths.push(join(CODEX_HOME, "AGENTS.md"));
+  paths.push(join(codexHome, "AGENTS.md"));
   return collectMemoryFiles(paths);
 }

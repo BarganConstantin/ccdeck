@@ -14,6 +14,7 @@ import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import type { FeedbackPrefill } from "../feedback";
 import AccountRow from "./AccountRow";
+import CodexProfilesSection from "./CodexProfilesSection";
 import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
 import AccountsUsageReport from "./AccountsUsageReport";
@@ -46,6 +47,8 @@ import { type Account, type AccountsData } from "../claude-accounts";
 import { useFeatureUse } from "../feature-use";
 
 interface Props {
+  claudeEnabled?: boolean;
+  codexEnabled?: boolean;
   onClose: () => void;
   /** Asked to close, still on screen for the length of its exit. The panel
    *  keeps working while it leaves — nothing here reads this but the class. */
@@ -59,7 +62,17 @@ interface Props {
   onRoster?: (fresh: AccountsData) => void;
 }
 
-export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: Props) {
+export default function AccountsPanel(props: Props) {
+  if (props.claudeEnabled === false) return (
+    <aside className={`accounts-panel${props.leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Agent accounts">
+      <div className="ap-header"><h2>Codex profiles</h2><button type="button" className="glyph-btn" aria-label="Close accounts" onClick={props.onClose}>×</button></div>
+      <div className="ap-scroll">{props.codexEnabled !== false && <CodexProfilesSection />}</div>
+    </aside>
+  );
+  return <ClaudeAccountsPanel {...props} />;
+}
+
+function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnabled = true }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel");
   const singleKeys = useSingleKeyShortcuts();
@@ -466,7 +479,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
     // aria-label on a roleless <div> resolved to `generic` and the tree threw
     // the name away (#381). This panel is the left sidebar beside the canvas,
     // which is complementary content by any reading.
-    <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Claude accounts"
+    <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Agent accounts"
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
@@ -660,6 +673,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
           )}
           {/* Under the roster and the policy over it, in every state the
               column is in: the header has no room left beside its five acts. */}
+          {codexEnabled && <CodexProfilesSection />}
           <div className="film-foot"><FilmLink film="claudeAccounts" /></div>
         </div>
       )}

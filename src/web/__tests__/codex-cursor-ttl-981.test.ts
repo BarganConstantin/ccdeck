@@ -90,11 +90,17 @@ const prev = {
   USERPROFILE: process.env.USERPROFILE,
   CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
   CODEX_HOME: process.env.CODEX_HOME,
+  CCDECK_CODEX_HOMES: process.env.CCDECK_CODEX_HOMES,
 };
 process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
 process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = CODEX_HOME;
+const OTHER_HOME = join(DIR, "other-codex");
+const OTHER_DAY = join(OTHER_HOME, "sessions", "2026", "09", "15");
+mkdirSync(OTHER_DAY, { recursive: true });
+writeFileSync(join(OTHER_DAY, "rollout-2026-09-15T11-00-00-11112222-3333-4000-8000-444455556666.jsonl"), JSON.stringify({ type: "session_meta", payload: { id: "11112222-3333-4000-8000-444455556666", cwd: join(DIR, "other-workspace") } }) + "\n");
+process.env.CCDECK_CODEX_HOMES = JSON.stringify([OTHER_HOME]);
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true });
 mkdirSync(DAY, { recursive: true });
 
@@ -246,7 +252,7 @@ describe("a listing that came back empty", () => {
 });
 
 describe("a tree that goes away and comes back", () => {
-  it("costs the deck the lines it could not see, and nothing it already had", async () => {
+  it("preserves the unavailable home offset while another home stays readable", async () => {
     // The trigger the issue names first: a network or removable volume, an
     // encrypted home not yet unlocked. The tree is unreachable for longer than
     // the whole window — which is the case the "not seen for a while" clock was

@@ -165,7 +165,7 @@ describe("a start keeps at most one deck", () => {
     const call = /const plan = secondStart\(\{([\s\S]*?)\}\);/.exec(SECOND_START)?.[1] ?? "";
     expect(call, "the question left bin/cli/second-start.js").not.toBe("");
     expect(call).toMatch(/live: await liveDecks\(\)/);
-    expect(call).toMatch(/want: \{ workspace, persist, codex: wantCodex, claude: wantClaude, codexHome \}/);
+    expect(call).toMatch(/want: \{ workspace, persist, codex: wantCodex, claude: wantClaude, codexHome, codexHomes \}/);
     expect(call).toMatch(/fresh: flags\.new === true/);
     expect(call).toMatch(/respawn: RESPAWN/);
     // A typo is not an input, so a misspelling cannot decide anything — the

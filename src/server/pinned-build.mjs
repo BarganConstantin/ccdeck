@@ -60,6 +60,8 @@ const PINNED_MODULES = [
   "quota.mjs",
   "codex-usage.mjs",
   "codex-quota.mjs",
+  "codex-terminal.mjs",
+  "codex-native-account.mjs",
   "ccusage.mjs",
   "browser-watch.mjs",
   "browser-watch-store.mjs",

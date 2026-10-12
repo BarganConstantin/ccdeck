@@ -102,13 +102,24 @@ export function deckRegistryDir(env = process.env, home = undefined) {
  * that asks on behalf of a start names its tree: the start itself, and
  * `--status` marking the deck a bare start would open (#1134).
  */
+function sameMonitoredHomes(record, want) {
+  if (!Array.isArray(want.codexHomes)) return true;
+  const roots = Array.isArray(record.codexHomes) ? record.codexHomes
+    : typeof record.codexHome === "string" ? [record.codexHome] : null;
+  if (roots === null) return want.codexHomes.length <= 1;
+  const actual = [...new Set(roots)];
+  const expected = [...new Set(want.codexHomes)];
+  return actual.length === expected.length && expected.every(home => actual.some(root => sameCodexTree(root, home)));
+}
+
 export function sameShape(record, want = {}) {
   if (!record) return false;
   return (record.workspace ?? "") === (want.workspace ?? "")
     && (record.persist ?? null) === (want.persist ?? null)
     && record.codex === (want.codex !== false)
     && record.claude === (want.claude !== false)
-    && sameCodexTree(record.codexHome, want.codexHome);
+    && sameCodexTree(record.codexHome, want.codexHome)
+    && sameMonitoredHomes(record, want);
 }
 
 /**

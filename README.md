@@ -294,6 +294,14 @@ Each one fires the bundled `hook.js`, which POSTs the event JSON to the running 
 
 **OpenAI Codex** — Codex CLI hooks do not fire reliably on Windows, so nothing is installed at all. The server tails Codex's own rollout files at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` and reconstructs the equivalent stream — session start, prompts, tool calls, token usage, model. No hook install, no trust prompt. Set `CODEX_HOME` to override the path.
 
+To use **multiple separate Codex logins**, open **Accounts → Add Codex account**, give the profile a label, and run its copied sign-in command in a terminal. Sign-in uses the official [Codex login flow](https://learn.chatgpt.com/docs/auth); each profile keeps its own login, configuration and history. Existing logins remain in place. You can also register existing homes at startup with `CCDECK_CODEX_HOMES`, a JSON array of additional absolute directories: for example, `CCDECK_CODEX_HOMES='["/home/me/.codex-work","/home/me/.codex-personal"]' npx ccdeck` on Linux.
+
+**Use account** saves the default for ccdeck's Codex quota and account notifications. Selection is serialized across local processes and persists across restarts. Running sessions keep their previous account; restart them to apply a different account. All configured profile session trees stay monitored independently of selection. Token renewal belongs to Codex. ccdeck never rotates managed-profile refresh tokens itself; system-store inspection uses the official Codex app-server, which may renew a login while reading quota. System-store account metadata depends on the installed CLI protocol and may not include a workspace ID. Native quota readings cover standard Codex limits; additional limits and credits are not included.
+
+For plain `codex` commands to use this default, click **Enable terminal selection**, run the copied setup command once, then open a new terminal. Supported shells are zsh, bash and PowerShell (PowerShell 5 uses `--shell powershell5`). The installed launcher uses durable local metadata, so ccdeck can be closed. An explicit `CODEX_HOME` always takes priority. **Remove terminal selection** provides the reverse command; it removes only ccdeck's shell integration and keeps profile data. Individual launch commands remain available without terminal setup. Terminal setup applies to shell commands, not an independently launched IDE extension.
+
+The Accounts panel shows account/workspace labels and independent quotas where available. Missing profiles remain inspectable so another account can be selected. Usage history outside the profile cards may still reflect the original home; historical sessions are never reassigned when the default changes. Migration from CC Switch currently means signing in to isolated profiles again; it does not modify CC Switch's store. Claude continues to use claude-swap.
+
 Quota is the one thing that is not just reading. It needs a live token, so when the one in `~/.codex/auth.json` is within 90 seconds of expiring the deck refreshes it exactly as the CLI does and writes the rotated credential back — one refresh at a time, re-reading the file inside the lock, and atomically, because OpenAI's refresh tokens are single-use and a rotation that never reaches disk costs you a `codex login`. It happens only while the page is open or a quota notification is on (see [Accounts](#accounts)), and nothing else in `auth.json` is touched.
 
 ## What it touches
@@ -318,7 +326,7 @@ Step by step: [Detect browser automation while you were away](https://ccdeck.dev
 
 ## Accounts
 
-The Accounts panel reads the store [claude-swap](https://github.com/realiti4/claude-swap) keeps, and can drive it.
+The Accounts panel shows Claude accounts managed by [claude-swap](https://github.com/realiti4/claude-swap) and configured Codex profiles. Codex profiles support adding accounts, isolated quota checks and a persistent default for new sessions. The Claude controls described below continue to use claude-swap.
 
 The deck installs that package itself, so it installs it **bounded**: `claude-swap~=0.26`, which is `>= 0.26, == 0.*`, and when PyPI can be reached the exact version it resolved rather than the range. What `cswap --version` reports afterwards has to be that version, or the deck says so and leaves the panel dark rather than driving a copy it cannot account for — this is the tool that holds your Claude logins. The daily upgrade is bounded by the same specifier, and what it left behind is written to `~/.agents-deck/cswap-upgrade.json`.
 
@@ -419,7 +427,7 @@ ccdeck [options]
       --no-codex           Skip Codex capture (Claude only)
       --claude             Force Claude capture even if Claude Code wasn't found
       --no-claude          Skip Claude entirely — no hooks, no claude-swap,
-                           no Accounts panel (Codex only)
+                           Codex accounts remain available (Codex only)
       --ref <name>         The ccdeck.dev page this command was copied from;
                            sent once, with the first install report
       --uninstall          Remove ccdeck's hooks from settings files, and name
@@ -512,6 +520,7 @@ Environment:
 |---|---|
 | `AGENT_DAG_PORT` | Default port, same as `-p` |
 | `CODEX_HOME` | Override `~/.codex` |
+| `CCDECK_CODEX_HOMES` | JSON array of additional absolute Codex home directories to monitor and list in Accounts; restart ccdeck after changing it |
 | `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage, never ask npm about releases, never read the status pages, and never send reports or feedback |
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, but keep the managed installs |
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |

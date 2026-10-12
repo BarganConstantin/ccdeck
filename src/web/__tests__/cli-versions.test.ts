@@ -2,7 +2,7 @@
 // `--version` line, that it asks first whether the CLI is even here, and that a
 // version leaves as a bare token and nothing else. Every dependency is injected,
 // so nothing here spawns a real child.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   detectCliVersions, parseVersion,
   // @ts-expect-error — plain JS module, no types
@@ -43,6 +43,14 @@ describe("pulling a version out of --version output", () => {
 });
 
 describe("detecting the installed CLIs", () => {
+  it("does not probe an async absent or failed Codex presence check", async () => {
+    const runImpl = vi.fn();
+    for (const codexPresent of [async () => false, async () => { throw new Error('unavailable'); }]) {
+      expect(await detectCliVersions({ runImpl, claudePresent: () => false, codexPresent })).toEqual({});
+    }
+    expect(runImpl).not.toHaveBeenCalled();
+  });
+
   it("reports each version when its CLI is present and answers", async () => {
     const { runImpl } = runner({ claude: "1.9.0 (Claude Code)", codex: "codex-cli 0.7.2" });
     const out = await detectCliVersions({

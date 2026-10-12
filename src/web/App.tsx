@@ -218,10 +218,10 @@ function Inner() {
   const { workspace, providers, providersRef } = useDeckScope(live);
   /** How wide the left column is drawn: the open panel's own width, or 0 —
    *  never anything the two panels make between them (LeftColumn.tsx). The
-   *  accounts panel is Claude's alone, so without Claude Code it is no width. */
-  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !providers.claude ? null : leftPanel);
+   *  accounts panel has no width when neither provider is installed. */
+  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !(providers.claude || providers.codex) ? null : leftPanel);
   const columnSettleRef = useColumnSettle(leftColumnTarget);
-  const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && providers.claude;
+  const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && (providers.claude || providers.codex);
 
   // The "started under an old npm name" notice lives in use-old-name-notice.ts.
   const oldNameNotice = useOldNameNotice(version);
@@ -661,14 +661,9 @@ function Inner() {
           the two inside it — components/LeftColumn.tsx. */}
       {(sessionListDrawn || accountsDrawn) && (
         <LeftColumn width={leftColumnTarget}>
-          {/* Claude-only, and now conditional on Claude Code actually being here.
-              Every account in it is a Claude account, the store behind it is
-              claude-swap's, and both of its empty states end at `claude auth login`
-              — which on a Codex-only machine dead-ends at "the claude CLI could not
-              be run: not on PATH". The panel is also open by default, so that was
-              the first thing such a user saw. */}
+          {/* The accounts panel shows each installed provider separately. */}
           {accountsDrawn && (
-            <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
+            <AccountsPanel claudeEnabled={providers.claude} codexEnabled={providers.codex} leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
               onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }} />
           )}
           {sessionListDrawn && (

@@ -98,6 +98,7 @@ type Quota = { fetchClaudeQuota: () => Promise<{ ok: boolean; stale?: boolean }>
 let watch: Watch;
 let auto: Auto;
 let quota: Quota;
+const tickNotifications: Promise<unknown>[] = [];
 const said: { title: string; body: string }[] = [];
 const settings = { swap: true, quota: false, reset: false };
 let notify: (title: string, body: string) => unknown = (title, body) => { said.push({ title, body }); };
@@ -107,18 +108,20 @@ const rest = (ms: number) => new Promise(r => setTimeout(r, ms));
 /** One deck-managed tick, waited out — and the notifier after it. */
 async function tickOnce(engine: string) {
   proc.engine = engine;
-  const before = (await auto.autoStatus()).lastTick;
+  const before = tickNotifications.length;
   await auto.setAutoEnabled(true);
-  for (let i = 0; i < 400 && (await auto.autoStatus()).lastTick === before; i++) await rest(5);
+  await vi.waitFor(() => expect(tickNotifications.length).toBe(before + 1), { timeout: 5000, interval: 10 });
   await auto.setAutoEnabled(false);
-  // The notifier hears the tick after it is recorded, and reads the store on
-  // the way: give that its moment before anything is asserted about it.
-  await rest(150);
+  // The desktop call precedes the atomic record write. Await the real notifier
+  // completion, not a clock window that can expire before Windows releases
+  // the file for rename. This also settles notifications before fixture cleanup.
+  await tickNotifications[before];
   return (await auto.autoStatus()).lastTick;
 }
 
 beforeEach(async () => {
   proc.calls.length = 0;
+  tickNotifications.length = 0;
   said.length = 0;
   Object.assign(settings, { swap: true, quota: false, reset: false });
   notify = (title, body) => { said.push({ title, body }); };
@@ -127,12 +130,20 @@ beforeEach(async () => {
   vi.resetModules();
   watch = await import("../../server/account-watch.mjs");
   watch.connectAccountNotify({ notify: (t: string, b: string) => notify(t, b), settings: () => settings, product: "ccdeck", onError: () => {} });
+  const noteAutoTick = watch.noteAutoTick;
+  vi.spyOn(watch, 'noteAutoTick').mockImplementation(result => {
+    const pending = noteAutoTick(result);
+    tickNotifications.push(pending);
+    return pending;
+  });
   auto = await import("../../server/cswap-auto.mjs") as unknown as Auto;
   quota = await import("../../server/quota.mjs") as unknown as Quota;
 });
 
 afterEach(async () => {
   await auto.setAutoEnabled(false);
+  await Promise.all(tickNotifications);
+  vi.restoreAllMocks();
 });
 
 afterAll(() => {
@@ -146,12 +157,20 @@ afterAll(() => {
 
 describe("a switch the auto-switch loop made", () => {
   it("reaches the desktop once, named as the store names the accounts", async () => {
+    const file = join(DIR, "deck", "account-notify.json");
+    const atomic = await import("../../server/atomic-write.mjs");
+    const writeFileAtomic = atomic.writeFileAtomic;
+    vi.spyOn(atomic, 'writeFileAtomic').mockImplementation(async (target, ...args) => {
+      // Make the CI race reproducible: the desktop call completes while the
+      // record write is held beyond the fixture's former 150ms sleep.
+      if (target === file) await rest(250);
+      return writeFileAtomic(target, ...args);
+    });
     writeStore(3, { 2: 94, 3: 20 }, { 3: "work" });
     const tick = await tickOnce(SWITCHED);
     expect(tick?.event).toBe("switch");
     expect(said).toEqual([{ title: "Claude auto-switch — ccdeck", body: "Switched to work · account-2@b.c reached 90%" }]);
     // And the records the next start reads back carry the crossing.
-    const file = join(DIR, "deck", "account-notify.json");
     expect(existsSync(file)).toBe(true);
     const records = JSON.parse(readFileSync(file, "utf8")).windows;
     expect(records["claude|account-2@b.c@@org-2|five_hour"]?.said).toEqual([90]);

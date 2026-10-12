@@ -32,7 +32,7 @@ export interface DeckShortcuts {
   nodesRef: Read<ReadonlyArray<{ id: string }>>;
   stateRef: Read<GraphState>;
   primarySelectedIdRef: Read<string | null>;
-  providersRef: Read<{ claude: boolean }>;
+  providersRef: Read<{ claude: boolean; codex?: boolean }>;
   /** Null until the stored sound flag has been read back. */
   soundOnRef: Read<boolean | null>;
   keyHelpOpenRef: Read<boolean>;
@@ -289,10 +289,8 @@ export function useDeckShortcuts({
       }
       if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);
       if (e.key === "u" || e.key === "U") setUsagePanelOpen(o => !o);
-      // Nothing to disclose on a deck with no Claude Code: the button is not
-      // rendered and the panel is not mounted, so an unguarded `A` would only
-      // toggle a persisted flag nobody can see the effect of.
-      if (e.key === "a" || e.key === "A") { if (providersRef.current.claude) toggleAccountsPanel(); }
+      // Match the accounts rail: either installed provider can open the panel.
+      if (e.key === "a" || e.key === "A") { if (providersRef.current.claude || providersRef.current.codex) toggleAccountsPanel(); }
       if (e.key === "j" || e.key === "J") stepAgent(1);
       if (e.key === "k" || e.key === "K") stepAgent(-1);
       // #825: the most urgent move in the deck, on a key. J and K walk every

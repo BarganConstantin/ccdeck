@@ -20,6 +20,7 @@ const ref = () => ({ current: null });
  *  no-op. Claude Code installed unless said otherwise. */
 export function items(state: Partial<{
   claude: boolean;
+  codex: boolean;
   sessionListOpen: boolean;
   accountsPanelOpen: boolean;
   usagePanelOpen: boolean;
@@ -28,7 +29,7 @@ export function items(state: Partial<{
   watchUnseen: number;
 }> = {}): RailItems {
   return railItems({
-    providers: { kind: "reported", claude: state.claude ?? true, codex: true } as never,
+    providers: { kind: "reported", claude: state.claude ?? true, codex: state.codex ?? true } as never,
     sessionListOpen: state.sessionListOpen ?? false, toggleSessionList: noop,
     accountsPanelOpen: state.accountsPanelOpen ?? false, toggleAccountsPanel: noop,
     usagePanelOpen: state.usagePanelOpen ?? false, setUsagePanelOpen: noop,

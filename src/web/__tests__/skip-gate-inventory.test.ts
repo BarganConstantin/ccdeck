@@ -153,7 +153,7 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
   });
 
-  it("expects the sixty platform-gated cases to skip on Windows, file by file", () => {
+  it("expects the registered platform-gated cases to skip on Windows, file by file", () => {
     // Forty-nine behind `process.platform === "win32"`, eight behind the posix
     // runIf family, and the three read-only-directory cases — sound-hook-park's,
     // the swap script's in desktop-updater and the macOS updater's in
@@ -163,15 +163,16 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 60,
+      total: 62,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
         "codex-auth-rename-retry.test.ts": 1,
         "codex-auth-temp-collision.test.ts": 3,
+        "codex-terminal-selection.test.ts": 1,
         "desktop-appimage-relaunch-1630.test.ts": 2,
         "desktop-release-prerelease-1756.test.ts": 2,
-        "desktop-shell-env.test.ts": 2,
+        "desktop-shell-env.test.ts": 3,
         "desktop-update-unreplaceable-app.test.ts": 1,
         "discovery-live.test.ts": 3,
         "desktop-updater.test.ts": 7,
@@ -379,7 +380,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(29);
+    expect(win32Sites).toBe(30);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

@@ -15,6 +15,8 @@ import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 // Under the name installer.mjs gives it, which is the one the bodies below use.
 import { CODEX_HOME as CODEX_DIR } from "./codex-dir.mjs";
+import { configuredCodexHomes } from "./codex-profiles.mjs";
+import { readCodexSelection } from "./codex-selection.mjs";
 import { canonicalLogPath } from "./log-election.mjs";
 import { stripBom, writeFileAtomic } from "./atomic-write.mjs";
 
@@ -51,6 +53,15 @@ function persistField(persist) {
  */
 export function codexHomeField(codex) {
   return codex !== false ? canonicalLogPath(CODEX_DIR) : null;
+}
+
+/** Canonical monitored roots, shared by registration and startup matching. */
+export async function codexHomesField(codex) {
+  if (codex === false) return [];
+  let homes;
+  try { homes = (await readCodexSelection()).homes; }
+  catch { homes = configuredCodexHomes(); } // still serve recovery UI; never used for auth
+  return [...new Set(homes.map(canonicalLogPath))].sort();
 }
 
 // Every deck's token lives in this directory, and writeFileAtomic's temp file is
@@ -125,6 +136,7 @@ export async function writeDiscovery({ port, workspace, token, persist = null, c
     // codex-dir.mjs goes on reading and writing through the spelling the user
     // chose, which it has to for a symlinked home (see codexHome() there).
     codexHome: codexHomeField(codex),
+    codexHomes: await codexHomesField(codex),
     // Does this deck run Browser Watch? The watch elects a single writer among
     // the decks on a machine, and it elected on port alone — so an older ccdeck
     // that predates the feature won the election by having the lower port and
@@ -209,6 +221,7 @@ export async function ensureDiscovery({ port, workspace, token, persist = null, 
       && (d.persist ?? null) === persistField(persist)
       && d.codex === (codex !== false)
       && d.codexHome === codexHomeField(codex)
+      && JSON.stringify(d.codexHomes) === JSON.stringify(await codexHomesField(codex))
       && d.claude === (claude !== false)
       && (d.version ?? "") === (typeof version === "string" ? version : "")
       && (d.parent ?? null) === (Number.isInteger(parent) ? parent : null)) {

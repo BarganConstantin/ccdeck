@@ -20,12 +20,15 @@ import { join } from "node:path";
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-codex-watch-"));
 const CODEX_HOME = join(DIR, "codex-home");
 const SESSIONS = join(CODEX_HOME, "sessions");
+const OTHER_HOME = join(DIR, "second-codex-home");
 const prevHome = process.env.HOME;
 const prevUserProfile = process.env.USERPROFILE;
 const prevCodexHome = process.env.CODEX_HOME;
+const prevCodexHomes = process.env.CCDECK_CODEX_HOMES;
 process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
 process.env.CODEX_HOME = CODEX_HOME;
+process.env.CCDECK_CODEX_HOMES = JSON.stringify([OTHER_HOME]);
 // `codex login` state without a single session yet: the home exists, sessions/
 // does not.
 mkdirSync(CODEX_HOME, { recursive: true });
@@ -48,6 +51,7 @@ afterAll(() => {
   if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
   if (prevUserProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = prevUserProfile;
   if (prevCodexHome === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = prevCodexHome;
+  if (prevCodexHomes === undefined) delete process.env.CCDECK_CODEX_HOMES; else process.env.CCDECK_CODEX_HOMES = prevCodexHomes;
   rmTempDir(DIR);
 });
 
@@ -106,5 +110,23 @@ describe("codex watcher with a sessions directory that appears after boot", () =
     expect(events[0]).toMatchObject({ hook_event_name: "SessionStart", session_id: SID, cwd: CWD, provider: "codex" });
     expect(events.find((p: Record<string, unknown>) => p.hook_event_name === "UserPromptSubmit"))
       .toMatchObject({ prompt: "hello codex", model: "gpt-5-codex" });
+  }, 20000);
+
+  it("captures a new session from a second configured Codex home", async () => {
+    const sid = "c7b2b858-0000-4000-8000-abcdef123456";
+    const dayDir = join(OTHER_HOME, "sessions", "2026", "08", "15");
+    mkdirSync(dayDir, { recursive: true });
+    writeFileSync(join(dayDir, `rollout-2026-08-15T10-00-00-${sid}.jsonl`),
+      line({ type: "session_meta", payload: { id: sid, cwd: CWD } }) +
+      line({ type: "event_msg", payload: { type: "user_message", message: "second profile" } }));
+    const events = await waitFor(() => {
+      const found = eventsSince(0).filter((e: { source: string }) => e.source === "codex")
+        .map((e: { payload: Record<string, unknown> }) => e.payload)
+        .filter((p: Record<string, unknown>) => p.session_id === sid);
+      return found.some((p: Record<string, unknown>) => p.hook_event_name === "UserPromptSubmit") ? found : null;
+    });
+    expect(events[0]).toMatchObject({ hook_event_name: "SessionStart", session_id: sid });
+    expect(events.find((p: Record<string, unknown>) => p.hook_event_name === "UserPromptSubmit"))
+      .toMatchObject({ prompt: "second profile" });
   }, 20000);
 });

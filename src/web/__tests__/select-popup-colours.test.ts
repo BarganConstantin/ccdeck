@@ -50,11 +50,11 @@ const html = (theme: Theme) => el("html", [], { states: ["root"], attrs: { "data
  *  sees it: its ancestors' classes, then its own. */
 const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/TelemetryCapture.tsx": [
-    { name: "telemetry signal", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-workspace"]), el("section", ["tr-feed"]), el("div", ["tr-filter"]), el("label"), el("select", ["tr-select"])] },
-    { name: "capture destination", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-destination"]), el("label"), el("select", ["tr-select"])] },
-    { name: "message destination", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-workspace"]), el("section", ["tr-feed"]), el("div", ["tr-filter"]), el("label"), el("select", ["tr-select"])] },
+    { name: "telemetry signal", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-workspace"]), el("section", ["tr-feed"]), el("div", ["tr-filter"]), el("label"), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] },
+    { name: "capture destination", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-destination"]), el("label"), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] },
+    { name: "message destination", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-workspace"]), el("section", ["tr-feed"]), el("div", ["tr-filter"]), el("label"), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] },
   ],
-  "components/TrafficRadar.tsx": [{ name: "session filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-navigation"]), el("label", ["tr-session-filter"]), el("select", ["tr-select"])] }],
+  "components/TrafficRadar.tsx": [{ name: "session filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-navigation"]), el("label", ["tr-session-filter"]), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] }],
   "components/ToneSection.tsx": [{
     name: "a tone's figure",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("div", ["sm-tones"]), el("section", ["sm-tone"]), el("div", ["sm-row"]), el("select", ["sm-select"])],
@@ -267,8 +267,18 @@ describe("draws a select's option list in the deck's own theme, not the OS's", (
     const counts = Object.fromEntries(sources()
       .map(file => [file, openTags(readFileSync(join(WEB, file), "utf8"), ["select"]).length] as const)
       .filter(([, n]) => n > 0));
-    const known = Object.fromEntries(Object.entries(SELECTS).map(([file, list]) => [file, list.length]));
+    // Radar's four call sites share one native select implementation. Keep
+    // measuring each ancestry above, and census both implementation and uses.
+    const radarFiles = ["components/TelemetryCapture.tsx", "components/TrafficRadar.tsx"];
+    const known = Object.fromEntries(Object.entries(SELECTS)
+      .filter(([file]) => !radarFiles.includes(file))
+      .map(([file, list]) => [file, list.length]));
+    known["components/RadarSelect.tsx"] = 1;
     expect(counts).toEqual(known);
+    const radarUses = Object.fromEntries(sources()
+      .map(file => [file, openTags(readFileSync(join(WEB, file), "utf8"), ["RadarSelect"]).length] as const)
+      .filter(([, n]) => n > 0));
+    expect(radarUses).toEqual(Object.fromEntries(radarFiles.map(file => [file, SELECTS[file].length])));
   });
 
   for (const theme of THEMES) {
