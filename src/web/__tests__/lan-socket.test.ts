@@ -1063,6 +1063,25 @@ describe("where a beacon is sent", () => {
     b.stop();
   });
 
+  it("keeps announcing when interface enumeration fails and retries on the next announce", async () => {
+    let unavailable = true;
+    const sock = fakeSocket();
+    const { b } = beaconOn(sock, { ifaces: () => {
+      if (unavailable) throw Object.assign(new Error("uv_interface_addresses returned Unknown system error 2"), { code: "ERR_SYSTEM_ERROR" });
+      return IFACES;
+    } });
+    try {
+      await b.start();
+      expect(sock.sent.map(s => s.addr)).toEqual(["255.255.255.255"]);
+      unavailable = false;
+      sock.sent.length = 0;
+      b.announce();
+      expect(sock.sent.map(s => s.addr)).toContain("192.168.1.255");
+    } finally {
+      b.stop();
+    }
+  });
+
   it("complains only when no address worked at all", async () => {
     // One address being unreachable is the ordinary state of a machine with a
     // VPN up, and a panel saying so every thirty seconds would be crying wolf
