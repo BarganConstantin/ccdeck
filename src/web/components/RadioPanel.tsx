@@ -9,6 +9,7 @@ import { containPopoverKeys } from "../shortcuts";
 import world from "../assets/radio-world.json";
 import RadioIcon from "./RadioIcon";
 import RadioMap from "./RadioMap";
+import RadioLoading from "./RadioLoading";
 import VolumeRow from "./VolumeRow";
 import { useModalDismiss } from "./use-modal-dismiss";
 
@@ -182,7 +183,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
         <div ref={listRef} className="radio-list" aria-label="Stations" aria-busy={loading && collection === "discover"}>
           {!enabled && <p className="radio-empty" role="status">{disabledReason}</p>}
           {enabled && collection === "discover" && error && <div className="radio-directory-error" role="status"><strong>Directory unavailable</strong><p>{stations.length ? "The saved catalogue is still available." : "Try your favorites or existing streams."}</p><button type="button" className="btn" onClick={() => setRetry(value => value + 1)}>Try again</button></div>}
-          {enabled && loading && collection === "discover" && !stations.length && <div className="radio-skeleton" role="status" aria-label="Finding stations">{[0, 1, 2, 3, 4].map(index => <div key={index}><i /><span /><span /></div>)}</div>}
+          {enabled && loading && collection === "discover" && !stations.length && <RadioLoading />}
           {enabled && today && collection === "discover" && !hasFilters && <button type="button" className="radio-daily" title={[today.name, today.radio.country].filter(Boolean).join(" · ")} aria-label={`${today.id === current?.id && player.armed ? "Pause" : fm.unavailableFmStations.has(today.id) ? "Retry" : "Play"} today’s station: ${today.name}${today.radio.country ? `, ${today.radio.country}` : ""}`} onClick={() => pick(today)}><span className="radio-daily-label">Today’s station</span><strong>{today.name}</strong>{today.radio.country && <span className="radio-daily-country">{today.radio.country}</span>}<RadioIcon name={today.id === current?.id && player.armed ? "pause" : "play"} /></button>}
           {enabled && stations.map(station => {
             const selected = inspected?.id === station.id, active = current?.id === station.id, audible = active && player.playing, unavailable = fm.unavailableFmStations.has(station.id);

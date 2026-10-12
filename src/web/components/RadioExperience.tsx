@@ -8,6 +8,7 @@ import type { Character } from "../character";
 import type { RadioStation } from "../radio-library";
 import { useScrimDismiss } from "./use-modal-dismiss";
 import { ClaudeFmCharacter, FmPlaybackFrame, sourceLabel } from "./ClaudeFm";
+import { RadioOpening } from "./RadioLoading";
 
 const RadioPanel = lazy(() => import("./RadioPanel"));
 
@@ -42,6 +43,6 @@ export default function RadioExperience({ fm, characterEnabled, character, open,
   return <>
     {characterEnabled && <ClaudeFmCharacter character={character} player={player} source={fm.fmSource} customStation={customStation} />}
     <FmPlaybackFrame player={player} label={label} />
-    {open && createPortal(<div className="modal-backdrop radio-backdrop" {...scrimPress}><Suspense fallback={<div className="radio-loading nodrag nopan"><span role="status">Opening radio…</span><button type="button" className="btn" onClick={close}>Close</button></div>}><RadioPanel fm={fm} player={player} library={library} selected={selected} label={label} enabled={enabled} disabledReason={disabledReason} onPick={pick} onClose={close} /></Suspense></div>, document.body)}
+    {open && createPortal(<div className="modal-backdrop radio-backdrop" {...scrimPress}><Suspense fallback={<RadioOpening onClose={close} />}><RadioPanel fm={fm} player={player} library={library} selected={selected} label={label} enabled={enabled} disabledReason={disabledReason} onPick={pick} onClose={close} /></Suspense></div>, document.body)}
   </>;
 }
