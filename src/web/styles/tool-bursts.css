@@ -143,7 +143,9 @@
 
 .tool-burst.status-inflight {
   border-color: rgba(240, 171, 252, 0.55);
-  background: var(--burst-live-wash), var(--panel);
+  /* Theme washes can be a colour or an image; always keep an opaque bed. */
+  background: var(--burst-live-wash);
+  background-color: var(--panel);
   box-shadow: 0 2px 6px rgba(0,0,0,0.20);
 }
 .tool-burst.status-inflight .tb-emoji {
