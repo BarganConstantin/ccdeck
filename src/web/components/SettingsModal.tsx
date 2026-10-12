@@ -35,6 +35,7 @@ import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import ThemeSection from "./ThemeSection";
+import CharacterSection from "./CharacterSection";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
@@ -152,10 +153,6 @@ export default function SettingsModal({
       case "music":
         return (
           <MusicSection
-            characterEnabled={characterEnabled}
-            character={character}
-            onCharacter={setCharacter}
-            onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
             fmVolume={fmVolume}
             onFmVolume={setFmVolume}
             fmMuted={fmMuted}
@@ -173,6 +170,12 @@ export default function SettingsModal({
         return (
           <>
             <ThemeSection theme={theme} onTheme={setTheme} singleKeys={singleKeys} />
+            <CharacterSection
+              characterEnabled={characterEnabled}
+              character={character}
+              onCharacter={setCharacter}
+              onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
+            />
             <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
           </>
         );

@@ -84,7 +84,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["general", /Color theme/],
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
-      ["music", />Show character on minimap</],
+      ["music", /Claude FM/],
     ];
     for (const [section, shows] of cases) {
       const html = drawSettings({ section });
@@ -101,18 +101,31 @@ describe("a door into Settings opens it at the section it names", () => {
     expect(html.indexOf("Color theme")).toBeGreaterThan(-1);
     expect(html.indexOf(">Keyboard</h3>")).toBeGreaterThan(html.indexOf("Color theme"));
     expect(html).toMatch(/role="switch" aria-checked="true" aria-labelledby="settings-single-keys-label"/);
-    expect(html.match(/role="switch"/g)).toHaveLength(1);
+    expect(html.match(/role="switch"/g)).toHaveLength(2);
+  });
+
+
+  it("places character controls beneath themes in General, with music controls in Music", () => {
+    const general = drawSettings({ section: "general" });
+    expect(general.indexOf('>Character</h3>')).toBeGreaterThan(general.indexOf("Color theme"));
+    expect(general.indexOf('>Character</h3>')).toBeLessThan(general.indexOf('>Keyboard</h3>'));
+    expect(general).toContain('role="radiogroup" aria-label="Choose character"');
+    expect(general).toContain("Show character on minimap");
+    const music = drawSettings({ section: "music" });
+    expect(music).not.toContain('aria-label="Choose character"');
+    expect(music).not.toContain("Show character on minimap");
+    expect(music).toContain("Claude FM");
   });
 
   it("names the four sections in the nav, in order", () => {
-    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds", "Music & character"]);
+    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds", "Music"]);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all
     // of the text a tab holds.
     const html = drawSettings();
     const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([\s\S]*?)<\/button>/g)]
       .map(m => m[1].replace(/<[^>]+>/g, "").replace("&amp;", "&"));
-    expect(tabs).toEqual(["General", "Notifications", "Sounds", "Music & character"]);
+    expect(tabs).toEqual(["General", "Notifications", "Sounds", "Music"]);
   });
 
   it("is a dialog named Settings, holding the focus it hands the section's own tab", () => {

@@ -1,6 +1,6 @@
 # Selectable canvas companion
 
-Settings → Music & character offers Deck companion, Fox and Penguin with previews.
+Settings → General, beneath Color theme, offers Deck companion, Fox and Penguin with previews.
 The existing companion remains the default. Selection applies immediately and
 persists in browser storage under `agent-dag.character`; missing, unsupported,
 or inaccessible storage falls back to Deck companion. The visibility switch

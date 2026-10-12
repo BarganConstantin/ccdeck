@@ -41,13 +41,14 @@ describe("character appearance preference", () => {
   });
 
   // The Appearance modal became two sections of Settings (2026-10-07): the
-  // theme is General's (ThemeSection.tsx), Claude FM and the character are
-  // Music & character's (MusicSection.tsx), and the dialog round them is
+  // theme and character are General's; Claude FM lives in MusicSection.tsx,
+  // and the dialog round them is
   // SettingsModal.tsx. Each guarantee below is the one these three cases held
   // the Appearance modal to, read where the code now lives.
   const modal = () => read("components/SettingsModal.tsx");
   const themes = () => read("components/ThemeSection.tsx");
   const music = () => read("components/MusicSection.tsx");
+  const character = () => read("components/CharacterSection.tsx");
 
   it("uses a dismissible, accessible modal of one height for the appearance settings", () => {
     const styles = sheetText();
@@ -89,13 +90,13 @@ describe("character appearance preference", () => {
     expect(themes()).toContain("tabIndex={theme === choice ? 0 : -1}");
     // The previews are pictures; the name is the word under each.
     expect(themes()).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
-    expect(music()).toContain('aria-labelledby="appearance-character-label"');
-    expect(music()).toContain('aria-describedby="appearance-character-note"');
+    expect(character()).toContain('aria-labelledby="appearance-character-label"');
+    expect(character()).toContain('aria-describedby="appearance-character-note"');
     expect(music()).toContain('aria-describedby="appearance-fm-source-note"');
     expect(music()).toContain('aria-describedby="appearance-fm-volume-note"');
-    expect(music()).toContain(">Show character on minimap<");
+    expect(character()).toContain(">Show character on minimap<");
     // Its own group now, not a row under the music source.
-    expect(music()).toMatch(/<h3 id="appearance-character-caption">Character<\/h3>[\s\S]*?>Show character on minimap</);
+    expect(character()).toMatch(/<h3 id="appearance-character-caption">Character<\/h3>[\s\S]*?>Show character on minimap</);
   });
 
   it("keeps the whole Claude FM row one control, and Space and T working inside Settings", () => {
