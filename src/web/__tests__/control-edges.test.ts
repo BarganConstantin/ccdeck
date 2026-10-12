@@ -497,6 +497,8 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: '.character-choice', beds: ["--panel"] },
+  { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
   { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".ap-reset-day-button:hover", fillFrom: ".ap-reset-day-button:hover", beds: ["--panel"] },
@@ -842,6 +844,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       '.appearance-source-option[data-highlighted="true"]',
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
+      ".character-choice:focus-visible",
       ".ctx-donut:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
@@ -890,7 +893,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    expect(EDGED_CONTROLS.length).toBeLessThan(125);
+    // Reset-day selection and the companion choices add measured controls.
+    expect(EDGED_CONTROLS.length).toBeLessThan(130);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

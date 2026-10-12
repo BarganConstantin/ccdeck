@@ -65,3 +65,18 @@ Inline finish review: **ship** for this refinement after reviewing the owner's
 screenshot and the new desktop/mobile captures. No independent reviewer tool was
 available. Existing theme, typography and date semantics are retained; the
 current-schedule hierarchy and disclosure behavior are the durable changes.
+
+
+## Compact view selector — 2026-10-12
+
+Accounts / Reset calendar is now a text selector inside the modal header, with
+an accent underline for the active view and no separate navigation row. At phone
+widths, the dialog title stays in the accessibility tree while the selector and
+Close share the visible header. Keyboard order follows that row; the existing
+modal dismissal and restored launch-button focus are preserved.
+
+Chrome verified both views, table-sort retention, chart filtering, keyboard and
+Escape at desktop, 390px and 320px in the existing themes. 238 tests across ten
+files, TypeScript and build passed after synchronizing the current development
+baseline. The new chart and text disclosures are included in motion and overflow
+censuses; their selection/expansion feedback preserves text and chart geometry.

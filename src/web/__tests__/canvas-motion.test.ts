@@ -511,6 +511,8 @@ const EXEMPT: string[] = [
   ".ap-reset-day-button",
   ".ap-reset-disclosure summary",
   ".ap-reset-about summary",
+  // Companion selection answers through its radio check and chosen preview.
+  ".character-choice",
   // The file input is an invisible hit target stretched over its visible label.
   // The label owns the press feedback; transforming this overlay would only
   // move the hit target and is not visible to the user.

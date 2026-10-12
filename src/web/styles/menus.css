@@ -1054,7 +1054,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .character-picker { display: flex; gap: 8px; margin-top: 12px; }
 .character-choice {
   display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
-  padding: 10px; border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px; border: 1px solid var(--ctl-edge); border-radius: 6px;
   color: var(--text); background: var(--panel); font: inherit; text-align: left; cursor: pointer;
 }
 .character-choice:hover { background: var(--ctl-fill); }
