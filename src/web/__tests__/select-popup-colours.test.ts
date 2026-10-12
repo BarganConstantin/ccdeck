@@ -49,12 +49,7 @@ const html = (theme: Theme) => el("html", [], { states: ["root"], attrs: { "data
 /** Every select the deck renders, by the file that renders it, as the sheet
  *  sees it: its ancestors' classes, then its own. */
 const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
-  "components/TelemetryCapture.tsx": [
-    { name: "telemetry signal", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-workspace"]), el("section", ["tr-feed"]), el("div", ["tr-filter"]), el("label"), el("select", ["tr-select"])] },
-    { name: "capture destination", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-destination"]), el("label"), el("select", ["tr-select"])] },
-    { name: "message destination", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-workspace"]), el("section", ["tr-feed"]), el("div", ["tr-filter"]), el("label"), el("select", ["tr-select"])] },
-  ],
-  "components/TrafficRadar.tsx": [{ name: "session filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-navigation"]), el("label", ["tr-session-filter"]), el("select", ["tr-select"])] }],
+  "components/RadarSelect.tsx": [{ name: "Radar filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] }],
   "components/ToneSection.tsx": [{
     name: "a tone's figure",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("div", ["sm-tones"]), el("section", ["sm-tone"]), el("div", ["sm-row"]), el("select", ["sm-select"])],

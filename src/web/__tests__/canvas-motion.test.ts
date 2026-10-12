@@ -464,6 +464,8 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // Companion selection answers through its radio check and chosen preview.
+  ".character-choice",
   // A day column in the Projects report's chart, clickable to reveal that day's
   // breakdown. It stays out of the transform convention for the reason a thin
   // bar always does: a 3-to-26px column scaled on press moves out from under

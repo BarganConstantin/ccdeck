@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { readFile, mkdir, writeFile, rename, chmod } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, chmod } from 'node:fs/promises';
+import { renameWithRetry } from './atomic-write.mjs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -14,7 +15,7 @@ export function capturePreferences(directory = join(homedir(), '.agents-deck')) 
         await mkdir(directory, { recursive: true });
         const target = file(port), temp = target + `.${process.pid}.tmp`;
         await writeFile(temp, JSON.stringify(value), { mode: 0o600 });
-        await chmod(temp, 0o600); await rename(temp, target);
+        await chmod(temp, 0o600); await renameWithRetry(temp, target);
       });
       return writes;
     },

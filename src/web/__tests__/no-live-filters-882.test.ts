@@ -56,7 +56,8 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
 
   it("dims the page under a dialog with its fill alone", () => {
     const scrim = bodyOf(".modal-backdrop");
-    expect(decl(scrim, "background")).toBe("rgba(5,6,9,0.55)");
+    expect(decl(scrim, "--modal-scrim")).toBe("rgba(5,6,9,0.55)");
+    expect(decl(scrim, "background")).toBe("var(--modal-scrim)");
     expect(decl(scrim, "backdrop-filter")).toBeNull();
   });
 });
