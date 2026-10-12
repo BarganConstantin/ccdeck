@@ -11,7 +11,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import ReactFlow, { Background, MiniMap } from "reactflow";
 import type { ClearSource } from "../clear-confirm";
-import { customFmSelection } from "../fm-stations";
 import type { GraphState } from "../reducer";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "../stored-viewport";
 import type { useAppearance } from "../use-appearance";
@@ -29,7 +28,7 @@ import { shouldAnimateViewport } from "../viewport-motion";
 import AgentNode from "./AgentNode";
 import AutoFitChip from "./AutoFitChip";
 import CanvasControls from "./CanvasControls";
-import ClaudeFm from "./ClaudeFm";
+import RadioExperience from "./RadioExperience";
 import RecapNoteNode from "./RecapNoteNode";
 import RearrangeUndo from "./RearrangeUndo";
 import RecapTieEdge from "./RecapTieEdge";
@@ -81,7 +80,6 @@ export default function BoardFlow({
   const { onNodeClick, onPaneClick, onNodeDoubleClick, onNodeMouseEnter, onNodeMouseLeave } = clicks;
   const { onNodeDragStart, onNodeDrag, onNodeDragStop } = drag;
   const { palette, minimapNodeFill, characterEnabled } = appearance;
-  const { fmVolume, fmMuted, fmSource, fmPlayRequest, customFmStations, markFmStationAvailability } = fm;
   const { autoFitDisabled, enableAutoFitAndRefit } = autoFit;
   const { paused, pauseGate, togglePause } = pause;
   return (
@@ -224,16 +222,7 @@ export default function BoardFlow({
       {/* Above the minimap, and absent unless there is something to play —
           ClaudeFm renders null until the server says the channel is on air,
           so on a deck with no network this is nothing at all. */}
-      {characterEnabled && (
-        <ClaudeFm
-          volume={fmVolume}
-          muted={fmMuted}
-          source={fmSource}
-          playRequest={fmPlayRequest}
-          customStation={customFmStations.find(station => customFmSelection(station.id) === fmSource)}
-          onAvailabilityChange={markFmStationAvailability}
-        />
-      )}
+      <RadioExperience fm={fm} characterEnabled={characterEnabled} />
     </ReactFlow>
   );
 }

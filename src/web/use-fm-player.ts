@@ -6,7 +6,7 @@
 // header for why no iframe_api script), and an <audio> element for a direct
 // stream (#1208). The component draws the character and hands the iframe the
 // `frame` ref and `say`; everything that decides what is playing lives here.
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 // Type only: the library itself is imported on demand, in startDirect.
 import type Hls from "hls.js";
 import { command, FATAL_ERRORS, PLAYER_ORIGIN, readSignal } from "./claude-fm-player";
@@ -33,6 +33,7 @@ const LIVE_ENDPOINT: Record<FmSource, string | null> = {
 
 export interface FmPlayerOptions {
   fetchImpl?: typeof fetch;
+  enabled?: boolean;
   volume: number;
   muted: boolean;
   source: FmSelection;
@@ -59,7 +60,7 @@ export interface FmPlayer {
 }
 
 export function useFmPlayer({
-  fetchImpl, volume, muted, source, playRequest, customStation, onAvailabilityChange,
+  fetchImpl, enabled = true, volume, muted, source, playRequest, customStation, onAvailabilityChange,
 }: FmPlayerOptions): FmPlayer {
   const [probe, setProbe] = useState<Probe | null>(null);
   /** Set once and never unset: the player told us it cannot play here. */
@@ -72,10 +73,12 @@ export function useFmPlayer({
   const playRequestRef = useRef(playRequest);
   const audio = useRef<HTMLAudioElement | null>(null);
   const hls = useRef<Hls | null>(null);
+  const connectionTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const frame = useRef<HTMLIFrameElement | null>(null);
 
   const stopDirect = useCallback(() => {
+    clearTimeout(connectionTimeout.current);
     hls.current?.destroy();
     hls.current = null;
     const player = audio.current;
@@ -122,10 +125,12 @@ export function useFmPlayer({
     player.muted = mutedRef.current;
     audio.current = player;
     setArmed(true);
-    setPlaying(true);
+    setPlaying(false);
 
+    let connectionTimer: ReturnType<typeof setTimeout>;
     const current = () => audio.current === player;
     const released = () => {
+      clearTimeout(connectionTimer);
       stopDirect();
       setArmed(false);
       setPlaying(false);
@@ -143,8 +148,11 @@ export function useFmPlayer({
       if (error instanceof DOMException && error.name === "NotAllowedError") { released(); return; }
       failed();
     };
+    connectionTimer = setTimeout(() => { if (current() && player.readyState < 2) failed(); }, 15_000);
+    connectionTimeout.current = connectionTimer;
     player.addEventListener("playing", () => {
       if (!current()) return;
+      clearTimeout(connectionTimer);
       setPlaying(true);
       onAvailabilityChange?.(selection, false);
     });
@@ -214,6 +222,8 @@ export function useFmPlayer({
     setPlaying(asked);
     stopDirect();
 
+    if (!enabled) { setArmed(false); setPlaying(false); return; }
+
     const custom = customStation && customFmSelection(customStation.id) === source
       ? parseFmStationUrl(customStation.url)
       : null;
@@ -261,9 +271,10 @@ export function useFmPlayer({
         .then(a => {
           if (!alive) return;
           if (a?.video) setProbe({ live: true, channel: "", video: a.video });
+          if (!a?.video) { setDead(true); setArmed(false); setPlaying(false); }
           onAvailabilityChange?.(source, !a?.video);
         })
-        .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
+        .catch(() => { if (alive) { setDead(true); setArmed(false); setPlaying(false); onAvailabilityChange?.(source, true); } });
     } else if (builtIn !== "claude-fm") {
       const station = builtIn.replace("lofi-", "");
       get(`/api/lofi-girl?station=${encodeURIComponent(station)}`)
@@ -271,9 +282,10 @@ export function useFmPlayer({
         .then(a => {
           if (!alive) return;
           if (a?.video) setProbe({ live: true, channel: "", video: a.video });
+          if (!a?.video) { setDead(true); setArmed(false); setPlaying(false); }
           onAvailabilityChange?.(source, !a?.video);
         })
-        .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
+        .catch(() => { if (alive) { setDead(true); setArmed(false); setPlaying(false); onAvailabilityChange?.(source, true); } });
     } else {
       get("/api/claude-fm")
         .then(r => r.ok ? r.json() : null)
@@ -281,12 +293,13 @@ export function useFmPlayer({
           if (!alive) return;
           const live = !!(a?.live && a?.channel);
           if (live) setProbe({ live: true, channel: a.channel });
+          if (!live) { setDead(true); setArmed(false); setPlaying(false); }
           onAvailabilityChange?.(source, !live);
         })
-        .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
+        .catch(() => { if (alive) { setDead(true); setArmed(false); setPlaying(false); onAvailabilityChange?.(source, true); } });
     }
     return () => { alive = false; };
-  }, [customStation?.id, customStation?.url, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);
+  }, [customStation?.id, customStation?.url, enabled, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);
 
   useEffect(() => () => stopDirect(), [stopDirect]);
 
@@ -331,7 +344,7 @@ export function useFmPlayer({
     return () => window.removeEventListener("message", onMessage);
   }, [armed, muted, onAvailabilityChange, say, source]);
 
-  const press = () => {
+  const press = useCallback(() => {
     // Only drawn, and so only pressed, while there is a probe; this tells the types.
     if (!probe) return;
     if (probe.audio) {
@@ -353,7 +366,7 @@ export function useFmPlayer({
     setPlaying(next);
     say(command(next ? "playVideo" : "pauseVideo"));
     if (!next) setArmed(false);
-  };
+  }, [probe, armed, playing, source, say, startDirect, stopDirect]);
 
-  return { probe, dead, armed, playing, frame, say, press };
+  return useMemo(() => ({ probe, dead, armed, playing, frame, say, press }), [probe, dead, armed, playing, say, press]);
 }

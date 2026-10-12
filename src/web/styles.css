@@ -65,3 +65,5 @@
 @import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
 @import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */
+
+@import "./styles/radio.css";

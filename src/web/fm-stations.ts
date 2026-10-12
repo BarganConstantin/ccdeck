@@ -8,6 +8,19 @@ export interface CustomFmStation {
   id: string;
   name: string;
   url: string;
+  radio?: RadioMetadata;
+}
+
+export interface RadioMetadata {
+  country: string;
+  countryCode: string;
+  region: string;
+  tags: string;
+  language: string;
+  codec: string;
+  bitrate: number;
+  lat: number | null;
+  lon: number | null;
 }
 
 export type FmSelection = FmSource | `${typeof CUSTOM_FM_PREFIX}${string}`;
@@ -86,7 +99,8 @@ export function parseFmStationUrl(value: string): ParsedFmStationUrl | null {
 
   if (HLS_EXT.test(parsed.pathname)) return { kind: "direct-audio", url, format: "hls" };
   if (AUDIO_EXT.test(parsed.pathname)) return { kind: "direct-audio", url, format: "audio" };
-  return null;
+  if (/\.(html?|pls|m3u)$/i.test(parsed.pathname)) return null;
+  return { kind: "direct-audio", url, format: "audio" };
 }
 
 export function resolveFmMuted(stored: string | null | undefined): boolean {
@@ -109,7 +123,8 @@ export function resolveCustomFmStations(stored: string | null | undefined): Cust
     const parsed = parseFmStationUrl(url);
     if (!ID.test(id) || seen.has(id) || !name || name.length > STATION_NAME_MAX || !parsed) continue;
     seen.add(id);
-    stations.push({ id, name, url: parsed.url });
+    const radio = resolveRadioMetadata((item as { radio?: unknown }).radio);
+    stations.push({ id, name, url: parsed.url, ...(radio ? { radio } : {}) });
   }
   return stations;
 }
@@ -143,4 +158,12 @@ export function newCustomFmStation(name: string, url: string, id = newStationId(
   const parsed = parseFmStationUrl(url);
   if (!cleanName || cleanName.length > STATION_NAME_MAX || !ID.test(id) || !parsed) return null;
   return { id, name: cleanName, url: parsed.url };
+}
+
+export function resolveRadioMetadata(value: unknown): RadioMetadata | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const text = (key: string, max: number) => typeof row[key] === "string" ? (row[key] as string).slice(0, max) : "";
+  const coordinate = (key: string, max: number) => typeof row[key] === "number" && Number.isFinite(row[key]) && Math.abs(row[key] as number) <= max ? row[key] as number : null;
+  return { country: text("country", 80), countryCode: text("countryCode", 2), region: text("region", 80), tags: text("tags", 180), language: text("language", 80), codec: text("codec", 12), bitrate: typeof row.bitrate === "number" && Number.isFinite(row.bitrate) ? Math.max(0, Math.min(1000, row.bitrate)) : 0, lat: coordinate("lat", 90), lon: coordinate("lon", 180) };
 }

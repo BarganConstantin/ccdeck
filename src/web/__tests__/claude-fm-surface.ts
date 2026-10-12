@@ -21,6 +21,7 @@ import { WEB_DIR } from "./client-source";
  *  extracted from ClaudeFm.tsx is added here in the same change. */
 export const CLAUDE_FM_FILES = [
   "components/ClaudeFm.tsx",
+  "components/RadioExperience.tsx",
   "use-fm-player.ts",
   "use-fm-scene.ts",
   "components/FmSprite.tsx",

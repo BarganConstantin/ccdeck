@@ -47,7 +47,7 @@ import {
   customFmId, customFmSelection,
   type CustomFmStation, type FmSelection,
 } from "../fm-stations";
-import { useFmPlayer } from "../use-fm-player";
+import { useFmPlayer, type FmPlayer } from "../use-fm-player";
 import { useFmScene } from "../use-fm-scene";
 import FmSprite from "./FmSprite";
 
@@ -63,7 +63,7 @@ const SOURCE_LABEL: Record<FmSource, string> = {
   "cafe-music-bgm": "Cafe Music BGM Live",
 };
 
-function sourceLabel(source: FmSelection, customStation?: CustomFmStation): string {
+export function sourceLabel(source: FmSelection, customStation?: CustomFmStation): string {
   if (customStation && customFmSelection(customStation.id) === source) return customStation.name;
   if (customFmId(source)) return "Custom FM";
   return SOURCE_LABEL[source as FmSource];
@@ -96,23 +96,12 @@ function streamHost(url: string): string {
   try { return new URL(url).host; } catch { return "the station's server"; }
 }
 
-export default memo(
-  function ClaudeFm({
-    fetchImpl, volume, muted = false, source = "claude-fm", playRequest = 0, customStation, onAvailabilityChange,
-  }: {
-    fetchImpl?: typeof fetch;
-    volume: number;
-    muted?: boolean;
-    source?: FmSelection;
-    /** Bumped by App each time somebody PICKS a station. A change of `source`
-     *  alone is not a request for sound — see the probe effect. */
-    playRequest?: number;
-    customStation?: CustomFmStation;
-    onAvailabilityChange?: (source: FmSelection, unavailable: boolean) => void;
-  }) {
-    const { probe, dead, armed, playing, frame, say, press } = useFmPlayer({
-      fetchImpl, volume, muted, source, playRequest, customStation, onAvailabilityChange,
-    });
+export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, source, customStation }: {
+  player: FmPlayer;
+  source: FmSelection;
+  customStation?: CustomFmStation;
+}) {
+    const { probe, dead, playing, press } = player;
 
     const { scene, suspended, x, walkMs, act, prop, ballFlight, place, facing, riser, dance, beatMs } =
       useFmScene(probe, dead, playing);
@@ -230,7 +219,16 @@ export default memo(
           <FmSprite act={act} facing={facing} />
         </button>
         </div>
-        {armed && !probe.audio && (probe.channel || probe.video) && (
+
+      </div>
+    );
+  },
+);
+
+export function FmPlaybackFrame({ player, label }: { player: FmPlayer; label: string }) {
+  const { probe, armed, frame, say } = player;
+  if (!probe) return null;
+  return <>{armed && !probe.audio && (probe.channel || probe.video) && (
           <iframe
             ref={frame}
             className="fm-frame"
@@ -250,8 +248,11 @@ export default memo(
             allow="autoplay; encrypted-media"
             sandbox="allow-scripts allow-same-origin allow-presentation"
           />
-        )}
-      </div>
-    );
-  },
-);
+  )}</>;
+}
+
+export default function ClaudeFm(options: Parameters<typeof useFmPlayer>[0]) {
+  const player = useFmPlayer(options);
+  return <><ClaudeFmCharacter player={player} source={options.source} customStation={options.customStation} />
+    <FmPlaybackFrame player={player} label={sourceLabel(options.source, options.customStation)} /></>;
+}

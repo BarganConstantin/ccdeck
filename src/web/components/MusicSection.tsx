@@ -4,7 +4,7 @@
 // Lifted out of the Appearance modal when that became the General section of
 // Settings. The character had been filed under "Music source"; it is its own
 // group here, with the sentence that ties the two together on screen — the
-// music plays through the character, so hiding it stops the music.
+// music plays through the character, so hiding it keeps the music playing.
 import { type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import VolumeRow from "./VolumeRow";
 import { FM_SOURCE_OPTIONS } from "../appearance";
@@ -18,7 +18,7 @@ import { CONFIRM_GAP_MS } from "./LanSyncSection";
 
 const FM_SOURCES = FM_SOURCE_OPTIONS;
 const NAME_MISSING = "Give the station a name.";
-const LINK_UNUSABLE = "Use an https YouTube live or channel link, or a .mp3, .aac, .ogg or .m3u8 stream.";
+const LINK_UNUSABLE = "Use an https YouTube live or channel link, or a direct https audio stream.";
 
 export interface MusicProps {
   characterEnabled: boolean;
@@ -455,7 +455,7 @@ export default function MusicSection({
             <span className="switch-knob" />
           </button>
           <span id="appearance-character-note" className="appearance-row-note">
-            Claude FM plays through the character, so hiding it also stops the music.
+            Music keeps playing when you hide the character. Open Radio on the canvas to control it.
           </span>
         </label>
         </div>
