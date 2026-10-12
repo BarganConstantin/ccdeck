@@ -1,11 +1,29 @@
 import { describe, it, expect } from "vitest";
-import { resolveRadioStations, readRadioIds, recentRadioIds, surpriseStation, dailyStation, matchesRadio } from "../radio-library";
+import { resolveRadioStations, readRadioIds, recentRadioIds, surpriseStation, dailyStation, matchesRadio, adjacentRadioStation } from "../radio-library";
 import { resolveCustomFmStations, parseFmStationUrl } from "../fm-stations";
 import { containPopoverKeys } from "../shortcuts";
 const id = "radio-d1a54d2e-623e-4970-ab11-35f7b56c5ec3";
 const raw = { id, name: "Night radio", url: "https://radio.example/stream", country: "Moldova", countryCode: "MD", tags: "jazz, ambient", language: "romanian", lat: 0, lon: 0, bitrate: 128 };
 const [station] = resolveRadioStations([raw]);
 describe("radio library", () => {
+  it("navigates the displayed order and wraps at either end", () => {
+    const second = { ...station, id: "second" }, third = { ...station, id: "third" };
+    const rows = [station, second, third];
+    expect(adjacentRadioStation(rows, station.id, 1)).toBe(second);
+    expect(adjacentRadioStation(rows, second.id, -1)).toBe(station);
+    expect(adjacentRadioStation(rows, third.id, 1)).toBe(station);
+    expect(adjacentRadioStation(rows, station.id, -1)).toBe(third);
+  });
+  it("starts at the appropriate end when the current station is outside the results", () => {
+    const second = { ...station, id: "second" };
+    expect(adjacentRadioStation([station, second], undefined, 1)).toBe(station);
+    expect(adjacentRadioStation([station, second], "outside", -1)).toBe(second);
+  });
+  it("has no adjacent station for empty results or an already-current sole result", () => {
+    expect(adjacentRadioStation([], station.id, 1)).toBeNull();
+    expect(adjacentRadioStation([station], station.id, -1)).toBeNull();
+    expect(adjacentRadioStation([station], "outside", 1)).toBe(station);
+  });
   it("keeps extensionless HLS metadata through directory normalization and local restore", () => {
     const [hlsStation] = resolveRadioStations([{ ...raw, hls: true }]);
     expect(hlsStation.radio.hls).toBe(true);

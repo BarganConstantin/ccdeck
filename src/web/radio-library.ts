@@ -39,6 +39,13 @@ export function surpriseStation(stations: readonly RadioStation[], current: stri
   return candidates.length ? candidates[Math.min(candidates.length - 1, Math.floor(Math.max(0, random()) * candidates.length))] : null;
 }
 
+export function adjacentRadioStation(stations: readonly RadioStation[], current: string | undefined, direction: -1 | 1): RadioStation | null {
+  if (!stations.length) return null;
+  const index = stations.findIndex(station => station.id === current);
+  const next = stations[index < 0 ? direction === 1 ? 0 : stations.length - 1 : (index + direction + stations.length) % stations.length];
+  return next.id === current ? null : next;
+}
+
 export function dailyStation(stations: readonly RadioStation[], day: string): RadioStation | null {
   if (!stations.length) return null;
   const sorted = [...stations].sort((a, b) => a.id.localeCompare(b.id));

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FM_SOURCE_OPTIONS } from "../appearance";
 import { customFmSelection, type FmSelection } from "../fm-stations";
-import { dailyStation, matchesRadio, resolveRadioStations, surpriseStation, type RadioStation } from "../radio-library";
+import { adjacentRadioStation, dailyStation, matchesRadio, resolveRadioStations, surpriseStation, type RadioStation } from "../radio-library";
 import type { useClaudeFm } from "../use-claude-fm";
 import type { FmPlayer } from "../use-fm-player";
 import type { useRadioLibrary } from "../use-radio-library";
@@ -13,6 +13,7 @@ import VolumeRow from "./VolumeRow";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 const genres = ["ambient", "classical", "electronic", "jazz", "lofi", "pop", "rock", "news"];
+const countryFlag = (code: string) => /^[A-Z]{2}$/.test(code) ? String.fromCodePoint(...[...code].map(letter => 0x1f1e6 + letter.charCodeAt(0) - 65)) : null;
 const cleanLabel = (label: string) => label.replace(/^[^\p{L}\p{N}]+/u, "");
 const stationMetadata = (station: RadioStation) => [station.radio.country, station.radio.tags.split(",").filter(Boolean).slice(0, 2).join(", ")].filter(Boolean).join(" · ");
 
@@ -81,6 +82,9 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     const rows = collection === "discover" ? results : ids.flatMap(id => pool.get(id) ?? []);
     return rows.filter(station => matchesRadio(station, query, country, genre, language));
   }, [collection, library.catalogue, library.favorites, library.recent, results, saved, query, country, genre, language]);
+  const previousStation = adjacentRadioStation(stations, current?.id, -1);
+  const nextStation = adjacentRadioStation(stations, current?.id, 1);
+  const navigating = !enabled || (collection === "discover" && loading);
   const day = new Date().toLocaleDateString("en-CA");
   const today = useMemo(() => dailyStation(library.catalogue, day), [library.catalogue, day]);
   const hasFilters = !!(query || country || genre || language);
@@ -146,12 +150,18 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     </header>
     <div className="radio-player" data-state={state}>
       <section className="radio-now" aria-label="Current station">
-        <div className="radio-art" aria-hidden="true"><RadioIcon name={current ? "globe" : "radio"} /><span>{current?.radio.countryCode || "FM"}</span></div>
-        <div className="radio-now-meta"><span className="radio-eyebrow">{player.playing ? "On air" : "Current station"}</span><strong title={label}>{label}</strong><span>{current ? [current.radio.region, current.radio.country].filter(Boolean).join(", ") : "Your music on ccdeck"}</span><span role="status" className={`radio-playback-status ${showFailure ? "radio-error" : ""}`}><i aria-hidden="true" />{status}</span></div>
-        {current && <button className="icon-btn" type="button" aria-label={currentFavorite ? "Remove station from favorites" : "Save station to favorites"} aria-pressed={!!currentFavorite} onClick={() => toggleFavorite(current)}><RadioIcon name="heart" /></button>}
-        <button className="radio-play" type="button" disabled={!enabled || (!player.probe && !player.dead)} aria-label={`${player.dead ? "Retry" : player.armed ? "Pause" : "Play"} ${label}`} onClick={playCurrent}><RadioIcon name={player.armed ? "pause" : "play"} /></button>
+        <div className="radio-art" aria-hidden="true">{current && countryFlag(current.radio.countryCode) ? <span className="radio-art-flag">{countryFlag(current.radio.countryCode)}</span> : <RadioIcon name="radio" />}</div>
+        <div className="radio-now-meta"><strong title={label}>{label}</strong><div className="radio-now-details"><span className="radio-now-location">{current ? [current.radio.region, current.radio.country].filter(Boolean).join(", ") : "Your music on ccdeck"}</span><span role="status" className={`radio-playback-status ${showFailure ? "radio-error" : ""}`}><i aria-hidden="true" />{status}</span></div></div>
       </section>
-      <div className="radio-controls"><VolumeRow id="radio-volume" value={fm.fmVolume} onLevel={fm.setFmVolume} /><button type="button" className="btn radio-mute" aria-pressed={fm.fmMuted} onClick={() => fm.setFmMuted(muted => !muted)}>{fm.fmMuted ? "Unmute" : "Mute"}</button><button type="button" className="btn radio-surprise" disabled={!enabled || !stations.some(station => station.id !== current?.id)} onClick={() => { const station = surpriseStation(stations, current?.id); if (station) pick(station); }}><RadioIcon name="shuffle" /> Surprise me</button></div>
+      <div className="radio-player-actions">
+        <div className="radio-transport" role="group" aria-label="Station playback">
+          <button className="icon-btn" type="button" aria-label="Previous station" title={previousStation ? `Previous station: ${previousStation.name}` : "No previous station"} disabled={navigating || !previousStation} onClick={() => { if (previousStation) pick(previousStation); }}><RadioIcon name="previous" /></button>
+          <button className="radio-play" type="button" disabled={!enabled || (!player.probe && !player.dead)} aria-label={`${player.dead ? "Retry" : player.armed ? "Pause" : "Play"} ${label}`} onClick={playCurrent}><RadioIcon name={player.armed ? "pause" : "play"} /></button>
+          <button className="icon-btn" type="button" aria-label="Next station" title={nextStation ? `Next station: ${nextStation.name}` : "No next station"} disabled={navigating || !nextStation} onClick={() => { if (nextStation) pick(nextStation); }}><RadioIcon name="next" /></button>
+        </div>
+        {current && <button className="icon-btn" type="button" aria-label={currentFavorite ? "Remove station from favorites" : "Save station to favorites"} aria-pressed={!!currentFavorite} onClick={() => toggleFavorite(current)}><RadioIcon name="heart" /></button>}
+      </div>
+      <div className="radio-controls"><VolumeRow id="radio-volume" value={fm.fmVolume} onLevel={fm.setFmVolume} /><button type="button" className="btn radio-mute" aria-pressed={fm.fmMuted} onClick={() => fm.setFmMuted(muted => !muted)} title={fm.fmMuted ? "Unmute radio" : "Mute radio"}><RadioIcon name={fm.fmMuted ? "muted" : "volume"} />{fm.fmMuted ? "Unmute" : "Mute"}</button><button type="button" className="btn radio-surprise" disabled={!enabled || !stations.some(station => station.id !== current?.id)} onClick={() => { const station = surpriseStation(stations, current?.id); if (station) pick(station); }}><RadioIcon name="shuffle" /> Surprise me</button></div>
     </div>
     <div className="radio-mobile-view" role="group" aria-label="Explorer view"><button type="button" aria-pressed={mobileView === "map"} onClick={() => setMobileView("map")}><RadioIcon name="globe" />Map</button><button type="button" aria-pressed={mobileView === "stations"} onClick={() => setMobileView("stations")}><RadioIcon name="search" />Stations</button></div>
     <div className="radio-workspace" data-view={mobileView}>
@@ -171,7 +181,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
           {enabled && stations.map(station => {
             const selected = inspected?.id === station.id, active = current?.id === station.id, audible = active && player.playing, unavailable = fm.unavailableFmStations.has(station.id);
             return <div className={`radio-station${selected ? " selected" : ""}${active ? " current" : ""}${audible ? " playing" : ""}`} key={station.id} data-station-id={station.id}>
-              <button type="button" className="radio-station-pick" aria-label={`Inspect ${station.name}, ${station.radio.country}`} aria-pressed={selected} onClick={() => inspect(station)}><span className="radio-station-code">{station.radio.countryCode || "FM"}</span><span><strong title={station.name}>{station.name}</strong><span>{unavailable ? "Stream unavailable · retry" : stationMetadata(station) || "No station details"}</span>{active && !unavailable && <span className="radio-row-state">{audible ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></button>
+              <button type="button" className="radio-station-pick" aria-label={`Inspect ${station.name}, ${station.radio.country}`} aria-pressed={selected} onClick={() => inspect(station)}><span className="radio-station-code" aria-hidden="true">{countryFlag(station.radio.countryCode) || <RadioIcon name="radio" />}</span><span><strong title={station.name}>{station.name}</strong><span>{unavailable ? "Stream unavailable · retry" : stationMetadata(station) || "No station details"}</span>{active && !unavailable && <span className="radio-row-state">{audible ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></button>
               <button type="button" className="icon-btn radio-row-play" aria-label={`${active && player.armed ? "Pause" : unavailable ? "Retry" : "Play"} ${station.name}, ${station.radio.country}`} onClick={() => pick(station)}><RadioIcon name={active && player.armed ? "pause" : "play"} /></button>
               <button type="button" className="icon-btn" aria-pressed={library.favorites.includes(station.id)} aria-label={`${library.favorites.includes(station.id) ? "Unsave" : "Save"} ${station.name}`} onClick={() => toggleFavorite(station)}><RadioIcon name="heart" /></button>
             </div>;
@@ -183,6 +193,5 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
         {stations.length === 300 && <p className="radio-directory-limit">Showing 300 results · search or filter to discover more</p>}
       </section>
     </div>
-    <footer className="radio-footer"><span>Music keeps playing when you close Radio.</span><a href="https://www.radio-browser.info/" target="_blank" rel="noreferrer">Stations by Radio Browser ↗</a></footer>
   </div>;
 }
