@@ -1,6 +1,6 @@
 # Radio explorer
 
-Radio is a canvas companion: open Radio at the bottom of the right sidebar to discover stations on a world map, filter by country, genre or language, save favorites, revisit recent listening, or choose a daily/random station.
+Radio is a canvas companion: open Radio on the right sidebar beside the character’s head to discover stations on a world map, filter by country, genre or language, save favorites, revisit recent listening, or choose a daily/random station.
 
 ## Reference and implementation
 
@@ -10,6 +10,8 @@ Station discovery uses the [Radio Browser API](https://docs.radio-browser.info/)
 
 The map uses bundled [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/) public-domain country geometry. No map service or tiles are needed. Stations without coordinates remain available in the list. A selected station zooms the map to its location; region and zoom controls restore wider views.
 
+The explorer opens in a centered modal with a lightly blurred backdrop. Escape, the close button or a click on the backdrop dismisses it.
+
 ## Playback and local state
 
 One player serves the character and explorer. Hiding the character or closing Radio keeps music playing. Reload restores the selected station without autoplay. Native audio streams connect directly from the browser to the broadcaster; HLS uses the existing lazy-loaded player support. Failed streams can be selected again to retry.
@@ -18,7 +20,7 @@ Favorites, recent station IDs and the last unfiltered catalogue are stored local
 
 ## Development and validation
 
-Run the backend on an available port, for example `AGENT_DAG_PORT=4386 node src/server/index.mjs`, then `CCDECK_DEV_SERVER_PORT=4386 npm run dev:web -- --port 5186`. Open `http://localhost:5186/` and use Radio at the bottom of the right sidebar (More on a phone).
+Run the backend on an available port, for example `AGENT_DAG_PORT=4386 node src/server/index.mjs`, then `CCDECK_DEV_SERVER_PORT=4386 npm run dev:web -- --port 5186`. Open `http://localhost:5186/` and use Radio on the right sidebar beside the character’s head (More on a phone).
 
 The radio directory and library suites cover mirror failover, bounded queries, safe station normalization, metadata restore, favorites/recent storage and daily/random selection. Existing player and modal suites cover compatibility with the canvas. Browser verification uses native audio fixtures to check switching, one active player, volume/mute, persistence without autoplay, filtering, errors, music-off behavior and mobile bounds.
 

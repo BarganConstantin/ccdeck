@@ -11,7 +11,7 @@ Mode: Operate. Canvas companion for people who want background music while manag
 
 Primary task: open Radio, find a station by place or sound, and listen without leaving the canvas. A world map, country/genre/language filters, favorites, recent listening, a daily pick and Surprise me support discovery.
 
-Direction: extend ccdeck's existing panel and theme language. A sidebar button owns entry; a responsive floating explorer sits above canvas panels. Natural Earth geometry is local and the station directory loads on demand. Do not copy Radio Island branding or introduce gradients.
+Direction: extend ccdeck's existing panel and theme language. A right-sidebar button at the character’s head height owns entry; a responsive centered modal uses a lightly blurred scrim to focus on listening. Natural Earth geometry is local and the station directory loads on demand. Do not copy Radio Island branding or introduce gradients.
 
 Behavior: one shared player powers the character and explorer. Hiding the character or closing Radio preserves playback; reload restores selection without autoplay. Favorites and history remain local. HTTPS streams only; music-off configuration prevents discovery and playback.
 

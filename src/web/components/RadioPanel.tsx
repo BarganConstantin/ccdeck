@@ -28,7 +28,7 @@ export default function RadioPanel({ fm, player, library, selected, label, enabl
   onClose: () => void;
 }) {
   const searchRef = useRef<HTMLInputElement>(null);
-  const panel = useModalDismiss<HTMLDivElement>(onClose, { focusRef: searchRef, popover: true });
+  const panel = useModalDismiss<HTMLDivElement>(onClose, { focusRef: searchRef });
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
   const [genre, setGenre] = useState("");
@@ -76,7 +76,7 @@ export default function RadioPanel({ fm, player, library, selected, label, enabl
   const pickBuiltIn = (source: FmSelection) => {
     if (source === fm.fmSource && !player.playing) player.press(); else fm.pickFmSource(source);
   };
-  return <div ref={panel} id="radio-panel" className="radio-panel nodrag nopan nowheel" role="dialog" aria-labelledby="radio-title" onKeyDown={containPopoverKeys}>
+  return <div ref={panel} id="radio-panel" className="radio-panel nodrag nopan nowheel" role="dialog" aria-modal="true" aria-labelledby="radio-title" onKeyDown={containPopoverKeys}>
     <header className="radio-header"><div><h2 id="radio-title">Radio</h2><p>Find your next place to listen.</p></div><button type="button" className="icon-btn" aria-label="Close radio" onClick={onClose}><RadioIcon name="close" /></button></header>
     <RadioMap stations={stations} selected={selected} onPick={onPick} />
     <section className="radio-now" aria-label="Current station">

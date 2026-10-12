@@ -5,6 +5,7 @@ import type { useClaudeFm } from "../use-claude-fm";
 import { useFmPlayer } from "../use-fm-player";
 import { useRadioLibrary } from "../use-radio-library";
 import type { RadioStation } from "../radio-library";
+import { useScrimDismiss } from "./use-modal-dismiss";
 import { ClaudeFmCharacter, FmPlaybackFrame, sourceLabel } from "./ClaudeFm";
 
 const RadioPanel = lazy(() => import("./RadioPanel"));
@@ -26,6 +27,7 @@ export default function RadioExperience({ fm, characterEnabled, open, onClose }:
   const { remember } = library;
   useEffect(() => { if (selected && player.playing) remember(selected.id); }, [selected?.id, player.playing, remember]);
   const close = onClose;
+  const scrimPress = useScrimDismiss(onClose);
   const pick = useCallback((station: RadioStation) => {
     if (!enabled) return;
     fm.addFmStation(station);
@@ -36,6 +38,6 @@ export default function RadioExperience({ fm, characterEnabled, open, onClose }:
   return <>
     {characterEnabled && <ClaudeFmCharacter player={player} source={fm.fmSource} customStation={customStation} />}
     <FmPlaybackFrame player={player} label={label} />
-    {open && createPortal(<div className="radio-portal"><Suspense fallback={<div className="radio-loading nodrag nopan"><span role="status">Opening radio…</span><button type="button" className="btn" onClick={close}>Close</button></div>}><RadioPanel fm={fm} player={player} library={library} selected={selected} label={label} enabled={enabled} disabledReason={disabledReason} onPick={pick} onClose={close} /></Suspense></div>, document.body)}
+    {open && createPortal(<div className="modal-backdrop radio-backdrop" {...scrimPress}><Suspense fallback={<div className="radio-loading nodrag nopan"><span role="status">Opening radio…</span><button type="button" className="btn" onClick={close}>Close</button></div>}><RadioPanel fm={fm} player={player} library={library} selected={selected} label={label} enabled={enabled} disabledReason={disabledReason} onPick={pick} onClose={close} /></Suspense></div>, document.body)}
   </>;
 }

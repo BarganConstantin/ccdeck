@@ -180,16 +180,15 @@ describe("every dialog reaches the gate (#1175)", () => {
     }
     // Named, so the count cannot drift without somebody reading this. Two
     // until the topbar speaker's SoundMenu.tsx left with it (2026-10-07); the
-    // phone bar's ⋯ and an account row's ⋯ both draw AnchoredPopover;
-    // the radio explorer is another floating surface without a scrim.
+    // phone bar's ⋯ and an account row's ⋯ both draw AnchoredPopover.
     expect(callers.filter(c => isPopover(c.code)).map(c => c.name).sort())
-      .toEqual(["AnchoredPopover.tsx", "RadioPanel.tsx"]);
+      .toEqual(["AnchoredPopover.tsx"]);
     // The nine the issue found, among the dialogs the stack now carries.
     const dialogs = callers.filter(c => isDialog(c.code)).map(c => c.name);
     for (const name of [
       "ProcessListModal.tsx", "SectionHistoryModal.tsx", "AddAccountDialog.tsx",
       "ShareAccountsDialog.tsx", "LanAddDeckModal.tsx", "LanSetupModal.tsx",
-      "LanPeerModal.tsx", "LanPairRequestModal.tsx", "ClearConfirm.tsx",
+      "LanPeerModal.tsx", "LanPairRequestModal.tsx", "ClearConfirm.tsx", "RadioPanel.tsx",
     ]) expect(dialogs, name).toContain(name);
   });
 
