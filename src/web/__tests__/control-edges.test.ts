@@ -497,6 +497,8 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: '.character-choice', beds: ["--panel"] },
+  { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
   { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
@@ -839,6 +841,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       '.appearance-source-option[data-highlighted="true"]',
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
+      ".character-choice:focus-visible",
       ".ctx-donut:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
