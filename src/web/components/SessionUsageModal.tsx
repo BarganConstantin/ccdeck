@@ -8,7 +8,9 @@ import { sessionFailure, type SessionReply, type SessionSelection, type SessionS
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 const count = (n: number) => n.toLocaleString();
-const at = (value: string) => new Date(value).toLocaleString();
+const at = (value: string) => new Date(value).toLocaleString(undefined, {
+  month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+});
 
 export default function SessionUsageModal({ session, onClose }: { session: SessionSelection; onClose: () => void }) {
   const [speed, setSpeed] = useState<SessionSpeed>("auto");
@@ -38,6 +40,15 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
   }, [session.agent, session.sessionId, speed, revision]);
 
   const missing = detail?.models.filter(model => model.missingPricing) ?? [];
+  const tokens = detail ? [
+    { name: "Input", n: detail.inputTokens, color: "var(--usage-blue)" },
+    { name: "Output", n: detail.outputTokens, color: "var(--usage-purple)" },
+    { name: "Cache read", n: detail.cacheReadTokens, color: "var(--usage-teal)" },
+    { name: "Cache write", n: detail.cacheCreationTokens, color: "var(--usage-orange)" },
+  ] : [];
+  // Composition uses the reported counters, not a guessed split of totalTokens.
+  // Reasoning is already in output and must not become a fifth segment.
+  const tokenSum = tokens.reduce((sum, token) => sum + token.n, 0);
   return createPortal(
     <div className="modal-backdrop" {...scrim} role="presentation">
       <div className="modal su-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="session-usage-title">
@@ -53,7 +64,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
           </div>
         </header>
         <div className="modal-body su-body" aria-busy={!reply}>
-          <div className="su-scope">{agentLabel(session.agent)} · Whole session</div>
+          <div className="su-scope"><span>{agentLabel(session.agent)}</span><span>Whole session</span></div>
           {session.agent === "codex" && <label className="su-pricing">
             Estimate using
             <select value={speed} disabled={!reply} onChange={event => { setReply(null); setSpeed(event.target.value as SessionSpeed); }}>
@@ -74,15 +85,22 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
                   : detail.totalTokens > 0 ? "No cost reported" : "$0.00"}{missing.length > 0 && detail.totalCost > 0 ? "+" : ""}</dd></div>
               <div><dt>Total tokens</dt><dd title={count(detail.totalTokens)}>{fmtTokens(detail.totalTokens)}</dd></div>
             </dl>
-            <dl className="su-tokens">
-              {([
-                ["Input", detail.inputTokens], ["Output", detail.outputTokens],
-                ["Cache read", detail.cacheReadTokens], ["Cache write", detail.cacheCreationTokens],
-              ] as const).map(([name, n]) => <div key={name}><dt>{name}</dt><dd title={count(n)}>{fmtTokens(n)}</dd></div>)}
-            </dl>
-            {detail.reasoningOutputTokens > 0 && <p className="su-note">{fmtTokens(detail.reasoningOutputTokens)} reasoning tokens, included in output.</p>}
+            <section className="su-breakdown" aria-labelledby="session-tokens-title">
+              <div className="su-section-head"><h3 id="session-tokens-title">Token breakdown</h3></div>
+              {tokenSum > 0 && <div className="su-composition" aria-hidden="true">
+                {tokens.filter(token => token.n > 0).map(token => <span key={token.name}
+                  style={{ width: `${token.n / tokenSum * 100}%`, background: token.color }} />)}
+              </div>}
+              <dl className="su-tokens">
+                {tokens.map(({ name, n, color }) => <div key={name}>
+                  <dt><span className="su-key" style={{ background: color }} aria-hidden="true" />{name}</dt>
+                  <dd title={count(n)}>{fmtTokens(n)}<span className="su-share">{tokenSum > 0 ? `${(n / tokenSum * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : "—"}</span></dd>
+                </div>)}
+              </dl>
+              {detail.reasoningOutputTokens > 0 && <p className="su-note su-reasoning">{fmtTokens(detail.reasoningOutputTokens)} reasoning tokens, included in output.</p>}
+            </section>
             <section className="su-models" aria-labelledby="session-models-title">
-              <h3 id="session-models-title">Models</h3>
+              <div className="su-section-head"><h3 id="session-models-title">Models</h3><span>{detail.models.length} used</span></div>
               <table>
                 <thead><tr><th scope="col">Model</th><th scope="col">Tokens</th></tr></thead>
                 <tbody>{detail.models.map(model => <tr key={model.model}>
@@ -94,17 +112,21 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
             </section>
             {missing.length > 0 && <p className="su-note">Tokens on unpriced models are included; their cost is missing from the estimate.</p>}
             <dl className="su-dates">
-              {detail.firstActivity && <div><dt>First activity</dt><dd>{at(detail.firstActivity)}</dd></div>}
-              {detail.lastActivity && <div><dt>Last activity</dt><dd>{at(detail.lastActivity)}</dd></div>}
+              {detail.firstActivity && <div><dt>First activity</dt><dd><time dateTime={detail.firstActivity} title={new Date(detail.firstActivity).toLocaleString()}>{at(detail.firstActivity)}</time></dd></div>}
+              {detail.lastActivity && <div><dt>Last activity</dt><dd><time dateTime={detail.lastActivity} title={new Date(detail.lastActivity).toLocaleString()}>{at(detail.lastActivity)}</time></dd></div>}
               {detail.entries != null && <div><dt>Usage records</dt><dd>{count(detail.entries)}</dd></div>}
             </dl>
           </>}
+          <footer className="su-footer">
+          <p className="su-note">{speed === "auto" ? "Estimated from local logs, not an invoice." : "Pricing scenario · does not change settings or billing."} Includes the whole session.</p>
+          <details className="su-id su-assumptions"><summary>Estimate details</summary>
           <p className="su-note">{session.agent === "codex"
             ? speed === "auto"
               ? "ccusage estimates from recorded Standard, Fast and Flex settings; unmarked usage can use your current Codex config. Requested modes do not confirm billed rates."
               : "This scenario applies one mode to the whole session. It does not change Codex or your billing. Models without a published multiplier keep standard pricing."
-            : "Cost is the ccusage estimate from local logs, not an invoice."} The whole session can extend beyond the period selected in Usage.</p>
+            : "Cost is the ccusage estimate from local logs, not an invoice."} The whole session can extend beyond the period selected in Usage.</p></details>
           <details className="su-id"><summary>Session ID</summary><code>{session.sessionId}</code></details>
+          </footer>
         </div>
       </div>
     </div>, document.body,

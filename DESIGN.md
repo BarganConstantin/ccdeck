@@ -673,8 +673,10 @@ portals to the document body and returns keyboard focus to its opener.
 
 Use the existing 14px dialog title and 12px body/data. The two 22px headline
 measurements make estimated cost and token volume readable before the model
-table. Token counters use two columns; the pricing selector and activity dates
-wrap at narrow widths. Settings-derived estimates and explicit pricing scenarios
+table. A labeled composition bar uses existing usage-series colours; token
+counters use two columns on desktop and aligned rows below 420px. Pricing and
+activity dates wrap at narrow widths. Keep the brief estimate caveat visible
+and disclose the full methodology under “Estimate details”. Settings-derived estimates and explicit pricing scenarios
 are named separately. Missing costs remain missing rather than being rebuilt
 from a rate with no tier evidence. See
 `.impeccable/surfaces/session-usage.md` for the surface contract.

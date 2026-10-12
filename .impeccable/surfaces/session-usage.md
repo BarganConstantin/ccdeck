@@ -11,15 +11,26 @@ so the panel's scrolling and entrance transform cannot clip it. Close receives
 focus; Tab stays inside; Escape restores the opener when it still exists.
 
 First viewport: session identity and whole-session scope, Codex's pricing selector
-when applicable, estimated cost and total tokens, four token counters, then models
-and dates. Use two columns for the headline and token counters; pricing controls
-and dates wrap at narrow widths. Long model IDs and session IDs wrap. The body
+when applicable, estimated cost and total tokens, token composition, then models
+and dates. Use two columns for the headline and token counters on desktop; at
+narrow widths counters become aligned rows with count and percentage. A single
+stacked bar uses the existing usage-series tokens and is accompanied by labeled
+values: colour alone carries no information. Its denominator is the sum of the
+four reported counters, with reasoning already included in output. Dates use
+named months, with exact local timestamps on hover. Long IDs wrap; the body
 scrolls within the shared shell at short heights.
 
 Use existing panel/text/control tokens, 14px dialog title as in Usage history,
 12px body/data, 11px table annotations and 22px headline measurements. No new
 palette, shadows or animation: the modal shell owns depth and motion, and the
 global focus ring owns focus. Source: SessionUsageModal.tsx and session-usage.css.
+
+Keep the short estimate/scope caveat visible. Put the full pricing explanation
+under “Estimate details”, alongside the existing Session ID disclosure, so the
+reader sees the measurements before the methodology. This uses progressive
+disclosure as described by https://www.nngroup.com/articles/progressive-disclosure/.
+Chart selection was checked against https://www.carbondesignsystem.com/building-blocks/data-visualization/overview.
+No chart dependency is needed for four proportional segments.
 
 Cost is an estimate from ccusage. Auto may use current config when recorded Codex
 tiers are absent; explicit Standard/Fast/Flex selections are scenarios and do
