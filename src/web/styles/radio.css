@@ -2,7 +2,7 @@
 .edge-rail-right .rail-group:has([data-rail-item="radio"]) { margin-top: auto; margin-bottom: 144px; padding-top: 0; border-top: 0; }
 .radio-backdrop { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); padding: 24px; }
 .radio-panel, .radio-loading { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-2); }
-.radio-panel { width: min(1080px, 100%); height: min(800px, calc(100dvh - 48px)); display: flex; flex-direction: column; overflow: hidden; font-size: 12px; animation: radioOpen 180ms cubic-bezier(.22, 1, .36, 1); }
+.radio-panel { width: min(1200px, 100%); height: min(800px, calc(100dvh - 48px)); display: flex; flex-direction: column; overflow: hidden; font-size: 12px; animation: radioOpen 180ms cubic-bezier(.22, 1, .36, 1); }
 .radio-loading { width: min(480px, 100%); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; }
 .radio-header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex: none; }
 .radio-heading { display: flex; align-items: center; gap: 10px; }
@@ -42,14 +42,14 @@
 .radio-controls .sm-read { font-size: 11px; font-family: var(--font-mono); color: var(--muted); min-width: 30px; text-align: right; }
 .radio-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); }
 .radio-geography { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); padding: 18px 16px 0; }
-.radio-map-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.radio-map-heading h3 { margin: 3px 0 0; font-size: 16px; font-weight: 500; }
+.radio-map-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; padding-block: 3px; overflow-x: auto; overscroll-behavior-x: contain; flex: none; }
+.radio-map-heading h3 { margin: 0; font-size: 14px; font-weight: 500; white-space: nowrap; flex: none; }
 .radio-map-heading > span { font: 10px var(--font-mono); color: var(--text-secondary); }
-.radio-map-heading > span { text-align: right; max-width: 60%; }
+.radio-map-heading > span { text-align: right; white-space: nowrap; margin-left: auto; flex: none; }
 .radio-map-heading small { display: block; font: inherit; margin-top: 4px; }
-.radio-regions { display: flex; flex-wrap: wrap; gap: 3px; flex: none; }
+.radio-regions { display: flex; flex-wrap: nowrap; gap: 3px; flex: none; }
 .radio-regions button, .radio-collections button, .radio-mobile-view button { background: none; border: 1px solid transparent; border-radius: var(--r-ctl); color: var(--text-secondary); font: inherit; cursor: pointer; }
-.radio-regions button { padding: 6px 9px; font-size: 11px; min-height: 30px; }
+.radio-regions button { padding: 6px 7px; font-size: 11px; min-height: 30px; }
 .radio-regions button:hover, .radio-collections button:hover { color: var(--text); background: var(--ctl-fill); }
 .radio-regions button[aria-pressed="true"] { background: var(--ctl-fill); color: var(--text); border-color: var(--line); }
 .radio-map { position: relative; flex: 1; min-height: 0; margin-top: 8px; overflow: hidden; }
@@ -68,8 +68,6 @@
 .radio-pin.playing .radio-pin-dot { fill: var(--ok); }
 .radio-map-tools { position: absolute; top: 12px; right: 0; display: flex; flex-direction: column; gap: 5px; }
 .radio-map-tools .btn { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; background: var(--panel); border: 1px solid var(--line); font-size: 18px; }
-.radio-map-caption { position: absolute; bottom: 7px; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-secondary); font-size: 10px; pointer-events: none; }
-.radio-map-caption a { color: inherit; pointer-events: auto; }
 .radio-map-help { font-size: 10px; color: var(--text-secondary); padding: 9px 0 12px; margin: 0; flex: none; }
 .radio-inspector { position: absolute; left: 0; bottom: 34px; width: min(310px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 10px; animation: radioDetails 160ms ease-out; }
 .radio-inspector-title { display: flex; align-items: center; gap: 6px; }
@@ -240,7 +238,6 @@
   .radio-inspector-actions .btn { min-height: 44px; }
   .radio-inspector-restore { min-height: 44px; }
   .radio-discovery > .radio-inspector, .radio-discovery > .radio-inspector-restore { margin-block: 6px; }
-  .radio-map-caption { position: static; flex: none; padding-block: 4px; }
   .radio-map-tools .btn { width: 44px; height: 44px; }
   .radio-station .icon-btn { min-width: 44px; width: 44px; height: 44px; }
   .radio-now > .icon-btn, .radio-header > .icon-btn, .radio-search .icon-btn { min-width: 44px; width: 44px; height: 44px; }

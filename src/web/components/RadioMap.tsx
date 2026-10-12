@@ -93,9 +93,12 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
   };
   const stop = (event: PointerEvent<SVGSVGElement>) => { pointers.current.delete(event.pointerId); gesture.current = pointers.current.size ? { ...metrics(), view: camera.current } : null; setDragging(pointers.current.size > 0); };
   return <section className="radio-geography" aria-label="Geographic explorer">
-    <div className="radio-map-heading"><div><h3>Map view · {region || "Custom"}</h3></div><span title="Only results with directory coordinates can be plotted. Selected and current stations stay pinned when filters exclude them.">{mapped.length} of {stations.length} have locations{pinnedCount > 0 && <small>+ {pinnedCount} selected/current outside results</small>}</span></div>
-    <div className="radio-regions" role="group" aria-label="Map view, results stay unchanged">
-      {regions.map(place => <button key={place.name} type="button" aria-pressed={region === place.name} onClick={() => { setRegion(place.name); setCluster(null); moveCamera(place, true); }}>{place.name}</button>)}
+    <div className="radio-map-heading">
+      <h3>Map view · {region || "Custom"}</h3>
+      <div className="radio-regions" role="group" aria-label="Map view, results stay unchanged">
+        {regions.map(place => <button key={place.name} type="button" aria-pressed={region === place.name} onClick={() => { setRegion(place.name); setCluster(null); moveCamera(place, true); }}>{place.name}</button>)}
+      </div>
+      <span title="Only results with directory coordinates can be plotted. Positions may be approximate. Selected and current stations stay pinned when filters exclude them.">{mapped.length} of {stations.length} have locations{pinnedCount > 0 && <small>+ {pinnedCount} selected/current outside results</small>}</span>
     </div>
     <div className="radio-map">
       <svg ref={svg} className="radio-map-canvas" data-dragging={dragging || undefined} viewBox={`${view.x - size.width / view.zoom / 2} ${view.y - size.height / view.zoom / 2} ${size.width / view.zoom} ${size.height / view.zoom}`} role="group" tabIndex={0} aria-label="Radio map" aria-describedby="radio-map-help"
@@ -145,7 +148,6 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
       <div className="radio-map-tools" role="group" aria-label="Map zoom"><button className="btn" type="button" aria-label="Zoom map in" onClick={() => changeZoom(1.5)} disabled={view.zoom >= MAX_RADIO_ZOOM}>+</button><button className="btn" type="button" aria-label="Zoom map out" onClick={() => changeZoom(1 / 1.5)} disabled={view.zoom <= 1}>−</button></div>
       {cluster && <div className="radio-cluster-preview"><header><strong>{cluster.length} nearby stations</strong><button type="button" className="icon-btn" aria-label="Close nearby stations" onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button key={station.id} type="button" onClick={() => { setCluster(null); onInspect(station); }}>{station.name}<span>{station.radio.country}</span></button>)}</div></div>}
       {!cluster && children}
-      <div className="radio-map-caption"><span title="Positions come from the station directory and may be approximate. Stations without coordinates are available in the list.">Directory locations · approximate</span><a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></div>
     </div>
     <p id="radio-map-help" className="radio-map-help">Map view doesn’t filter stations. Drag or zoom to explore. <span className="vis-hidden">With the map focused, arrow keys pan, plus and minus zoom, and Home resets the view. Use the station list as a keyboard alternative.</span></p>
   </section>;
