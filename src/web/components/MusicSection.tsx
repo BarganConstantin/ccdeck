@@ -12,7 +12,7 @@ import { CONFIRM_GAP_MS } from "./LanSyncSection";
 
 const FM_SOURCES = FM_SOURCE_OPTIONS;
 const NAME_MISSING = "Give the station a name.";
-const LINK_UNUSABLE = "Use an https YouTube live or channel link, or a .mp3, .aac, .ogg or .m3u8 stream.";
+const LINK_UNUSABLE = "Use an https YouTube live or channel link, or a direct https audio stream.";
 
 export interface MusicProps {
   /** The stream's loudness, as the slider's own 0–100 level. */

@@ -162,7 +162,7 @@ import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccou
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
-import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl } from "./music-routes.mjs";
+import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl, handleRadioStations, handleRadioClick, handleMusicConfig } from "./music-routes.mjs";
 // The usage panel's quota and history reads — see usage-routes.mjs.
 import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota } from "./usage-routes.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
@@ -384,6 +384,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/music-config") return handleMusicConfig(req, res);
+    if (req.method === "GET" && url.pathname === "/api/radio-stations") return guard(handleRadioStations(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/radio-click") return guard(handleRadioClick(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/fm-station") return guard(handleFmStation(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);

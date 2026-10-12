@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { generateThemes } from "./scripts/theme-compiler.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
+const devBackend = `http://127.0.0.1:${process.env.CCDECK_DEV_SERVER_PORT ?? "4317"}`;
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
 export default defineConfig({
@@ -65,10 +66,10 @@ export default defineConfig({
       // not in the build, it binds loopback, and it already forwards reads of
       // everything the writes would change.
       ...Object.fromEntries(["/api", "/events"].map(path => [path, {
-        target: "http://127.0.0.1:4317",
+        target: devBackend,
         changeOrigin: true,
         configure: (proxy: { on: (e: string, fn: (req: { setHeader: (k: string, v: string) => void }) => void) => void }) => {
-          proxy.on("proxyReq", req => req.setHeader("origin", "http://127.0.0.1:4317"));
+          proxy.on("proxyReq", req => req.setHeader("origin", devBackend));
         },
       }])),
     },

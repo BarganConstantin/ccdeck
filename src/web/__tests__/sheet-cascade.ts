@@ -200,7 +200,22 @@ function compoundWeight(c: string): number {
 export function selects(selector: string, chain: readonly El[]): number | null {
   const steps = splitTop(selector.replace(/\s*([>+~])\s*/g, " $1 "), " ").filter(Boolean);
   const at = (si: number, ei: number): number | null => {
-    const w = compound(steps[si], chain[ei]);
+    let w: number | null;
+    try { w = compound(steps[si], chain[ei]); }
+    catch (error) {
+      // An unsupported terminal pseudo belongs only to a matching scope.
+      // A Radio-only rule must not prevent measuring the unrelated topbar.
+      if (si > 0) {
+        const comb = steps[si - 1];
+        if (comb === ">" && (ei === 0 || at(si - 2, ei - 1) == null)) return null;
+        if (comb !== ">" && comb !== "+" && comb !== "~") {
+          let matched = false;
+          for (let a = ei - 1; a >= 0; a--) if (at(si - 1, a) != null) { matched = true; break; }
+          if (!matched) return null;
+        }
+      }
+      throw error;
+    }
     if (w == null) return null;
     if (si === 0) return w;
     const comb = steps[si - 1];

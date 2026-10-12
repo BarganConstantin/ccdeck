@@ -34,10 +34,10 @@ describe("character appearance preference", () => {
     const app = clientText();
     expect(app).toContain("useState(storedCharacterEnabled)");
     expect(app).toContain('writeStored(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
-    expect(app).toContain("{characterEnabled && (");
+    expect(read("components/RadioExperience.tsx")).toContain("{characterEnabled && <ClaudeFmCharacter");
     expect(app).toContain("<ClaudeFm");
-    expect(app).toContain("muted={fmMuted}");
-    expect(app).toContain("source={fmSource}");
+    expect(read("components/RadioExperience.tsx")).toContain("muted: fm.fmMuted");
+    expect(app).toContain("source={fm.fmSource}");
   });
 
   // The Appearance modal became two sections of Settings (2026-10-07): the

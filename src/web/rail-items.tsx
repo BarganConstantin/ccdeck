@@ -14,7 +14,7 @@ import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
 import {
   AccountsGlyph, BrowserWatchGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph,
+  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph,
 } from "./components/rail-glyphs";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -42,7 +42,7 @@ export function browserWatchDetail(watchOn: boolean | null, unread: number): str
 export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, openSettings, onFeedback, toggles,
+  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openSettings, onFeedback, toggles,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -60,6 +60,8 @@ export function railItems({
   watchUnseen: number;
   setBrowserWatchOpen: Toggle;
   setTrafficRadarOpen?: Toggle;
+  radioOpen?: boolean;
+  setRadioOpen?: Toggle;
   /** The one door into Settings (use-settings-menus.ts). */
   openSettings: (section?: SettingsSection) => void;
   onFeedback: () => void;
@@ -130,7 +132,11 @@ export function railItems({
       id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
       detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),
-    }] : [])]],
+    }] : [])], ...(setRadioOpen ? [[{
+      id: "radio", label: "Radio", short: "Radio", ariaLabel: "Radio",
+      glyph: <RadioGlyph />, kind: "panel" as const, open: radioOpen, controls: "radio-panel",
+      detail: "Explore stations around the world", onPress: () => setRadioOpen(open => !open),
+    }]] : [])],
     utilities: [settings, feedback],
   };
 }
