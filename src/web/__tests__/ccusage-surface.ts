@@ -22,6 +22,7 @@ import { SERVER_DIR } from "./quota-surface";
  *  extracted from ccusage.mjs is added here in the same change. */
 export const CCUSAGE_FILES = [
   "ccusage.mjs",
+  "ccusage-session.mjs",
   "ccusage-failure.mjs",
   "ccusage-install.mjs",
   "ccusage-runner.mjs",

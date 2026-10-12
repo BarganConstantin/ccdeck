@@ -530,6 +530,10 @@ Environment:
 
 Usage history is read with `ccusage`, and the deck takes the first of these that answers: `AGENTS_DECK_CCUSAGE` if you set it, then the copy it installed for itself under `~/.agents-deck/ccusage`, then a `ccusage` on your PATH, then `npx -y ccusage@latest`. So installing ccusage yourself is enough — the deck will not fetch a second copy, and it works under `AGENTS_DECK_NO_INSTALL=1`, which is the combination that variable is for. When something fails, the modal names which of those four it was.
 
+Open **Usage → By session** and select a Claude Code or Codex row to inspect its whole-session cost estimate, input/output and cache tokens, model breakdown and activity dates. This also works for historical sessions no longer on the canvas. The whole session may extend beyond the period selected in Usage; logs missing from this machine cannot be recovered by the inspector.
+
+For Codex, **Estimate using** compares ccusage's automatic estimate with Standard, Fast or Flex scenarios. Automatic pricing follows recorded settings where available and may use the current Codex config for unmarked usage. Scenarios apply one mode to the whole session, use ccusage's model-specific multipliers, and never change Codex settings or billing. Requested modes do not confirm the tier actually billed. This requires a ccusage version that supports the chosen report; older copies show an update message rather than silently substituting another mode. See [ccusage's Codex pricing behavior](https://ccusage.com/guide/codex/).
+
 Step by step: [See Claude Code and Codex cost and quota left](https://ccdeck.dev/guides/cost-and-quota/)
 
 Being told to restart after an upgrade is local only — no network involved — and cannot be turned off, because a deck running superseded code is a bug you cannot see any other way.
