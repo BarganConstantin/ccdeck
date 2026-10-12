@@ -190,7 +190,7 @@
   .radio-now { gap: 8px; }
   .radio-now > .radio-art { display: none; }
   .radio-transport { gap: 0; }
-  .radio-now-meta > strong { font-size: 13px; }
+  .radio-now-meta > strong { font-size: 13px; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .radio-controls { gap: 6px; }
   .radio-controls > .btn { padding-inline: 6px; }
   .radio-controls .sm-read { display: none; }
@@ -204,7 +204,7 @@
   .radio-map-heading { margin-bottom: 6px; }
   .radio-map-heading .radio-eyebrow { display: none; }
   .radio-map-help { padding-block: 6px; }
-.radio-inspector { position: absolute; left: 0; bottom: 12px; width: min(310px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 10px; animation: radioDetails 160ms ease-out; }
+  .radio-inspector { padding: 8px; }
   .radio-inspector-actions { margin-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { .radio-panel, .radio-inspector, .radio-cluster-preview { animation: none; } .radio-pin-dot, .radio-controls > .btn { transition: none; } }
@@ -235,10 +235,10 @@
   .radio-map { display: flex; flex-direction: column; gap: 6px; }
   .radio-map-canvas { flex: 1; height: 0; min-height: 0; }
   .radio-inspector, .radio-inspector-restore { position: static; width: 100%; max-width: none; flex: none; box-shadow: none; animation: none; }
-.radio-inspector { position: absolute; left: 0; bottom: 12px; width: min(310px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 10px; animation: radioDetails 160ms ease-out; }
+  .radio-inspector { padding: 8px; }
   .radio-inspector-title .icon-btn, .radio-inspector-actions .icon-btn { min-width: 44px; width: 44px; height: 44px; }
   .radio-inspector-actions .btn { min-height: 44px; }
-.radio-inspector-restore { position: absolute; bottom: 12px; left: 0; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 44px); background: var(--panel); }
+  .radio-inspector-restore { min-height: 44px; }
   .radio-discovery > .radio-inspector, .radio-discovery > .radio-inspector-restore { margin-block: 6px; }
   .radio-map-tools .btn { width: 44px; height: 44px; }
   .radio-station .icon-btn { min-width: 44px; width: 44px; height: 44px; }

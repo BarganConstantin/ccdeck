@@ -151,7 +151,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     <div className="radio-player" data-state={state}>
       <section className="radio-now" aria-label="Current station">
         <div className="radio-art" aria-hidden="true">{current && countryFlag(current.radio.countryCode) ? <span className="radio-art-flag">{countryFlag(current.radio.countryCode)}</span> : <RadioIcon name="radio" />}</div>
-        <div className="radio-now-meta"><strong title={label}>{label}</strong><div className="radio-now-details"><span className="radio-now-location">{current ? [current.radio.region, current.radio.country].filter(Boolean).join(", ") : "Your music on ccdeck"}</span><span role="status" className={`radio-playback-status ${showFailure ? "radio-error" : ""}`}><i aria-hidden="true" />{status}</span></div></div>
+        <div className="radio-now-meta"><strong title={label}>{label}</strong><div className="radio-now-details"><span className="radio-now-location">{current ? [current.radio.region, current.radio.country].filter(Boolean).join(", ") : "Your music on ccdeck"}</span><span role="status" aria-label={status} title={status} className={`radio-playback-status ${showFailure ? "radio-error" : ""}`}><i aria-hidden="true" />{narrow && showFailure ? "Unavailable" : status}</span></div></div>
       </section>
       <div className="radio-player-actions">
         <div className="radio-transport" role="group" aria-label="Station playback">
