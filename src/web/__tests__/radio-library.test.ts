@@ -6,6 +6,12 @@ const id = "radio-d1a54d2e-623e-4970-ab11-35f7b56c5ec3";
 const raw = { id, name: "Night radio", url: "https://radio.example/stream", country: "Moldova", countryCode: "MD", tags: "jazz, ambient", language: "romanian", lat: 0, lon: 0, bitrate: 128 };
 const [station] = resolveRadioStations([raw]);
 describe("radio library", () => {
+  it("keeps extensionless HLS metadata through directory normalization and local restore", () => {
+    const [hlsStation] = resolveRadioStations([{ ...raw, hls: true }]);
+    expect(hlsStation.radio.hls).toBe(true);
+    expect(resolveCustomFmStations(JSON.stringify([hlsStation]))[0].radio?.hls).toBe(true);
+    expect(resolveRadioStations([{ ...raw, hls: "true" }])[0].radio).not.toHaveProperty("hls");
+  });
   it("keeps control keys off the canvas while allowing shared dismissal and focus navigation", () => {
     for (const key of ["r", " ", "ArrowDown", "Escape", "Tab"]) {
       let stopped = false;

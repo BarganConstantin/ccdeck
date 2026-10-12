@@ -6,6 +6,10 @@ const row = { stationuuid: uuid, name: " Night radio ", url_resolved: "https://r
 const discover = async () => [{ name: "test.api.radio-browser.info" }];
 
 describe("radio directory", () => {
+  it("preserves the directory HLS flag for extensionless streams without guessing formats", () => {
+    expect(normalizeRadioStation({ ...row, hls: 1 })).toMatchObject({ url: row.url_resolved, hls: true });
+    for (const hls of [0, undefined, "1"]) expect(normalizeRadioStation({ ...row, hls })).not.toHaveProperty("hls");
+  });
   it("keeps extensionless HTTPS streams and zero coordinates, rejecting unsafe and invalid records", () => {
     expect(normalizeRadioStation(row)).toMatchObject({ id: `radio-${uuid}`, name: "Night radio", url: row.url_resolved, lat: 0, lon: 0 });
     for (const url of ["http://radio.example/listen", "https://user:secret@radio.example/listen", "file:///stream", "https://radio.example/list.pls"]) expect(normalizeRadioStation({ ...row, url_resolved: url })).toBeNull();

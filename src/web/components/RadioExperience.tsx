@@ -30,11 +30,14 @@ export default function RadioExperience({ fm, characterEnabled, open, onClose }:
   const scrimPress = useScrimDismiss(onClose);
   const pick = useCallback((station: RadioStation) => {
     if (!enabled) return;
-    fm.addFmStation(station);
     const source = customFmSelection(station.id);
-    if (source === fm.fmSource && !player.dead) player.press(); else fm.pickFmSource(source);
+    const same = source === fm.fmSource;
+    if (same && player.armed && !player.dead) { player.press(); return; }
+    const refreshedMedia = same && !!customStation && (customStation.url !== station.url || customStation.radio?.hls !== station.radio.hls);
+    fm.addFmStation(station, true);
+    if (same && !player.dead && !refreshedMedia) player.press(); else fm.pickFmSource(source, refreshedMedia);
     fetch(`/api/radio-click?id=${encodeURIComponent(station.id)}`).catch(() => {});
-  }, [enabled, fm.addFmStation, fm.fmSource, fm.pickFmSource, player.dead, player.press]);
+  }, [enabled, customStation, fm.addFmStation, fm.fmSource, fm.pickFmSource, player.armed, player.dead, player.press]);
   return <>
     {characterEnabled && <ClaudeFmCharacter player={player} source={fm.fmSource} customStation={customStation} />}
     <FmPlaybackFrame player={player} label={label} />

@@ -83,7 +83,8 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
   const mapped = useMemo(() => stations.filter(station => station.radio.lat !== null && station.radio.lon !== null), [stations]);
   const displayed = useMemo(() => [...new Map([...mapped, ...(current?.radio.lat != null && current.radio.lon != null ? [current] : []), ...(selected?.radio.lat != null && selected.radio.lon != null ? [selected] : [])].map(station => [station.id, station])).values()], [mapped, current, selected]);
   const scale = rect.width * view.zoom / size.width;
-  const markers = useMemo(() => clusterRadioMarkers(displayed, scale, [selected?.id ?? "", current?.id ?? ""]), [displayed, scale, selected?.id, current?.id]);
+  const touchTargets = window.matchMedia("(max-width: 840px), (pointer: coarse)").matches;
+  const markers = useMemo(() => clusterRadioMarkers(displayed, scale, [selected?.id ?? "", current?.id ?? ""], touchTargets ? 44 : 26), [displayed, scale, selected?.id, current?.id, touchTargets]);
   const pinnedCount = displayed.length - mapped.length;
   const metrics = () => {
     const points = [...pointers.current.values()];
@@ -91,8 +92,8 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
   };
   const stop = (event: PointerEvent<SVGSVGElement>) => { pointers.current.delete(event.pointerId); gesture.current = pointers.current.size ? { ...metrics(), view: camera.current } : null; setDragging(pointers.current.size > 0); };
   return <section className="radio-geography" aria-label="Geographic explorer">
-    <div className="radio-map-heading"><div><span className="radio-eyebrow">Explore the world</span><h3>{region || "Your view"}</h3></div><span title="Only results with directory coordinates can be plotted. Selected and current stations stay pinned when filters exclude them.">{mapped.length} of {stations.length} on map{pinnedCount > 0 && <small>+ {pinnedCount} pinned outside results</small>}</span></div>
-    <div className="radio-regions" role="group" aria-label="Explore a region">
+    <div className="radio-map-heading"><div><h3>Map view · {region || "Custom"}</h3></div><span title="Only results with directory coordinates can be plotted. Selected and current stations stay pinned when filters exclude them.">{mapped.length} of {stations.length} have locations{pinnedCount > 0 && <small>+ {pinnedCount} selected/current outside results</small>}</span></div>
+    <div className="radio-regions" role="group" aria-label="Map view, results stay unchanged">
       {regions.map(place => <button key={place.name} type="button" aria-pressed={region === place.name} onClick={() => { setRegion(place.name); setCluster(null); moveCamera(place, true); }}>{place.name}</button>)}
     </div>
     <div className="radio-map">
@@ -120,14 +121,15 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
         {land}
         <g>{markers.map(marker => {
           const grouped = marker.stations.length > 1, station = marker.stations[0], active = marker.stations.some(item => selected?.id === item.id), audible = playing && marker.stations.some(item => current?.id === item.id);
-          return <g key={marker.id} className={`radio-pin${grouped ? " clustered" : ""}${active ? " selected" : ""}${audible ? " playing" : ""}`} role="button" tabIndex={-1}
+          return <g key={marker.id} className={`radio-pin${grouped ? " clustered" : ""}${active ? " selected" : ""}${audible ? " playing" : ""}`} role="button" tabIndex={marker.x >= view.x - size.width / view.zoom / 2 && marker.x <= view.x + size.width / view.zoom / 2 && marker.y >= view.y - size.height / view.zoom / 2 && marker.y <= view.y + size.height / view.zoom / 2 ? 0 : -1}
+            onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); event.currentTarget.dispatchEvent(new MouseEvent("click", { bubbles: true })); } }}
             aria-label={grouped ? `Explore ${marker.stations.length} nearby stations` : `Inspect ${station.name}, ${station.radio.country}`} transform={`translate(${marker.x} ${marker.y})`}
             onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onClick={() => {
               if (!grouped) { setCluster(null); onInspect(station); return; }
               setCluster(marker.stations); setRegion(""); moveCamera({ x: marker.x, y: marker.y, zoom: Math.min(MAX_RADIO_ZOOM, camera.current.zoom * 2) }, true);
             }}>
             <title>{grouped ? `${marker.stations.length} nearby stations · click to explore` : `${station.name} · ${station.radio.country}`}</title>
-            <circle className="radio-pin-hit" r={14 / scale} />
+            <circle className="radio-pin-hit" r={(touchTargets ? 22 : 14) / scale} />
             {audible && <circle className="radio-pin-playing" r={(grouped ? 14 : 8) / scale} />}
             <circle className="radio-pin-dot" r={(grouped ? 11 : active ? 5 : 3.2) / scale} />
             {grouped && <text textAnchor="middle" dominantBaseline="central" fontSize={10 / scale}>{marker.stations.length}</text>}
@@ -139,7 +141,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
       {!cluster && children}
       <div className="radio-map-caption"><span title="Positions come from the station directory and may be approximate. Stations without coordinates are available in the list.">Directory locations · approximate</span><a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></div>
     </div>
-    <p id="radio-map-help" className="radio-map-help">Drag to explore · scroll or double-click to zoom. <span className="vis-hidden">With the map focused, arrow keys pan, plus and minus zoom, and Home resets the view. Use the station list as a keyboard alternative.</span></p>
+    <p id="radio-map-help" className="radio-map-help">Map view doesn’t filter stations. Drag or zoom to explore. <span className="vis-hidden">With the map focused, arrow keys pan, plus and minus zoom, and Home resets the view. Use the station list as a keyboard alternative.</span></p>
   </section>;
 });
 export default RadioMap;

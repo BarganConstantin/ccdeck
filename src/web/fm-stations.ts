@@ -19,6 +19,7 @@ export interface RadioMetadata {
   language: string;
   codec: string;
   bitrate: number;
+  hls?: boolean;
   lat: number | null;
   lon: number | null;
 }
@@ -165,5 +166,5 @@ export function resolveRadioMetadata(value: unknown): RadioMetadata | null {
   const row = value as Record<string, unknown>;
   const text = (key: string, max: number) => typeof row[key] === "string" ? (row[key] as string).slice(0, max) : "";
   const coordinate = (key: string, max: number) => typeof row[key] === "number" && Number.isFinite(row[key]) && Math.abs(row[key] as number) <= max ? row[key] as number : null;
-  return { country: text("country", 80), countryCode: text("countryCode", 2), region: text("region", 80), tags: text("tags", 180), language: text("language", 80), codec: text("codec", 12), bitrate: typeof row.bitrate === "number" && Number.isFinite(row.bitrate) ? Math.max(0, Math.min(1000, row.bitrate)) : 0, lat: coordinate("lat", 90), lon: coordinate("lon", 180) };
+  return { ...(row.hls === true ? { hls: true } : {}), country: text("country", 80), countryCode: text("countryCode", 2), region: text("region", 80), tags: text("tags", 180), language: text("language", 80), codec: text("codec", 12), bitrate: typeof row.bitrate === "number" && Number.isFinite(row.bitrate) ? Math.max(0, Math.min(1000, row.bitrate)) : 0, lat: coordinate("lat", 90), lon: coordinate("lon", 180) };
 }

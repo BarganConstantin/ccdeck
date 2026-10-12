@@ -7,7 +7,7 @@ export const MAX_RADIO_ZOOM = 12;
 export const WORLD_VIEW: RadioMapView = { x: 180, y: 85, zoom: 1 };
 
 export function mapDimensions(aspect: number): MapDimensions {
-  const ratio = Math.max(.5, Math.min(4, aspect || 2));
+  const ratio = Number.isFinite(aspect) && aspect > 0 ? aspect : 2;
   return { width: Math.max(360, 170 * ratio), height: Math.max(170, 360 / ratio) };
 }
 export function clampMapView(view: RadioMapView, size: MapDimensions): RadioMapView {
@@ -22,8 +22,8 @@ export function zoomMapView(view: RadioMapView, factor: number, size: MapDimensi
 
 /** Group nearby directory coordinates by screen distance. Isolated selected/
  * current stations stay separate; coincident pins stay reachable in a chooser. */
-export function clusterRadioMarkers(stations: readonly RadioStation[], pixelsPerUnit: number, independent: readonly string[] = []): RadioMarker[] {
-  const threshold = 26 / Math.max(.01, pixelsPerUnit);
+export function clusterRadioMarkers(stations: readonly RadioStation[], pixelsPerUnit: number, independent: readonly string[] = [], targetSize = 26): RadioMarker[] {
+  const threshold = targetSize / Math.max(.01, pixelsPerUnit);
   const protectedIds = new Set(independent);
   const points = stations.filter(station => station.radio.lat !== null && station.radio.lon !== null)
     .map(station => ({ station, x: station.radio.lon! + 180, y: 90 - station.radio.lat! }));

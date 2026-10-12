@@ -18,6 +18,7 @@ export function normalizeRadioStation(row) {
     region: String(row.state ?? "").slice(0, 80), tags: String(row.tags ?? "").slice(0, 180),
     language: String(row.language ?? "").slice(0, 80), codec: String(row.codec ?? "").slice(0, 12),
     bitrate: Math.max(0, Math.min(1000, Number(row.bitrate) || 0)),
+    ...(row.hls === 1 ? { hls: true } : {}),
     lat: coordinate(row.geo_lat, 90), lon: coordinate(row.geo_long, 180),
   };
 }

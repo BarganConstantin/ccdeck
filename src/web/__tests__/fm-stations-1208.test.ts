@@ -118,7 +118,7 @@ describe("custom FM stations (#1208)", () => {
     // A pick of the station already set is still no pick — unless that
     // station is marked unavailable, when the pick is the retry.
     const pick = app.slice(app.indexOf("const pickFmSource"), app.indexOf("const markFmStationAvailability"));
-    expect(pick).toContain("if (next === fmSource && !retry) return;");
+    expect(pick).toContain("if (next === fmSource && !retry && !restart) return;");
     expect(pick).toMatch(/setFmSource\(next\);\s*setFmPlayRequest\(count => count \+ 1\);/);
     const removal = app.slice(app.indexOf("const removeFmStation"), app.indexOf("const pickFmSource"));
     expect(removal).toContain("selectionAfterRemovingStation");
@@ -128,7 +128,7 @@ describe("custom FM stations (#1208)", () => {
     expect(player).toContain("const asked = playRequestRef.current !== playRequest;");
     expect(player).toContain("setArmed(asked);");
     // A direct stream is started from the pick, as the embed is armed by it.
-    expect(player).toContain("if (asked) startDirect(custom.url, custom.format === \"hls\", source);");
+    expect(player).toContain("if (asked) startDirect(custom.url, isHls, source);");
     expect(player).toContain("startDirect(probe.audio, probe.hls === true, source);");
   });
 

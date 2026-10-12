@@ -3,8 +3,13 @@ import { clampMapView, clusterRadioMarkers, mapDimensions, MAX_RADIO_ZOOM, WORLD
 import { resolveRadioStations } from "../radio-library";
 const station = (index: number, lon: number | null, lat: number | null) => resolveRadioStations([{ id: `radio-00000000-0000-0000-0000-${String(index).padStart(12, "0")}`, name: `Fixture ${index}`, url: "https://fixture.test/stream", country: "France", countryCode: "FR", lon, lat }])[0];
 describe("radio map geometry", () => {
+  it("groups markers that would have overlapping touch targets without enlarging desktop clusters", () => {
+    const rows = [station(1, 0, 40), station(2, 38, 40)];
+    expect(clusterRadioMarkers(rows, 1)).toHaveLength(2);
+    expect(clusterRadioMarkers(rows, 1, [], 44)).toHaveLength(1);
+  });
   it("fits the world on wide and tall maps without cropping geography", () => {
-    for (const aspect of [.8, 1.5, 3]) {
+    for (const aspect of [.25, .8, 1.5, 3, 8]) {
       const size = mapDimensions(aspect);
       expect(size.width / size.height).toBeCloseTo(aspect);
       expect(size.width).toBeGreaterThanOrEqual(360); expect(size.height).toBeGreaterThanOrEqual(170);

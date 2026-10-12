@@ -23,7 +23,7 @@ Questions skipped: the user supplied the product direction and authorized implem
 | Original marker behavior | Individually drawn markers were clickable and started playback directly. They had no clustering and were excluded from the Tab sequence. The redesign separates inspection from playback, gives the map keyboard controls and retains the station-list alternative. |
 | Larger dialogs | Existing overlays support viewport-bounded panels and a shared modal shell/focus trap. No general draggable dialog-resize system was found. Radio responds to viewport dimensions instead of adding an unrelated resizer. |
 | Shared system | Existing theme colors, spacing/radius/font tokens, `btn` / primary controls, VolumeRow, rail glyph system, modal stack, shared Escape/focus return and scrim dismissal. No gradients, brand redraw or new font. |
-| Constraints | At most 300 HTTPS directory results per query; nullable/unverified coordinates; many shared points; no tile detail, globe or exact location accuracy; external stations may fail or change format. HLS is currently inferred from URL extensions, so extensionless HLS metadata needs special care. No song recognition, seeking or fabricated live progress. |
+| Constraints | At most 300 HTTPS directory results per query; nullable/unverified coordinates; many shared points; no tile detail, globe or exact location accuracy; external stations may fail or change format. At the initial redesign HLS was inferred from URL extensions; the final refinement below preserves the explicit directory flag and handles extensionless streams. No song recognition, seeking or fabricated live progress. |
 
 Source: [Radio Browser API reference](https://docs.radio-browser.info/), station schema and search parameters. Counts above come from the real directory response captured during this review, not synthetic station metadata.
 
@@ -63,3 +63,35 @@ The independent reviewer initially could not view images through its viewer; att
 - Screenshots: `/tmp/ccdeck-radio-review/final/`; native HTMLAudioElement fixtures use genuine captured station metadata with controlled media URLs. Waiting/playing events for the buffering screenshot are controlled events, not an external network-loss test. These checks do not certify all broadcasters, hardware audio output, touch-device behavior, or YouTube/HLS delivery.
 - Windows: final overlap-fix snapshot TypeScript, the same 263 tests across 11 suites, and production build passed (command exit 0). Snapshot source branch `feat/radio-explorer`, base `0dc2a27a`, archive SHA-256 `6dc99072846d0cbd889bcc9b3ac2948cd5bb5eb449aa1d12d072dba2adedde61`, isolated folder `C:\Users\cbargan\Desktop\ccdeck-radio-test`.
 - Build reports the existing large JavaScript chunk warning; the radio panel and HLS support remain separately lazy loaded.
+
+
+## Final focused quality pass
+
+Scope: preserve desktop architecture, identity, persistent player and the map/discovery split. Applied Impeccable critique and polish; context had already run in this session. Independent assessments: A `01a12f69-c88a-7ad1-b929-0e47e65fb0a3` (supplied rendered captures plus source), B `01a12f69-c941-7b50-897e-809812302a97` (detector and source). B reported zero detector findings. Native browser fallback remains the isolated Chromium session described above; no visible detector overlay is claimed. No unrelated design-system changes.
+
+Four high-impact improvements were selected:
+
+1. **Inspection and context:** the mobile dock reserves space rather than covering markers. List inspection stays in Stations, including stations without coordinates. Details expand on demand; dismissal retains selection and offers reopening. Desktop details are compact by default. Focus moves to Play on inspection, to Collapse on short-screen expansion, and back to the name on collapse; dismiss returns to map/search.
+2. **Map/result meaning:** “Map view,” coordinate coverage (“129 of 300 have locations”), result labels and the view/filter hint distinguish the camera from the station catalogue. Country controls explicitly label their filtering role. Regions continue to leave results unchanged.
+3. **Keyboard/touch access:** visible markers and clusters are keyboard stops with Enter/Space activation. Offscreen markers remain out of Tab order. Focus states, 44px mobile controls and 44px marker hit areas are paired with matching touch clustering. Station rows preserve dense layout, full accessible names and name tooltips. Inspector Play/Save controls describe the inspected station rather than implying the player changed.
+4. **HLS reliability:** the official directory `hls: 1` flag is normalized, stored and used with URL-based detection. Fresh catalogue metadata takes precedence over stale saved metadata while retaining personal station names. Only explicit directory playback refreshes existing saved format data. A review caught a restored-current-station race: resuming changed media now sends a new playback request, while pausing an active station does not refresh its media.
+
+Official format flag reference: [Radio Browser station fields](https://docs.radio-browser.info/), `hls` = 0/1. No broadcaster format is invented or inferred from a station name/genre.
+
+### Two bounded iterations
+
+**Iteration 1:** before and first-batch captures at `/tmp/ccdeck-radio-review/polish-before/` and `/tmp/ccdeck-radio-review/polish-pass-1/`. Implemented reserved mobile dock, compact desktop inspector, explicit scope copy, touch/keyboard controls and HLS flag propagation. Independent visual review found the prior obstruction and ambiguity resolved, with one remaining concern: short-window map compression.
+
+**Iteration 2:** a real 320×568 test measured only 21px of map after reserving details. Fixed with a compact strip, a 96px minimum interactive map and one geography scroll area for expanded short-screen details; camera dimensions now preserve the actual aspect ratio even for very wide short maps. Expansion scrolls focused controls into view. Final captures at `/tmp/ccdeck-radio-review/polish-after/` confirm the 320px/390px layouts and 800×500 window. The independent visual reviewer returned **SHIP** for the known findings, explicitly accepting short-screen geography scrolling. No further visual redesign was pursued.
+
+### Final workflow evidence
+
+- A: Europe, cluster selection, inspection, explicit play; cluster Enter activation also tested.
+- B: audio continues through close/reopen; current identity and playing state retained.
+- C: inspection does not start another stream; explicit play switches with one active native audio element.
+- D: mobile inspection retains its current view; dismissal keeps the selected row/marker; Map/Stations and reopening details retain station identity; camera pan/zoom and focus return tested.
+- E: search, country/genre/language filters, favorites, Recent, stream failure/retry, directory failure/retry and empty results verified with genuine captured catalogue metadata and controlled media URLs.
+- F: modal bounds/no horizontal overflow checked at 1440×960, 1024×768, 900×600, 390×844, 320×568 and 800×500; collapsed and expanded short-screen map dimensions checked. Reduced motion, Escape, keyboard controls and inspector labels verified.
+- Extensionless HLS: real lazy-loaded hls.js, native Audio/MediaSource and generated AAC transport-stream segments played successfully. Fixture starts from a previously saved favorite with no HLS flag, restores it as the current paused station without autoplay, then resumes it with fresh metadata. Close/reopen and pause/resume also pass. This is an actual controlled media test, not a broadcaster certification.
+
+Final macOS and Windows checks passed: TypeScript, production build and **266 tests across 11 relevant suites**; theme consistency checked all 9 JSON themes, and `git diff --check` passed. No dedicated lint script exists. Windows used the isolated test folder with final source archive SHA-256 `c143f68866b8baa15f9155449b9b57e834007e733f4fc5fc8908cbd96cf94aa8` (base `6f4b6fc0`, branch `feat/radio-explorer`), command exit 0. The final native audio script additionally checked that pausing/resuming the player leaves a different inspected station selected; HLS recovery was verified separately from the player and Favorites. Physical touch/pinch, hardware sound output, Electron packaging and every external broadcaster remain unverified in this pass. Stale entries outside the fresh catalogue cannot learn a missing HLS flag while offline; cross-origin permissions, server availability and incorrect upstream flags remain external constraints. The production build retains its existing large-chunk warning.

@@ -243,9 +243,10 @@ export function useFmPlayer({
       : null;
     if (custom) {
       if (custom.kind === "direct-audio") {
-        setProbe({ live: true, channel: "", audio: custom.url, hls: custom.format === "hls" });
+        const isHls = custom.format === "hls" || customStation?.radio?.hls === true;
+        setProbe({ live: true, channel: "", audio: custom.url, hls: isHls });
         onAvailabilityChange?.(source, false);
-        if (asked) startDirect(custom.url, custom.format === "hls", source);
+        if (asked) startDirect(custom.url, isHls, source);
         return () => { alive = false; };
       }
       // Every YouTube link goes by the server, a channel link included:
@@ -313,7 +314,7 @@ export function useFmPlayer({
         .catch(() => { if (alive) { setDead(true); setArmed(false); setPlaying(false); onAvailabilityChange?.(source, true); } });
     }
     return () => { alive = false; };
-  }, [customStation?.id, customStation?.url, enabled, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);
+  }, [customStation?.id, customStation?.url, customStation?.radio?.hls, enabled, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);
 
   useEffect(() => () => stopDirect(), [stopDirect]);
 

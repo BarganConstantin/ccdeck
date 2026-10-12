@@ -17,7 +17,7 @@ Behavior: one shared player powers the character and explorer. Hiding the charac
 
 Interaction: inspection is separate from playback. Locate explicitly moves the camera; regions only change the camera, while discovery filters affect results and markers. Pan, wheel, double-click, pinch and keyboard camera controls share bounded geometry. Screen-distance clusters retain a chooser for coincident positions, including selected/current stations; active markers or clusters have distinct selection/playing states. Coordinates come unchanged from the directory and are labeled approximate. Counts disclose coordinate coverage and pins outside filtered results. No fabricated live progress or song metadata.
 
-Craft: reuse ccdeck theme, typography/radius tokens, buttons, VolumeRow, rail glyphs and modal focus/dismissal helpers. Restrained 180ms camera/entry transitions respect reduced motion. Mobile inspection hands focus to Play; closing details returns it to the map.
+Craft: reuse ccdeck theme, typography/radius tokens, buttons, VolumeRow, rail glyphs and modal focus/dismissal helpers. Restrained 180ms camera/entry transitions respect reduced motion. Mobile inspection stays in its current view, hands focus to Play, and uses a reserved details dock; short windows use a compact strip with expanded details in the geography scroll area. Dismissal keeps selection and returns focus to the map or search. Visible map markers support Tab, Enter and Space; mobile hit areas and clustering use 44px targets.
 
 Proof: unit coverage for directory failover, normalization, persistence and station selection; browser checks for native audio, switching, stop, volume/mute, restore, filters, failures and mobile bounds.
 
