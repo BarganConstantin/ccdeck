@@ -1,7 +1,7 @@
 import { memo } from "react";
 import type { Act, Facing } from "../claude-fm";
 import { FOX, FOX_GEAR } from "../fox-sprite";
-import { spriteRects, type SpriteRect } from "../claude-fm-sprite";
+import { GRIP_LEFT_PATH, GRIP_RIGHT_PATH, spriteRects, type SpriteRect } from "../claude-fm-sprite";
 
 const FILLS: Record<string, string> = {
   f: "#d88735", s: "#a55b24", o: "#63351e", w: "#ffe2aa", n: "#372821",
@@ -50,8 +50,8 @@ export default memo(function FoxSprite({ act, facing }: { act: Act | null; facin
         y={r.y} width={r.w} height={1} className="fm-eye" style={{ fill: FILLS.n }} />)}
     </g>
     {grips && <g className="fm-grip" style={{ fill: FILLS.f }}>
-      <path className="fm-grip-left" d="M5 9H4V4H7V3H9V5H6V9Z" />
-      <path className="fm-grip-right" d="M12 9H14V6H11V5H9V7H12Z" />
+      <path className="fm-grip-left" d={GRIP_LEFT_PATH} />
+      <path className="fm-grip-right" d={GRIP_RIGHT_PATH} />
     </g>}
     {crouch && <g className="fm-crouch-legs" style={{ fill: FILLS.f }}>
       <path d="M6 11H8V13H6Z" /><path d="M10 11H12V13H10Z" />

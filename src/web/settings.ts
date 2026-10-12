@@ -20,7 +20,7 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; label: string }[
   { id: "general", label: "General" },
   { id: "notifications", label: "Notifications" },
   { id: "sounds", label: "Sounds" },
-  { id: "music", label: "Music & character" },
+  { id: "music", label: "Music" },
 ];
 
 /** Where a section sits in the nav; General for anything that is not one. */
