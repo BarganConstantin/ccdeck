@@ -225,6 +225,61 @@
 .ap-report-modal .ap-proj-head { padding: 18px 24px 0; border-bottom: 0; background: none; }
 .ap-report-modal h2.ap-proj-title { margin: 0; font-size: 16px; }
 .ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; }
+.ap-report-views { display: flex; gap: 6px; padding: 14px 24px 0; }
+.ap-report-views .btn[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--ctl-fill); }
+.ap-report-views .btn:hover { border-color: var(--text); background: var(--ctl-fill); }
+
+/* Seven local dates give the overview; the agenda below keeps account names
+   readable without squeezing them into seven narrow columns. */
+.ap-reset-body { gap: 16px; }
+.ap-reset-intro h3,
+.ap-reset-unplaced h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+.ap-reset-intro p { margin: 4px 0 0; font-size: 12px; color: var(--report-meta); }
+.ap-reset-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--r-panel); }
+.ap-reset-week li { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 8px; }
+.ap-reset-week li + li { border-left: 1px solid var(--line); }
+.ap-reset-week li[data-today] { background: var(--bg-soft); border-radius: var(--r-panel) 0 0 var(--r-panel); }
+.ap-reset-week time { display: flex; flex-direction: column; gap: 4px; }
+.ap-reset-weekday { font-size: 11px; font-weight: 600; color: var(--text); }
+.ap-reset-date,
+.ap-reset-time { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--report-meta); }
+.ap-reset-count { font-size: 11px; color: var(--report-meta); }
+.ap-reset-count b { font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-reset-explain,
+.ap-reset-empty { margin: 0; max-width: 70ch; font-size: 12px; line-height: 1.5; color: var(--report-meta); }
+.ap-reset-agenda { display: flex; flex-direction: column; gap: 16px; }
+.ap-reset-day { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ap-reset-day h4 { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
+.ap-reset-day h4 span { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--report-meta); }
+.ap-reset-day ul,
+.ap-reset-unplaced ul { margin: 0; padding: 0; list-style: none; }
+.ap-reset-entry { display: grid; grid-template-columns: 100px minmax(0, 1fr) 140px; gap: 12px; align-items: start; padding: 8px 0; }
+.ap-reset-entry:first-child { padding-top: 0; }
+.ap-reset-name { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; min-width: 0; font-size: 12px; color: var(--text); }
+.ap-reset-name > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.ap-reset-reading { display: flex; flex-direction: column; gap: 4px; text-align: right; }
+.ap-reset-usage { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-reset-old { font-size: 11px; line-height: 1.45; color: var(--report-meta); }
+.ap-reset-entry[data-outdated] .ap-reset-name > span:first-child { color: var(--report-meta); }
+.ap-reset-unplaced { padding-top: 16px; border-top: 1px solid var(--line); }
+.ap-reset-unplaced ul { margin-top: 12px; }
+.ap-reset-unplaced-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 140px; gap: 12px; padding: 8px 0; }
+.ap-reset-unplaced-detail { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--report-meta); }
+@media (max-width: 520px) {
+  .ap-report-views { padding: 12px 16px 0; }
+  .ap-report-views .btn { min-height: 40px; }
+  .ap-reset-week { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ap-reset-week li:nth-child(5) { border-left: 0; }
+  .ap-reset-week li:nth-child(n+5) { border-top: 1px solid var(--line); }
+  .ap-reset-week li[data-today] { border-radius: var(--r-panel) 0 0 0; }
+  .ap-reset-day { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .ap-reset-day h4 { flex-direction: row; align-items: baseline; gap: 8px; }
+  .ap-reset-entry { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+  .ap-reset-entry > .ap-reset-time { grid-column: 2; grid-row: 1; }
+  .ap-reset-entry > .ap-reset-name { grid-column: 1; grid-row: 1; }
+  .ap-reset-reading { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 6px 12px; text-align: left; }
+  .ap-reset-unplaced-row { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px 0; }
+}
 /* The stuck names' own 8px above them is part of the gap in flow. */
 .ap-report-table-scroll { margin-top: -8px; overflow-x: auto; flex-shrink: 0; }
 .ap-report-table-scroll:focus-visible { outline-offset: -2px; }
