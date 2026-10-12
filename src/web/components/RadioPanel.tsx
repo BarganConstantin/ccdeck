@@ -190,7 +190,6 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
           {enabled && collection === "discover" && !hasFilters && <details className="radio-own"><summary>Your streams <span>{FM_SOURCE_OPTIONS.length + manualStations.length}</span></summary>{FM_SOURCE_OPTIONS.map(source => <button key={source.value} type="button" className="radio-own-station" aria-current={fm.fmSource === source.value || undefined} onClick={() => pickBuiltIn(source.value)}>{cleanLabel(source.label)}<RadioIcon name={fm.fmSource === source.value && player.armed ? "pause" : "play"} /></button>)}{manualStations.map(station => <button key={station.id} type="button" className="radio-own-station" onClick={() => pickBuiltIn(customFmSelection(station.id))}>{station.name}<RadioIcon name="play" /></button>)}</details>}
         </div>
         {narrow && mobileView === "stations" && inspector}
-        {stations.length === 300 && <p className="radio-directory-limit">Showing 300 results · search or filter to discover more</p>}
       </section>
     </div>
   </div>;
