@@ -36,7 +36,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
     cancelAnimationFrame(frame.current);
     const target = clampMapView(next, sizeRef.current);
     const start = camera.current;
-    if (!animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { camera.current = target; setView(target); return; }
+    if (!animate || svg.current?.closest("[data-keyboard-interaction]") || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { camera.current = target; setView(target); return; }
     const at = performance.now();
     const tick = (time: number) => {
       const progress = Math.min(1, (time - at) / 180), ease = 1 - (1 - progress) ** 3;

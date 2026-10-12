@@ -26,6 +26,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const listRef = useRef<HTMLDivElement>(null);
   const focusInspection = useRef(false);
   const previousExpansion = useRef(false);
+  const keyboardOpened = useRef(document.activeElement?.matches(":focus-visible") ?? false);
   const panel = useModalDismiss<HTMLDivElement>(onClose, { focusRef: searchRef });
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
@@ -142,7 +143,12 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     </>}
     <div id="radio-station-information" className="radio-station-information" hidden={!inspectionExpanded}><p>{[inspected.radio.region, inspected.radio.tags, inspected.radio.language, inspected.radio.bitrate ? `${inspected.radio.bitrate} kbps` : ""].filter(Boolean).join(" · ") || "No additional station information"}</p>{inspected.radio.lat !== null && inspected.radio.lon !== null ? <button type="button" className="btn" onClick={() => { setMobileView("map"); setLocateRequest(value => value + 1); }}><RadioIcon name="globe" />Locate on map</button> : <span>No location provided</span>}</div>
   </section> : <button type="button" className="btn radio-inspector-restore" onClick={() => { setInspectionVisible(true); focusInspection.current = true; }}>Station details <span>{inspected.name}</span></button>);
-  return <div ref={panel} id="radio-panel" className="radio-panel nodrag nopan nowheel" role="dialog" aria-modal="true" aria-labelledby="radio-title" onKeyDown={containPopoverKeys}>
+  return <div ref={panel} id="radio-panel" className="radio-panel nodrag nopan nowheel" role="dialog" aria-modal="true" aria-labelledby="radio-title"
+    data-keyboard-interaction={keyboardOpened.current || undefined}
+    onKeyDownCapture={event => { event.currentTarget.dataset.keyboardInteraction = "true"; }}
+    onPointerDownCapture={event => { delete event.currentTarget.dataset.keyboardInteraction; }}
+    onWheelCapture={event => { delete event.currentTarget.dataset.keyboardInteraction; }}
+    onKeyDown={containPopoverKeys}>
     <header className="radio-header">
       <div className="radio-heading"><RadioIcon name="radio" /><h2 id="radio-title">Radio <span>Explorer</span></h2></div>
       <span className="radio-header-note">A soundtrack for your workspace</span>
