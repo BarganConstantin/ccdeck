@@ -382,10 +382,11 @@ describe("the deck's own sound plays over the music", () => {
     expect(clientText()).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
     // App.tsx hands BoardFlow the settings whole, and BoardFlow mounts the player.
     expect(app).toMatch(/<BoardFlow\b[^>]*\bfm=\{fm\}/);
-    expect(board).toContain("<ClaudeFm");
-    expect(board).toContain("volume={fmVolume}");
-    expect(board).toContain("muted={fmMuted}");
-    expect(board).toContain("source={fmSource}");
+    expect(board).toContain("<RadioExperience");
+    const radio = sourceOf("components/RadioExperience.tsx");
+    expect(radio).toContain("volume: fm.fmVolume");
+    expect(radio).toContain("muted: fm.fmMuted");
+    expect(radio).toContain("source: fm.fmSource");
     expect(app + "\n" + board).not.toMatch(/duck/i);
     // …and not in the hook that now plays the audition either. Named rather than
     // widened to the whole client, because claude-fm.ts may say "duck" legitimately.
@@ -429,7 +430,7 @@ describe("absent, not broken", () => {
       ["../components/FmSprite.tsx", "const TORSO_RECTS"],
     ] as const) {
       const src = code(file);
-      const start = src.indexOf('export default memo(');
+      const start = src.search(/(?:export default memo\(|export const ClaudeFmCharacter = memo\()/);
       expect(start, file).toBeGreaterThan(0);
       expect(src.indexOf(cached), `${file} has no ${cached}`).toBeGreaterThan(-1);
       expect(src.indexOf(cached), `${file}: ${cached} is inside the component`).toBeLessThan(start);
@@ -534,7 +535,7 @@ describe("the character", () => {
     // renders a panel's children as siblings of `.react-flow__pane`, so a press
     // on this character never reaches the pan handler to be opted out of.
     expect(component).toContain('className="fm"');
-    expect(component).not.toContain("nopan");
+    expect(sourceOf("components/ClaudeFm.tsx")).not.toContain("nopan");
   });
 
   it("wears a hat when there is nothing to listen to", () => {

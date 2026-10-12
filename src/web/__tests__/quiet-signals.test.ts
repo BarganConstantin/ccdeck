@@ -408,8 +408,15 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
       .map(([, selector]) => selector.trim());
     // Nothing does today. The loop is what matters: the next rule that opts out
     // has to opt back in for the keyboard.
-    expect(killers).toEqual([]);
-    for (const sel of killers) {
+    // Search focuses its entire labelled wrapper; map suppresses only pointer focus.
+    expect(declOf(".radio-search:focus-within", "box-shadow")).toContain("var(--accent)");
+    expect(declOf(".radio-map-canvas:focus-visible", "outline")).toBe("2px solid var(--accent)");
+    expect(killers).toEqual([
+      ".radio-search input:focus",
+      ".radio-panel .radio-search input:focus-visible",
+      ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
+    ]);
+    for (const sel of killers.filter(sel => !sel.startsWith(".radio"))) {
       expect(declOf(`${sel}:focus-visible`, "outline"), sel).not.toBeNull();
     }
   });

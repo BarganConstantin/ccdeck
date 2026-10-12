@@ -654,3 +654,11 @@ If the Work includes a "NOTICE" text file as part of its distribution, then any 
 
 END OF TERMS AND CONDITIONS
 ```
+
+## Radio world map
+
+The radio map includes simplified country geometry from Natural Earth
+(`ne_110m_admin_0_countries.geojson`), obtained from
+https://github.com/nvkelso/natural-earth-vector. Natural Earth data is public
+domain: https://www.naturalearthdata.com/about/terms-of-use/.
+The bundled representation is in `src/web/assets/radio-world.json`.

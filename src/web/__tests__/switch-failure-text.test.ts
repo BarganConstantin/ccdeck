@@ -129,7 +129,7 @@ describe("a refusal from the deck's own gate, which is not a command failing", (
     // press comes back refused.
     const cfg = read("../../../vite.config.ts");
     expect(cfg).toMatch(/changeOrigin: true/);
-    expect(cfg).toMatch(/req\.setHeader\("origin", "http:\/\/127\.0\.0\.1:4317"\)/);
+    expect(cfg).toMatch(/req\.setHeader\("origin", devBackend\)/);
   });
 });
 

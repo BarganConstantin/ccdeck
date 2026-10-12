@@ -39,6 +39,8 @@ describe("custom FM stations (#1208)", () => {
       "https://radio.example/live.mp3",
       "https://radio.example/live.aac?token=x",
       "https://radio.example/live.ogg",
+      "https://radio.example/listen",
+      "https://radio.example/stream",
     ]) expect(parseFmStationUrl(url)).toMatchObject({ kind: "direct-audio", format: "audio" });
     expect(parseFmStationUrl("https://radio.example/live.m3u8")).toMatchObject({ kind: "direct-audio", format: "hls" });
   });
@@ -46,7 +48,7 @@ describe("custom FM stations (#1208)", () => {
   it("rejects unsafe schemes and unsupported links", () => {
     for (const url of [
       "javascript:alert(1)", "data:audio/mp3;base64,AA==", "file:///tmp/live.mp3",
-      "http://radio.example/live.mp3", "https://example.com/radio", "https://youtube.com/@lofigirl",
+      "http://radio.example/live.mp3", "https://example.com/radio.html", "https://youtube.com/@lofigirl",
       // A login would sit in localStorage in plain text, and a browser will
       // not send one on a media request anyway.
       "https://user:secret@radio.example/live.mp3",
@@ -112,11 +114,11 @@ describe("custom FM stations (#1208)", () => {
     // is App's pick counter, not the source: a reload restores the source and
     // removing the active station changes it, and neither is a request.
     expect(app).toContain("onFmSource={pickFmSource}");
-    expect(app).toContain("playRequest={fmPlayRequest}");
+    expect(app).toContain("playRequest: fm.fmPlayRequest");
     // A pick of the station already set is still no pick — unless that
     // station is marked unavailable, when the pick is the retry.
     const pick = app.slice(app.indexOf("const pickFmSource"), app.indexOf("const markFmStationAvailability"));
-    expect(pick).toContain("if (next === fmSource && !retry) return;");
+    expect(pick).toContain("if (next === fmSource && !retry && !restart) return;");
     expect(pick).toMatch(/setFmSource\(next\);\s*setFmPlayRequest\(count => count \+ 1\);/);
     const removal = app.slice(app.indexOf("const removeFmStation"), app.indexOf("const pickFmSource"));
     expect(removal).toContain("selectionAfterRemovingStation");
@@ -126,7 +128,7 @@ describe("custom FM stations (#1208)", () => {
     expect(player).toContain("const asked = playRequestRef.current !== playRequest;");
     expect(player).toContain("setArmed(asked);");
     // A direct stream is started from the pick, as the embed is armed by it.
-    expect(player).toContain("if (asked) startDirect(custom.url, custom.format === \"hls\", source);");
+    expect(player).toContain("if (asked) startDirect(custom.url, isHls, source);");
     expect(player).toContain("startDirect(probe.audio, probe.hls === true, source);");
   });
 

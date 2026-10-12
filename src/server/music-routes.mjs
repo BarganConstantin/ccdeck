@@ -132,3 +132,26 @@ export async function handleCafeMusicBgm(req, res) {
   const answer = await fetchCafeMusicBgm();
   send(res, answer ? 200 : 404, answer ?? { ok: false, error: "Cafe Music BGM is not live" });
 }
+
+export async function handleRadioStations(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, off: true, stations: [] });
+  const { radioDirectory } = await import(pathToFileURL(join(PKG_ROOT, "src/server/radio-directory.mjs")).href);
+  const query = new URL(req.url, "http://localhost").searchParams;
+  try {
+    const stations = await radioDirectory.search({ name: query.get("name") ?? "", country: query.get("country") ?? "", tag: query.get("tag") ?? "", language: query.get("language") ?? "" });
+    send(res, 200, { ok: true, stations });
+  } catch { send(res, 503, { ok: false, error: "directory_unavailable", stations: [] }); }
+}
+
+export async function handleRadioClick(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") return send(res, 200, { ok: true, off: true });
+  const id = new URL(req.url, "http://localhost").searchParams.get("id") ?? "";
+  if (!/^radio-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)) return send(res, 400, { ok: false });
+  const { radioDirectory } = await import(pathToFileURL(join(PKG_ROOT, "src/server/radio-directory.mjs")).href);
+  await radioDirectory.click(id);
+  send(res, 200, { ok: true });
+}
+
+export function handleMusicConfig(req, res) {
+  send(res, 200, { enabled: process.env.AGENTS_DECK_NO_MUSIC !== "1" });
+}

@@ -465,6 +465,8 @@ export const GUARDED_READS = new Set([
   // only caller that needs it is the deck's own canvas, which sends
   // Sec-Fetch-Site: same-origin on every fetch.
   "/api/fm-station",
+  "/api/radio-stations",
+  "/api/radio-click",
 ]);
 
 export function isAuthorizedMutation(req) {
