@@ -73,13 +73,13 @@
   max-width: 190px;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px 5px 10px;
+  padding: 5px 12px 5px 12px;
   border-radius: 999px;
   background: var(--panel);
   border: 1px solid var(--line);
   font-size: 11px;
   font-family: var(--font-mono);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.20);
   white-space: nowrap;
   color: var(--text);
   /* Default animation: bubble flies out from the agent's centre. The
@@ -121,7 +121,7 @@
   width: 8px; height: 8px;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, var(--inflight), transparent 70%);
-  box-shadow: 0 0 8px var(--inflight);
+  box-shadow: none;
   animation: pulse var(--pulse-live) infinite;
 }
 .tool-burst .tb-mark {
@@ -141,7 +141,7 @@
 .tool-burst.status-inflight {
   border-color: rgba(240, 171, 252, 0.55);
   background: var(--burst-live-wash), var(--panel);
-  box-shadow: 0 0 0 1px rgba(240,171,252,0.30), 0 6px 18px rgba(240,171,252,0.25);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.20);
 }
 .tool-burst.status-inflight .tb-emoji {
   animation: emoji-wobble 1.6s ease-in-out infinite;
@@ -160,7 +160,7 @@
      It keeps the neutral elevation
      every bubble has. The failure below keeps everything, which leaves it the
      only bubble on the canvas lit in its own colour. */
-  box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.20);
   /* No delay on the flash, and that is the whole of #354's first defect.
      The delay used to read 460ms and the comment here used to say "spawn THEN
      flash, so neither interrupts the other" — which would be true if this list
@@ -288,7 +288,7 @@
 .tool-burst.sub {
   max-width: 140px;
   font-size: 10px;
-  padding: 4px 10px 4px 8px;
+  padding: 4px 10px 4px 11px;
   opacity: 0.94;
   animation: bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
@@ -331,7 +331,7 @@
 }
 .tool-burst.clickable:hover {
   translate: 0 -1px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.45), 0 0 0 1px var(--cat-accent, rgba(255,255,255,0.15));
+  box-shadow: 0 3px 8px rgba(0,0,0,0.26);
 }
 /* The press is `scale`, for the reason the lift above is `translate`: transform
    is bubble-spawn's for the bubble's whole life. Same convention as every other
@@ -430,11 +430,11 @@
 }
 
 :root[data-color-scheme="light"] .tool-burst {
-  box-shadow: 0 2px 8px rgba(15,23,42,0.10), 0 0 0 1px rgba(15,23,42,0.04);
+  box-shadow: 0 1px 4px rgba(15,23,42,0.10);
 }
 :root[data-color-scheme="light"] .tool-burst.status-inflight {
   border-color: rgba(126,34,206,0.55);
-  box-shadow: 0 0 0 1px rgba(126,34,206,0.20), 0 6px 14px rgba(126,34,206,0.18);
+  box-shadow: 0 1px 4px rgba(15,23,42,0.10);
 }
 :root[data-color-scheme="light"] .tool-burst.status-err {
   border-color: rgba(185,28,28,0.55);
@@ -459,7 +459,7 @@
    resting shadow and `transition: box-shadow 120ms` animated a property that
    never changed. Dark's geometry, in slate at --shadow-2's own weight. */
 :root[data-color-scheme="light"] .tool-burst.clickable:hover {
-  box-shadow: 0 6px 18px rgba(15,23,42,0.16), 0 0 0 1px var(--cat-accent, rgba(15,23,42,0.14));
+  box-shadow: 0 3px 8px rgba(15,23,42,0.14);
 }
 :root[data-color-scheme="light"] .tool-conn.status-inflight {
   stroke: rgba(126,34,206,0.85);
