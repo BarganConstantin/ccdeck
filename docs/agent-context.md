@@ -191,3 +191,18 @@ the entire conversation.
 - The installed `/home/constantin/Applications/ccdeck-linux-x86_64.AppImage`
   has not been replaced with this branch. These preview checks do not prove
   capture of a real external Claude telemetry stream.
+
+## Radar Monitor simplification — 2026-10-12
+
+The owner requested a simpler Monitor screen. With no history it now shows one
+empty workspace, the destination and Start monitoring. The inspector appears
+when retained activity exists; filters, Pause/Resume and Clear history sit in
+a closed native Filters and history disclosure. Session filtering appears only
+when sessions or captured exports make it relevant. Capture limits remain
+available in the footer. Capture APIs and settings behavior are unchanged.
+
+Validated by typecheck, production build and the full suite (1,036 files,
+13,071 tests), plus Chrome DevTools at 1280px, 390px and 320px with light/dark
+themes. Synthetic browser activity verified the populated inspector, disclosed
+filters, Pause/Resume and clear confirmation. Preview remains port 4329 with
+disposable settings; this does not establish real Claude traffic capture.

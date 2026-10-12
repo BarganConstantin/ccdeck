@@ -324,3 +324,23 @@
 .tr-feed-head .btn[aria-pressed="true"] { background: var(--ctl-fill); }
 .tr-monitor-footer summary { padding-inline: 6px; border-radius: var(--tr-radius); }
 .tr-monitor-footer summary:hover, .tr-monitor-footer details[open] > summary { background: var(--ctl-fill); color: var(--text); }
+
+/* Reveal the inspector and history tools only when there is activity to inspect. */
+.tr-workspace[data-empty="true"] { grid-template-columns: minmax(0, 1fr); }
+.tr-workspace[data-empty="true"] .tr-feed { display: flex; flex-direction: column; border-right: 0; }
+.tr-workspace[data-empty="true"] .tr-empty-capture { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 200px; padding: 24px; }
+.tr-workspace[data-empty="true"] .tr-empty-capture > svg { width: 32px; height: 32px; color: var(--muted); margin-bottom: 8px; }
+.tr-workspace[data-empty="true"] .tr-empty-capture .tr-note { max-width: 48ch; }
+.tr-feed-options { margin-block: 8px 16px; }
+.tr-feed-options > summary { font-size: 12px; }
+.tr-feed-options .tr-filter { margin-top: 12px; }
+.tr-feed-options .tr-capture-actions { margin-top: 12px; }
+@media (max-width: 640px) {
+  .tr-workspace[data-empty="true"] { flex: 1; }
+  .tr-workspace[data-empty="true"] .tr-feed { max-height: none; }
+}
+
+.tr-session-filter[hidden] { display: none; }
+@media (max-width: 640px) {
+  .tr-workspace[data-empty="true"] .tr-empty-capture { min-height: 160px; padding: 16px; }
+}

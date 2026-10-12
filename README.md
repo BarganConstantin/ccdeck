@@ -164,7 +164,9 @@ Open **Telemetry Radar** from the right rail, or **More → Telemetry Radar** on
 phone. Three views keep configuration, observed traffic and saved files separate:
 
 - **Monitor** lists decoded messages and unreadable connection observations.
-  Filter by session, destination or message type, then select a message for its
+  The empty view shows one workspace. History controls and filters appear under
+  **Filters and history** once activity arrives; the inspector appears alongside
+  the list. Filter by session, destination or message type, then select a message for its
   readable overview or decoded **JSON**. Session attribution comes from IDs in
   the captured payload; absent IDs remain unidentified, and an export containing
   multiple session IDs is shown under each matching session.
