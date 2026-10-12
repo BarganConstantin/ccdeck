@@ -287,8 +287,8 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     const h1s = BUNDLE.flatMap(([name, src]) => [...src.matchAll(/<h1[\s>]/g)].map(() => name));
     expect(h1s).toEqual(["components/TopbarReadouts.tsx"]);
     expect(code(readouts)).toMatch(/<h1>\{PRODUCT\}<\/h1>/);
-    // `{}` is what is left of the pointer comment between the two.
-    expect(code(app)).toMatch(/<header className="topbar">[\s{}]*<ReadoutGroup\b/);
+    // The desktop menu precedes the readout; the wordmark stays the sole h1.
+    expect(code(app)).toMatch(/<header className="topbar">[\s{}]*(?:<DesktopTitlebar\s*\/>[\s{}]*)?<ReadoutGroup\b/);
   });
 
   it("did not hide it, because the name it carries is already visible", () => {

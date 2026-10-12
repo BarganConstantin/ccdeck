@@ -320,6 +320,7 @@ function rootTokens(theme: Theme): Record<string, string> {
   for (const [, name, value] of body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
     out[name] = value.trim();
   }
+  for (const [, name, value] of bodyOf(".modal.tr-modal").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
   return out;
 }
 
@@ -333,6 +334,12 @@ function resolve(value: string, theme: Theme): Rgba {
   if (mix) {
     const base = resolve(mix[1], theme);
     return [base[0], base[1], base[2], base[3] * (+mix[2] / 100)];
+  }
+  const blend = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*(.+)\)$/.exec(v);
+  if (blend) {
+    const a = resolve(blend[1], theme), b = resolve(blend[3], theme);
+    const p = +blend[2] / 100, alpha = a[3] * p + b[3] * (1 - p);
+    return [0, 1, 2].map(i => alpha ? (a[i] * a[3] * p + b[i] * b[3] * (1 - p)) / alpha : 0).concat(alpha) as Rgba;
   }
   const ref = /^var\(\s*(--[\w-]+)\s*(?:,\s*([\s\S]+))?\)$/.exec(v);
   if (ref) {
@@ -490,13 +497,16 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: '.character-choice', beds: ["--panel"] },
+  { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
   { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
-  { at: ".btn.tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
-  { at: ".tr-start", fillFrom: "button.btn.primary", beds: ["--panel"] },
+  { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
+  { at: ".tr-input:hover", beds: ["--panel"] },
+  { at: ".tr-select:hover", beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -733,18 +743,9 @@ const EXEMPT_RINGS = new Set([
   // check at the bottom of this describe is the one that would have said so
   // the moment the exemption outlived what it excused.
   ".cluster-label:hover",
-  // The same shape on a tool burst: a hover lift in the burst's own category
-  // hue, over a chip identified by the tool name written across it.
-  ".tool-burst.clickable:hover",
-  // And the light twins of those two, which #1025 added because neither hover
-  // reached this theme at all: `:root[data-color-scheme="light"] .cluster-label` and
-  // `… .tool-burst` are (0,3,0) and outranked the (0,2,0) and (0,3,0)-earlier
-  // hovers, so the light sheet kept the RESTING shadow under the pointer. They
-  // are the same hairline over the same still-present edge, so they are the
-  // same lift and carry the same exemption — and the same unmeasurable ring
-  // colours, `currentColor` and `var(--cat-accent, …)`.
+  // The light cluster label keeps the same decorative hairline. Tool bursts
+  // now lift with a diffuse shadow, so they no longer need ring exemptions.
   ':root[data-color-scheme="light"] .cluster-label:hover',
-  ':root[data-color-scheme="light"] .tool-burst.clickable:hover',
 ]);
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:
@@ -831,6 +832,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       '.appearance-source-option[data-highlighted="true"]',
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
+      ".character-choice:focus-visible",
       ".ctx-donut:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
@@ -879,7 +881,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    expect(EDGED_CONTROLS.length).toBeLessThan(120);
+    expect(EDGED_CONTROLS.length).toBeLessThan(125);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

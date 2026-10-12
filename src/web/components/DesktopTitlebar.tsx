@@ -14,7 +14,7 @@ export default function DesktopTitlebar() {
   useEffect(() => {
     if (!desktop) return;
     const sync = () => {
-      const bar = document.querySelector<HTMLElement>(".desktop-titlebar");
+      const bar = document.querySelector<HTMLElement>(".topbar");
       if (!bar) return;
       const style = getComputedStyle(bar);
       const hex = (rgb: string) => {
@@ -28,18 +28,13 @@ export default function DesktopTitlebar() {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-color-scheme"] });
     return () => observer.disconnect();
   }, [desktop]);
-  if (!desktop) return null;
+  if (!desktop || desktop.platform === "darwin") return null;
   return (
-    <div className="desktop-titlebar" data-platform={desktop.platform}>
-      {desktop.platform !== "darwin" && (
-        <button type="button" className="desktop-menu btn" aria-label="Application menu" title="Application menu" aria-haspopup="menu"
-          onClick={() => { void desktop.menu().catch(() => {}); }}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-          </svg>
-        </button>
-      )}
-      <span className="desktop-window-name">ccdeck</span>
-    </div>
+    <button type="button" className="desktop-menu btn" aria-label="Application menu" title="Application menu" aria-haspopup="menu"
+      onClick={() => { void desktop.menu().catch(() => {}); }}>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      </svg>
+    </button>
   );
 }

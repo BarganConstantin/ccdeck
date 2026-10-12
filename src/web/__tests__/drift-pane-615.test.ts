@@ -259,7 +259,7 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     expect(css).toMatch(/\.app\s*\{[^}]*grid-template-rows:\s*var\(--topbar-h\) auto 1fr;/);
     expect(TOPBAR_H).toBe(44);
     expect(css).toMatch(/\.app\s*\{\s*padding-inline:\s*var\(--edge-w\);\s*\}/);
-    expect(EDGES_W).toBe(60);
+    expect(EDGES_W).toBe(80);
     expect(css).toMatch(/\.canvas-wrap\s*\{[^}]*grid-row:\s*3;/);
     expect(css).toMatch(/\.conn-banner\s*\{[^}]*grid-row:\s*2;/);
     expect(css).toMatch(/\.ver-banner\s*\{[^}]*grid-row:\s*2;/);
@@ -302,14 +302,14 @@ describe("a graph past the pane's right edge is recovered in every layout", () =
     // read as visible and the failsafe stayed asleep — and since the edge
     // stripes, 60px of them in the layout the guess was written for as well.
     const tooWide = LAYOUTS.filter(l => paneFor(l).width < GUESS.width);
-    expect(tooWide.map(l => l.name)).toEqual(["detail only", "sessions + detail", "accounts + detail"]);
+    expect(tooWide.map(l => l.name)).toEqual(["detail only", "sessions + detail", "accounts + detail", "sessions only", "accounts only (the deck's first run)"]);
     for (const layout of tooWide) {
       const pane = paneFor(layout);
-      const boxes = [cardAtScreen(pane.width + 20, 100)];
+      const boxes = [cardAtScreen(pane.width + Math.min(20, (GUESS.width - pane.width) / 2), 100)];
       // The truth: nothing is on the canvas, so the deck goes and fetches it.
       expect(
         shouldRefit({ pane, viewport: VP, boxes }),
-        `${layout.name}: a card at ${pane.width + 20}px is off a ${pane.width}px pane, ` +
+        `${layout.name}: a card at ${pane.width + Math.min(20, (GUESS.width - pane.width) / 2)}px is off a ${pane.width}px pane, ` +
         `and the failsafe exists to bring it back`,
       ).toBe(true);
       // The guess: it is behind the detail panel and counted as on screen.
@@ -343,7 +343,7 @@ describe("a card on the canvas is never mistaken for a drifted one", () => {
     // happened to sit in that strip was a fit the user did not ask for.
     const tooNarrow = LAYOUTS.filter(l => paneFor(l).width > GUESS.width);
     expect(tooNarrow.map(l => l.name)).toEqual([
-      "neither panel", "sessions only", "accounts only (the deck's first run)",
+      "neither panel",
     ]);
     for (const layout of tooNarrow) {
       const pane = paneFor(layout);

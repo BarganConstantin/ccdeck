@@ -33,7 +33,7 @@ import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from ".
 // and a session's card cannot disagree about which lines billed anything, nor
 // about the speed they were billed at — see transcript-scan.mjs.
 import {
-  billedSpeed, hasSpend, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
+  billedSpeed, isLongContextRequest, hasSpend, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
   requestBilling, newRequestLedger, noteRequestRecord, streamingRequestId,
   BILL_LINE, REBILL_REQUEST, SKIP_LINE,
 } from "./transcript-scan.mjs";
@@ -43,7 +43,7 @@ import {
  *  a per-account total is never quietly inflated by work that is not that
  *  account's. A NUL keeps it from ever colliding with a real `email@@org` key. */
 export const UNATTRIBUTED = "\u0000unattributed";
-const STATE_VERSION = 6;
+const STATE_VERSION = 7;
 
 /** Where the tally and cursors live, beside cswap-auto's own state. */
 export function statePath(home = homedir()) {
@@ -102,6 +102,7 @@ function asUsageTotals(c) {
 function addInto(dst, src) {
   dst.i += src.i; dst.o += src.o; dst.cr += src.cr;
   dst.cc += src.cc; dst.c1h += src.c1h; dst.c5m += src.c5m;
+  if (src.l) addInto(dst.l ??= zero(), src.l);
   if (src.s) for (const [speed, share] of Object.entries(src.s)) addInto(speedShareOf(dst, speed), share);
   return dst;
 }
@@ -282,22 +283,29 @@ export function foldLine(tally, line, timeline, from) {
   const speed = billedSpeed(obj);
   const share = speed ? speedShareKey(counters, speed) : null;
   if (share) addInto(counters.s[share], c);
+  const long = isLongContextRequest(model, usage);
+  if (long) {
+    addInto(counters.l ??= zero(), c);
+    if (share) addInto(counters.s[share].l ??= zero(), c);
+  }
   if (billing === REBILL_REQUEST) dropIfEmpty(tally, ledger.streaming);
   if (billing === BILL_LINE || !requests) return;
   // What a request still streaming was charged, and where, so its final
   // record can take that back, in this pass or a later one.
   const id = streamingRequestId(obj);
-  requests[from.path].streaming = id === null ? null : { id, at: [key, cwd, day, model], s: share, c };
+  requests[from.path].streaming = id === null ? null : { id, at: [key, cwd, day, model], s: share, long, c };
 }
 
 /** Take a streaming request's charge back out of the row it was charged to,
  *  for its later record to charge in its place. A row pruned since has
  *  nothing left to take back. */
-function refund(tally, { at: [key, cwd, day, model], s, c }) {
+function refund(tally, { at: [key, cwd, day, model], s, long, c }) {
   const counters = tally[key]?.[cwd]?.[day]?.[model];
   if (!counters) return;
   takeFrom(counters, c);
   if (s && counters.s?.[s]) takeFrom(counters.s[s], c);
+  if (long && counters.l) takeFrom(counters.l, c);
+  if (long && s && counters.s?.[s]?.l) takeFrom(counters.s[s].l, c);
 }
 
 /** Remove what a refund left at zero — a speed share, or a whole row whose
@@ -500,14 +508,15 @@ export function createProjectRollup({
         state = disk;
         state.folders ??= {};
         state.requests ??= {};
-      } else if (disk && [1, 2, 3, 4, 5].includes(disk.version)) {
+      } else if (disk && [1, 2, 3, 4, 5, 6].includes(disk.version)) {
         // Version 1 counted every API content block; version 2 keyed each row
         // by the line's own cwd, a row per folder the agent cd'd into (#1278);
         // version 3 kept no speed, so every fast turn read at the standard
         // rate; version 4 billed a subagent's request from its streaming
         // snapshot, most of its output and its speed missing (#1883); version
         // 5 billed a resumed subagent's request again each time its file
-        // restated its history. None of them can be re-keyed, since it no
+        // restated its history; version 6 kept no per-request context tiers.
+        // None of them can be re-keyed, since it no
         // longer knows which transcript a count came from. Keep the heartbeat
         // so a restart gap remains fenced, but rebuild the tally from
         // transcripts.

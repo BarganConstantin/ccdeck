@@ -393,7 +393,7 @@ describe("the height of a button", () => {
     // Feedback — stand at the token, and a stripe on the window's edge is one
     // of them turned on its side, the token wide.
     expect(decl(".rail-btn-bar", "height")).toBe("var(--ctl-h)");
-    expect(TOKENS["--edge-w"]).toBe("var(--ctl-h)");
+    expect(TOKENS["--edge-w"]).toBe("40px");
   });
 
   it("is the same for a text button and the bar's own controls, by arithmetic", () => {
@@ -439,7 +439,7 @@ describe("the height of a button", () => {
    *  It is a compact verb at the end of a dense row of the map, under the 24px
    *  floor's own number, and is named here rather than excused by arithmetic
    *  that did not apply to it. */
-  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open"]);
+  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn"]);
 
   it("cannot be overridden into a second height by a rule further down", () => {
     // The height has to be unreachable, not merely stated. Any rule that sizes

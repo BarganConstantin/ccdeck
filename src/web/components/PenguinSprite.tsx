@@ -4,7 +4,7 @@ import { GEAR_CELLS, SPRITE, spriteRects } from "../claude-fm-sprite";
 import { PENGUIN } from "../penguin-sprite";
 
 const FILLS: Record<string, string> = {
-  d: "#3b4855", h: "#657b8b", w: "#f4f0df", e: "#19242b", b: "#f0b44b",
+  d: "#3b4855", h: "#657b8b", w: "#f4f0df", e: "#19242b", b: "#f0b44b", s: "#c88736",
 };
 const GEAR_CLASSES: Record<string, string | undefined> = { p: "fm-pad" };
 const RECTS = spriteRects(PENGUIN);
@@ -44,7 +44,7 @@ export default memo(function PenguinSprite({ act }: { act: Act | null; facing: F
       <path d="M5 12H8V13H5Z" /><path d="M10 12H13V13H10Z" />
     </g>}
     {seated && <g className="fm-seated-legs" style={{ fill: FILLS.b }}>
-      <path className="fm-seated-far" style={{ fill: "#c88736" }} d="M10 11H12V12H13V14H10V13H11V12H10Z" />
+      <path className="fm-seated-far" style={{ fill: FILLS.s }} d="M10 11H12V12H13V14H10V13H11V12H10Z" />
       <path d="M6 11H8V12H7V13H8V14H4V13H5V12H6Z" />
     </g>}
     {(["left", "right"] as const).map(side => <g key={side} className="fm-leg" data-side={side}>

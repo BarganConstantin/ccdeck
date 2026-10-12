@@ -220,7 +220,7 @@ describe("the page around the dock", () => {
   it("gives the stripes' width back to the page, which has no stripes there", () => {
     const root = [el("html", [], { states: ["root"] })];
     expect(cascade(s => selects(s, root), "--edge-w", 390)).toBe("0px");
-    expect(cascade(s => selects(s, root), "--edge-w", 641)).toBe("var(--ctl-h)");
+    expect(cascade(s => selects(s, root), "--edge-w", 641)).toBe("40px");
   });
 
   it("marks an open panel with the stripes' line, on the dock's top edge, in the foreground and not the accent", () => {
