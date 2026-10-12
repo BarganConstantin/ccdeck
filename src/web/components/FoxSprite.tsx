@@ -1,24 +1,32 @@
 import { memo } from "react";
 import type { Act, Facing } from "../claude-fm";
-import { FOX } from "../fox-sprite";
-import { GEAR_CELLS, HAT, HAT_X, HAT_Y, SPRITE, spriteRects } from "../claude-fm-sprite";
+import { FOX, FOX_GEAR, FOX_HAT } from "../fox-sprite";
+import { spriteRects, type SpriteRect } from "../claude-fm-sprite";
 
 const FILLS: Record<string, string> = {
   f: "#d88735", s: "#a55b24", o: "#63351e", w: "#ffe2aa", n: "#372821",
 };
 const GEAR_CLASSES: Record<string, string | undefined> = { p: "fm-pad" };
 const RECTS = spriteRects(FOX);
-const GEAR = spriteRects(SPRITE).filter(r => GEAR_CELLS.has(r.cell));
-const HAT_RECTS = spriteRects(HAT);
-const TAIL = RECTS.filter(r => r.x >= 13);
-const BODY = RECTS.filter(r => r.x < 13 && r.y < 11 && r.cell !== "e")
+const GEAR = spriteRects(FOX_GEAR);
+const HAT_RECTS = spriteRects(FOX_HAT);
+// A run can cross a part boundary. Clip it rather than assigning the whole
+// run by its starting column, which made the tail base walk with the feet.
+function clip(rects: SpriteRect[], left: number, right: number): SpriteRect[] {
+  return rects.map(r => ({ ...r, x: Math.max(left, r.x),
+    w: Math.max(0, Math.min(right, r.x + r.w) - Math.max(left, r.x)) }))
+    .filter(r => r.w > 0);
+}
+const TAIL = clip(RECTS.filter(r => r.y >= 8), 12, 18);
+const BODY = RECTS.filter(r => r.y < 11 && r.cell !== "e")
   .map(r => r.y === 8 || r.y === 9
     ? { ...r, x: Math.max(6, r.x), w: Math.max(0, Math.min(12, r.x + r.w) - Math.max(6, r.x)) }
+    : r.y === 10 ? { ...r, w: Math.max(0, Math.min(12, r.x + r.w) - r.x) }
     : r).filter(r => r.w > 0);
 const EYES = RECTS.filter(r => r.cell === "e");
 const LEGS = {
-  left: RECTS.filter(r => r.y >= 11 && r.x < 9),
-  right: RECTS.filter(r => r.y >= 11 && r.x >= 9 && r.x < 13),
+  left: clip(RECTS.filter(r => r.y >= 11), 0, 9),
+  right: clip(RECTS.filter(r => r.y >= 11), 9, 12),
 };
 
 export default memo(function FoxSprite({ act, facing }: { act: Act | null; facing: Facing }) {
@@ -26,7 +34,7 @@ export default memo(function FoxSprite({ act, facing }: { act: Act | null; facin
   const crouch = act === "land" || act === "dismount";
   const seated = act === "sit" || act === "cast" || act === "fish" || act === "reel" || act === "stow";
   return <svg data-character="fox" viewBox="0 0 18 14" shapeRendering="crispEdges" aria-hidden focusable="false">
-    <g className="fm-body">
+    <g className="fm-body" data-part="tail">
       {TAIL.map(r => <rect key={`t${r.y}-${r.x}`} x={r.x} y={r.y} width={r.w} height={1} fill={FILLS[r.cell]} />)}
     </g>
     <g className="fm-gear"><g className="fm-gear-motion">
@@ -43,7 +51,7 @@ export default memo(function FoxSprite({ act, facing }: { act: Act | null; facin
         y={r.y} width={r.w} height={1} className="fm-eye" style={{ fill: FILLS.n }} />)}
     </g>
     <g className="fm-hat">
-      {HAT_RECTS.map(r => <rect key={`h${r.y}-${r.x}`} x={HAT_X + r.x} y={HAT_Y + r.y}
+      {HAT_RECTS.map(r => <rect key={`h${r.y}-${r.x}`} x={5 + r.x} y={r.y}
         width={r.w} height={1} fill={r.cell === "k" ? "#63351e" : "#bf5738"} />)}
     </g>
     {grips && <g className="fm-grip" style={{ fill: FILLS.f }}>

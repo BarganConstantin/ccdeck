@@ -70,4 +70,17 @@ describe("character selection", () => {
     expect(renderToStaticMarkup(createElement(CharacterSprite, { character: "deck", act: null, facing: "right" })))
       .not.toContain('data-character="fox"');
   });
+
+  it("keeps the tail out of the stepping legs, including runs across the boundary", () => {
+    const html = renderToStaticMarkup(createElement(CharacterSprite, { character: "fox", act: "walk", facing: "right" }));
+    const tail = html.match(/<g class="fm-body" data-part="tail">(.*?)<\/g>/)?.[1];
+    expect(tail).toContain('x="12" y="11" width="2"');
+    const legs = [...html.matchAll(/<g class="fm-leg" data-side="(?:left|right)">(.*?)<\/g>/g)];
+    expect(legs).toHaveLength(2);
+    for (const leg of legs) for (const rect of leg[1].matchAll(/x="(\d+)" y="\d+" width="(\d+)"/g)) {
+      expect(Number(rect[1]) + Number(rect[2])).toBeLessThanOrEqual(12);
+    }
+    // The hips connect to the tail above the animated feet.
+    expect(FOX[10].slice(10, 14)).not.toContain(".");
+  });
 });
