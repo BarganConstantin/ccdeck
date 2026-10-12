@@ -99,6 +99,7 @@
 .radio-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .radio-search input { flex: 1; min-width: 0; color: var(--text); border: 0; background: none; font: inherit; min-height: 24px; }
 .radio-search input:focus { outline: none; }
+.radio-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
 .radio-search .icon-btn { width: 22px; min-width: 22px; height: 22px; }
 .radio-search input::placeholder, .radio-filters input::placeholder { color: var(--text-secondary); opacity: 1; }
 .radio-filters { display: grid; grid-template-columns: 1.2fr 1fr .95fr; gap: 6px; flex: none; }
