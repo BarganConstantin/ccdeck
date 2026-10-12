@@ -8,13 +8,13 @@ import type { useRadioLibrary } from "../use-radio-library";
 import { containPopoverKeys } from "../shortcuts";
 import world from "../assets/radio-world.json";
 import RadioIcon from "./RadioIcon";
+import RadioCountryFlag from "./RadioCountryFlag";
 import RadioMap from "./RadioMap";
 import RadioLoading from "./RadioLoading";
 import VolumeRow from "./VolumeRow";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 const genres = ["ambient", "classical", "electronic", "jazz", "lofi", "pop", "rock", "news"];
-const countryFlag = (code: string) => /^[A-Z]{2}$/.test(code) ? String.fromCodePoint(...[...code].map(letter => 0x1f1e6 + letter.charCodeAt(0) - 65)) : null;
 const cleanLabel = (label: string) => label.replace(/^[^\p{L}\p{N}]+/u, "");
 const stationMetadata = (station: RadioStation) => [station.radio.country, station.radio.tags.split(",").filter(Boolean).slice(0, 2).join(", ")].filter(Boolean).join(" · ");
 
@@ -160,7 +160,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     </header>
     <div className="radio-player" data-state={state}>
       <section className="radio-now" aria-label="Current station">
-        <div className="radio-art" aria-hidden="true">{current && countryFlag(current.radio.countryCode) ? <span className="radio-art-flag">{countryFlag(current.radio.countryCode)}</span> : <RadioIcon name="radio" />}</div>
+        <div className="radio-art" aria-hidden="true"><RadioCountryFlag code={current?.radio.countryCode} /></div>
         <div className="radio-now-meta"><strong title={label}>{label}</strong><div className="radio-now-details"><span className="radio-now-location">{current ? [current.radio.region, current.radio.country].filter(Boolean).join(", ") : "Your music on ccdeck"}</span><span role="status" aria-label={status} title={status} className={`radio-playback-status ${showFailure ? "radio-error" : ""}`}><i aria-hidden="true" />{narrow && showFailure ? "Unavailable" : status}</span></div></div>
       </section>
       <div className="radio-player-actions">
@@ -191,7 +191,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
           {enabled && stations.map(station => {
             const selected = inspected?.id === station.id, active = current?.id === station.id, audible = active && player.playing, unavailable = fm.unavailableFmStations.has(station.id);
             return <div className={`radio-station${selected ? " selected" : ""}${active ? " current" : ""}${audible ? " playing" : ""}`} key={station.id} data-station-id={station.id}>
-              <button type="button" className="radio-station-pick" aria-label={`Inspect ${station.name}, ${station.radio.country}`} aria-pressed={selected} onClick={() => inspect(station)}><span className="radio-station-code" aria-hidden="true">{countryFlag(station.radio.countryCode) || <RadioIcon name="radio" />}</span><span className="radio-station-copy"><strong title={station.name}>{station.name}</strong><span>{unavailable ? "Stream unavailable · retry" : stationMetadata(station) || "No station details"}</span>{active && !unavailable && <span className="radio-row-state">{audible ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></button>
+              <button type="button" className="radio-station-pick" aria-label={`Inspect ${station.name}, ${station.radio.country}`} aria-pressed={selected} onClick={() => inspect(station)}><span className="radio-station-code" aria-hidden="true"><RadioCountryFlag code={station.radio.countryCode} /></span><span className="radio-station-copy"><strong title={station.name}>{station.name}</strong><span>{unavailable ? "Stream unavailable · retry" : stationMetadata(station) || "No station details"}</span>{active && !unavailable && <span className="radio-row-state">{audible ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></button>
               <button type="button" className="icon-btn radio-row-play" aria-label={`${active && player.armed ? "Pause" : unavailable ? "Retry" : "Play"} ${station.name}, ${station.radio.country}`} onClick={() => pick(station)}><RadioIcon name={active && player.armed ? "pause" : "play"} /></button>
               <button type="button" className="icon-btn radio-favorite" aria-pressed={library.favorites.includes(station.id)} aria-label={`${library.favorites.includes(station.id) ? "Unsave" : "Save"} ${station.name}`} onClick={() => toggleFavorite(station)}><RadioIcon name="heart" /></button>
             </div>;
