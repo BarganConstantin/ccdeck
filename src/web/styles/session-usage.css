@@ -1,0 +1,40 @@
+/* A focused whole-session report, using the shared dialog and usage tokens. */
+.modal.su-modal { width: min(560px, 92vw); color: var(--text); }
+.su-title { min-width: 0; }
+.su-title h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.su-title > span { display: block; margin-top: 3px; color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.su-body { min-height: 0; gap: 14px; font-size: 12px; }
+.su-scope, .su-note { color: var(--text-dim); line-height: 1.6; }
+.su-note, .su-message { margin: 0; }
+.su-message { padding-block: 16px; line-height: 1.6; }
+.su-pricing { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
+.su-pricing select { max-width: 100%; min-width: 0; font: inherit; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 8px; }
+.su-totals, .su-tokens, .su-dates { margin: 0; }
+.su-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-block: 4px 14px; border-bottom: 1px solid var(--line); }
+.su-totals dt, .su-tokens dt, .su-dates dt { color: var(--text-dim); }
+.su-totals dd { margin: 5px 0 0; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.su-tokens { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
+.su-tokens > div { display: flex; justify-content: space-between; gap: 8px; }
+.su-tokens dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.su-models h3 { margin: 4px 0 8px; font-size: 12px; font-weight: 600; }
+.su-models table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.su-models th, .su-models td { padding: 8px 0; border-bottom: 1px solid var(--line); text-align: left; overflow-wrap: anywhere; }
+.su-models th { font-weight: 400; }
+.su-models thead th { color: var(--text-dim); font-size: 11px; }
+.su-models th:last-child, .su-models td { width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
+.su-unpriced { color: var(--text-dim); font-size: 11px; }
+.su-dates { display: grid; gap: 8px; }
+.su-dates > div { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.su-dates dd { margin: 0; font-variant-numeric: tabular-nums; }
+.su-id { color: var(--text-dim); }
+.su-id summary { cursor: pointer; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.su-id summary:active { transform: scale(0.97); }
+.su-id code { display: block; margin-top: 8px; overflow-wrap: anywhere; color: var(--text); user-select: text; }
+.up-session-open { width: 100%; min-height: 28px; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background 120ms; }
+.up-session-open:hover { background: var(--bg-soft); }
+.up-session-open:active { background: var(--accent-dim); transform: scale(0.97); }
+.up-session-inspect { flex: none; color: var(--text-dim); }
+@media (prefers-reduced-motion: reduce) {
+  .up-session-open, .su-id summary { transition: none; }
+  .up-session-open:active, .su-id summary:active { transform: none; }
+}

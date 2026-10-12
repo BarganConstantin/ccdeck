@@ -24,6 +24,8 @@ import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
 import UsageModelTable from "./UsageModelTable";
 import UsagePeriodStrip from "./UsagePeriodStrip";
 import UsageSessionBreakdown from "./UsageSessionBreakdown";
+import SessionUsageModal from "./SessionUsageModal";
+import type { SessionSelection } from "../session-usage";
 import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
 import { useUsageRange } from "../use-usage-range";
@@ -78,6 +80,11 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   liveSince?: number | null;
 }) {
   const singleKeys = useSingleKeyShortcuts();
+  const [inspectedSession, setInspectedSession] = useState<SessionSelection | null>(null);
+  const boardProviders = useMemo(() => new Map(
+    [...state.agents.values()].filter(agent => agent.kind === "root")
+      .map(agent => [agent.sessionId, agent.provider ?? "claude"]),
+  ), [state, state.revision]);
   const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
   const { data: codexUsage } = useCodexUsage(providers.codex);
@@ -459,6 +466,8 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               setSessionsOpen={setSessionsOpen}
               periodNoun={periodNoun}
               sessionScale={sessionScale}
+              onOpenSession={setInspectedSession}
+              boardProviders={boardProviders}
             />
           )}
 
@@ -488,6 +497,8 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       {/* The panel's last line, whatever is above it: the header's row is
           already the title, the burn rate and two acts. */}
       <div className="film-foot"><FilmLink film="usage" /></div>
+      {inspectedSession && <SessionUsageModal key={`${inspectedSession.agent}:${inspectedSession.sessionId}`}
+        session={inspectedSession} onClose={() => setInspectedSession(null)} />}
     </aside>
   );
 }
