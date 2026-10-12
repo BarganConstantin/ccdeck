@@ -141,7 +141,7 @@ describe("the text ramp has three readable levels in both themes", () => {
 
 describe("what was migrated to the secondary tier", () => {
   /** The rules that read it, by selector, from the sheet itself. */
-  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?color:\s*var\(--text-secondary\)/g)]
+  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?(?<![-\w])color:\s*var\(--text-secondary\)/g)]
     .map(m => m[2].trim());
 
   it("is prose a reader reads, not metadata they glance at", () => {
@@ -235,6 +235,7 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-directory-error p",
       ".radio-empty",
       ".radio-eyebrow",
+      ".radio-filter-label",
       ".radio-header h2 span",
       ".radio-header-note",
       ".radio-inspector-name span",

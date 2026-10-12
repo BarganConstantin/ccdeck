@@ -502,8 +502,9 @@ interface Control {
 const CONTROLS: Control[] = [
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
-  { at: ".radio-filters input", beds: ["--panel"] },
-  { at: ".radio-filters select", beds: ["--panel"] },
+  { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filters input", states: [".radio-filters :is(input, select):focus-visible", ".radio-filters :is(input, select):hover:not(:focus-visible)"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filters select", states: [".radio-filters :is(input, select):focus-visible", ".radio-filters :is(input, select):hover:not(:focus-visible)"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
   { at: '.character-choice', beds: ["--panel"] },
