@@ -109,6 +109,12 @@ Improved reliability and security across the local server and desktop app.
 
 Small releases do not need every heading. Two or three clear lines are better than empty sections.
 
+For a release with no meaningful change the user would notice, use exactly
+`🐛 Bug fixes and performance improvements.` as the annotated tag message and
+the entire GitHub release body. Keep it to that one line, including after any
+workflow-generated footer is added. In the app, use the `//nothing-to-say`
+convention below so this version creates no new What's new dialog.
+
 `release-notes.json` is the source of truth for release-note data, version handling, formatting constraints, and the `//nothing-to-say` convention. Follow its embedded authoring rules exactly when editing that file.
 
 ## Brand

@@ -224,7 +224,7 @@ export default function BoardFlow({
       {/* Above the minimap, and absent unless there is something to play —
           ClaudeFm renders null until the server says the channel is on air,
           so on a deck with no network this is nothing at all. */}
-      <RadioExperience fm={fm} characterEnabled={characterEnabled} open={radioOpen} onClose={onRadioClose} />
+      <RadioExperience fm={fm} character={appearance.character} characterEnabled={characterEnabled} open={radioOpen} onClose={onRadioClose} />
     </ReactFlow>
   );
 }

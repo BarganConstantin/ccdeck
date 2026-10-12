@@ -1,10 +1,4 @@
-// Settings › Music & character: Claude FM's station, its volume and its mute,
-// and the minimap character the music plays through.
-//
-// Lifted out of the Appearance modal when that became the General section of
-// Settings. The character had been filed under "Music source"; it is its own
-// group here, with the sentence that ties the two together on screen — the
-// music plays through the character, so hiding it keeps the music playing.
+// Settings › Music: Claude FM stations, volume and mute.
 import { type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import VolumeRow from "./VolumeRow";
 import { FM_SOURCE_OPTIONS } from "../appearance";
@@ -21,8 +15,6 @@ const NAME_MISSING = "Give the station a name.";
 const LINK_UNUSABLE = "Use an https YouTube live or channel link, or a direct https audio stream.";
 
 export interface MusicProps {
-  characterEnabled: boolean;
-  onToggleCharacter: () => void;
   /** The stream's loudness, as the slider's own 0–100 level. */
   fmVolume: number;
   onFmVolume: (level: number) => void;
@@ -38,7 +30,7 @@ export interface MusicProps {
 }
 
 export default function MusicSection({
-  characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmMuted, onFmMuted,
+  fmVolume, onFmVolume, fmMuted, onFmMuted,
   fmSource, onFmSource, customFmStations, unavailableFmStations,
   onAddFmStation, onRenameFmStation, onRemoveFmStation,
 }: MusicProps) {
@@ -427,39 +419,7 @@ export default function MusicSection({
         </span>
       </section>
 
-      {/* THE CHARACTER, IN ITS OWN GROUP. It was a row under "Music source",
-          where it read as a music setting; it is the thing the music plays
-          through, which is what its note now says on screen rather than only
-          to a reader. Under the hairline every second subject in a Settings
-          section stands under, and unboxed, as Claude FM's controls are.
-          THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
-          press anywhere in it to the switch exactly once — a press on the
-          switch itself is the switch's own and the label does not repeat it —
-          so there is one tab stop and no second toggle. */}
-      <section className="settings-group" aria-labelledby="appearance-character-caption">
-        <div className="settings-caption">
-          <h3 id="appearance-character-caption">Character</h3>
-        </div>
-        <div className="appearance-controls">
-        <label className="appearance-row">
-          <span className="appearance-row-label" id="appearance-character-label">Show character on minimap</span>
-          <button
-            type="button"
-            className="switch"
-            role="switch"
-            aria-checked={characterEnabled}
-            aria-labelledby="appearance-character-label"
-            aria-describedby="appearance-character-note"
-            onClick={onToggleCharacter}
-          >
-            <span className="switch-knob" />
-          </button>
-          <span id="appearance-character-note" className="appearance-row-note">
-            Music keeps playing when you hide the character. Open Radio on the canvas to control it.
-          </span>
-        </label>
-        </div>
-      </section>
+
     </>
   );
 }

@@ -49,7 +49,8 @@ import {
 } from "../fm-stations";
 import { useFmPlayer, type FmPlayer } from "../use-fm-player";
 import { useFmScene } from "../use-fm-scene";
-import FmSprite from "./FmSprite";
+import CharacterSprite from "./CharacterSprite";
+import type { Character } from "../character";
 
 const SOURCE_LABEL: Record<FmSource, string> = {
   "claude-fm": "Claude FM",
@@ -96,7 +97,8 @@ function streamHost(url: string): string {
   try { return new URL(url).host; } catch { return "the station's server"; }
 }
 
-export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, source, customStation }: {
+export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, source, customStation, character = "deck" }: {
+  character?: Character;
   player: FmPlayer;
   source: FmSelection;
   customStation?: CustomFmStation;
@@ -216,7 +218,7 @@ export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, sourc
           title={playing ? `Stop ${label}` : `Play ${label} — streams from ${from}`}
           aria-label={playing ? `Stop ${label}` : `Play ${label}`}
         >
-          <FmSprite act={act} facing={facing} />
+          <CharacterSprite character={character} act={act} facing={facing} />
         </button>
         </div>
 
@@ -251,8 +253,8 @@ export function FmPlaybackFrame({ player, label }: { player: FmPlayer; label: st
   )}</>;
 }
 
-export default function ClaudeFm(options: Parameters<typeof useFmPlayer>[0]) {
+export default function ClaudeFm(options: Parameters<typeof useFmPlayer>[0] & { character?: Character }) {
   const player = useFmPlayer(options);
-  return <><ClaudeFmCharacter player={player} source={options.source} customStation={options.customStation} />
+  return <><ClaudeFmCharacter character={options.character} player={player} source={options.source} customStation={options.customStation} />
     <FmPlaybackFrame player={player} label={sourceLabel(options.source, options.customStation)} /></>;
 }
