@@ -41,12 +41,13 @@
 .radio-controls > .btn { display: flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; font-size: 11px; min-height: 34px; padding-inline: 10px; background: var(--ctl-fill); border-color: var(--line); color: var(--text-secondary); transition: background 120ms ease, color 120ms ease; }
 .radio-controls > .btn:hover { color: var(--text); background: var(--panel); border-color: var(--ctl-edge); }
 .radio-controls > .btn svg { width: 16px; height: 16px; flex: none; }
+.radio-controls > .radio-mute { width: 88px; flex: none; }
 .radio-controls .sm-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 80px; margin: 0; }
 .radio-controls .sm-row label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .radio-controls .sm-row input { min-width: 45px; width: 100%; cursor: pointer; }
 .radio-controls input[type="range"]::-webkit-slider-thumb { cursor: pointer; }
 .radio-controls input[type="range"]::-moz-range-thumb { cursor: pointer; }
-.radio-controls .sm-read { font-size: 11px; font-family: var(--font-mono); color: var(--muted); min-width: 30px; text-align: right; }
+.radio-controls .sm-read { font-size: 11px; font-family: var(--font-mono); color: var(--muted); min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
 .radio-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); }
 .radio-geography { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); padding: 18px 16px 0; }
 .radio-map-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; padding-block: 3px; overflow-x: auto; overscroll-behavior-x: contain; flex: none; }
@@ -193,6 +194,8 @@
   .radio-now-meta > strong { font-size: 13px; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .radio-controls { gap: 6px; }
   .radio-controls > .btn { padding-inline: 6px; }
+  .radio-controls > .radio-mute { width: 80px; }
+  .radio-controls .sm-row { min-width: 64px; }
   .radio-controls .sm-read { display: none; }
   .radio-station .icon-btn { min-width: 34px; width: 34px; height: 44px; }
   .radio-filters { grid-template-columns: 1.15fr 1fr 1fr; }
