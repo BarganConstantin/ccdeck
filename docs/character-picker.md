@@ -74,3 +74,19 @@ and climbing poses, with and without headphones. Live audio playback was not
 exercised by these isolated checks.
 An additional 32-frame browser check tests the animated climbing paths against
 the eye and beak centers, confirming that the raised flippers leave them visible.
+
+## Pixel-art review
+
+The penguin's face now has a feathered hood and white cheek patches. Its pupils
+stay centered around the beak in both facings. The torso retains its feathered
+sides under the lifting flippers, preventing detached corner pixels on hover.
+
+Deck companion and Fox use raised grip paths that leave both eyes visible while
+climbing and connect at the shoulder through the two-frame movement. The grip
+tip still reaches the existing rope center. A small reach above the head uses
+the scene's intentional SVG overflow.
+
+Review sheets cover all three characters in dark/light themes and both facings,
+with idle, walking, seated, climbing, landing, hover, dancing and fishing poses,
+with/without headphones. Sitting lowers the sprite over the minimap ledge on
+purpose; feet below the edge in that pose are expected.

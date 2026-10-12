@@ -92,4 +92,24 @@ describe("character selection", () => {
     // The hips connect to the tail above the animated feet.
     expect(FOX[10].slice(10, 14)).not.toContain(".");
   });
+
+  it("keeps the penguin's eyes centered around its beak in both facings", () => {
+    for (const facing of ["left", "right"] as const) {
+      const html = renderToStaticMarkup(createElement(CharacterSprite, { character: "penguin", act: null, facing }));
+      const eyes = [...html.matchAll(/<rect[^>]*x="(\d+)" y="4" width="1"[^>]*class="fm-eye"/g)]
+        .map(match => Number(match[1]) + 0.5);
+      expect(eyes).toHaveLength(2);
+      const beak = spriteRects(PENGUIN).find(r => r.y === 5 && r.cell === "b")!;
+      expect((eyes[0] + eyes[1]) / 2).toBe(beak.x + beak.w / 2);
+    }
+  });
+
+  it("draws feathered sides underneath the penguin's lifting flippers", () => {
+    const html = renderToStaticMarkup(createElement(CharacterSprite, { character: "penguin", act: null, facing: "right" }));
+    const torso = html.split('<g class="fm-body">')[1].split('<g class="fm-arms"')[0];
+    for (const y of [8, 9]) {
+      const cells = [...torso.matchAll(new RegExp(`<rect x="(\\d+)" y="${y}" width="(\\d+)"`, "g"))];
+      for (const x of [5, 12]) expect(cells.some(cell => Number(cell[1]) <= x && x < Number(cell[1]) + Number(cell[2]))).toBe(true);
+    }
+  });
 });

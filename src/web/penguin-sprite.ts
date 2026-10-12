@@ -3,8 +3,8 @@
 export const PENGUIN: readonly string[] = [
   ".......dddd.......",
   "......dhhhhd......",
-  ".....dhwwwwhd.....",
-  "....dhwwwwwwhd....",
+  ".....dhhhhhhd.....",
+  "....dhwwhhwwhd....",
   "....dhwewwewhd....",
   "....dhwwbbwwhd....",
   "....dhwwwwwwhd....",

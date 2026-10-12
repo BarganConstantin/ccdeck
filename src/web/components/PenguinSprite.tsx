@@ -10,16 +10,15 @@ const GEAR_CLASSES: Record<string, string | undefined> = { p: "fm-pad" };
 const RECTS = spriteRects(PENGUIN);
 const GEAR = spriteRects(SPRITE).filter(r => GEAR_CELLS.has(r.cell));
 const EYES = RECTS.filter(r => r.cell === "e");
-const BODY = RECTS.filter(r => r.y < 12 && r.cell !== "e")
-  .map(r => r.y === 8 || r.y === 9
-    ? { ...r, x: Math.max(6, r.x), w: Math.max(0, Math.min(12, r.x + r.w) - Math.max(6, r.x)) }
-    : r).filter(r => r.w > 0);
+// Keep the feathered torso underneath the flippers. Removing these edge cells
+// made its lower corners float when hover lifted the flippers away.
+const BODY = RECTS.filter(r => r.y < 12 && r.cell !== "e");
 const FEET = {
   left: RECTS.filter(r => r.y >= 12 && r.x < 9),
   right: RECTS.filter(r => r.y >= 12 && r.x >= 9),
 };
 
-export default memo(function PenguinSprite({ act, facing }: { act: Act | null; facing: Facing }) {
+export default memo(function PenguinSprite({ act }: { act: Act | null; facing: Facing }) {
   const grips = act === "climb" || act === "rope-throw" || act === "rope-catch" || act === "pull-up";
   const crouch = act === "land" || act === "dismount";
   const seated = act === "sit" || act === "cast" || act === "fish" || act === "reel" || act === "stow";
@@ -34,7 +33,7 @@ export default memo(function PenguinSprite({ act, facing }: { act: Act | null; f
       <g className="fm-arms" fill={FILLS.d}>
         <path d="M4 8H6V10H5V11H4Z" /><path d="M12 8H14V11H13V10H12Z" />
       </g>
-      {EYES.map(r => <rect key={`e${r.x}`} x={r.x + (facing === "right" ? 1 : 0)} y={r.y}
+      {EYES.map(r => <rect key={`e${r.x}`} x={r.x} y={r.y}
         width={r.w} height={1} className="fm-eye" style={{ fill: FILLS.e }} />)}
     </g>
     {grips && <g className="fm-grip" style={{ fill: FILLS.h }}>
