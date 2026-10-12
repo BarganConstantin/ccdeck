@@ -145,6 +145,12 @@
 .radio-mobile-view { display: none; }
 .radio-panel :is(button, a, select, input, summary, svg[tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .radio-panel .radio-search input:focus-visible { outline: none; }
+/* Focusable SVGs also get a browser :focus outline during pointer interaction.
+   Suppress only the map's pointer ring; keep an inset keyboard ring, including
+   when keyboard interaction resumes after panning a focused map. */
+.radio-panel svg.radio-map-canvas:focus-visible { outline-offset: -2px; }
+.radio-panel .radio-map-canvas:focus:not(:focus-visible),
+.radio-panel .radio-map-canvas[data-pointer-focus]:focus { outline: none; }
 .radio-panel :is(input, select) { accent-color: var(--accent); caret-color: var(--accent); }
 @keyframes radioOpen { from { opacity: .6; transform: scale(.99); } to { opacity: 1; transform: scale(1); } }
 @keyframes radioDetails { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }

@@ -72,6 +72,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
     if (!element) return;
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey) return;
+      if (document.activeElement === element) element.dataset.pointerFocus = "true";
       event.preventDefault(); setRegion(""); setCluster(null);
       const box = element.getBoundingClientRect(), active = camera.current, dimensions = sizeRef.current;
       const point = { x: active.x + (event.clientX - box.left - box.width / 2) * dimensions.width / active.zoom / box.width, y: active.y + (event.clientY - box.top - box.height / 2) * dimensions.height / active.zoom / box.height };
@@ -98,6 +99,11 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
     </div>
     <div className="radio-map">
       <svg ref={svg} className="radio-map-canvas" data-dragging={dragging || undefined} viewBox={`${view.x - size.width / view.zoom / 2} ${view.y - size.height / view.zoom / 2} ${size.width / view.zoom} ${size.height / view.zoom}`} role="group" tabIndex={0} aria-label="Radio map" aria-describedby="radio-map-help"
+        // Browsers can retain :focus-visible when an already-focused SVG is clicked.
+        // Track that pointer arrival without blurring the keyboard navigation target.
+        onPointerDownCapture={event => { if (document.activeElement === event.currentTarget) event.currentTarget.dataset.pointerFocus = "true"; }}
+        onKeyDownCapture={event => { delete event.currentTarget.dataset.pointerFocus; }}
+        onBlur={event => { delete event.currentTarget.dataset.pointerFocus; }}
         onKeyDown={event => {
           if (event.key === "+" || event.key === "=") { event.preventDefault(); changeZoom(1.5); }
           else if (event.key === "-") { event.preventDefault(); changeZoom(1 / 1.5); }
