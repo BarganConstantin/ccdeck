@@ -8,6 +8,8 @@
 import { type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import VolumeRow from "./VolumeRow";
 import { FM_SOURCE_OPTIONS } from "../appearance";
+import CharacterPicker from "./CharacterPicker";
+import type { Character } from "../character";
 import {
   STATION_NAME_MAX, STATION_URL_MAX, customFmId, customFmSelection, fmUnavailableNote, newCustomFmStation,
   type CustomFmStation, type FmSelection,
@@ -23,6 +25,8 @@ const LINK_UNUSABLE = "Use an https YouTube live or channel link, or a .mp3, .aa
 export interface MusicProps {
   characterEnabled: boolean;
   onToggleCharacter: () => void;
+  character: Character;
+  onCharacter: (character: Character) => void;
   /** The stream's loudness, as the slider's own 0–100 level. */
   fmVolume: number;
   onFmVolume: (level: number) => void;
@@ -39,6 +43,7 @@ export interface MusicProps {
 
 export default function MusicSection({
   characterEnabled, onToggleCharacter, fmVolume, onFmVolume, fmMuted, onFmMuted,
+  character = "deck", onCharacter,
   fmSource, onFmSource, customFmStations, unavailableFmStations,
   onAddFmStation, onRenameFmStation, onRemoveFmStation,
 }: MusicProps) {
@@ -459,6 +464,7 @@ export default function MusicSection({
           </span>
         </label>
         </div>
+        <CharacterPicker character={character} onCharacter={onCharacter} />
       </section>
     </>
   );

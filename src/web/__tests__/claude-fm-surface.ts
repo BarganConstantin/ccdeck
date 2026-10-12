@@ -24,6 +24,8 @@ export const CLAUDE_FM_FILES = [
   "use-fm-player.ts",
   "use-fm-scene.ts",
   "components/FmSprite.tsx",
+  "components/CharacterSprite.tsx",
+  "components/FoxSprite.tsx",
 ] as const;
 
 let joined: string | null = null;
