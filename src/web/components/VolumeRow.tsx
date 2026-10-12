@@ -1,5 +1,5 @@
 // A volume, as a slider with its reading: the row each tone's section in
-// Settings › Sounds draws, and the one Settings › Music & character borrows
+// Settings › Sounds draws, and the one Radio Explorer borrows
 // for Claude FM.
 //
 // Lifted out of ToneSection.tsx. The Appearance menu had copied the row whole —

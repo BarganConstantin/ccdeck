@@ -41,13 +41,12 @@ describe("character appearance preference", () => {
   });
 
   // The Appearance modal became two sections of Settings (2026-10-07): the
-  // theme and character are General's; Claude FM lives in MusicSection.tsx,
+  // theme and character are General's; music now lives in Radio Explorer,
   // and the dialog round them is
   // SettingsModal.tsx. Each guarantee below is the one these three cases held
   // the Appearance modal to, read where the code now lives.
   const modal = () => read("components/SettingsModal.tsx");
   const themes = () => read("components/ThemeSection.tsx");
-  const music = () => read("components/MusicSection.tsx");
   const character = () => read("components/CharacterSection.tsx");
 
   it("uses a dismissible, accessible modal of one height for the appearance settings", () => {
@@ -57,13 +56,9 @@ describe("character appearance preference", () => {
     expect(modal()).toContain('aria-modal="true"');
     expect(modal()).toContain('className="modal-backdrop"');
     expect(modal()).toContain('className="modal settings-modal"');
-    expect(music()).toContain('aria-haspopup="listbox"');
-    expect(music()).toContain('role="listbox"');
-    expect(music()).toContain('role="option"');
     expect(modal()).toContain('aria-labelledby="settings-title"');
     expect(themes()).toContain('role="radiogroup"');
     expect(themes()).toContain('role="radio"');
-    expect(music()).toContain('role="switch"');
     expect(modal()).toContain("onClick={onClose}");
     // Inside the viewport, and the section scrolls rather than the page. The
     // dialog is one height whichever section it holds (it followed its section
@@ -91,27 +86,11 @@ describe("character appearance preference", () => {
     // The previews are pictures; the name is the word under each.
     expect(themes()).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
     expect(character()).toContain('aria-labelledby="appearance-character-caption"');
-    expect(music()).toContain('aria-describedby="appearance-fm-source-note"');
-    expect(music()).toContain('aria-describedby="appearance-fm-volume-note"');
     expect(character()).not.toContain("Show character on minimap");
     expect(character()).not.toContain("appearance-character-note");
   });
 
-  it("keeps the whole Claude FM row one control, and Space and T working inside Settings", () => {
-    const styles = sheetText();
-    expect(music()).toContain('aria-haspopup="listbox"');
-    expect(music()).toContain("aria-activedescendant");
-    expect(music()).toContain('role="listbox"');
-    expect(music()).toContain('role="option"');
-    expect(music()).toContain('role="combobox"');
-    expect(music()).toContain("scrollIntoView");
-    expect(styles).toContain(".appearance-source-list");
-    expect(styles).toContain("max-height: min(196px, 24vh)");
-    expect(styles).toContain("overflow-y: auto");
-    expect(styles).toContain("overscroll-behavior: auto");
-    // The row is a <label> round the switch: a press anywhere in it reaches the
-    // switch once, and there is still one tab stop.
-    expect(music()).toMatch(/<label className="appearance-row">[\s\S]*?role="switch"[\s\S]*?<\/label>/);
+  it("keeps Space and T working inside Settings", () => {
     // React Flow cancels Space on the document; Settings keeps it for its own
     // controls. T switches the theme here too, and only without a modifier.
     expect(modal()).toContain('if (event.key === " ") { event.stopPropagation(); return; }');

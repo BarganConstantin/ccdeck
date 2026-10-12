@@ -22,7 +22,6 @@ import { focusedTabToFollow, sectionIndex, SETTINGS_SECTIONS, type SettingsSecti
 import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
-import type { useClaudeFm } from "../use-claude-fm";
 import type { useCustomTones } from "../use-custom-tones";
 import type { useOsNotifications } from "../use-os-notifications";
 import type { useSoundSwitch } from "../use-sound-switch";
@@ -30,7 +29,6 @@ import type { useTonePrefs } from "../use-tone-prefs";
 import { characterKeyMuted, setSingleKeyShortcuts } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import KeyboardSection from "./KeyboardSection";
-import MusicSection from "./MusicSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
@@ -50,11 +48,10 @@ export interface SettingsModalProps {
   customTones: ReturnType<typeof useCustomTones>;
   notify: ReturnType<typeof useOsNotifications>;
   appearance: ReturnType<typeof useAppearance>;
-  fm: ReturnType<typeof useClaudeFm>;
 }
 
 export default function SettingsModal({
-  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance, fm,
+  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
 }: SettingsModalProps) {
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
@@ -112,8 +109,6 @@ export default function SettingsModal({
           createNotificationVoice, renameCustomAsset, deleteCustomAsset, previewCustomAsset } = customTones;
   const { notifyPermission, notifyOn, notifyVetoed, toggleNotify, notifySupported, askForNotifications,
           accountNotify, toggleAccountNotify } = notify;
-  const { fmVolume, setFmVolume, fmMuted, setFmMuted, fmSource, customFmStations, unavailableFmStations,
-          addFmStation, renameFmStation, removeFmStation, pickFmSource } = fm;
 
   const pane = (() => {
     switch (section) {
@@ -148,22 +143,6 @@ export default function SettingsModal({
             onRenameCustom={renameCustomAsset}
             onPreviewCustom={previewCustomAsset}
             onDeleteCustom={deleteCustomAsset}
-          />
-        );
-      case "music":
-        return (
-          <MusicSection
-            fmVolume={fmVolume}
-            onFmVolume={setFmVolume}
-            fmMuted={fmMuted}
-            onFmMuted={() => setFmMuted(muted => !muted)}
-            fmSource={fmSource}
-            onFmSource={pickFmSource}
-            customFmStations={customFmStations}
-            unavailableFmStations={unavailableFmStations}
-            onAddFmStation={addFmStation}
-            onRenameFmStation={renameFmStation}
-            onRemoveFmStation={removeFmStation}
           />
         );
       default:

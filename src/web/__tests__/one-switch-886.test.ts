@@ -41,7 +41,8 @@ describe("every switch is the one switch (#886)", () => {
     // (#1312), which are three switches drawn by one `role="switch"` from one
     // list — this counts the markup that draws them, not what it draws.
     // Seventeen with Settings › General's "Single-key shortcuts" (WCAG 2.1.4).
-    expect(switches, "the seventeen switches in the source").toBe(17);
+    // Sixteen after Music left Settings; Radio Explorer owns music controls.
+    expect(switches, "the sixteen switches in the source").toBe(16);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

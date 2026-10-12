@@ -43,7 +43,7 @@ const edgeSheet = read("../styles/edge-rails.css").replace(/\/\*[\s\S]*?\*\//g, 
 // section in it, read as one, so the negatives below still see every control
 // that used to be Appearance's and every one that joined it.
 const settingsSurface = [
-  "../components/SettingsModal.tsx", "../components/ThemeSection.tsx", "../components/MusicSection.tsx",
+  "../components/SettingsModal.tsx", "../components/ThemeSection.tsx",
   "../components/NotificationsSection.tsx", "../components/SoundsSection.tsx", "../components/SoundSwitch.tsx",
 ].map(read).join("\n");
 const reportsHook = read("../use-reports.ts");

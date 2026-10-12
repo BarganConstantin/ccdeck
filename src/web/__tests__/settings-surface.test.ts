@@ -50,11 +50,6 @@ function settingsProps(over: Partial<SettingsModalProps> = {}): SettingsModalPro
       toggleAccountNotify: noop,
     },
     appearance: { theme: "dark", setTheme: noop, characterEnabled: true, setCharacterEnabled: noop },
-    fm: {
-      fmVolume: 50, setFmVolume: noop, fmMuted: false, setFmMuted: noop, fmSource: "claude-fm", customFmStations: [],
-      unavailableFmStations: new Set(), fmPlayRequest: 0, addFmStation: noop, renameFmStation: noop,
-      removeFmStation: noop, pickFmSource: noop, markFmStationAvailability: noop,
-    },
     ...over,
   } as unknown as SettingsModalProps;
 }
@@ -75,8 +70,8 @@ describe("a door into Settings opens it at the section it names", () => {
   });
 
   it("reopens where the reader left it when the door names nothing", () => {
-    expect(openedAt({ open: false, section: "music" })).toEqual({ open: true, section: "music" });
-    expect(openedAt({ open: false, section: "music" }, "notifications")).toEqual({ open: true, section: "notifications" });
+    expect(openedAt({ open: false, section: "sounds" })).toEqual({ open: true, section: "sounds" });
+    expect(openedAt({ open: false, section: "sounds" }, "notifications")).toEqual({ open: true, section: "notifications" });
   });
 
   it("draws the section it was opened at, with that tab on show and the rest one Tab stop away", () => {
@@ -84,7 +79,6 @@ describe("a door into Settings opens it at the section it names", () => {
       ["general", /Color theme/],
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
-      ["music", /Claude FM/],
     ];
     for (const [section, shows] of cases) {
       const html = drawSettings({ section });
@@ -105,28 +99,30 @@ describe("a door into Settings opens it at the section it names", () => {
   });
 
 
-  it("places character controls beneath themes in General, with music controls in Music", () => {
+  it("places character controls beneath themes in General, without music controls", () => {
     const general = drawSettings({ section: "general" });
     expect(general.indexOf('>Character</h3>')).toBeGreaterThan(general.indexOf("Color theme"));
     expect(general.indexOf('>Character</h3>')).toBeLessThan(general.indexOf('>Keyboard</h3>'));
     expect(general).toContain('role="radiogroup" aria-label="Choose character"');
     expect(general).toContain('aria-labelledby="appearance-character-caption"');
     expect(general).not.toContain("Show character on minimap");
-    const music = drawSettings({ section: "music" });
-    expect(music).not.toContain('aria-label="Choose character"');
-    expect(music).not.toContain("Show character on minimap");
-    expect(music).toContain("Claude FM");
+    for (const { id } of SETTINGS_SECTIONS) {
+      const html = drawSettings({ section: id });
+      expect(html).not.toContain('settings-tab-music');
+      expect(html).not.toContain('Claude FM');
+      expect(html).not.toContain('appearance-fm-volume');
+    }
   });
 
-  it("names the four sections in the nav, in order", () => {
-    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds", "Music"]);
+  it("names the three sections in the nav, in order", () => {
+    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds"]);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all
     // of the text a tab holds.
     const html = drawSettings();
     const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([\s\S]*?)<\/button>/g)]
       .map(m => m[1].replace(/<[^>]+>/g, "").replace("&amp;", "&"));
-    expect(tabs).toEqual(["General", "Notifications", "Sounds", "Music"]);
+    expect(tabs).toEqual(["General", "Notifications", "Sounds"]);
   });
 
   it("is a dialog named Settings, holding the focus it hands the section's own tab", () => {
@@ -260,7 +256,7 @@ describe("the arrow keys walk the nav", () => {
   });
 
   it("moves focus to the selected tab when focus sits on another tab, and leaves focus elsewhere alone", () => {
-    expect(focusedTabToFollow("settings-tab-music", "sounds")).toBe("sounds");
+    expect(focusedTabToFollow("settings-tab-notifications", "sounds")).toBe("sounds");
     expect(focusedTabToFollow("settings-tab-sounds", "sounds")).toBeNull();
     expect(focusedTabToFollow("settings-pane-field", "sounds")).toBeNull();
     expect(focusedTabToFollow(undefined, "sounds")).toBeNull();
@@ -394,7 +390,7 @@ describe("moving every control into Settings resets no setting", () => {
     for (const rel of [
       "settings.ts", "use-settings-menus.ts", "components/SettingsModal.tsx", "components/ThemeSection.tsx",
       "components/NotificationsSection.tsx", "components/SoundsSection.tsx", "components/SoundSwitch.tsx",
-      "components/MusicSection.tsx", "components/KeyboardSection.tsx",
+      "components/KeyboardSection.tsx",
     ]) {
       const src = sourceOf(rel);
       expect(src, rel).not.toMatch(/localStorage|writeStored|readStored|sessionStorage|\/api\/prefs/);

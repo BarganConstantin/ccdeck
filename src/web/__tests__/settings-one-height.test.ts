@@ -66,11 +66,6 @@ const draw = (section: SettingsSection) => renderToStaticMarkup(createElement(Se
     toggleAccountNotify: noop,
   },
   appearance: { theme: "dark", setTheme: noop, characterEnabled: true, setCharacterEnabled: noop },
-  fm: {
-    fmVolume: 50, setFmVolume: noop, fmMuted: false, setFmMuted: noop, fmSource: "claude-fm", customFmStations: [],
-    unavailableFmStations: new Set(), fmPlayRequest: 0, addFmStation: noop, renameFmStation: noop,
-    removeFmStation: noop, pickFmSource: noop, markFmStationAvailability: noop,
-  },
 } as unknown as SettingsModalProps));
 
 /** The opening tag of the element carrying `marker`, attributes and all. */

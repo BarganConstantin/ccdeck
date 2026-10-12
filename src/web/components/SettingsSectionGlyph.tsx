@@ -2,7 +2,7 @@
 // section by its shape before it reads the word, the way a desktop's own
 // settings window does.
 //
-// All four are on the topbar's one spec (#837): 13px on a 14 viewBox, a 1.4
+// All three are on the topbar's one spec (#837): 13px on a 14 viewBox, a 1.4
 // stroke in currentColor with round caps and joins, hidden from assistive
 // technology so a tab is named by its word alone. currentColor is what makes
 // each one the tab's own ink — muted at rest, the text colour when chosen,
@@ -13,7 +13,7 @@
 // (2026-10-07): Settings › Sounds is where everything it opened is. General
 // is the sliders the topbar's appearance button wore before the gear replaced
 // it (#2034): the gear is the door into Settings, so inside it would name
-// every section at once. The bell and the headphones are drawn for this nav,
+// every section at once. The bell is drawn for this nav,
 // at the same weight and inside the same box as their neighbours.
 import type { SettingsSection } from "../settings";
 
@@ -42,9 +42,7 @@ export default function SettingsSectionGlyph({ section }: { section: SettingsSec
           <path d="M5.7 11.2a1.3 1.3 0 0 0 2.6 0" />
         </>
       )}
-      {section === "music" && (
-        <path d="M2 8.4h2a1 1 0 0 1 1 1v1.4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.2a5 5 0 0 1 10 0v3.6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1V9.4a1 1 0 0 1 1-1h2" />
-      )}
+
     </svg>
   );
 }

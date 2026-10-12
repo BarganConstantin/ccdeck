@@ -778,7 +778,7 @@ function Inner() {
         dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
         upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
-        menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify} fm={fm}
+        menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
       />
     </div>
   );

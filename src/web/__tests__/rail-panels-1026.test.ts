@@ -199,7 +199,7 @@ describe("the sound menu's reading is described once (#1026)", () => {
     // The merge is only safe because the span has one render site, VolumeRow,
     // and every place that draws a VolumeRow is inside a surface the rule
     // names: Settings (`.settings-modal`) draws each tone's row through Sounds
-    // and Claude FM's through Music & character. The sound popover drew two
+    // while Radio Explorer draws the music volume. The sound popover drew two
     // more until it left with the topbar speaker (2026-10-07), so nothing
     // Radio adds another caller with its own scoped reading rule; a new caller
     // elsewhere would draw its reading unstyled, and this catches that.
@@ -207,14 +207,12 @@ describe("the sound menu's reading is described once (#1026)", () => {
     expect(toneSection).toMatch(/<VolumeRow\b/);
     const callers = readdirSync(fileURLToPath(new URL("../components/", import.meta.url)))
       .filter(f => /\.tsx$/.test(f) && /<VolumeRow\b/.test(at(`../components/${f}`)));
-    expect(callers.sort()).toEqual(["MusicSection.tsx", "RadioPanel.tsx", "ToneSection.tsx"]);
+    expect(callers.sort()).toEqual(["RadioPanel.tsx", "ToneSection.tsx"]);
     expect(decl(".radio-controls .sm-read", "color")).toBe("var(--muted)");
     expect(decl(".radio-controls .sm-read", "font-family")).toBe("var(--font-mono)");
     const settings = at("../components/SettingsModal.tsx");
     expect(at("../components/SoundsSection.tsx")).toMatch(/<ToneSection\b/);
-    expect(at("../components/MusicSection.tsx")).toMatch(/<VolumeRow\b/);
     expect(settings).toMatch(/<SoundsSection\b/);
-    expect(settings).toMatch(/<MusicSection\b/);
     expect(settings).toMatch(/className="modal settings-modal"/);
     expect(decl(".settings-modal .sm-read", "color")).toBe("var(--muted)");
     const others = ["../App.tsx", "../components/MachinePanel.tsx", "../components/ProcessListModal.tsx"];
