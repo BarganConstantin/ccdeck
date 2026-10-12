@@ -73,7 +73,20 @@ export function useReframe({
       measured: measuredRef.current,
       lanes: laneMap(stateRef.current),
     };
-    if (!columnsWouldChange(nodes, edges, opts, prev, frame)) return;
+    const focused = lastFocusRef.current && Date.now() - lastFocusRef.current.at < 1500 ? lastFocusRef.current.id : null;
+    if (!columnsWouldChange(nodes, edges, opts, prev, frame)) {
+      // Packing and framing are separate decisions. A pinned board (or one
+      // column on both monitors) keeps its positions, but its old viewport
+      // can leave cards outside the newly narrowed canvas. Wait one paint
+      // for the pane to settle, then fit only while the deck owns the camera.
+      const epoch = cameraEpochRef.current;
+      const timer = window.setTimeout(() => {
+        if (cameraEpochRef.current !== epoch) return;
+        if (!autoFitDisabledRef.current) fitLeft(500);
+        else if (focused && lastFocusRef.current?.id === focused) focusAgentRef.current(focused);
+      }, 80);
+      return () => window.clearTimeout(timer);
+    }
     // WHAT THE READER IS LOOKING AT, BEFORE THE BOARD MOVES UNDER IT. With the
     // auto-fit on, the fit below frames the new arrangement and nothing needs
     // keeping. With it off — a pan, or a focus — the camera used to stay where
@@ -83,7 +96,6 @@ export function useReframe({
     // the screen they were reading. A double-click to focus lost its session
     // the same way: the focus framed where the card was a paint before the
     // re-pack moved it.
-    const focused = lastFocusRef.current && Date.now() - lastFocusRef.current.at < 1500 ? lastFocusRef.current.id : null;
     const keepId = focused ?? primarySelectedIdRef.current;
     const keptAt = keepId ? (pinnedRef.current.get(keepId) ?? positionsRef.current.get(keepId)) : undefined;
     for (const id of Array.from(positionsRef.current.keys())) {
