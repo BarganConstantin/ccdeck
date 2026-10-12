@@ -110,7 +110,8 @@ describe("a door into Settings opens it at the section it names", () => {
     expect(general.indexOf('>Character</h3>')).toBeGreaterThan(general.indexOf("Color theme"));
     expect(general.indexOf('>Character</h3>')).toBeLessThan(general.indexOf('>Keyboard</h3>'));
     expect(general).toContain('role="radiogroup" aria-label="Choose character"');
-    expect(general).toContain("Show character on minimap");
+    expect(general).toContain('aria-labelledby="appearance-character-caption"');
+    expect(general).not.toContain("Show character on minimap");
     const music = drawSettings({ section: "music" });
     expect(music).not.toContain('aria-label="Choose character"');
     expect(music).not.toContain("Show character on minimap");

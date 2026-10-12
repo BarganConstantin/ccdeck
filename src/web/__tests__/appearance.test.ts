@@ -90,13 +90,11 @@ describe("character appearance preference", () => {
     expect(themes()).toContain("tabIndex={theme === choice ? 0 : -1}");
     // The previews are pictures; the name is the word under each.
     expect(themes()).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
-    expect(character()).toContain('aria-labelledby="appearance-character-label"');
-    expect(character()).toContain('aria-describedby="appearance-character-note"');
+    expect(character()).toContain('aria-labelledby="appearance-character-caption"');
     expect(music()).toContain('aria-describedby="appearance-fm-source-note"');
     expect(music()).toContain('aria-describedby="appearance-fm-volume-note"');
-    expect(character()).toContain(">Show character on minimap<");
-    // Its own group now, not a row under the music source.
-    expect(character()).toMatch(/<h3 id="appearance-character-caption">Character<\/h3>[\s\S]*?>Show character on minimap</);
+    expect(character()).not.toContain("Show character on minimap");
+    expect(character()).not.toContain("appearance-character-note");
   });
 
   it("keeps the whole Claude FM row one control, and Space and T working inside Settings", () => {
