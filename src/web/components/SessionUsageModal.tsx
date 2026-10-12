@@ -85,7 +85,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
                   : detail.totalTokens > 0 ? "No cost reported" : "$0.00"}{missing.length > 0 && detail.totalCost > 0 ? "+" : ""}</dd></div>
               <div><dt>Total tokens</dt><dd title={count(detail.totalTokens)}>{fmtTokens(detail.totalTokens)}</dd></div>
             </dl>
-            <section className="su-breakdown" aria-labelledby="session-tokens-title">
+            <section aria-labelledby="session-tokens-title">
               <div className="su-section-head"><h3 id="session-tokens-title">Token breakdown</h3></div>
               {tokenSum > 0 && <div className="su-composition" aria-hidden="true">
                 {tokens.filter(token => token.n > 0).map(token => <span key={token.name}
