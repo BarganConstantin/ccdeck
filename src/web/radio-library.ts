@@ -46,6 +46,16 @@ export function adjacentRadioStation(stations: readonly RadioStation[], current:
   return next.id === current ? null : next;
 }
 
+/** Continue in list order, trying each failed station only once. */
+export function nextAvailableRadioStation(stations: readonly RadioStation[], current: string, failed: ReadonlySet<string>): RadioStation | null {
+  const index = stations.findIndex(station => station.id === current);
+  for (let offset = 1; offset <= stations.length; offset++) {
+    const station = stations[(index + offset) % stations.length];
+    if (station.id !== current && !failed.has(station.id)) return station;
+  }
+  return null;
+}
+
 export function dailyStation(stations: readonly RadioStation[], day: string): RadioStation | null {
   if (!stations.length) return null;
   const sorted = [...stations].sort((a, b) => a.id.localeCompare(b.id));

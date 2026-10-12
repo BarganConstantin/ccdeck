@@ -1,11 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { resolveRadioStations, readRadioIds, recentRadioIds, surpriseStation, dailyStation, matchesRadio, adjacentRadioStation } from "../radio-library";
+import { resolveRadioStations, readRadioIds, recentRadioIds, surpriseStation, dailyStation, matchesRadio, adjacentRadioStation, nextAvailableRadioStation } from "../radio-library";
 import { resolveCustomFmStations, parseFmStationUrl } from "../fm-stations";
 import { containPopoverKeys } from "../shortcuts";
 const id = "radio-d1a54d2e-623e-4970-ab11-35f7b56c5ec3";
 const raw = { id, name: "Night radio", url: "https://radio.example/stream", country: "Moldova", countryCode: "MD", tags: "jazz, ambient", language: "romanian", lat: 0, lon: 0, bitrate: 128 };
 const [station] = resolveRadioStations([raw]);
 describe("radio library", () => {
+  it("continues after a failed stream in order, wrapping past failed stations", () => {
+    const second = { ...station, id: "second" };
+    const third = { ...station, id: "third" };
+    const rows = [station, second, third];
+    expect(nextAvailableRadioStation(rows, station.id, new Set([station.id]))).toBe(second);
+    expect(nextAvailableRadioStation(rows, third.id, new Set([third.id, station.id]))).toBe(second);
+  });
+  it("stops when every candidate failed instead of cycling indefinitely", () => {
+    const second = { ...station, id: "second" };
+    expect(nextAvailableRadioStation([station, second], second.id, new Set([station.id, second.id]))).toBeNull();
+    expect(nextAvailableRadioStation([station], station.id, new Set())).toBeNull();
+    expect(nextAvailableRadioStation([], station.id, new Set())).toBeNull();
+  });
+  it("uses the first eligible result when a failed selection is outside the filtered list", () => {
+    const second = { ...station, id: "second" };
+    expect(nextAvailableRadioStation([station, second], "outside", new Set([station.id]))).toBe(second);
+  });
   it("navigates the displayed order and wraps at either end", () => {
     const second = { ...station, id: "second" }, third = { ...station, id: "third" };
     const rows = [station, second, third];

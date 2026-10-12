@@ -1,7 +1,7 @@
 // Settings › Music: Claude FM stations, volume and mute.
 import { type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import VolumeRow from "./VolumeRow";
-import { FM_SOURCE_OPTIONS } from "../appearance";
+import { FM_SOURCE_OPTIONS, FM_VOLUME_STEP } from "../appearance";
 import {
   STATION_NAME_MAX, STATION_URL_MAX, customFmId, customFmSelection, fmUnavailableNote, newCustomFmStation,
   type CustomFmStation, type FmSelection,
@@ -397,6 +397,7 @@ export default function MusicSection({
           <VolumeRow
             id="appearance-fm-volume"
             value={fmVolume}
+            step={FM_VOLUME_STEP}
             aria-describedby="appearance-fm-volume-note"
             onLevel={onFmVolume}
           />

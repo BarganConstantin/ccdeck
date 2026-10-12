@@ -38,7 +38,9 @@ describe("the Claude FM volume preference", () => {
   it("parses a stored level strictly, then snaps and clamps it", () => {
     expect(resolveFmVolume("50")).toBe(50);
     expect(resolveFmVolume(" 70 ")).toBe(70);
-    expect(resolveFmVolume("72")).toBe(70);
+    expect(resolveFmVolume("26")).toBe(26);
+    expect(resolveFmVolume("72")).toBe(72);
+    expect(resolveFmVolume("72.6")).toBe(73);
     expect(resolveFmVolume("-40")).toBe(LEVEL_MIN);
     expect(resolveFmVolume("400")).toBe(LEVEL_MAX);
   });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FM_SOURCE_OPTIONS } from "../appearance";
+import { FM_SOURCE_OPTIONS, FM_VOLUME_STEP } from "../appearance";
 import { customFmSelection, type FmSelection } from "../fm-stations";
 import { adjacentRadioStation, dailyStation, matchesRadio, resolveRadioStations, surpriseStation, type RadioStation } from "../radio-library";
 import type { useClaudeFm } from "../use-claude-fm";
@@ -18,10 +18,12 @@ const countryFlag = (code: string) => /^[A-Z]{2}$/.test(code) ? String.fromCodeP
 const cleanLabel = (label: string) => label.replace(/^[^\p{L}\p{N}]+/u, "");
 const stationMetadata = (station: RadioStation) => [station.radio.country, station.radio.tags.split(",").filter(Boolean).slice(0, 2).join(", ")].filter(Boolean).join(" · ");
 
-export default function RadioPanel({ fm, player, library, selected: current, label, enabled, disabledReason, onPick, onClose }: {
+export default function RadioPanel({ fm, player, library, selected: current, label, enabled, disabledReason, autoNext, onPick, onQueueChange, onClose }: {
   fm: ReturnType<typeof useClaudeFm>; player: FmPlayer; library: ReturnType<typeof useRadioLibrary>;
   selected?: RadioStation; label: string; enabled: boolean; disabledReason: string;
   onPick: (station: RadioStation) => void; onClose: () => void;
+  onQueueChange: (stations: RadioStation[]) => void;
+  autoNext?: string;
 }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -84,6 +86,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     const rows = collection === "discover" ? results : ids.flatMap(id => pool.get(id) ?? []);
     return rows.filter(station => matchesRadio(station, query, country, genre, language));
   }, [collection, library.catalogue, library.favorites, library.recent, results, saved, query, country, genre, language]);
+  useEffect(() => { onQueueChange(stations); }, [stations, onQueueChange]);
   const previousStation = adjacentRadioStation(stations, current?.id, -1);
   const nextStation = adjacentRadioStation(stations, current?.id, 1);
   const navigating = !enabled || (collection === "discover" && loading);
@@ -93,7 +96,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const currentFavorite = current && library.favorites.includes(current.id);
   const showFailure = player.dead && (!!current || fm.fmPlayRequest > 0);
   const state = !enabled ? "disabled" : showFailure ? "failed" : player.armed && !player.playing ? "connecting" : player.playing ? "playing" : "paused";
-  const status = !enabled ? disabledReason : showFailure ? "Stream unavailable · retry or choose another" : player.dead ? "Choose a station to start listening" : player.armed && !player.playing ? player.buffering ? "Buffering…" : "Connecting…" : player.playing ? "Playing live" : "Paused";
+  const status = !enabled ? disabledReason : showFailure ? autoNext ? `Stream unavailable · trying ${autoNext} next…` : "Stream unavailable · retry or choose another" : player.dead ? "Choose a station to start listening" : player.armed && !player.playing ? player.buffering ? "Buffering…" : "Connecting…" : player.playing ? "Playing live" : "Paused";
   const resetFilters = () => { setQuery(""); setCountry(""); setGenre(""); setLanguage(""); };
   const toggleFavorite = (station: RadioStation) => { fm.addFmStation(station); library.toggleFavorite(station.id); };
   const inspect = useCallback((station: RadioStation) => {
@@ -168,7 +171,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
         </div>
         {current && <button className="icon-btn" type="button" aria-label={currentFavorite ? "Remove station from favorites" : "Save station to favorites"} aria-pressed={!!currentFavorite} onClick={() => toggleFavorite(current)}><RadioIcon name="heart" /></button>}
       </div>
-      <div className="radio-controls"><VolumeRow id="radio-volume" value={fm.fmVolume} onLevel={fm.setFmVolume} /><button type="button" className="btn radio-player-button radio-mute" aria-pressed={fm.fmMuted} onClick={() => fm.setFmMuted(muted => !muted)} title={fm.fmMuted ? "Unmute radio" : "Mute radio"}><RadioIcon name={fm.fmMuted ? "muted" : "volume"} />{fm.fmMuted ? "Unmute" : "Mute"}</button><button type="button" className="btn radio-player-button" disabled={!enabled || !stations.some(station => station.id !== current?.id)} onClick={() => { const station = surpriseStation(stations, current?.id); if (station) pick(station); }}><RadioIcon name="shuffle" /> Surprise me</button></div>
+      <div className="radio-controls"><VolumeRow id="radio-volume" step={FM_VOLUME_STEP} value={fm.fmVolume} onLevel={fm.setFmVolume} /><button type="button" className="btn radio-player-button radio-mute" aria-pressed={fm.fmMuted} onClick={() => fm.setFmMuted(muted => !muted)} title={fm.fmMuted ? "Unmute radio" : "Mute radio"}><RadioIcon name={fm.fmMuted ? "muted" : "volume"} />{fm.fmMuted ? "Unmute" : "Mute"}</button><button type="button" className="btn radio-player-button" disabled={!enabled || !stations.some(station => station.id !== current?.id)} onClick={() => { const station = surpriseStation(stations, current?.id); if (station) pick(station); }}><RadioIcon name="shuffle" /> Surprise me</button></div>
     </div>
     <div className="radio-mobile-view" role="group" aria-label="Explorer view"><button type="button" className="radio-view" aria-pressed={mobileView === "map"} onClick={() => setMobileView("map")}><RadioIcon name="globe" />Map</button><button type="button" className="radio-view" aria-pressed={mobileView === "stations"} onClick={() => setMobileView("stations")}><RadioIcon name="search" />Stations</button></div>
     <div className="radio-workspace" data-view={mobileView}>
@@ -178,8 +181,8 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
       <section className="radio-discovery" aria-label="Station discovery">
         <div className="radio-collections" role="group" aria-label="Station collection">{[["discover", "Discover"], ["favorites", `Favorites${library.favorites.length ? ` · ${library.favorites.length}` : ""}`], ["recent", "Recent"]].map(([value, text]) => <button type="button" className="radio-collection" key={value} aria-pressed={collection === value} onClick={() => setCollection(value)}>{text}</button>)}</div>
         <div className="radio-search"><RadioIcon name="search" /><label className="vis-hidden" htmlFor="radio-search">Search stations</label><input ref={searchRef} id="radio-search" type="search" placeholder="Search station names…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" className="icon-btn" aria-label="Clear search" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><RadioIcon name="close" /></button>}</div>
-        <div className="radio-filters"><label><span className="vis-hidden">Filter stations by country</span><select value={country} onChange={event => setCountry(event.target.value)}><option value="">All countries</option>{countries.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label><label><span className="vis-hidden">Genre</span><select value={genre} onChange={event => setGenre(event.target.value)}><option value="">All sounds</option>{genres.map(value => <option key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</option>)}</select></label><label><span className="vis-hidden">Language</span><input placeholder="Language" value={language} onChange={event => setLanguage(event.target.value)} /></label></div>
-        <div className="radio-results-heading"><span>{loading && collection === "discover" ? "Updating stations…" : `${stations.length} ${hasFilters ? "matching" : collection === "discover" ? "available" : collection === "favorites" ? "saved" : "recent"} stations`}</span>{hasFilters && <button type="button" className="radio-reset" onClick={resetFilters}>Clear filters</button>}</div>
+        <div className="radio-filters"><label><span className="radio-filter-label">Country</span><select value={country} onChange={event => setCountry(event.target.value)}><option value="">All countries</option>{countries.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label><label><span className="radio-filter-label">Sound</span><select value={genre} onChange={event => setGenre(event.target.value)}><option value="">All sounds</option>{genres.map(value => <option key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</option>)}</select></label><label><span className="radio-filter-label">Language</span><input placeholder="Any language" value={language} onChange={event => setLanguage(event.target.value)} /></label></div>
+        <div className="radio-results-heading" role="status" aria-live="polite" aria-atomic="true"><span>{loading && collection === "discover" ? "Updating stations…" : `${stations.length} ${hasFilters ? "matching" : collection === "discover" ? "available" : collection === "favorites" ? "saved" : "recent"} stations`}</span>{hasFilters && <button type="button" className="radio-reset" onClick={resetFilters}>Clear filters</button>}</div>
         <div ref={listRef} className="radio-list" role="region" aria-label="Stations" aria-busy={loading && collection === "discover"}>
           {!enabled && <p className="radio-empty" role="status">{disabledReason}</p>}
           {enabled && collection === "discover" && error && <div className="radio-directory-error" role="status"><strong>Directory unavailable</strong><p>{stations.length ? "The saved catalogue is still available." : "Try your favorites or existing streams."}</p><button type="button" className="btn" onClick={() => setRetry(value => value + 1)}>Try again</button></div>}

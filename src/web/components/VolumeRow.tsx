@@ -18,15 +18,16 @@ interface Props {
    *  of the thing it is the volume of, which is everywhere it is drawn now; a
    *  row with no such heading over it says what it sets. */
   label?: string;
-  /** The level, LEVEL_MIN to LEVEL_MAX in steps of LEVEL_STEP. */
+  /** The level, LEVEL_MIN to LEVEL_MAX. */
   value: number;
+  step?: number;
   onLevel: (level: number) => void;
   /** A description a reader gets with the slider, by id — passed through to
    *  the range as the attribute of the same name. */
   "aria-describedby"?: string;
 }
 
-export default function VolumeRow({ id, label = "Volume", value, onLevel, "aria-describedby": describedBy }: Props) {
+export default function VolumeRow({ id, label = "Volume", value, step = LEVEL_STEP, onLevel, "aria-describedby": describedBy }: Props) {
   return (
     <div className="sm-row">
       <label htmlFor={id}>{label}</label>
@@ -40,7 +41,7 @@ export default function VolumeRow({ id, label = "Volume", value, onLevel, "aria-
         type="range"
         min={LEVEL_MIN}
         max={LEVEL_MAX}
-        step={LEVEL_STEP}
+        step={step}
         value={value}
         aria-describedby={describedBy}
         onChange={e => onLevel(Number(e.target.value))}
