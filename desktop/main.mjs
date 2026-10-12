@@ -37,7 +37,7 @@ import { restartApp } from "./relaunch-linux.mjs";
 import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
 import { createOwnDeck, discoverPlan, startOwnDeck, stopChild } from "./own-deck.mjs";
 import { trayIconFile } from "./tray-icon.mjs";
-import { windowChrome, titlebarColors } from "./window-chrome.mjs";
+import { windowChrome, titlebarColors, TITLEBAR_HEIGHT } from "./window-chrome.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -713,7 +713,7 @@ function installWindowChromeIpc() {
   });
   ipcMain.handle("ccdeck:window:menu", event => {
     if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return;
-    Menu.getApplicationMenu()?.popup({ window: win, x: 10, y: 34 });
+    Menu.getApplicationMenu()?.popup({ window: win, x: 10, y: TITLEBAR_HEIGHT });
   });
 }
 

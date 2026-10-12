@@ -4,14 +4,14 @@ import { TITLEBAR_HEIGHT, titlebarColors, windowChrome } from "../../../desktop/
 describe("desktop caption chrome", () => {
   it("keeps native controls on Linux and Windows", () => {
     for (const platform of ["linux", "win32"]) {
-      expect(windowChrome(platform)).toMatchObject({ titleBarStyle: "hidden", titleBarOverlay: { height: 33 }, autoHideMenuBar: true });
+      expect(windowChrome(platform)).toMatchObject({ titleBarStyle: "hidden", titleBarOverlay: { height: 37 }, autoHideMenuBar: true });
     }
   });
   it("preserves macOS traffic lights", () => {
-    expect(windowChrome("darwin")).toEqual({ titleBarStyle: "hidden", trafficLightPosition: { x: 12, y: 10 } });
+    expect(windowChrome("darwin")).toEqual({ titleBarStyle: "hidden", trafficLightPosition: { x: 12, y: 12 } });
   });
   it("accepts theme colours without allowing native options from a renderer", () => {
-    expect(titlebarColors({ color: "#191a1c", symbolColor: "#D4D4D4", height: 200 })).toEqual({ color: "#191a1c", symbolColor: "#D4D4D4", height: 33 });
+    expect(titlebarColors({ color: "#191a1c", symbolColor: "#D4D4D4", height: 200 })).toEqual({ color: "#191a1c", symbolColor: "#D4D4D4", height: 37 });
     for (const input of [null, {}, { color: "transparent", symbolColor: "#ffffff" }, { color: "#191a1c", symbolColor: "red" }]) expect(titlebarColors(input)).toBeNull();
   });
 });
