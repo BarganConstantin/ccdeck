@@ -364,7 +364,7 @@ describe("the canvas wiring the pure halves depend on", () => {
   it("lets no fit's late correction undo a newer camera move", () => {
     // fitLeft, and its trailing correction, are use-camera.ts's.
     const camera = read("../use-camera.ts");
-    expect(camera).toMatch(/const epoch = \+\+cameraEpochRef\.current;\s*applyViewport\(want, duration\);/);
+    expect(camera).toMatch(/const epoch = \+\+cameraEpochRef\.current;[\s\S]*?lastFitTimeRef\.current = Date\.now\(\);\s*applyViewport\(want, duration\);/);
     expect(camera).toMatch(/if \(cameraEpochRef\.current !== epoch\) return;/);
   });
 
