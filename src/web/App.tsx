@@ -556,10 +556,13 @@ function Inner() {
   // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
+  const [radioOpen, setRadioOpen] = useState(false);
+  const closeRadio = useCallback(() => setRadioOpen(false), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
+    radioOpen, setRadioOpen,
     toggles: panelReturn.toggles,
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
@@ -640,7 +643,7 @@ function Inner() {
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right[1], rails.utilities[1]]} />
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right.slice(1).flat(), rails.utilities[1]]} />
         : <EdgeRail side="left" label="Left column" groups={[rails.left]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
@@ -715,7 +718,7 @@ function Inner() {
         {/* React Flow, and everything drawn in its pane — components/BoardFlow.tsx. */}
         <BoardFlow
           graph={graph} layout={layout} viewport={viewport} clicks={clicks} drag={drag}
-          appearance={appearance} fm={fm} autoFit={autoFit} pause={pause}
+          appearance={appearance} fm={fm} radioOpen={radioOpen} onRadioClose={closeRadio} autoFit={autoFit} pause={pause}
           stateRef={stateRef} measuredRef={measuredRef} hiddenCats={hiddenCats} now={now}
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
         />

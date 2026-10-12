@@ -1,31 +1,11 @@
-.radio-dock {
-  position: absolute;
-  bottom: 16px;
-  left: 66px;
-  z-index: 9;
-  display: flex;
-  align-items: center;
-  max-width: min(280px, calc(100% - 245px));
-  min-height: 36px;
-  background: var(--chrome-bg);
-  border: 1px solid var(--chrome-edge);
-  border-radius: var(--r-ctl);
-  box-shadow: var(--shadow-1);
-  color: var(--text);
-}
-.radio-dock button { background: none; border: 0; color: inherit; cursor: pointer; min-height: 36px; }
-.radio-dock-open { display: flex; align-items: center; gap: 8px; padding: 6px 12px; min-width: 0; }
-.radio-dock-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-.radio-dock-stop { display: grid; place-items: center; padding: 6px 10px; }
-.radio-dock button:hover { background: var(--ctl-fill); }
-.radio-dock[data-playing] > .radio-dock-open > svg { color: var(--accent); }
+.edge-rail-right .rail-group:has([data-rail-item="radio"]) { margin-top: auto; padding-top: 0; border-top: 0; }
 .radio-panel, .radio-loading {
   position: fixed;
-  left: max(8px, min(var(--radio-anchor-left, 66px), calc(100vw - 556px)));
-  bottom: var(--radio-anchor-bottom, 64px);
+  right: calc(var(--edge-w) + 8px);
+  bottom: 64px;
   z-index: 100;
   width: min(540px, calc(100vw - 16px));
-  max-height: min(780px, calc(100dvh - var(--topbar-h) - var(--radio-anchor-bottom, 64px) - 12px));
+  max-height: min(780px, calc(100dvh - var(--topbar-h) - 64px - 12px));
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--line);
@@ -68,7 +48,7 @@
 .radio-controls .sm-row { flex: 1; min-width: 0; margin: 0; }
 .radio-controls .sm-row label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .radio-controls .sm-row input { min-width: 30px; width: 100%; }
-.radio-controls .sm-read { font-size: 11px; }
+.radio-controls .sm-read { font-size: 11px; font-family: var(--font-mono); color: var(--muted); min-width: 34px; text-align: right; }
 .radio-collections { display: flex; gap: 5px; padding: 10px 16px 0; border-top: 1px solid var(--line); flex: none; }
 .radio-collections button { font: inherit; color: var(--text-secondary); background: none; border: 1px solid transparent; border-radius: var(--r-ctl); cursor: pointer; padding: 6px 9px; }
 .radio-collections button[aria-pressed="true"] { color: var(--text); background: var(--ctl-fill); border-color: var(--line); }
@@ -106,13 +86,12 @@
 .radio-own-station:hover, .radio-own-station[aria-current="true"] { background: var(--ctl-fill); }
 .radio-footer { display: flex; justify-content: space-between; gap: 10px; padding: 9px 16px; border-top: 1px solid var(--line); color: var(--text-secondary); font-size: 10px; flex: none; }
 .radio-footer a { color: inherit; }
-.radio-panel button:focus-visible, .radio-dock button:focus-visible, .radio-panel a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.radio-panel button:active, .radio-dock button:active { transform: translateY(1px); }
+.radio-panel button:focus-visible, .radio-panel a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.radio-panel button:active { transform: translateY(1px); }
 .radio-panel input, .radio-panel select { accent-color: var(--accent); caret-color: var(--accent); }
 @keyframes radioOpen { from { opacity: .8; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 640px) {
-  .radio-dock { left: 58px; max-width: calc(100% - 220px); }
-  .radio-panel, .radio-loading { left: 8px; width: calc(100% - 16px); bottom: var(--radio-anchor-bottom, 64px); max-height: calc(100dvh - var(--topbar-h) - var(--radio-anchor-bottom, 64px) - 12px); }
+  .radio-panel, .radio-loading { left: 8px; right: auto; width: calc(100% - 16px); bottom: 64px; max-height: calc(100dvh - var(--topbar-h) - 64px - 12px); }
   .radio-map { height: 135px; }
   .radio-header, .radio-now { padding: 10px 12px; }
   .radio-header p { display: none; }
