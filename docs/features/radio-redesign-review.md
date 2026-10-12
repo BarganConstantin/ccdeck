@@ -145,3 +145,19 @@ Two focused iterations: first inspect rendered desktop, search and narrow player
 Chromium checks passed for one visible search clear action, clearing/refocusing, exact unchanged button/slider/transport bounds after mute and unmute at 1440×960, 1024×768, 900×600, 390×844 and 320×568, immediate keyboard modal/map/inspector interaction, pointer press feedback and reduced motion. Emulated touch verifies no sticky play hover, station details dismissal, modal bounds, and native playback retained across close/reopen. Repeated the map focus workflow across all six regions, mouse click/pan/wheel/double-click, genuine Tab navigation, keyboard pan/zoom, details/cluster focus restoration and emulated multi-touch at narrow/short sizes.
 
 Final TypeScript and production build passed. **255 tests across 10 relevant Radio/FM/modal/rail suites passed**, and `git diff --check` passed. The existing build chunk-size warning remains. Browser playback uses controlled WAV streams with captured real station metadata; this verifies UI and shared playback behavior, not broadcaster availability or audio hardware output. Physical touch hardware and other browser engines were not tested. Each correction is a separate local commit.
+
+
+### Loading signal illustration — October 12
+
+Applied Impeccable's animate workflow and Emil's motion decision framework to a real asynchronous waiting state. The focal sequence is an antenna sending blue signals to a receiver, followed by returning signals; the surrounding controls and map remain stationary. It is feature artwork, not a brand mark. No dependency or artificial loading delay was added.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Plain lazy-load message | Compact antenna/receiver scene | Give the first opening a product-specific waiting indicator. |
+| Generic empty-list skeleton | Shared signal scene and live status | Connect component and station loading visually. |
+| Bare fallback without modal focus handling | Shared modal hook, Close, Tab and Escape | Preserve dismissal while the code chunk is pending. |
+| Illustration text below the fold at 320×568 | Smaller 140px illustration in short narrow lists | Keep the waiting message visible. |
+
+First combined desktop/mobile capture: `/tmp/ccdeck-radio-review/radio-tuning-pass-1/`. The short viewport revealed the caption below the list's visible area; fixed its size/spacing and confirmed at `/tmp/ccdeck-radio-review/radio-tuning-final/`. Controlled browser routes hold the actual lazy module and directory request to inspect these states without changing production timing. Chromium checks passed for opening animation, Tab containment and Escape dismissal, directory loading at desktop/390px/320px, reduced motion, removal on response, and cached reopening. Radio's own viewport bounds and horizontal containment passed; the underlying deck reported document width 867px at a 390px viewport, which this loading-only pass does not address.
+
+TypeScript and production build passed; 184 tests across five Radio/FM/modal suites passed. Existing large-chunk warning remains. No physical touch hardware, alternate browser engine or broadcaster playback test was run for this illustration-only change.

@@ -32,3 +32,8 @@ Station passport, listening statistics, song recognition and richer collections 
 ### Interaction refinement
 
 The search field keeps one clear action and returns focus to typing when cleared. Mute/Unmute reserves its width, including narrow windows, to keep volume and transport controls stationary. Hover feedback applies to precise pointers; selected, playing and muted states remain persistent. Keyboard camera and inspector actions respond immediately. Pointer press feedback uses short transform transitions and respects reduced motion. Discovery results retain their count above the list; the redundant limit footer is removed.
+
+
+### Radio signal loading state
+
+The initial lazy component load and empty directory fetch share a small antenna/receiver illustration. Outgoing and returning signals animate with CSS transforms and opacity only while waiting; no minimum duration delays the result. A cached catalogue remains available during background refresh. Reduced motion and keyboard-opened Radio use the static illustration, and hidden documents pause the signal loop. The opening fallback uses the shared modal focus/dismiss hook, a labeled Close action and Escape/Tab support. Short narrow windows use a smaller directory illustration.
