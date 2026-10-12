@@ -225,9 +225,10 @@
 .ap-report-modal .ap-proj-head { padding: 18px 24px 0; border-bottom: 0; background: none; }
 .ap-report-modal h2.ap-proj-title { margin: 0; font-size: 16px; }
 .ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; }
-.ap-report-views { display: flex; gap: 6px; padding: 14px 24px 0; }
-.ap-report-views .btn[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--ctl-fill); }
-.ap-report-views .btn:hover { border-color: var(--text); background: var(--ctl-fill); }
+.ap-report-views { display: flex; align-items: center; gap: 4px; }
+.ap-report-view { padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; font: inherit; font-size: 12px; color: var(--report-meta); white-space: nowrap; cursor: pointer; }
+.ap-report-view[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.ap-report-view:hover { color: var(--text); background: var(--ctl-fill); }
 
 /* One count chart, then nearby account/time/usage facts. Older readings are
    disclosed separately so they do not look like confirmed weekly capacity. */
@@ -291,8 +292,10 @@
 .ap-reset-about summary { cursor: pointer; }
 .ap-reset-about p { margin-top: 8px; }
 @media (max-width: 520px) {
-  .ap-report-views { padding: 12px 16px 0; }
-  .ap-report-views .btn { min-height: 40px; }
+  .ap-report-modal .ap-proj-head { flex-wrap: nowrap; }
+  .ap-report-modal .ap-proj-titlewrap { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ap-report-views { margin-right: auto; }
+  .ap-report-view { min-height: 40px; }
   .ap-reset-week { gap: 2px; }
   .ap-reset-day-button { padding: 8px 2px; gap: 6px; }
   .ap-reset-weekday { font-size: 10px; }

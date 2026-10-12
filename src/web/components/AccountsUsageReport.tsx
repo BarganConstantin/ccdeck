@@ -332,12 +332,12 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
           <div className="ap-proj-titlewrap">
             <h2 className="ap-proj-title" id="ap-report-title">Account capacity</h2>
           </div>
+          <div className="ap-report-views" role="group" aria-label="Capacity view">
+            <button type="button" className="ap-report-view" aria-pressed={view === "accounts"} onClick={() => setView("accounts")}>Accounts</button>
+            <button type="button" className="ap-report-view" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}>Reset calendar</button>
+          </div>
           <button ref={closeRef} type="button" className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>
-        <div className="ap-report-views" role="group" aria-label="Capacity view">
-          <button type="button" className="btn" aria-pressed={view === "accounts"} onClick={() => setView("accounts")}>Accounts</button>
-          <button type="button" className="btn" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}>Reset calendar</button>
-        </div>
         {/* Mounted with the dialog and only its words changing, so a reading
             held back is announced: a live region that arrives with its text is
             the one screen readers drop. */}

@@ -505,6 +505,12 @@ const EXEMPT: string[] = [
   // LAN dialog's above. It discloses two paragraphs and changes nothing else,
   // and it answers the press by its text lifting to --text while it is open.
   ".ap-report-how > summary",
+  // Text view switches, chart-day selection and native disclosures answer
+  // through selection/expansion; scaling would move labels or chart data.
+  ".ap-report-view",
+  ".ap-reset-day-button",
+  ".ap-reset-disclosure summary",
+  ".ap-reset-about summary",
   // The file input is an invisible hit target stretched over its visible label.
   // The label owns the press feedback; transforming this overlay would only
   // move the hit target and is not visible to the user.
