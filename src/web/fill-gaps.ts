@@ -80,7 +80,7 @@ export function fillGapsWithNewSessions(
 
   // Group the arrivals, and keep anything already placed as an obstacle.
   const arriving = new Map<string, Node[]>();
-  const settled: Array<{ x: number; y: number; w: number; h: number; cw: number; ch: number }> = [];
+  const settled: Array<{ sid: string; x: number; y: number; w: number; h: number; cw: number; ch: number }> = [];
   for (const n of nodes) {
     const p = posOf(n.id);
     if (!p) continue;
@@ -89,7 +89,7 @@ export function fillGapsWithNewSessions(
     if (wholeSessionArrived.has(sid)) {
       (arriving.get(sid) ?? arriving.set(sid, []).get(sid)!).push(n);
     } else {
-      settled.push({ x: p.x, y: p.y, w, h, ...cardOf(n.id) });
+      settled.push({ sid, x: p.x, y: p.y, w, h, ...cardOf(n.id) });
     }
   }
   if (arriving.size === 0 || (scoring && settled.length === 0)) return [];
@@ -125,7 +125,13 @@ export function fillGapsWithNewSessions(
     // Candidate tops: the very top of a column, and just under everything
     // already there. Any gap big enough starts at one of those edges, so
     // there is nothing to gain from stepping pixel by pixel.
-    const columns = [...new Set(settled.map(r => Math.round(r.x)))].sort((a, b) => a - b);
+    // A session is a block, not a column per card. A subagent to the right
+    // used to create a phantom column: arrivals filled the space above it
+    // even on a portrait canvas with room below the main column. Use each
+    // settled session's left edge; child cards still remain obstacles.
+    const origins = new Map<string, number>();
+    for (const r of settled) origins.set(r.sid, Math.min(origins.get(r.sid) ?? Infinity, r.x));
+    const columns = [...new Set([...origins.values()].map(x => Math.round(x)))].sort((a, b) => a - b);
     const xs = columns.length ? columns : [minX];
     const ys = [0, ...settled.map(r => r.y + r.h + PADDING)].sort((a, b) => a - b);
 
@@ -192,7 +198,7 @@ export function fillGapsWithNewSessions(
     for (const n of members) {
       const p = posOf(n.id)!;
       const { w: nw, h: nh } = sizeOf(n.id);
-      settled.push({ x: p.x, y: p.y, w: nw, h: nh, ...cardOf(n.id) });
+      settled.push({ sid, x: p.x, y: p.y, w: nw, h: nh, ...cardOf(n.id) });
     }
   }
   return moved;
