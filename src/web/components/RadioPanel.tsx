@@ -27,7 +27,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
 }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const scrollPositions = useRef<Record<RadioCollection, number>>({ discover: 0, favorites: 0, recent: 0 });
+  const scrollPositions = useRef<Partial<Record<RadioCollection, number>>>({});
   const workspaceRef = useRef<HTMLElement>(null);
   const revealRequested = useRef(false);
   const radioScroll = useRef(0);
@@ -137,7 +137,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     scrollPositions.current[collection] = listRef.current?.scrollTop ?? 0;
     setCollection(next);
   };
-  useLayoutEffect(() => { if (listRef.current) listRef.current.scrollTop = scrollPositions.current[collection]; }, [collection]);
+  useLayoutEffect(() => { if (listRef.current) listRef.current.scrollTop = scrollPositions.current[collection] ?? 0; }, [collection]);
   useEffect(() => {
     scrollPositions.current = { discover: 0, favorites: 0, recent: 0 };
     if (listRef.current) listRef.current.scrollTop = 0;

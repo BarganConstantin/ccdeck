@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type RefObject } from "react";
 import { type RadioCollection, type RadioFilters } from "../radio-discovery";
+import { tabStripMove } from "../tablist-keys";
 import { RadioFilterOptions, type RadioFilterOption } from "./RadioFilter";
 import RadioIcon from "./RadioIcon";
 import AnchoredPopover from "./AnchoredPopover";
@@ -22,14 +23,10 @@ export default function RadioDiscoveryToolbar({ collection, favoriteCount, onCol
   return <div className="radio-discovery-toolbar">
     <div className="radio-collections" role="tablist" aria-label="Station collection" onKeyDown={event => {
       const index = collections.findIndex(tab => tab.value === collection);
-      let next = index;
-      if (event.key === "ArrowRight") next = (index + 1) % collections.length;
-      else if (event.key === "ArrowLeft") next = (index + collections.length - 1) % collections.length;
-      else if (event.key === "Home") next = 0;
-      else if (event.key === "End") next = collections.length - 1;
-      else return;
-      event.preventDefault(); event.stopPropagation(); onCollectionChange(collections[next].value);
-      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+      const move = tabStripMove(event, index, collections.length);
+      if (move.kind === "pass") return;
+      event.preventDefault(); event.stopPropagation(); onCollectionChange(collections[move.index].value);
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
     }}>
       {collections.map(tab => <button type="button" className="radio-collection" role="tab" id={`radio-tab-${tab.value}`} key={tab.value} aria-selected={collection === tab.value} aria-controls="radio-station-results" tabIndex={collection === tab.value ? 0 : -1} onClick={() => onCollectionChange(tab.value)}>{tab.label}{tab.value === "favorites" && favoriteCount > 0 && <span className="radio-tab-count">{favoriteCount}</span>}</button>)}
     </div>

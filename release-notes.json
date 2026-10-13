@@ -77,6 +77,32 @@
     "3.39.4",
     "3.40.1", "3.40.2"
   ],
+  "3.41.0": [
+    {
+      "title": "📅 Plan account resets",
+      "body": "See the next seven days of resets, account capacity and which readings need refreshing."
+    },
+    {
+      "title": "📊 Follow quota history",
+      "body": "Inspect recorded Claude and Codex quota readings to see how remaining capacity changes over time."
+    },
+    {
+      "title": "♻️ See cached input reuse",
+      "body": "Session usage details now show the percentage of measured input reused from cache."
+    },
+    {
+      "title": "📻 A more polished Radio Explorer",
+      "body": "Find radio stations with compact search and filters, explore workspace streams separately, and save favorites from either source. Playback and keyboard navigation are more reliable."
+    },
+    {
+      "title": "🌍 Radio flags on Windows",
+      "body": "Country flags now display correctly in the radio station list on Windows."
+    },
+    {
+      "title": "🔧 Clearer Telemetry Radar controls",
+      "body": "Change individual telemetry flags and use a simpler Monitor view."
+    }
+  ],
   "3.40.0": [
     {
       "title": "📻 Explore radio around the world",

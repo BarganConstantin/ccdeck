@@ -502,8 +502,8 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
-  { at: ".qh-providers button", states: [".qh-providers button:hover"], beds: ["--panel"] },
-  { at: '.qh-providers button[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
+  { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".qh-window select", beds: ["--panel"] },
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },

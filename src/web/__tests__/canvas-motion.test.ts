@@ -474,7 +474,7 @@ const EXEMPT: string[] = [
   '.radio-controls input[type="range"]::-webkit-slider-thumb',
   ".radio-filter-back", ".radio-filter-field", ".radio-filter-heading .icon-btn", ".radio-workspace-toggle",
   ".radio-filter-chip", ".radio-filter-toggle",
-  ".radio-daily", ".radio-filter-options button", ".radio-filter-trigger", ".radio-loading > .icon-btn",
+  ".radio-daily", ".radio-filter-option", ".radio-filter-trigger", ".radio-loading > .icon-btn",
   ".radio-mobile-view .radio-view", ".radio-own summary", ".radio-own-station",
   ".radio-panel .icon-btn", ".radio-pin", ".radio-play",
   ".radio-regions .radio-region", ".radio-reset", ".radio-station-pick",
@@ -525,7 +525,7 @@ const EXEMPT: string[] = [
   // Text view switches, chart-day selection and native disclosures answer
   // through selection/expansion; scaling would move labels or chart data.
   // Usage-history provider selection and native disclosure keep labels still.
-  ".qh-providers button",
+  ".qh-provider",
   ".qh-readings summary",
   ".ap-report-view",
   ".ap-reset-day-button",

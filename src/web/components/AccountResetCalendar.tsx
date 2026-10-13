@@ -77,7 +77,7 @@ function Agenda({ days, rows, nowSec, outdated = false }: { days: ResetDay[]; ro
         <h4 className="vis-hidden">{fullDate(day.date)} · {entries.length} {entries.length === 1 ? "account" : "accounts"}</h4>
         <ul>{Array.from(new Set(entries.map(entry => entry.at))).map((at, index) => <li className="ap-reset-event" key={at}>
           <div className="ap-reset-when" data-outdated={outdated ? "" : undefined}>{outdated && <span className="ap-reset-last-reported">Last reported</span>}{index === 0 && <time className="ap-reset-day-label" dateTime={day.key}>{weekday(day.date)} · {dayLabel(day.date)}</time>}<ResetTime at={at!} />{!outdated && <span>in {timeUntil(at!, nowSec)}</span>}</div>
-          <ul className="ap-reset-event-accounts">{entries.filter(entry => entry.at === at).map(entry => <li className="ap-reset-entry" key={entry.key} data-outdated={entry.stale ? "" : undefined}>
+          <ul>{entries.filter(entry => entry.at === at).map(entry => <li className="ap-reset-entry" key={entry.key} data-outdated={entry.stale ? "" : undefined}>
             <AccountDetails entry={entry} row={rows.get(entry.key)} nowSec={nowSec} withReading older={outdated} />
           </li>)}</ul>
         </li>)}</ul>
