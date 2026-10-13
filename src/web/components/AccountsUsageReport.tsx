@@ -114,17 +114,6 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
  *  and what the totals above do with it. Why it is not current is the row's
  *  state to say, once. */
 function UsedCell({ cell, label }: { cell: Cell; label: string }) {
-  if (!cell.counted && cell.reset) {
-    // RESET, NOT THE OLD NUMBER. The cards take this window as unused, so a
-    // row printing the last reading added up to a different total from the
-    // one above it. Not "0%" either: nobody has read this window since it
-    // came back. When and at what it was read are on hover, and said.
-    return (
-      <td className="ap-report-cell" data-uncounted="" title={`${cell.reset.replace(/^Reset /, "Reported reset due ")}. Estimated unused; awaiting a fresh reading.`}><span className="ap-report-mobile-label" aria-hidden="true">{label} used</span>
-        <span className="ap-report-pct"><span className="ap-report-estimate" aria-hidden>Estimated unused</span><span className="vis-hidden">{cell.reset.replace(/^Reset /, "Reported reset due ")}. Estimated unused; awaiting a fresh reading.</span></span>
-      </td>
-    );
-  }
   if (!cell.counted) {
     // WHAT THE TOTAL DOES WITH IT, said. Since #1713 a window's total takes
     // every number there is — an old reading, and one behind a login no
@@ -133,11 +122,11 @@ function UsedCell({ cell, label }: { cell: Cell; label: string }) {
     // screen reader the card's average left out a number it had added in.
     const said = cell.estimate == null ? ", not counted" : ", last reading, counted as is";
     return (
-      <td className="ap-report-cell" data-uncounted=""><span className="ap-report-mobile-label" aria-hidden="true">{label} used</span>
+      <td className="ap-report-cell" data-uncounted="" title={cell.reset ?? undefined}><span className="ap-report-mobile-label" aria-hidden="true">{label} used</span>
         <span className="ap-report-pct">
           {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">no reading</span></> : `${shownUsed(cell.last)}%`}
         </span>
-        <span className="vis-hidden">{said}</span>
+        <span className="vis-hidden">{cell.reset ? `. ${cell.reset}. Awaiting a fresh reading${said}.` : said}</span>
       </td>
     );
   }
@@ -174,7 +163,7 @@ function StateCell({ row }: { row: ReportRow }) {
   return (
     <td className="ap-report-state" data-status={row.status}><span className="ap-report-mobile-label" aria-hidden="true">Status</span>
       <span className="ap-report-state-word"><i aria-hidden />{STATE_WORD[row.status]}</span>
-      {Object.values(row.cells).some(cell => !cell.counted && cell.reset) && <span className="ap-report-state-note">Estimated</span>}
+      {Object.values(row.cells).some(cell => !cell.counted && cell.reset) && <span className="ap-report-state-note">Awaiting read</span>}
     </td>
   );
 }
@@ -225,7 +214,7 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
           Ready, by construction. */}
       <div className="ap-report-overview"><p className="ap-report-lead">
         <b>{shownReady}</b> of {plural(total, "Claude account", "Claude accounts")} ready
-      </p><p className="ap-report-confidence">Based on last readings{report.rows.some(row => Object.values(row.cells).some(cell => !cell.counted && cell.reset)) && " · includes elapsed-window estimates"}{report.rows.some(row => row.heldOut) && ` · ${report.rows.filter(row => row.heldOut).length} held out of rotation`}</p></div>
+      </p><p className="ap-report-confidence">Based on last readings{report.rows.some(row => Object.values(row.cells).some(cell => !cell.counted && cell.reset)) && " · elapsed reset times need fresh readings"}{report.rows.some(row => row.heldOut) && ` · ${report.rows.filter(row => row.heldOut).length} held out of rotation`}</p></div>
       <div className="ap-report-sums">
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
       </div>
@@ -278,12 +267,11 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
         <div className="ap-report-how-body">
           <p>
             Every account here, at its last reading: <b>used</b> is their average, and <b>remaining</b> is
-            the rest, not pooled quota. A window whose reported reset time has passed is estimated as unused until refreshed, and its row
-            says <b>Estimated unused</b> until refreshed.
+            the rest, not pooled quota. A passed reported reset time does not confirm renewed capacity. Its last usage reading remains until refreshed.
           </p>
           <p>
             <b>Ready</b> has room in both windows. <b>Limited</b> is at the limit of one, and <b>Exhausted</b> of
-            both. <b>Stale</b> was never read, or is signed out. Ready may be based on an older reading or an elapsed-window estimate; held-out accounts remain included, but are excluded from automatic rotation.
+            both. <b>Stale</b> was never read, or is signed out. Ready may be based on an older reading whose reset time has passed; held-out accounts remain included, but are excluded from automatic rotation.
           </p>
         </div>
       </details>
@@ -308,11 +296,11 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   const [view, setView] = useState<"accounts" | "calendar">("accounts");
   const [resetScope, setResetScope] = useState<ResetScope>("upcoming");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  // The last roster that had anyone in it — see the header. Keyed on the
+  // Retain a missing/failed snapshot, but accept an authoritative empty roster. Keyed on the
   // roster the panel holds, which changes once a poll and not once a render.
   const [shown, setShown] = useState<readonly Account[]>(accounts ?? []);
-  useEffect(() => { if (accounts && accounts.length > 0) setShown(accounts); }, [accounts]);
-  const held = heldNote(failed, !accounts || accounts.length === 0, shown.length > 0);
+  useEffect(() => { if (accounts != null) setShown(accounts); }, [accounts]);
+  const held = heldNote(failed, accounts == null, shown.length > 0);
   // A pressed column's order, taken when it was pressed and held like the
   // panel's: the rows do not move under the reader between presses. Worked out
   // from the panel's order each time, so ties land the same way whichever

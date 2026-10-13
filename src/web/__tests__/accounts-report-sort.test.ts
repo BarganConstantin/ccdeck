@@ -158,7 +158,7 @@ describe("dedicated reset columns", () => {
     expect(sortReportRows(rows, { key: "seven_day_reset", dir: "desc" }).map(r => r.num)).toEqual([1, 2, 3]);
     expect(rows[0].status).toBe("ready");
     expect(rows[1].status).toBe("stale");
-    expect(rows[2].cells.five_hour).toMatchObject({ counted: false, why: "reset", estimate: 0 });
+    expect(rows[2].cells.five_hour).toMatchObject({ counted: false, why: "reset", estimate: rows[2].cells.five_hour.last });
   });
 
   it("renders reset headers as accessible sort buttons and separates usage from reset cells", () => {

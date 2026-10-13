@@ -13,20 +13,10 @@
 // accounts reporting. If the deck is ever told real limits, the average can
 // become a weighted one without the report changing shape.
 //
-// EACH WINDOW ON ITS OWN, because an account can have a current 7-day reading
-// and no 5-hour one. And a reading that is not current is left out of its
-// window's total rather than counted, and said: counted as 0% it would read as
-// capacity nobody has checked, and counted at its old value it would read as
-// usage that may have rolled over since. Not current is:
-//
-//   - no reading for the window at all;
-//   - a login no switch can get past (account-issue.ts's blocksSwitch), which
-//     the panel's rows draw frozen;
-//   - nothing collected for a quarter of an hour — the server's `stale`, and
-//     this page's own clock against the reading's time, because the server's
-//     flag is only as fresh as the last poll that reached it;
-//   - a window whose reset has passed since it was read, however old the
-//     reading — the row says it reset, and the total takes it as unused.
+// EACH WINDOW ON ITS OWN: missing data stays unknown. Totals describe the
+// last observed percentages, including older readings, not pooled usable quota.
+// Fresh reporting counts exclude missing/auth-blocked/stale observations and
+// elapsed reported reset times. Passing a timestamp never proves renewal.
 //
 // AND AN AVERAGE PER WINDOW CANNOT SAY WHICH WINDOW HOLDS AN ACCOUNT BACK. An
 // account at 12% of its 5 hours and 100% of its week adds 88 points of "5h
@@ -57,15 +47,13 @@ export type Cell =
   | { counted: true; pct: number; resetAt: number | null }
   | {
     counted: false; why: Unread; say: string; last: number | null;
-    /** What the windows' totals take for it (#1713): the last reading, or 0
-     *  for a window that has reset since it was read — that reading belongs to
-     *  the window before — and null when there has never been a reading. */
+    /** Last observed usage for the aggregate; null when never measured.
+     * Passing a reported reset time does not establish renewed capacity. */
     estimate: number | null;
     /** Its reset, when the last reading had one still ahead. */
     resetAt: number | null;
-    /** Its reset, when it has passed since the last reading: what the row
-     *  says in place of that reading's number, which the totals no longer
-     *  take — "Reset 17h ago, 96% when read 18h ago". Null otherwise. */
+    /** Its reset, when it has passed since the last reading: the reported time
+     *  and last usage, retained by totals without assuming renewal. Null otherwise. */
     reset: string | null;
   };
 
@@ -95,7 +83,7 @@ export interface ReportRow {
  * claude-swap's own plan, often slower than the report's fifteen minutes, and
  * an account nobody is using spends nothing between two reads — so its last
  * reading is its reading, near enough. A window that has reset since it was
- * read is taken as unused. The row still says the reading is old; it is not
+ * read is retained at its last reported value until another observation. The row still says the reading is old; it is not
  * held back from Ready for it.
  *
  * Stale is left for an account the numbers cannot speak for: one never read in
@@ -142,6 +130,11 @@ export function freshness(row: ReportRow, nowSec: number): { text: string; old: 
 /** How old a reading may be and still count — the server's own line. */
 export const REPORT_STALE_MS = 15 * 60_000;
 
+/** Observation stamps are epoch milliseconds. Invalid dates are unread, not fresh. */
+export function observationAt(at: number | null): number | null {
+  return at != null && at > 0 && Number.isFinite(at) && Number.isFinite(new Date(at).getTime()) ? at : null;
+}
+
 export interface WindowTotal {
   id: WindowId;
   label: string;
@@ -163,7 +156,7 @@ export interface WindowTotal {
 export interface UsageReport {
   rows: ReportRow[];
   windows: WindowTotal[];
-  /** Accounts with a current reading in both windows and room in both. */
+  /** Accounts with last observed room in both windows; freshness is separate. */
   roomInBoth: number;
 }
 
@@ -174,7 +167,7 @@ export const accountName = (a: Account) => a.alias ?? a.email ?? `account ${a.nu
  *  future-only reading. Missing or unrepresentable dates cannot be sorted. */
 function recordedReset(a: Account, id: WindowId): number | null {
   const at = a.lanes?.find(l => l.id === id)?.resetAt;
-  return at != null && Number.isFinite(at) && Number.isFinite(new Date(at * 1000).getTime()) ? at : null;
+  return at != null && at > 0 && Number.isFinite(at) && Number.isFinite(new Date(at * 1000).getTime()) ? at : null;
 }
 
 /** One account's reading of one window, or why it does not count. */
@@ -183,28 +176,25 @@ export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
   const lane = (a.lanes ?? []).find(l => l.id === id);
   const last = lane && Number.isFinite(lane.pct) ? clamp(lane.pct) : null;
   const issue = accountIssue(a, nowSec);
-  const lapsed = lane?.resetAt != null && lane.resetAt <= nowSec;
+  const at = recordedReset(a, id);
+  const lapsed = at != null && at <= nowSec;
   const reset = resetSinceReading(lane, a.fetchedAt, nowSec);
   const unread = (why: Unread, say: string): Cell => ({
     counted: false, why, say, last,
-    estimate: last == null ? null : lapsed ? 0 : last,
-    resetAt: lapsed ? null : lane?.resetAt ?? null,
+    estimate: last,
+    resetAt: lapsed ? null : recordedReset(a, id),
     reset,
   });
   // In the order a reader would fix them: a login that cannot be used says
   // more than anything about the numbers it left behind.
   if (issue?.blocksSwitch) return unread("login", issue.text);
   if (last == null) return unread("none", `No ${label} reading`);
-  // A RESET OUTRANKS THE AGE. The total takes a window that has come back
-  // since its reading as unused, whatever the reading's age, so the row has
-  // to say that rather than how old the number is: an old reading checked
-  // for its age first was described as old and drawn at its old number,
-  // while the cards above counted it at 0, and the rows no longer added up
-  // to them.
+  // An elapsed reported time is uncertainty, not evidence of renewed quota.
   if (reset) return unread("reset", reset);
-  const old = a.stale || a.fetchedAt == null || nowSec * 1000 - a.fetchedAt > REPORT_STALE_MS;
-  if (old) return unread("stale", a.fetchedAt ? `Updated ${ago(a.fetchedAt, nowSec)}` : "Never read");
-  return { counted: true, pct: last, resetAt: lane!.resetAt };
+  const observed = observationAt(a.fetchedAt);
+  const old = a.stale || a.staleCopy === true || a.stopped === true || observed == null || nowSec * 1000 - observed > REPORT_STALE_MS;
+  if (old) return unread("stale", observed != null ? `Updated ${ago(observed, nowSec)}` : "Never read");
+  return { counted: true, pct: last, resetAt: recordedReset(a, id) };
 }
 
 const clamp = (pct: number) => Math.min(100, Math.max(0, pct));
@@ -215,8 +205,7 @@ const clamp = (pct: number) => Math.min(100, Math.max(0, pct));
  * 17h ago, 96% when read 18h ago". Null while the window is still running, or
  * when it has no number.
  *
- * Good news the numbers have not caught up with: the window has come back
- * since it was read, so the account is likely emptier than it says. The
+ * A passed reported time does not prove renewal: retain the last observation. The
  * report's rows and the accounts panel's open row both say it, in these words,
  * so one account reads the same wherever it is drawn.
  */
@@ -225,9 +214,10 @@ export function resetSinceReading(
   fetchedAt: number | null,
   nowSec: number,
 ): string | null {
-  if (lane?.resetAt == null || lane.resetAt > nowSec || !Number.isFinite(lane.pct)) return null;
-  const read = fetchedAt ? `read ${ago(fetchedAt, nowSec)}` : "last read";
-  return `Reset ${ago(lane.resetAt * 1000, nowSec)}, ${shownUsed(clamp(lane.pct))}% when ${read}`;
+  if (lane?.resetAt == null || lane.resetAt <= 0 || !Number.isFinite(lane.resetAt) || !Number.isFinite(new Date(lane.resetAt * 1000).getTime()) || lane.resetAt > nowSec || !Number.isFinite(lane.pct)) return null;
+  const observed = observationAt(fetchedAt);
+  const read = observed != null ? `read ${ago(observed, nowSec)}` : "last read";
+  return `Reported reset time passed ${ago(lane.resetAt * 1000, nowSec)}, ${shownUsed(clamp(lane.pct))}% when ${read}`;
 }
 
 /** A window's total over the rows. */
@@ -291,7 +281,7 @@ export function usageReport(accounts: readonly Account[], nowSec: number): Usage
       cells,
       resets: { five_hour: recordedReset(a, "five_hour"), seven_day: recordedReset(a, "seven_day") },
       status: statusOf(cells),
-      updatedAt: a.fetchedAt ?? null,
+      updatedAt: observationAt(a.fetchedAt),
     };
   });
   // Counted off the rows' own status, so the lead's "7 of 9 ready" and the
@@ -324,8 +314,8 @@ export function nextReportSort(current: ReportSort | null, key: ReportSortKey): 
 const STATUS_RANK: Record<Status, number> = { ready: 0, limited: 1, exhausted: 2, stale: 3 };
 
 /** The number a row shows in a window's column — its reading, or the last
- *  one it had, dimmed — or, for a window whose row says reset, the 0 the
- *  total takes it at, so the order follows what the eye reads. */
+ *  one it had, dimmed — or, for an elapsed window, the last
+ *  observed value, so the order follows what the eye reads. */
 function shownPct(c: Cell): number | null {
   if (c.counted) return c.pct;
   return c.reset ? c.estimate : c.last;
