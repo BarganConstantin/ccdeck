@@ -119,7 +119,7 @@ describe("the modal itself", () => {
       .toMatch(/if \(force && !selfPressAccepted\(busyRef\.current\)\) return;/);
   });
 
-  it("swaps the ↻ for a busy label, the way UsagePanel's reload already did", () => {
-    expect(src).toMatch(/loading \?[^\n]*"↻"/);
+  it("swaps the reload artwork for a busy label", () => {
+    expect(src).toMatch(/loading \? "…" : <RefreshGlyph \/>/);
   });
 });

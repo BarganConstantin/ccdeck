@@ -17,6 +17,15 @@
 .uh-titlewrap { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
 .uh-title { font-size: 14px; font-weight: 600; }
 .uh-sub { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); }
+/* Keep the close and refresh actions reachable when the range strip no longer
+   fits beside the title. The range moves onto its own row on narrow windows. */
+@media (max-width: 520px) {
+  .uh-head { display: grid; grid-template-columns: minmax(0, 1fr) 24px 24px; gap: 8px; }
+  .uh-titlewrap { min-width: 0; margin-right: 0; }
+  .uh-head > .uh-range { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+  .uh-head > .uh-reload { grid-column: 2; grid-row: 1; }
+  .uh-head > .uh-close { grid-column: 3; grid-row: 1; }
+}
 .uh-range { display: inline-flex; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
 .uh-range-btn {
   font: inherit; font-size: 11px;

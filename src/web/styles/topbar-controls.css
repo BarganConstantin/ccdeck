@@ -397,7 +397,7 @@
 /* Inside its own edge, for the reason the waiting chip's is (#1706). */
 .topbar .provider-incident:focus-visible { outline-offset: -3px; }
 .topbar .provider-incident .pi-name { font-weight: 600; }
-.topbar .provider-incident .pi-go { color: var(--text-dim); }
+.topbar .provider-incident .pi-go { display: inline-flex; color: var(--text-dim); }
 /* One word, for a bar with no room for the state in full — see topbar.css,
    which says when. Hidden with display, so it leaves the link's name with it. */
 .topbar .provider-incident .pi-short { display: none; }
