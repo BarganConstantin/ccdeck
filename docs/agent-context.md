@@ -13,6 +13,8 @@ branches still have the same state. Verify them at the start of a new session.
   `CCDECK_HOME=/tmp/ccdeck-usage-insights-preview` and reports/install disabled.
 - Preview quota history is actual observed Claude/Codex data, isolated from the
   installed app on 4317. Browser fixtures used for QA were not persisted.
+- Usage history opens from the header chart icon; bars remain display-only.
+  Header spend/minute and the Codex 7-day token/session summary were removed.
 - Owner review is pending; this feature has not been merged into development.
   Details and verification: `docs/features/usage-insights.md`.
 

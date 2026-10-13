@@ -6,8 +6,12 @@ and the session-usage surface contract.
 
 ## Surface and visual contract
 
-Usage exposes Quota history for configured Claude/Codex providers alongside
-the existing Cost history action. By session opens the existing whole-session
+Usage exposes Quota history through the chart icon alongside Refresh and Close
+for configured Claude/Codex providers. It adds no separate history buttons and
+does not make quota bars interactive. Existing Cost history access remains.
+The header omits spend/minute, and the Codex quota section omits the redundant
+7-day token/session summary. All three header controls use consistent 16px SVG
+icons with equal 28px targets, or 36px for coarse pointers. By session opens the existing whole-session
 inspector for Claude/Codex rows; Cached input reuse sits in Token breakdown,
 before the composition bar and labeled counters.
 
@@ -17,7 +21,8 @@ to the opener when it survives. The body scrolls at short heights; Close remains
 available in loading, error and empty states.
 
 Reuse existing theme surface/text/control tokens, global focus ring and shell
-depth/motion. Titles are 14px, body/data 12px, annotations 11px and headline
+depth. Quota entry uses Radio’s `radioOpen` fade/scale for 200ms; keyboard
+activation and reduced-motion preferences skip this animation. Titles are 14px, body/data 12px, annotations 11px and headline
 measurements 22px, with tabular numerals. No new visual world, token palette,
 motion or typography primitives.
 

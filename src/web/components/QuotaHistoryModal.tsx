@@ -34,8 +34,8 @@ function QuotaChart({ series }: { series: QuotaSeries }) {
   </>;
 }
 
-export default function QuotaHistoryModal({ providers, accounts, onClose }: {
-  providers: Providers; accounts: { claude?: string; codex?: string }; onClose: () => void;
+export default function QuotaHistoryModal({ providers, accounts, onClose, instant = false }: {
+  providers: Providers; accounts: { claude?: string; codex?: string }; onClose: () => void; instant?: boolean;
 }) {
   const [provider, setProvider] = useState<Provider>(providers.claude ? "claude" : "codex");
   const [data, setData] = useState<QuotaHistory | null>(null);
@@ -86,7 +86,7 @@ export default function QuotaHistoryModal({ providers, accounts, onClose }: {
   };
 
   return createPortal(<div className="modal-backdrop" {...scrim}>
-    <div className="modal qh-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="quota-history-title">
+    <div className="modal qh-modal" data-keyboard-interaction={instant || undefined} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="quota-history-title">
       <header className="modal-head">
         <h2 id="quota-history-title">Quota history</h2>
         <div className="qh-header-actions">

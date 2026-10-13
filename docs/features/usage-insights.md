@@ -2,7 +2,11 @@
 
 Issue: https://github.com/BarganConstantin/ccdeck/issues/2121
 
-Usage now exposes **Quota history** and the existing **Cost history** report.
+Usage opens **Quota history** from the chart icon beside Refresh and Close.
+The existing Cost history entry remains in place; quota bars are display-only.
+The header omits spend/minute, and the Codex section omits its 7-day local
+token/session summary. Header controls share 16px SVG icons and equal 28px targets
+(36px for coarse pointers).
 Quota history shows recorded remaining quota, the original capture age and a
 window selector. The dashed even-use reference is a guide, not a forecast.
 Observations stop at the last actual capture; gaps longer than ten minutes are
@@ -51,8 +55,10 @@ https://github.com/ccusage/ccusage/blob/main/rust/adapters/codex/src/report.rs
   switches, existing quota sources, route deadlines, modal focus/portals, guarded
   reads, usage history and pinned builds after self-update.
 - TypeScript and production build passed.
+- Owner revisions: 120 relevant tests passed; header icon entry, uniform control
+  geometry and removal of duplicate history/rate/bar controls were verified.
 - Isolated Brave QA at 1280, 390 and 320 px covered all nine themes, provider/window
-  selection, readings disclosure, Cost history, Escape/focus restoration, empty,
+  selection, readings disclosure, header history entry, Escape/focus restoration, empty,
   load error and storage-error states, and measured/zero/missing cache.
 - Ten synchronous Refresh activations under a delayed history response produce
   one request and finish normally; the control retains focus.
@@ -67,7 +73,7 @@ Branch: `feat/2121-usage-insights`, based on development `a467d552`.
 Frontend: http://127.0.0.1:4525/ (Vite).
 Backend: http://127.0.0.1:4526/.
 Preview home: `/tmp/ccdeck-usage-insights-preview`; the installed app on 4317 remains
-separate. Open Usage → Quota history; history begins with observed readings,
+separate. Open Usage → chart icon; history begins with observed readings,
 without reconstructing earlier provider quotas from tokens or costs.
 
 The Playwright QA scripts and screenshots are local verification artifacts,
@@ -75,3 +81,7 @@ under `/tmp/ccdeck-character-browser/usage-insights-qa.cjs` and
 `.impeccable/review/usage-insights/`. Windows execution was not required for this
 web/server change; no RDP build was run. Predictive exhaustion alerts and request
 latency/throughput remain outside this issue.
+
+Quota modal entry reuses Radio’s `radioOpen` fade/scale at 200ms. Keyboard
+activation and reduced-motion preferences show the dialog instantly. Live Brave
+checks verify these modes independently of the populated screenshot fixtures.

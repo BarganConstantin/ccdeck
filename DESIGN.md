@@ -683,6 +683,9 @@ from a rate with no tier evidence. See
 
 ### Usage insights
 
+Quota history opens from a chart glyph beside Refresh and Close; quota bars
+remain display-only. Header glyphs have equal targets and consistent SVG weight.
+Entry reuses Radio’s fade/scale for 200ms, skipped for keyboard/reduced motion.
 Quota history shares the report shell and existing measurement hierarchy. Keep
 percentage/time labels in HTML outside the SVG so narrow plots retain readable
 11px annotations; stack provider/window controls at widths up to 420px. Observed

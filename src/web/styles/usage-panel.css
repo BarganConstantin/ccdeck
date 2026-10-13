@@ -50,19 +50,6 @@
   align-items: center;
   gap: 4px;
 }
-/* Neutral, not the running pink (#821): the colour every in-flight thing on
-   the canvas wears made a money figure read as a state, and it is a rate. The
-   figure is the primary tier — it is the panel's headline number, not prose
-   and not a caption — and the span beside it the metadata tier. */
-/* Inline beside the title, not a badge: a rate is a reading, and the pill it
-   sat in made it the one boxed thing in the header. */
-.up-rate {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-.up-rate-span { color: var(--muted); }
 /* #380 deleted a 16px font-size here for the same reason it deleted `.sl-close`'s
    15px: `class="btn icon-btn up-close"` put `button.btn.icon-btn` (0,2,1) over
    this rule's (0,1,0). The class set is `glyph-btn up-close` now, so that fight
@@ -756,8 +743,3 @@ button.qb-pace::after {
    on source order — they read as dim grey otherwise. */
 .up-credits { color: var(--accent); }
 .up-reset-credits { color: var(--ok); font-variant-numeric: tabular-nums; }
-
-:root[data-color-scheme="light"] .up-rate {
-  background: rgba(126,34,206,0.10);
-}
-

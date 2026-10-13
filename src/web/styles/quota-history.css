@@ -1,14 +1,15 @@
 /* Usage histories share the existing report shell and measurement palette. */
-.modal.qh-modal { width: min(640px, 94vw); color: var(--text); }
+.modal.qh-modal { width: min(640px, 94vw); color: var(--text); animation: radioOpen 200ms cubic-bezier(.22, 1, .36, 1); }
+.modal.qh-modal[data-keyboard-interaction] { animation: none; }
 .qh-modal .modal-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
 .qh-header-actions { display: flex; gap: 8px; margin-left: auto; }
 .qh-body { gap: 16px; font-size: 12px; }
 .qh-body > * { flex: none; }
 .qh-controls { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .qh-providers { display: flex; gap: 4px; }
-.qh-providers button, .up-history-actions button { font: inherit; color: var(--text-dim); background: transparent; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 10px; cursor: pointer; min-height: 28px; }
+.qh-providers button { font: inherit; color: var(--text-dim); background: transparent; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 10px; cursor: pointer; min-height: 28px; }
 .qh-providers button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--ctl-fill); }
-.qh-providers button:hover, .up-history-actions button:hover { color: var(--text); background: var(--ctl-fill); }
+.qh-providers button:hover { color: var(--text); background: var(--ctl-fill); }
 .qh-window { display: grid; gap: 6px; min-width: 0; max-width: 100%; color: var(--text-dim); }
 .qh-window select { min-width: 0; max-width: 100%; font: inherit; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 8px; }
 .qh-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding-top: 4px; }
@@ -37,10 +38,16 @@
 .qh-readings th, .qh-readings td { padding-block: 6px; text-align: left; border-bottom: 1px solid var(--line); font-weight: 400; }
 .qh-readings th { color: var(--text-dim); }
 .qh-readings th:last-child, .qh-readings td:last-child { text-align: right; }
-.up-history-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px var(--panel-inset); font-size: 11px; }
-.up-history-actions button { flex: 1; }
 .up-source { margin: -4px var(--panel-inset) 12px; font-size: 11px; color: var(--text-dim); line-height: 1.6; }
 @media (max-width: 420px) {
   .qh-controls { display: grid; gap: 12px; }
   .qh-window { width: 100%; }
+}
+
+.up-header-right > .glyph-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; flex: none; }
+@media (pointer: coarse) {
+  .up-header-right > .glyph-btn { width: 36px; height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal.qh-modal { animation: none; }
 }

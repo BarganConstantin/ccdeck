@@ -744,7 +744,6 @@ function Inner() {
           incidents={incidents}
           liveSince={liveSince}
           leaving={usagePhase === "leaving"}
-          onOpenCostHistory={() => setUsageHistoryOpen(true)}
           onClose={() => { panelReturn.usage(); setUsagePanelOpen(false); }}
         />
       )}
