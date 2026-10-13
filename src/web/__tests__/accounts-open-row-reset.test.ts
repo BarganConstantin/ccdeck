@@ -65,8 +65,8 @@ const shutSays = (html: string, label: string) =>
     .replace(label, "").trim();
 
 const WINDOWS = [
-  { label: "5h", said: "Reset 15h ago, 96% when read 18h ago" },
-  { label: "7d", said: "Reset 17h ago, 84% when read 18h ago" },
+  { label: "5h", said: "Reported reset time passed 15h ago, 96% when read 18h ago" },
+  { label: "7d", said: "Reported reset time passed 17h ago, 84% when read 18h ago" },
 ];
 
 describe("an open account row whose windows have reset since a reading that is frozen", () => {
@@ -101,7 +101,7 @@ describe("an open account row whose windows have reset since a reading that is f
     const lane = laneOf(row(running, true), "5h");
     expect(seen(lane)).toBe("5h 33%");
     expect(lane).toContain('<div class="ap-lane-fill" style="width:33%;background:var(--muted);opacity:0.4"></div>');
-    expect(lane).not.toContain("title=\"Reset");
+    expect(lane).not.toContain("title=\"Reported reset time passed");
   });
 
   it("preserves panel reset wording while qualifying the report estimate", () => {
@@ -115,7 +115,7 @@ describe("an open account row whose windows have reset since a reading that is f
         open: seen(laneOf(open, label)).replace(label, "").trim(),
         report: cells[i],
       };
-      expect(views, `the ${label} window`).toEqual({ shut: "reset", open: "reset", report: "Estimated unused" });
+      expect(views, `the ${label} window`).toEqual({ shut: "reset", open: "reset", report: i === 0 ? "96%" : "84%" });
     });
   });
 

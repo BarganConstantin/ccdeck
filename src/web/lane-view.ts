@@ -117,19 +117,16 @@ export function lapsed(l: { resetAt?: number | null }, nowSec: number): boolean 
 }
 
 /**
- * The room an account has, against the tightest window still running: the
- * server's own `headroom` while none has lapsed, and measured again without
- * the ones that have — a window that rolled over says nothing about room until
- * it is read. Null when no window is left to measure against.
+ * Reported headroom while every observed window is still running. An elapsed
+ * window cannot be discarded: it might still be exhausted. Until a new
+ * reading, total usable room is unknown even if the other windows have room.
  */
 export function headroomAt(
   a: { lanes?: readonly (LaneLike & { resetAt?: number | null })[]; headroom: number | null },
   nowSec: number,
 ): number | null {
   const lanes = a.lanes ?? [];
-  const live = lanes.filter(l => !lapsed(l, nowSec));
-  if (live.length === lanes.length) return a.headroom;
-  return live.length ? Math.max(0, 100 - Math.max(...live.map(l => l.pct))) : null;
+  return lanes.some(l => lapsed(l, nowSec)) ? null : a.headroom;
 }
 
 // NO COUNT OF WHAT IS FOLDED. The row's disclosure used to be a word in its
