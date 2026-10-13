@@ -129,7 +129,6 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
               if (!grouped) { setCluster(null); onPick(station); return; }
               setCluster(marker.stations); setRegion(""); moveCamera({ x: marker.x, y: marker.y, zoom: Math.min(MAX_RADIO_ZOOM, camera.current.zoom * 2) }, true);
             }}>
-            <title>{grouped ? `${marker.stations.length} nearby stations · click to explore` : `${station.name} · ${station.radio.country}`}</title>
             <circle className="radio-pin-hit" r={(touchTargets ? 22 : 14) / scale} />
             {audible && <circle className="radio-pin-playing" r={(grouped ? 14 : 8) / scale} />}
             <circle className="radio-pin-dot" r={(grouped ? 11 : active ? 5 : 3.2) / scale} />

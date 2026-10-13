@@ -74,3 +74,46 @@ the corrected modal boundary, not complete assistive-technology certification.
 
 Keep truthful source/metadata/count provenance, shared audio and persistence,
 explicit recovery, one vertical results scrollbar, and accessible focus/contrast.
+
+
+## Final targeted refinement — 2026-10-13
+
+Applied Impeccable's polish procedure without replacing the composition.
+First critique: Today's station forced its name, editorial label, country and
+play action onto one crowded line; the directory description did not quantify
+which results could be mapped; a failed active workspace source still said Paused.
+Map markers retained native SVG tooltips and selectable cluster numerals.
+
+First fix batch: two-line-capable featured name with metadata below and a stable
+play control; dynamic coordinate coverage; explicit failed-source retry copy;
+nonselectable map markers, no native SVG title, retained aria labels and circular
+keyboard focus indication. Second critique/fix: failed-state Retry now takes
+priority over armed Pause, including Today's station, whose current/pressed
+semantics match its actual action. Settled captures replaced a transient initial
+capture and distinguish pointer hover from keyboard focus.
+
+Final verification: TypeScript and production build passed; 90 tests in seven
+suites passed, including missing-coordinate copy and failures in both sources.
+Real Chromium checks passed for search, combined country/genre/language, clears,
+Global scope, Favorites/Recent, source disclosure, outside click and Escape,
+focus return, pointer versus keyboard focus, popup bounds, and overflow at
+1440x1000, 1100x800, 390x844, 320x568 and 1100x540. A synthetic 300-result catalogue
+with 127 coordinate-bearing entries and multilingual long names verified counts.
+The same silent-WAV media instance continued advancing across search, filtering,
+tabs, empty results and source collapse. Waiting/playing events exercised buffering;
+row clicks exercised pause/resume; a mocked failed workspace probe exercised Retry.
+Persisted favorite IDs were checked in localStorage. Native assistive-technology
+and real external stream availability were not manually validated.
+
+Opened and reviewed actual captures: /tmp/radio-final-catalogue-catalogue-{1440-1000,1100-800,390-844,320-568,1100-540}.png,
+/tmp/radio-final-catalogue-filter-overview.png, /tmp/radio-final-catalogue-filter-country.png,
+/tmp/radio-final-combined-short.png, /tmp/radio-final-empty.png,
+/tmp/radio-final-favorites.png, /tmp/radio-final-recent.png,
+/tmp/radio-final-workspace.png, /tmp/radio-final-playing.png,
+/tmp/radio-final-paused.png, /tmp/radio-final-buffering.png,
+/tmp/radio-final-workspace-failed.png, /tmp/radio-final-map-hover.png and
+/tmp/radio-final-map-focus.png. These temporary local captures contain synthetic
+station fixtures. This final pass was in-thread; the earlier independent verdict
+above applies to the previous composition revision, not to these new refinements.
+Existing production chunk-size warning remains. No new dependency or player
+lifecycle change was introduced.

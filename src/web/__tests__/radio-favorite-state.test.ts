@@ -10,13 +10,13 @@ import { cascade, el, selects } from "./sheet-cascade";
 
 const [station] = resolveRadioStations([{ id: "radio-00000000-0000-4000-8000-000000000001", name: "Test radio", url: "https://radio.example/live", country: "Moldova", countryCode: "MD" }]);
 const noop = () => {};
-function Panel({ saved, workspace = false, renamed = false }: { saved: boolean; workspace?: boolean; renamed?: boolean }) {
+function Panel({ saved, workspace = false, renamed = false, failed = false }: { saved: boolean; workspace?: boolean; renamed?: boolean; failed?: boolean }) {
   const fm = useClaudeFm();
   const library = useRadioLibrary();
   return createElement(RadioPanel, {
-    fm: { ...fm, ...(workspace ? { fmSource: "good-life-radio" as const } : {}), ...(renamed ? { customFmStations: [{ ...station, name: "My renamed radio" }] } : {}) }, library: { ...library, catalogue: [station], favorites: saved ? [workspace ? "good-life-radio" : station.id] : [] },
+    fm: { ...fm, ...(failed ? { fmPlayRequest: 1 } : {}), ...(workspace ? { fmSource: "good-life-radio" as const } : {}), ...(renamed ? { customFmStations: [{ ...station, name: "My renamed radio" }] } : {}) }, library: { ...library, catalogue: [station], favorites: saved ? [workspace ? "good-life-radio" : station.id] : [] },
     selected: workspace ? undefined : station, label: workspace ? "The Good Life Radio" : station.name, enabled: true, disabledReason: "",
-    player: { probe: null, dead: false, armed: false, playing: false, buffering: false, frame: { current: null }, say: noop, press: noop },
+    player: { probe: null, dead: failed, armed: false, playing: false, buffering: false, frame: { current: null }, say: noop, press: noop },
     onPick: noop, onQueueChange: noop, onClose: noop,
   });
 }
@@ -31,7 +31,7 @@ describe("radio favorite indicators", () => {
   it("draws the same country image in the player and station row", () => {
     const html = renderToStaticMarkup(createElement(Panel, { saved: false }));
     const flags = [...html.matchAll(/<img\b[^>]*class="radio-country-flag"[^>]*>/g)];
-    expect(flags).toHaveLength(2);
+    expect(flags).toHaveLength(3);
     for (const [flag] of flags) expect(flag).toContain("/radio-flags/md.svg");
   });
 
@@ -55,6 +55,21 @@ describe("radio favorite indicators", () => {
     expect(html).toContain('aria-label="Play My renamed radio, Moldova"');
     expect(html).toContain('aria-label="Unsave My renamed radio"');
     expect(html).toContain('aria-label="Play today’s station: My renamed radio, Moldova"');
+  });
+
+  it("reports missing map coordinates without implying every result is plotted", () => {
+    const html = renderToStaticMarkup(createElement(Panel, { saved: false }));
+    expect(html).toContain("Radio Browser · 0 of 1 have map locations");
+    expect(html).toContain('class="radio-daily-copy"');
+    expect(html).toContain('class="radio-daily-meta"');
+  });
+
+  it("shows failed active streams as retryable in both source groups", () => {
+    for (const workspace of [false, true]) {
+      const html = renderToStaticMarkup(createElement(Panel, { saved: false, workspace, failed: true }));
+      expect(html).toContain(workspace ? 'aria-label="Retry The Good Life Radio"' : 'aria-label="Retry Test radio, Moldova"');
+      expect(html).toContain("Stream unavailable · retry");
+    }
   });
 
   it("styles both the current station and the list heart for each saved state", () => {
