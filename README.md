@@ -124,6 +124,8 @@ The panels open from the window's edges: the session list and the Claude account
 
 Everything the page lets you set — the theme, the single-key shortcuts, the sounds, notifications, Claude FM and the minimap character — is in **Settings**, behind the gear at the right of the topbar, or `Cmd+,` (`Ctrl+,` on Windows and Linux). A change applies the moment you make it. The sounds and how loud each tone is are in **Settings › Sounds**, which `V` opens straight away; `M` turns sounds off or on from anywhere. `?` lists every key. If you use voice control or press letters by accident, turn off **Single-key shortcuts** in **Settings › General**: letters, `?` and Space then do nothing, while `Cmd+,`, `Esc`, `Enter`, `Tab`, `Delete` and the arrows keep working.
 
+**Radio**, on the right sidebar beside the character (in **More** on a phone), opens a responsive Radio Explorer with a large interactive map, station discovery and a persistent player. Filter by country, sound or language, save favorites, return to recent stations, or choose **Surprise me**. Your existing Claude FM, Lofi Girl and custom streams are under **Your streams**. Select a station to inspect it, then press Play to listen; closing Radio or hiding the character keeps it playing. Favorites, history and the last catalogue are saved in this browser. Control music directly in Radio Explorer; character settings are in **Settings › General**.
+
 No config file. No account. What your sessions contain — your prompts, the replies, the files they touch — is never reported anywhere. The deck does send usage reports, on by default: its version, your system, your IP address and a device fingerprint, rough counts such as how many sessions ran in a day, and the errors it hits. It has no switch for them; `AGENTS_DECK_NO_REPORTS=1` keeps them off from the first start.
 
 **The deck cannot steer your agent.** The hook it installs is a one-way forwarder: it POSTs the event, exits `0`, and writes nothing to stdout. Those are the two channels Claude Code's hook protocol gives a hook for allowing, denying, deferring or rewriting the tool call it was told about, and this one uses neither — it has no way to answer at all. `src/web/__tests__/hook-read-only.test.ts` pins both halves, over the source and by running the real script.
@@ -164,7 +166,9 @@ Open **Telemetry Radar** from the right rail, or **More → Telemetry Radar** on
 phone. Three views keep configuration, observed traffic and saved files separate:
 
 - **Monitor** lists decoded messages and unreadable connection observations.
-  Filter by session, destination or message type, then select a message for its
+  The empty view shows one workspace. History controls and filters appear under
+  **Filters and history** once activity arrives; the inspector appears alongside
+  the list. Filter by session, destination or message type, then select a message for its
   readable overview or decoded **JSON**. Session attribution comes from IDs in
   the captured payload; absent IDs remain unidentified, and an export containing
   multiple session IDs is shown under each matching session.
@@ -172,7 +176,12 @@ phone. Three views keep configuration, observed traffic and saved files separate
   their sources. Enabled flags are highlighted and recognized boolean values
   are shown as written. These are settings-file evidence, not confirmation of a
   running session's effective environment. Credentials and endpoint paths stay
-  hidden.
+  hidden. Each recognized telemetry/content flag has a switch that saves its
+  value to Claude's user settings for new sessions. Flags set by organization or
+  managed settings show **Managed** and require an administrator to change;
+  Radar does not rewrite cached organization policy. Controls are unavailable
+  when configuration cannot be verified. Unknown values offer explicit
+  **Enable** and **Disable** actions.
 - **File** opens a local JSON or JSONL file, lists its records and shows the
   original text. Files stay in the browser and are never uploaded. Search and
   session filtering narrow the list. Inputs are bounded to 10 MB and 10,000
@@ -297,6 +306,8 @@ Each one fires the bundled `hook.js`, which POSTs the event JSON to the running 
 Quota is the one thing that is not just reading. It needs a live token, so when the one in `~/.codex/auth.json` is within 90 seconds of expiring the deck refreshes it exactly as the CLI does and writes the rotated credential back — one refresh at a time, re-reading the file inside the lock, and atomically, because OpenAI's refresh tokens are single-use and a rotation that never reaches disk costs you a `codex login`. It happens only while the page is open or a quota notification is on (see [Accounts](#accounts)), and nothing else in `auth.json` is touched.
 
 ## What it touches
+
+Opening Radio asks the public [Radio Browser](https://www.radio-browser.info/) directory for stations; searching sends the search text and selected filters to it. Playing a directory station reports its identifier for the directory's public popularity count, once per server session. Playing connects directly to the broadcaster, or to YouTube for the existing video streams. These services receive ordinary connection information such as your IP address. Favorites and listening history stay in this browser. `AGENTS_DECK_NO_MUSIC=1` disables the radio player and directory requests.
 
 It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
@@ -529,6 +540,10 @@ Environment:
 | `AGENTS_DECK_LHM_PORT` | Port of a running LibreHardwareMonitor web server, when it is not 8085 (Windows temperatures) |
 
 Usage history is read with `ccusage`, and the deck takes the first of these that answers: `AGENTS_DECK_CCUSAGE` if you set it, then the copy it installed for itself under `~/.agents-deck/ccusage`, then a `ccusage` on your PATH, then `npx -y ccusage@latest`. So installing ccusage yourself is enough — the deck will not fetch a second copy, and it works under `AGENTS_DECK_NO_INSTALL=1`, which is the combination that variable is for. When something fails, the modal names which of those four it was.
+
+Open **Usage → By session** and select a Claude Code or Codex row to inspect its whole-session cost estimate, input/output and cache tokens, model breakdown and activity dates. This also works for historical sessions no longer on the canvas. The whole session may extend beyond the period selected in Usage; logs missing from this machine cannot be recovered by the inspector.
+
+For Codex, **Estimate using** compares ccusage's automatic estimate with Standard, Fast or Flex scenarios. Automatic pricing follows recorded settings where available and may use the current Codex config for unmarked usage. Scenarios apply one mode to the whole session, use ccusage's model-specific multipliers, and never change Codex settings or billing. Requested modes do not confirm the tier actually billed. This requires a ccusage version that supports the chosen report; older copies show an update message rather than silently substituting another mode. See [ccusage's Codex pricing behavior](https://ccusage.com/guide/codex/).
 
 Step by step: [See Claude Code and Codex cost and quota left](https://ccdeck.dev/guides/cost-and-quota/)
 

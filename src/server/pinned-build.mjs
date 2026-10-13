@@ -65,6 +65,7 @@ const PINNED_MODULES = [
   "browser-watch-store.mjs",
   "claude-fm.mjs",
   "fm-station.mjs",
+  "radio-directory.mjs",
   "lofi-girl.mjs",
   "live-radio-mix.mjs",
   "best-of-nostalgia.mjs",

@@ -6,14 +6,28 @@
   /* No backdrop blur (#882): the scrim is already 55% opaque, and the blur sat
      over a canvas whose dashes and spinners never stop, re-rasterising under
      every dialog for as long as it was open. */
-  background: rgba(5,6,9,0.55);
+  --modal-scrim: rgba(5,6,9,0.55);
+  background: var(--modal-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
   animation: fadeIn 140ms ease-out;
 }
-:root[data-color-scheme="light"] .modal-backdrop { background: rgba(15,23,42,0.30); }
+:root[data-color-scheme="light"] .modal-backdrop { --modal-scrim: rgba(15,23,42,0.30); }
+
+/* Native caption controls cannot be dimmed by an HTML backdrop. Keep the
+   toolbar in its original colour and paint the scrim below it. The backdrop
+   still covers the whole window to block clicks and preserve dialog centring. */
+:root[data-desktop-chrome="true"] .modal-backdrop { background: transparent; }
+:root[data-desktop-chrome="true"] .modal-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: var(--topbar-h) 0 0;
+  background: var(--modal-scrim);
+  z-index: -1;
+  pointer-events: none;
+}
 
 .modal {
   width: min(820px, 92vw);

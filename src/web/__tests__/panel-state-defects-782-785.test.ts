@@ -152,16 +152,18 @@ describe("#785 — a camera move the deck made itself", () => {
     expect(board).toContain("<SessionClusters onFocusSession={focusAgent} />");
   });
 
-  it("stamps the move after it is made, inside the routine that makes it", () => {
+  it("stamps the move before synchronous callbacks can report it", () => {
     // The routine is moveCamera now, in use-camera.ts, and the focus goes
-    // through it; the order inside is the one this pinned.
+    // through it. Immediate moves emit onMove inside applyViewport, so the
+    // stamp must already exist when that callback distinguishes a deck fit.
     expect(focus).toContain("moveCamera(want, FOCUS_MS);");
     const camera = read("../use-camera.ts");
     const moveBody = camera.slice(camera.indexOf("const moveCamera = useCallback("));
     const move = moveBody.indexOf("applyViewport(want, duration);");
     const stamp = moveBody.indexOf("lastFitTimeRef.current = Date.now();");
     expect(move).toBeGreaterThan(-1);
-    expect(stamp, "the stamp is before the move").toBeGreaterThan(move);
+    expect(stamp).toBeGreaterThan(-1);
+    expect(stamp, "the stamp must precede the move").toBeLessThan(move);
   });
 
   it("turns auto-fit off on purpose, not by being mistaken for a drag", () => {

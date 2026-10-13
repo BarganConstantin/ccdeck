@@ -141,7 +141,7 @@ describe("the text ramp has three readable levels in both themes", () => {
 
 describe("what was migrated to the secondary tier", () => {
   /** The rules that read it, by selector, from the sheet itself. */
-  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?color:\s*var\(--text-secondary\)/g)]
+  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?(?<![-\w])color:\s*var\(--text-secondary\)/g)]
     .map(m => m[2].trim());
 
   it("is prose a reader reads, not metadata they glance at", () => {
@@ -227,6 +227,35 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
+      ".radio-art",
+      ".radio-cluster-preview button span",
+      ".radio-controls > .radio-player-button",
+      ".radio-daily-country",
+      ".radio-daily-label",
+      ".radio-directory-error p",
+      ".radio-empty",
+      ".radio-eyebrow",
+      ".radio-filter-label",
+      ".radio-header h2 span",
+      ".radio-header-note",
+      ".radio-inspector-name span",
+      ".radio-inspector-restore span",
+      ".radio-inspector-title > div > span:last-child",
+      ".radio-loading > .icon-btn",
+      ".radio-map-heading > span",
+      ".radio-map-help",
+      ".radio-now-details",
+      ".radio-own summary",
+      ".radio-panel .icon-btn",
+      ".radio-regions .radio-region, .radio-collections .radio-collection, .radio-mobile-view .radio-view",
+      ".radio-results-heading",
+      ".radio-search",
+      ".radio-search input::placeholder, .radio-filters input::placeholder",
+      ".radio-station-code",
+      ".radio-station-information",
+      ".radio-station-pick > span > span",
+      ".radio-tuning > span",
+      ".radio-tuning-tower",
       ".sa-why",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's

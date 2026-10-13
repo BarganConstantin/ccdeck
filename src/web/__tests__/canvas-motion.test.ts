@@ -262,6 +262,8 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  it is the spec for what a pressable control does rather than a record of
  *  which ones had been got to. */
 const PRESSES: Press[] = [
+  [".up-session-open:active", "0.97", "transform"],
+  [".su-id summary:active", "0.97", "transform"],
   [".empty-hero .empty-help summary:active", "0.97", "transform"],
   [".tr-details > summary:active", "0.97", "transform"],
   [".tr-activation > summary:active", "0.97", "transform"],
@@ -464,6 +466,19 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // Radio uses pointer-only feedback on the control or its child glyph.
+  // Range thumbs and map markers must retain fixed interaction geometry.
+  ".radio-cluster-preview > div > .radio-cluster-station",
+  ".radio-collections .radio-collection", ".radio-controls .sm-row input",
+  '.radio-controls input[type="range"]::-moz-range-thumb',
+  '.radio-controls input[type="range"]::-webkit-slider-thumb',
+  ".radio-daily", ".radio-inspector-name", ".radio-loading > .icon-btn",
+  ".radio-mobile-view .radio-view", ".radio-own summary", ".radio-own-station",
+  ".radio-panel .icon-btn", ".radio-pin", ".radio-play",
+  ".radio-regions .radio-region", ".radio-reset", ".radio-station-pick",
+
+  // Companion selection answers through its radio check and chosen preview.
+  ".character-choice",
   // A day column in the Projects report's chart, clickable to reveal that day's
   // breakdown. It stays out of the transform convention for the reason a thin
   // bar always does: a 3-to-26px column scaled on press moves out from under
@@ -552,6 +567,12 @@ const EXEMPT: string[] = [
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {
+  it("keeps Radio hit targets stationary while providing pointer feedback", () => {
+    expect(css).toContain('.radio-panel :is(.icon-btn, .radio-play):not(:disabled):active:not(:focus-visible)');
+    expect(css).toContain('.radio-panel[data-keyboard-interaction] button');
+    expect(css).toContain('.radio-cluster-preview > div > .radio-cluster-station:hover');
+    expect(css).toContain('.radio-station:hover');
+  });
   it("gives every one of these controls something to give back on press", () => {
     const missing = PRESSES.filter(p =>
       !all.some(r => !r.reduced && selectors(r).includes(p[0]) && decl(r.body, p[2]) === pressed(p)));

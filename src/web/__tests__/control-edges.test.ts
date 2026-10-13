@@ -105,6 +105,9 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const RULES = topLevel(bare);
+// Hover-gated controls still owe the same contrast in their pointer state.
+const POINTER_RULES = [...bare.matchAll(/@media \(hover: hover\) and \(pointer: fine\)\s*\{/g)]
+  .flatMap(m => topLevel(block(bare, m.index! + m[0].length - 1)[0]));
 
 function splitTop(list: string): string[] {
   const parts: string[] = [];
@@ -122,7 +125,7 @@ const selectors = (list: string) => splitTop(list).map(s => s.replace(/\s+/g, " 
 /** Every top-level rule naming this exact selector, concatenated in source
  *  order — one element's cascade may be written in more than one place. */
 function bodyOf(selector: string): string {
-  const hit = RULES.filter(r => selectors(r.selector).includes(selector));
+  const hit = [...RULES, ...POINTER_RULES].filter(r => selectors(r.selector).includes(selector));
   if (!hit.length) throw new Error(`no rule for ${selector}`);
   return hit.map(r => r.body).join(";");
 }
@@ -497,6 +500,13 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
+  { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
+  { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filters input", states: [".radio-filters :is(input, select):focus-visible", ".radio-filters :is(input, select):hover:not(:focus-visible)"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filters select", states: [".radio-filters :is(input, select):focus-visible", ".radio-filters :is(input, select):hover:not(:focus-visible)"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
+  { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
   { at: '.character-choice', beds: ["--panel"] },
   { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
   { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
@@ -504,6 +514,7 @@ const CONTROLS: Control[] = [
   { at: ".ap-reset-day-button:hover", fillFrom: ".ap-reset-day-button:hover", beds: ["--panel"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
+  { at: ".su-pricing select", beds: ["--panel"] },
   { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
@@ -746,18 +757,9 @@ const EXEMPT_RINGS = new Set([
   // check at the bottom of this describe is the one that would have said so
   // the moment the exemption outlived what it excused.
   ".cluster-label:hover",
-  // The same shape on a tool burst: a hover lift in the burst's own category
-  // hue, over a chip identified by the tool name written across it.
-  ".tool-burst.clickable:hover",
-  // And the light twins of those two, which #1025 added because neither hover
-  // reached this theme at all: `:root[data-color-scheme="light"] .cluster-label` and
-  // `… .tool-burst` are (0,3,0) and outranked the (0,2,0) and (0,3,0)-earlier
-  // hovers, so the light sheet kept the RESTING shadow under the pointer. They
-  // are the same hairline over the same still-present edge, so they are the
-  // same lift and carry the same exemption — and the same unmeasurable ring
-  // colours, `currentColor` and `var(--cat-accent, …)`.
+  // The light cluster label keeps the same decorative hairline. Tool bursts
+  // now lift with a diffuse shadow, so they no longer need ring exemptions.
   ':root[data-color-scheme="light"] .cluster-label:hover',
-  ':root[data-color-scheme="light"] .tool-burst.clickable:hover',
 ]);
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:
@@ -849,6 +851,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
+      ".radio-loading > .icon-btn:focus-visible",
+      ".radio-map-canvas:focus-visible",
       ".react-flow__node:focus-visible .agent-node",
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
@@ -893,8 +897,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    // Reset-day selection and the companion choices add measured controls.
-    expect(EDGED_CONTROLS.length).toBeLessThan(130);
+    // Radio, session pricing and reset-calendar controls extend the inventory.
+    expect(EDGED_CONTROLS.length).toBeLessThan(139);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -1201,6 +1205,8 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // reader, in words. A state indicator on a decorative rim, not a boundary.
       ".cluster-label[data-alarm]",
       ".appearance-source-option",
+      // A labelled region button: its rim conveys selection, not identity.
+      '.radio-regions .radio-region[aria-pressed="true"]',
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {

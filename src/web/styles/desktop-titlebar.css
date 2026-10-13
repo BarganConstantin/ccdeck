@@ -6,11 +6,11 @@
   -webkit-app-region: drag;
   gap: 12px;
   padding-left: max(6px, calc((var(--edge-w) - 28px) / 2));
-  padding-right: calc(100vw - env(titlebar-area-width, calc(100vw - 144px)) + 12px);
+  padding-right: calc(100vw - env(titlebar-area-width, calc(100vw - 144px)) + 6px);
 }
 :root[data-desktop-chrome="true"][data-desktop-platform="darwin"] .topbar {
   padding-left: calc(3 * 28px); /* macOS traffic lights */
-  padding-right: 18px;
+  padding-right: 6px;
 }
 /* Content and controls keep pointer events, focus and tooltips. The empty
    toolbar space remains a native drag/double-click region. */

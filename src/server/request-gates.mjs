@@ -455,6 +455,7 @@ export const GUARDED_READS = new Set([
   // the desktop app, bin/ and the hook never read them.
   "/api/quota",
   "/api/ccusage",
+  "/api/ccusage/session",
   "/api/codex-usage",
   "/api/cswap-auto",
   // Not a secret, and here for the other reason a read can be dangerous: it is
@@ -464,6 +465,8 @@ export const GUARDED_READS = new Set([
   // only caller that needs it is the deck's own canvas, which sends
   // Sec-Fetch-Site: same-origin on every fetch.
   "/api/fm-station",
+  "/api/radio-stations",
+  "/api/radio-click",
 ]);
 
 export function isAuthorizedMutation(req) {

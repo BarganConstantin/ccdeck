@@ -26,7 +26,8 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
       // blur OFF.
       .filter(([, b]) => /backdrop-filter:\s*(?!none)\S/.test(b))
       .map(([sel]) => sel);
-    expect(blurring).toEqual([]);
+    expect(blurring).toEqual([".radio-backdrop"]);
+    expect(decl(bodyOf(".radio-backdrop"), "backdrop-filter")).toBe("blur(3px)");
   });
 
   it("puts no filter on a path that animates forever", () => {
@@ -56,7 +57,8 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
 
   it("dims the page under a dialog with its fill alone", () => {
     const scrim = bodyOf(".modal-backdrop");
-    expect(decl(scrim, "background")).toBe("rgba(5,6,9,0.55)");
+    expect(decl(scrim, "--modal-scrim")).toBe("rgba(5,6,9,0.55)");
+    expect(decl(scrim, "background")).toBe("var(--modal-scrim)");
     expect(decl(scrim, "backdrop-filter")).toBeNull();
   });
 });

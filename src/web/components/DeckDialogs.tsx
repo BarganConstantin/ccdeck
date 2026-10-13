@@ -18,7 +18,6 @@ import type { GraphState } from "../reducer";
 import type { useAppearance } from "../use-appearance";
 import type { useAutoRestart } from "../use-auto-restart";
 import type { useBrowserWatchBadge } from "../use-browser-watch-badge";
-import type { useClaudeFm } from "../use-claude-fm";
 import type { useClearFlow } from "../use-clear-flow";
 import type { useCustomTones } from "../use-custom-tones";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
@@ -58,7 +57,7 @@ const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
-  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, fm,
+  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -84,7 +83,6 @@ export default function DeckDialogs({
   tones: ReturnType<typeof useTonePrefs>;
   customTones: ReturnType<typeof useCustomTones>;
   notify: ReturnType<typeof useOsNotifications>;
-  fm: ReturnType<typeof useClaudeFm>;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
@@ -170,7 +168,6 @@ export default function DeckDialogs({
           customTones={customTones}
           notify={notify}
           appearance={appearance}
-          fm={fm}
         />
       )}
       {/* Ahead of the shortcuts sheet and the clear prompt, which is where a

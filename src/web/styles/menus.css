@@ -1051,9 +1051,9 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 
 
 /* Character choices are a compact preview strip within the existing group. */
-.character-picker { display: flex; gap: 8px; margin-top: 12px; }
+.character-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .character-choice {
-  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px; flex: 1 1 150px; min-width: 0;
   padding: 10px; border: 1px solid var(--ctl-edge); border-radius: 6px;
   color: var(--text); background: var(--panel); font: inherit; text-align: left; cursor: pointer;
 }
@@ -1068,4 +1068,5 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .character-preview .fm-eye { fill: var(--text); }
 @media (max-width: 420px) {
   .character-picker { flex-direction: column; }
+  .character-choice { flex-basis: auto; }
 }

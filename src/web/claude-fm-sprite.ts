@@ -66,6 +66,12 @@ export const SPRITE: readonly string[] = [
 export const SPRITE_W = 18;
 export const SPRITE_H = SPRITE.length;
 
+// Raised hands stay above the eyes through the shared +2/-2 row climb cycle.
+// The left stem stays outside even the fox's wider face. The tip reaches the
+// existing center rope; one row above the head is intentional SVG overflow.
+export const GRIP_LEFT_PATH = "M6 9H4V1H5V0H7V-1H9V1H7V2H5V7H6V8H7V9Z";
+export const GRIP_RIGHT_PATH = "M12 9H14V6H13V3H11V2H9V4H12Z";
+
 /** Which grid cells belong to the headphones, which follow the body rather
  *  than moving with it. The pad travels with the cup it is inside. */
 export const GEAR_CELLS: ReadonlySet<string> = new Set(["a", "c", "p"]);

@@ -23,6 +23,20 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { join } from "node:path";
 
+it("keeps the desktop modal blocker full size while painting below native chrome", () => {
+  const css = readFileSync(join(__dirname, "../styles/dialogs.css"), "utf8");
+  const blocker = css.match(/\.modal-backdrop\s*\{([^}]+)\}/)![1];
+  expect(blocker).toMatch(/position:\s*fixed/);
+  expect(blocker).toMatch(/inset:\s*0\s*;/);
+  expect(blocker).toMatch(/z-index:\s*100/);
+  expect(blocker).not.toMatch(/pointer-events:\s*none/);
+  const paint = css.match(/:root\[data-desktop-chrome="true"\] \.modal-backdrop::before\s*\{([^}]+)\}/)![1];
+  expect(paint).toMatch(/inset:\s*var\(--topbar-h\) 0 0/);
+  expect(paint).toMatch(/background:\s*var\(--modal-scrim\)/);
+  expect(paint).toMatch(/z-index:\s*-1/);
+  expect(paint).toMatch(/pointer-events:\s*none/);
+});
+
 it("keeps an older deck usable in a visible native window", async () => {
   const windows: FakeWindow[] = [];
   class FakeWindow extends EventEmitter {

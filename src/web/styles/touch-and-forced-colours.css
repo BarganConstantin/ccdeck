@@ -278,4 +278,7 @@
 
   .tr-select-wrap > svg { color: ButtonText; }
   .tr-message[aria-pressed="true"] { border-color: Highlight; }
+
+  /* Radio geography retains marker and cluster distinctions. */
+  .radio-pin-dot { fill: LinkText; stroke: Canvas; } .radio-pin.selected .radio-pin-dot { fill: Highlight; } .radio-pin-playing { stroke: Highlight; } .radio-pin.clustered .radio-pin-dot, .radio-land { fill: Canvas; stroke: GrayText; } .radio-pin text { fill: CanvasText; }
 }

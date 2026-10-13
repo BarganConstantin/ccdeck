@@ -43,7 +43,7 @@ const edgeSheet = read("../styles/edge-rails.css").replace(/\/\*[\s\S]*?\*\//g, 
 // section in it, read as one, so the negatives below still see every control
 // that used to be Appearance's and every one that joined it.
 const settingsSurface = [
-  "../components/SettingsModal.tsx", "../components/ThemeSection.tsx", "../components/MusicSection.tsx",
+  "../components/SettingsModal.tsx", "../components/ThemeSection.tsx",
   "../components/NotificationsSection.tsx", "../components/SoundsSection.tsx", "../components/SoundSwitch.tsx",
 ].map(read).join("\n");
 const reportsHook = read("../use-reports.ts");
@@ -233,7 +233,7 @@ describe("the topbar's Feedback button", () => {
     // the three rare dialogs — History, Browser watch, Feedback — sit behind
     // More, where a row has the room to say "Send feedback" whole.
     expect(item).toMatch(/menu: "Send feedback"/);
-    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\[1\], rails\.utilities\[1\]\]\}/);
+    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), rails\.utilities\[1\]\]\}/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
 

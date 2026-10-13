@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CHARACTER_KEY, resolveCharacter, storedCharacter } from "../character";
+import { CHARACTER_KEY, CHARACTERS, resolveCharacter, storedCharacter } from "../character";
 import { writeStored } from "../storage";
 import { FOX } from "../fox-sprite";
+import { PENGUIN } from "../penguin-sprite";
 import { spriteRects, SPRITE_H, SPRITE_W } from "../claude-fm-sprite";
 import CharacterPicker from "../components/CharacterPicker";
 import CharacterSprite from "../components/CharacterSprite";
@@ -17,6 +18,7 @@ describe("character selection", () => {
       expect(resolveCharacter(value)).toBe("deck");
     }
     expect(resolveCharacter("fox")).toBe("fox");
+    expect(resolveCharacter("penguin")).toBe("penguin");
   });
 
   it("restores the saved choice, with blocked storage falling back safely", () => {
@@ -25,20 +27,23 @@ describe("character selection", () => {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value),
     } });
-    writeStored(CHARACTER_KEY, "fox");
-    expect(storedCharacter()).toBe("fox");
+    for (const { id } of CHARACTERS) {
+      writeStored(CHARACTER_KEY, id);
+      expect(storedCharacter()).toBe(id);
+    }
     vi.stubGlobal("window", { get localStorage() { throw new Error("blocked"); } });
     expect(storedCharacter()).toBe("deck");
   });
 
-  it("names both choices and gives only the selected radio a tab stop", () => {
-    for (const character of ["deck", "fox"] as const) {
+  it("names every choice and gives only the selected radio a tab stop", () => {
+    for (const { id: character } of CHARACTERS) {
       const html = renderToStaticMarkup(createElement(CharacterPicker, { character, onCharacter: () => {} }));
       expect(html).toContain('role="radiogroup" aria-label="Choose character"');
-      expect(html.match(/role="radio"/g)).toHaveLength(2);
+      expect(html.match(/role="radio"/g)).toHaveLength(3);
       expect(html.match(/aria-checked="true" tabindex="0"/g)).toHaveLength(1);
       expect(html).toContain("Deck companion");
       expect(html).toContain("Fox");
+      expect(html).toContain("Penguin");
     }
   });
 
@@ -50,17 +55,21 @@ describe("character selection", () => {
       expect(rect.x + rect.w).toBeLessThanOrEqual(SPRITE_W);
       expect(rect.y).toBeLessThan(SPRITE_H);
     }
+    expect(PENGUIN).toHaveLength(SPRITE_H);
+    expect(PENGUIN.every(row => row.length === SPRITE_W && /^[.dhweb]+$/.test(row))).toBe(true);
   });
 
-  it("renders the fox's special poses and the original companion", () => {
+  it("renders both animals' special poses and the original companion", () => {
     const poses: [Act, string][] = [
       ["climb", "fm-grip"], ["rope-throw", "fm-grip"], ["rope-catch", "fm-grip"], ["pull-up", "fm-grip"],
       ["land", "fm-crouch-legs"], ["dismount", "fm-crouch-legs"],
       ["sit", "fm-seated-legs"], ["cast", "fm-seated-legs"], ["fish", "fm-seated-legs"],
       ["reel", "fm-seated-legs"], ["stow", "fm-seated-legs"],
     ];
-    for (const [act, group] of poses) for (const facing of ["left", "right"] as const) {
-      const html = renderToStaticMarkup(createElement(CharacterSprite, { character: "fox", act, facing }));
+    for (const character of ["fox", "penguin"] as const)
+      for (const [act, group] of poses) for (const facing of ["left", "right"] as const) {
+      const html = renderToStaticMarkup(createElement(CharacterSprite, { character, act, facing }));
+      expect(html).toContain(`data-character="${character}"`);
       expect(html).toContain('viewBox="0 0 18 14"');
       expect(html).toContain(`class="${group}"`);
       expect(html).toContain('data-side="left"');
@@ -82,5 +91,25 @@ describe("character selection", () => {
     }
     // The hips connect to the tail above the animated feet.
     expect(FOX[10].slice(10, 14)).not.toContain(".");
+  });
+
+  it("keeps the penguin's eyes centered around its beak in both facings", () => {
+    for (const facing of ["left", "right"] as const) {
+      const html = renderToStaticMarkup(createElement(CharacterSprite, { character: "penguin", act: null, facing }));
+      const eyes = [...html.matchAll(/<rect[^>]*x="(\d+)" y="4" width="1"[^>]*class="fm-eye"/g)]
+        .map(match => Number(match[1]) + 0.5);
+      expect(eyes).toHaveLength(2);
+      const beak = spriteRects(PENGUIN).find(r => r.y === 5 && r.cell === "b")!;
+      expect((eyes[0] + eyes[1]) / 2).toBe(beak.x + beak.w / 2);
+    }
+  });
+
+  it("draws feathered sides underneath the penguin's lifting flippers", () => {
+    const html = renderToStaticMarkup(createElement(CharacterSprite, { character: "penguin", act: null, facing: "right" }));
+    const torso = html.split('<g class="fm-body">')[1].split('<g class="fm-arms"')[0];
+    for (const y of [8, 9]) {
+      const cells = [...torso.matchAll(new RegExp(`<rect x="(\\d+)" y="${y}" width="(\\d+)"`, "g"))];
+      for (const x of [5, 12]) expect(cells.some(cell => Number(cell[1]) <= x && x < Number(cell[1]) + Number(cell[2]))).toBe(true);
+    }
   });
 });

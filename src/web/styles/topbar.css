@@ -35,7 +35,7 @@
      it leaves 43 for the content, and a 30px control centred in 43 sat on a
      half pixel, its edges smeared across two rows at 1x. 42 centres every
      height on the bar — 30, 28, 24, 16 — on whole pixels. */
-  padding: 1px 18px 0;
+  padding: 1px 6px 0 18px;
   background: var(--topbar-grad);
   border-bottom: 1px solid var(--line);
   user-select: none;
