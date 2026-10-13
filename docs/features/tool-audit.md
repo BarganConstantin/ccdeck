@@ -18,7 +18,7 @@ calls/commands can be classified; dynamic commands remain unclassified.
 Calls count observed containing tool calls. Compound commands and orchestration
 wrappers can contain several operations, but do not prove every conditional
 branch executed. Each identified operation is counted once per containing call;
-its duration/outcome belongs to that call. The shared-timing label and measurement
+its duration/outcome belongs to that call. The shared-interval marker and measurement
 notes disclose this. Repeated inner executions cannot be counted independently.
 
 Completed success/failure calls contribute to total, median, maximum and P95
@@ -34,9 +34,11 @@ Provider/period/custom UTC date filters, separate metric ranking and operation
 search are in one visual explorer. Frequency, cumulative interval time and P95
 are distinct primary questions. Median, maximum and reported failure rate are
 also available; rate ranking uses at least20 completed outcomes, a descriptive
-sample floor rather than a confidence guarantee. Exact values accompany bars.
+sample floor rather than a confidence guarantee. One Rank by selector owns all
+seven dimensions. Exact values accompany bars without repeating the active unit.
 Search filters operation rows, while overview totals remain provider/period-wide.
-A contextual inspector preserves selection across ranking/search/refresh while
+A full-width ranking has no empty inspector. Selecting an operation opens a
+contextual inspector that preserves selection across ranking/search/refresh while
 the operation still exists. On desktop it stays beside late rows with a bounded
 independent scroller; on narrow screens it is inline after the selected row.
 Requested period, earliest/latest observed starts and retained recording boundary
@@ -44,8 +46,10 @@ are distinct. Period filtering uses call starts; an entire completed interval is
 included even when its outcome arrives after the range. The overview cumulative
 interval sums each measured call once, not operation totals; it still overlaps
 parallel/nested calls and is not wall-clock execution time. Selecting an operation reads its 20 slowest measured calls or latest 30
-recorded calls. No full arguments/output drill-down is stored. Each request is a
-fresh snapshot; details may include calls captured since the main table loaded.
+recorded calls. Activity/outcomes and measured intervals are separate detail
+groups; definitions and source/coverage qualifications are progressively disclosed.
+No full arguments/output drill-down is stored. Each request is a fresh snapshot;
+details may include calls captured since the main ranking loaded.
 
 ## Local storage and boundaries
 
@@ -109,14 +113,16 @@ retention/clear confirmations. Typecheck and production build are required.
 
 Browser execution was on macOS Brave; Windows/Linux native execution is not
 claimed. SVG icons inherit theme colors without depending on emoji rendering.
-Two independent design assessments informed the redesign. The finish reviewer
-requested three fixes (upfront incomplete-history notice, persisted layout and
-direction contract), then scored all three resolved with a ship disposition at
-that fix scope. This is not a fresh whole-surface accessibility certification.
+The second-iteration finish reviewer inspected14 required captures and returned
+`disposition: ship`, with no material fixes. It confirmed nine complete desktop
+ranking rows versus six before, despite a smaller modal. This covers the scoped
+interface, not accessibility certification or permission to merge.
 
 
 The redesigned explorer's measurement audit, three-concept evaluation and
 selected information architecture are recorded in `tool-explorer-design.md`.
+The current adaptive composition and two critique/fix rounds are recorded in
+`tool-explorer-iteration-two.md`.
 217 relevant checks passed, including17 audit tests plus real Codex watcher,
 modal/portal/rail-shortcut and contrast regressions. Brave fixture QA covers
 all nine themes at1280x950 and320x780, plus1024x768,390x844 and1280x540;
@@ -124,7 +130,7 @@ ranking, search, selected refresh, keyboard inspection/focus return, dense210
 operation types/late row selection, missing timing, empty/error/incomplete/no
 failure/loading and reduced-motion states. Computed readable text contrast was
 sampled across the rendered modal in all themes; this is not accessibility
-certification. Real live Codex UI was exercised (664 calls/79 operations at the
+certification. Real live Codex UI was exercised again (862 calls/86 operations at the
 verification snapshot). Typecheck and production build pass. Native Windows/Linux
 execution and a real Claude hook stream are not independently verified.
 

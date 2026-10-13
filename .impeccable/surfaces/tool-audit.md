@@ -1,152 +1,145 @@
-# Tool activity explorer
+# Tool activity explorer — iteration two
 
 Issue #2122. **Mode: Operate. World: established ccdeck instrument panel.**
 Targets: `src/web/components/ToolAuditModal.tsx`, `ToolAuditInspector.tsx` beside
-it, `src/web/styles/tool-audit.css`, `src/web/App.tsx` and `src/web/rail-items.tsx`.
-Source is authoritative over this record and the earlier table brief.
+it, `src/web/styles/tool-audit.css`; existing entry wiring in `src/web/App.tsx`
+and `src/web/rail-items.tsx`. Implemented source wins over this brief.
 
 ## Pinned autonomous brief and decision
 
-The user explicitly authorized a substantial explorer redesign while preserving
-the existing global ccdeck design, chose the established identity, and requested
-three concepts evaluated independently with autonomous selection. Local component
-documentation updates are approved; global identity replacement is not.
-This is a precise-request, code-led exemption: the requested three-way audit
-governs composition. No seed, roll, decision-page choice or approved image comp
-was produced or is claimed. The contract below carries the visual and behavioral
-ambition, with source ground truth winning over intention.
+The precise autonomous request preserves the established world and evaluates two
+composition options. [Current direction](../../docs/features/tool-explorer-iteration-two.md)
+compares ranking-first expandable detail with an adaptive workspace: inline detail
+is strong on phones but interrupts desktop comparison; the adaptive workspace
+keeps full-width ranking at rest and opens a side inspector only on selection.
+Chosen: adaptive ranking-first workspace, with rank-to-inspect as the signature.
+This is code-led work in an established identity. No new identity, image comp,
+seed, roll or tournament was produced or is claimed. Local documentation is
+explicitly authorized; global YAML, tokens and identity remain unchanged, with
+no sidecar required because no global truth changed.
 
-[The concept audit](../../docs/features/tool-explorer-design.md) weighs:
+## Direction contract (code-led, established world)
 
-- **A — Overview + ranking:** quickest comparison of frequency, cumulative
-  intervals and tails; progressive detail preserves technical metrics.
-- **B — Analytics workspace:** advanced comparison, but adds navigation and
-  dashboard implications unsupported by available timing/bucket data.
-- **C — Operations table + inspector:** precise audit, but many columns recreate
-  the narrow-screen scanning problem.
+**THESIS:** compare first, inspect on demand; no empty inspector or report scaffolding.
+**OWN-WORLD:** CCDeck theme surfaces, system UI typography, monospaced operation
+identities and measured values, existing blue comparison bars and control geometry.
+**STORY:** choose a provider/period, compare one metric, inspect an operation, return.
+**FIRST VIEWPORT:** compact filters, three asymmetric summary metrics, one coverage
+disclosure, one Rank by control; full-width aligned rows. A selected operation opens
+a bounded side inspector on desktop or inline detail on narrow screens.
+**FORM:** adaptive ranking-first workspace, chosen from the two user-requested
+alternatives. Precise autonomous brief; no new identity, seed or generated comp.
+**FINISH:** unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
 
-Chosen: **A with C's contextual inspector**, one ranked explorer with exact values
-and relative bars. Signature interaction: **rank-to-inspect**, selecting an
-operation without losing ranking context, then examining sanitized containing
-calls. No duplicate chart/table view or competing provider benchmark.
+**QUALITY BAR:** native developer-tool controls, every region earns its space;
+frequency, cumulative intervals and P95 remain distinct. Exact values accompany
+bars; unknown is different from zero. No wall-clock, cost or provider-speed claims.
 
-## Direction contract
+## Audience, task and measurement boundaries
 
-**THESIS:** Rank observed operations by frequency, cumulative interval or tails;
-inspect the evidence without a wide numeric table.
+One operator scopes device-wide Claude/Codex history to compare frequency,
+cumulative intervals, tails and reported outcomes, then inspect sanitized calls.
+Concrete operations stay distinct while variable arguments are grouped. High
+frequency alone does not imply poor performance.
 
-**OWN-WORLD:** Inherit ccdeck's theme surfaces, tight chrome, SVG icons, monospace
-names, tabular values and semantic status colors.
+[Measurement contract](../../docs/features/tool-explorer-design.md): operations
+are containing-call memberships, not observed inner shell executions. Shared
+operations inherit their containing call's full interval/outcome; operation totals
+are not additive. Call-wide cumulative intervals count each measured call once
+but still overlap parallel/nested work and are not wall time. Claude hook receipt
+intervals and Codex rollout timestamps can include approval, delivery and
+orchestration waits; provider filters do not establish a speed benchmark. Reported
+failure is not exhaustive detection or proof every inner command failed. Zero is
+measured; missing timing and unmatched outcome are not failure. P95 needs 20 timed
+calls; failure-rate ranking needs 20 outcomes. Periods select observed starts and
+count matched intervals in full. Requested dates, retained start and observed
+endpoints are distinct; endpoints do not establish continuous coverage. No fake
+trends, distributions, cost inference, latency scores or bottleneck badges.
 
-**STORY:** Scope device history, distinguish calls from memberships, inspect an
-operation's intervals and reported outcomes.
+New observed events only; no historical import or synchronization. General
+Settings owns 30/60/90-day retention, actual bytes and clear with inline destructive
+confirmation. Reports load on demand. Collectors, backend, aggregation and storage
+semantics have no changes in this iteration; no dependencies, fonts or global tokens
+are added.
 
-**FIRST VIEWPORT:** Header actions; provider/period/search; incomplete warning
-before summary; coverage and ranking controls; exact-value bars beside a 330px
-desktop inspector. Select a row to inspect. Phones insert detail inline.
+## QUALITY_BAR — implemented ground truth
 
-**FORM:** A, first of three independently audited concepts, with C's inspector.
-Precise user brief; code-led. No seed key, roll or approved comp exists.
+- **Entry and hierarchy:** independent SVG rail action next to Radio, More on
+  phones. Header Refresh/Close remain reachable. Incomplete-history warning
+  precedes the call-wide summary. Provider/period/search and custom dates scope
+  the request; three workload summaries precede a compact native Coverage &
+  freshness disclosure. Its summary shows observed endpoints and timed count;
+  expansion gives exact requested range, retained start and refresh timestamp.
+- **Geometry:** width `min(1080px, 96vw)`, max-height `min(820px, 92dvh)`.
+  Full-width ranking at rest, no empty placeholder. At ≥960px, selected detail
+  adds a 340px inspector, sticky at `top: 0`, with independent vertical scrolling,
+  `box-sizing: border-box` and max-height
+  `clamp(220px, calc(min(820px, 92dvh) - 380px), 480px)`. Ranking uses the outer
+  body scroller. Below 960px detail is inline after its row, or below results
+  when search/limit hides selection. At ≤600px summaries stay three compact
+  columns and bars sit below names/values. Long names wrap; no horizontal table
+  scroll. Short desktop heights reduce context spacing.
+- **Ranking:** one native Rank by select owns all seven dimensions: calls,
+  cumulative interval, P95, reported failures, median, maximum and failure rate.
+  No duplicated titles, button stack or More metrics. Rows prioritize operation,
+  relative bar and exact value without repeated visible calls/timing labels;
+  retain sample requirements, outcome denominators and shared-call markers.
+  Required context qualifies the active metric; native Metric definition reveals
+  deeper explanation. Initially 50 rows; Show 50 more preserves bounded rendering.
+- **Interaction:** provider/period replaces the dataset; selection survives sort,
+  search and refresh while the operation exists, clearing if absent in replacement
+  data. Search narrows operations while qualified summary totals keep provider/
+  period scope. Keyboard row selection focuses the detail heading; inspector close
+  returns focus to its row or modal Close. Escape restores the invoking rail/More
+  control. Refresh guards prevent duplicate work.
+- **Inspector:** Activity & outcomes groups containing/timed calls and reported
+  failures/rate; Measured intervals groups cumulative/median/P95/maximum. Shared
+  and overlapping interval limits remain visible; Definitions & coverage is native
+  progressive disclosure. Separately fetched fresh detail exposes up to 20 slowest
+  measured and 30 recent containing calls: only sanitized operation/tool, provider,
+  timestamp, interval, outcome and shared flag, without arguments, outputs,
+  messages, error text, file contents or full traces.
+- **States and access:** inherit all nine themes, system/platform font fallbacks,
+  native control color scheme and named SVG controls. Values and states remain
+  intelligible without bars/color. Coarse pointers get 44px main controls/actions;
+  reduced motion and keyboard opening skip entry animation. Forced colors preserve
+  tracks/selection. Real indeterminate loading, empty, search-zero, retry/error,
+  incomplete and shared-data states explain limits and next actions. Placeholder
+  `--text-secondary` at opacity 1 and `--usage-blue` fills on `--bg-soft` tracks
+  reuse existing tokens; floors are 4.5:1 for placeholders and 3:1 for fills/tracks.
 
-**FINISH:** unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+## Finish disposition and executed evidence
 
-## Audience, task and constraints
+Fresh independent finish reviewer **Singer
+`01a134ad-05b0-7a40-9729-ae9f241b30e1`** returned all five review sections with
+**disposition: SHIP**, no material fixes, after inspecting all 14 required final
+screenshots in [the review captures](../review/tool-explorer-v2/). This is the full
+scoped second-iteration gate, replacing the earlier iteration-one fix-scope
+record. It confirmed nine complete desktop ranking rows versus six before,
+despite the smaller modal. Owner review remains pending; no merge is authorized
+or claimed.
 
-One operator inspects device-wide Claude/Codex activity on demand to find what is
-frequent, accumulates intervals, has high tails or reports failures. Concrete
-operations such as `git status` and `git commit` stay distinct; variable arguments
-are grouped. High frequency alone does not mean poor performance.
+Completed evidence read during this documentation pass (QA was not rerun):
 
-Only new observed events are collected; no historical import or synchronization.
-General Settings owns 30/60/90-day retention, actual storage bytes and clear with
-inline destructive confirmation. Report computation/loading is on demand.
-No new dependencies, fonts or CSS custom properties were introduced by this
-component; existing theme tokens remain normative in `DESIGN.md`. No sidecar
-change is required for this scoped documentation update.
+- `/tmp/ccdeck-explorer-v2-tests.log`: 217 tests passed across seven suites,
+  covering aggregation/timing/source pairing, rank/sample semantics, focus/portal/
+  shortcuts and contrast. `/tmp/ccdeck-explorer-v2-typecheck.log` and
+  `/tmp/ccdeck-explorer-v2-build.log`: passed; existing >500KB chunk warning remains.
+- `/tmp/ccdeck-explorer-v2-browser-final.log`: final Brave fixture checks passed at
+  1280×950, 1024×768, 390×844, 320×780 and 1280×540. Supplied browser QA covers all
+  nine themes, all seven metrics, provider/custom-date/search, refresh, selection/
+  focus, dense 210-operation lists and missing/zero/incomplete/empty/error/loading/
+  reduced-motion states. Fixture captures are synthetic and not collector history.
+- `/tmp/ccdeck-explorer-v2-a11y.log`: all nine themes pass placeholder ≥4.5:1
+  (minimum about 6.98:1) and fill/track ≥3:1 (minimum about 5.93:1); instant keyboard
+  entry and selected-inspector preservation across 390/320/1024/1280px resizing pass.
+- `/tmp/ccdeck-explorer-v2-detector.json`: one detector run, empty findings (`[]`).
+- `/tmp/ccdeck-explorer-v2-live.log`: actual Codex snapshot has 862 measured calls
+  and 86 operation types; report, classification, sanitized detail and local storage
+  settings passed without browser errors. These counts describe that snapshot.
 
-## QUALITY_BAR
-
-- **Entry and first read:** independent Tool activity SVG rail action next to
-  Radio; More on phones, with no Usage header entry. Header Refresh/Close remain
-  reachable. A dropped/corrupt/unwritable history notice precedes the summary so
-  totals cannot look complete before their qualification is read.
-- **Geometry and capacity:** width `min(1160px, 96vw)`, max-height
-  `min(880px, 92dvh)`. At ≥960px, outer body scrolling carries the ranking beside
-  a contextual 330px inspector, sticky at zero, with independent vertical scroll
-  and max-height `calc(92dvh - 90px)`. Below 960px, detail follows its selected row
-  in one body scroller; selection hidden by search/limit remains available below
-  results. Long names wrap; no horizontal table scroll is needed.
-- **Ranking:** Most called, Cumulative time, Slow tails · P95 and Reported failures
-  are primary above phone widths. More metrics exposes Typical latency (median),
-  Slowest single call (maximum) and Reported failure rate; at ≤600px Reported
-  failures also moves to More, and primary labels shorten to Cumulative/P95 tails.
-  Exact values accompany proportional bars. Unknown values are unavailable;
-  P95 needs 20 measured calls, failure-rate ranking 20 completed outcomes. Render
-  50 rows initially with Show 50 more.
-- **Context and interaction:** provider/period filters replace the dataset;
-  selection survives sort, search and refresh if the operation still exists, and
-  clears when absent from the replacement dataset. Search changes ranking only,
-  with overview totals explicitly retaining provider/period scope. Keyboard row
-  selection focuses the detail heading; inspector close restores row focus or
-  falls back to modal Close. Escape restores the invoking rail/More control.
-- **Detail:** containing-call and measured counts, cumulative/median/P95/maximum
-  intervals, reported failures/rate and provider membership; up to 20 slowest and
-  30 recent sanitized calls in a separately fetched fresh detail snapshot. Retain
-  only operation/tool, provider, timestamp, interval, outcome and shared flag;
-  no arguments, outputs, messages, error text, file contents or full traces.
-- **Data honesty:** operation counts are containing-call memberships, not inner
-  shell executions. Shared operations inherit the containing interval/outcome;
-  do not sum operation totals. Call-wide totals count each measured call once
-  but still overlap parallel/nested calls and are not wall time. Claude receipt
-  intervals and Codex rollout timestamps have different clocks and can include
-  approval/delivery/orchestration waits; provider filters do not establish a
-  benchmark. Reported failure is not exhaustive error detection. Zero is measured;
-  unknown timing/no outcome is not failure. Requested dates, retained start and
-  observed endpoints stay distinct; endpoints do not prove continuous coverage.
-  Periods select starts and count matched intervals in full. No fake trends,
-  distributions, cost inference, latency scores or bottleneck badges.
-- **Finish and accessibility:** all nine themes, theme fonts/platform fallbacks,
-  native control color scheme and status colors are inherited. SVG glyphs carry
-  accessible names; values/states remain intelligible without bars/color. Coarse
-  pointers get 44px controls/actions; reduced motion and keyboard opening skip
-  entry animation. Loading is real indeterminate work; empty, search-zero,
-  error/retry, incomplete and shared-data states explain limits and next actions.
-  Forced colors preserve tracks/selection. Desktop, phone, laptop and short-height
-  layouts keep controls, results and detail usable.
-- **Local contrast roles:** toolbar input placeholders use `--text-secondary`
-  with `opacity: 1`; ranking tracks use `--bg-soft` behind `--usage-blue` fills.
-  Readable text/placeholders must clear 4.5:1 and fills against tracks 3:1 in all
-  nine themes. These local assignments add no tokens or global identity changes.
-
-## Review disposition and verification handoff
-
-The same finish reviewer scored **all three fixes resolved**, disposition
-**ship at fix scope**. This verdict scores the following fixes; it is not a fresh
-whole-surface gate and does not certify the subsequent contrast corrections:
-
-1. Move the incomplete-history warning upfront: landed in source before the
-   call-wide summary, confirmed in source and the latest supplied QA.
-2. Persist the current layout: recorded in `DESIGN.md` and this brief.
-3. Persist the direction contract: recorded above with the precise-request and
-   code-led exemption, without fabricated seed/roll/comp provenance.
-
-Supplied latest QA passed **217 tests**, all nine themes at desktop **1280×950**
-and mobile **320×780**, plus **1024×768**, **390×844** and **1280×540**, including
-the warning before the overview, provider/custom-date filters, Reset, refresh
-bursts and 210 operations. Latest supplied strict readable-text checks passed
-4.5:1 across all nine themes. Typecheck passed; the main thread verified the
-final post-contrast production build (4.58s), with the existing bundle-size warning.
-
-Additional live accessibility/resize QA found a Dark placeholder at 3.98:1 and
-fill/line-track contrast at 2.21:1 in Black Contrast and 1.54:1 in White Contrast.
-The local roles above correct those defects without other layout changes.
-The completed `/tmp/ccdeck-explorer-a11y.log`, read during this documentation pass,
-reports all nine themes passing: minimum placeholder contrast approximately
-6.98:1 and minimum fill/track contrast approximately 5.93:1. It also passes instant keyboard entry and
-selected-inspector preservation through 390/320/1024/1280px resizing.
-
-Manual runners are `scripts/qa-tool-explorer.cjs` (isolated fixtures) and
-`scripts/qa-tool-explorer-a11y.cjs` (live, read-only). They use an external
-Playwright test-harness environment, adding no runtime dependency. This inline
-documentation pass inspected source and the completed log; it did not rerun QA.
-Native Windows/Linux execution and real Claude capture remain unverified.
+QA runners `scripts/qa-tool-explorer.cjs` and
+`scripts/qa-tool-explorer-a11y.cjs` use an external Playwright harness without a
+runtime dependency. Native Windows/Linux execution and a live Claude hook stream
+remain unverified. Contrast/browser checks are not accessibility certification;
+the SHIP verdict does not certify those untested platforms or authorize merging.

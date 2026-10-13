@@ -527,39 +527,55 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 
 ### Tool activity report
 
-An on-demand operation explorer inside the established instrument-panel world.
-Its independent SVG rail entry sits next to Radio (in More on phones); `App.tsx`
-opens it independently of Usage. Strategy and the finish contract live in
+An on-demand, adaptive ranking-first explorer inside the established instrument-panel
+world. Its independent SVG rail entry sits next to Radio (in More on phones);
+`App.tsx` opens it independently of Usage. Direction, measurement limits and the
+second-iteration finish evidence live in
 [the Tool activity brief](.impeccable/surfaces/tool-audit.md).
 
-- **Shell:** `.modal.ta-modal` overrides the generic modal with
-  `width: min(1160px, 96vw)` and `max-height: min(880px, 92dvh)`, keeping
-  `--panel`, `--r-panel` and `--shadow-2`. Radio's 200ms entry is skipped for
-  keyboard opening and reduced motion; loading is indeterminate.
-- **Hierarchy:** provider/period/search toolbar, incomplete-history notice when
-  needed **before the call-wide summary**, coverage, metric controls, ranked
-  operations and contextual detail. Rows combine monospaced operation names,
-  relative `--usage-blue` bars and exact tabular values. Reported failures use
-  `--err`; selection uses neutral fill and the existing control edge.
-- **Scroll:** at viewport widths ≥960px, ranking scrolls with the outer modal
-  body beside a 330px inspector, sticky at `top: 0`, independently scrollable
-  and bounded by `max-height: calc(92dvh - 90px)`. Below 960px, detail appears
-  inline after its selected row, with one body scroller. At ≤600px, summary
-  cells form two columns and row bars move below names/values.
-- **Controls:** theme fonts, native color scheme, SVG glyphs and existing focus
-  treatment; coarse pointers get 44px action buttons and controls. Keyboard
-  selection focuses the inspector heading; closing it returns focus to the row
-  or modal close control. Escape restores the invoking control.
-- **Local contrast roles:** `.ta-toolbar input::placeholder` uses
-  `--text-secondary` at `opacity: 1` so search hints remain readable. Ranking
-  tracks use `--bg-soft` behind `--usage-blue` fills, preserving the fill's
-  contrast in Black Contrast and White Contrast. These component assignments
-  reuse existing tokens without changing global palette or geometry.
-- **Honest measurement:** distinguish containing-call memberships from independent
-  executions, cumulative overlapping intervals from wall time, requested dates
-  from observed starts, and unknown timing from zero. Provider clocks are not a
-  benchmark. Keep sample requirements and shared timing/outcome qualifiers beside
-  their values; these are report rules, not a new global identity.
+- **Shell and capacity:** `.modal.ta-modal` uses `width: min(1080px, 96vw)` and
+  `max-height: min(820px, 92dvh)`, inheriting `--panel`, `--r-panel` and
+  `--shadow-2`. Ranking occupies the full width at rest; no empty inspector or
+  reserved detail column. Radio's 200ms entry is skipped for keyboard opening and
+  reduced motion; loading is indeterminate.
+- **Hierarchy:** provider/period/search toolbar and custom dates when requested;
+  incomplete-history notice **before the call-wide summary**; three workload
+  metrics; compact native Coverage & freshness disclosure; one native Rank by
+  select; qualified ranking context; aligned operation rows. The coverage summary
+  shows observed endpoints and timed count; expansion shows exact requested dates,
+  retained start and refresh timestamp. Native metric definitions reveal explanation
+  on demand. No duplicate ranking title, button stack or More metrics control.
+- **Rows:** monospaced operation names, relative `--usage-blue` bars and exact
+  tabular values dominate. Omit repeated visible calls/timing labels; show missing
+  sample requirements or outcome denominators where needed. Shared calls retain
+  their marker and accessible explanation. All seven metrics use the same select:
+  calls, cumulative interval, P95, reported failures, median, maximum and failure
+  rate. Reported failures use `--err`; selection uses neutral control fill and an
+  inset accent edge.
+- **Scroll and responsive detail:** at ≥960px, selecting an operation adds a 340px
+  inspector beside the ranking in the outer body scroller. It is sticky at
+  `top: 0`, independently scrollable, `box-sizing: border-box`, and bounded by
+  `max-height: clamp(220px, calc(min(820px, 92dvh) - 380px), 480px)`. Below 960px,
+  detail follows the selected row inline, or follows results if search/limit hides
+  that row. At ≤600px, summary remains three compact columns; row bars move below
+  names/values. Long names wrap without horizontal table scrolling.
+- **Inspector:** group values under Activity & outcomes and Measured intervals;
+  keep Definitions & coverage progressive. Slowest/Recent controls expose up to
+  20 slowest measured or 30 recent sanitized containing calls from a separately
+  fetched fresh snapshot. Arguments and outputs are not retained.
+- **Controls and contrast:** inherit theme fonts, native color scheme, SVG glyphs
+  and focus treatment; coarse pointers receive 44px actions and main controls.
+  Keyboard selection focuses the detail heading; closing detail returns to its
+  row or modal Close. Escape restores the invoking control; refresh deduplication
+  and selection preservation remain. Search placeholders use `--text-secondary`
+  at `opacity: 1`; ranking tracks use `--bg-soft` behind `--usage-blue`. Forced
+  colors preserve tracks and selection. These local roles reuse existing tokens.
+- **Honest measurement:** containing-call memberships are not independent inner
+  executions; operation totals are not additive. Cumulative overlapping intervals
+  are not wall time, provider clocks are not a benchmark, and reported failures
+  are not exhaustive detection. Keep required qualifiers beside rankings; distinguish
+  requested dates, retained start and observed endpoints, and unknown timing from
+  measured zero. This iteration changes no backend, aggregation or global identity.
 
 ### Canvas objects
 

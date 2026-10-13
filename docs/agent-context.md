@@ -15,7 +15,11 @@ branches still have the same state. Verify them at the start of a new session.
 - Concrete shell operations are grouped without arguments. Shared wrapper and
   compound timing describes the containing call, not independent inner work.
 - Implementation and verification: `docs/features/tool-audit.md`.
-  Owner preview review pending; no merge into development yet.
+  Second visual iteration: `docs/features/tool-explorer-iteration-two.md`;
+  full-width rankings at rest, one Rank by selector, on-demand inspector.
+  217 relevant tests, typecheck/build and five-size/nine-theme Brave checks pass.
+  Independent scoped finish verdict: ship. PR #2125 remains draft;
+  owner preview review pending, no merge into development yet.
 
 ## Usage insights preview on Mac — 2026-10-13
 
