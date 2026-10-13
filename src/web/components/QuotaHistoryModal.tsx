@@ -4,6 +4,7 @@ import type { Providers } from "../providers";
 import { captureAge, quotaPlot, quotaSeriesKey, type QuotaHistory, type QuotaSeries } from "../quota-history";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+import { RefreshGlyph } from "./action-glyphs";
 
 const timestamp = (t: number) => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 const clock = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -90,7 +91,7 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
       <header className="modal-head">
         <h2 id="quota-history-title">Quota history</h2>
         <div className="qh-header-actions">
-          <button type="button" className="glyph-btn" aria-label="Refresh quota history" title="Read recorded quota history" {...selfPressProps(loading)} onClick={refreshHistory}>{loading ? "…" : "↻"}</button>
+          <button type="button" className="glyph-btn" aria-label="Refresh quota history" title="Read recorded quota history" {...selfPressProps(loading)} onClick={refreshHistory}>{loading ? "…" : <RefreshGlyph />}</button>
           <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label="Close quota history">×</button>
         </div>
       </header>

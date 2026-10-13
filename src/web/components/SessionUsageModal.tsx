@@ -6,6 +6,7 @@ import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { sessionFailure, type SessionReply, type SessionSelection, type SessionSpeed } from "../session-usage";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import { RefreshGlyph } from "./action-glyphs";
 
 const count = (n: number) => n.toLocaleString();
 const at = (value: string) => new Date(value).toLocaleString(undefined, {
@@ -59,7 +60,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
           </div>
           <div className="modal-actions">
             <button type="button" className="glyph-btn" onClick={() => setRevision(n => n + 1)} disabled={!reply}
-              aria-label="Refresh session usage" title="Refresh session usage">↻</button>
+              aria-label="Refresh session usage" title="Refresh session usage"><RefreshGlyph /></button>
             <button type="button" className="glyph-btn" ref={closeRef} onClick={onClose} aria-label="Close session usage (Esc)" title="Close (Esc)">×</button>
           </div>
         </header>

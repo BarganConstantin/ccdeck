@@ -21,6 +21,7 @@ import { byCost, historyTotals, legendOf, modelColor, percentOf } from "../usage
 // The ccusage run behind the chart, and the rules for which answer it keeps.
 import { useCcusage } from "../use-ccusage";
 import UsageDayDetail from "./UsageDayDetail";
+import { RefreshGlyph } from "./action-glyphs";
 
 const PRESETS = [7, 14, 30, 90];
 
@@ -154,7 +155,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
             {...selfPressProps(loading)}
             title="Re-run ccusage"
             aria-label="Reload"
-          >{loading ? "…" : "↻"}</button>
+          >{loading ? "…" : <RefreshGlyph />}</button>
           <button ref={closeRef} className="glyph-btn uh-close" onClick={onClose} aria-label="Close">×</button>
         </header>
 

@@ -25,6 +25,7 @@ import type { Palette } from "../palette";
 import { selfPressProps } from "../panel-press";
 import { watchedBrowsers, watchTrouble } from "../browser-watch-model";
 import { useBrowserWatch } from "../use-browser-watch";
+import { RefreshGlyph } from "./action-glyphs";
 
 /* NO TABS. Two views were never two modes: one of them is the product — what
    a program opened while nobody was browsing — and the other is the evidence
@@ -124,16 +125,7 @@ export default function BrowserWatchModal({
               {...selfPressProps(busy)}
               aria-label="Re-read every profile now"
               title="Re-read every profile now"
-            >{busy ? "…" : (
-              // A text arrow uses the system's symbol-font fallback, whose
-              // proportions vary on Linux. Match the accounts header's SVG
-              // instead of depending on a font or the monitor orientation.
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-                strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
-                <path d="M11.9 2.6v3.7h-3.6" />
-              </svg>
-            )}</button>
+            >{busy ? "…" : <RefreshGlyph />}</button>
             <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
           </div>
         </header>
