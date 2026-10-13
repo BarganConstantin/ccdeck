@@ -16,8 +16,10 @@ Desktop playback uses three balanced groups: station identity, centered Previous
 
 ## Playback and local state
 
-The seven retained YouTube sources appear first on Discover as Global workspace
-streams, including Claude FM and the four Lofi Girl variants. Each has a themed
+The seven retained YouTube sources appear in the secondary, collapsible Global
+workspace collection, including Claude FM and the four Lofi Girl variants. Radio
+directory results come first; the persistent disclosure reaches workspace streams
+without scrolling through the directory. Each has a themed
 SVG icon and local favorite control; played sources also appear in Recent.
 They remain searchable when the directory is unavailable. Station rows use two
 lines: name, then country/source metadata with inline playback status. Long
@@ -39,8 +41,8 @@ Station passport, listening statistics, song recognition and richer collections 
 
 ### Interaction refinement
 
-The discovery controls use compact search and one row of Country, Sound and
-Language filter buttons. The shared anchored popover hosts searchable, bounded
+The discovery controls use prominent search and a unified Filters action for
+Country, Genre and Language. The shared anchored popover hosts searchable, bounded
 option lists styled with the current theme. Arrow keys and Enter select options;
 Escape returns focus to the trigger without closing Radio. Language also accepts
 a typed value. Applied filters show their selected value and can be cleared
@@ -52,3 +54,11 @@ The search field keeps one clear action and returns focus to typing when cleared
 ### Radio signal loading state
 
 The initial lazy component load and empty directory fetch share a small antenna/receiver illustration. Three successive signals travel from the antenna to the radio, with a short pause between cycles, and animate with CSS transforms and opacity only while waiting; no minimum duration delays the result. A cached catalogue remains available during background refresh. Reduced motion and keyboard-opened Radio use the static illustration, and hidden documents pause the signal loop. The opening fallback uses the shared modal focus/dismiss hook, a labeled Close action and Escape/Tab support. Short narrow windows use a smaller directory illustration.
+
+### Production QA
+
+The final production audit and regression evidence are recorded in
+[Radio production readiness](radio-production-readiness.md). YouTube playback is
+confirmed by player state rather than assumed from a request. Buffering and blocked
+autoplay remain distinct, and an unconfirmed/stalled embed expires after fifteen
+seconds with a recoverable failure. No music starts automatically after reload.

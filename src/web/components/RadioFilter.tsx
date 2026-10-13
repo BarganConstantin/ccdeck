@@ -21,7 +21,7 @@ export function RadioFilterOptions({ label, value, options, allowCustom, onSelec
   useEffect(() => { input.current?.focus({ preventScroll: true }); }, []);
   useEffect(() => { list.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" }); }, [active, query]);
   return <>
-    <div className="radio-filter-search"><RadioIcon name="search" /><input ref={input} role="combobox" aria-label={`Search ${label.toLowerCase()}`} placeholder={`Search ${label.toLowerCase()}…`} autoComplete="off" value={query} aria-expanded="true" aria-autocomplete="list" aria-controls={`${id}-options`} aria-activedescendant={index >= 0 ? `${id}-option-${index}` : undefined} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={event => {
+    <div className="radio-filter-search"><RadioIcon name="search" /><input ref={input} role="combobox" aria-label={`Search ${label.toLowerCase()}`} placeholder={`Search ${label.toLowerCase()}…`} autoComplete="off" value={query} aria-expanded={matches.length > 0} aria-autocomplete="list" aria-controls={matches.length ? `${id}-options` : undefined} aria-activedescendant={index >= 0 ? `${id}-option-${index}` : undefined} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault(); setActive(matches.length ? (Math.max(0, index) + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length : 0);
       } else if (event.key === "Home" || event.key === "End") {
@@ -30,10 +30,9 @@ export function RadioFilterOptions({ label, value, options, allowCustom, onSelec
         event.preventDefault(); onSelect(matches[index].value);
       }
     }} /></div>
-    <div ref={list} id={`${id}-options`} className="radio-filter-options" role="listbox" aria-label={`${label} options`}>
+    {matches.length > 0 ? <div ref={list} id={`${id}-options`} className="radio-filter-options" role="listbox" aria-label={`${label} options`}>
       {matches.map((option, i) => <button type="button" role="option" tabIndex={-1} id={`${id}-option-${i}`} key={option.value} aria-selected={option.value === value} data-active={i === index} onPointerMove={() => setActive(i)} onClick={() => onSelect(option.value)}><span>{option.label}</span>{option.value === value && <RadioIcon name="check" />}</button>)}
-      {!matches.length && <p role="status">No matches</p>}
-    </div>
+    </div> : <div className="radio-filter-options"><p role="status">No matches</p></div>}
   </>;
 }
 

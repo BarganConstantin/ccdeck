@@ -102,13 +102,15 @@
 .radio-filter-trigger:hover { color: var(--text); border-color: var(--text-secondary); }
 .radio-filter-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* This shared popover opens inside Radio's modal layer (100). */
-.radio-filter-popup { z-index: 101; width: min(280px, calc(100vw - 24px)); padding: 6px; }
+.radio-filter-popup { z-index: 101; width: min(280px, calc(100vw - 24px)); padding: 6px; display: flex; flex-direction: column; }
+.radio-filter-popup > .radio-filter-heading, .radio-filter-popup > .radio-filter-footer, .radio-filter-popup > .radio-filter-back, .radio-filter-popup > .radio-filter-search { flex: none; }
+.radio-filter-overview { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .radio-filter-search { display: flex; align-items: center; gap: 6px; padding: 4px 6px 8px; border-bottom: 1px solid var(--line); color: var(--text-secondary); }
 .radio-filter-search svg { width: 14px; height: 14px; flex: none; }
 .radio-filter-search input { min-width: 0; width: 100%; min-height: 30px; background: var(--bg-soft); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px 6px; color: var(--text); font: inherit; font-size: 12px; }
 .radio-filter-search input::placeholder { color: var(--text-secondary); opacity: 1; }
 .radio-filter-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.radio-filter-options { max-height: min(240px, 40dvh); overflow-y: auto; overscroll-behavior: contain; margin-top: 4px; scrollbar-width: thin;  }
+.radio-filter-options { min-height: 0; max-height: min(240px, 40dvh); overflow-y: auto; overscroll-behavior: contain; margin-top: 4px; scrollbar-width: thin;  }
 .radio-filter-options button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; width: 100%; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); padding: 6px 8px; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
 .radio-filter-options button[data-active="true"] { background: var(--ctl-fill); }
 .radio-filter-options button svg { width: 14px; height: 14px; flex: none; }

@@ -171,3 +171,24 @@ B checked200% zoom using equivalent720x500 reflow; actual browser zoom was not
 exercised. Existing build chunk-size warning remains. Final resolution checks were
 in-thread, not an independent whole-surface ship verdict. Questions skipped:
 owner authorized autonomous work and preserved direction; no missing input.
+
+## Production readiness — 2026-10-13
+
+Applied Impeccable technical audit/harden to baseline5911141a, preserving the
+incumbent design. Seven verified defects fixed: YouTube confirmation/stall,
+autoplay-blocked handling, error153, failed custom probe flags, map cluster focus,
+clipped filter footer and no-match listbox semantics. The last is P1; the probe
+flags are P3; the others P2. All resolved with semantic/lifecycle/browser
+regressions. Independent player reviewer Aquinas passed16 lifecycle checks.
+
+Final verification:431 tests/22 suites, typecheck/build/themes check;25/25 main
+browser checks; six viewports; actual browser zoom100/125/150/200%; zero axe
+violations including empty country options; native and MSE AAC/HLS fixtures;
+three real application playback samples (RMC FR, Classic Vinyl HD, Lofi Girl).
+Bounded repeat-open/map/cleanup checks passed. No confirmed P0/P1/P2 remains;
+SHIP WITH KNOWN LIMITATIONS, including native screen readers, other engines,
+current Windows/Electron, physical touch and sustained external network loss.
+Eight pre-existing font-ramp advisories reviewed, not suppressed; large-chunk
+build warning remains P3. Detailed evidence/limits:
+`docs/features/radio-production-readiness.md` and
+`.impeccable/qa/radio-production-2026-10-13/`.

@@ -40,11 +40,13 @@ export default function RadioDiscoveryToolbar({ collection, favoriteCount, onCol
     {expanded && <AnchoredPopover anchorId={`${id}-trigger`} boundaryId="radio-panel" portalRootId="radio-panel" id={`${id}-popup`} className="radio-filter-popup" role="dialog" labelledBy={`${id}-trigger`} onClose={() => { setExpanded(false); }}>
       <div className="radio-filter-heading"><strong>{fieldIndex === null ? "Filter stations" : fields[fieldIndex].label}</strong><button type="button" className="icon-btn" aria-label="Close filters" onClick={() => { setExpanded(false); returnFocus(); }}><RadioIcon name="close" /></button></div>
       {fieldIndex === null ? <>
+        <div className="radio-filter-overview">
         <div className="radio-filter-fields">{fields.map((field, index) => {
           const value = field.options.find(option => option.value === filters[field.name])?.label ?? filters[field.name];
           return <button key={field.name} type="button" id={`${id}-${field.name}`} className="radio-filter-field" data-filtered={!!filters[field.name]} aria-label={`${field.label}: ${value}`} onClick={() => setFieldIndex(index)}><span>{field.label}</span><span title={value}>{value}</span><RadioIcon name="back" /></button>;
         })}</div>
         <p className="radio-filter-note">Genre and language apply to directory radio. Choose Global streams for YouTube and custom streams.</p>
+        </div>
         <div className="radio-filter-footer">{active.length > 0 && <button type="button" className="radio-reset" onClick={() => { fields.forEach(field => onFilterChange(field.name, "")); requestAnimationFrame(() => document.getElementById(`${id}-done`)?.focus({ preventScroll: true })); }}>Clear filters</button>}<button type="button" className="btn" id={`${id}-done`} onClick={() => { setExpanded(false); returnFocus(); }}>Done</button></div>
       </> : <>
         <button type="button" className="radio-filter-back" onClick={() => { const field = fields[fieldIndex]; setFieldIndex(null); requestAnimationFrame(() => document.getElementById(`${id}-${field.name}`)?.focus({ preventScroll: true })); }}><RadioIcon name="back" />All filters</button>

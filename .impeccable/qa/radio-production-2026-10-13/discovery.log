@@ -1,0 +1,2 @@
+PASS audio continuity: no new play calls or media restart across search, filters, tabs and empty states
+PASS: search, clear, combined metadata, Global without API call, source-aware counts, empty state, tab keyboard, shared favorites/recent, player heart, mobile/short/desktop, bounded popovers, Escape focus, light theme; no JS errors
