@@ -527,55 +527,82 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 
 ### Tool activity report
 
-An on-demand, adaptive ranking-first explorer inside the established instrument-panel
-world. Its independent SVG rail entry sits next to Radio (in More on phones);
-`App.tsx` opens it independently of Usage. Direction, measurement limits and the
-second-iteration finish evidence live in
-[the Tool activity brief](.impeccable/surfaces/tool-audit.md).
+An on-demand hybrid explorer inside the established instrument-panel world:
+frequency × observed-interval map first, exact operation rankings below, evidence
+on selection. Its independent SVG rail entry sits next to Radio (in More on
+phones); `App.tsx` opens it independently of Usage. The
+[Tool activity brief](.impeccable/surfaces/tool-audit.md) records the built v3
+contract, measurement limits and scoped finish evidence.
 
-- **Shell and capacity:** `.modal.ta-modal` uses `width: min(1080px, 96vw)` and
-  `max-height: min(820px, 92dvh)`, inheriting `--panel`, `--r-panel` and
-  `--shadow-2`. Ranking occupies the full width at rest; no empty inspector or
-  reserved detail column. Radio's 200ms entry is skipped for keyboard opening and
-  reduced motion; loading is indeterminate.
-- **Hierarchy:** provider/period/search toolbar and custom dates when requested;
-  incomplete-history notice **before the call-wide summary**; three workload
-  metrics; compact native Coverage & freshness disclosure; one native Rank by
-  select; qualified ranking context; aligned operation rows. The coverage summary
-  shows observed endpoints and timed count; expansion shows exact requested dates,
-  retained start and refresh timestamp. Native metric definitions reveal explanation
-  on demand. No duplicate ranking title, button stack or More metrics control.
-- **Rows:** monospaced operation names, relative `--usage-blue` bars and exact
-  tabular values dominate. Omit repeated visible calls/timing labels; show missing
-  sample requirements or outcome denominators where needed. Shared calls retain
-  their marker and accessible explanation. All seven metrics use the same select:
-  calls, cumulative interval, P95, reported failures, median, maximum and failure
-  rate. Reported failures use `--err`; selection uses neutral control fill and an
-  inset accent edge.
-- **Scroll and responsive detail:** at ≥960px, selecting an operation adds a 340px
-  inspector beside the ranking in the outer body scroller. It is sticky at
-  `top: 0`, independently scrollable, `box-sizing: border-box`, and bounded by
-  `max-height: clamp(220px, calc(min(820px, 92dvh) - 380px), 480px)`. Below 960px,
-  detail follows the selected row inline, or follows results if search/limit hides
-  that row. At ≤600px, summary remains three compact columns; row bars move below
-  names/values. Long names wrap without horizontal table scrolling.
-- **Inspector:** group values under Activity & outcomes and Measured intervals;
-  keep Definitions & coverage progressive. Slowest/Recent controls expose up to
-  20 slowest measured or 30 recent sanitized containing calls from a separately
-  fetched fresh snapshot. Arguments and outputs are not retained.
-- **Controls and contrast:** inherit theme fonts, native color scheme, SVG glyphs
-  and focus treatment; coarse pointers receive 44px actions and main controls.
-  Keyboard selection focuses the detail heading; closing detail returns to its
-  row or modal Close. Escape restores the invoking control; refresh deduplication
-  and selection preservation remain. Search placeholders use `--text-secondary`
-  at `opacity: 1`; ranking tracks use `--bg-soft` behind `--usage-blue`. Forced
-  colors preserve tracks and selection. These local roles reuse existing tokens.
-- **Honest measurement:** containing-call memberships are not independent inner
-  executions; operation totals are not additive. Cumulative overlapping intervals
-  are not wall time, provider clocks are not a benchmark, and reported failures
-  are not exhaustive detection. Keep required qualifiers beside rankings; distinguish
-  requested dates, retained start and observed endpoints, and unknown timing from
-  measured zero. This iteration changes no backend, aggregation or global identity.
+- **Shell and hierarchy:** `.modal.ta-modal` uses `width: min(1180px, 96vw)` and
+  `max-height: min(860px, 94dvh)`, inheriting `--panel`, `--r-panel` and
+  `--shadow-2`. No reserved inspector at rest. Provider/period/search and optional
+  UTC custom dates precede incomplete-history notices, three call-wide workload
+  metrics and native Coverage & freshness disclosure. Refresh/Close remain in the
+  header. Radio's 200ms entry is skipped for keyboard opening and reduced motion;
+  loading is indeterminate. Coverage distinguishes requested dates, retained start,
+  observed endpoints, timed count and refresh timestamp.
+- **Primary map:** linear X is containing-call memberships, explicitly nonadditive;
+  Y is median or eligible P95 containing-call interval. Auto Y uses labelled
+  `log(1 + ms)` only when positive intervals span at least 100×; explicit Linear
+  and zero-safe Log are available. Measured zero stays zero; missing medians and
+  P95 below 20 timings are excluded with a counted disclosure and selectable
+  operations, never plotted as zero. Both-provider data warns about mixed clocks.
+  Blue circles identify operations; `--err` diamonds also identify reported
+  failures by shape. Axes, exact ticks and legend explain the marks.
+- **Clustering and linking:** screen-space grouping uses rendered footprints,
+  nearest-pair merging and centroid rechecks across cell boundaries. No jitter;
+  exact members and values are retained. Numbered badges open a bounded, scrollable
+  exact-member chooser, with a failure diamond when applicable. Hover/focus links
+  map points and ranking rows; selection persists across views. Search filters
+  rankings and dims nonmatching map points while retaining the full map, axes and
+  provider/period summary totals. Matching members lead the chooser.
+- **Exact operations:** one Rank by select exposes calls, cumulative interval,
+  P95, reported failures, median, maximum and failure rate. Frequency/cumulative
+  and outcome dimensions use bars; median/P95/maximum use interval dots. Mono
+  identities and exact tabular values remain primary; show sample requirements,
+  outcome denominators and shared-call markers. Required qualifiers sit beside
+  the ranking, deeper definitions in native disclosure. Initially 50 rows;
+  Show 50 more bounds rendering. Long names wrap without horizontal table scrolling.
+- **Responsive workspace:** at ≥960px selection adds a 320px inspector beside
+  map/rankings, sticky at `top: 0`, independently scrollable and bounded by
+  `max-height: min(700px, calc(94dvh - 300px))`. The body is the outer scroller.
+  Below 960px detail follows the map; at ≤600px Performance map/Operations controls
+  share selection and filters. Operations detail follows its selected row, or
+  results when search/limit hides that row. Phone summary remains three columns.
+  At viewport height ≤650px the SVG is 210px tall, or 170px when its frame is
+  narrower than 450px (otherwise 310/240px). Compact composition keeps both axes
+  and the legend in the 800×600 first viewport and handles short phones.
+- **Inspector and focus:** Activity & outcomes and Measured intervals group the
+  statistics; Definitions & coverage stays progressive. Slowest/Recent exposes
+  up to 20 measured or 30 recent sanitized containing calls in a separately fetched
+  fresh snapshot. Keyboard Enter/Space selects; map arrows traverse rendered
+  nodes with wrap, Home/End reach first/last, and cluster activation focuses its
+  first member. Keyboard selection focuses the inspector heading. Closing waits
+  for map regrouping and restores a visible origin, row or containing map node,
+  with modal Close as fallback. Escape dismisses the modal and restores its
+  invoker. Selection survives sort/search/refresh and clears when replacement
+  provider/period data lacks it; refresh guards deduplicate work.
+- **Local typography and access:** preserve system UI/mono families, native
+  controls, existing focus and all nine themes. Intentional local steps are 11/12px
+  data/context, 14px headers and 18/20/24px workload metrics, with existing 10px
+  qualifiers, 13px exact values/headings and 16px secondary phone metrics. These
+  surface roles explain the nine global typography detector advisories without
+  changing global tokens. Coarse pointers receive 44px main actions/controls;
+  forced colors preserve comparison tracks and map/selection marks. SVG text and
+  placeholders meet 4.5:1, marks/bars 3:1 in the executed nine-theme checks.
+- **Honest measurement and finish:** operations are containing-call memberships,
+  not independent inner executions; operation totals are not additive, cumulative
+  overlapping intervals are not wall time, provider clocks are not a benchmark,
+  and reported failures are not exhaustive detection. No trends, costs or
+  unsupported diagnoses. Forward-only local history, up to 90 days, and General
+  Settings retention/bytes/confirmed clear preserve the existing data contract;
+  arguments, outputs and full traces are not retained. Harvey's full review
+  returned FIX, then VERDICT PASS / SHIP after the adjacent-cluster collisions
+  and 800×600 axes/legend fixes. The verdict covers those two fixes and the
+  contract only. Existing v3 logs/captures record validation; native Windows/Linux,
+  Safari/Firefox, live Claude and screen-reader use remain unverified. PR #2125
+  stays draft; no merge or deploy is claimed.
 
 ### Canvas objects
 
