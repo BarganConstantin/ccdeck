@@ -1,7 +1,23 @@
 # Owner's ccdeck work — continuation context
 
-Updated: 2026-10-12. This is a handoff, not a claim that processes or remote
+Updated: 2026-10-13. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
+
+## Usage insights preview on Mac — 2026-10-13
+
+- Issue #2121: quota history and session cached input reuse.
+- Worktree: `/Users/constantin/Desktop/ccdeck-usage-insights`, branch
+  `feat/2121-usage-insights`, based on development `a467d552`.
+- Vite serves `http://127.0.0.1:4525/`, with `CCDECK_DEV_SERVER_PORT=4526`.
+  The direct Node backend listens on 4526 with
+  `CCDECK_HOME=/tmp/ccdeck-usage-insights-preview` and reports/install disabled.
+- Preview quota history is actual observed Claude/Codex data, isolated from the
+  installed app on 4317. Browser fixtures used for QA were not persisted.
+- Usage history opens from the header chart icon; bars remain display-only.
+  Header spend/minute and the Codex 7-day token/session summary were removed.
+- Owner approved delivery to development on 2026-10-13. The feature is integrated
+  with the current development baseline, including the account reset calendar.
+  Details and verification: `docs/features/usage-insights.md`.
 
 ## Current Linux preview — 2026-10-12
 

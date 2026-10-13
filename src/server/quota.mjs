@@ -52,6 +52,7 @@
 // shape in quota-shape.mjs; the token, source 2's request and the cooldown are
 // quota-oauth.mjs's; running source 3 is quota-cli.mjs's; and the store path's
 // reset inventory is quota-store-resets.mjs's.
+import { noteQuotaHistory, forgetQuotaHistoryAccount } from "./quota-history.mjs";
 import { activeAccountUsage, requestCollection } from "./claude-accounts.mjs";
 import { quotaFromStore, readingLapsed, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
 import {
@@ -254,7 +255,10 @@ function publish(gen, result, at, { good = false, who = null } = {}) {
   if (gen !== _generation) return result;
   _cache   = result;
   _cacheAt = at;
-  if (good) { _lastGood = result; _lastGoodFor = who; }
+  if (good) {
+    noteQuotaHistory("claude", who?.account, result);
+    _lastGood = result; _lastGoodFor = who;
+  }
   return result;
 }
 
@@ -421,7 +425,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   // the question is new, and it can be asked at most once per reading held.
   const who = await readFor(store);
   const switched = _lastGood != null && switchedSince(_lastGoodFor, who);
-  if (switched) { _lastGood = null; _lastGoodFor = null; }
+  if (switched) { _lastGood = null; _lastGoodFor = null; forgetQuotaHistoryAccount("claude"); }
 
   if (store && now - store.fetchedAt <= STORE_TRUSTED_MS) {
     // Keep the store moving even when the accounts panel is closed. Without
@@ -563,6 +567,7 @@ async function _doFetch(now, force = false, gen = _generation) {
  * left.
  */
 export function invalidateQuotaCache() {
+  forgetQuotaHistoryAccount("claude");
   _cache = null;
   _cacheAt = 0;
   _lastGood = null;

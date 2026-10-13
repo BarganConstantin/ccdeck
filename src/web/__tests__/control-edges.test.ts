@@ -324,6 +324,8 @@ function rootTokens(theme: Theme): Record<string, string> {
     out[name] = value.trim();
   }
   for (const [, name, value] of bodyOf(".modal.tr-modal").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
+  // The reset navigator inherits its selection fill from the calendar body.
+  for (const [, name, value] of bodyOf(".ap-reset-body").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
   return out;
 }
 
@@ -500,6 +502,9 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: ".qh-providers button", states: [".qh-providers button:hover"], beds: ["--panel"] },
+  { at: '.qh-providers button[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".qh-window select", beds: ["--panel"] },
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
@@ -509,6 +514,9 @@ const CONTROLS: Control[] = [
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
   { at: '.character-choice', beds: ["--panel"] },
   { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
+  { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
   { at: ".su-pricing select", beds: ["--panel"] },
@@ -904,9 +912,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    // Radio controls and the session pricing select extend the measured inventory.
-    // Discovery adds ring-only keyboard targets for its tabs and filter actions.
-    expect(EDGED_CONTROLS.length).toBeLessThan(142);
+    // Radio discovery, session pricing and reset-calendar controls extend the inventory.
+    expect(EDGED_CONTROLS.length).toBeLessThan(146);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

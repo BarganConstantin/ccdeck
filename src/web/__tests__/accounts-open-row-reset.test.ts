@@ -104,10 +104,10 @@ describe("an open account row whose windows have reset since a reading that is f
     expect(lane).not.toContain("title=\"Reset");
   });
 
-  it("says reset in both views of the account, as the capacity report does", () => {
+  it("preserves panel reset wording while qualifying the report estimate", () => {
     const shut = row(frozenAndReset, false);
     const open = row(frozenAndReset, true);
-    const cells = [...report(frozenAndReset).matchAll(/<td class="ap-report-cell"[^]*?<\/td>/g)].map(m => seen(m[0]));
+    const cells = [...report(frozenAndReset).matchAll(/<td class="ap-report-cell"[^]*?<\/td>/g)].map(m => seen(m[0].replace(/<span class="ap-report-mobile-label"[^]*?<\/span>/g, "")));
     expect(cells).toHaveLength(2);
     WINDOWS.forEach(({ label }, i) => {
       const views = {
@@ -115,7 +115,7 @@ describe("an open account row whose windows have reset since a reading that is f
         open: seen(laneOf(open, label)).replace(label, "").trim(),
         report: cells[i],
       };
-      expect(views, `the ${label} window`).toEqual({ shut: "reset", open: "reset", report: "reset" });
+      expect(views, `the ${label} window`).toEqual({ shut: "reset", open: "reset", report: "Estimated unused" });
     });
   });
 

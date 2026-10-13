@@ -61,7 +61,11 @@
 @media (forced-colors: active) {
   .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
   .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
-  .tr-detail-tabs .btn[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
+  .tr-detail-tabs .btn[aria-pressed="true"],
+  .ap-report-view[aria-pressed="true"],
+  .ap-reset-coverage-link[aria-pressed="true"],
+  .ap-reset-day-button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
+  .ap-reset-meter > span { forced-color-adjust: none; background: CanvasText; }
   .topbar .status .pill.live::before,
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,
@@ -204,6 +208,7 @@
   .uh-agent-bar,
   .cost-bar,
   .ap-report-meter,
+  .ap-reset-meter,
   .ap-proj-bar,
   .ap-proj-track { outline: 1px solid CanvasText; outline-offset: -1px; }
   /* A day of the Projects report's chart is a button with no edge, and a quiet

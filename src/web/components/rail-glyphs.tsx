@@ -108,3 +108,8 @@ export const RestartGlyph = () => (
 export const RadioGlyph = () => (
   <Glyph><path d="M2 5h10v7H2z M4 5l6-3 M4 8h3 M9 8h1 M4 10h1 M8 10h2" /></Glyph>
 );
+
+/** Reported reset timing uses the same control-glyph geometry. */
+export const ClockGlyph = () => (
+  <Glyph><circle cx="7" cy="7" r="5" /><path d="M7 3.8V7l2.2 1.4" /></Glyph>
+);
