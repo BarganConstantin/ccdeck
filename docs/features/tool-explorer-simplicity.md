@@ -1,5 +1,8 @@
 # Tool Activity — simplicity-first redesign
 
+Historical iteration. The current Direction A report and executed validation are
+recorded in [tool-activity-report.md](tool-activity-report.md).
+
 ## Critique and architecture
 
 The scatter-first view requires decoding identities, clusters, shapes, clock

@@ -527,79 +527,92 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 
 ### Tool activity report
 
-An on-demand operation ranking in the established instrument-panel world. Exact
-names and values answer the comparison first; selection opens recorded evidence.
-The independent SVG rail entry sits next to Radio (in More on phones), separate
-from Usage. The [Tool activity brief](.impeccable/surfaces/tool-audit.md) records
-current behavior, measurement limits and scoped finish evidence; the
-[simplicity contract](docs/features/tool-explorer-simplicity.md) supersedes v3.
+Direction A is a full-page, on-demand analytical report in the established ccdeck
+instrument-panel world. The rail entry sits next to Radio (More on phones),
+separate from Usage. The [direction contract](docs/features/tool-activity-report.md)
+and [surface record](.impeccable/surfaces/tool-audit.md) supersede the centered
+single-mode ranking for this surface; they do not redefine the global design.
 
-- **Shell and hierarchy:** width `min(1040px, 96vw)`, max-height
-  `min(800px, 92dvh)`, existing panel, radius and shadow. Header Refresh/Close
-  remain reachable; the body scrolls. Provider/period/search and optional UTC
-  custom dates precede incomplete-history notices, three call-wide summaries,
-  collapsed Coverage & definitions, and one comparison control. Freshness and
-  measurement definitions share that disclosure; the active metric has a short
-  qualifier and its own collapsed definition. No inspector space is reserved.
-- **Four comparisons:** Most used, Most measured time, Slowest P95 and Reported
-  failures share one desktop button group; at ≤600px one native Compare select
-  replaces it. Switching updates the same ranking's order, linear relative bars,
-  values and explanation. Bars scale to the largest eligible value among searched
-  operations, including rows beyond the visible limit; blue is the comparison
-  fill and red denotes reported failures. Exact mono names and tabular values
-  lead, without repeated count units, shared-call glyphs, dots or a legend.
-  Missing values show an empty bar and Not measured or `n / 20 timed`; measured
-  zero stays zero. Top eight is the default. View all opens 50, Show 50 more adds
-  50, and Top 8 returns to the overview. The scatter component, helper, tests and
-  map QA runner are removed; there is no advanced map.
-- **Responsive workspace:** selection adds a 320px inspector with a 24px gap at
-  ≥960px, sticky at `top: 0`, independently scrollable with border-box sizing and
-  `max-height: clamp(220px, calc(min(820px, 92dvh) - 380px), 480px)`.
-  Below 960px detail follows the selected row, or the results if search/paging
-  hides it. At ≤600px bars sit below the name/value line, long names wrap, the
-  summary stays three compact columns, and only the phone summary hides the
-  outcome denominator. Timed coverage stays visible; observed endpoints move
-  into the disclosure. Final 800×600, 390×844 and 320×568 captures establish the
-  short/narrow composition rather than the discarded map's geometry.
-- **Scope, selection and focus:** search narrows operations, not provider/period
-  summary totals. Selection survives mode/search/refresh while the operation
-  remains in the report; replacement data clears an absent identity. Reset
-  appears only for changed provider, period or search, never a metric change
-  alone; activating it restores all providers, seven days, empty search, Most
-  used and top eight. Keyboard selection focuses the inspector heading; narrow
-  selection scrolls detail into view. Inspector close restores its connected
-  origin, matching visible row or modal Close fallback. Modal focus stays inside;
-  Escape restores the invoker. Refresh guards prevent duplicate report/detail work.
-- **Inspector and honest measurement:** Activity & outcomes and Measured intervals
-  retain exact median, P95, maximum, failure rate and provider/timing counts.
-  Definitions & coverage qualifies shared intervals, sample limits and clocks;
-  Slowest/Recent exposes up to 20 measured or 30 recent sanitized containing calls
-  from a separately fetched fresh snapshot. Operations are containing-call
-  memberships, not independent executions; their totals overlap. Cumulative
-  intervals are not wall-clock time, P95 needs ≥20 timings, and Claude receipt
-  clocks versus Codex rollout clocks cannot establish provider speed. Reported
-  failures are observed containing-call outcomes, not exhaustive inner-command
-  detection. Forward-only device-local history and General Settings retention,
-  bytes and confirmed clear remain; arguments, outputs and full traces are not
-  retained. No collectors, backend behavior or global tokens changed.
-- **Local typography and access:** system UI controls and mono identities/values
-  use intentional 11/12px data/context, 13px values/headings, 14px headers,
-  16/18/24px metrics and 10px small qualifiers/counts. The one detector run found
-  seven typography ADVISORY findings and zero nonadvisory findings. Preserve nine
-  themes, native controls, focus, forced-color tracks/selection and 44px coarse
-  pointer main actions. Keyboard opening and reduced motion skip entry animation;
-  loading is indeterminate. Executed fixture text/placeholder checks meet 4.5:1;
-  actual nonzero blue/red comparison fills meet 3:1 across nine themes.
-- **Finish evidence:** 217 tests in seven suites, typecheck/build and final Brave
-  checks passed; the existing large-chunk build warning remains. Six viewport
-  sizes, nine themes, all four modes, paging, proportional bars, unavailable P95,
-  state/focus/selection cases and live Codex overview/detail are recorded in the
-  brief. Arendt independently inspected 22 captures and returned scoped SHIP
-  with no blockers; the nonblocking mobile Reset row fix received RESOLVED / PASS
-  after fresh phone captures and browser regressions. Five-second comprehension
-  is an expert heuristic, not participant research. Native Windows/Linux,
-  Safari/Firefox, live Claude and screen-reader use remain unverified. PR #2125
-  remains draft; no merge or deploy.
+- **Shell and hierarchy:** viewport overlay with persistent Back to workspace and
+  Refresh header, one scrolling report body, and centered content capped at
+  1360px including 40px desktop side padding. Compact
+  provider/period/search controls and optional UTC dates precede unique call,
+  cumulative interval, reported failure and timing-coverage summaries. Coverage &
+  definitions is collapsed, with exact timed denominator and observed endpoints
+  visible. Theme surfaces and fine rules carry structure; no empty drawer space
+  is reserved.
+- **Simultaneous comparisons:** Most used and Most measured time each show five
+  leaders as ordered linear zero-origin bars. Slowest P95 shows three eligible
+  leaders with hollow median and solid P95 endpoints on one shared linear
+  zero-origin axis, rounded to a readable ceiling, with exact values and measured
+  sample counts. These are median/P95, not min/max or a full distribution.
+  Reported failures shows up to three count-ranked lollipops, exact failed count
+  and completed-outcome denominator; a separate rate appears only with ≥20
+  completed outcomes. Smaller samples say “Small sample · rate not compared.”
+  Length always encodes failure count. Native SVG adds actual measurement
+  meaning; accessible button text supplies exact values and SVG geometry is
+  hidden from assistive technology. No visualization dependency is added.
+- **Theme and responsive behavior:** existing blue usage, amber intervals, violet
+  P95 and red outcomes inherit `--usage-blue`, `--warn`, `--usage-purple` and
+  `--err`. Titles, exact values and endpoint shapes carry meaning beyond hue.
+  Desktop pairs usage/time above subordinate tail/failure evidence; at ≤700px
+  analyses stack, filters occupy two columns with full-width search, and summaries
+  retain three compact columns with timing coverage in the disclosure. Long
+  identities wrap. At ≤360px side padding is 16px and timed sample labels remain
+  under operation identity.
+- **Complete explorer:** searchable, sortable exact operations table begins at
+  50 rows and adds 50 per action. Desktop sortable headers stay sticky within the
+  report body. Phone rows retain identity/provider, calls, associated intervals
+  and failures; median/P95 remain available in detail. Phone sorting has native
+  metric and direction controls. Explore focuses and scrolls to the complete
+  table with the corresponding descending sort; unknowns stay last both ways.
+- **Scope and lifecycle:** search filters charts/table, while summaries keep
+  provider/period scope, explicitly stated beside searched results. Provider or
+  period replaces the dataset; same-query Refresh retains the previous snapshot
+  with status/error feedback and coalesces repeated requests. Selection survives
+  search, sort and refresh while its identity exists. Reset restores all
+  providers, seven days, empty search, descending calls and 50 rows; it appears
+  only for changed filters/search.
+- **Contextual evidence and focus:** every chart/table selection opens the same
+  portal drawer, at most 440px wide and full-width on phones, with its own scroll
+  and protected focus, preserving report scroll. Keyboard selection focuses the
+  operation heading. Escape closes evidence first; closing restores its origin,
+  matching operation button or report Back fallback. Returning to the workspace
+  restores a visible rail/More entry after resize. The existing inspector keeps
+  exact activity, median/P95/maximum, raw failure rate with small-sample
+  disclosure, provider counts and up to 20 slowest/30 recent sanitized calls.
+- **Honest measurement:** null is unavailable, never zero; measured zero and equal
+  endpoints remain visible. Operation memberships/counts, associated intervals
+  and reported outcomes are nonadditive containing-call evidence. Even unique
+  call cumulative intervals overlap and are not wall-clock time. Mixed Claude
+  receipt/Codex rollout clocks do not benchmark provider speed. P95 requires ≥20
+  valid timings. Requested/retained/observed dates distinguish partial history;
+  sparse endpoints do not prove continuous coverage. Arguments, outputs, error
+  text and full traces are not retained; no trends, cost or execution proof is
+  inferred.
+- **Scoped typography and access:** retain system sans, mono identities/exact
+  values and tabular numbers. Local header is 17px/600 (16px phone, 15px at
+  ≤360px); chart titles 15px/600, explorer title 16px/600; summary values 26px/500,
+  primary 32px/600, coverage 20px (phone 22px/500 and primary 28px/600).
+  Dense controls/data/context use 11/12px, exact chart/inspector values 13px,
+  qualifiers, sample counts and axes 10px (phone chart values 12px and identities
+  11px at ≤360px). These are Tool Activity role exceptions, not global scale
+  additions. The existing detector recorded 19 local typography advisories and
+  zero nonadvisory findings. Preserve 44px coarse-pointer main actions, visible
+  focus and forced-color marks; keyboard/reduced-motion entry is immediate,
+  otherwise the inherited entrance is 200ms. Reduced motion disables refresh
+  and loading rotation.
+- **Verified finish:** two bounded rendered passes complete; independent
+  [finish review](.impeccable/review/tool-activity-premium/finish-review.md) returns
+  **SHIP**, with no material fixes. Existing results record 226 tests/eight suites,
+  successful typecheck/build, six Brave sizes, nine themes, computed report text
+  ≥4.5:1 and nonzero marks ≥3:1. Live Codex API snapshot: 1,466 observed/measured
+  calls, 105 operations, 13 reported failures; the earlier capture has 1,465 timed
+  calls and an explicit denominator beneath rounded 100% coverage. Counts are
+  snapshot evidence. Native Windows/Linux, Firefox/Safari, live Claude,
+  screen-reader usability and formal comprehension study remain unverified.
+  The inherited large-chunk warning remains. This documentation handoff reruns
+  neither context/QA nor detector and authorizes no merge or publication.
 
 ### Canvas objects
 

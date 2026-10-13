@@ -15,15 +15,17 @@ branches still have the same state. Verify them at the start of a new session.
 - Concrete shell operations are grouped without arguments. Shared wrapper and
   compound timing describes the containing call, not independent inner work.
 - Implementation and verification: `docs/features/tool-audit.md`.
-  Current visual iteration: `docs/features/tool-explorer-simplicity.md`;
-  one four-mode bar ranking, top eight operations, View all and on-demand
-  inspector. The scatter/map implementation and its unused helpers/tests were
-  removed. Desktop metric buttons become one native phone selector; coverage,
-  freshness and definitions share a disclosure. Collector semantics unchanged.
-  217 relevant tests, typecheck/build, six-size/nine-theme regression checks pass.
-  PR #2125 remains draft; no merge or deployment.
-  Independent scoped finish verdict: ship. PR #2125 remains draft;
-  owner preview review pending, no merge into development yet.
+  Current visual direction: `docs/features/tool-activity-report.md`.
+  Full-page Direction A report with simultaneous usage/time comparisons,
+  median-to-P95 endpoints and failed-call count/denominator/rate context.
+  One report scroll, on-demand focus-protected evidence drawer, sortable
+  operations table (50-row increments), no scatter plot or new dependency.
+  Collector semantics unchanged; search scopes charts/table, not call summary.
+  226 tests across eight suites, typecheck/build, six-size/nine-theme Brave
+  regression checks passed. Read-only live Codex data was checked separately.
+  Premium independent finish verdict: ship, no material fixes; evidence and limits in
+  `.impeccable/review/tool-activity-premium/`.
+  PR #2125 remains draft; owner preview review pending, no merge/deployment.
 
 ## Usage insights preview on Mac — 2026-10-13
 

@@ -30,17 +30,18 @@ not zero. Calls with no outcome stay unmatched rather than being settled by the
 canvas's stale sweep. Parallel calls overlap, so total tool time is not elapsed
 session time. Wrapper intervals include orchestration/delivery/approval waits.
 
-Provider/period/custom UTC date filters, separate metric ranking and operation
-search are in one visual explorer. Frequency, cumulative interval time and P95
-are distinct primary questions. Median, maximum and reported failure rate are
-also available; rate ranking uses at least20 completed outcomes, a descriptive
-sample floor rather than a confidence guarantee. One Rank by selector owns all
-seven dimensions. Exact values accompany bars without repeating the active unit.
-Search filters operation rows, while overview totals remain provider/period-wide.
-A full-width ranking has no empty inspector. Selecting an operation opens a
-contextual inspector that preserves selection across ranking/search/refresh while
-the operation still exists. On desktop it stays beside late rows with a bounded
-independent scroller; on narrow screens it is inline after the selected row.
+The current full-page Direction A report is documented in
+[tool-activity-report.md](tool-activity-report.md). Provider/period/custom UTC date
+filters and search scope the report. Four simultaneous sections compare
+frequency, cumulative associated intervals, eligible median/P95 endpoints, and
+reported failed-call counts with completed denominators. Failure rates use at
+least20 completed outcomes, a descriptive sample floor rather than a confidence
+guarantee. No operation percentages imply additive time shares.
+Search filters charts and the complete sortable operations table; overview totals
+remain provider/period-wide. Selecting any operation opens the same focus-protected
+side drawer without changing report scroll. Selection survives search, sorting
+and refresh while the operation exists. The table exposes all operations in
+50-row increments; narrow layouts retain exact values and detail access.
 Requested period, earliest/latest observed starts and retained recording boundary
 are distinct. Period filtering uses call starts; an entire completed interval is
 included even when its outcome arrives after the range. The overview cumulative
@@ -119,20 +120,14 @@ ranking rows versus six before, despite a smaller modal. This covers the scoped
 interface, not accessibility certification or permission to merge.
 
 
-The redesigned explorer's measurement audit, three-concept evaluation and
-selected information architecture are recorded in `tool-explorer-design.md`.
-The current adaptive composition and two critique/fix rounds are recorded in
-`tool-explorer-iteration-two.md`.
-217 relevant checks passed, including17 audit tests plus real Codex watcher,
-modal/portal/rail-shortcut and contrast regressions. Brave fixture QA covers
-all nine themes at1280x950 and320x780, plus1024x768,390x844 and1280x540;
-ranking, search, selected refresh, keyboard inspection/focus return, dense210
-operation types/late row selection, missing timing, empty/error/incomplete/no
-failure/loading and reduced-motion states. Computed readable text contrast was
-sampled across the rendered modal in all themes; this is not accessibility
-certification. Real live Codex UI was exercised again (862 calls/86 operations at the
-verification snapshot). Typecheck and production build pass. Native Windows/Linux
-execution and a real Claude hook stream are not independently verified.
+The verified measurement audit is recorded in `tool-explorer-design.md`.
+Earlier visual iterations are historical; the selected full report and premium
+refinement, current screenshot evidence and actual validation are recorded in
+`tool-activity-report.md`. Current checks:226 tests across eight suites,
+TypeScript and production build, six requested Brave viewport sizes and all
+nine themes. Separate live Codex integration was exercised; live Claude,
+native Windows/Linux, Safari/Firefox and screen-reader certification remain
+unverified. No new visualization dependency or collector change was introduced.
 
 Manual browser runners: `scripts/qa-tool-explorer.cjs` uses intercepted,
 deterministic fixtures; `scripts/qa-tool-explorer-a11y.cjs` reads the live preview.

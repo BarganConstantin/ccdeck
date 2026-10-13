@@ -1,0 +1,121 @@
+# Tool Activity Report
+
+## Direction contract — code-led, user-pinned report
+
+THESIS: A device-local analytical report makes frequency, associated intervals and recorded failures comparable simultaneously; it replaces the centered, single-mode ranking.
+OWN-WORLD: ccdeck theme surfaces, existing sans/mono pairing, blue usage, amber intervals, violet P95 and red reported outcomes. No new dependencies or global tokens.
+STORY: Read unique call totals, compare five usage/time leaders, examine compact tail/failure evidence, then search/sort all operations and inspect sanitized calls.
+FIRST VIEWPORT: Full application-integrated report, persistent Back/Refresh header, compact filters and summary, paired primary comparisons, subordinate P95/failures. Desktop content capped at 1360px; mobile stacks naturally.
+FORM: Executive Analytics Report, user-pinned structure and supplied conceptual reference (not a pixel-approved final comp). Signature interaction: any chart/table selection opens the same contextual drawer without moving report scroll. One restrained inherited entrance; reduced-motion/keyboard entry immediate.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+
+## Alternatives
+
+| Concept | Comprehension / comparison | Density / responsiveness | Engineering |
+| --- | --- | --- | --- |
+| Executive analytics report | Four distinct questions visible together, names and exact values | Usage/time lead; smaller P95/failure modules, complete explorer below; one report scroll | Existing portal/focus lifecycle, CSS comparisons, no router/library |
+| Observability workspace | One dominant metric with secondary summaries; still requires mode switching | Inspector reduces analytical space; crowded on short/narrow screens | Reuses old ranking but preserves its navigation cost |
+
+Choose the executive report: the user's primary complaint is repeated metric switching and modal constraints. A viewport report is an overlay with a clear return to the unchanged canvas, not a new route. Contextual drawer is independently focus-protected; no empty inspector or surprising document scrolling.
+
+## Data contract
+
+The authoritative audit is [tool-explorer-design.md](tool-explorer-design.md). Summary counts distinct observed starts; operation counts are nonadditive containing-call memberships. Summary intervals count each measured call once but still overlap; operation intervals are shared, nonadditive associated sums. Neither is elapsed wall-clock time. Claude receipt and Codex rollout clocks are qualified, not benchmarked. P95 requires 20 measurements; unknown remains unknown and measured zero remains zero. Failure membership uses reported containing-call outcomes, with completed-outcome denominator. Search narrows charts/table, not provider/period summary. Requested, retained and observed endpoints stay distinct. No new collector, traces, arguments, outputs, trends or error-text disclosure.
+
+## Quality bar
+
+Within five seconds the report must show its purpose and frequency leader, with time comparison visible beside it at desktop width. Four hue families distinguish questions but titles/values carry meaning without color. Long names remain readable; selected evidence preserves exact identity. No default scatter, metric-navigation stack, giant KPI cards, empty side panel or invented insights. Every operation remains reachable through the searchable/sortable explorer. Refresh keeps the previous snapshot visible and clearly identifies refresh/error state.
+
+## Verification
+
+Two bounded rendered critique/fix passes; deterministic sparse/dense/failure/missing/partial/empty/unavailable fixtures, all metric mappings and interaction state, six requested viewports, zoom, theme contrast, keyboard/reduced-motion and real local API output. Final actual results and limitations follow after execution.
+
+
+## Rendered refinement
+
+The first review batch exposed overlong first-viewport composition and weak narrow-screen refresh feedback. The final batch aligns filters to the report reading edge, reduces primary comparisons to five leaders, tightens chart geometry while preserving long full identities, replaces the mobile filter label stack with accessible compact controls, and condenses the mixed-clock qualifier. Secondary charts show three eligible leaders. Refresh retains the previous snapshot and exposes status plus a rotating existing refresh glyph, disabled for reduced motion. The contextual drawer owns its focus/scroll; Escape closes evidence first. Mobile sorting has both metric and direction controls. Real resize QA revealed that the desktop entry may disappear into More; returning from the report now restores a visible entry after resizing.
+
+## Actual validation
+
+- Node22 TypeScript check and production build passed; inherited >500KB main/HLS chunk warning remains. No dependency added.
+- 224 tests across eight suites passed: collector/aggregation/privacy, Codex watcher, new comparison eligibility/scale/null/zero/sort tests, modal trap/portal, shortcut surfaces and existing theme contrast suites.
+- Isolated Brave browser fixture matrix passed at 1440×900,1280×800,1024×768,800×600,390×844,320×568. Four simultaneous metric mappings, precise scales, search/no matches, ascending/descending sorting, drawer keyboard trap/close/restore, provider/custom-period/reset, refresh burst coalescing and retained snapshot, sparse/210-type dense/missing/no-failures/empty/unavailable/partial/loading states, reduced motion and125% zoom were exercised.
+- All nine themes: visible report text≥4.5:1 and nonzero marks in all four chart sections≥3:1 in the deterministic fixture. The live pass additionally checked all nine search-placeholder colors≥4.5:1.
+- Read-only live Codex snapshot:1,400 observed calls,1,400 measured,105 operations,13 reported failures. Call memberships exceed unique calls as expected; observed collection is narrower than requested history. Real classification/detail, selected-refresh and320/390 drawer resizing and focus restoration passed. This is a snapshot, not a static expectation.
+- Detector ran once:14 local typography advisories, no non-advisory findings. Local report type steps intentionally distinguish header, summary, compact metadata and exact measurements; the scoped design record will be updated after independent review.
+
+Evidence: `.impeccable/review/tool-activity-report/final-*`. Complete report image is a stitch of actual body scroll captures (same fixed viewport, offsets retained in `final-live-slices.json`), not a different rendering. Individual desktop/mobile/details captures remain authoritative for layout.
+
+Limitations: no native Windows/Linux execution, Safari/Firefox, live Claude stream, screen-reader certification or formal user comprehension study. The known provider timing-source limitation remains deliberately visible. Review verdict and durable scoped DESIGN/surface record follow the final independent handoff.
+
+## Premium refinement — Direction A retained
+
+The owner explicitly selected Direction A and requested refinement, not another replacement. Impeccable polish and Product UI Craft C preserve the full report, data semantics and navigation.
+
+### Five bounded findings
+
+1. The P95 bars communicate rank but conceal the already-available median; a normally fast operation with a slow tail looks the same as one consistently taking that interval.
+2. Failure counts and denominators require mental division; meaningful existing failure rates and small-sample qualification are absent from the overview.
+3. The max-width includes internal padding, leaving an effective desktop comparison area narrower than the requested1280–1360px target.
+4. Deep operation-table scrolling loses sortable column labels.
+5. Search-empty charts use period-empty language even while the complete explorer correctly says no matches.
+
+### Visualization choice and evidence
+
+- **Usage and cumulative associated intervals:** retain ordered zero-origin bars. They answer magnitude/ranking, including long names, without suggesting additive time shares.
+- **P95:** evaluate unchanged bars against a median-to-P95 dumbbell. Select the latter because it exposes an actual second measurement, not stylistic variety: hollow median and solid P95 endpoints, exact median/P95 and measured count, one shared zero-origin linear scale. Endpoints are explicitly median/P95, never min/max or a full distribution. Missing median is not synthesized; equal/zero endpoints remain truthful.
+- **Failures:** compare raw count bars,100%-rate bars and count lollipops with outcome/rate text. Select count lollipops: order and visual length both remain failed containing-call count, while the separate rate adds denominator context. Rate requires the existing20-completed-outcome floor; smaller samples show count/denominator and “small sample,” with no confidence claim.100%-rate bars were rejected because count order with rate length creates conflicting encodings.
+- **Key Findings:** omit; repeating the four visible chart leaders does not add information.
+
+Research applied: [Financial Times Visual Vocabulary](https://github.com/Financial-Times/chart-doctor/blob/main/visual-vocabulary/README.md) distinguishes ordered magnitude/ranking bars, lollipops and comparison dots. [Datawrapper chart-selection guide](https://www.datawrapper.de/blog/chart-types-guide) starts with the intended question; its [range-plot guidance](https://www.datawrapper.de/academy/customizing-your-range-plot) supports named endpoints, numeric labels and rounded shared axes. These guide our design choices; they do not validate telemetry.
+
+Library evaluation: neither Recharts nor visx is installed. [Recharts](https://recharts.github.io/en-US/) provides composable React/SVG charts and D3-backed facilities; [visx](https://github.com/airbnb/visx) provides low-level visualization building blocks. For two existing CSS comparisons plus three two-endpoint SVG rows and three count lollipops, neither removes material complexity in filtering, drawer focus or exact semantic disclosure. Retain tested native buttons and simple responsive SVG, no new dependencies, no estimated bundle-size claim. No dedicated installed data-visualization skill is present; the installed UI/design skills and primary-source visualization guidance supply the relevant workflow.
+
+Before captures: `.impeccable/review/tool-activity-report/final-*`. Premium after captures use `.impeccable/review/tool-activity-premium/`; final executed validation follows the new bounded review.
+
+
+### Premium executed validation
+
+- 226 tests across eight suites passed, including new linear interval-axis,
+  missing-median/zero endpoint and chart eligibility/ordering regressions.
+- TypeScript and production build passed. No dependencies changed. Relative to
+  the immediately preceding full-report build, main JS increased from1,263.39KB
+  (411.98KB gzip) to1,266.94KB (412.95KB gzip):3.55KB raw /0.97KB gzip.
+  Existing large main/HLS chunk warning remains; this is not a library estimate.
+- Brave fixture matrix passed at all six requested sizes, with all nine themes,
+ 125% zoom, keyboard traps/restoration, sorting/search/provider/custom period,
+  refresh coalescing/retained snapshot, selected detail and dense210-type paging.
+  All four chart mappings were checked; SVG endpoints and failure lollipops
+  participate in the>=3:1 graphical check, with report text>=4.5:1.
+- Separate live read-only Codex pass:1,466 observed starts,1,466 measured calls,
+ 105 operations,13 reported failures at API read time. Screenshots may precede
+  that snapshot by an ongoing call. Sanitized detail, resize, selected-refresh,
+  console and nine-theme placeholder checks passed.
+- Sparse, missing measurements, no failures, zero intervals, empty, unavailable,
+  partial coverage, no search matches and tiny failure sample scenarios were
+  rendered. Tiny samples show count/denominator without comparing their rate.
+- Refinement batch one replaced redundant P95/failure bars with actual endpoint
+  and outcome context. Confirmation exposed a320px sample-label wrap; batch two
+  moved measured sample size under operation identity and confirmed the same
+  states. Parent polishing stops here; independent finish review follows.
+- Detector ran once for this premium task:19 local typography advisories,
+  no non-advisory findings. Report-local type hierarchy is intentional.
+
+Before: `.impeccable/review/tool-activity-report/final-*`.
+After: `.impeccable/review/tool-activity-premium/final-*`.
+`final-live-complete-report.png` is stitched from actual body scroll slices plus
+its original fixed header; individual viewport captures remain layout evidence.
+
+Limits remain live Claude, native Windows/Linux, Safari/Firefox, screen-reader
+certification and formal comprehension study. Automated contrast and keyboard
+checks are scoped evidence, not full accessibility certification.
+
+### Premium finish gate
+
+Fresh independent review returned **disposition: ship** with all five contract
+sections and no material implementation fixes. It opened all21 named premium
+captures individually, both before captures and the conceptual owner reference;
+the scoped DESIGN/surface record was then updated from the built implementation.
+This is implementation sign-off at the stated evidence scope, not permission
+to merge or deploy. PR #2125 remains draft for owner preview review.
+Review: `.impeccable/review/tool-activity-premium/finish-review.md`.
