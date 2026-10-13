@@ -80,3 +80,21 @@ Real telemetry collection, physical touch, Safari and a full screen-reader sessi
 remain unverified. Provider-reported times never guarantee renewed capacity.
 See docs/features/account-capacity-redesign-review.md for comparison, product
 truth, audit provenance, implementation decisions and artifact locations.
+
+
+### Visual roles and refinement
+
+Preserve the compact planning workspace. Next-reset timing and selection use the
+existing accent; freshness attention and consumed capacity use warning ink;
+unknown/historical metadata stay neutral. The inset next-reset surface and native
+expanded account body use bg-soft. A single clock follows the shared glyph spec.
+Activity dates have a quiet tint; selected dates add an accent edge and numeral.
+Accurate 64×4px meters accompany monospace usage values. Native disclosure targets
+remain 48–49px on representative desktop rows. Feedback transitions are 140ms,
+removed with reduced motion; never add ambient pulses to account predictions.
+
+Final visual pass: independent A/B critique, zero deterministic findings, rendered
+refinement, 261 tests/15 files, TypeScript/build and Chromium workflow checks passed.
+Settled sampled text contrast was at least 4.89:1 in tested dark/light states.
+Before/after fixtures: /tmp/ccdeck-capacity-visual. See the review document for
+scope, measured evidence and retained verification limitations.

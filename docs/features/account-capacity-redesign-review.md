@@ -107,3 +107,26 @@ Impeccable layout assessment A (Sagan, 01a133d4-9ecc-7171-ad65-873a9a6915ca) and
 Before / initial fix / confirmation: `/tmp/ccdeck-capacity-density/before/`, `/tmp/ccdeck-capacity-density/pass1/`, `/tmp/ccdeck-capacity-density/after/`. The confirmation browser harness passed all retained flows plus clicking capacity to expand details and asserting representative desktop rows stay within 48–64px. Final layout scoring returned ship with no remaining concrete defects in scope; that reviewer did not independently run the harness.
 
 Validation: 261 tests across 15 files, TypeScript and production build passed. The build retains its existing large-chunk warning; no lint script is configured. Existing provider/telemetry, physical-touch and screen-reader limitations remain.
+
+
+## Visual craftsmanship pass — 2026-10-13
+
+Preserved the planning header, category scopes, calendar filtering, timestamp grouping, compact native disclosures and underlying observation model. Impeccable colorize, typography and polish guidance informed the role system: blue for future timing and selection, amber for consumed capacity and the fresh-reading count, neutral ink for historical/unknown observations. Capacity depletion remains distinct from an error; recent readings are not a guarantee of renewed capacity.
+
+Independent critique: Assessment A (Boole, 01a133e8-91c7-7283-a791-aa28cb836a08) reviewed desktop, 320px and historical states without detector findings. Assessment B (Hooke, 01a133e8-92cf-78f0-a34f-ebca59d846ca) ran the bundled detector once, unscoped because only type/layout scopes are supported: exit 0, zero findings. Rendered evidence, rather than that clean scan, justified the changes.
+
+Five focused improvements:
+
+1. Next reported reset has a compact inset surface, a clock using the existing control-glyph specification and a blue tabular countdown. No dependency or additional timer.
+2. Coverage counts carry distinct semantic ink; selection uses a persistent blue edge, hover/pressed feedback and existing keyboard focus. Narrow category labels stack below their counts.
+3. Activity dates have a quiet tint, clearer date typography and stronger selected-day treatment. Today retains its distinct underline; empty days stay quiet.
+4. Accurate usage meters increase from 32×3px to 64×4px. Percentages and expanded numeric values use the existing monospace stack. Historical readings have explicit “Last reported” metadata, readable account identities and neutral observation notes.
+5. Expanded accounts have a defined summary/body relationship; feedback transitions take 140ms and are removed for reduced motion. Short viewports use a tighter overview, while closed desktop account rows remain 48–49px.
+
+Refinement corrected responsive cascade overrides and excessive yellow historical metadata. Computed contrast exposed the Current badge on an expanded row and All days in White Contrast; both have calendar-scoped readable ink. Screenshot capture waits for finite transitions, including theme changes, before measuring contrast. No global focus suppression, new data collection or business-logic change.
+
+Artifacts: `/tmp/ccdeck-capacity-visual/before/`, `pass1/`, `after/`, with synthetic account identifiers only. Rendered review covered top/middle/bottom, selection, account expansion, older/unknown/elapsed readings, no upcoming events, one reset, 24-account schedules, dark/light, 320×568, 390×844 and 1024×500. The browser harness passed category/day navigation, tied timestamps, sorting retention, failure/recovery, panel loading-to-report integration, bounds, touch-target sizes, reduced/normal motion, keyboard activation, pointer focus behavior, Tab trapping and Escape focus restoration. Sampled visible text contrast in settled states was at least 4.89:1; this is a targeted computed audit, not a complete WCAG certification.
+
+Validation: 261 tests in 15 files and TypeScript passed. Production build passed with the existing large-chunk warning. The control-edge inventory now measures the selected category edge and resolves the calendar's inherited selection token; no contrast threshold was relaxed. No lint script is configured. Final independent screenshot review returned ship, with no remaining material visual issue in scope.
+
+Limitations: Chromium renders real components with synthetic roster fixtures; physical touch, Safari, a full screen-reader session and actual provider collection remain unverified. Very short windows intentionally scroll the agenda beneath fixed navigation. Provider-reported timestamps still do not confirm a reset occurred.
