@@ -1,3 +1,4 @@
+import { noteQuotaHistory, forgetQuotaHistoryAccount } from "./quota-history.mjs";
 // Fetches Codex/ChatGPT quota from the same endpoint the Codex CLI uses.
 // Auth (including token refresh) lives in codex-auth.mjs.
 //
@@ -366,7 +367,12 @@ async function doFetchCodexQuota() {
   const finish = (r) => {
     _cache = r;
     _cacheAt = Date.now();
-    if (r.ok && !r.stale) _lastGood = r;
+    if (r.ok && !r.stale) {
+      noteQuotaHistory("codex", _accountOfQuota.get(r), r);
+      _lastGood = r;
+    } else if (["no_token", "api_key_mode", "refresh_rejected"].includes(r.reason)) {
+      forgetQuotaHistoryAccount("codex");
+    }
     return r;
   };
   const fail   = (reason) => finish({ ok: false, reason, fetchedAt: started });

@@ -1,5 +1,5 @@
 // The usage panel's two quota sections: Claude's windows and top-up, and
-// Codex's lanes, credits and local token count.
+// Codex's lanes and credits.
 //
 // Lifted out of UsagePanel.tsx unchanged, with the words each prints when it
 // has nothing to show (claudeQuotaHint, codexHint), where a Claude reading came
@@ -10,9 +10,8 @@
 // (#402).
 import { PRODUCT } from "../brand";
 import { resetCreditsLine } from "../reset-credits";
-import { fmtTokens } from "../token-format";
 import type { Incident } from "../provider-status";
-import type { CodexQuotaData, CodexUsageData, QuotaData } from "../use-quota";
+import type { CodexQuotaData, QuotaData } from "../use-quota";
 import { QuotaIncident } from "./ProviderIncidents";
 import QuotaBar from "./QuotaBar";
 
@@ -183,13 +182,11 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
   );
 }
 
-export function CodexQuotaSection({ codexQuota, codexLoading, codexUsage, nowSec, incident }: {
+export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident }: {
   /** The last /api/codex-quota answer, or null until the first one lands. */
   codexQuota: CodexQuotaData | null;
   /** A forced read is out, and the age is not shown while it is. */
   codexLoading: boolean;
-  /** The token count from the rollout files on this disk, or null. */
-  codexUsage: CodexUsageData | null;
   /** The panel's clock in seconds, for the ages, countdowns and pace. */
   nowSec: number;
   /** OpenAI's status page reports an incident on a Codex component (#1311). */
@@ -283,33 +280,6 @@ export function CodexQuotaSection({ codexQuota, codexLoading, codexUsage, nowSec
         <div className="up-quota-na up-quota-loading">Checking…</div>
       )}
 
-      {/* The 7-day token count, from the rollout files on this disk. It sits
-          OUTSIDE the three quota branches above, which is the whole point:
-          until #400 it was nested in the success branch, so the one number in
-          this section that needs no token, no account and no network was
-          withheld whenever the network call failed — on `no_token`, on
-          `api_key_mode`, on an expired refresh, on blocked egress. The poll
-          ran every 60s regardless and its answer was thrown away.
-          Measured on this machine, cold cache, three rounds: /api/codex-usage
-          takes 2-4ms and makes zero outbound requests; /api/codex-quota takes
-          991-1299ms across two authenticated HTTPS GETs to chatgpt.com. The
-          fast local number was waiting on the slow remote one for permission
-          to render.
-          The 5h window goes in the title rather than on the line: the server
-          has computed it since this file was written and nothing has ever
-          read it, and this panel is 280px wide (#369) — a second visible
-          figure costs more than it says. */}
-      {codexUsage?.ok && codexUsage.window7d && codexUsage.window7d.sessionCount > 0 && (
-        <div
-          className="up-quota-sub"
-          title={`Counted from the rollout files under CODEX_HOME — no network, no account${
-            codexUsage.window5h ? `\nlast 5h: ${fmtTokens(codexUsage.window5h.totalTokens)} tokens · ${codexUsage.window5h.sessionCount} session${codexUsage.window5h.sessionCount !== 1 ? "s" : ""}` : ""
-          }`}
-        >
-          {fmtTokens(codexUsage.window7d.totalTokens)} tokens · {codexUsage.window7d.sessionCount} session
-          {codexUsage.window7d.sessionCount !== 1 ? "s" : ""} (7d)
-        </div>
-      )}
     </section>
   );
 }

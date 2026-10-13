@@ -5,6 +5,8 @@ export interface SessionTokens {
   cacheCreationTokens: number; reasoningOutputTokens: number;
 }
 export interface SessionDetail extends SessionTokens {
+  cacheReuse?: { pct: number | null; inputTokens: number; cachedTokens: number;
+    measured: number; total: number; unit: string };
   sessionId: string; agent: "claude" | "codex"; speed: SessionSpeed;
   totalCost: number; totalTokens: number; firstActivity: string | null;
   lastActivity: string | null; entries: number | null;

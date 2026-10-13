@@ -87,6 +87,14 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
             </dl>
             <section aria-labelledby="session-tokens-title">
               <div className="su-section-head"><h3 id="session-tokens-title">Token breakdown</h3></div>
+              <div className="su-cache-reuse">
+                <span>Cached input reuse</span>
+                <strong>{detail.cacheReuse?.pct != null
+                  ? `${detail.cacheReuse.pct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : "—"}</strong>
+                <span className="su-note">{detail.cacheReuse && detail.cacheReuse.measured > 0
+                  ? `${detail.cacheReuse.measured} of ${detail.cacheReuse.total} ${detail.cacheReuse.unit} measured${detail.cacheReuse.pct == null ? " · no input tokens" : ""}`
+                  : "No cache measurements available"}</span>
+              </div>
               {tokenSum > 0 && <div className="su-composition" aria-hidden="true">
                 {tokens.filter(token => token.n > 0).map(token => <span key={token.name}
                   style={{ width: `${token.n / tokenSum * 100}%`, background: token.color }} />)}
