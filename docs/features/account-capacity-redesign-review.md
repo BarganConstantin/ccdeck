@@ -91,3 +91,19 @@ Pass one corrected the mobile header consuming the whole viewport and removed re
 Final artifacts: `/tmp/ccdeck-capacity-refinement/before/`, `/tmp/ccdeck-capacity-refinement/pass1/`, `/tmp/ccdeck-capacity-refinement/pass2/`, `/tmp/ccdeck-capacity-refinement/after/`. Final captures include top/middle/bottom of a 24-account schedule, selected/empty dates, expanded current/older/other accounts, all-old/no-upcoming rosters, loading/error recovery, dark/light and desktop/320/390/short layouts. Synthetic identifiers only.
 
 Validation for this refinement: 260 tests across 15 files, TypeScript and production build passed; only the existing large-chunk build warning remains. Chromium workflows passed, including category state retention, older/other-account inspection, fixed header during 24-account scrolling and explicit category scroll reset. Independent finish review (Erdos, 01a133b5-b890-74f2-9f1f-9870ffe52958) scored both specified fixes as ship; its source review did not independently rerun the browser harness. Provider timestamp, readiness-estimate and telemetry limitations described above remain; no new data collection, recurrence, clock or dependency was introduced.
+
+
+## Targeted agenda density pass — 2026-10-13
+
+The issue was structural, not large row padding: Chromium measured 44px account rows but 83.97px single-account day groups. The three-line date heading, with 20px padding and its own line heights, established the outer grid's intrinsic minimum. Group gaps added further apparent row spacing. The flexing results scroller did not distribute height into repeated rows.
+
+Impeccable layout assessment A (Sagan, 01a133d4-9ecc-7171-ad65-873a9a6915ca) and mechanical assessment B (Helmholtz, 01a133d4-a05a-78b3-9a6c-6b7e6beb6297) ran independently; A's initial capacity failure succeeded on retry. B's targeted layout detector returned zero findings, while live measurements identified the intrinsic-height defect. No new world, data model or planning-header changes.
+
+- Compact date, time and relative time now share the event metadata column; the accessible group heading remains. Exact timestamp grouping is preserved.
+- Name and capacity share a native disclosure summary, including the whole reading/meter hit area. Desktop account rows measure 48–49px and single-account groups 59px, approximately 30% lower than the old day-group minimum. Expanded details and long identifiers may grow naturally.
+- A 760px agenda boundary and aligned All days action reduce the horizontal scan. Whole-row hover and shared focus states clarify inspection; native keyboard and marker behavior remain.
+- Mobile retains readable wrapping and 48px summary targets. The overview, category counts, seven-day navigator, sorting, observation semantics and clock behavior are unchanged.
+
+Before / initial fix / confirmation: `/tmp/ccdeck-capacity-density/before/`, `/tmp/ccdeck-capacity-density/pass1/`, `/tmp/ccdeck-capacity-density/after/`. The confirmation browser harness passed all retained flows plus clicking capacity to expand details and asserting representative desktop rows stay within 48–64px. Final layout scoring returned ship with no remaining concrete defects in scope; that reviewer did not independently run the harness.
+
+Validation: 261 tests across 15 files, TypeScript and production build passed. The build retains its existing large-chunk warning; no lint script is configured. Existing provider/telemetry, physical-touch and screen-reader limitations remain.

@@ -23,9 +23,12 @@ aria-pressed. Full-date/count accessible labels and shared focus rings remain.
 A date selects Upcoming and filters its agenda; All days clears the filter.
 Category controls show all days in their category; the next event stays global.
 
-Date rails group accounts by exact reported timestamp, sharing one time/countdown.
-Compact rows lead with expandable identity and observed weekly use, supported by
-a small meter. Capacity limits use warning ink in the calendar, not error ink.
+Compact date/time metadata groups accounts by exact reported timestamp, sharing
+one time/countdown. Account identity and observed weekly use share a native
+disclosure summary, supported by a small meter; clicking capacity also inspects
+the account. The accessible day heading stays separate from the visual metadata.
+The agenda and All days action share a 760px boundary. Desktop summaries are
+48–49px; single-account groups are 59px instead of the old 84px date-rail minimum. Capacity limits use warning ink in the calendar, not error ink.
 Native disclosures in all three categories reveal both primary windows, estimate
 basis and the separate-limit caveat. Older readings also carry their confidence
 inside expanded details; they never regain current-reading wording there.
@@ -64,7 +67,7 @@ The targeted detector returned zero findings, not a visual approval. Two focused
 critique/fix passes corrected short-phone density, stale-detail wording and scope
 navigation; independent finish review scored the specified fixes as ship.
 
-260 tests across 15 relevant files, TypeScript and production build passed. Chromium
+261 tests across 15 relevant files, TypeScript and production build passed. Chromium
 fixtures covered both themes, 1280px desktop, 390px, 320×568 and 1024×500, including
 loading, failed-read retention/recovery, empty/all-old rosters, 24-account schedules,
 category/day selection, current/older/other account inspection, sorting retention,
