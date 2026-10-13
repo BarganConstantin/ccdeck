@@ -31,7 +31,7 @@ export function RadioFilterOptions({ label, value, options, allowCustom, onSelec
       }
     }} /></div>
     {matches.length > 0 ? <div ref={list} id={`${id}-options`} className="radio-filter-options" role="listbox" aria-label={`${label} options`}>
-      {matches.map((option, i) => <button type="button" role="option" tabIndex={-1} id={`${id}-option-${i}`} key={option.value} aria-selected={option.value === value} data-active={i === index} onPointerMove={() => setActive(i)} onClick={() => onSelect(option.value)}><span>{option.label}</span>{option.value === value && <RadioIcon name="check" />}</button>)}
+      {matches.map((option, i) => <button type="button" className="radio-filter-option" role="option" tabIndex={-1} id={`${id}-option-${i}`} key={option.value} aria-selected={option.value === value} data-active={i === index} onPointerMove={() => setActive(i)} onClick={() => onSelect(option.value)}><span>{option.label}</span>{option.value === value && <RadioIcon name="check" />}</button>)}
     </div> : <div className="radio-filter-options"><p role="status">No matches</p></div>}
   </>;
 }

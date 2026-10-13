@@ -295,7 +295,7 @@ describe("a percentage width under a horizontal margin", () => {
       // `.sd-proc-name` does the same thing, and only misses this list because
       // its rule is scoped rather than bare.
       // Quota history SVG fills its grid track without outer margins.
-      "pl-name", "qh-chart", "radio-daily", "radio-filter-trigger", "radio-map-canvas",
+      "pl-name", "qh-chart", "radio-daily", "radio-filter-option", "radio-filter-trigger", "radio-map-canvas",
       "tool-bursts-svg", "tr-event-bottom", "tr-event-top", "tr-message", "tr-search", "uh-bar", "uh-bar-seg", "up-session-open", "up-table",
     ]);
 

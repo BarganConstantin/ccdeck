@@ -49,6 +49,9 @@ const html = (theme: Theme) => el("html", [], { states: ["root"], attrs: { "data
 /** Every select the deck renders, by the file that renders it, as the sheet
  *  sees it: its ancestors' classes, then its own. */
 const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
+  "components/QuotaHistoryModal.tsx": [{ name: "quota history window",
+    chain: [el("body"), el("div", ["modal", "qh-modal"]), el("div", ["modal-body", "qh-body"]), el("div", ["qh-controls"]), el("label", ["qh-window"]), el("select")],
+  }],
   "components/SessionUsageModal.tsx": [{ name: "session pricing",
     chain: [el("body"), el("div", ["modal", "su-modal"]), el("div", ["modal-body", "su-body"]), el("label", ["su-pricing"]), el("select")],
   }],

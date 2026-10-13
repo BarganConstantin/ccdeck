@@ -504,6 +504,7 @@ describe("which panels the UI draws for each machine", () => {
     // section nobody is going to see.
     expect(usageSrc).toContain("useQuota(providers.claude)");
     expect(usageSrc).toContain("useCodexQuota(providers.codex)");
-    expect(usageSrc).toContain("useCodexUsage(providers.codex)");
+    // Usage insights retired the local token summary and its unused poll.
+    expect(usageSrc).not.toContain("useCodexUsage(");
   });
 });

@@ -373,7 +373,9 @@ describe("nothing else in the deck invents a focus stop", () => {
     const offenders = components(web)
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))
       .map(p => p.slice(web.length).replaceAll("\\", "/"));
-    expect(offenders).toEqual(["components/RadioMap.tsx"]);
+    // Radio results is a focusable tabpanel, allowing keyboard scrolling.
+    expect(offenders).toEqual(["components/RadioMap.tsx", "components/RadioPanel.tsx"]);
+    expect(code(readFileSync(`${web}components/RadioPanel.tsx`, "utf8"))).toMatch(/role="tabpanel"[^>]*tabIndex=\{0\}/);
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
     expect(map).toContain("tabIndex={0}");
     expect(map).not.toMatch(/tabIndex=\{[1-9]/);
@@ -388,7 +390,9 @@ describe("nothing else in the deck invents a focus stop", () => {
     const negatives = components(web)
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
         .map(() => p.slice(web.length).replaceAll("\\", "/")));
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/TelemetryCapture.tsx"]);
+    // Combobox options use aria-activedescendant; focus stays on the input.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/RadioFilter.tsx", "components/TelemetryCapture.tsx"]);
+    expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
   });

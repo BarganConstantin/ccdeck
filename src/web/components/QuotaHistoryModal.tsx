@@ -85,7 +85,7 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
     setRefresh(n => n + 1);
   };
 
-  return createPortal(<div className="modal-backdrop" {...scrim}>
+  return createPortal(<div className="modal-backdrop" role="presentation" {...scrim}>
     <div className="modal qh-modal" data-keyboard-interaction={instant || undefined} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="quota-history-title">
       <header className="modal-head">
         <h2 id="quota-history-title">Quota history</h2>
@@ -97,7 +97,7 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
       <div className="modal-body qh-body" aria-busy={loading}>
         <div className="qh-controls">
           <div className="qh-providers" role="group" aria-label="Quota provider">
-            {(["claude", "codex"] as const).filter(p => providers[p]).map(p => <button type="button" key={p}
+            {(["claude", "codex"] as const).filter(p => providers[p]).map(p => <button type="button" className="qh-provider" key={p}
               aria-pressed={provider === p} onClick={() => { setProvider(p); setSelection(""); }}>{p === "claude" ? "Claude" : "Codex"}</button>)}
           </div>
           {series.length > 0 && <label className="qh-window">Window
