@@ -34,7 +34,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const [workspaceOpen, setWorkspaceOpen] = useState<Record<RadioCollection, boolean>>({ discover: false, favorites: true, recent: true });
   const [searchExpansion, setSearchExpansion] = useState<boolean | null>(null);
   const [keyboardOpened] = useState(() => document.activeElement?.matches(":focus-visible") ?? false);
-  const panel = useModalDismiss<HTMLDivElement>(onClose, { focusRef: searchRef });
+  const panel = useModalDismiss<HTMLDivElement>(onClose);
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
   const [genre, setGenre] = useState("");
