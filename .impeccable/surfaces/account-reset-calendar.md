@@ -98,3 +98,16 @@ refinement, 261 tests/15 files, TypeScript/build and Chromium workflow checks pa
 Settled sampled text contrast was at least 4.89:1 in tested dark/light states.
 Before/after fixtures: /tmp/ccdeck-capacity-visual. See the review document for
 scope, measured evidence and retained verification limitations.
+
+
+### Short-window and trust rules
+
+Below 420px height, scroll the complete body beneath the dialog header; do not
+leave a 16px agenda under fixed planning controls. Expanded next-account identity
+uses a native disclosure and the same single-body scroll model. Other reset
+account details span beneath the complete row. Keep the recent-reading basis
+visible on narrow windows; qualify fresh-data counts as in-week schedules and
+say reported time passed, never imply an elapsed timestamp confirms renewal.
+Today is aria-current=date, separate from pressed date selection. Keep forced-
+colors meter tracks visible. Multipass evidence, detector dispositions and actual
+validation limits live in docs/features/account-capacity-impeccable-multipass.md.

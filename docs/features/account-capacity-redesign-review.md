@@ -130,3 +130,8 @@ Artifacts: `/tmp/ccdeck-capacity-visual/before/`, `pass1/`, `after/`, with synth
 Validation: 261 tests in 15 files and TypeScript passed. Production build passed with the existing large-chunk warning. The control-edge inventory now measures the selected category edge and resolves the calendar's inherited selection token; no contrast threshold was relaxed. No lint script is configured. Final independent screenshot review returned ship, with no remaining material visual issue in scope.
 
 Limitations: Chromium renders real components with synthetic roster fixtures; physical touch, Safari, a full screen-reader session and actual provider collection remain unverified. Very short windows intentionally scroll the agenda beneath fixed navigation. Provider-reported timestamps still do not confirm a reset occurred.
+
+
+## Impeccable multi-pass follow-up
+
+The requested critique → layout → typeset → colorize → clarify → harden → audit → polish sequence is documented with individual outcomes, detector dispositions, before/A/B/C artifacts and verification boundaries in [account-capacity-impeccable-multipass.md](account-capacity-impeccable-multipass.md). The final refinement fixes very-short-window reach, full identity access, complete-width Other details and reported-data clarity while preserving compact rows and classification rules. 262 tests/15 files, TypeScript, production build and Chromium checks passed; all nine theme palettes and forced colors were inspected.
