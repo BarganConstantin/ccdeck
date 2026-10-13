@@ -69,6 +69,9 @@
    text-tiers.test.ts is the rule that says so. */
 .hist-at b { color: var(--text); font-weight: 600; }
 .hist-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
+.hist-load-summary { margin: 0 0 16px; font-size: 12px; color: var(--text); line-height: 1.5; }
+.hist-load-summary > span { display: block; font-size: 11px; color: var(--muted); }
+.hist-load-summary > strong { font-weight: 600; }
 /* A run of route notes sits tight under the chart, one line per change. */
 .hist-note.hist-route + .hist-note.hist-route { margin-top: 2px; }
 
