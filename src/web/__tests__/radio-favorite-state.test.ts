@@ -35,6 +35,19 @@ describe("radio favorite indicators", () => {
     for (const [flag] of flags) expect(flag).toContain("/radio-flags/md.svg");
   });
 
+  it("shows every legacy stream before the directory without requiring expansion", () => {
+    const html = renderToStaticMarkup(createElement(Panel, { saved: false }));
+    expect(html).toMatch(/<details class="radio-own" open="">/);
+    const buttons = [...html.matchAll(/<button\b[^>]*class="radio-own-station"[^>]*>/g)].map(match => match[0]);
+    expect(buttons).toHaveLength(9);
+    expect(buttons[0]).toContain('aria-label="Play Claude FM"');
+    expect(buttons.join(" ")).toContain('aria-label="Play Lofi Girl · Chill / game"');
+    expect(buttons.join(" ")).toContain('aria-label="Play Cafe music BGM"');
+    expect(html.indexOf('class="radio-own"')).toBeLessThan(html.indexOf('class="radio-daily"'));
+    expect(html.indexOf('class="radio-own"')).toBeLessThan(html.indexOf('data-station-id='));
+    expect(html).toContain("10 available stations");
+  });
+
   it("styles both the current station and the list heart for each saved state", () => {
     for (const saved of [false, true, false]) {
       const html = renderToStaticMarkup(createElement(Panel, { saved }));
