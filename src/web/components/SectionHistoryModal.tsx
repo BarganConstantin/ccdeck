@@ -344,10 +344,6 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
         </div>
 
         <div className="hist-body">
-          {group === "load" && liveNote && <p className="hist-note hist-load-summary">
-            <span>Current 1-minute load</span>
-            <strong>{liveNote}</strong>
-          </p>}
           {hist == null ? (
             <p className="hist-empty">Reading…</p>
           ) : series.length === 0 ? (
@@ -359,6 +355,10 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
               <Chart key={s.label} series={s} stepMs={hist.stepMs} domain={domain} />
             ))
           )}
+          {group === "load" && liveNote && <p className="hist-note hist-load-summary">
+            <span>Current 1-minute load</span>
+            <strong>{liveNote}</strong>
+          </p>}
         </div>
       </div>
     </div>,
