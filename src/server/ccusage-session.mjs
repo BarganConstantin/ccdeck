@@ -9,6 +9,22 @@ const counters = value => ({
 const tokenTotal = row => row.inputTokens + row.outputTokens + row.cacheReadTokens + row.cacheCreationTokens;
 const date = value => typeof value === "string" && Number.isFinite(Date.parse(value)) ? value : null;
 
+// Both ccusage providers normalize inputTokens to NON-cached input. Codex's
+// raw input_tokens (which includes cache) must never be fed to this formula.
+// ccusage/ccusage rust/adapters/codex/src/report.rs: non_cached_input_tokens.
+export function sessionCacheReuse(rows, agent) {
+  let input = 0, cached = 0, measured = 0;
+  for (const row of rows) {
+    const values = [row?.inputTokens, row?.cacheReadTokens, row?.cacheCreationTokens];
+    if (!values.every(n => typeof n === "number" && Number.isFinite(n) && n >= 0)) continue;
+    input += values[0] + values[1] + values[2];
+    cached += values[1];
+    measured++;
+  }
+  return { pct: input > 0 ? cached / input * 100 : null, inputTokens: input, cachedTokens: cached,
+    measured, total: rows.length, unit: agent === "codex" ? "model groups" : "usage records" };
+}
+
 export function validSessionLookup(agent, id, speed = "auto") {
   if (agent !== "claude" && agent !== "codex") return false;
   if (!["auto", "standard", "fast", "flex"].includes(speed) || (agent !== "codex" && speed !== "auto")) return false;
@@ -54,6 +70,7 @@ export function sessionDetail(raw, agent, sessionId, speed = "auto") {
   return {
     sessionId, agent, speed, totalCost: raw.totalCost, totalTokens: raw.totalTokens,
     ...usage, firstActivity, lastActivity, entries,
+    cacheReuse: sessionCacheReuse(agent === "claude" ? raw.entries : Object.values(raw.models), agent),
     models: [...models.values()].map(row => ({ ...row, totalTokens: tokenTotal(row) }))
       .sort((a, b) => b.totalTokens - a.totalTokens || a.model.localeCompare(b.model)),
   };

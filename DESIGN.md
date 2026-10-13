@@ -681,6 +681,21 @@ are named separately. Missing costs remain missing rather than being rebuilt
 from a rate with no tier evidence. See
 `.impeccable/surfaces/session-usage.md` for the surface contract.
 
+### Usage insights
+
+Quota history opens from a chart glyph beside Refresh and Close; quota bars
+remain display-only. Header glyphs have equal targets and consistent SVG weight.
+Entry reuses Radio’s fade/scale for 200ms, skipped for keyboard/reduced motion.
+Quota history shares the report shell and existing measurement hierarchy. Keep
+percentage/time labels in HTML outside the SVG so narrow plots retain readable
+11px annotations; stack provider/window controls at widths up to 420px. Observed
+remaining, capture age, the non-forecast guide caveat and recorded-readings
+disclosure stay distinct. “Recorded” does not promise disk persistence; expose
+storage failure separately. Quota Refresh remains focusable with aria-busy and
+a synchronous repeat-press guard. Session cached input reuse retains measured
+coverage and distinguishes 0% from unavailable or zero-input measurements.
+See `.impeccable/surfaces/usage-insights.md` for the scoped contract.
+
 ### Telemetry Radar
 
 A focused inspector in ccdeck’s existing visual world, with a 1060 × 740px
