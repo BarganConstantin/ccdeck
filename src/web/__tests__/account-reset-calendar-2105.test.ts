@@ -181,6 +181,15 @@ describe("reset calendar content", () => {
     expect(output).toContain("Old account");
   });
 
+  it("keeps the usage reading inside the account's native inspection control", () => {
+    const output = html([account(1, at(13))]);
+    const summary = output.match(/<summary>(.*?)<\/summary>/)?.[1] ?? "";
+    expect(summary).toContain("Account details");
+    expect(summary).toContain('class="ap-reset-summary-content"');
+    expect(summary).toContain("60% used");
+    expect(summary).toContain('aria-hidden="true"');
+  });
+
   it("groups simultaneous observations under one event time", () => {
     const output = html([account(1, at(13)), account(2, at(13)), account(3, at(14))]);
     const agenda = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('<section class="ap-reset-disclosure"'));

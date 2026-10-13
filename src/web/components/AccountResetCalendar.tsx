@@ -24,9 +24,9 @@ function AccountName({ entry }: { entry: ResetEntry }) {
   </span>;
 }
 
-function AccountDetails({ entry, row, nowSec }: { entry: ResetEntry; row?: ReportRow; nowSec: number }) {
+function AccountDetails({ entry, row, nowSec, withReading = false, older = false }: { entry: ResetEntry; row?: ReportRow; nowSec: number; withReading?: boolean; older?: boolean }) {
   return <details className="ap-reset-account">
-    <summary><AccountName entry={entry} /><span className="vis-hidden"> · Account details</span></summary>
+    <summary>{withReading ? <span className="ap-reset-summary-content"><AccountName entry={entry} /><Reading entry={entry} older={older} /></span> : <AccountName entry={entry} />}<span className="vis-hidden"> · Account details</span></summary>
     <div className="ap-reset-account-body">
       {row && (["five_hour", "seven_day"] as const).map(id => {
         const cell = row.cells[id];
@@ -72,12 +72,11 @@ function Agenda({ days, rows, nowSec, outdated = false }: { days: ResetDay[]; ro
       const entries = day.entries.filter(entry => entry.stale === outdated);
       if (!entries.length) return null;
       return <section className="ap-reset-day" key={day.key} aria-label={fullDate(day.date)}>
-        <h4><time dateTime={day.key}><span>{weekday(day.date)}</span><strong>{day.date.getDate()}</strong><span>{day.date.toLocaleDateString(undefined, { month: "short" })}</span></time><span className="vis-hidden">{entries.length} accounts</span></h4>
-        <ul>{Array.from(new Set(entries.map(entry => entry.at))).map(at => <li className="ap-reset-event" key={at}>
-          <div className="ap-reset-when"><ResetTime at={at!} />{!outdated && <span>in {timeUntil(at!, nowSec)}</span>}</div>
+        <h4 className="vis-hidden">{fullDate(day.date)} · {entries.length} {entries.length === 1 ? "account" : "accounts"}</h4>
+        <ul>{Array.from(new Set(entries.map(entry => entry.at))).map((at, index) => <li className="ap-reset-event" key={at}>
+          <div className="ap-reset-when">{index === 0 && <time className="ap-reset-day-label" dateTime={day.key}>{weekday(day.date)} · {dayLabel(day.date)}</time>}<ResetTime at={at!} />{!outdated && <span>in {timeUntil(at!, nowSec)}</span>}</div>
           <ul className="ap-reset-event-accounts">{entries.filter(entry => entry.at === at).map(entry => <li className="ap-reset-entry" key={entry.key} data-outdated={entry.stale ? "" : undefined}>
-            <AccountDetails entry={entry} row={rows.get(entry.key)} nowSec={nowSec} />
-            <Reading entry={entry} older={outdated} />
+            <AccountDetails entry={entry} row={rows.get(entry.key)} nowSec={nowSec} withReading older={outdated} />
           </li>)}</ul>
         </li>)}</ul>
       </section>;
