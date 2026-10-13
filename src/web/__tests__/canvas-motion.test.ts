@@ -528,6 +528,8 @@ const EXEMPT: string[] = [
   ".ap-reset-about summary",
   // Account detail disclosure uses its native expanded state; names stay still.
   ".ap-reset-account > summary",
+  // Full identity is revealed through native details, without moving labels.
+  ".ap-reset-next-account > summary",
   // Coverage links open and focus native disclosures without moving text.
   ".ap-reset-coverage-link",
   // Companion selection answers through its radio check and chosen preview.

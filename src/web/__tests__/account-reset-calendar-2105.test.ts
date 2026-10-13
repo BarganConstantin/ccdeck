@@ -153,8 +153,18 @@ describe("reset calendar content", () => {
     expect(output).toContain("Needs a fresh reading");
     expect(output).toContain("Last read: 60% used");
     expect(output).toContain("Reset time unknown");
-    expect(output).toContain("Reset due · awaiting a new reading");
+    expect(output).toContain("Reported time passed · awaiting a new reading");
     expect(output).toContain("not token amounts");
+  });
+
+  it("distinguishes a source-marked stale reading from observation age", () => {
+    const clock = now();
+    const marked = resetCalendar([account(1, at(13), { stale: true, fetchedAt: clock * 1000 - 60000 })], clock);
+    const old = resetCalendar([account(2, at(13), { fetchedAt: clock * 1000 - REPORT_STALE_MS - 60000 })], clock);
+    expect(marked.days[1].entries[0].note).toContain("Marked stale · Read");
+    expect(old.days[1].entries[0].note).toMatch(/^Read /);
+    expect(marked.days[1].scheduled).toBe(0);
+    expect(old.days[1].scheduled).toBe(0);
   });
 
   it("keeps retained failed-poll data visibly outdated", () => {
@@ -260,6 +270,6 @@ describe("reset calendar content", () => {
       { id: "seven_day", label: "7d", pct: 80, resetAt: at(13) },
     ] })]);
     expect(elapsed).toContain("Estimated unused · awaiting a fresh reading");
-    expect(elapsed).toContain("Reset due · awaiting a new reading");
+    expect(elapsed).toContain("Reported time passed · awaiting a new reading");
   });
 });

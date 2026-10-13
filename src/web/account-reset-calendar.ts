@@ -55,7 +55,7 @@ export function resetCalendar(accounts: readonly Account[], nowSec: number, held
     const note = held ? "Last saved reading"
       : issue?.blocksSwitch || account.staleCopy || account.stopped ? issue?.text ?? "Not collecting"
       : unread ? "Never read"
-      : stale ? `Updated ${ago(account.fetchedAt!, nowSec)}` : null;
+      : stale ? `${account.stale ? "Marked stale · " : ""}Read ${ago(account.fetchedAt!, nowSec)}` : null;
     const entry: ResetEntry = {
       key: laneKey(account), name: accountName(account), active: account.active,
       heldOut: account.disabled, at, used: cell.counted ? cell.pct : cell.last,

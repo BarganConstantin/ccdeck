@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import { ClockGlyph } from "./rail-glyphs";
 import type { Account } from "../claude-accounts";
 import { resetCalendar, type ResetEntry, type ResetDay, type UnscheduledReset } from "../account-reset-calendar";
@@ -25,9 +25,9 @@ function AccountName({ entry }: { entry: ResetEntry }) {
   </span>;
 }
 
-function AccountDetails({ entry, row, nowSec, withReading = false, older = false }: { entry: ResetEntry; row?: ReportRow; nowSec: number; withReading?: boolean; older?: boolean }) {
+function AccountDetails({ entry, row, nowSec, withReading = false, older = false, context }: { entry: ResetEntry; row?: ReportRow; nowSec: number; withReading?: boolean; older?: boolean; context?: ReactNode }) {
   return <details className="ap-reset-account">
-    <summary>{withReading ? <span className="ap-reset-summary-content"><AccountName entry={entry} /><Reading entry={entry} older={older} /></span> : <AccountName entry={entry} />}<span className="vis-hidden"> · Account details</span></summary>
+    <summary>{context ? <span className="ap-reset-summary-other"><AccountName entry={entry} />{context}</span> : withReading ? <span className="ap-reset-summary-content"><AccountName entry={entry} /><Reading entry={entry} older={older} /></span> : <AccountName entry={entry} />}<span className="vis-hidden"> · Account details</span></summary>
     <div className="ap-reset-account-body">
       {row && (["five_hour", "seven_day"] as const).map(id => {
         const cell = row.cells[id];
@@ -35,7 +35,7 @@ function AccountDetails({ entry, row, nowSec, withReading = false, older = false
         const at = row.resets[id];
         return <p key={id}><strong>{id === "five_hour" ? "5-hour" : "7-day"}</strong>
           <span>{!cell.counted && cell.reset ? "Estimated unused · awaiting a fresh reading" : pct == null ? "No usage reading" : `${entry.stale || !cell.counted ? "Last read: " : ""}${shownUsed(pct)}% used`}</span>
-          <span>{at == null ? "Reset time unknown" : at <= nowSec ? "Reset due · awaiting a new reading" : <>{entry.stale ? "Last reported reset" : `Reset in ${timeUntil(at, nowSec)}`} · <ResetTime at={at} /></>}</span>
+          <span>{at == null ? "Reset time unknown" : at <= nowSec ? "Reported time passed · awaiting a new reading" : <>{entry.stale ? "Last reported reset" : `Reset in ${timeUntil(at, nowSec)}`} · <ResetTime at={at} /></>}</span>
         </p>;
       })}
       <p>{entry.heldOut ? "Excluded from automatic rotation." : "A weekly reset does not remove a separate 5-hour limit."}</p>
@@ -56,14 +56,15 @@ function Reading({ entry, past = false, older = false }: { entry: ResetEntry; pa
 
 function Unscheduled({ entry, row, nowSec }: { entry: UnscheduledReset; row?: ReportRow; nowSec: number }) {
   const reason = entry.reason === "unknown" ? "Reset time unknown"
-    : entry.reason === "passed" ? "Reset due · awaiting a new reading" : "Beyond these seven days";
+    : entry.reason === "passed" ? "Reported time passed · awaiting a new reading" : "Beyond these seven days";
   return <li className="ap-reset-unplaced-row">
-    <AccountDetails entry={entry} row={row} nowSec={nowSec} />
-    <span className="ap-reset-unplaced-detail">
-      <span>{reason}</span>
-      {entry.at != null && <span>{dayLabel(new Date(entry.at * 1000))} · <ResetTime at={entry.at} /></span>}
-    </span>
-    <Reading entry={entry} past={entry.reason === "passed"} />
+    <AccountDetails entry={entry} row={row} nowSec={nowSec} context={<>
+      <span className="ap-reset-unplaced-detail">
+        <span>{reason}</span>
+        {entry.at != null && <span>{dayLabel(new Date(entry.at * 1000))} · <ResetTime at={entry.at} /></span>}
+      </span>
+      <Reading entry={entry} past={entry.reason === "passed"} />
+    </>} />
   </li>;
 }
 
@@ -122,21 +123,21 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
     <section className="ap-reset-next" aria-label="Next weekly reset">
       {next ? <>
         <div className="ap-reset-next-identity"><h3><ClockGlyph />Next reported reset <span className="ap-reset-global">· all days</span></h3>
-          {simultaneous.length > 1 ? <span className="ap-reset-name">{simultaneous.length} accounts</span> : <AccountName entry={next} />}
+          {simultaneous.length > 1 ? <span className="ap-reset-name">{simultaneous.length} accounts</span> : <details className="ap-reset-next-account"><summary title={next.name}><AccountName entry={next} /><span className="vis-hidden"> · Full account name</span></summary><p className="ap-reset-full-name">{next.name}</p></details>}
           <p>{weekday(new Date(next.at! * 1000))}, {dayLabel(new Date(next.at! * 1000))} · <ResetTime at={next.at!} /></p><p className="ap-reset-next-note">Reported time · recent reading{simultaneous.length > 1 ? "s" : next.used != null ? ` · ${shownUsed(next.used)}% weekly used` : ""}</p></div>
         <p className="ap-reset-countdown"><strong>{timeUntil(next.at!, nowSec)}</strong><span>until reported reset</span></p>
       </> : <div className="ap-reset-next-identity"><h3>No upcoming weekly resets</h3><p>{allOutdated ? "Some schedules need a fresh reading. Check the last reported times below." : "No reported weekly resets in these seven days. Unknown and elapsed times remain below."}</p></div>}
     </section>
     <div className="ap-reset-coverage" role="group" aria-label="Schedule data">
       <button type="button" className="ap-reset-coverage-link" data-scope="upcoming" aria-pressed={scope === "upcoming"} onClick={() => inspectCoverage("upcoming")}><b>{scheduled}</b><span>Upcoming<span>Recent readings</span></span></button>
-      <button type="button" className="ap-reset-coverage-link" data-scope="older" data-attention={allOutdated > 0 ? "" : undefined} aria-pressed={scope === "older"} onClick={() => inspectCoverage("older")}><b>{allOutdated}</b><span>Need fresh readings<span>Excluded from upcoming</span></span></button>
+      <button type="button" className="ap-reset-coverage-link" title="Schedules in these seven days that need a fresh reading" data-scope="older" data-attention={allOutdated > 0 ? "" : undefined} aria-pressed={scope === "older"} onClick={() => inspectCoverage("older")}><b>{allOutdated}</b><span>Needs fresh data<span>This week · excluded</span></span></button>
       <button type="button" className="ap-reset-coverage-link" data-scope="other" aria-pressed={scope === "other"} onClick={() => inspectCoverage("other")}><b>{unscheduled.length}</b><span>Other reset times<span>Unknown, elapsed or later</span></span></button>
     </div></div>
     <section className="ap-reset-navigation" aria-label="Choose a calendar day">
       <div className="ap-reset-intro"><h3>Next 7 days <span>{scheduled} weekly {scheduled === 1 ? "reset" : "resets"}</span></h3><p>{zone}</p></div>
       <ol className="ap-reset-week" role="list" aria-label="Seven-day reset counts">
         {days.map((day, i) => <li key={day.key} data-today={i === 0 ? "" : undefined}>
-          <button type="button" className="ap-reset-day-button" data-active={day.scheduled > 0 ? "" : undefined} aria-pressed={selected?.key === day.key}
+          <button type="button" className="ap-reset-day-button" aria-current={i === 0 ? "date" : undefined} data-active={day.scheduled > 0 ? "" : undefined} aria-pressed={selected?.key === day.key}
             aria-label={`${fullDate(day.date)}: ${day.scheduled} scheduled resets${day.outdated ? `, ${day.outdated} readings need updating` : ""}`}
             onClick={() => { returnToStart(); onScope("upcoming"); onSelect(selected?.key === day.key ? null : day.key); }}>
             <time dateTime={day.key} title={fullDate(day.date)}><span className="ap-reset-weekday">{i === 0 ? "Today" : weekday(day.date)}</span><span className="ap-reset-date">{day.date.getDate()}</span></time>
@@ -157,7 +158,7 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
     </section>
     <section className="ap-reset-disclosure" hidden={scope !== "older"} aria-label="Accounts needing fresh readings">
       <h3>Needs a fresh reading <span>{outdated} {outdated === 1 ? "account" : "accounts"} · excluded from counts</span></h3>
-      <p className="ap-reset-explain">These times come from older or unavailable account readings, not current schedules. Last reported times and usage are kept until updated.</p>
+      <p className="ap-reset-explain">These weekly schedules need a fresh reading. Other reset times may also contain stale readings. Last reported times and usage remain visible until updated.</p>
       {outdated > 0 ? <Agenda days={visibleDays} rows={rows} nowSec={nowSec} outdated /> : <p className="ap-reset-empty">No older schedules in these seven days. Unknown or elapsed times are listed in Other reset times.</p>}
     </section>
     <section className="ap-reset-disclosure ap-reset-unplaced" hidden={scope !== "other"} aria-label="Other reset times">
@@ -166,7 +167,7 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
     </section>
     <details className="ap-reset-about">
       <summary>How to read this schedule</summary>
-      <p className="ap-reset-explain">Counts are reported weekly account resets, not token amounts. Zero means no upcoming reset on that day, not zero usage. Held-out accounts still appear in the schedule. A timestamp passing does not confirm renewed capacity. Older readings are excluded from upcoming counts. Times use {zone}; a separate 5-hour limit may still apply.</p>
+      <p className="ap-reset-explain">Counts are reported weekly account resets, not token amounts. Zero means no upcoming reset on that day, not zero usage. Held-out accounts still appear in the schedule. A timestamp passing does not confirm renewed capacity. Older readings are excluded from upcoming counts. Times use {zone}; a separate 5-hour limit may still apply. Usage bars show reported capacity used. The warning tint at 70% or more indicates lower remaining capacity, not an account error.</p>
     </details>
     </div>
   </div>;
