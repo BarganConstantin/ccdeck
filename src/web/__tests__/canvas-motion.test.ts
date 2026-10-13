@@ -522,10 +522,19 @@ const EXEMPT: string[] = [
   ".ap-report-how > summary",
   // Text view switches, chart-day selection and native disclosures answer
   // through selection/expansion; scaling would move labels or chart data.
+  // Usage-history provider selection and native disclosure keep labels still.
+  ".qh-providers button",
+  ".qh-readings summary",
   ".ap-report-view",
   ".ap-reset-day-button",
-  ".ap-reset-disclosure summary",
+  ".ap-reset-disclosure > summary",
   ".ap-reset-about summary",
+  // Account detail disclosure uses its native expanded state; names stay still.
+  ".ap-reset-account > summary",
+  // Full identity is revealed through native details, without moving labels.
+  ".ap-reset-next-account > summary",
+  // Coverage links open and focus native disclosures without moving text.
+  ".ap-reset-coverage-link",
   // Companion selection answers through its radio check and chosen preview.
   ".character-choice",
   // The file input is an invisible hit target stretched over its visible label.

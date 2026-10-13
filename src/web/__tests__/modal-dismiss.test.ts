@@ -207,6 +207,7 @@ describe("the modals themselves", () => {
       // #738's whole-candidate process list, named here for the same reason as
       // the four above.
       "ProcessListModal.tsx",
+      "QuotaHistoryModal.tsx",
       "ReleaseNotesModal.tsx",
       // #738's section history, named here for the same reason as the four
       // above: this is how it joins the loop below.

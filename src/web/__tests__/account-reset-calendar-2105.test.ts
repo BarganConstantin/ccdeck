@@ -113,6 +113,23 @@ describe("weekly account reset schedule", () => {
   });
 });
 
+describe("Chisinau timezone boundaries", () => {
+  it.each([{ month: 2, day: 29, hours: 23 }, { month: 9, day: 25, hours: 25 }])("keeps local dates across a $hours-hour day", ({ month, day, hours }) => {
+    const before = process.env.TZ;
+    try {
+      process.env.TZ = "Europe/Chisinau";
+      const start = new Date(2026, month, day);
+      const end = new Date(2026, month, day + 1);
+      expect((end.getTime() - start.getTime()) / 3_600_000).toBe(hours);
+      const clock = start.getTime() / 1000;
+      const instant = new Date(2026, month, day + 1, 0, 15).getTime() / 1000;
+      const result = resetCalendar([account(1, instant, {}, clock)], clock);
+      expect(result.days[1].scheduled).toBe(1);
+      expect(new Set(result.days.map(date => date.key)).size).toBe(7);
+    } finally { process.env.TZ = before; }
+  });
+});
+
 describe("reset calendar content", () => {
   const html = (accounts: Account[], held: string | null = null) => renderToStaticMarkup(createElement(AccountResetCalendar, { accounts, nowSec: now(), held }));
 
@@ -121,7 +138,7 @@ describe("reset calendar content", () => {
     expect(output).toContain("Work account");
     // Windows may use en-GB: the same local instant is "09:27 GMT-4".
     const localTime = new Date("2026-10-13T13:27:00Z").toLocaleTimeString(undefined, {
-      hour: "numeric", minute: "2-digit", timeZoneName: "short",
+      hour: "numeric", minute: "2-digit",
     });
     expect(output).toContain(localTime);
     expect(output).toContain("60% used");
@@ -133,18 +150,29 @@ describe("reset calendar content", () => {
 
   it("marks stale usage as a last reading and explains unknown and passed dates", () => {
     const output = html([account(1, at(13), { stale: true }), account(2, null), account(3, now())]);
-    expect(output).toContain("1 outdated");
+    expect(output).toContain("Needs a fresh reading");
     expect(output).toContain("Last read: 60% used");
     expect(output).toContain("Reset time unknown");
-    expect(output).toContain("Reset passed · awaiting a new reading");
+    expect(output).toContain("Reported time passed · awaiting a new reading");
     expect(output).toContain("not token amounts");
+  });
+
+  it("distinguishes a source-marked stale reading from observation age", () => {
+    const clock = now();
+    const marked = resetCalendar([account(1, at(13), { stale: true, fetchedAt: clock * 1000 - 60000 })], clock);
+    const old = resetCalendar([account(2, at(13), { fetchedAt: clock * 1000 - REPORT_STALE_MS - 60000 })], clock);
+    expect(marked.days[1].entries[0].note).toContain("Marked stale · Read");
+    expect(old.days[1].entries[0].note).toMatch(/^Read /);
+    expect(marked.days[1].scheduled).toBe(0);
+    expect(old.days[1].scheduled).toBe(0);
   });
 
   it("keeps retained failed-poll data visibly outdated", () => {
     const output = html([account(1, at(13))], "Could not read accounts. Showing the last readings.");
     expect(output).toContain("Could not read accounts");
-    expect(output).toContain("Outdated · Last saved reading");
-    expect(output).toContain("1 outdated");
+    expect(output).toContain("Last saved reading");
+    expect(output).toContain("excluded from counts");
+    expect(output).toContain("Needs a fresh reading");
   });
 
   it("leads with the next current reset and keeps old readings out of the main agenda", () => {
@@ -155,12 +183,39 @@ describe("reset calendar content", () => {
     const next = output.slice(output.indexOf('class="ap-reset-next"'), output.indexOf('class="ap-reset-week"'));
     expect(next).toContain("Upcoming account");
     expect(next).not.toContain("Old account");
-    const main = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('<details class="ap-reset-disclosure"'));
+    const main = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('<section class="ap-reset-disclosure"'));
     expect(main).toContain("Upcoming account");
     expect(main).not.toContain("Old account");
-    expect(output).toContain("Excluded from counts");
+    expect(output).toContain("excluded from counts");
     expect(output).not.toContain('<details class="ap-reset-disclosure" open');
     expect(output).toContain("Old account");
+  });
+
+  it("keeps the usage reading inside the account's native inspection control", () => {
+    const output = html([account(1, at(13))]);
+    const summary = output.match(/<summary>(.*?)<\/summary>/)?.[1] ?? "";
+    expect(summary).toContain("Account details");
+    expect(summary).toContain('class="ap-reset-summary-content"');
+    expect(summary).toContain("60% used");
+    expect(summary).toContain('aria-hidden="true"');
+  });
+
+  it("groups simultaneous observations under one event time", () => {
+    const output = html([account(1, at(13)), account(2, at(13)), account(3, at(14))]);
+    const agenda = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('<section class="ap-reset-disclosure"'));
+    expect(agenda.match(/class="ap-reset-event"/g)).toHaveLength(2);
+    expect(agenda.match(/class="ap-reset-entry"/g)).toHaveLength(3);
+  });
+
+  it("makes older readings directly selectable without rendering them as upcoming", () => {
+    const output = renderToStaticMarkup(createElement(AccountResetCalendar, {
+      accounts: [account(1, at(13), { stopped: true })], nowSec: now(), held: null, scope: "older",
+    }));
+    expect(output).toContain('class="ap-reset-scheduled" hidden=""');
+    expect(output).toContain('class="ap-reset-disclosure" aria-label="Accounts needing fresh readings"');
+    expect(output).toContain("Last read: 60% used");
+    expect(output).toContain("Last reported reset");
+    expect(output).toContain("excluded from counts");
   });
 
   it("explains the empty schedule and escapes account names", () => {
@@ -168,14 +223,67 @@ describe("reset calendar content", () => {
     expect(html([account(1, at(13), { alias: "<script>bad</script>" })])).toContain("&lt;script&gt;bad&lt;/script&gt;");
   });
 
-  it("scales daily bars by scheduled reset counts, without old readings inflating them", () => {
+  it("uses compact date counts without a chart or stale-count inflation", () => {
     const output = html([
       account(1, at(13)), account(2, at(14)), account(3, at(14)),
       account(4, at(13), { stale: true }), account(5, at(13), { stale: true }),
     ]);
-    expect(output).toContain('--reset-height:50%');
-    expect(output).toContain('--reset-height:100%');
-    expect(output).toContain('1 scheduled resets, 2 outdated readings');
+    expect(output).not.toContain("ap-reset-chart");
+    expect(output).not.toContain("--reset-height");
+    expect(output).toContain('1 scheduled resets, 2 readings need updating');
     expect(output).toContain('2 scheduled resets');
+    expect(output).toContain("3 weekly resets");
+  });
+
+  it("names simultaneous fresh resets without grouping stale observations into the next event", () => {
+    const output = html([
+      account(1, at(13)), account(2, at(13)), account(3, at(13), { stale: true }),
+    ]);
+    expect(output).toContain('class="ap-reset-name">2 accounts</span>');
+    expect(output).not.toContain('class="ap-reset-name">3 accounts</span>');
+  });
+
+  it("renders only the chosen day, with today independent from selection", () => {
+    const output = renderToStaticMarkup(createElement(AccountResetCalendar, {
+      accounts: [account(1, at(13), { alias: "Tuesday account" }), account(2, at(14), { alias: "Wednesday account" })],
+      nowSec: now(), held: null, selectedDate: "2026-10-14",
+    }));
+    const main = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('class="ap-reset-about"'));
+    expect(main).toContain("Wednesday account");
+    expect(main).not.toContain("Tuesday account");
+    expect(output.match(/class="ap-reset-day-button"[^>]*aria-pressed="true"/g)).toHaveLength(1);
+    expect(output).toContain("Showing only Wednesday");
+    expect(output).toContain("data-today");
+  });
+
+  it("renders unrepresentable timestamps as unknown in both window disclosures", () => {
+    for (const id of ["five_hour", "seven_day"] as const) {
+      const output = renderToStaticMarkup(createElement(AccountResetCalendar, {
+        accounts: [account(1, at(13), { lanes: [
+          { id: "five_hour", label: "5h", pct: 12, resetAt: at(13) },
+          { id: "seven_day", label: "7d", pct: 80, resetAt: at(13) },
+        ].map(lane => lane.id === id ? { ...lane, resetAt: 1e20 } : lane) })],
+        nowSec: now(), held: null, scope: id === "seven_day" ? "other" : "upcoming",
+      }));
+      expect(output).toContain("Reset time unknown");
+      expect(output).not.toContain("Invalid Date");
+    }
+  });
+
+  it("preserves both-window context without claiming a weekly reset removes every limit", () => {
+    const output = html([account(1, at(13), { lanes: [
+      { id: "five_hour", label: "5h", pct: 100, resetAt: at(14) },
+      { id: "seven_day", label: "7d", pct: 80, resetAt: at(13) },
+    ] })]);
+    expect(output).toContain("100% used");
+    expect(output).toContain("5-hour");
+    expect(output).toContain("A weekly reset does not remove a separate 5-hour limit.");
+    expect(output).toContain("A timestamp passing does not confirm renewed capacity.");
+    const elapsed = html([account(1, at(13), { lanes: [
+      { id: "five_hour", label: "5h", pct: 100, resetAt: at(11) },
+      { id: "seven_day", label: "7d", pct: 80, resetAt: at(13) },
+    ] })]);
+    expect(elapsed).toContain("Estimated unused · awaiting a fresh reading");
+    expect(elapsed).toContain("Reported time passed · awaiting a new reading");
   });
 });
