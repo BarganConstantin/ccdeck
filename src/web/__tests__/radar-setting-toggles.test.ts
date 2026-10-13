@@ -10,7 +10,7 @@ async function fixture() {
   const home = await mkdtemp(join(tmpdir(), 'radar-flags-')); dirs.push(home);
   const dir = join(home, '.claude'); await mkdir(dir);
   const path = join(dir, 'settings.json');
-  const options = { home, env: {}, platform: 'linux', readJson: async (file: string) => JSON.parse(await readFile(file, 'utf8')) };
+  const options = { home, env: {}, platform: process.platform, readJson: async (file: string) => JSON.parse(await readFile(file, 'utf8')) };
   return { home, dir, path, options };
 }
 describe('Radar individual flag settings', () => {

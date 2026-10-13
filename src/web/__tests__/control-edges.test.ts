@@ -509,6 +509,9 @@ const CONTROLS: Control[] = [
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
   { at: '.character-choice', beds: ["--panel"] },
   { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
+  { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".ap-reset-day-button:hover", fillFrom: ".ap-reset-day-button:hover", beds: ["--panel"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
   { at: ".su-pricing select", beds: ["--panel"] },
@@ -894,8 +897,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    // Radio controls and the session pricing select extend the measured inventory.
-    expect(EDGED_CONTROLS.length).toBeLessThan(136);
+    // Radio, session pricing and reset-calendar controls extend the inventory.
+    expect(EDGED_CONTROLS.length).toBeLessThan(139);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

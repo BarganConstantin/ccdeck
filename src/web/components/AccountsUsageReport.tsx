@@ -32,6 +32,7 @@ import {
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead } from "./SortHead";
 import { useCountUp } from "../use-count-up";
+import AccountResetCalendar from "./AccountResetCalendar";
 
 /** How full a reading is, in the inks the panel's rows use: the warning past
  *  70% used and the error past 90%. A warning, never a state — see statusOf. */
@@ -302,6 +303,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(onClose);
+  const [view, setView] = useState<"accounts" | "calendar">("accounts");
   // The last roster that had anyone in it — see the header. Keyed on the
   // roster the panel holds, which changes once a poll and not once a render.
   const [shown, setShown] = useState<readonly Account[]>(accounts ?? []);
@@ -330,13 +332,19 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
           <div className="ap-proj-titlewrap">
             <h2 className="ap-proj-title" id="ap-report-title">Account capacity</h2>
           </div>
+          <div className="ap-report-views" role="group" aria-label="Capacity view">
+            <button type="button" className="ap-report-view" aria-pressed={view === "accounts"} onClick={() => setView("accounts")}>Accounts</button>
+            <button type="button" className="ap-report-view" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}>Reset calendar</button>
+          </div>
           <button ref={closeRef} type="button" className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>
         {/* Mounted with the dialog and only its words changing, so a reading
             held back is announced: a live region that arrives with its text is
             the one screen readers drop. */}
         <div className="vis-hidden" role="status" aria-atomic="true">{held ?? ""}</div>
-        <UsageReportBody accounts={rows} nowSec={nowSec} held={held} sort={sorted?.sort ?? null} onSort={sortBy} />
+        {view === "accounts"
+          ? <UsageReportBody accounts={rows} nowSec={nowSec} held={held} sort={sorted?.sort ?? null} onSort={sortBy} />
+          : <AccountResetCalendar accounts={rows} nowSec={nowSec} held={held} />}
       </div>
     </div>,
     document.body,

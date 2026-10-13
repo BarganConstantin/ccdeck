@@ -277,6 +277,8 @@ describe("a percentage width under a horizontal margin", () => {
       // the rest. Named so it enters the margin check below; no rule gives it a
       // margin.
       "ap-report-table",
+      // Each reset-day hit area fills its grid cell, with no outer margins.
+      "ap-reset-day-button",
       "bw-ep-head", "bw-radar", "cost-bar",
       // The guides' drawings: an SVG with a viewBox and no width of its own,
       // which the browser would otherwise size to its 300x150 default. Named
