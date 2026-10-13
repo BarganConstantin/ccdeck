@@ -33,7 +33,7 @@ function AccountDetails({ entry, row, nowSec }: { entry: ResetEntry; row?: Repor
         const pct = cell.counted ? cell.pct : cell.last;
         const at = row.resets[id];
         return <p key={id}><strong>{id === "five_hour" ? "5-hour" : "7-day"}</strong>
-          <span>{cell.reset ? "Estimated unused · awaiting a fresh reading" : pct == null ? "No usage reading" : `${!cell.counted ? "Last read: " : ""}${shownUsed(pct)}% used`}</span>
+          <span>{!cell.counted && cell.reset ? "Estimated unused · awaiting a fresh reading" : pct == null ? "No usage reading" : `${!cell.counted ? "Last read: " : ""}${shownUsed(pct)}% used`}</span>
           <span>{at == null ? "Reset time unknown" : at <= nowSec ? "Reset due · awaiting a new reading" : <>Reset in {timeUntil(at, nowSec)} · <ResetTime at={at} /></>}</span>
         </p>;
       })}
