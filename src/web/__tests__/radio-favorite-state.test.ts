@@ -38,7 +38,7 @@ describe("radio favorite indicators", () => {
   it("shows every legacy stream before the directory without requiring expansion", () => {
     const html = renderToStaticMarkup(createElement(Panel, { saved: false }));
     expect(html).toMatch(/<details class="radio-own" open="">/);
-    const buttons = [...html.matchAll(/<button\b[^>]*class="radio-own-station"[^>]*>/g)].map(match => match[0]);
+    const buttons = [...html.matchAll(/<button\b[^>]*class="radio-own-station radio-station-pick"[^>]*>/g)].map(match => match[0]);
     expect(buttons).toHaveLength(9);
     expect(buttons[0]).toContain('aria-label="Play Claude FM"');
     expect(buttons.join(" ")).toContain('aria-label="Play Lofi Girl · Chill / game"');
