@@ -324,6 +324,8 @@ function rootTokens(theme: Theme): Record<string, string> {
     out[name] = value.trim();
   }
   for (const [, name, value] of bodyOf(".modal.tr-modal").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
+  // The reset navigator inherits its selection fill from the calendar body.
+  for (const [, name, value] of bodyOf(".ap-reset-body").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
   return out;
 }
 
@@ -511,6 +513,7 @@ const CONTROLS: Control[] = [
   { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
   { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
   { at: ".su-pricing select", beds: ["--panel"] },
