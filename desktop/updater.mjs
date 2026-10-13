@@ -109,7 +109,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
   let lastInfo = null;
   let packageType;          // read once, when first asked
   let installing = false;   // Windows/Linux: an install has been started
-  let relaunch = false;     // macOS: this quit is Restart to update, not Quit
+  let relaunch = false;     // macOS/Windows: Restart to update, not Quit
 
   const set = next => { state = next; onChange?.(state); };
 
@@ -207,7 +207,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     }
     if (state.status !== "ready" || !auto || installing || !canInstallUnattended()) return;
     installing = true;
-    auto.install(true, false);
+    auto.install(!relaunch, relaunch);
   }
 
   /**
@@ -240,6 +240,18 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     // macOS installs on the way out either way; what makes this a restart
     // rather than a Quit is the swap opening the new version after (#1758).
     if (process.platform === "darwin") { relaunch = true; app.quit(); return; }
+    // BaseUpdater.quitAndInstall starts NSIS before asking Electron to quit.
+    // Our before-quit handler holds that quit while the owned deck shuts down,
+    // so NSIS otherwise races its live supervisor and worker. Keep the same
+    // interactive installer/relaunch, but start it from will-quit after that
+    // cleanup, as a normal Quit already does. Repeated clicks must not ask for
+    // a second quit while the first is held by asynchronous cleanup.
+    if (process.platform === "win32") {
+      if (relaunch) return;
+      relaunch = true;
+      app.quit();
+      return;
+    }
     // The same test the unattended rule makes: a package install that
     // inherited APPIMAGE restarts the package way, not as that AppImage.
     if (process.platform === "linux" && isAppImage()) { restartAppImage(); return; }

@@ -90,9 +90,9 @@ afterEach(() => {
 });
 
 /** An updater that has been handed a download, `signed` by ccdeck's key or not. */
-async function downloaded(signed: boolean) {
+async function downloaded(signed: boolean, quit = vi.fn()) {
   const u = createUpdater({
-    app: { isPackaged: true, getVersion: () => "3.26.0", getPath: () => "/nowhere", quit: vi.fn() },
+    app: { isPackaged: true, getVersion: () => "3.26.0", getPath: () => "/nowhere", quit },
     onChange: () => {},
   });
   await u.check();
@@ -115,6 +115,38 @@ async function downloaded(signed: boolean) {
 
 /** What main.mjs does on a normal Quit: will-quit, then the process exits 0. */
 const quitNormally = (u: { installOnQuit: () => void }) => { u.installOnQuit(); fake.quit(0); };
+
+describe("Windows restart with an owned deck still shutting down", () => {
+  it("does not start NSIS until the owned deck has stopped and will-quit is reached", async () => {
+    onPlatform("win32");
+    let deckRunning = true;
+    const quit = vi.fn();
+    const u = await downloaded(true, quit);
+    // BaseUpdater 6.8.9 starts the installer BEFORE calling app.quit(). The
+    // real before-quit handler then holds that quit for asynchronous cleanup.
+    // Starting NSIS here hands it the live supervisor/worker it tries to kill.
+    fake.install.mockImplementation(() => {
+      expect(deckRunning, "NSIS must not race the owned deck's shutdown").toBe(false);
+      return true;
+    });
+    fake.quitAndInstall.mockImplementation(() => {
+      fake.install(false, true);
+      quit();
+    });
+    u.restartNow();
+    expect(quit).toHaveBeenCalledTimes(1);
+    expect(fake.install).not.toHaveBeenCalled();
+    expect(fake.quitAndInstall).not.toHaveBeenCalled();
+    u.restartNow();
+    expect(quit).toHaveBeenCalledTimes(1);
+    deckRunning = false;
+    u.installOnQuit();
+    expect(fake.install).toHaveBeenCalledTimes(1);
+    expect(fake.install).toHaveBeenCalledWith(false, true);
+    u.installOnQuit();
+    expect(fake.install).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe.each([
   ["Windows", () => onPlatform("win32")],
@@ -141,6 +173,9 @@ describe.each([
   it("does not install a second time after Restart to update has", async () => {
     const u = await downloaded(true);
     u.restartNow();
+    // Windows requests Quit first, then starts NSIS from will-quit once the
+    // owned deck has stopped. Linux keeps electron-updater's existing flow.
+    if (process.platform === "win32") u.installOnQuit();
     const already = fake.install.mock.calls.length + fake.quitAndInstall.mock.calls.length;
     expect(already).toBe(1);
     quitNormally(u);
