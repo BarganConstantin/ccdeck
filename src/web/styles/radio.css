@@ -305,7 +305,7 @@
 @media (prefers-reduced-motion: reduce) { .radio-tuning-send path { animation: none; } }
 
 /* Discovery: one search/filter entry point, radio-first results, reachable streams. */
-.radio-discovery-toolbar { flex: none; display: grid; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.radio-discovery-toolbar { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .radio-collections { margin: 0; gap: 4px; }
 .radio-collections .radio-collection { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 5px 10px; font-weight: 500; }
 .radio-collections .radio-collection[aria-selected="true"] { background: var(--ctl-fill); color: var(--text); }
@@ -317,7 +317,7 @@
 .radio-filter-toggle > svg { width: 16px; height: 16px; }
 .radio-filter-toggle[data-active="true"] { color: var(--accent); }
 .radio-filter-toggle:hover, .radio-filter-chip:hover { background: var(--ctl-fill); color: var(--text); }
-.radio-active-filters { display: flex; align-items: flex-start; gap: 6px; }
+.radio-active-filters { display: flex; min-width: 0; align-items: flex-start; gap: 6px; }
 .radio-active-filter-list { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
 .radio-filter-chip { display: flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: var(--ctl-fill); color: var(--text); font: inherit; font-size: 11px; cursor: pointer; }
 .radio-filter-chip > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

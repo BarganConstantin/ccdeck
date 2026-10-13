@@ -33,7 +33,10 @@ filter values, clear-action focus and contextual Global results. Independent fin
 review caught disappearing source access under metadata filters; its recaptures
 show persistent 0/Filtered access and explicit recovery with criteria intact.
 Combined country/genre/language at320×568 was also checked: a single horizontal
-criterion strip leaves at least70px for vertically scrollable results.
+criterion strip leaves at least70px for vertically scrollable results. Final confirmation caught
+an intrinsic grid-width overflow; zero-minimum tracks and a bounded criterion
+strip now keep Filters and Clear inside the panel. Browser assertions check
+the toolbar itself and both control bounds, rather than only the clipped modal.
 
 Artifacts inspected directly: /tmp/composition-catalogue-{width}-{height}.png,
 /tmp/composition-filtered-{width}-{height}.png, /tmp/composition-filter-overview.png,
