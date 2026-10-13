@@ -109,6 +109,17 @@ describe("a session that arrives later goes where the board has room", () => {
   // The pitch autoLayout leaves between two columns: card, lane, one card of gap.
   const NEXT_COLUMN = W + LANE + W;
 
+  it("does not turn a subagent's x position into a second session column on a portrait frame", () => {
+    const { nodes, positions } = column(5);
+    const kid = agent("wide-child", "s4", "s4n0");
+    const all = [...nodes, kid, agent("new", "snew")];
+    positions.set(kid.id, { x: 420, y: 4 * PITCH });
+    positions.set("new", { x: 0, y: 5 * PITCH });
+    const frame = { width: 700, height: 2500 };
+    fillGapsWithNewSessions(all, positions, new Map(), sizes(all), new Set(["new"]), undefined, frame);
+    expect(positions.get("new")).toEqual({ x: 0, y: 5 * PITCH });
+  });
+
   it("starts a new column once the only one is taller than the frame", () => {
     const { nodes, positions } = column(4);
     const all = [...nodes, agent("new", "snew")];
