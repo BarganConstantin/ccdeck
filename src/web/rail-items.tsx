@@ -129,7 +129,11 @@ export function railItems({
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
     left: providers.claude ? [accounts, sessionList] : [sessionList],
-    right: [[usage, machine], [history, browserWatch, ...(setTrafficRadarOpen ? [{
+    right: [[usage, machine], [history, ...(openToolActivity ? [{
+      id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
+      glyph: <ToolActivityGlyph />, kind: "dialog" as const,
+      detail: "Explore operation frequency and measured intervals", onPress: (keyboard?: boolean) => openToolActivity(keyboard === true),
+    }] : []), browserWatch, ...(setTrafficRadarOpen ? [{
       id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
       detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),
@@ -137,11 +141,7 @@ export function railItems({
       id: "radio", label: "Radio", short: "Radio", ariaLabel: "Radio",
       glyph: <RadioGlyph />, kind: "panel" as const, open: radioOpen, controls: "radio-panel",
       detail: "Explore stations around the world", onPress: () => setRadioOpen(open => !open),
-    }, ...(openToolActivity ? [{
-      id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
-      glyph: <ToolActivityGlyph />, kind: "dialog" as const,
-      detail: "Explore operation frequency and measured intervals", onPress: (keyboard?: boolean) => openToolActivity(keyboard === true),
-    }] : [])]] : [])],
+    }]] : [])],
     utilities: [settings, feedback],
   };
 }

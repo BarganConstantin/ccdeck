@@ -9,7 +9,7 @@ branches still have the same state. Verify them at the start of a new session.
   `/Users/constantin/Desktop/ccdeck-tool-audit`, based on development `d2ca5ba6`.
 - Frontend `http://127.0.0.1:4545/`, backend 4546, isolated data
   `CCDECK_HOME=/tmp/ccdeck-tool-audit-preview`. Installed app is untouched.
-- Tool activity rail button next to Radio opens the device-wide operation explorer
+- Tool activity rail button below Usage history opens the device-wide operation explorer
   (More on phone); the Usage header entry was removed. General
   Settings has retention/actual size/clear. New calls only; no historical import.
 - Concrete shell operations are grouped without arguments. Shared wrapper and

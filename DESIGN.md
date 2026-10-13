@@ -528,7 +528,7 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 ### Tool activity report
 
 Direction A is a full-page, on-demand analytical report in the established ccdeck
-instrument-panel world. The rail entry sits next to Radio (More on phones),
+instrument-panel world. The rail entry sits below Usage history (More on phones),
 separate from Usage. The [direction contract](docs/features/tool-activity-report.md)
 and [surface record](.impeccable/surfaces/tool-audit.md) supersede the centered
 single-mode ranking for this surface; they do not redefine the global design.

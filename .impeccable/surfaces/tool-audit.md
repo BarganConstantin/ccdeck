@@ -39,7 +39,7 @@ not an executed participant study.
 
 ## Built composition and interaction
 
-- **Entry and shell:** independent rail action beside Radio, More on phones,
+- **Entry and shell:** independent rail action below Usage history, More on phones,
   separate from Usage. Viewport overlay inherits background/panel/text tokens.
   Header Back to workspace and Refresh remain reachable while the body scrolls.
   Content has a centered 1360px maximum border-box width, including desktop 40px

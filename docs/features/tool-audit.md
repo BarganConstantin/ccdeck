@@ -2,7 +2,7 @@
 
 Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122).
 
-Open **Tool activity** from the rail button next to Radio (on narrow screens,
+Open **Tool activity** from the rail button below Usage history (on narrow screens,
 **More → Tool activity**). This is a device-wide report
 across Claude and Codex, independent of retained sessions on the canvas.
 Collection starts with new events after this build starts; no old session import.
