@@ -1,51 +1,59 @@
-# Radio discovery
+# Radio discovery composition
 
-Mode: Operate. Scope: RadioPanel discovery column and RadioFilter. Preserve
-player/map/modal geometry, source playback, persistence, row actions, theme
-system and the owner's removal of Cafe Music BGM and Best of Nostalgia.
+Mode: Operate. Scope: right discovery column. Keep CCDeck's incumbent tokens,
+shared controls and typography; preserve map, player and modal design.
 
-## Audit and direction — 2026-10-13
+## Audit and spatial thesis
 
-Method: single-context; this harness exposes no subagent/spawn tool. Impeccable
-critique and finish review use the documented fallback. Questions skipped:
-the owner supplied the flows, visual constraints and permission to implement.
+Five priorities: workspace rows hid radio results; Country competed with search;
+filter access changed by panel width; counts/grouping duplicated explanation; and
+short windows needed a dependable results scrollbar plus source access.
 
-Five priorities: fragmented toolbar; misleading Sound terminology (directory
-`tag`); no individual filter removal; mixed result totals presented as stations;
-unknown workspace metadata hidden without explanation. Additional correctness
-finding: GLOBAL was sent as GL (Greenland) by the server's country-code truncation.
+Independent design and mechanical/accessibility assessments used Impeccable
+critique/layout. No product context reinitialization or identity replacement.
+Questions skipped: the owner supplied scope, goals, constraints and autonomy.
 
-Alternatives: (A) search and one Filters action maximizes list space but adds a
-step to every country change; (B) all three filters always visible is efficient
-but repeats a generic form row and reduces narrow-window list space. Selected
-hybrid: integrated collection tabs, search and Filters, Country directly visible
-in wider discovery panels, optional full filter row, persistent removable filter
-indicators. Genre names directory genre/topic tags; arbitrary tags/languages
-remain supported through the shared searchable filter popover.
+Compared A, search-first + unified Filters, with B, full-width search + directly
+visible country/genre/language. B reduces one disclosure click but permanently
+consumes a form row and compresses mobile results. Choose A consistently at all
+widths: one stable search row and one filter entry, searchable in-place field
+selection in a shared popover, criteria/removal and clear action outside it.
 
-## Source contract
+## Composition and source hierarchy
 
-Search includes directory stations and workspace stream names. Directory search
-uses the existing Radio Browser `name` query. Country, genre/tag and language
-use actual directory metadata. Workspace streams have no geographic country,
-genre or language metadata; they match no metadata filters except the existing
-Global streams pseudo-country. Global is local-only and never sent to the API.
-Favorites and Recent share IDs across both kinds. Counts are derived from visible
-unique entries, not the 300-entry API cap or the featured daily row. Removed or
-unresolved IDs do not inflate collection badges. The map gets only filtered
-directory stations; its existing current-station pin is retained. Workspace
-streams never acquire coordinates. Source headings explain mapping and unknown
-metadata instead of adding per-row badges.
+Compact Discover/Favorites/Recent segmented navigation, growing search plus
+Filters, applied criteria, radio-first scrollable results, persistent Workspace
+streams footer disclosure. No extra source navigation mode or competing vertical
+scroll areas. Opening streams reveals the collection/current row in that same
+list; closing returns to the prior directory scroll position. Daily remains on
+normal screens and is omitted in short windows; its station remains in results.
 
-## Composition and behavior
+Workspace expansion is remembered per collection. Search/Global/stream-only
+results reveal streams contextually, without overwriting the ordinary preference.
+Filtering can exclude streams but never removes their disclosure. It reports the
+matching count, shows Filtered when appropriate, and explains exclusions when
+opened. Only an explicit Show all streams clears search and metadata. An empty
+Favorites/Recent collection offers explicit Browse workspace streams to Discover.
 
-Compact tabs with semantic tab roles, roving focus and Arrow/Home/End navigation.
-Search remains available with clear action; collection changes retain search and
-filters. Clear filters retains the search; clear search is separate. Filter chips
-remove one metadata criterion and expose its full value through accessible text.
-Country is quick-access on wider panels; narrower panels use Filters to reveal
-all fields. Touch targets are at least 44px in the discovery toolbar. One results
-scroll area; short windows retain the existing whole-discovery scroll behavior.
-Workspace streams are a collapsible first section, radio results a second section
-with the daily pick inside it. Summary distinguishes stream and radio counts.
-No colored side stripes, gradients, decorative motion or new dependencies.
+## Truth and interaction contract
+
+Search includes both sources. Directory uses the existing API name query and
+local matching; stream names/source text match locally. Country/genre/language
+use real directory metadata. Streams lack geographic/genre/language data; only
+Global matches their country scope. Global is local, never sent as GL to the API.
+Missing metadata never satisfies a nonempty filter. Favorites/Recent share
+persisted IDs; dynamic counts exclude unresolved IDs and daily duplication.
+Only directory entries with real coordinates appear on the existing map.
+
+Tabs retain criteria and use roving focus plus Arrow/Home/End. Clear filters
+retains search; Clear search is separate. Selected filter values and full labels
+remain readable; default values do not pretend to be selections. Popovers remain
+inside Radio's aria-modal accessibility boundary, Escape returns to Filters,
+and clearing inside the popover focuses Done. Pointer interaction keeps restrained
+focus treatment; keyboard rings remain explicit. Narrow/coarse controls are 44px.
+At short mobile sizes criteria use one horizontal strip with accessible Clear,
+leaving one vertical results scrollbar. Preserve shared scrollbar focus contrast.
+
+Saved station aliases apply consistently to Discover, Favorites/Recent and the
+daily pick. Playback lifecycle/persistence never depends on result visibility.
+No new dependencies, gradients, colored side stripes or decorative animation.

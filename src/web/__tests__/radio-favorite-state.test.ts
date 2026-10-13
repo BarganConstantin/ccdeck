@@ -10,11 +10,11 @@ import { cascade, el, selects } from "./sheet-cascade";
 
 const [station] = resolveRadioStations([{ id: "radio-00000000-0000-4000-8000-000000000001", name: "Test radio", url: "https://radio.example/live", country: "Moldova", countryCode: "MD" }]);
 const noop = () => {};
-function Panel({ saved, workspace = false }: { saved: boolean; workspace?: boolean }) {
+function Panel({ saved, workspace = false, renamed = false }: { saved: boolean; workspace?: boolean; renamed?: boolean }) {
   const fm = useClaudeFm();
   const library = useRadioLibrary();
   return createElement(RadioPanel, {
-    fm: workspace ? { ...fm, fmSource: "good-life-radio" } : fm, library: { ...library, catalogue: [station], favorites: saved ? [workspace ? "good-life-radio" : station.id] : [] },
+    fm: { ...fm, ...(workspace ? { fmSource: "good-life-radio" as const } : {}), ...(renamed ? { customFmStations: [{ ...station, name: "My renamed radio" }] } : {}) }, library: { ...library, catalogue: [station], favorites: saved ? [workspace ? "good-life-radio" : station.id] : [] },
     selected: workspace ? undefined : station, label: workspace ? "The Good Life Radio" : station.name, enabled: true, disabledReason: "",
     player: { probe: null, dead: false, armed: false, playing: false, buffering: false, frame: { current: null }, say: noop, press: noop },
     onPick: noop, onQueueChange: noop, onClose: noop,
@@ -35,18 +35,26 @@ describe("radio favorite indicators", () => {
     for (const [flag] of flags) expect(flag).toContain("/radio-flags/md.svg");
   });
 
-  it("shows available workspace streams first without removed stations", () => {
+  it("shows radio first with workspace streams collapsed and reachable", () => {
     const html = renderToStaticMarkup(createElement(Panel, { saved: false }));
-    expect(html).toMatch(/<details class="radio-own" open="">/);
+    expect(html).toMatch(/id="radio-workspace-streams" class="radio-own" hidden=""/);
+    expect(html).toContain('class="radio-workspace-toggle" aria-expanded="false"');
     const buttons = [...html.matchAll(/<button\b[^>]*class="radio-own-station radio-station-pick"[^>]*>/g)].map(match => match[0]);
     expect(buttons).toHaveLength(7);
     expect(buttons[0]).toContain('aria-label="Play Claude FM"');
     expect(buttons.join(" ")).toContain('aria-label="Play Lofi Girl · Chill / game"');
     expect(html).not.toContain("Cafe music BGM");
     expect(html).not.toContain("Best of nostalgia live");
-    expect(html.indexOf('class="radio-own"')).toBeLessThan(html.indexOf('class="radio-daily"'));
-    expect(html.indexOf('class="radio-own"')).toBeLessThan(html.indexOf('data-station-id='));
+    expect(html.indexOf('class="radio-own"')).toBeGreaterThan(html.indexOf('class="radio-daily"'));
+    expect(html.indexOf('class="radio-own"')).toBeGreaterThan(html.indexOf('data-station-id='));
     expect(html).toContain("7 workspace streams · 1 radio station");
+  });
+
+  it("uses the saved station name consistently in Discover", () => {
+    const html = renderToStaticMarkup(createElement(Panel, { saved: true, renamed: true }));
+    expect(html).toContain('aria-label="Play My renamed radio, Moldova"');
+    expect(html).toContain('aria-label="Unsave My renamed radio"');
+    expect(html).toContain('aria-label="Play today’s station: My renamed radio, Moldova"');
   });
 
   it("styles both the current station and the list heart for each saved state", () => {

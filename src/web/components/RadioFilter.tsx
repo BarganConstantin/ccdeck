@@ -4,9 +4,9 @@ import RadioIcon from "./RadioIcon";
 
 export interface RadioFilterOption { value: string; label: string }
 
-function FilterChoices({ anchorId, label, value, options, allowCustom, onSelect, onClose }: {
-  anchorId: string; label: string; value: string; options: RadioFilterOption[];
-  allowCustom?: boolean; onSelect: (value: string) => void; onClose: () => void;
+export function RadioFilterOptions({ label, value, options, allowCustom, onSelect }: {
+  label: string; value: string; options: RadioFilterOption[];
+  allowCustom?: boolean; onSelect: (value: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(Math.max(0, options.findIndex(option => option.value === value)));
@@ -18,8 +18,9 @@ function FilterChoices({ anchorId, label, value, options, allowCustom, onSelect,
     matches.push({ value: query.trim(), label: query.trim() });
   }
   const index = Math.min(active, matches.length - 1);
+  useEffect(() => { input.current?.focus({ preventScroll: true }); }, []);
   useEffect(() => { list.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" }); }, [active, query]);
-  return <AnchoredPopover anchorId={anchorId} boundaryId="radio-panel" id={`${id}-popup`} className="radio-filter-popup" role="dialog" labelledBy={anchorId} focusRef={input} onClose={onClose}>
+  return <>
     <div className="radio-filter-search"><RadioIcon name="search" /><input ref={input} role="combobox" aria-label={`Search ${label.toLowerCase()}`} placeholder={`Search ${label.toLowerCase()}…`} autoComplete="off" value={query} aria-expanded="true" aria-autocomplete="list" aria-controls={`${id}-options`} aria-activedescendant={index >= 0 ? `${id}-option-${index}` : undefined} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault(); setActive(matches.length ? (Math.max(0, index) + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length : 0);
@@ -33,7 +34,7 @@ function FilterChoices({ anchorId, label, value, options, allowCustom, onSelect,
       {matches.map((option, i) => <button type="button" role="option" tabIndex={-1} id={`${id}-option-${i}`} key={option.value} aria-selected={option.value === value} data-active={i === index} onPointerMove={() => setActive(i)} onClick={() => onSelect(option.value)}><span>{option.label}</span>{option.value === value && <RadioIcon name="check" />}</button>)}
       {!matches.length && <p role="status">No matches</p>}
     </div>
-  </AnchoredPopover>;
+  </>;
 }
 
 export default function RadioFilter({ label, value, options, allowCustom, onChange }: {
@@ -46,6 +47,6 @@ export default function RadioFilter({ label, value, options, allowCustom, onChan
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
   return <>
     <button ref={trigger} id={id} type="button" className="radio-filter-trigger" data-filtered={!!value} aria-label={`${label}: ${selected}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(current => !current)} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}><span>{value ? selected : label}</span><RadioIcon name="back" /></button>
-    {open && <FilterChoices anchorId={id} label={label} value={value} options={options} allowCustom={allowCustom} onSelect={next => { onChange(next); close(); }} onClose={close} />}
+    {open && <AnchoredPopover anchorId={id} boundaryId="radio-panel" portalRootId="radio-panel" id={`${id}-popup`} className="radio-filter-popup" role="dialog" labelledBy={id} onClose={close}><RadioFilterOptions label={label} value={value} options={options} allowCustom={allowCustom} onSelect={next => { onChange(next); close(); }} /></AnchoredPopover>}
   </>;
 }

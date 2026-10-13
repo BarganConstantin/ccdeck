@@ -849,15 +849,17 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
       ".radio-collection:focus-visible",
+      ".radio-filter-back:focus-visible",
       ".radio-filter-chip:focus-visible",
+      ".radio-filter-field:focus-visible",
       ".radio-filter-search input:focus-visible",
       ".radio-filter-toggle:focus-visible",
       ".radio-filter-trigger:focus-visible",
       ".radio-list:focus-visible",
       ".radio-loading > .icon-btn:focus-visible",
       ".radio-map-canvas:focus-visible",
-      ".radio-own summary:focus-visible",
       ".radio-reset:focus-visible",
+      ".radio-workspace-toggle:focus-visible",
       ".react-flow__node:focus-visible .agent-node",
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.

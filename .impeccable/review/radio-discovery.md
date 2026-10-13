@@ -1,82 +1,73 @@
 disposition: ship
 
-Review method: single-context fallback; no callable independent reviewer was available.
-Scope: right discovery column, plus the owner-requested player favorite heart for workspace streams.
+Independent assessments: design/layout (Mencius), mechanical/accessibility
+(Helmholtz). Final design P1 was scored resolved by independent recapture review;
+focused browser follow-up found no blockers. No external publishing or merge.
 
 ## persistence
 
-Pass. Implemented on feat/radio-built-in-stations. No player lifecycle, map geometry,
-modal layout, backend API or persistence format changes. Existing presets removed
-by the owner remain absent. Player heart now resolves directory, built-in and custom IDs.
+Pass. Source remains on feat/radio-built-in-stations, served from its built UI on
+port5205. Map/player/modal design and audio provider lifetime remain unchanged.
+Only shared-popover portal placement adds an opt-in modal accessibility container;
+other callers retain their default body portal.
 
 ## fidelity
 
 | Promise | Result |
 | --- | --- |
-| Search-first integrated discovery | Match: compact semantic tabs, search, contextual Filters, wider-panel Country shortcut |
-| Filter visibility and reset | Match: removable criteria, full accessible labels, clear filters retains search |
-| Accurate terminology | Match: Genre replaces Sound; options come from actual directory tags, including topics |
-| Mixed-source clarity | Match: source-aware counts and separate sections, geographic limitations explicit |
-| Keyboard and responsive behavior | Match: roving tab focus, Arrow/Home/End, searchable shared popover, Escape/focus return, 44px narrow/coarse targets |
-| TYPE | Match: existing CCDeck typography, restrained size/weight hierarchy |
-| MATERIAL | Match: existing tokenized surfaces, borders, icons; no gradients or artificial texture |
-| Player/map/modal | Adaptation authorized by owner: add the missing workspace-stream heart; other designs preserved |
-
-Two critique/fix rounds:
-1. Rendered 1440×1000, 1100×800, 390×844, 320×568 and 1100×540.
-   Reduced row height to expose directory grouping sooner, shortened the search
-   placeholder, tuned Country shortcut breakpoint, arranged narrow filters in
-   two columns, and restored focus when a filter chip disappears.
-2. Reviewed normal/filtered recaptures at those same viewports, plus light theme.
-   Fixed contradictory directory error/empty states, maintained a valid disclosure
-   controls target while collapsed, added Home/End option navigation, and raised
-   collection-count text to the documented 11px step.
-
-Browser captures (synthetic directory fixtures): /tmp/discovery-final-{width}-{height}.png
-and /tmp/discovery-final-filtered-{width}-{height}.png; light capture:
-/tmp/discovery-final-light.png. Evidence was inspected directly, including narrow,
-short, smaller desktop, standard desktop and filtered views.
+| Coherent discovery composition | Match: restrained segmented tabs, broad search, unified Filters and visible criteria |
+| Directory immediately accessible | Match: radio-first rows; compact streams disclosure fixed below the one results scrollbar |
+| Source access under filters | Match: disclosure remains available with matching count, explanation and explicit recovery |
+| Predictable filtering/persistence | Match: retained criteria across tabs, separate resets, no automatic clearing on source disclosure |
+| Current playback discoverable | Match: player preserved; stream reveal targets current row; collapse restores directory position |
+| TYPE/MATERIAL | Match: incumbent type roles, monospaced live counts, tokenized surfaces, consistent SVG icons |
+| Scope | Match: no new source tabs, map layout or player redesign |
 
 ## ceiling
 
-Reached for the existing Operate surface: coherent compact controls, source grouping,
-clear selected states, token-based focus, deliberate density. Workspace streams
-remain collapsible to reach directory results quickly. At 320×568 with expanded
-filters, results require scrolling in the existing whole-discovery scroll container.
+Reached for the Operate surface. Two batched rendered critique/fix rounds covered
+1440×1000, 1100×800, 390×844, 320×568 and 1100×540, normal and filtered states,
+light theme and a synthetic 300-station catalogue. First fixes improved short-window
+row access, mapping copy and current-row reveal. Second fixes clarified selected
+filter values, clear-action focus and contextual Global results. Independent final
+review caught disappearing source access under metadata filters; its recaptures
+show persistent 0/Filtered access and explicit recovery with criteria intact.
+Combined country/genre/language at320×568 was also checked: a single horizontal
+criterion strip leaves at least70px for vertically scrollable results.
+
+Artifacts inspected directly: /tmp/composition-catalogue-{width}-{height}.png,
+/tmp/composition-filtered-{width}-{height}.png, /tmp/composition-filter-overview.png,
+/tmp/composition-filter-country.png, /tmp/composition-streams-filtered-open.png,
+/tmp/composition-combined-short.png and /tmp/composition-light.png.
 
 ## material_fixes
 
-None remaining. TypeScript and production build passed. 162 relevant tests passed
-across ten suites. Browser checks passed: search and clearing; combined country,
-genre and language; individual/all filter removal; retained search on filter reset;
-Favorites/Recent and filter preservation; Arrow/Home/End tabs; option Home/End;
-empty/error states; Global handled without a directory request; no invented map
-pins; shared player/row heart and stored workspace favorite; bounded popovers;
-Escape/focus restoration; desktop/mobile/short/light rendering; no page errors.
+None remaining. Final TypeScript and production build passed;185 relevant tests
+passed in13 suites (discovery/source state, aliases/favorites, theme and control
+contrast/census, shortcut gating and shared popover behavior).
 
-Playback continuity used real browser media playback with a synthetic silent WAV:
-the same audio instance kept advancing without another play call across search,
-filter changes, collection switches and empty states. YouTube Good Life reached
-Playing live and its player heart synchronized with Favorites.
+Browser checks passed: both-source search; clear search; combined filters including
+Japanese language metadata; filter removal/all reset retaining query; Global with
+no directory request and no invented pins; Favorites/Recent and Arrow/Home/End;
+source expansion/collapse and filter-exclusion recovery; current workspace favorite;
+empty/error states; long names; desktop/narrow/short/light layouts; popover bounds;
+modal-descendant popup; Escape/focus restoration; popup reset→Done; pointer search
+without keyboard ring and resumed keyboard focus; no page errors.
 
-The design detector reported only font-ramp advisories. Nine concern existing
-out-of-scope radio/player/map declarations. The new 10px tab count was corrected
-to 11px. No blocking design findings. Build retains its existing large-chunk warning.
-SSR markup tests emit the expected client-only useLayoutEffect warning; the app
-renders this modal in the browser.
+The same real browser audio instance advanced without another play call across
+search, filters, tab switches and empty states, using a synthetic silent WAV.
+Good Life source selection/favorites were exercised; captures observed Playing live.
+Directory fixtures and the300-station catalogue are synthetic, not claims that
+external directory streams were individually validated.
+
+Independent focused checks at320×568 verified Tab containment, field Back,
+outside dismissal/resize focus, current-row keyboard reveal, and450px directory
+scroll restoration. Detector findings are nine advisory legacy font-size declarations
+outside the changed discovery scale. Build retains its existing chunk-size warning.
+Manual VoiceOver/NVDA testing was not performed. Browser DOM/focus checks verify
+the corrected modal boundary, not complete assistive-technology certification.
 
 ## keep
 
-Keep playback outside discovery state, compact two-line rows, shared persistence,
-real coordinate provenance, accessible shared popovers, and no colored side stripes.
-
-## Source behavior answers
-
-| Question | Verified behavior |
-| --- | --- |
-| Does search cover both? | Yes. Directory uses the existing Radio Browser name query; workspace names/source text match locally. |
-| Do metadata filters cover streams? | Workspace streams have no country/genre/language metadata. Country excludes them except local Global streams; genre/language exclude them with an explanation. |
-| Are Favorites/Recent shared? | Yes, the same persisted ID collections hold both source types. |
-| Do counts include both? | Yes, dynamically and separately; the featured daily row is not counted twice. Unresolved IDs do not inflate the Favorites badge. |
-| Do streams appear on the map? | No. Only directory stations with real coordinates appear, including the existing current-station pin. |
-| What about missing metadata? | Missing fields do not satisfy a nonempty filter. Missing coordinates do not create map markers. |
+Keep truthful source/metadata/count provenance, shared audio and persistence,
+explicit recovery, one vertical results scrollbar, and accessible focus/contrast.
