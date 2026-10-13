@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product UI Craft"
+  short_description: "Design, implement, verify, and finish product UI"
+  default_prompt: "Use $product-ui-craft to improve this interface, verify the result, and stop when it is ready."
