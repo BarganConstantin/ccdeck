@@ -39,6 +39,13 @@ Station passport, listening statistics, song recognition and richer collections 
 
 ### Interaction refinement
 
+The discovery controls use compact search and one row of Country, Sound and
+Language filter buttons. The shared anchored popover hosts searchable, bounded
+option lists styled with the current theme. Arrow keys and Enter select options;
+Escape returns focus to the trigger without closing Radio. Language also accepts
+a typed value. Applied filters show their selected value and can be cleared
+together.
+
 The search field keeps one clear action and returns focus to typing when cleared. Mute/Unmute reserves its width, including narrow windows, to keep volume and transport controls stationary. Hover feedback applies to precise pointers; selected, playing and muted states remain persistent. Keyboard camera and playback actions respond immediately. Pointer press feedback uses short transform transitions and respects reduced motion. Discovery results retain their count above the list; the redundant limit footer is removed.
 
 

@@ -11,6 +11,7 @@ import RadioIcon, { type RadioIconName } from "./RadioIcon";
 import RadioCountryFlag from "./RadioCountryFlag";
 import RadioMap from "./RadioMap";
 import RadioLoading from "./RadioLoading";
+import RadioFilter from "./RadioFilter";
 import VolumeRow from "./VolumeRow";
 import { useModalDismiss } from "./use-modal-dismiss";
 
@@ -162,7 +163,11 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
       <section className="radio-discovery" aria-label="Station discovery">
         <div className="radio-collections" role="group" aria-label="Station collection">{[["discover", "Discover"], ["favorites", `Favorites${library.favorites.length ? ` · ${library.favorites.length}` : ""}`], ["recent", "Recent"]].map(([value, text]) => <button type="button" className="radio-collection" key={value} aria-pressed={collection === value} onClick={() => setCollection(value)}>{text}</button>)}</div>
         <div className="radio-search"><RadioIcon name="search" /><label className="vis-hidden" htmlFor="radio-search">Search stations</label><input ref={searchRef} id="radio-search" type="search" placeholder="Search station names…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" className="icon-btn" aria-label="Clear search" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><RadioIcon name="close" /></button>}</div>
-        <div className="radio-filters"><label><span className="radio-filter-label">Country</span><select value={country} onChange={event => setCountry(event.target.value)}><option value="">All countries</option><option value="GLOBAL">Global</option>{countries.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label><label><span className="radio-filter-label">Sound</span><select value={genre} onChange={event => setGenre(event.target.value)}><option value="">All sounds</option>{genres.map(value => <option key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</option>)}</select></label><label><span className="radio-filter-label">Language</span><input placeholder="Any language" value={language} onChange={event => setLanguage(event.target.value)} /></label></div>
+        <div className="radio-filters" role="group" aria-label="Station filters">
+          <RadioFilter label="Country" value={country} onChange={setCountry} options={[{ value: "", label: "All countries" }, { value: "GLOBAL", label: "Global" }, ...countries.map(([value, label]) => ({ value, label }))]} />
+          <RadioFilter label="Sound" value={genre} onChange={setGenre} options={[{ value: "", label: "All sounds" }, ...genres.map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }))]} />
+          <RadioFilter label="Language" value={language} onChange={setLanguage} allowCustom options={[{ value: "", label: "Any language" }, ...[...new Set([...library.catalogue, ...results, ...saved].flatMap(station => station.radio.language.split(",")).map(value => value.trim().toLowerCase()).filter(Boolean))].sort().map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }))]} />
+        </div>
         <div className="radio-results-heading" role="status" aria-live="polite" aria-atomic="true"><span>{loading && collection === "discover" ? "Updating stations…" : `${stations.length + visibleOwnCount} ${hasFilters ? "matching" : collection === "discover" ? "available" : collection === "favorites" ? "saved" : "recent"} stations`}</span>{hasFilters && <button type="button" className="radio-reset" onClick={resetFilters}>Clear filters</button>}</div>
         <div ref={listRef} className="radio-list" role="region" aria-label="Stations" aria-busy={loading && collection === "discover"}>
           {enabled && visibleOwnCount > 0 && <details className="radio-own" open><summary>Workspace streams <span>{visibleOwnCount}</span></summary>{ownStreams.map(source => {

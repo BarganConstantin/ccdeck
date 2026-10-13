@@ -472,7 +472,7 @@ const EXEMPT: string[] = [
   ".radio-collections .radio-collection", ".radio-controls .sm-row input",
   '.radio-controls input[type="range"]::-moz-range-thumb',
   '.radio-controls input[type="range"]::-webkit-slider-thumb',
-  ".radio-daily", ".radio-loading > .icon-btn",
+  ".radio-daily", ".radio-filter-options button", ".radio-filter-trigger", ".radio-loading > .icon-btn",
   ".radio-mobile-view .radio-view", ".radio-own summary", ".radio-own-station",
   ".radio-panel .icon-btn", ".radio-pin", ".radio-play",
   ".radio-regions .radio-region", ".radio-reset", ".radio-station-pick",
