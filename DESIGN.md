@@ -549,9 +549,15 @@ single-mode ranking for this surface; they do not redefine the global design.
   Reported failures shows up to three count-ranked lollipops, exact failed count
   and completed-outcome denominator; a separate rate appears only with ≥20
   completed outcomes. Smaller samples say “Small sample · rate not compared.”
-  Length always encodes failure count. Native SVG adds actual measurement
-  meaning; accessible button text supplies exact values and SVG geometry is
-  hidden from assistive technology. No visualization dependency is added.
+  Length and ordering always encode failure count, not rate. One pure description
+  in `src/web/tool-audit-report.ts` supplies both native title and accessible
+  button name in `ToolAuditComparison.tsx`: precise recorded milliseconds
+  (including fractions/zero), measured sample count, P95 definition/≥20 floor,
+  median/P95 rather than min/max endpoints, and exact failed/completed proportion
+  with qualified rate. Visible values and qualifications remain primary; titles
+  supplement them. Native SVG geometry is hidden from assistive technology.
+  No visualization dependency or new data-visualization skill is installed;
+  Key Findings remains omitted because it would duplicate visible leaders.
 - **Theme and responsive behavior:** existing blue usage, amber intervals, violet
   P95 and red outcomes inherit `--usage-blue`, `--warn`, `--usage-purple` and
   `--err`. Titles, exact values and endpoint shapes carry meaning beyond hue.
@@ -563,9 +569,13 @@ single-mode ranking for this surface; they do not redefine the global design.
 - **Complete explorer:** searchable, sortable exact operations table begins at
   50 rows and adds 50 per action. Desktop sortable headers stay sticky within the
   report body. Phone rows retain identity/provider, calls, associated intervals
-  and failures; median/P95 remain available in detail. Phone sorting has native
-  metric and direction controls. Explore focuses and scrolls to the complete
-  table with the corresponding descending sort; unknowns stay last both ways.
+  and failures. `ToolAuditOperations.tsx` exposes the active metric as table
+  `data-sort`; at ≤700px only sorting by median or P95 reveals that timing column,
+  grouping calls, intervals, active timing and failures in a two-by-two grid.
+  Other phone sorts retain three values; both timings remain available in detail.
+  Phone sorting has native metric and direction controls. Explore focuses and
+  scrolls to the complete table with the corresponding descending sort; unknowns
+  stay last both ways.
 - **Scope and lifecycle:** search filters charts/table, while summaries keep
   provider/period scope, explicitly stated beside searched results. Provider or
   period replaces the dataset; same-query Refresh retains the previous snapshot
@@ -599,20 +609,29 @@ single-mode ranking for this surface; they do not redefine the global design.
   11px at ≤360px). These are Tool Activity role exceptions, not global scale
   additions. The existing detector recorded 19 local typography advisories and
   zero nonadvisory findings. Preserve 44px coarse-pointer main actions, visible
-  focus and forced-color marks; keyboard/reduced-motion entry is immediate,
-  otherwise the inherited entrance is 200ms. Reduced motion disables refresh
+  focus and forced-color marks. Table rows use the existing hover background on
+  `:focus-within`, preserving the focus-visible outline. No type values changed.
+  Keyboard/reduced-motion entry is immediate; otherwise the inherited entrance
+  is 200ms. Reduced motion disables refresh
   and loading rotation.
-- **Verified finish:** two bounded rendered passes complete; independent
-  [finish review](.impeccable/review/tool-activity-premium/finish-review.md) returns
-  **SHIP**, with no material fixes. Existing results record 226 tests/eight suites,
-  successful typecheck/build, six Brave sizes, nine themes, computed report text
-  ≥4.5:1 and nonzero marks ≥3:1. Live Codex API snapshot: 1,466 observed/measured
-  calls, 105 operations, 13 reported failures; the earlier capture has 1,465 timed
-  calls and an explicit denominator beneath rounded 100% coverage. Counts are
-  snapshot evidence. Native Windows/Linux, Firefox/Safari, live Claude,
-  screen-reader usability and formal comprehension study remain unverified.
-  The inherited large-chunk warning remains. This documentation handoff reruns
-  neither context/QA nor detector and authorizes no merge or publication.
+- **Verified finish:** final quality refinement completed two bounded rendered
+  passes; fresh independent file-only
+  [finish review](.impeccable/review/tool-activity-final/finish-review.md), using
+  the installed Impeccable fallback, returns
+  **SHIP**, with no material fixes. Existing final results record 229 tests/eight
+  suites, successful typecheck/build, six Brave sizes and nine themes, computed
+  report text ≥4.5:1 and actual chart marks ≥3:1. Added assertions check precise
+  title/accessibility descriptions, visible phone median/P95 sort values and
+  sticky-header geometry with 100 visible rows from 210 operation types.
+  Live Codex API snapshot: 1,581 observed/measured calls, 105 operations and
+  14 reported failures; counts are changing snapshot evidence. Final captures
+  live in `.impeccable/review/tool-activity-final/`; individual viewport images
+  establish layout, while the complete scroll stitch establishes continuity.
+  One final detector pass recorded 19 unchanged local typography advisories and
+  zero nonadvisory findings. Native Windows/Linux, Firefox/Safari, live Claude,
+  screen-reader usability/certification and formal comprehension study remain
+  unverified. The inherited large-chunk warning remains. This documentation
+  handoff reruns neither context/QA nor detector and authorizes no publication.
 
 ### Canvas objects
 

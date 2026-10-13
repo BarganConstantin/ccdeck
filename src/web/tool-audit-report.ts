@@ -1,10 +1,22 @@
-import { auditMetricValue, sortAuditRows, type AuditMetric, type AuditRow } from './tool-audit';
+import { auditMetricValue, auditMetricText, auditMetrics, sortAuditRows, type AuditMetric, type AuditRow } from './tool-audit';
 
 export const reportMetrics = ['calls', 'totalMs', 'p95Ms', 'failed'] as const;
 export type ReportMetric = typeof reportMetrics[number];
 export const reportLabels: Record<ReportMetric, string> = {
   calls: 'Most used', totalMs: 'Most measured time', p95Ms: 'Slowest P95', failed: 'Reported failures',
 };
+
+/** Exact recorded milliseconds supplement the compact chart display, never inferred timing. */
+export const reportExactInterval = (value: number | null) => value === null ? 'not measured' : `${value.toLocaleString(undefined, { maximumFractionDigits: 20 })} milliseconds`;
+export function reportComparisonDescription(row: AuditRow, metric: ReportMetric) {
+  const value = auditMetricValue(row, metric);
+  const measurements = metric === 'p95Ms'
+    ? `Median ${reportExactInterval(row.medianMs)}; P95 ${reportExactInterval(value)}; ${row.measured.toLocaleString()} measured containing calls. Endpoints are median and P95, not minimum and maximum.`
+    : metric === 'failed'
+      ? `${row.failed.toLocaleString()} reported failed containing calls / ${row.completed.toLocaleString()} completed outcomes. Ranked by failure count, not rate. ${auditMetricValue(row, 'errorRate') === null ? 'Small sample; rate not compared.' : `Reported failure rate ${auditMetricText(row.errorRate, 'errorRate')}.`}`
+      : `${auditMetricText(value, metric)} ${auditMetrics[metric].unit}.`;
+  return `${row.operation}. ${measurements} ${auditMetrics[metric].note}`;
+}
 
 /** Rank only measured/eligible evidence; zero is measured, not missing. */
 export function reportComparison(rows: AuditRow[], metric: ReportMetric, search: string, limit = 6) {

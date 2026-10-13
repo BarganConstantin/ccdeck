@@ -119,3 +119,79 @@ the scoped DESIGN/surface record was then updated from the built implementation.
 This is implementation sign-off at the stated evidence scope, not permission
 to merge or deploy. PR #2125 remains draft for owner preview review.
 Review: `.impeccable/review/tool-activity-premium/finish-review.md`.
+
+
+## Final quality refinement — architecture preserved
+
+Product UI Craft final gate / Impeccable polish retains Direction A. The optional
+`ccdeck-data-viz` skill was not found in the installed skill roots or worktree;
+existing UI skills, verified contract and prior primary-source chart research
+remain the authority. No new collectors, aggregation, dependencies or charts.
+
+Bounded findings and changes:
+- Narrow rows hid median/P95 even while that metric determined the sort. The
+  active timing column now remains visible, with a compact two-by-two numeric
+  grid only for those phone sorts; default density is unchanged.
+- Compact display intentionally rounds intervals. Native tooltip and accessible
+  operation name now supplement it with precise recorded milliseconds, sample
+  counts, percentile definition and the distinction from min/max endpoints.
+  Null remains unavailable and zero remains measured; no inferred values.
+- Failure comparison now explicitly names completed outcomes and provides its
+  exact failed numerator/denominator in tooltip and accessible name. Count
+  ranking remains distinct from the separately qualified rate; tiny rates are
+  not promoted. Keyboard-focused table rows also receive the existing hover
+  surface, while their focus-visible outline remains.
+- P95 shared linear scale, hollow median/solid P95 shapes and exact visible
+  measurements work for close, equal/zero and separated values. No added axes
+  or chart controls were justified. Key Findings would repeat visible leaders
+  and remains omitted.
+- Requested period (control and disclosure), observed start endpoints (coverage)
+  and snapshot timestamp (header/disclosure) retain separate labels. Membership,
+  overlap, source-clock and containing-call outcome qualifications remain.
+
+Rendered pass one exposed an orphaned failure cell when the phone timing column
+was revealed. The second batch groups four values into two columns and confirms
+identical states. A sticky-header check initially used a short table which could
+not scroll far enough to activate sticking; the corrected test uses100 visible
+rows from210 operation types and verifies actual header position at deep scroll.
+This test correction is not a discovered application sticky-header defect.
+
+Before: `.impeccable/review/tool-activity-premium/final-*`.
+After: `.impeccable/review/tool-activity-final/final-*`.
+Final executed checks and independent finish disposition follow below.
+
+
+### Final refinement executed checks
+
+- 229 tests across eight suites passed: exact fractional/zero/missing interval
+  descriptions, P95 definition/sample qualifications, failure count/denominator
+  and tiny-sample rate guards supplement the existing chart/data contracts.
+- TypeScript and production build passed; no dependency change. The existing
+  large-chunk warning remains.
+- Brave fixture passes at1440×900,1280×800,1024×768,800×600,390×844,320×568;
+  all nine themes retain computed text>=4.5:1 and actual chart marks>=3:1.
+  Added assertions verify precise tooltip/accessibility text, visible phone
+  median/P95 sorting values and actual sticky header geometry with100 rows.
+  Existing search/filter/refresh/focus/selection/210-type paging, zero/missing,
+  no-failure/tiny-sample/empty/unavailable/partial states, reduced motion and
+ 125% zoom checks also passed.
+- Separate live read-only Codex pass:1,581 observed/measured calls,105 operations,
+ 14 reported failures at API-read time. Counts change as collection continues;
+  this is not a static screenshot expectation. Keyboard/resize/selected refresh,
+  nonadditive memberships, partial history and theme-placeholder checks passed.
+- One detector pass:19 unchanged local typography advisories, no nonadvisory
+  findings. Scope-specific type decisions are already documented.
+- Evidence `.impeccable/review/tool-activity-final/final-*`; complete image is a
+  stitch of captured body scroll slices plus original header. Use individual
+  viewport screenshots for layout and scrolling judgment.
+
+Limits: no live Claude stream, native Windows/Linux, Safari/Firefox,
+screen-reader certification or formal comprehension participants. Automated
+keyboard/contrast tests do not certify full accessibility. Independent final
+review and scoped documentation handoff follow; no merge/deployment authorized.
+
+Fresh independent file-only finish review, using the installed Impeccable
+finish-reviewer fallback, returned **disposition: ship** with no material fixes.
+It opened all25 required individual captures and the conceptual reference;
+review evidence is `tool-activity-final/finish-review.md`. This scoped verdict
+does not authorize merge/deployment or certify untested platforms.

@@ -65,28 +65,43 @@ not an executed participant study.
   under identity so long phone labels wrap coherently. Violet (`--usage-purple`)
   distinguishes the question. Endpoints are not min/max or a full distribution.
   Missing median is not synthesized; equal/zero endpoints stay visible. P95 needs
-  ≥20 valid measured calls; unknown values never become zero.
+  ≥20 valid measured calls; unknown values never become zero. The pure comparison
+  description in `src/web/tool-audit-report.ts` preserves precise recorded
+  milliseconds (including fractions/zero), measured sample count, the P95
+  definition/sample floor and named median/P95 endpoints.
+  `ToolAuditComparison.tsx` reuses it for native title and accessible button name;
+  compact visible interval labels remain rounded without inventing measurements.
 - **Reported failures:** up to three leaders ordered and sized by failed
   containing-call count. Red (`--err`) count lollipops retain exact count and
   completed-outcome denominator. Separate rate text requires ≥20 completed
   outcomes; smaller samples say “Small sample · rate not compared.” No rate-length
   encoding, rate ranking or confidence claim. Shared containing-call outcomes
-  remain explicitly qualified.
+  remain explicitly qualified. Visible values name completed outcomes; the same
+  title/accessibility description states exact failed/completed proportion,
+  count ranking rather than rate, and the qualified rate or small-sample guard.
 - **Visualization choice:** retain magnitude bars and use native responsive SVG
   where a second measured endpoint or count endpoint earns its geometry. Exact
   accessible button labels carry all measurements; decorative SVG is hidden from
   assistive technology. The feature contract records FT Visual Vocabulary and
   Datawrapper guidance, and evaluation of Recharts/visx. Neither library is added:
   these small plots do not remove filtering, focus or semantic complexity. No
-  invented Key Findings, distribution or provider-performance claim is added.
+  new data-visualization skill was installed; the optional `ccdeck-data-viz` skill
+  was not found in installed roots/worktree. Key Findings remains omitted because
+  it would duplicate visible chart leaders; no distribution or provider-performance
+  claim is added.
 - **All operations:** exact desktop table contains identity/provider, calls,
   associated intervals, median, P95 and failures. Fifty rows initially; Show 50
   more adds fifty. Sortable headers stay sticky within the report scroll; unknown
   metrics stay last ascending or descending, with stable identity ties. Explore
   focuses/scrolls to the table and selects its corresponding descending sort.
-  Phone rows retain identity/provider and calls/intervals/failures; median/P95 are
-  available in the drawer. Native phone metric and direction controls preserve
-  sorting after desktop headers disappear.
+  Phone rows retain identity/provider and calls/intervals/failures. The table
+  `data-sort` in `ToolAuditOperations.tsx` lets the ≤700px rules reveal median
+  only for median sorting, or P95 only for P95 sorting. Those rows arrange four
+  values—calls, intervals, active timing and failures—in a two-by-two grid. Other
+  sorts keep the three-value density; both timings remain available in the drawer.
+  Native phone metric and direction controls preserve sorting after desktop
+  headers disappear. Keyboard-focused rows receive the existing hover background
+  through `:focus-within`, keeping the focus-visible outline.
 - **Responsive layout:** two desktop chart columns place frequency/time above
   smaller tail/failure evidence. At ≤700px analyses stack, filters occupy two
   columns with full-width search, summary retains three compact columns and
@@ -174,54 +189,69 @@ to the global type ramp or permission to reuse hero steps on other surfaces.
 System sans remains the UI voice; mono identities/exact measurements and tabular
 numbers keep the instrument character. Larger sans summary values establish glance
 priority; compact sample/axis roles support dense evidence. The existing single
-premium detector output `/tmp/ccdeck-premium-detector.json` contains **19 local
-typography advisories and zero nonadvisory findings**. This records their narrow
-intentional roles; the detector has not been rerun or claimed cleared.
+premium detector output `/tmp/ccdeck-premium-detector.json` recorded **19 local
+typography advisories and zero nonadvisory findings**. The single final refinement
+detector pass recorded the same 19 advisories and zero nonadvisory findings; no
+new type values were introduced. Preserve these narrow intentional roles. This
+documentation handoff does not rerun the detector or claim its advisories cleared.
 
 ## Verified finish and evidence
 
-The fresh independent [finish review](../review/tool-activity-premium/finish-review.md)
-returns **disposition: ship**, with **no material fixes** at the premium visual
-implementation gate. The parent's two bounded rendered passes are complete:
-first added actual endpoint/outcome context; second resolved the 320px timed-sample
-wrap. The review requires this scoped persistence update, not another polish pass.
+The fresh independent [final finish review](../review/tool-activity-final/finish-review.md),
+using the installed Impeccable finish-reviewer fallback, returns
+**disposition: ship**, with **no material fixes**. It was a fresh file-only review
+of all 25 required captures and the conceptual reference, using existing source
+and validation evidence. It does not independently recertify browser measurements.
+The two bounded final rendered passes are complete: first exposed an orphaned
+failure cell after revealing the phone timing column; second grouped all four
+values into two columns and confirmed identical states. The corrected sticky
+check uses 100 visible rows from 210 operation types; the initial short table
+could not activate sticking, which was a test limitation, not an application defect.
 
-Existing [premium executed validation](../../docs/features/tool-activity-report.md#premium-executed-validation)
-records:
+Existing [final executed checks](../../docs/features/tool-activity-report.md#final-refinement-executed-checks)
+record:
 
-- **226 tests across eight suites passed**, including scale/null/zero/endpoints,
-  eligibility/ordering, aggregation/privacy, watcher, portal/focus and theme checks.
+- **229 tests across eight suites passed**, including precise fractional/zero/null
+  interval descriptions, P95 definition/sample qualifications, failure numerator/
+  denominator and tiny-sample rate guards alongside existing chart/data contracts.
   TypeScript and production build passed; inherited large main/HLS chunk warning
-  remains. Dependencies are unchanged.
+  remains. No dependencies or backend behavior changed.
 - Brave fixtures passed at **1440×900, 1280×800, 1024×768, 800×600, 390×844 and
-  320×568**, with nine-theme checks, 125% zoom, keyboard traps/restoration,
+  320×568**, with all nine themes, 125% zoom, keyboard traps/restoration,
   reduced motion, sorting/search/provider/custom period, refresh coalescing and
   retained snapshot, selected detail, resize and dense 210-type paging. Computed
-  visible report text met **≥4.5:1**; nonzero marks across all four sections,
-  including SVG endpoints/lollipops, met **≥3:1**. This is scoped measured evidence,
-  not every theme at every viewport or full accessibility certification.
+  visible report text met **≥4.5:1**; actual chart marks across all four sections,
+  including SVG endpoints/lollipops, met **≥3:1**. New assertions verify precise
+  tooltip/accessibility text, visible phone median/P95 sorting values and actual
+  sticky-header geometry with 100 rows. This is scoped measured evidence, not
+  every theme at every viewport or full accessibility certification.
 - Sparse/missing/no-failures/zero/empty/unavailable/partial/no-search-match/tiny
-  failure samples were rendered with truthful states.
-- Read-only live Codex API snapshot: **1,466 observed starts, 1,466 measured calls,
-  105 operation identities and 13 reported failures**. Sanitized detail,
-  selected-refresh, resize/focus restoration, console and nine-theme placeholder
-  checks passed. The overview capture precedes the API read: 1,465 / 1,466 timed
-  calls accompanies rounded 100% coverage. These are changing snapshots, not
-  permanent expectations or complete requested history.
+  failure samples retain truthful rendered states.
+- Read-only live Codex API snapshot: **1,581 observed/measured calls,
+  105 operation identities and 14 reported failures**. Keyboard, resize,
+  selected-refresh, nonadditive memberships, partial history and nine-theme
+  placeholder checks passed. Counts change as collection continues; they are
+  snapshots, not permanent expectations or complete requested history.
+- One final detector pass recorded **19 unchanged local typography advisories
+  and zero nonadvisory findings**. Existing narrow exceptions remain; no new
+  type values, source edits or QA/detector reruns accompany this handoff.
 
-Required rendered captures were read for this handoff:
+Premium captures and their 226-test / 1,466-call validation remain historical
+baseline evidence in the feature contract and
+[prior review](../review/tool-activity-premium/finish-review.md).
+Current final captures were opened individually for this documentation handoff:
 
-- [Desktop overview, 1440×900](../review/tool-activity-premium/final-overview-1440-900.png)
-- [Desktop secondary comparisons, 1440×900](../review/tool-activity-premium/final-secondary-1440-900.png)
-- [Phone secondary comparisons, 320×568](../review/tool-activity-premium/final-secondary-320-568.png)
-- [Light theme, 1280×800](../review/tool-activity-premium/final-theme-light-1280-800.png)
-- [Actual Codex overview, 1440px](../review/tool-activity-premium/final-live-overview-1440.png)
-- [Phone contextual detail, 320×568](../review/tool-activity-premium/final-details-320-568.png)
+- [Phone P95 sort, 320×568](../review/tool-activity-final/final-sorted-p95Ms-320-568.png)
+- [Desktop secondary comparisons, 1280×800](../review/tool-activity-final/final-secondary-1280-800.png)
+- [Light theme, 1280×800](../review/tool-activity-final/final-theme-light-1280-800.png)
+- [Phone contextual detail, 390×844](../review/tool-activity-final/final-details-390-844.png)
 
 Secondary/operations captures are scrolled sections; drawer captures show
 contextual evidence. The complete live report is a body-scroll stitch, useful for
-continuity only; individual viewport captures establish layout. Synthetic fixture
-screenshots are separate from collector history.
+continuity only; individual viewport captures establish layout and scrolling.
+Synthetic fixture screenshots are separate from collector history. Native titles
+supplement visible values/qualifications; their presence does not establish touch
+or screen-reader usability.
 
 Native Windows/Linux execution, Firefox/Safari, live Claude hook collection,
 screen-reader usability/certification and formal comprehension research remain

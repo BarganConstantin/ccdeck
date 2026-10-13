@@ -1,6 +1,6 @@
 // Read-only live report QA. Playwright stays in the external harness.
 const {chromium}=require('playwright');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
-const out=path.resolve(__dirname,'../.impeccable/review/tool-activity-premium');
+const out=path.resolve(process.env.CCDECK_QA_OUTPUT||require('node:path').resolve(__dirname,'../.impeccable/review/tool-activity-premium'));
 (async()=>{const browser=await chromium.launch({executablePath:process.env.CCDECK_QA_BROWSER||'/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',headless:true});try{
  const page=await browser.newPage({viewport:{width:1440,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{for(const[k,v]of Object.entries({usagePanelOpen:'0',machinePanelOpen:'0',accountsPanelOpen:'0',sessionListOpen:'0',tourSeen:'1',releaseNotesSeen:'3.40.2',theme:'rider-black'}))localStorage.setItem('agent-dag.'+k,v)});

@@ -123,7 +123,7 @@ interface, not accessibility certification or permission to merge.
 The verified measurement audit is recorded in `tool-explorer-design.md`.
 Earlier visual iterations are historical; the selected full report and premium
 refinement, current screenshot evidence and actual validation are recorded in
-`tool-activity-report.md`. Current checks:226 tests across eight suites,
+`tool-activity-report.md`. Current checks:229 tests across eight suites,
 TypeScript and production build, six requested Brave viewport sizes and all
 nine themes. Separate live Codex integration was exercised; live Claude,
 native Windows/Linux, Safari/Firefox and screen-reader certification remain
@@ -132,7 +132,9 @@ unverified. No new visualization dependency or collector change was introduced.
 Manual browser runners: `scripts/qa-tool-explorer.cjs` uses intercepted,
 deterministic fixtures; `scripts/qa-tool-explorer-a11y.cjs` reads the live preview.
 Both require Playwright in the test environment and accept `CCDECK_QA_URL` and
-optional `CCDECK_QA_BROWSER`. No browser test dependency is added to production.
+optional `CCDECK_QA_BROWSER`. Set `CCDECK_QA_OUTPUT` to preserve a separate
+screenshot directory for each review; `QA_PASS` names the capture batch.
+No browser test dependency is added to production.
 The live runner requires recorded `git status` calls. After the last local CSS
 corrections, placeholder contrast exceeds 4.5:1 and ranking fill/track contrast
 exceeds 3:1 in every theme. Resize preserves the selected inspector.

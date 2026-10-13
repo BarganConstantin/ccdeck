@@ -82,6 +82,7 @@
 .ta-table-operation { display: grid; gap: 4px; padding: 0; min-height: 36px; color: var(--text); background: transparent; border: 0; text-align: left; cursor: pointer; width: 100%; }
 .ta-table-provider { font-size: 10px; color: var(--text-secondary); }
 .ta-operation-table tbody tr:hover, .ta-operation-table tr[data-selected] { background: var(--ctl-fill); }
+.ta-operation-table tbody tr:focus-within { background: var(--ctl-fill); }
 .ta-operation-table tr[data-selected] .ta-operation-name { text-decoration: underline; text-underline-offset: 4px; }
 .ta-explorer-footer { display: flex; align-items: center; justify-content: space-between; color: var(--text-secondary); font-size: 11px; min-height: 58px; }
 .ta-report-footer { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; font-size: 11px; color: var(--text-secondary); line-height: 1.6; }
@@ -174,6 +175,8 @@
   .ta-operation-table th { border: 0; }
   .ta-operation-table td::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--text-secondary); font: 10px var(--font-mono); }
   .ta-operation-table td[data-column=medianMs], .ta-operation-table td[data-column=p95Ms] { display: none; }
+  .ta-operation-table[data-sort=medianMs] tr, .ta-operation-table[data-sort=p95Ms] tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ta-operation-table[data-sort=medianMs] td[data-column=medianMs], .ta-operation-table[data-sort=p95Ms] td[data-column=p95Ms] { display: block; }
   .ta-table-operation { min-height: 44px; }
   .ta-drawer .ta-inspector { padding: 20px; }
 }

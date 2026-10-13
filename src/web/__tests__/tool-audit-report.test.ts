@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reportComparison, reportOperations, reportIntervalScale, reportIntervalPosition } from '../tool-audit-report';
+import { reportComparison, reportComparisonDescription, reportExactInterval, reportOperations, reportIntervalScale, reportIntervalPosition } from '../tool-audit-report';
 import type { AuditRow } from '../tool-audit';
 const row = (operation: string, extra: Partial<AuditRow> = {}): AuditRow => ({
   operation, calls: 20, completed: 20, failed: 0, errorRate: 0, measured: 20,
@@ -59,5 +59,30 @@ describe('median-to-P95 shared scale', () => {
     expect(reportIntervalPosition(120, 1000)).toBe(12);
     expect(reportIntervalScale(0).ceiling).toBe(1);
     expect(reportIntervalScale(120).unit).toBe('milliseconds');
+  });
+});
+
+
+describe('accessible exact chart evidence', () => {
+  it('preserves fractional milliseconds and missing versus zero', () => {
+    expect(reportExactInterval(100.5)).toBe(`${(100.5).toLocaleString()} milliseconds`);
+    expect(reportExactInterval(0)).toBe('0 milliseconds');
+    expect(reportExactInterval(null)).toBe('not measured');
+  });
+  it('explains precise P95 endpoints, sample size and containing-call semantics', () => {
+    const text = reportComparisonDescription(row('git status', { medianMs: 100.5, p95Ms: 9055 }), 'p95Ms');
+    expect(text).toContain(`Median ${reportExactInterval(100.5)}; P95 ${reportExactInterval(9055)}`);
+    expect(text).toContain('20 measured containing calls');
+    expect(text).toContain('not minimum and maximum');
+    expect(text).toContain('95%');
+    expect(reportComparisonDescription(row('unknown', { medianMs: null, measured: 19, p95Ms: 9000 }), 'p95Ms')).toContain('P95 not measured');
+  });
+  it('states count ranking and completed denominator without promoting tiny rates', () => {
+    const tiny = reportComparisonDescription(row('rare', { completed: 2, failed: 1, errorRate: .5 }), 'failed');
+    expect(tiny).toContain('1 reported failed containing calls / 2 completed outcomes');
+    expect(tiny).toContain('Ranked by failure count, not rate');
+    expect(tiny).toContain('Small sample');
+    expect(tiny).not.toContain('50%');
+    expect(reportComparisonDescription(row('eligible', { failed: 1, errorRate: .05 }), 'failed')).toContain('Reported failure rate 5%');
   });
 });

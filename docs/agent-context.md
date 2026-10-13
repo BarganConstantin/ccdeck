@@ -21,10 +21,11 @@ branches still have the same state. Verify them at the start of a new session.
   One report scroll, on-demand focus-protected evidence drawer, sortable
   operations table (50-row increments), no scatter plot or new dependency.
   Collector semantics unchanged; search scopes charts/table, not call summary.
-  226 tests across eight suites, typecheck/build, six-size/nine-theme Brave
+  229 tests across eight suites, typecheck/build, six-size/nine-theme Brave
   regression checks passed. Read-only live Codex data was checked separately.
-  Premium independent finish verdict: ship, no material fixes; evidence and limits in
-  `.impeccable/review/tool-activity-premium/`.
+  Final refinement adds precise accessible chart descriptions and visible
+  median/P95 values when sorting on phones. Independent file-only finish review: ship, no material fixes;
+  evidence and limits in `.impeccable/review/tool-activity-final/`.
   PR #2125 remains draft; owner preview review pending, no merge/deployment.
 
 ## Usage insights preview on Mac — 2026-10-13
