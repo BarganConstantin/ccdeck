@@ -306,7 +306,7 @@ describe("the LAN routes carry the same class of secret as the roster", () => {
 // roster route above is guarded for; the other four are the user's own usage,
 // spend and account-switch state. Every caller is the deck's own page.
 describe("the usage panel's reads are the user's own, not the machine's", () => {
-  const USAGE = ["/api/codex-quota", "/api/quota", "/api/codex-usage", "/api/ccusage", "/api/ccusage/session", "/api/cswap-auto"];
+  const USAGE = ["/api/codex-quota", "/api/quota", "/api/quota/history", "/api/codex-usage", "/api/ccusage", "/api/ccusage/session", "/api/cswap-auto"];
 
   it("lists each of them with the other guarded reads", () => {
     for (const path of USAGE) expect(GUARDED_READS.has(path), path).toBe(true);

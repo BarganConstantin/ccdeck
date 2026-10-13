@@ -1,0 +1,46 @@
+/* Usage histories share the existing report shell and measurement palette. */
+.modal.qh-modal { width: min(640px, 94vw); color: var(--text); }
+.qh-modal .modal-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.qh-header-actions { display: flex; gap: 8px; margin-left: auto; }
+.qh-body { gap: 16px; font-size: 12px; }
+.qh-body > * { flex: none; }
+.qh-controls { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.qh-providers { display: flex; gap: 4px; }
+.qh-providers button, .up-history-actions button { font: inherit; color: var(--text-dim); background: transparent; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 10px; cursor: pointer; min-height: 28px; }
+.qh-providers button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--ctl-fill); }
+.qh-providers button:hover, .up-history-actions button:hover { color: var(--text); background: var(--ctl-fill); }
+.qh-window { display: grid; gap: 6px; min-width: 0; max-width: 100%; color: var(--text-dim); }
+.qh-window select { min-width: 0; max-width: 100%; font: inherit; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 8px; }
+.qh-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding-top: 4px; }
+.qh-summary strong { font-weight: 600; font-size: 22px; font-variant-numeric: tabular-nums; }
+.qh-summary > span { color: var(--text-dim); font-size: 11px; }
+.qh-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.qh-chart-wrap { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px 8px; padding-block: 6px; }
+.qh-axis { display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-dim); font: 11px var(--font-mono); }
+.qh-axis span:first-child { transform: translateY(-50%); }
+.qh-axis span:last-child { transform: translateY(50%); }
+.qh-times { grid-column: 2; display: flex; justify-content: space-between; gap: 8px; color: var(--text-dim); font: 11px var(--font-mono); }
+.qh-grid { stroke: var(--line); stroke-width: 1; }
+.qh-guide { stroke: var(--text-dim); stroke-width: 1; stroke-dasharray: 4 5; fill: none; }
+.qh-observed { stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; fill: none; }
+.qh-point { fill: var(--accent); }
+.qh-legend { display: flex; gap: 8px 20px; flex-wrap: wrap; font-size: 11px; color: var(--text-dim); }
+.qh-legend > span { display: inline-flex; align-items: center; gap: 8px; }
+.qh-key { width: 18px; border-top: 2px solid var(--accent); }
+.qh-key-guide { border-top: 1px dashed var(--text-dim); }
+.qh-note { margin: 0; color: var(--text-dim); line-height: 1.6; font-size: 11px; }
+.qh-message { margin: 0; padding-block: 20px; line-height: 1.6; color: var(--text-dim); }
+.qh-footer { padding-top: 12px; border-top: 1px solid var(--line); }
+.qh-readings summary { padding-block: 6px; width: fit-content; cursor: pointer; color: var(--text-dim); }
+.qh-readings table { width: 100%; border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.qh-readings caption { text-align: left; color: var(--text-dim); padding-block: 8px; font-size: 11px; }
+.qh-readings th, .qh-readings td { padding-block: 6px; text-align: left; border-bottom: 1px solid var(--line); font-weight: 400; }
+.qh-readings th { color: var(--text-dim); }
+.qh-readings th:last-child, .qh-readings td:last-child { text-align: right; }
+.up-history-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px var(--panel-inset); font-size: 11px; }
+.up-history-actions button { flex: 1; }
+.up-source { margin: -4px var(--panel-inset) 12px; font-size: 11px; color: var(--text-dim); line-height: 1.6; }
+@media (max-width: 420px) {
+  .qh-controls { display: grid; gap: 12px; }
+  .qh-window { width: 100%; }
+}

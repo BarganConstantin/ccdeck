@@ -447,6 +447,7 @@ export const GUARDED_READS = new Set([
   // this answer (codex-quota.mjs), which is the account identity the roster
   // route above is guarded for.
   "/api/codex-quota",
+  "/api/quota/history",
   // And the rest of the usage panel, by the rule /api/account-projects is here
   // under: the active account's quota windows, Claude's spend by day and by
   // session, Codex's token spend, and the auto-switch settings with the last

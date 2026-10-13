@@ -29,6 +29,9 @@
 .su-tokens dd { margin: 0; text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .su-share { display: block; color: var(--text-dim); font-size: 11px; margin-top: 2px; }
 .su-reasoning { margin-top: 12px; font-size: 11px; }
+.su-cache-reuse { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 12px; }
+.su-cache-reuse strong { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.su-cache-reuse .su-note { flex-basis: 100%; font-size: 11px; }
 .su-models { padding-top: 16px; border-top: 1px solid var(--line); }
 .su-models .su-section-head { margin-bottom: 4px; }
 .su-models table { width: 100%; border-collapse: collapse; table-layout: fixed; }

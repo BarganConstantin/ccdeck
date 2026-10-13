@@ -289,7 +289,8 @@ describe("the deck's ten overlays", () => {
     // The twenty-fourth is Settings, behind the gear and Cmd/Ctrl+,. The
     // Appearance modal it replaced was never counted here: its backdrop wore
     // two classes, which the sweep's one-class pattern does not match.
-    expect(MODALS.length).toBe(26);
+    // Quota history (#2121) shares the same trap and named close focus.
+    expect(MODALS.length).toBe(27);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -362,6 +363,7 @@ describe("the deck's ten overlays", () => {
       // A dialog whose chunk did not arrive names Reload, the one press that
       // brings the dialog back; Close is beside it and Escape still closes.
       "LazyDialog.tsx",
+      "QuotaHistoryModal.tsx",
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.

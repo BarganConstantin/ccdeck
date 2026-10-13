@@ -25,6 +25,7 @@ import UsageModelTable from "./UsageModelTable";
 import UsagePeriodStrip from "./UsagePeriodStrip";
 import UsageSessionBreakdown from "./UsageSessionBreakdown";
 import SessionUsageModal from "./SessionUsageModal";
+import QuotaHistoryModal from "./QuotaHistoryModal";
 import type { SessionSelection } from "../session-usage";
 import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
@@ -72,15 +73,17 @@ interface Props {
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   onClose: () => void;
+  onOpenCostHistory: () => void;
 }
 
-export default function UsagePanel({ state, now, providers, incidents = [], leaving, onClose, liveSince = null }: Props & {
+export default function UsagePanel({ state, now, providers, incidents = [], leaving, onClose, onOpenCostHistory, liveSince = null }: Props & {
   /** When the stream's replay landed, or null while there is none — see App.tsx.
    *  The $/min counts only from here (#821). */
   liveSince?: number | null;
 }) {
   const singleKeys = useSingleKeyShortcuts();
   const [inspectedSession, setInspectedSession] = useState<SessionSelection | null>(null);
+  const [quotaHistoryOpen, setQuotaHistoryOpen] = useState(false);
   const boardProviders = useMemo(() => new Map(
     [...state.agents.values()].filter(agent => agent.kind === "root")
       .map(agent => [agent.sessionId, agent.provider ?? "claude"]),
@@ -364,6 +367,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               under ccusage, and the panel is silently the old panel when
               ccusage is absent rather than showing three chips that all mean
               the same thing. */}
+      <div className="up-history-actions">
+        {(providers.claude || providers.codex) && <button type="button" onClick={() => setQuotaHistoryOpen(true)}>Quota history</button>}
+        <button type="button" onClick={onOpenCostHistory}>Cost history</button>
+      </div>
       {fromRange && <UsagePeriodStrip period={period} rangePending={rangePending} setPeriod={setPeriod} />}
 
       {totalTokenSum > 0 ? (
@@ -385,6 +392,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
                 <span className="up-total-value">{fmtCost(shownCost)}</span>
                 <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
               </div>
+              <p className="up-source">Local estimate · {fromRange ? "ccusage" : "live sessions"}</p>
               {/* NO BAR OVER A ccusage HEADLINE, and it is not an omission.
                   The bar splits a total across input / output / cache, and
                   ccusage publishes one cost per model rather than that split —
@@ -499,6 +507,8 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       <div className="film-foot"><FilmLink film="usage" /></div>
       {inspectedSession && <SessionUsageModal key={`${inspectedSession.agent}:${inspectedSession.sessionId}`}
         session={inspectedSession} onClose={() => setInspectedSession(null)} />}
+      {quotaHistoryOpen && <QuotaHistoryModal providers={providers}
+        accounts={{ claude: quota?.historyAccount, codex: codexQuota?.historyAccount }} onClose={() => setQuotaHistoryOpen(false)} />}
     </aside>
   );
 }
