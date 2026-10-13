@@ -15,12 +15,13 @@ branches still have the same state. Verify them at the start of a new session.
 - Concrete shell operations are grouped without arguments. Shared wrapper and
   compound timing describes the containing call, not independent inner work.
 - Implementation and verification: `docs/features/tool-audit.md`.
-  Current visual iteration: `docs/features/tool-explorer-iteration-three.md`;
-  primary frequency/median-or-P95 relationship map, exact seven-metric rankings,
-  connected on-demand inspector and Map/Operations phone views. Shared intervals
-  are qualified; proximity groups preserve exact members without jitter.
-  227 relevant tests, typecheck/build, six-size map QA and five-size/nine-theme
-  regression checks pass. PR #2125 remains draft; no merge or deployment.
+  Current visual iteration: `docs/features/tool-explorer-simplicity.md`;
+  one four-mode bar ranking, top eight operations, View all and on-demand
+  inspector. The scatter/map implementation and its unused helpers/tests were
+  removed. Desktop metric buttons become one native phone selector; coverage,
+  freshness and definitions share a disclosure. Collector semantics unchanged.
+  217 relevant tests, typecheck/build, six-size/nine-theme regression checks pass.
+  PR #2125 remains draft; no merge or deployment.
   Independent scoped finish verdict: ship. PR #2125 remains draft;
   owner preview review pending, no merge into development yet.
 

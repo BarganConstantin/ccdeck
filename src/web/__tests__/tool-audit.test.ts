@@ -170,6 +170,7 @@ describe('explorer measurement scopes', () => {
     expect(sortAuditRows(rows, 'calls', '')[0].operation).toBe('rg');
     expect(sortAuditRows(rows, 'totalMs', '')[0].operation).toBe('build');
     expect(sortAuditRows(rows, 'p95Ms', '')[0].operation).toBe('tail');
+    expect(sortAuditRows(rows, 'failed', '')[0].operation).toBe('build');
     expect(sortAuditRows(rows, 'medianMs', '')[0].operation).toBe('build');
     expect(sortAuditRows(rows, 'errorRate', '')[0].operation).toBe('tail');
     expect(auditMetricValue(rows[1], 'errorRate')).toBeNull();

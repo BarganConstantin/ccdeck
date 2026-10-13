@@ -1,5 +1,9 @@
 # Visual Tool Activity — iteration three
 
+Historical record. The scatter implementation was removed by the
+[simplicity-first redesign](tool-explorer-simplicity.md); its verification below
+describes that earlier iteration, not the current interface.
+
 ## Data and visual audit
 
 The initial live snapshot has 939 unique Codex calls and 86 operations. Frequencies span
