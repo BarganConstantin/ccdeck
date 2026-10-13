@@ -1,103 +1,149 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { auditDate, auditDuration, sortAuditRows, readAuditReport, type AuditProvider, type AuditReport } from '../tool-audit';
+import { auditDate, auditRange, auditDuration, auditMetrics, auditMetricText, auditMetricValue, sortAuditRows, readAuditReport, type AuditMetric, type AuditProvider, type AuditReport } from '../tool-audit';
+import { useMediaQuery } from '../use-media-query';
+import ToolAuditInspector, { AuditCloseGlyph } from './ToolAuditInspector';
 import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
+
+const primaryMetrics: AuditMetric[] = ['calls', 'totalMs', 'p95Ms', 'failed'];
+const periodLabels: Record<string, string> = { '1': 'Last 24 hours', '7': 'Last 7 days', '30': 'Last 30 days', '60': 'Last 60 days', '90': 'Last 90 days' };
+const extraMetrics: AuditMetric[] = ['medianMs', 'maxMs', 'errorRate'];
 
 export default function ToolAuditModal({ onClose, instant = false }: { onClose: () => void; instant?: boolean }) {
   const [provider, setProvider] = useState<AuditProvider>('all');
   const [period, setPeriod] = useState('7');
   const [since, setSince] = useState(''); const [until, setUntil] = useState('');
-  const [sort, setSort] = useState<'calls' | 'totalMs' | 'medianMs' | 'maxMs' | 'failed'>('calls');
+  const [metric, setMetric] = useState<AuditMetric>('calls');
   const [search, setSearch] = useState(''); const [limit, setLimit] = useState(50);
   const [selected, setSelected] = useState<string | null>(null);
   const [data, setData] = useState<AuditReport | null>(null);
   const [details, setDetails] = useState<AuditReport['details']>(null);
   const [detailKind, setDetailKind] = useState<'slowest' | 'recent'>('slowest');
   const [loading, setLoading] = useState(true); const [detailLoading, setDetailLoading] = useState(false);
-  const [error, setError] = useState(''); const [detailError, setDetailError] = useState(''); const [refresh, setRefresh] = useState(0);
-  const busy = useRef(false);
+  const [error, setError] = useState(''); const [detailError, setDetailError] = useState('');
+  const [refresh, setRefresh] = useState(0); const busy = useRef(false);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useModalDismiss(onClose, { focusRef: closeRef }); const scrim = useScrimDismiss(onClose);
-  const validRange = period !== 'custom' || !!since && !!until && since <= until && Date.parse(until) - Date.parse(since) < 90 * 86400000;
-  const params = new URLSearchParams({ provider, days: period === 'custom' ? '90' : period });
-  if (period === 'custom' && validRange) { params.set('since', since); params.set('until', until); }
-  const query = params.toString();
+  const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const scrim = useScrimDismiss(onClose);
+  const wide = useMediaQuery('(min-width: 960px)');
+  const phone = useMediaQuery('(max-width: 600px)');
+  const secondaryMetrics: AuditMetric[] = phone ? [...extraMetrics, 'failed'] : extraMetrics;
+  const validRange = period !== 'custom' || (!!since && !!until && since <= until && Date.parse(until) - Date.parse(since) < 90 * 86400000);
+  const query = new URLSearchParams({ provider, days: period === 'custom' ? '90' : period, ...(period === 'custom' ? { since, until } : {}) }).toString();
+
   useEffect(() => {
     const controller = new AbortController(); let live = true;
     const deadline = window.setTimeout(() => controller.abort(), 65000);
-    setData(null); setSelected(null); setDetails(null); setError(''); setLimit(50);
+    setData(null); setDetails(null); setError(''); setLimit(50);
     if (!validRange) { setLoading(false); busy.current = false; window.clearTimeout(deadline); return; }
     busy.current = true; setLoading(true);
     void (async () => {
       try {
         const reply = await readAuditReport(query, controller.signal);
-        if (live) setData(reply);
+        if (live) { setData(reply); setSelected(current => reply.rows.some(row => row.operation === current) ? current : null); }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'The report took too long. Try Refresh or reduce retention in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
   }, [query, validRange, refresh]);
+
   useEffect(() => {
     setDetails(null); setDetailError('');
     if (!selected || !data || loading) { setDetailLoading(false); return; }
     let live = true; const controller = new AbortController();
     const deadline = window.setTimeout(() => controller.abort(), 65000); setDetailLoading(true);
     void (async () => {
-      try {
-        const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}`, controller.signal);
-        if (live) setDetails(reply.details);
-      } catch { if (live) setDetailError('Could not read operation details. Select the operation again to retry.'); }
+      try { const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}`, controller.signal); if (live) setDetails(reply.details); }
+      catch { if (live) setDetailError('Could not read recorded calls. Close and select this operation to retry.'); }
       finally { window.clearTimeout(deadline); if (live) setDetailLoading(false); }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
   }, [selected, data, loading, query]);
-  const rows = sortAuditRows(data?.rows ?? [], sort, search);
-  const selection = data?.rows.find(r => r.operation === selected);
-  const doRefresh = () => { if (busy.current || detailLoading || !validRange) return; busy.current = true; setRefresh(n => n + 1); };
+
+  const rows = useMemo(() => sortAuditRows(data?.rows ?? [], metric, search), [data, metric, search]);
+  const scale = rows.reduce((max, row) => Math.max(max, auditMetricValue(row, metric) ?? 0), 0);
+  const selection = data?.rows.find(row => row.operation === selected);
+  const selectOperation = (operation: string, keyboard: boolean) => {
+    setSelected(operation); setDetailKind('slowest');
+    requestAnimationFrame(() => {
+      const heading = document.getElementById('tool-operation-heading');
+      if (!wide) heading?.scrollIntoView({ block: 'nearest' });
+      if (keyboard) heading?.focus({ preventScroll: true });
+    });
+  };
+  const closeInspector = () => {
+    const operation = selected; setSelected(null);
+    requestAnimationFrame(() => (Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('[data-operation]') ?? []).find(button => button.dataset.operation === operation) ?? closeRef.current)?.focus({ preventScroll: true }));
+  };
+  const inspector = selection && <ToolAuditInspector row={selection} details={details} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector} />;
+  const doRefresh = () => { if (busy.current || detailLoading || !validRange) return; busy.current = true; setRefresh(value => value + 1); };
+  const reset = () => { setProvider('all'); setPeriod('7'); setSearch(''); setMetric('calls'); setLimit(50); };
+
   return createPortal(<div className="modal-backdrop" {...scrim}>
     <div className="modal ta-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-keyboard-interaction={instant || undefined}>
-      <header className="modal-head"><h2 id="tool-audit-title">Tool activity</h2><div className="ta-actions">
-        <button type="button" className="glyph-btn" aria-label="Refresh tool report" aria-disabled={loading || detailLoading || !validRange} onClick={doRefresh} title="Rebuild from local history"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg></button>
-        <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label="Close tool report"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
+      <header className="modal-head"><div className="ta-title"><h2 id="tool-audit-title">Tool activity</h2><span>Operations on this device</span></div><div className="ta-actions">
+        <button type="button" className="glyph-btn" aria-label="Refresh tool report" aria-disabled={loading || detailLoading || !validRange} onClick={doRefresh} title="Rebuild from local history"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg></button>
+        <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label="Close tool report"><AuditCloseGlyph /></button>
       </div></header>
       <div className="modal-body ta-body">
-        <p className="ta-intro">Concrete tools and shell operations across Claude and Codex on this device.</p>
-        <div className="ta-filters">
-          <label>Provider<select aria-label="Tool report provider" value={provider} onChange={e => setProvider(e.target.value as AuditProvider)}><option value="all">Claude + Codex</option><option value="claude">Claude</option><option value="codex">Codex</option></select></label>
-          <label>Period<select aria-label="Tool report period" value={period} onChange={e => setPeriod(e.target.value)}><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Retained history</option><option value="custom">Custom dates</option></select></label>
-          <label>Rank by<select aria-label="Rank by" value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="calls">Most called</option><option value="totalMs">Total time</option><option value="medianMs">Typical duration</option><option value="maxMs">Slowest call</option><option value="failed">Most failures</option></select></label>
+        <div className="ta-toolbar">
+          <label>Provider<select aria-label="Provider" value={provider} onChange={event => setProvider(event.target.value as AuditProvider)}><option value="all">Claude + Codex</option><option value="claude">Claude</option><option value="codex">Codex</option></select></label>
+          <label>Period<select aria-label="Period" value={period} onChange={event => setPeriod(event.target.value)}><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="60">Last 60 days</option><option value="90">Last 90 days</option><option value="custom">Custom dates</option></select></label>
+          <label className="ta-search">Find an operation<input type="search" placeholder="git commit, rg, Read…" value={search} onChange={event => { setSearch(event.target.value); setLimit(50); }} /></label>
+          {(provider !== 'all' || period !== '7' || search || metric !== 'calls') && <button type="button" className="ta-reset" onClick={reset}>Reset</button>}
         </div>
-        {period === 'custom' && <div className="ta-dates"><label>From<input type="date" value={since} onChange={e => setSince(e.target.value)} /></label><label>Through<input type="date" value={until} onChange={e => setUntil(e.target.value)} /></label><span className="ta-note">Up to 90 days · UTC dates</span></div>}
-        {!validRange && <p className="ta-message" role="status">Choose a start and end date, up to 90 days apart.</p>}
-        {loading && <div className="ta-loading" role="status" aria-live="polite"><span className="ta-loading-mark" aria-hidden="true" /><strong>Building your tool report</strong><span>Reading local history and calculating timings…</span><div className="ta-skeleton" aria-hidden="true">{[0, 1, 2, 3].map(i => <div key={i}><i /><i /><i /></div>)}</div></div>}
-        {error && <p className="ta-message" role="alert">{error}</p>}
+        {period === 'custom' && <div className="ta-dates"><label>From<input type="date" value={since} onChange={event => setSince(event.target.value)} /></label><label>Through<input type="date" value={until} onChange={event => setUntil(event.target.value)} /></label><span className="ta-note">Up to 90 calendar days · UTC</span></div>}
+        {!validRange && <p className="ta-message" role="status">Choose a start and end date, up to 90 calendar days inclusive.</p>}
+        {loading && <div className="ta-loading" role="status" aria-live="polite"><span className="ta-loading-mark" aria-hidden="true" /><strong>Building your tool report</strong><span>Reading local history and calculating intervals…</span><div className="ta-skeleton" aria-hidden="true">{[0, 1, 2, 3].map(i => <div key={i}><i /><i /><i /></div>)}</div></div>}
+        {error && <div className="ta-message" role="alert"><p>{error}</p><button type="button" className="ta-more" onClick={doRefresh}>Try again</button></div>}
         {data && <>
-          <div className="ta-summary"><strong>{data.total.toLocaleString()} calls</strong><span>{data.measured.toLocaleString()} with measured timing · {data.failed.toLocaleString()} failures</span></div>
-          <p className="ta-note">Report range {auditDate(data.since)} – {auditDate(Math.min(data.until, data.capturedAt))}. Built {auditDate(data.capturedAt)}.</p>
-          <label className="ta-search">Find an operation<input type="search" placeholder="git commit, Read, npm run build…" value={search} onChange={e => { setSearch(e.target.value); setLimit(50); }} /></label>
-          {data.rows.length ? <>
-            <p className="ta-table-hint">Select an operation for details. Scroll horizontally for all timing columns.</p>
-            <div className="ta-table-wrap" tabIndex={0} role="region" aria-label="Tool operation statistics">
-              <table className="ta-table"><caption>{rows.length.toLocaleString()} matching operations · timings from completed calls</caption><thead><tr><th scope="col">Operation</th><th scope="col" title="Observed tool calls containing this operation">Calls</th><th scope="col">Total</th><th scope="col">Median</th><th scope="col" title="95th percentile; requires 20 measured calls">P95</th><th scope="col">Max</th><th scope="col">Errors</th></tr></thead>
-                <tbody>{rows.slice(0, limit).map(r => <tr key={r.operation} data-selected={selected === r.operation || undefined}><th scope="row"><button type="button" aria-expanded={selected === r.operation} onClick={() => { setSelected(s => s === r.operation ? null : r.operation); setDetailKind('slowest'); }}>{r.operation}</button>{r.shared > 0 && <span className="ta-shared" title={`${r.shared} calls include several shell operations sharing one measured duration`}>shared timing</span>}</th><td>{r.calls.toLocaleString()}</td><td>{auditDuration(r.totalMs)}</td><td>{auditDuration(r.medianMs)}</td><td title={r.measured < 20 ? 'Requires 20 measured calls' : undefined}>{auditDuration(r.p95Ms)}</td><td>{auditDuration(r.maxMs)}</td><td>{r.failed.toLocaleString()} <span className="ta-note">{r.errorRate === null ? '' : `(${Math.round(r.errorRate * 100)}%)`}</span></td></tr>)}</tbody>
-              </table>
+          {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <div className="ta-data-quality" role="status"><strong>Incomplete history</strong><p>{data.dropped > 0 && `${data.dropped.toLocaleString()} records could not be saved. `}{data.corrupt > 0 && `${data.corrupt.toLocaleString()} invalid retained-journal records were skipped. `}{!data.storageOk && 'History could not be saved. Check disk space and permissions. '}Totals exclude unavailable records.</p></div>}
+          <dl className="ta-overview" aria-label="All calls in selected provider and period">
+            <div><dt>Tool calls</dt><dd>{data.total.toLocaleString()}</dd><small>Unique containing calls</small></div>
+            <div><dt>Cumulative interval</dt><dd>{auditDuration(data.totalMs)}</dd><small>Each measured call once · overlaps</small></div>
+            <div><dt>Reported failures</dt><dd className={data.failed ? 'ta-failures' : undefined}>{data.failed.toLocaleString()}<span> / {data.completed.toLocaleString()}</span></dd><small>Observed outcomes</small></div>
+            <div><dt>Measured timing</dt><dd>{data.measured.toLocaleString()}<span> / {data.total.toLocaleString()}</span></dd><small>{data.unmatched.toLocaleString()} without an outcome</small></div>
+          </dl>
+          <div className="ta-coverage">
+            <p><span>Requested</span> {periodLabels[period] ?? auditRange(data.since, data.until)}</p>
+            <p><span>Observed starts</span> {data.observedSince === null ? 'None in this period' : auditRange(data.observedSince, data.observedUntil!)}</p>
+            <details><summary>Coverage & freshness</summary><p>Requested dates: {auditRange(data.since, data.until)}.</p><p>Recording retained since {auditDate(data.retainedSince)} · refreshed {auditDate(data.capturedAt)}.</p><p>Observed endpoints describe recorded starts, not continuous coverage.</p></details>
+          </div>
+          {provider === 'all' && <p className="ta-provider-note">Claude {data.providers.claude.calls.toLocaleString()} · Codex {data.providers.codex.calls.toLocaleString()} {wide ? 'calls · different clocks, not a speed comparison.' : 'calls · different clocks.'}</p>}
+          <div className="ta-rank-controls" role="group" aria-label="Ranking metric">
+            {primaryMetrics.filter(key => !phone || key !== 'failed').map(key => <button type="button" key={key} aria-label={auditMetrics[key].label} aria-pressed={metric === key} onClick={() => { setMetric(key); setLimit(50); }}>{phone ? key === 'totalMs' ? 'Cumulative' : key === 'p95Ms' ? 'P95 tails' : auditMetrics[key].label : auditMetrics[key].label}</button>)}
+
+          </div>
+          <div className="ta-ranking-caption"><h3>{auditMetrics[metric].label}</h3><div className="ta-ranking-meta"><span>{rows.length.toLocaleString()} / {data.rows.length.toLocaleString()} operations</span>            <label><span className="ta-sr-only">More ranking metrics</span><select aria-label="More ranking metrics" value={secondaryMetrics.includes(metric) ? metric : ''} onChange={event => { if (event.target.value) { setMetric(event.target.value as AuditMetric); setLimit(50); } }}><option value="" disabled>More metrics</option>{secondaryMetrics.map(key => <option key={key} value={key}>{auditMetrics[key].label}</option>)}</select></label></div></div>
+          {search && <p className="ta-note">Search filters operations; overview totals still include all calls in this provider and period.</p>}
+          <p className="ta-note" id="tool-ranking-definition">{auditMetrics[metric].note}</p>
+          <div className="ta-workspace" data-inspecting={!!selection || undefined}>
+            <div className="ta-results">
+              {rows.length ? <ol className="ta-ranking" aria-label={`${auditMetrics[metric].label} operations`}>
+                {rows.slice(0, limit).map((row, index) => {
+                  const value = auditMetricValue(row, metric);
+                  return <li key={row.operation}>
+                    <button type="button" className="ta-operation" data-operation={row.operation} data-selected={row.operation === selected || undefined} aria-label={row.operation} aria-expanded={row.operation === selected} aria-controls={row.operation === selected ? 'tool-operation-inspector' : undefined} aria-describedby={`tool-ranking-value-${index} tool-ranking-definition`} onClick={event => selectOperation(row.operation, event.detail === 0)}>
+                      <span className="ta-operation-name">{row.operation}<small>{row.providers.claude > 0 && 'Claude'}{row.providers.claude > 0 && row.providers.codex > 0 && ' + '}{row.providers.codex > 0 && 'Codex'}{row.shared > 0 && (phone ? ' · shared' : ' · shared interval')}</small></span>
+                      <span className="ta-rank-plot"><span className="ta-rank-track" aria-hidden="true"><span style={{ width: `${scale && value !== null ? value / scale * 100 : 0}%` }} /></span><small>{metric === 'errorRate' || metric === 'failed' ? `${row.failed.toLocaleString()} / ${row.completed.toLocaleString()} outcomes` : `${row.calls.toLocaleString()} calls · ${row.measured.toLocaleString()} timed`}</small></span>
+                      <span className="ta-sr-only" id={`tool-ranking-value-${index}`}>{auditMetricText(value, metric)} {auditMetrics[metric].unit}. {value === null ? metric === 'p95Ms' ? 'Requires 20 measured calls.' : metric === 'errorRate' ? 'Requires 20 completed outcomes.' : 'No measured duration.' : ''} {row.calls} containing calls; {row.measured} measured; {row.failed} reported failures in {row.completed} outcomes.{row.shared > 0 && ' Shared containing-call interval.'}</span>
+                      <span className="ta-rank-value">{auditMetricText(value, metric)}<small>{value === null ? metric === 'p95Ms' ? 'Needs 20 timings' : metric === 'errorRate' ? 'Needs 20 outcomes' : 'Not measured' : auditMetrics[metric].short}</small></span>
+                    </button>
+                    {!wide && row.operation === selected && inspector}
+                  </li>;
+                })}
+              </ol> : <div className="ta-message" role="status">{data.rows.length ? <><p>No operations match “{search}”.</p><button type="button" className="ta-more" onClick={() => setSearch('')}>Clear search</button></> : <p>No calls recorded in this period. Collection starts with new tool events; older sessions are not imported. Try another provider or period.</p>}</div>}
+              {rows.length > limit && <button type="button" className="ta-more" onClick={() => setLimit(value => value + 50)}>Show 50 more · {rows.length - limit} remaining</button>}
+              {!wide && selection && !rows.slice(0, limit).some(row => row.operation === selected) && inspector}
             </div>
-            {!rows.length && <p className="ta-message" role="status">No operations match your search.</p>}
-            {rows.length > limit && <button type="button" className="ta-more" onClick={() => setLimit(n => n + 50)}>Show 50 more operations</button>}
-          </> : <p className="ta-message" role="status">No calls recorded in this period. Collection starts when this deck receives new Claude or Codex tool events; older sessions are not imported.</p>}
-          {selection && <section className="ta-detail" aria-label={`${selected} details`}>
-            <div className="ta-detail-head"><h3>{selected}</h3><button type="button" className="glyph-btn" aria-label="Close operation details" onClick={() => setSelected(null)}>×</button></div>
-            <p className="ta-note">Claude {selection.providers.claude.toLocaleString()} · Codex {selection.providers.codex.toLocaleString()} · {selection.measured.toLocaleString()}/{selection.calls.toLocaleString()} timings measured. Tools: {selection.tools.join(', ')}.</p>
-            {selection.shared > 0 && <p className="ta-note">Compound shell calls share one duration. Each operation is counted once per observed call or wrapper; their times must not be added together. Listed commands are identified from the input, not proof that every branch executed.</p>}
-            <div className="ta-detail-tabs" role="group" aria-label="Operation calls"><button type="button" aria-pressed={detailKind === 'slowest'} onClick={() => setDetailKind('slowest')}>Slowest calls</button><button type="button" aria-pressed={detailKind === 'recent'} onClick={() => setDetailKind('recent')}>Recent calls</button></div>
-            {detailLoading && <p className="ta-note" role="status">Reading operation details…</p>}{detailError && <p className="ta-message" role="alert">{detailError}</p>}
-            {details && <><p className="ta-note">{detailKind === 'slowest' ? 'Up to 20 slowest measured calls' : 'Latest 30 recorded calls'} · {details.total.toLocaleString()} calls in this detail snapshot.</p>
-              <ul className="ta-calls">{details[detailKind].map(c => <li key={c.id}><span>{auditDate(c.capturedAt)}<small>{c.provider === 'claude' ? 'Claude · hook interval' : 'Codex · rollout interval'}{c.shared && ' · shared'}</small></span><span>{auditDuration(c.durationMs)}<small>{c.state === 'unmatched' ? 'No outcome observed' : c.state === 'failed' ? 'Failed' : 'Succeeded'}</small></span></li>)}</ul>
-              {!details[detailKind].length && <p className="ta-note">No measured calls available.</p>}
-            </>}
-          </section>}
-          {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-message" role="status">History is incomplete: {data.dropped} records could not be saved; {data.corrupt} invalid records were skipped.{!data.storageOk && ' Check available disk space and permissions.'}</p>}
-          <details className="ta-method"><summary>How these statistics are measured</summary><p>Recorded on this device, starting {auditDate(data.startedAt)}. Retention: {data.retentionDays} days. Completed failures are included in timing statistics. Error percentages use observed outcomes. P95 needs at least 20 measured calls.</p><p>Claude timings use the interval between received hooks; Codex uses timestamps from rollout records. These intervals can include approval or delivery waits. Codex exec wrappers also include orchestration time; their individual inner calls are not timed separately. Parallel calls overlap: total tool time is not elapsed session time. Missing outcomes and missing timestamps never become zero-duration measurements. For compound commands and exec wrappers, counts, errors and timing describe the containing tool call, not independent inner executions.</p><p>{data.unmatched.toLocaleString()} calls have no observed outcome in this snapshot; {data.orphaned.toLocaleString()} outcomes have no retained start. Command arguments and tool outputs are not stored. This report is not synchronized to other devices.</p></details>
+            {wide && (inspector || <aside className="ta-inspector-placeholder"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 19h16M7 15V9m5 6V5m5 10v-3" /></svg><h3>Inspect an operation</h3><p>Select a row to see measured intervals, reported outcomes and recorded calls.</p><p>Frequent does not mean slow. Compare cumulative intervals and P95 to decide what to investigate.</p></aside>)}
+          </div>
+          <details className="ta-method"><summary>Measurement & data quality</summary>
+            <p>One observed tool call may contain several detected operations. Counts, intervals and reported failures belong to containing calls, not independent inner executions. Conditional commands are identified from inputs; this is not proof that every command ran. Do not add operation totals together.</p>
+            <p>Cumulative interval time includes overlapping calls and is not wall-clock execution time. Claude uses received hook intervals; Codex uses rollout timestamps. Approval, delivery and orchestration waits can be included. Timing does not imply API cost or token usage. Periods filter call starts; completed intervals are counted in full even when their outcome arrives after the range.</p>
+            <p>Failures are reported outcomes. Codex recognizes specific wrapper failure markers; unrecognized errors can be missed. No command arguments, outputs or error messages are saved. Missing timing is not failure. P95 needs 20 measurements; failure-rate ranking needs 20 completed outcomes.</p>
+            <p>Retained since {auditDate(data.retainedSince)}; retention {data.retentionDays} days. Observed endpoints describe recorded call starts, not continuous coverage. Journal-wide: {data.orphaned} outcomes without a retained start, {data.duplicates} duplicate records ignored, {data.corrupt} invalid records. This report is local to this device.</p>
+          </details>
         </>}
       </div>
     </div>

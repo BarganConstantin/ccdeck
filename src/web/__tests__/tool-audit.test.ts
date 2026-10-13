@@ -9,7 +9,7 @@ import { createToolAudit } from '../../server/tool-audit.mjs';
 import { auditOperations, shellOperations, scriptOperations } from '../../server/tool-audit-operations.mjs';
 // @ts-expect-error server module
 import { auditQuery } from '../../server/tool-audit-routes.mjs';
-import { auditDuration, sortAuditRows, type AuditRow } from '../tool-audit';
+import { auditDuration, auditMetricValue, auditMetricText, sortAuditRows, type AuditRow } from '../tool-audit';
 const dirs: string[] = []; const audits: any[] = [];
 let clock = Date.parse('2026-10-13T10:00:00Z');
 async function setup() {
@@ -130,5 +130,51 @@ describe('report boundary and display', () => {
     const rows = [{ operation: 'git commit', calls: 10, totalMs: null }, { operation: 'git status', calls: 2, totalMs: 0 }, { operation: 'Read', calls: 9, totalMs: 500 }] as AuditRow[];
     expect(sortAuditRows(rows, 'totalMs', '').map(r => r.operation)).toEqual(['Read', 'git status', 'git commit']);
     expect(sortAuditRows(rows, 'calls', 'GIT').map(r => r.operation)).toEqual(['git commit', 'git status']);
+  });
+});
+
+
+describe('explorer measurement scopes', () => {
+  it('separates requested period, observed starts and retained recording boundary', async () => {
+    const { audit } = await setup(); const started = clock;
+    audit.observe(event('PreToolUse', 'one'), 'hook'); clock += 2000;
+    audit.observe(event('PostToolUse', 'one'), 'hook');
+    const report = await audit.report({ provider: 'all', days: 7 });
+    expect(report.since).toBe(clock - 7 * 86400000);
+    expect(report.retainedSince).toBe(started);
+    expect(report.observedSince).toBe(started); expect(report.observedUntil).toBe(started);
+    expect(report.totalMs).toBe(2000); expect(report.completed).toBe(1);
+    const empty = await audit.report({ provider: 'claude', since: clock + 1, until: clock + 1000 });
+    expect(empty.observedSince).toBeNull(); expect(empty.observedUntil).toBeNull(); expect(empty.totalMs).toBeNull();
+  });
+  it('counts each measured call once in overview even when operations and calls overlap', async () => {
+    const { audit } = await setup(); const first = clock;
+    audit.observe(event('PreToolUse', 'shared', { tool_input: { command: 'git status && git commit -m private' } }), 'hook');
+    audit.observe(event('PreToolUse', 'single', { provider: 'codex', tool_name: 'Read' }), 'codex', { toolAuditAt: first });
+    clock += 3000; audit.observe(event('PostToolUseFailure', 'shared'), 'hook');
+    clock += 1000; audit.observe(event('PostToolUse', 'single', { provider: 'codex' }), 'codex', { toolAuditAt: clock });
+    const report = await audit.report(query);
+    expect(report.total).toBe(2); expect(report.rows.reduce((sum: number, row: AuditRow) => sum + row.calls, 0)).toBe(3);
+    expect(report.totalMs).toBe(7000); // two overlapping intervals, not 4000ms wall clock
+    expect(report.rows.reduce((sum: number, row: AuditRow) => sum + (row.totalMs ?? 0), 0)).toBe(10000);
+    expect(report.failed).toBe(1); expect(report.rows.reduce((sum: number, row: AuditRow) => sum + row.failed, 0)).toBe(2);
+    expect(report.providers).toEqual({ claude: { calls: 1, measured: 1, failed: 1 }, codex: { calls: 1, measured: 1, failed: 0 } });
+    const codex = await audit.report({ provider: 'codex', days: 7 }); expect(codex.totalMs).toBe(4000); expect(codex.failed).toBe(0);
+  });
+  it('ranks frequency, cumulative intervals and tails independently with sample floors', () => {
+    const rows = [
+      { operation: 'rg', calls: 150, totalMs: 15000, medianMs: 100, measured: 150, p95Ms: 120, completed: 150, failed: 0, errorRate: 0 },
+      { operation: 'build', calls: 10, totalMs: 80000, medianMs: 8000, measured: 10, p95Ms: null, completed: 10, failed: 5, errorRate: .5 },
+      { operation: 'tail', calls: 25, totalMs: 25000, medianMs: 100, measured: 25, p95Ms: 9000, completed: 25, failed: 2, errorRate: .08 },
+    ] as AuditRow[];
+    expect(sortAuditRows(rows, 'calls', '')[0].operation).toBe('rg');
+    expect(sortAuditRows(rows, 'totalMs', '')[0].operation).toBe('build');
+    expect(sortAuditRows(rows, 'p95Ms', '')[0].operation).toBe('tail');
+    expect(sortAuditRows(rows, 'medianMs', '')[0].operation).toBe('build');
+    expect(sortAuditRows(rows, 'errorRate', '')[0].operation).toBe('tail');
+    expect(auditMetricValue(rows[1], 'errorRate')).toBeNull();
+    expect(auditMetricText(0, 'totalMs')).toBe('0 ms'); expect(auditMetricText(null, 'p95Ms')).toBe('—');
+    expect(auditMetricText(.08, 'errorRate')).toBe('8%');
+    expect(sortAuditRows(rows, 'totalMs', ' RG ').map(row => row.operation)).toEqual(['rg']);
   });
 });

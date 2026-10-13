@@ -525,6 +525,42 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
   dashes never stop re-rasterises under the dialog for as long as it is open.
 
+### Tool activity report
+
+An on-demand operation explorer inside the established instrument-panel world.
+Its independent SVG rail entry sits next to Radio (in More on phones); `App.tsx`
+opens it independently of Usage. Strategy and the finish contract live in
+[the Tool activity brief](.impeccable/surfaces/tool-audit.md).
+
+- **Shell:** `.modal.ta-modal` overrides the generic modal with
+  `width: min(1160px, 96vw)` and `max-height: min(880px, 92dvh)`, keeping
+  `--panel`, `--r-panel` and `--shadow-2`. Radio's 200ms entry is skipped for
+  keyboard opening and reduced motion; loading is indeterminate.
+- **Hierarchy:** provider/period/search toolbar, incomplete-history notice when
+  needed **before the call-wide summary**, coverage, metric controls, ranked
+  operations and contextual detail. Rows combine monospaced operation names,
+  relative `--usage-blue` bars and exact tabular values. Reported failures use
+  `--err`; selection uses neutral fill and the existing control edge.
+- **Scroll:** at viewport widths ≥960px, ranking scrolls with the outer modal
+  body beside a 330px inspector, sticky at `top: 0`, independently scrollable
+  and bounded by `max-height: calc(92dvh - 90px)`. Below 960px, detail appears
+  inline after its selected row, with one body scroller. At ≤600px, summary
+  cells form two columns and row bars move below names/values.
+- **Controls:** theme fonts, native color scheme, SVG glyphs and existing focus
+  treatment; coarse pointers get 44px action buttons and controls. Keyboard
+  selection focuses the inspector heading; closing it returns focus to the row
+  or modal close control. Escape restores the invoking control.
+- **Local contrast roles:** `.ta-toolbar input::placeholder` uses
+  `--text-secondary` at `opacity: 1` so search hints remain readable. Ranking
+  tracks use `--bg-soft` behind `--usage-blue` fills, preserving the fill's
+  contrast in Black Contrast and White Contrast. These component assignments
+  reuse existing tokens without changing global palette or geometry.
+- **Honest measurement:** distinguish containing-call memberships from independent
+  executions, cumulative overlapping intervals from wall time, requested dates
+  from observed starts, and unknown timing from zero. Provider clocks are not a
+  benchmark. Keep sample requirements and shared timing/outcome qualifiers beside
+  their values; these are report rules, not a new global identity.
+
 ### Canvas objects
 
 - **Agent node** — the canvas's primary object. `--node-grad` fill, `--r-node` radius,

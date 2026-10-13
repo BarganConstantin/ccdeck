@@ -14,7 +14,7 @@ import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
 import {
   AccountsGlyph, BrowserWatchGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph,
+  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph,
 } from "./components/rail-glyphs";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -42,7 +42,7 @@ export function browserWatchDetail(watchOn: boolean | null, unread: number): str
 export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openSettings, onFeedback, toggles,
+  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -62,6 +62,7 @@ export function railItems({
   setTrafficRadarOpen?: Toggle;
   radioOpen?: boolean;
   setRadioOpen?: Toggle;
+  openToolActivity?: (keyboard: boolean) => void;
   /** The one door into Settings (use-settings-menus.ts). */
   openSettings: (section?: SettingsSection) => void;
   onFeedback: () => void;
@@ -136,7 +137,11 @@ export function railItems({
       id: "radio", label: "Radio", short: "Radio", ariaLabel: "Radio",
       glyph: <RadioGlyph />, kind: "panel" as const, open: radioOpen, controls: "radio-panel",
       detail: "Explore stations around the world", onPress: () => setRadioOpen(open => !open),
-    }]] : [])],
+    }, ...(openToolActivity ? [{
+      id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
+      glyph: <ToolActivityGlyph />, kind: "dialog" as const,
+      detail: "Explore operation frequency and measured intervals", onPress: (keyboard?: boolean) => openToolActivity(keyboard === true),
+    }] : [])]] : [])],
     utilities: [settings, feedback],
   };
 }

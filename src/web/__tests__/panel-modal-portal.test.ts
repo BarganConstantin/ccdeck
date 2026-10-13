@@ -58,7 +58,6 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
       "SectionHistoryModal",
       "SessionUsageModal",
       "ShareAccountsDialog",
-      "ToolAuditModal",
     ]);
   });
 

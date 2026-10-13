@@ -28,19 +28,23 @@ const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(s
       }
     } finally { lines.close(); stream.destroy(); }
   }
-  const since = query.since ?? Math.max(meta.startedAt, now - (query.days ?? 7) * DAY);
+  const since = query.since ?? now - (query.days ?? 7) * DAY;
   const until = query.until ?? now;
   const groups = new Map(); let total = 0, measured = 0, failed = 0, pending = 0, orphaned = 0;
   const details = [];
+  let totalMs = null, observedSince = null, observedUntil = null;
+  const providers = { claude: { calls: 0, measured: 0, failed: 0 }, codex: { calls: 0, measured: 0, failed: 0 } };
   for (const [id, call] of calls) {
     const start = call.start, end = call.end;
     if (!start) { orphaned++; continue; }
     if (start.t < since || start.t > until || query.provider !== 'all' && start.provider !== query.provider) continue;
-    total++;
+    total++; providers[start.provider].calls++;
+    observedSince = observedSince === null ? start.t : Math.min(observedSince, start.t);
+    observedUntil = observedUntil === null ? start.t : Math.max(observedUntil, start.t);
     const duration = end && start.clock === end.clock && finite(start.at) && finite(end.at)
       && end.at >= start.at && end.at - start.at <= 7 * DAY ? end.at - start.at : null;
-    if (duration !== null) measured++;
-    if (end?.failed) failed++;
+    if (duration !== null) { measured++; providers[start.provider].measured++; totalMs = (totalMs ?? 0) + duration; }
+    if (end?.failed) { failed++; providers[start.provider].failed++; }
     if (!end) pending++;
     const shared = start.operations.length > 1;
     for (const operation of start.operations) {
@@ -66,7 +70,8 @@ const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(s
       p95Ms: n >= 20 ? percentile(durations, .95) : null, maxMs: n ? durations.at(-1) : null };
   }).sort((a, b) => b.calls - a.calls || a.operation.localeCompare(b.operation));
   return { ok: true, capturedAt: now, since, until, provider: query.provider, total, measured, failed, unmatched: pending,
-    corrupt, duplicates, orphaned, rows,
+    corrupt, duplicates, orphaned, rows, totalMs, completed: total - pending, providers, observedSince, observedUntil,
+    retainedSince: Math.max(meta.startedAt, Math.floor(now / DAY) * DAY - (meta.retentionDays - 1) * DAY),
     details: query.operation ? { operation: query.operation, total: details.length,
       slowest: details.filter(d => d.durationMs !== null).sort((a, b) => b.durationMs - a.durationMs).slice(0, 20),
       recent: details.sort((a, b) => b.capturedAt - a.capturedAt).slice(0, 30) } : null };

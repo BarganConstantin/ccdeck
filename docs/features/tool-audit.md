@@ -2,7 +2,8 @@
 
 Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122).
 
-Open **Usage → Tool activity** (bar-chart icon). This is a device-wide report
+Open **Tool activity** from the rail button next to Radio (on narrow screens,
+**More → Tool activity**). This is a device-wide report
 across Claude and Codex, independent of retained sessions on the canvas.
 Collection starts with new events after this build starts; no old session import.
 
@@ -29,8 +30,20 @@ not zero. Calls with no outcome stay unmatched rather than being settled by the
 canvas's stale sweep. Parallel calls overlap, so total tool time is not elapsed
 session time. Wrapper intervals include orchestration/delivery/approval waits.
 
-Provider/period/custom UTC date filters, ranking and operation search are in the
-report. Selecting an operation reads its 20 slowest measured calls or latest 30
+Provider/period/custom UTC date filters, separate metric ranking and operation
+search are in one visual explorer. Frequency, cumulative interval time and P95
+are distinct primary questions. Median, maximum and reported failure rate are
+also available; rate ranking uses at least20 completed outcomes, a descriptive
+sample floor rather than a confidence guarantee. Exact values accompany bars.
+Search filters operation rows, while overview totals remain provider/period-wide.
+A contextual inspector preserves selection across ranking/search/refresh while
+the operation still exists. On desktop it stays beside late rows with a bounded
+independent scroller; on narrow screens it is inline after the selected row.
+Requested period, earliest/latest observed starts and retained recording boundary
+are distinct. Period filtering uses call starts; an entire completed interval is
+included even when its outcome arrives after the range. The overview cumulative
+interval sums each measured call once, not operation totals; it still overlaps
+parallel/nested calls and is not wall-clock execution time. Selecting an operation reads its 20 slowest measured calls or latest 30
 recorded calls. No full arguments/output drill-down is stored. Each request is a
 fresh snapshot; details may include calls captured since the main table loaded.
 
@@ -79,7 +92,7 @@ sync.
 Radio's `radioOpen`200ms entry is reused; keyboard entry and reduced motion are
 instant. While actual aggregation runs, an indeterminate indicator and skeleton
 show work without invented percentages. The report updates on open/filter/change
-or Refresh, not a background polling loop. Escape restores focus to its entry.
+or Refresh, not a background polling loop. Escape restores focus to its rail entry (or More on narrow screens).
 
 Preview: `http://127.0.0.1:4545/`, backend4546,
 `CCDECK_HOME=/tmp/ccdeck-tool-audit-preview`. Owner's installed deck is untouched.
@@ -96,6 +109,32 @@ retention/clear confirmations. Typecheck and production build are required.
 
 Browser execution was on macOS Brave; Windows/Linux native execution is not
 claimed. SVG icons inherit theme colors without depending on emoji rendering.
-Independent final visual review remains outstanding because reviewer attempts
-failed due service capacity. Loading captures requested by the initial evidence
-check were corrected before the retries. No independent ship verdict is claimed.
+Two independent design assessments informed the redesign. The finish reviewer
+requested three fixes (upfront incomplete-history notice, persisted layout and
+direction contract), then scored all three resolved with a ship disposition at
+that fix scope. This is not a fresh whole-surface accessibility certification.
+
+
+The redesigned explorer's measurement audit, three-concept evaluation and
+selected information architecture are recorded in `tool-explorer-design.md`.
+217 relevant checks passed, including17 audit tests plus real Codex watcher,
+modal/portal/rail-shortcut and contrast regressions. Brave fixture QA covers
+all nine themes at1280x950 and320x780, plus1024x768,390x844 and1280x540;
+ranking, search, selected refresh, keyboard inspection/focus return, dense210
+operation types/late row selection, missing timing, empty/error/incomplete/no
+failure/loading and reduced-motion states. Computed readable text contrast was
+sampled across the rendered modal in all themes; this is not accessibility
+certification. Real live Codex UI was exercised (664 calls/79 operations at the
+verification snapshot). Typecheck and production build pass. Native Windows/Linux
+execution and a real Claude hook stream are not independently verified.
+
+Manual browser runners: `scripts/qa-tool-explorer.cjs` uses intercepted,
+deterministic fixtures; `scripts/qa-tool-explorer-a11y.cjs` reads the live preview.
+Both require Playwright in the test environment and accept `CCDECK_QA_URL` and
+optional `CCDECK_QA_BROWSER`. No browser test dependency is added to production.
+The live runner requires recorded `git status` calls. After the last local CSS
+corrections, placeholder contrast exceeds 4.5:1 and ranking fill/track contrast
+exceeds 3:1 in every theme. Resize preserves the selected inspector.
+The final production build passed after those corrections; the existing large
+bundle warning remains. Screenshots are local review artifacts, not collected
+telemetry or repository fixtures.

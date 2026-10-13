@@ -6,6 +6,7 @@ import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList from "./components/SessionList";
+import ToolAuditModal from "./components/ToolAuditModal";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
@@ -558,12 +559,15 @@ function Inner() {
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
   const [radioOpen, setRadioOpen] = useState(false);
+  const [toolAuditOpen, setToolAuditOpen] = useState<"pointer" | "keyboard" | null>(null);
+  const closeToolAudit = useCallback(() => setToolAuditOpen(null), []);
   const closeRadio = useCallback(() => setRadioOpen(false), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
+    openToolActivity: keyboard => setToolAuditOpen(keyboard ? "keyboard" : "pointer"),
     toggles: panelReturn.toggles,
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
@@ -729,6 +733,8 @@ function Inner() {
       {/* The right stripe, ahead of the two panels it opens so Tab reaches the
           control before the region it discloses. */}
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
+
+      {toolAuditOpen && <ToolAuditModal instant={toolAuditOpen === "keyboard"} onClose={closeToolAudit} />}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only
