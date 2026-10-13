@@ -72,3 +72,5 @@ Manual ratings, not certification:
 **262 tests in 15 files passed**, including reset model/report, sorting, modal focus/dismissal, control contrast, typography, motion inventory, panel overflow and portals. Added a regression for source-marked stale versus observation age; elapsed-time expectations follow accurate copy. TypeScript and production build passed. Build retains its existing large-chunk warning. No lint script is configured.
 
 Remaining verification limits: physical touch, Safari, full assistive-technology session, actual browser zoom and live provider collection. Recovery stays in the existing account panel/polling architecture; the calendar does not invent a refresh/login capability. Extremely long names and very short viewports intentionally scroll. No merge or push performed.
+
+Final release quality gate: [targeted findings, fixes and sign-off](account-capacity-final-quality-gate.md).
