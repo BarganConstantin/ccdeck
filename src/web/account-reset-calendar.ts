@@ -1,7 +1,7 @@
 import type { Account } from "./claude-accounts";
 import { accountIssue } from "./account-issue";
 import { ago } from "./account-freshness";
-import { accountName, readingOf, REPORT_STALE_MS } from "./accounts-usage-report";
+import { accountName, observationAt, readingOf, REPORT_STALE_MS } from "./accounts-usage-report";
 import { laneKey } from "./lane-open";
 
 export interface ResetEntry {
@@ -46,16 +46,17 @@ export function resetCalendar(accounts: readonly Account[], nowSec: number, held
   for (const account of accounts) {
     const lane = account.lanes.find(l => l.id === "seven_day");
     const raw = lane?.resetAt;
-    const at = raw != null && Number.isFinite(raw) && Number.isFinite(new Date(raw * 1000).getTime()) ? raw : null;
+    const at = raw != null && raw > 0 && Number.isFinite(raw) && Number.isFinite(new Date(raw * 1000).getTime()) ? raw : null;
     const cell = readingOf(account, "seven_day", nowSec);
     const issue = accountIssue(account, nowSec);
-    const unread = account.fetchedAt == null || !Number.isFinite(account.fetchedAt);
+    const observed = observationAt(account.fetchedAt);
+    const unread = observed == null;
     const stale = held || unread || account.stale || account.staleCopy === true || account.stopped === true
-      || issue?.blocksSwitch === true || nowSec * 1000 - account.fetchedAt! > REPORT_STALE_MS;
+      || issue?.blocksSwitch === true || nowSec * 1000 - observed! > REPORT_STALE_MS;
     const note = held ? "Last saved reading"
       : issue?.blocksSwitch || account.staleCopy || account.stopped ? issue?.text ?? "Not collecting"
       : unread ? "Never read"
-      : stale ? `${account.stale ? "Marked stale · " : ""}Read ${ago(account.fetchedAt!, nowSec)}` : null;
+      : stale ? `${account.stale ? "Marked stale · " : ""}Read ${ago(observed!, nowSec)}` : null;
     const entry: ResetEntry = {
       key: laneKey(account), name: accountName(account), active: account.active,
       heldOut: account.disabled, at, used: cell.counted ? cell.pct : cell.last,

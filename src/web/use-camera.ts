@@ -230,7 +230,11 @@ export function useCamera() {
       // about where the graph was supposed to go.
       const want = {
         x: MARGIN - minX * zoom,
-        y: Math.max(MARGIN, (paneRect.height - h * zoom) / 2) - minY * zoom,
+        // Tall canvases read down from the top. Centring a width-bound board
+        // there left hundreds of empty pixels above and below its sessions.
+        // Keep the familiar vertical centring on landscape/square canvases.
+        y: (paneRect.height > paneRect.width - railWidth
+          ? MARGIN : Math.max(MARGIN, (paneRect.height - h * zoom) / 2)) - minY * zoom,
         zoom,
       };
       const epoch = moveCamera(want, duration);
@@ -246,7 +250,7 @@ export function useCamera() {
           if (pendingFitRef.current?.target === want) pendingFitRef.current = null;
           if (cameraEpochRef.current !== epoch) return;
           const vpNow = rf.getViewport();
-          if (Math.abs(vpNow.zoom - zoom) > 0.01 || Math.abs(vpNow.x - want.x) > 2) {
+          if (Math.abs(vpNow.zoom - zoom) > 0.01 || Math.abs(vpNow.x - want.x) > 2 || Math.abs(vpNow.y - want.y) > 2) {
             applyViewport(want, 0);
           }
         } catch { /* ignore */ }

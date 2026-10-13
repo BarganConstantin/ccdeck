@@ -114,6 +114,40 @@ describe("weekly account reset schedule", () => {
 });
 
 describe("Chisinau timezone boundaries", () => {
+  it.each(["2028-02-28T20:00:00Z", "2026-12-31T20:00:00Z", "2026-04-30T20:00:00Z"])("keeps midnight, leap/month/year boundaries at %s", instant => {
+    const before = process.env.TZ;
+    try {
+      process.env.TZ = "Europe/Chisinau";
+      const clock = Date.parse(instant) / 1000;
+      const today = new Date(clock * 1000);
+      const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime() / 1000;
+      const result = resetCalendar([account(1, midnight, {}, clock), account(2, midnight, {}, clock)], clock);
+      expect(result.days[1].scheduled).toBe(2);
+      expect(result.days[1].entries.map(e => e.at)).toEqual([midnight, midnight]);
+      expect(new Set(result.days.map(d => d.key)).size).toBe(7);
+    } finally { process.env.TZ = before; }
+  });
+  it("sorts both occurrences of the repeated DST hour by instant and exposes their offsets", () => {
+    const before = process.env.TZ;
+    try {
+      process.env.TZ = "Europe/Chisinau";
+      const clock = Date.parse("2026-10-24T21:00:00Z") / 1000;
+      // Runtime ICU versions can contain different Chisinau transition rules.
+      // Find the repeated hour from this runtime, not a hardcoded GMT offset.
+      const candidates = Array.from({ length: 5 }, (_, i) => Date.parse("2026-10-24T22:30:00Z") / 1000 + i * 3600);
+      const index = candidates.findIndex((at, i) => i > 0 && new Date(at * 1000).getHours() === new Date(candidates[i - 1] * 1000).getHours());
+      expect(index).toBeGreaterThan(0);
+      const first = candidates[index - 1], second = candidates[index];
+      const accounts = [account(2, second, {}, clock), account(1, first, {}, clock)];
+      const result = resetCalendar(accounts, clock);
+      expect(result.days[0].entries.map(e => e.at)).toEqual([first, second]);
+      const output = renderToStaticMarkup(createElement(AccountResetCalendar, { accounts, nowSec: clock, held: null }));
+      expect(output).toContain("GMT+3");
+      expect(output).toContain("GMT+2");
+      expect(output).toContain(new Date(first * 1000).toISOString());
+      expect(output).toContain(new Date(second * 1000).toISOString());
+    } finally { process.env.TZ = before; }
+  });
   it.each([{ month: 2, day: 29, hours: 23 }, { month: 9, day: 25, hours: 25 }])("keeps local dates across a $hours-hour day", ({ month, day, hours }) => {
     const before = process.env.TZ;
     try {
@@ -283,7 +317,8 @@ describe("reset calendar content", () => {
       { id: "five_hour", label: "5h", pct: 100, resetAt: at(11) },
       { id: "seven_day", label: "7d", pct: 80, resetAt: at(13) },
     ] })]);
-    expect(elapsed).toContain("Estimated unused · awaiting a fresh reading");
+    expect(elapsed).not.toContain("Estimated unused");
+    expect(elapsed).toContain("Last read: 100% used");
     expect(elapsed).toContain("Reported time passed · awaiting a new reading");
   });
 });

@@ -102,8 +102,8 @@ describe("an open account row whose window has reset since its collection", () =
 
   it("keeps when it reset and what it read on hover and for a screen reader", () => {
     const lane = fiveHour(row(account(NOW - 600)));
-    expect(lane).toContain('title="Reset 10m ago, 92% when read 10m ago"');
-    expect(lane).toContain('<span class="vis-hidden">Reset 10m ago, 92% when read 10m ago</span>');
+    expect(lane).toContain('title="Reported reset time passed 10m ago, 92% when read 10m ago"');
+    expect(lane).toContain('<span class="vis-hidden">Reported reset time passed 10m ago, 92% when read 10m ago</span>');
     expect(lane).toContain('<span class="ap-lane-reset"></span>');
   });
 

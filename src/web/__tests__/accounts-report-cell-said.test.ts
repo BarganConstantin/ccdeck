@@ -75,8 +75,8 @@ describe("what a capacity cell that is not current says to a screen reader", () 
   });
 
   it("says when a reset window reset and what it read, as #2093 does", () => {
-    expect(heard(fiveCell(reset))).toBe("Reported reset due 15h ago, 96% when read 18h ago. Estimated unused; awaiting a fresh reading.");
-    expect(usageReport([reset], NOW).windows[0].used).toBe(0);
+    expect(heard(fiveCell(reset))).toBe("96%. Reported reset time passed 15h ago, 96% when read 18h ago. Awaiting a fresh reading, last reading, counted as is.");
+    expect(usageReport([reset], NOW).windows[0].used).toBe(96);
   });
 
   it("says a window never read is not counted", () => {
