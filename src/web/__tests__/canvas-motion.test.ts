@@ -524,8 +524,10 @@ const EXEMPT: string[] = [
   // through selection/expansion; scaling would move labels or chart data.
   ".ap-report-view",
   ".ap-reset-day-button",
-  ".ap-reset-disclosure summary",
+  ".ap-reset-disclosure > summary",
   ".ap-reset-about summary",
+  // Account detail disclosure uses its native expanded state; names stay still.
+  ".ap-reset-account > summary",
   // Companion selection answers through its radio check and chosen preview.
   ".character-choice",
   // The file input is an invisible hit target stretched over its visible label.

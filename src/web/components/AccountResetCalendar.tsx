@@ -1,16 +1,18 @@
-import { useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import type { Account } from "../claude-accounts";
 import { resetCalendar, type ResetEntry, type ResetDay, type UnscheduledReset } from "../account-reset-calendar";
-import { shownUsed } from "../accounts-usage-report";
+import { shownUsed, usageReport, type ReportRow } from "../accounts-usage-report";
+import { resetCountdown } from "../relative-time";
 
 const weekday = (date: Date) => date.toLocaleDateString(undefined, { weekday: "short" });
 const dayLabel = (date: Date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 const fullDate = (date: Date) => date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+const timeUntil = (at: number, nowSec: number) => at - nowSec < 60 ? "less than 1m" : resetCountdown(at, nowSec);
 
 function ResetTime({ at }: { at: number }) {
   const date = new Date(at * 1000);
   return <time className="ap-reset-time" dateTime={date.toISOString()} title={date.toLocaleString()}>
-    {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+    {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
   </time>;
 }
 
@@ -22,20 +24,38 @@ function AccountName({ entry }: { entry: ResetEntry }) {
   </span>;
 }
 
+function AccountDetails({ entry, row, nowSec }: { entry: ResetEntry; row?: ReportRow; nowSec: number }) {
+  return <details className="ap-reset-account">
+    <summary><AccountName entry={entry} /><span className="vis-hidden"> · Account details</span></summary>
+    <div className="ap-reset-account-body">
+      {row && (["five_hour", "seven_day"] as const).map(id => {
+        const cell = row.cells[id];
+        const pct = cell.counted ? cell.pct : cell.last;
+        const at = row.resets[id];
+        return <p key={id}><strong>{id === "five_hour" ? "5-hour" : "7-day"}</strong>
+          <span>{pct == null ? "No usage reading" : `${!cell.counted ? "Last read: " : ""}${shownUsed(pct)}% used`}</span>
+          <span>{at == null ? "Reset time unknown" : at <= nowSec ? "Reset due · awaiting a new reading" : <>Reset in {timeUntil(at, nowSec)} · <ResetTime at={at} /></>}</span>
+        </p>;
+      })}
+      <p>{entry.heldOut ? "Excluded from automatic rotation." : "A weekly reset does not remove a separate 5-hour limit."}</p>
+    </div>
+  </details>;
+}
+
 function Reading({ entry, past = false }: { entry: ResetEntry; past?: boolean }) {
   return <span className="ap-reset-reading">
     <span className="ap-reset-usage">{entry.used == null ? "Usage unavailable"
       : `${entry.stale || past ? "Last read: " : ""}${shownUsed(entry.used)}% used`}</span>
-    {entry.used != null && !entry.stale && !past && <span className="ap-reset-meter" aria-hidden="true">
-      <span style={{ width: `${Math.min(100, Math.max(0, entry.used))}%` }} />
+    {entry.used != null && !entry.stale && !past && <span className="ap-reset-meter" data-level={entry.used >= 90 ? "hi" : entry.used >= 70 ? "mid" : undefined} aria-hidden="true">
+      <span style={{ "--reset-used": Math.min(100, Math.max(0, entry.used)) / 100 } as CSSProperties} />
     </span>}
-    {entry.stale && <span className="ap-reset-old">Outdated · {entry.note}</span>}
+    {entry.stale && <span className="ap-reset-old">Needs a fresh reading · {entry.note}</span>}
   </span>;
 }
 
 function Unscheduled({ entry }: { entry: UnscheduledReset }) {
   const reason = entry.reason === "unknown" ? "Reset time unknown"
-    : entry.reason === "passed" ? "Reset passed · awaiting a new reading" : "Outside these seven days";
+    : entry.reason === "passed" ? "Reset due · awaiting a new reading" : "Beyond these seven days";
   return <li className="ap-reset-unplaced-row">
     <AccountName entry={entry} />
     <span className="ap-reset-unplaced-detail">
@@ -46,16 +66,16 @@ function Unscheduled({ entry }: { entry: UnscheduledReset }) {
   </li>;
 }
 
-function Agenda({ days, outdated = false }: { days: ResetDay[]; outdated?: boolean }) {
+function Agenda({ days, rows, nowSec, outdated = false }: { days: ResetDay[]; rows: Map<string, ReportRow>; nowSec: number; outdated?: boolean }) {
   return <div className="ap-reset-agenda">
     {days.map(day => {
       const entries = day.entries.filter(entry => entry.stale === outdated);
       if (!entries.length) return null;
       return <section className="ap-reset-day" key={day.key} aria-label={fullDate(day.date)}>
-        <h4>{weekday(day.date)} <span>{dayLabel(day.date)}</span></h4>
+        <h4>{weekday(day.date)} <span>{dayLabel(day.date)}</span><span>{entries.length} {entries.length === 1 ? "account" : "accounts"}</span></h4>
         <ul>{entries.map(entry => <li className="ap-reset-entry" key={entry.key} data-outdated={entry.stale ? "" : undefined}>
-          <ResetTime at={entry.at!} />
-          <AccountName entry={entry} />
+          <div className="ap-reset-when"><ResetTime at={entry.at!} />{!outdated && <span>in {timeUntil(entry.at!, nowSec)}</span>}</div>
+          <AccountDetails entry={entry} row={rows.get(entry.key)} nowSec={nowSec} />
           <Reading entry={entry} />
         </li>)}</ul>
       </section>;
@@ -63,72 +83,69 @@ function Agenda({ days, outdated = false }: { days: ResetDay[]; outdated?: boole
   </div>;
 }
 
-/** Same roster and clock as the account table. The chart shows scheduled
- * resets; older readings remain available separately without inflating it. */
-export default function AccountResetCalendar({ accounts, nowSec, held }: {
+/** Reported weekly resets, sharing the report's roster and existing clock.
+ * Selection is owned by the dialog so view changes retain the chosen day. */
+export default function AccountResetCalendar({ accounts, nowSec, held, selectedDate = null, onSelect = () => {} }: {
   accounts: readonly Account[];
   nowSec: number;
   held: string | null;
+  selectedDate?: string | null;
+  onSelect?: (date: string | null) => void;
 }) {
   const { days, unscheduled } = resetCalendar(accounts, nowSec, held != null);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const selected = days.find(day => day.key === selectedDate) ?? null;
   const visibleDays = selected ? [selected] : days;
   const scheduled = days.reduce((sum, day) => sum + day.scheduled, 0);
   const outdated = visibleDays.reduce((sum, day) => sum + day.outdated, 0);
+  const allOutdated = days.reduce((sum, day) => sum + day.outdated, 0);
   const shownCount = selected ? selected.scheduled : scheduled;
-  const maximum = Math.max(1, ...days.map(day => day.scheduled));
   const next = days.flatMap(day => day.entries).find(entry => !entry.stale);
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const rows = new Map(usageReport(accounts, nowSec).rows.map(row => [row.key, row]));
   return <div className="ap-proj-body ap-report-body ap-reset-body" role="region" aria-label="Weekly reset calendar">
     {held && <p className="ap-report-held">{held}</p>}
-    <div className="ap-reset-intro">
-      <h3>Weekly resets <span>{scheduled} scheduled</span></h3>
-      <p>Today and the next six days · {zone}</p>
-    </div>
-    <p className="ap-reset-next">
-      {next ? <><span>Next reset</span> <strong>{weekday(new Date(next.at! * 1000))}, {dayLabel(new Date(next.at! * 1000))} · <ResetTime at={next.at!} /></strong><span className="ap-reset-next-name">{next.name}</span></>
-        : <><strong>No scheduled resets in these seven days</strong><span>Older readings and unknown reset times are listed below.</span></>}
-    </p>
-    <ol className="ap-reset-week" role="list" aria-label="Seven-day reset counts">
-      {days.map((day, i) => <li key={day.key} data-today={i === 0 ? "" : undefined}>
-        <button type="button" className="ap-reset-day-button" aria-pressed={selected?.key === day.key}
-          aria-label={`${fullDate(day.date)}: ${day.scheduled} scheduled resets${day.outdated ? `, ${day.outdated} outdated readings` : ""}`}
-          onClick={() => setSelectedDate(selected?.key === day.key ? null : day.key)}>
-          <time dateTime={day.key} title={fullDate(day.date)}>
-            <span className="ap-reset-weekday">{i === 0 ? "Today" : weekday(day.date)}</span>
-            <span className="ap-reset-date">{dayLabel(day.date)}</span>
-            <span className="ap-reset-shortdate">{day.date.getDate()}</span>
-          </time>
-          <span className="ap-reset-chart" aria-hidden="true">
-            <span style={{ "--reset-height": `${day.scheduled / maximum * 100}%` } as CSSProperties} />
-          </span>
-          <span className="ap-reset-count"><b>{day.scheduled}</b><span> scheduled</span></span>
-          <span className="ap-reset-old">{day.outdated > 0 ? `${day.outdated} outdated` : ""}</span>
-        </button>
-      </li>)}
-    </ol>
-    <p className="ap-reset-hint">Select a day to see its accounts.</p>
+    <section className="ap-reset-next" aria-label="Next weekly reset">
+      {next ? <>
+        <div className="ap-reset-next-identity"><h3>Next weekly reset</h3><AccountName entry={next} />
+          <p>{weekday(new Date(next.at! * 1000))}, {dayLabel(new Date(next.at! * 1000))} · <ResetTime at={next.at!} /></p></div>
+        <p className="ap-reset-countdown"><strong>{timeUntil(next.at!, nowSec)}</strong><span>until reported reset</span></p>
+      </> : <div className="ap-reset-next-identity"><h3>No upcoming weekly resets</h3><p>{allOutdated ? "Some schedules need a fresh reading. Check the last reported times below." : "No reported weekly resets in these seven days. Unknown and elapsed times remain below."}</p></div>}
+    </section>
+    <section className="ap-reset-navigation" aria-label="Choose a calendar day">
+      <div className="ap-reset-intro"><h3>Next 7 days <span>{scheduled} {scheduled === 1 ? "reset" : "resets"}</span></h3><p>{zone}</p></div>
+      {allOutdated > 0 && <p className="ap-reset-confidence">{allOutdated} {allOutdated === 1 ? "account needs" : "accounts need"} a fresh reading · excluded from the schedule</p>}
+      <ol className="ap-reset-week" role="list" aria-label="Seven-day reset counts">
+        {days.map((day, i) => <li key={day.key} data-today={i === 0 ? "" : undefined}>
+          <button type="button" className="ap-reset-day-button" aria-pressed={selected?.key === day.key}
+            aria-label={`${fullDate(day.date)}: ${day.scheduled} scheduled resets${day.outdated ? `, ${day.outdated} readings need updating` : ""}`}
+            onClick={() => onSelect(selected?.key === day.key ? null : day.key)}>
+            <time dateTime={day.key} title={fullDate(day.date)}><span className="ap-reset-weekday">{i === 0 ? "Today" : weekday(day.date)}</span><span className="ap-reset-date">{day.date.getDate()}</span></time>
+            <span className="ap-reset-count"><b>{day.scheduled}</b><span> {day.scheduled === 1 ? "reset" : "resets"}</span></span>
+          </button>
+        </li>)}
+      </ol>
+    </section>
     <section className="ap-reset-scheduled" aria-label="Scheduled weekly resets">
       <div className="ap-reset-list-head">
-        <h3>{selected ? `${weekday(selected.date)}, ${dayLabel(selected.date)}` : "Scheduled resets"} <span>{shownCount}</span></h3>
-        {selected && <button className="btn" type="button" onClick={() => setSelectedDate(null)}>Show all days</button>}
+        <h3>{selected ? `${weekday(selected.date)}, ${dayLabel(selected.date)}` : "All upcoming resets"} <span>{shownCount}</span></h3>
+        <button className="btn" type="button" aria-pressed={!selected} onClick={() => onSelect(null)}>All days</button>
       </div>
-      {shownCount > 0 ? <Agenda days={visibleDays} />
-        : <p className="ap-reset-empty">{selected ? "No scheduled resets on this day." : "No reported weekly resets in these seven days. The calendar updates when new account readings arrive."}</p>}
+      <p className="ap-reset-hint" role="status">{selected ? `Showing only ${fullDate(selected.date)}.` : "All days · select a date to narrow the agenda."}</p>
+      {shownCount > 0 ? <Agenda days={visibleDays} rows={rows} nowSec={nowSec} />
+        : <p className="ap-reset-empty">{selected ? "No upcoming resets on this day. Choose another date or All days." : "The schedule updates with new account readings. No weekly recurrence is assumed."}</p>}
     </section>
     {outdated > 0 && <details className="ap-reset-disclosure" key={selected?.key ?? "all"}>
-      <summary>{outdated} outdated {outdated === 1 ? "reading" : "readings"}<span>Excluded from counts</span></summary>
-      <p className="ap-reset-explain">These are older readings, not confirmed schedules. Their last reported reset times and usage are kept here until updated.</p>
-      <Agenda days={visibleDays} outdated />
+      <summary>Needs a fresh reading <span>{outdated} {outdated === 1 ? "account" : "accounts"} · excluded from counts</span></summary>
+      <p className="ap-reset-explain">These times come from older or unavailable account readings, not current schedules. Last reported times and usage are kept until updated.</p>
+      <Agenda days={visibleDays} rows={rows} nowSec={nowSec} outdated />
     </details>}
     {unscheduled.length > 0 && <details className="ap-reset-disclosure ap-reset-unplaced">
-      <summary>Other accounts <span>{unscheduled.length} without a reset in these seven days</span></summary>
+      <summary>Other reset times <span>{unscheduled.length} {unscheduled.length === 1 ? "account" : "accounts"} · unknown, elapsed or later</span></summary>
       <ul>{unscheduled.map(entry => <Unscheduled key={entry.key} entry={entry} />)}</ul>
     </details>}
     <details className="ap-reset-about">
-      <summary>About these counts</summary>
-      <p className="ap-reset-explain">Counts are scheduled account resets, not token amounts. Outdated readings are listed separately from scheduled counts. Times use {zone}.</p>
+      <summary>How to read this schedule</summary>
+      <p className="ap-reset-explain">Counts are reported weekly account resets, not token amounts. A timestamp passing does not confirm renewed capacity. Older readings are excluded from upcoming counts. Times use {zone}; a separate 5-hour limit may still apply.</p>
     </details>
   </div>;
 }
