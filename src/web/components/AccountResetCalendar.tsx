@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { ClockGlyph } from "./rail-glyphs";
 import type { Account } from "../claude-accounts";
 import { resetCalendar, type ResetEntry, type ResetDay, type UnscheduledReset } from "../account-reset-calendar";
@@ -109,6 +109,16 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
   const next = days.flatMap(day => day.entries).find(entry => !entry.stale);
   const simultaneous = next ? days.flatMap(day => day.entries).filter(entry => !entry.stale && entry.at === next.at) : [];
   const resultsRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const focusedRef = useRef<HTMLElement | null>(null);
+  // A clock tick can move the focused account out of this category. Restore
+  // a predictable starting point only when its control actually disappeared.
+  useEffect(() => {
+    const focused = focusedRef.current;
+    if (focused && !focused.isConnected && document.activeElement === document.body) {
+      calendarRef.current?.querySelector<HTMLButtonElement>('.ap-reset-coverage-link[aria-pressed="true"]')?.focus({ preventScroll: true });
+    }
+  });
   const returnToStart = () => { if (resultsRef.current) resultsRef.current.scrollTop = 0; };
   const inspectCoverage = (target: ResetScope) => {
     returnToStart();
@@ -117,7 +127,7 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
   };
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const rows = new Map(usageReport(accounts, nowSec).rows.map(row => [row.key, row]));
-  return <div className="ap-proj-body ap-report-body ap-reset-body" role="region" aria-label="Weekly reset calendar">
+  return <div ref={calendarRef} onFocusCapture={event => { focusedRef.current = event.target as HTMLElement; }} className="ap-proj-body ap-report-body ap-reset-body" role="region" aria-label="Weekly reset calendar">
     {held && <p className="ap-report-held">{held}</p>}
     <div className="ap-reset-overview"><div className="ap-reset-command">
     <section className="ap-reset-next" aria-label="Next weekly reset">
@@ -125,7 +135,7 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
         <div className="ap-reset-next-identity"><h3><ClockGlyph />Next reported reset <span className="ap-reset-global">· all days</span></h3>
           {simultaneous.length > 1 ? <span className="ap-reset-name">{simultaneous.length} accounts</span> : <details className="ap-reset-next-account"><summary title={next.name}><AccountName entry={next} /><span className="vis-hidden"> · Full account name</span></summary><p className="ap-reset-full-name">{next.name}</p></details>}
           <p>{weekday(new Date(next.at! * 1000))}, {dayLabel(new Date(next.at! * 1000))} · <ResetTime at={next.at!} /></p><p className="ap-reset-next-note">Reported time · recent reading{simultaneous.length > 1 ? "s" : next.used != null ? ` · ${shownUsed(next.used)}% weekly used` : ""}</p></div>
-        <p className="ap-reset-countdown"><strong>{timeUntil(next.at!, nowSec)}</strong><span>until reported reset</span></p>
+        <p className="ap-reset-countdown"><strong>{timeUntil(next.at!, nowSec)}</strong><span><span className="vis-hidden">until </span>reported reset</span></p>
       </> : <div className="ap-reset-next-identity"><h3>No upcoming weekly resets</h3><p>{allOutdated ? "Some schedules need a fresh reading. Check the last reported times below." : "No reported weekly resets in these seven days. Unknown and elapsed times remain below."}</p></div>}
     </section>
     <div className="ap-reset-coverage" role="group" aria-label="Schedule data">

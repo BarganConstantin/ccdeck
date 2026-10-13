@@ -171,10 +171,10 @@ export interface UsageReport {
 export const accountName = (a: Account) => a.alias ?? a.email ?? `account ${a.num}`;
 
 /** The actual recorded timestamp, rather than a rounded countdown or a
- *  future-only reading. Missing and non-finite timestamps cannot be sorted. */
+ *  future-only reading. Missing or unrepresentable dates cannot be sorted. */
 function recordedReset(a: Account, id: WindowId): number | null {
   const at = a.lanes?.find(l => l.id === id)?.resetAt;
-  return at != null && Number.isFinite(at) ? at : null;
+  return at != null && Number.isFinite(at) && Number.isFinite(new Date(at * 1000).getTime()) ? at : null;
 }
 
 /** One account's reading of one window, or why it does not count. */

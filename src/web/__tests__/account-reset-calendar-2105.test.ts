@@ -256,6 +256,20 @@ describe("reset calendar content", () => {
     expect(output).toContain("data-today");
   });
 
+  it("renders unrepresentable timestamps as unknown in both window disclosures", () => {
+    for (const id of ["five_hour", "seven_day"] as const) {
+      const output = renderToStaticMarkup(createElement(AccountResetCalendar, {
+        accounts: [account(1, at(13), { lanes: [
+          { id: "five_hour", label: "5h", pct: 12, resetAt: at(13) },
+          { id: "seven_day", label: "7d", pct: 80, resetAt: at(13) },
+        ].map(lane => lane.id === id ? { ...lane, resetAt: 1e20 } : lane) })],
+        nowSec: now(), held: null, scope: id === "seven_day" ? "other" : "upcoming",
+      }));
+      expect(output).toContain("Reset time unknown");
+      expect(output).not.toContain("Invalid Date");
+    }
+  });
+
   it("preserves both-window context without claiming a weekly reset removes every limit", () => {
     const output = html([account(1, at(13), { lanes: [
       { id: "five_hour", label: "5h", pct: 100, resetAt: at(14) },
