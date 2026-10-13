@@ -59,7 +59,10 @@ describe("radio favorite indicators", () => {
 
   it("reports missing map coordinates without implying every result is plotted", () => {
     const html = renderToStaticMarkup(createElement(Panel, { saved: false }));
-    expect(html).toContain("Radio Browser · 0 of 1 have map locations");
+    expect(html).not.toContain("have map locations");
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: true }) });
+    const mobile = renderToStaticMarkup(createElement(Panel, { saved: false }));
+    expect(mobile).toContain("Radio Browser · 0 of 1 have map locations");
     expect(html).toContain('class="radio-daily-copy"');
     expect(html).toContain('class="radio-daily-meta"');
   });

@@ -34,7 +34,10 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const [workspaceOpen, setWorkspaceOpen] = useState<Record<RadioCollection, boolean>>({ discover: false, favorites: true, recent: true });
   const [searchExpansion, setSearchExpansion] = useState<boolean | null>(null);
   const [keyboardOpened] = useState(() => document.activeElement?.matches(":focus-visible") ?? false);
-  const panel = useModalDismiss<HTMLDivElement>(onClose);
+  const panel = useModalDismiss<HTMLDivElement>(onClose, {
+    restoreFocusFallback: () => Array.from(document.querySelectorAll<HTMLButtonElement>('[data-rail-item="radio"], #dock-more'))
+      .find(button => button.getClientRects().length > 0) ?? null,
+  });
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
   const [genre, setGenre] = useState("");
@@ -199,7 +202,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
           {!enabled && <p className="radio-empty" role="status">{disabledReason}</p>}
           {enabled && (stations.length > 0 || (collection === "discover" && (loading || error))) && <section aria-labelledby="radio-directory-heading">
             <div className="radio-source-heading"><RadioIcon name="radio" /><h3 id="radio-directory-heading">Radio stations</h3><span>{loading && collection === "discover" ? "Updating…" : `${stations.length} available`}</span></div>
-            <p className="radio-source-help">Radio Browser · {stations.filter(station => station.radio.lat != null && station.radio.lon != null).length} of {stations.length} have map locations</p>
+            <p className="radio-source-help">Radio Browser{narrow && <> · {stations.filter(station => station.radio.lat != null && station.radio.lon != null).length} of {stations.length} have map locations</>}</p>
           {enabled && collection === "discover" && error && <div className="radio-directory-error" role="status"><strong>Directory unavailable</strong><p>{stations.length ? "The saved catalogue is still available." : "Try your favorites or workspace streams."}</p><button type="button" className="btn" onClick={() => setRetry(value => value + 1)}>Try again</button></div>}
           {enabled && loading && collection === "discover" && !stations.length && <RadioLoading />}
           {enabled && today && collection === "discover" && !hasFilters && <button type="button" className="radio-daily" aria-current={todayActive || undefined} aria-pressed={todayActive && player.armed && !todayUnavailable} aria-label={`${todayUnavailable ? "Retry" : todayActive && player.armed ? "Pause" : "Play"} today’s station: ${today.name}${today.radio.country ? `, ${today.radio.country}` : ""}`} onClick={() => pick(today)}><span className="radio-station-code" aria-hidden="true"><RadioCountryFlag code={today.radio.countryCode} /></span><span className="radio-daily-copy"><strong title={today.name}>{today.name}</strong><span className="radio-daily-meta">Today’s station{today.radio.country && <> · {today.radio.country}</>}</span></span><RadioIcon name={todayActive && player.armed && !todayUnavailable ? "pause" : "play"} /></button>}
