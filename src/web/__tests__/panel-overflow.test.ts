@@ -294,7 +294,8 @@ describe("a percentage width under a horizontal margin", () => {
       // with `width: 100%` is the table-cell idiom for that — the panel's own
       // `.sd-proc-name` does the same thing, and only misses this list because
       // its rule is scoped rather than bare.
-      "pl-name", "radio-daily", "radio-map-canvas", "radio-own-station",
+      // Quota history SVG fills its grid track without outer margins.
+      "pl-name", "qh-chart", "radio-daily", "radio-map-canvas", "radio-own-station",
       "tool-bursts-svg", "tr-event-bottom", "tr-event-top", "tr-message", "tr-search", "uh-bar", "uh-bar-seg", "up-session-open", "up-table",
     ]);
 

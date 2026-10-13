@@ -522,6 +522,9 @@ const EXEMPT: string[] = [
   ".ap-report-how > summary",
   // Text view switches, chart-day selection and native disclosures answer
   // through selection/expansion; scaling would move labels or chart data.
+  // Usage-history provider selection and native disclosure keep labels still.
+  ".qh-providers button",
+  ".qh-readings summary",
   ".ap-report-view",
   ".ap-reset-day-button",
   ".ap-reset-disclosure > summary",
