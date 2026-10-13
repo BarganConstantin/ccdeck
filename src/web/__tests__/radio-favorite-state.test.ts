@@ -10,12 +10,12 @@ import { cascade, el, selects } from "./sheet-cascade";
 
 const [station] = resolveRadioStations([{ id: "radio-00000000-0000-4000-8000-000000000001", name: "Test radio", url: "https://radio.example/live", country: "Moldova", countryCode: "MD" }]);
 const noop = () => {};
-function Panel({ saved }: { saved: boolean }) {
+function Panel({ saved, workspace = false }: { saved: boolean; workspace?: boolean }) {
   const fm = useClaudeFm();
   const library = useRadioLibrary();
   return createElement(RadioPanel, {
-    fm, library: { ...library, catalogue: [station], favorites: saved ? [station.id] : [] },
-    selected: station, label: station.name, enabled: true, disabledReason: "",
+    fm: workspace ? { ...fm, fmSource: "good-life-radio" } : fm, library: { ...library, catalogue: [station], favorites: saved ? [workspace ? "good-life-radio" : station.id] : [] },
+    selected: workspace ? undefined : station, label: workspace ? "The Good Life Radio" : station.name, enabled: true, disabledReason: "",
     player: { probe: null, dead: false, armed: false, playing: false, buffering: false, frame: { current: null }, say: noop, press: noop },
     onPick: noop, onQueueChange: noop, onClose: noop,
   });
@@ -46,7 +46,7 @@ describe("radio favorite indicators", () => {
     expect(html).not.toContain("Best of nostalgia live");
     expect(html.indexOf('class="radio-own"')).toBeLessThan(html.indexOf('class="radio-daily"'));
     expect(html.indexOf('class="radio-own"')).toBeLessThan(html.indexOf('data-station-id='));
-    expect(html).toContain("8 available stations");
+    expect(html).toContain("7 workspace streams · 1 radio station");
   });
 
   it("styles both the current station and the list heart for each saved state", () => {
@@ -59,6 +59,14 @@ describe("radio favorite indicators", () => {
         expect(heart).toContain(`aria-pressed="${saved}"`);
         expect(heart).toMatch(/class="[^"]*\bradio-favorite\b/);
       }
+    }
+  });
+
+  it("exposes the player heart for workspace streams using their shared favorite ID", () => {
+    for (const saved of [false, true]) {
+      const html = renderToStaticMarkup(createElement(Panel, { saved, workspace: true }));
+      const heart = [...html.matchAll(/<button\b[^>]*>/g)].map(match => match[0]).find(button => /aria-label="(?:Save station to favorites|Remove station from favorites)"/.test(button));
+      expect(heart).toContain(`aria-pressed="${saved}"`);
     }
   });
 

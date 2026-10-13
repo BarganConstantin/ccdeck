@@ -84,7 +84,7 @@
 .radio-discovery { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-left: 1px solid var(--line); padding: 16px 14px 0; }
 .radio-collections { display: flex; gap: 4px; flex: none; margin-bottom: 6px; }
 .radio-collections .radio-collection { flex: 1; padding: 8px 6px; font-size: 12px; min-height: 32px; }
-.radio-collections .radio-collection[aria-pressed="true"] { background: var(--ctl-fill); color: var(--text); }
+.radio-collections .radio-collection[aria-selected="true"] { background: var(--ctl-fill); color: var(--text); }
 .radio-search { display: flex; align-items: center; gap: 8px; padding: 6px 10px; min-height: 32px; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); color: var(--text-secondary); flex: none; margin-bottom: 6px; background: var(--bg-soft); font-size: 12px; }
 .radio-search:focus-within { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; }
 .radio-search input { flex: 1; min-width: 0; color: var(--text); border: 0; background: none; font: inherit; min-height: 24px; }
@@ -302,3 +302,52 @@
 }
 
 @media (prefers-reduced-motion: reduce) { .radio-tuning-send path { animation: none; } }
+
+/* Discovery composes navigation, search and contextual filters as one tool. */
+.radio-discovery { container-type: inline-size; }
+.radio-discovery-toolbar { flex: none; display: grid; gap: 10px; }
+.radio-collections { margin: 0; gap: 4px; }
+.radio-collections .radio-collection { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 10px; font-weight: 500; }
+.radio-collections .radio-collection[aria-selected="true"] { background: var(--ctl-fill); color: var(--text); }
+.radio-tab-count { color: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.radio-search-tools { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radio-search-tools .radio-search { flex: 1; min-width: 0; min-height: 36px; margin: 0; padding-block: 0; }
+.radio-search-tools .radio-search > svg { width: 16px; height: 16px; flex: none; }
+.radio-quick-country { width: 112px; flex: none; }
+.radio-filter-toggle { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 9px; flex: none; border: 0; border-radius: var(--r-ctl); background: var(--ctl-fill); color: var(--text-secondary); font: inherit; cursor: pointer; }
+.radio-filter-toggle > svg { width: 16px; height: 16px; }
+.radio-filter-toggle[data-active="true"] { color: var(--accent); }
+.radio-filter-toggle:hover, .radio-filter-chip:hover { background: var(--ctl-fill); color: var(--text); }
+.radio-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.radio-filter-trigger { min-height: 36px; font-size: 12px; }
+.radio-active-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.radio-filter-chip { display: flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: var(--ctl-fill); color: var(--text); font: inherit; font-size: 11px; cursor: pointer; }
+.radio-filter-chip > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.radio-filter-chip > svg { width: 12px; height: 12px; flex: none; }
+.radio-active-filters .radio-reset { min-height: 28px; margin-left: auto; font-size: 11px; }
+.radio-results-heading { padding: 10px 0; min-height: 34px; line-height: 1.5; }
+.radio-results-heading > span:last-child:not(:first-child) { white-space: nowrap; }
+.radio-metadata-note { margin: 0 0 10px; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
+.radio-own summary { padding: 4px 6px; font-size: 12px; font-weight: 600; color: var(--text); }
+.radio-own summary span { color: var(--text-secondary); font: inherit; font-size: 11px; font-variant-numeric: tabular-nums; }
+.radio-source-heading { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
+.radio-source-heading h3 { margin: 0; font-size: 12px; font-weight: 600; }
+.radio-source-heading > span { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.radio-source-help { margin: 2px 6px 8px; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
+.radio-filter-toggle:focus-visible, .radio-filter-chip:focus-visible, .radio-reset:focus-visible, .radio-collection:focus-visible, .radio-own summary:focus-visible, .radio-list:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@container (max-width: 420px) {
+  .radio-quick-country { display: none; }
+}
+@media (max-width: 840px), (pointer: coarse) {
+  .radio-collections .radio-collection, .radio-filter-toggle, .radio-filter-trigger, .radio-filter-options button, .radio-filter-chip, .radio-active-filters .radio-reset { min-height: 44px; }
+  .radio-search-tools .radio-search { min-height: 44px; }
+  .radio-own summary { min-height: 44px; align-content: center; }
+}
+@media (max-width: 360px) {
+  .radio-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .radio-filters > .radio-filter-trigger:first-child { grid-column: 1 / -1; }
+}
+
+.radio-discovery .radio-station-pick { min-height: 48px; padding-block: 6px; }
+
+.radio-filters[hidden] { display: none; }

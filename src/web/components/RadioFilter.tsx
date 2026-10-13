@@ -23,6 +23,8 @@ function FilterChoices({ anchorId, label, value, options, allowCustom, onSelect,
     <div className="radio-filter-search"><RadioIcon name="search" /><input ref={input} role="combobox" aria-label={`Search ${label.toLowerCase()}`} placeholder={`Search ${label.toLowerCase()}…`} autoComplete="off" value={query} aria-expanded="true" aria-autocomplete="list" aria-controls={`${id}-options`} aria-activedescendant={index >= 0 ? `${id}-option-${index}` : undefined} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault(); setActive(matches.length ? (Math.max(0, index) + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length : 0);
+      } else if (event.key === "Home" || event.key === "End") {
+        event.preventDefault(); setActive(event.key === "Home" ? 0 : Math.max(0, matches.length - 1));
       } else if (event.key === "Enter" && index >= 0) {
         event.preventDefault(); onSelect(matches[index].value);
       }

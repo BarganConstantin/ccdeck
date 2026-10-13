@@ -1,27 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { FM_SOURCE_OPTIONS, FM_VOLUME_STEP, type FmSource } from "../appearance";
-import { customFmSelection, type FmSelection } from "../fm-stations";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FM_VOLUME_STEP } from "../appearance";
+import { customFmId, type FmSelection } from "../fm-stations";
 import { adjacentRadioStation, dailyStation, matchesRadio, resolveRadioStations, surpriseStation, type RadioStation } from "../radio-library";
 import type { useClaudeFm } from "../use-claude-fm";
 import type { FmPlayer } from "../use-fm-player";
 import type { useRadioLibrary } from "../use-radio-library";
 import { containPopoverKeys } from "../shortcuts";
 import world from "../assets/radio-world.json";
-import RadioIcon, { type RadioIconName } from "./RadioIcon";
+import RadioIcon from "./RadioIcon";
 import RadioCountryFlag from "./RadioCountryFlag";
 import RadioMap from "./RadioMap";
 import RadioLoading from "./RadioLoading";
-import RadioFilter from "./RadioFilter";
+import RadioDiscoveryToolbar from "./RadioDiscoveryToolbar";
+import { workspaceStreams, filterWorkspaceStreams, discoverySummary, type RadioCollection } from "../radio-discovery";
 import VolumeRow from "./VolumeRow";
 import { useModalDismiss } from "./use-modal-dismiss";
 
-const genres = ["ambient", "classical", "electronic", "jazz", "lofi", "pop", "rock", "news"];
-const cleanLabel = (label: string) => label.replace(/^[^\p{L}\p{N}]+/u, "");
-const streamIcons: Record<FmSource, RadioIconName> = {
-  "claude-fm": "headphones", "lofi-relax": "book", "lofi-game": "gamepad",
-  "lofi-vibe": "sunset", "lofi-sleep": "moon", "radio-mix": "radio",
-  "best-of-nostalgia": "cassette", "good-life-radio": "palm", "cafe-music-bgm": "coffee",
-};
 const stationMetadata = (station: RadioStation) => [station.radio.country, station.radio.tags.split(",").filter(Boolean).slice(0, 2).join(", ")].filter(Boolean).join(" · ");
 
 export default function RadioPanel({ fm, player, library, selected: current, label, enabled, disabledReason, autoNext, onPick, onQueueChange, onClose }: {
@@ -33,13 +27,15 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
 }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const scrollPositions = useRef<Record<RadioCollection, number>>({ discover: 0, favorites: 0, recent: 0 });
+  const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [keyboardOpened] = useState(() => document.activeElement?.matches(":focus-visible") ?? false);
   const panel = useModalDismiss<HTMLDivElement>(onClose, { focusRef: searchRef });
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
   const [genre, setGenre] = useState("");
   const [language, setLanguage] = useState("");
-  const [collection, setCollection] = useState("discover");
+  const [collection, setCollection] = useState<RadioCollection>("discover");
   const [results, setResults] = useState(library.catalogue);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -56,6 +52,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
 
   useEffect(() => {
     if (!enabled || collection !== "discover") return;
+    if (country === "GLOBAL") { setResults([]); setLoading(false); setError(false); return; }
     const controller = new AbortController();
     setLoading(true); setError(false);
     const timer = setTimeout(() => {
@@ -91,11 +88,12 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const day = new Date().toLocaleDateString("en-CA");
   const today = useMemo(() => dailyStation(library.catalogue, day), [library.catalogue, day]);
   const hasFilters = !!(query || country || genre || language);
-  const currentFavorite = current && library.favorites.includes(current.id);
+  const currentId = current?.id ?? customFmId(fm.fmSource) ?? fm.fmSource;
+  const currentFavorite = library.favorites.includes(currentId);
   const showFailure = player.dead && (!!current || fm.fmPlayRequest > 0);
   const state = !enabled ? "disabled" : showFailure ? "failed" : player.armed && !player.playing ? "connecting" : player.playing ? "playing" : "paused";
   const status = !enabled ? disabledReason : showFailure ? autoNext ? `Stream unavailable · trying ${autoNext} next…` : "Stream unavailable · retry or choose another" : player.dead ? "Choose a station to start listening" : player.armed && !player.playing ? player.buffering ? "Buffering…" : "Connecting…" : player.playing ? "Playing live" : "Paused";
-  const resetFilters = () => { setQuery(""); setCountry(""); setGenre(""); setLanguage(""); };
+  const resetFilters = () => { setCountry(""); setGenre(""); setLanguage(""); };
   const toggleFavorite = (station: RadioStation) => { fm.addFmStation(station); library.toggleFavorite(station.id); };
   const pick = onPick;
   const playCurrent = () => {
@@ -115,22 +113,25 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const pickBuiltIn = (source: FmSelection) => {
     if (source === fm.fmSource && !player.dead) player.press(); else fm.pickFmSource(source);
   };
-  const manualStations = fm.customFmStations.filter(station => !station.radio);
-  // These streams have no directory country/language metadata. Keep them
-  // first on Discover, and searchable even when the directory is unavailable.
-  const ownStreams = (!country || country === "GLOBAL") && !genre && !language ? [
-    ...FM_SOURCE_OPTIONS.map(source => ({
-      value: source.value,
-      id: source.value,
-      metadata: "Global · YouTube",
-      icon: streamIcons[source.value],
-      name: `${source.group?.includes("Lofi Girl") ? "Lofi Girl · " : ""}${cleanLabel(source.label)}`,
-    })),
-    ...manualStations.map(station => ({ value: customFmSelection(station.id), name: station.name, id: station.id, metadata: "Global · Your stream", icon: "radio" as const })),
-  ].filter(source => `${source.name} ${source.metadata}`.toLowerCase().includes(query.trim().toLowerCase()))
-    .filter(source => collection === "discover" || (collection === "favorites" ? library.favorites : library.recent).includes(source.id))
-    .sort((a, b) => collection === "recent" ? library.recent.indexOf(a.id) - library.recent.indexOf(b.id) : 0) : [];
+  const allStreams = useMemo(() => workspaceStreams(fm.customFmStations), [fm.customFmStations]);
+  const ownStreams = useMemo(() => filterWorkspaceStreams(allStreams, query, { country, genre, language }, collection, collection === "favorites" ? library.favorites : library.recent), [allStreams, query, country, genre, language, collection, library.favorites, library.recent]);
   const visibleOwnCount = ownStreams.length;
+  const knownIds = new Set([...allStreams.map(stream => stream.id), ...saved.map(station => station.id), ...library.catalogue.map(station => station.id), ...results.map(station => station.id)]);
+  const favoriteCount = library.favorites.filter(id => knownIds.has(id)).length;
+  const metadata = [...library.catalogue, ...results, ...saved];
+  const genreOptions = [...new Set(metadata.flatMap(station => station.radio.tags.split(",")).map(value => value.trim().toLowerCase()).filter(Boolean))].sort().map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }));
+  const languageOptions = [...new Set(metadata.flatMap(station => station.radio.language.split(",")).map(value => value.trim().toLowerCase()).filter(Boolean))].sort().map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }));
+  const changeCollection = (next: RadioCollection) => {
+    scrollPositions.current[collection] = listRef.current?.scrollTop ?? 0;
+    setCollection(next);
+  };
+  useLayoutEffect(() => { if (listRef.current) listRef.current.scrollTop = scrollPositions.current[collection]; }, [collection]);
+  useEffect(() => {
+    scrollPositions.current = { discover: 0, favorites: 0, recent: 0 };
+    if (listRef.current) listRef.current.scrollTop = 0;
+    if (query) setWorkspaceOpen(true);
+  }, [query, country, genre, language]);
+  const hasMetadataFilters = !!(country || genre || language);
   return <div ref={panel} id="radio-panel" className="radio-panel nodrag nopan nowheel" role="dialog" aria-modal="true" aria-labelledby="radio-title"
     data-keyboard-interaction={keyboardOpened || undefined}
     onKeyDownCapture={event => { event.currentTarget.dataset.keyboardInteraction = "true"; }}
@@ -153,7 +154,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
           <button className="radio-play" type="button" disabled={!enabled || (!player.probe && !player.dead)} aria-label={`${player.dead ? "Retry" : player.armed ? "Pause" : "Play"} ${label}`} onClick={playCurrent}><RadioIcon name={player.armed ? "pause" : "play"} /></button>
           <button className="icon-btn" type="button" aria-label="Next station" title={nextStation ? `Next station: ${nextStation.name}` : "No next station"} disabled={navigating || !nextStation} onClick={() => { if (nextStation) pick(nextStation); }}><RadioIcon name="next" /></button>
         </div>
-        {current && <button className="icon-btn radio-favorite" type="button" aria-label={currentFavorite ? "Remove station from favorites" : "Save station to favorites"} aria-pressed={!!currentFavorite} onClick={() => toggleFavorite(current)}><RadioIcon name="heart" /></button>}
+        <button className="icon-btn radio-favorite" type="button" aria-label={currentFavorite ? "Remove station from favorites" : "Save station to favorites"} aria-pressed={!!currentFavorite} onClick={() => current ? toggleFavorite(current) : library.toggleFavorite(currentId)}><RadioIcon name="heart" /></button>
       </div>
       <div className="radio-controls"><VolumeRow id="radio-volume" step={FM_VOLUME_STEP} value={fm.fmVolume} onLevel={fm.setFmVolume} /><button type="button" className="btn radio-player-button radio-mute" aria-pressed={fm.fmMuted} onClick={() => fm.setFmMuted(muted => !muted)} title={fm.fmMuted ? "Unmute radio" : "Mute radio"}><RadioIcon name={fm.fmMuted ? "muted" : "volume"} />{fm.fmMuted ? "Unmute" : "Mute"}</button><button type="button" className="btn radio-player-button" disabled={!enabled || !stations.some(station => station.id !== current?.id)} onClick={() => { const station = surpriseStation(stations, current?.id); if (station) pick(station); }}><RadioIcon name="shuffle" /> Surprise me</button></div>
     </div>
@@ -161,24 +162,26 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     <div className="radio-workspace" data-view={mobileView}>
       <RadioMap stations={enabled ? stations : []} selected={current} current={current} playing={player.playing} onPick={pick} />
       <section className="radio-discovery" aria-label="Station discovery">
-        <div className="radio-collections" role="group" aria-label="Station collection">{[["discover", "Discover"], ["favorites", `Favorites${library.favorites.length ? ` · ${library.favorites.length}` : ""}`], ["recent", "Recent"]].map(([value, text]) => <button type="button" className="radio-collection" key={value} aria-pressed={collection === value} onClick={() => setCollection(value)}>{text}</button>)}</div>
-        <div className="radio-search"><RadioIcon name="search" /><label className="vis-hidden" htmlFor="radio-search">Search stations</label><input ref={searchRef} id="radio-search" type="search" placeholder="Search station names…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" className="icon-btn" aria-label="Clear search" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><RadioIcon name="close" /></button>}</div>
-        <div className="radio-filters" role="group" aria-label="Station filters">
-          <RadioFilter label="Country" value={country} onChange={setCountry} options={[{ value: "", label: "All countries" }, { value: "GLOBAL", label: "Global" }, ...countries.map(([value, label]) => ({ value, label }))]} />
-          <RadioFilter label="Sound" value={genre} onChange={setGenre} options={[{ value: "", label: "All sounds" }, ...genres.map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }))]} />
-          <RadioFilter label="Language" value={language} onChange={setLanguage} allowCustom options={[{ value: "", label: "Any language" }, ...[...new Set([...library.catalogue, ...results, ...saved].flatMap(station => station.radio.language.split(",")).map(value => value.trim().toLowerCase()).filter(Boolean))].sort().map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }))]} />
-        </div>
-        <div className="radio-results-heading" role="status" aria-live="polite" aria-atomic="true"><span>{loading && collection === "discover" ? "Updating stations…" : `${stations.length + visibleOwnCount} ${hasFilters ? "matching" : collection === "discover" ? "available" : collection === "favorites" ? "saved" : "recent"} stations`}</span>{hasFilters && <button type="button" className="radio-reset" onClick={resetFilters}>Clear filters</button>}</div>
-        <div ref={listRef} className="radio-list" role="region" aria-label="Stations" aria-busy={loading && collection === "discover"}>
-          {enabled && visibleOwnCount > 0 && <details className="radio-own" open><summary>Workspace streams <span>{visibleOwnCount}</span></summary>{ownStreams.map(source => {
-            const active = fm.fmSource === source.value;
-            return <div className={`radio-station${active ? " current" : ""}${active && player.playing ? " playing" : ""}`} key={source.value}>
-              <button type="button" className="radio-own-station radio-station-pick" aria-current={active || undefined} aria-label={`${active && player.armed ? "Pause" : "Play"} ${source.name}`} onClick={() => pickBuiltIn(source.value)}><span className="radio-station-code radio-own-icon"><RadioIcon name={source.icon} /></span><span className="radio-station-copy"><strong>{source.name}</strong><span className="radio-station-meta"><span>{source.metadata}</span>{active && <span className="radio-row-state"> · {player.playing ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></span></button>
-              <button type="button" className="icon-btn radio-row-play" aria-label={`${active && player.armed ? "Pause" : "Play"} ${source.name} stream`} onClick={() => pickBuiltIn(source.value)}><RadioIcon name={active && player.armed ? "pause" : "play"} /></button>
+        <RadioDiscoveryToolbar collection={collection} favoriteCount={favoriteCount} onCollectionChange={changeCollection} query={query} onQueryChange={setQuery} searchRef={searchRef}
+          filters={{ country, genre, language }} onFilterChange={(name, value) => { if (name === "country") setCountry(value); else if (name === "genre") setGenre(value); else setLanguage(value); }}
+          countryOptions={[{ value: "", label: "All countries" }, { value: "GLOBAL", label: "Global streams" }, ...countries.map(([value, label]) => ({ value, label }))]}
+          genreOptions={[{ value: "", label: "All genres & topics" }, ...genreOptions]}
+          languageOptions={[{ value: "", label: "Any language" }, ...languageOptions]} />
+        <div className="radio-results-heading" role="status" aria-live="polite" aria-atomic="true"><span>{enabled ? discoverySummary(stations.length, visibleOwnCount) : disabledReason}</span>{loading && collection === "discover" && <span>Updating…</span>}</div>
+        {(genre || language) && allStreams.length > 0 && <p className="radio-metadata-note">Workspace streams have no genre or language data and are excluded by these filters.</p>}
+        <div ref={listRef} id="radio-station-results" className="radio-list" role="tabpanel" aria-labelledby={`radio-tab-${collection}`} tabIndex={0} aria-busy={loading && collection === "discover"}>
+          {enabled && visibleOwnCount > 0 && <details className="radio-own" open={workspaceOpen} onToggle={event => setWorkspaceOpen(event.currentTarget.open)}><summary>Workspace streams <span>{visibleOwnCount}</span></summary><p className="radio-source-help">YouTube and custom streams · not on the map</p>{ownStreams.map(source => {
+            const active = fm.fmSource === source.selection;
+            return <div className={`radio-station${active ? " current" : ""}${active && player.playing ? " playing" : ""}`} key={source.selection}>
+              <button type="button" className="radio-own-station radio-station-pick" aria-current={active || undefined} aria-label={`${active && player.armed ? "Pause" : "Play"} ${source.name}`} onClick={() => pickBuiltIn(source.selection)}><span className="radio-station-code radio-own-icon"><RadioIcon name={source.icon} /></span><span className="radio-station-copy"><strong>{source.name}</strong><span className="radio-station-meta"><span>{source.metadata}</span>{active && <span className="radio-row-state"> · {player.playing ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></span></button>
+              <button type="button" className="icon-btn radio-row-play" aria-label={`${active && player.armed ? "Pause" : "Play"} ${source.name} stream`} onClick={() => pickBuiltIn(source.selection)}><RadioIcon name={active && player.armed ? "pause" : "play"} /></button>
               <button type="button" className="icon-btn radio-favorite" aria-pressed={library.favorites.includes(source.id)} aria-label={`${library.favorites.includes(source.id) ? "Unsave" : "Save"} ${source.name}`} onClick={() => library.toggleFavorite(source.id)}><RadioIcon name="heart" /></button>
             </div>;
           })}</details>}
           {!enabled && <p className="radio-empty" role="status">{disabledReason}</p>}
+          {enabled && (stations.length > 0 || (collection === "discover" && (loading || error))) && <section aria-labelledby="radio-directory-heading">
+            <div className="radio-source-heading"><h3 id="radio-directory-heading">Radio stations</h3><span>{stations.length}</span></div>
+            <p className="radio-source-help">Radio Browser · stations with locations appear on the map</p>
           {enabled && collection === "discover" && error && <div className="radio-directory-error" role="status"><strong>Directory unavailable</strong><p>{stations.length ? "The saved catalogue is still available." : "Try your favorites or workspace streams."}</p><button type="button" className="btn" onClick={() => setRetry(value => value + 1)}>Try again</button></div>}
           {enabled && loading && collection === "discover" && !stations.length && <RadioLoading />}
           {enabled && today && collection === "discover" && !hasFilters && <button type="button" className="radio-daily" aria-label={`${today.id === current?.id && player.armed ? "Pause" : fm.unavailableFmStations.has(today.id) ? "Retry" : "Play"} today’s station: ${today.name}${today.radio.country ? `, ${today.radio.country}` : ""}`} onClick={() => pick(today)}><span className="radio-daily-label">Today’s station</span><strong>{today.name}</strong>{today.radio.country && <span className="radio-daily-country">{today.radio.country}</span>}<RadioIcon name={today.id === current?.id && player.armed ? "pause" : "play"} /></button>}
@@ -190,7 +193,8 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
               <button type="button" className="icon-btn radio-favorite" aria-pressed={library.favorites.includes(station.id)} aria-label={`${library.favorites.includes(station.id) ? "Unsave" : "Save"} ${station.name}`} onClick={() => toggleFavorite(station)}><RadioIcon name="heart" /></button>
             </div>;
           })}
-          {enabled && !stations.length && !visibleOwnCount && !(loading && collection === "discover") && <div className="radio-empty"><RadioIcon name={collection === "favorites" ? "heart" : "search"} /><strong>{collection === "favorites" ? hasFilters ? "No favorites match" : "Keep your favorite frequencies" : collection === "recent" ? hasFilters ? "No recent stations match" : "Your listening trail starts here" : "No stations match"}</strong><p>{hasFilters ? "Try a different name or clear the filters." : collection === "favorites" ? "Save a station with the heart to find it here." : collection === "recent" ? "Stations you play will appear here." : "Choose a different country, sound or language."}</p>{hasFilters && <button type="button" className="btn" onClick={resetFilters}>Clear filters</button>}</div>}
+          </section>}
+          {enabled && !stations.length && !visibleOwnCount && !((loading || error) && collection === "discover") && <div className="radio-empty"><RadioIcon name={collection === "favorites" ? "heart" : "search"} /><strong>{collection === "favorites" ? hasFilters ? "No favorites match" : "Keep your favorite frequencies" : collection === "recent" ? hasFilters ? "No recent stations match" : "Your listening trail starts here" : "No stations match"}</strong><p>{hasFilters ? "Try a different name or clear the filters." : collection === "favorites" ? "Save a station with the heart to find it here." : collection === "recent" ? "Stations you play will appear here." : "Search another name or change the filters."}</p>{hasMetadataFilters ? <button type="button" className="btn" onClick={resetFilters}>Clear filters</button> : query && <button type="button" className="btn" onClick={() => { setQuery(""); searchRef.current?.focus(); }}>Clear search</button>}</div>}
         </div>
       </section>
     </div>

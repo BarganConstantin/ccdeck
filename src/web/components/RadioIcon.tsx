@@ -1,4 +1,4 @@
-export type RadioIconName = "radio" | "play" | "pause" | "shuffle" | "heart" | "close" | "search" | "globe" | "back" | "previous" | "next" | "volume" | "muted" | "headphones" | "book" | "gamepad" | "sunset" | "moon" | "cassette" | "palm" | "coffee" | "check";
+export type RadioIconName = "radio" | "play" | "pause" | "shuffle" | "heart" | "close" | "search" | "globe" | "back" | "previous" | "next" | "volume" | "muted" | "headphones" | "book" | "gamepad" | "sunset" | "moon" | "cassette" | "palm" | "coffee" | "check" | "filters";
 const paths: Record<RadioIconName, string> = {
   radio: "M4 8h16v12H4z M7 8l10-5 M7 12h5 M15 12h2 M7 16h2 M13 16h4",
   play: "M8 5l11 7-11 7z",
@@ -22,6 +22,7 @@ const paths: Record<RadioIconName, string> = {
   palm: "M12 8c2 4 3 8 2 13 M12 8C8 3 4 4 2 8c4-1 7-1 10 0 M12 8c1-6 6-7 10-2-4-1-7 0-10 2 M12 8c-5 0-7 3-7 7 2-3 4-5 7-7 M12 8c4 0 7 3 7 7-2-3-4-5-7-7 M10 21h8",
   coffee: "M4 8h12v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z M16 9h2a3 3 0 0 1 0 6h-2 M7 3v2 M11 3v2 M3 22h15",
   check: "M5 12l4 4L19 6",
+  filters: "M4 6h4 M12 6h8 M4 12h10 M18 12h2 M4 18h2 M10 18h10 M8 4v4 M14 10v4 M6 16v4",
 };
 export default function RadioIcon({ name }: { name: RadioIconName }) {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
