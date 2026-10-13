@@ -32,7 +32,7 @@ import {
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead } from "./SortHead";
 import { useCountUp } from "../use-count-up";
-import AccountResetCalendar from "./AccountResetCalendar";
+import AccountResetCalendar, { type ResetScope } from "./AccountResetCalendar";
 
 /** How full a reading is, in the inks the panel's rows use: the warning past
  *  70% used and the error past 90%. A warning, never a state — see statusOf. */
@@ -306,6 +306,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(onClose);
   const [view, setView] = useState<"accounts" | "calendar">("accounts");
+  const [resetScope, setResetScope] = useState<ResetScope>("upcoming");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   // The last roster that had anyone in it — see the header. Keyed on the
   // roster the panel holds, which changes once a poll and not once a render.
@@ -327,7 +328,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   // the panel's subtree is laid out by it (panel-modal-portal).
   return createPortal(
     <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal ap-report-modal" onClick={e => e.stopPropagation()}
+      <div ref={dialogRef} className="modal ap-report-modal" data-view={view} onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="ap-report-title">
         <header className="ap-proj-head">
           {/* No subtitle: the count it carried is the lead's, one line down, and
@@ -347,7 +348,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
         <div className="vis-hidden" role="status" aria-atomic="true">{held ?? ""}</div>
         {view === "accounts"
           ? <UsageReportBody accounts={rows} nowSec={nowSec} held={held} sort={sorted?.sort ?? null} onSort={sortBy} />
-          : <AccountResetCalendar accounts={rows} nowSec={nowSec} held={held} selectedDate={selectedDate} onSelect={setSelectedDate} />}
+          : <AccountResetCalendar accounts={rows} nowSec={nowSec} held={held} selectedDate={selectedDate} onSelect={setSelectedDate} scope={resetScope} onScope={setResetScope} />}
       </div>
     </div>,
     document.body,

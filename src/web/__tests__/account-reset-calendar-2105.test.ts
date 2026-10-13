@@ -160,7 +160,8 @@ describe("reset calendar content", () => {
   it("keeps retained failed-poll data visibly outdated", () => {
     const output = html([account(1, at(13))], "Could not read accounts. Showing the last readings.");
     expect(output).toContain("Could not read accounts");
-    expect(output).toContain("Needs a fresh reading · Last saved reading");
+    expect(output).toContain("Last saved reading");
+    expect(output).toContain("excluded from counts");
     expect(output).toContain("Needs a fresh reading");
   });
 
@@ -172,12 +173,30 @@ describe("reset calendar content", () => {
     const next = output.slice(output.indexOf('class="ap-reset-next"'), output.indexOf('class="ap-reset-week"'));
     expect(next).toContain("Upcoming account");
     expect(next).not.toContain("Old account");
-    const main = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('<details class="ap-reset-disclosure"'));
+    const main = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('<section class="ap-reset-disclosure"'));
     expect(main).toContain("Upcoming account");
     expect(main).not.toContain("Old account");
     expect(output).toContain("excluded from counts");
     expect(output).not.toContain('<details class="ap-reset-disclosure" open');
     expect(output).toContain("Old account");
+  });
+
+  it("groups simultaneous observations under one event time", () => {
+    const output = html([account(1, at(13)), account(2, at(13)), account(3, at(14))]);
+    const agenda = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('<section class="ap-reset-disclosure"'));
+    expect(agenda.match(/class="ap-reset-event"/g)).toHaveLength(2);
+    expect(agenda.match(/class="ap-reset-entry"/g)).toHaveLength(3);
+  });
+
+  it("makes older readings directly selectable without rendering them as upcoming", () => {
+    const output = renderToStaticMarkup(createElement(AccountResetCalendar, {
+      accounts: [account(1, at(13), { stopped: true })], nowSec: now(), held: null, scope: "older",
+    }));
+    expect(output).toContain('class="ap-reset-scheduled" hidden=""');
+    expect(output).toContain('class="ap-reset-disclosure" aria-label="Accounts needing fresh readings"');
+    expect(output).toContain("Last read: 60% used");
+    expect(output).toContain("Last reported reset");
+    expect(output).toContain("excluded from counts");
   });
 
   it("explains the empty schedule and escapes account names", () => {
@@ -201,8 +220,8 @@ describe("reset calendar content", () => {
     const output = html([
       account(1, at(13)), account(2, at(13)), account(3, at(13), { stale: true }),
     ]);
-    expect(output).toContain("2 accounts reset at this time");
-    expect(output).not.toContain("3 accounts reset at this time");
+    expect(output).toContain('class="ap-reset-name">2 accounts</span>');
+    expect(output).not.toContain('class="ap-reset-name">3 accounts</span>');
   });
 
   it("renders only the chosen day, with today independent from selection", () => {
@@ -213,7 +232,7 @@ describe("reset calendar content", () => {
     const main = output.slice(output.indexOf('class="ap-reset-scheduled"'), output.indexOf('class="ap-reset-about"'));
     expect(main).toContain("Wednesday account");
     expect(main).not.toContain("Tuesday account");
-    expect(output.match(/aria-pressed="true"/g)).toHaveLength(1);
+    expect(output.match(/class="ap-reset-day-button"[^>]*aria-pressed="true"/g)).toHaveLength(1);
     expect(output).toContain("Showing only Wednesday");
     expect(output).toContain("data-today");
   });
