@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import world from "../assets/radio-world.json";
 import type { RadioStation } from "../radio-library";
 import { clampMapView, clusterRadioMarkers, mapDimensions, MAX_RADIO_ZOOM, WORLD_VIEW, zoomMapView, type RadioMapView } from "../radio-map-geometry";
@@ -11,14 +11,12 @@ const regions = [
 ];
 const land = <g className="radio-land" aria-hidden="true">{world.map((country, index) => <path key={`${country.code}-${index}`} d={country.path} vectorEffect="non-scaling-stroke" />)}</g>;
 
-const RadioMap = memo(function RadioMap({ stations, selected, current, playing, onInspect, locateRequest, children }: {
+const RadioMap = memo(function RadioMap({ stations, selected, current, playing, onPick }: {
   stations: RadioStation[];
   selected?: RadioStation;
   current?: RadioStation;
   playing: boolean;
-  onInspect: (station: RadioStation) => void;
-  locateRequest: number;
-  children?: ReactNode;
+  onPick: (station: RadioStation) => void;
 }) {
   const svg = useRef<SVGSVGElement>(null);
   const [rect, setRect] = useState({ width: 600, height: 430 });
@@ -55,13 +53,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
     return () => observer.disconnect();
   }, []);
   useEffect(() => moveCamera(camera.current), [size, moveCamera]);
-  useEffect(() => {
-    if (!locateRequest || selected?.radio.lat == null || selected.radio.lon == null) return;
-    setRegion(""); setCluster(null);
-    moveCamera({ x: selected.radio.lon + 180, y: 90 - selected.radio.lat, zoom: 5 }, true);
-    // Location is an explicit action, rather than a camera jump on every selection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locateRequest, moveCamera]);
+
   const changeZoom = useCallback((factor: number) => { setRegion(""); setCluster(null); moveCamera(zoomMapView(camera.current, factor, sizeRef.current), true); }, [moveCamera]);
   const pointAt = (x: number, y: number) => {
     const box = svg.current!.getBoundingClientRect(), active = camera.current;
@@ -132,9 +124,9 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
           const grouped = marker.stations.length > 1, station = marker.stations[0], active = marker.stations.some(item => selected?.id === item.id), audible = playing && marker.stations.some(item => current?.id === item.id);
           return <g key={marker.id} className={`radio-pin${grouped ? " clustered" : ""}${active ? " selected" : ""}${audible ? " playing" : ""}`} role="button" tabIndex={marker.x >= view.x - size.width / view.zoom / 2 && marker.x <= view.x + size.width / view.zoom / 2 && marker.y >= view.y - size.height / view.zoom / 2 && marker.y <= view.y + size.height / view.zoom / 2 ? 0 : -1}
             onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); event.currentTarget.dispatchEvent(new MouseEvent("click", { bubbles: true })); } }}
-            aria-label={grouped ? `Explore ${marker.stations.length} nearby stations` : `Inspect ${station.name}, ${station.radio.country}`} transform={`translate(${marker.x} ${marker.y})`}
+            aria-label={grouped ? `Explore ${marker.stations.length} nearby stations` : `${current?.id === station.id && playing ? "Pause" : "Play"} ${station.name}, ${station.radio.country}`} transform={`translate(${marker.x} ${marker.y})`}
             onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onClick={() => {
-              if (!grouped) { setCluster(null); onInspect(station); return; }
+              if (!grouped) { setCluster(null); onPick(station); return; }
               setCluster(marker.stations); setRegion(""); moveCamera({ x: marker.x, y: marker.y, zoom: Math.min(MAX_RADIO_ZOOM, camera.current.zoom * 2) }, true);
             }}>
             <title>{grouped ? `${marker.stations.length} nearby stations · click to explore` : `${station.name} · ${station.radio.country}`}</title>
@@ -146,8 +138,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
         })}</g>
       </svg>
       <div className="radio-map-tools" role="group" aria-label="Map zoom"><button className="btn radio-map-button" type="button" aria-label="Zoom map in" onClick={() => changeZoom(1.5)} disabled={view.zoom >= MAX_RADIO_ZOOM}>+</button><button className="btn radio-map-button" type="button" aria-label="Zoom map out" onClick={() => changeZoom(1 / 1.5)} disabled={view.zoom <= 1}>−</button></div>
-      {cluster && <div className="radio-cluster-preview"><header><strong>{cluster.length} nearby stations</strong><button type="button" className="icon-btn" aria-label="Close nearby stations" onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button className="radio-cluster-station" key={station.id} type="button" onClick={() => { setCluster(null); onInspect(station); }}>{station.name}<span>{station.radio.country}</span></button>)}</div></div>}
-      {!cluster && children}
+      {cluster && <div className="radio-cluster-preview"><header><strong>{cluster.length} nearby stations</strong><button type="button" className="icon-btn" aria-label="Close nearby stations" onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button className="radio-cluster-station" key={station.id} type="button" onClick={() => { setCluster(null); onPick(station); }}>{station.name}<span>{station.radio.country}</span></button>)}</div></div>}
     </div>
     <p id="radio-map-help" className="radio-map-help">Map view doesn’t filter stations. Drag or zoom to explore. <span className="vis-hidden">With the map focused, arrow keys pan, plus and minus zoom, and Home resets the view. Use the station list as a keyboard alternative.</span></p>
   </section>;

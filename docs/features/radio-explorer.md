@@ -10,11 +10,19 @@ Station discovery uses the [Radio Browser API](https://docs.radio-browser.info/)
 
 The map uses bundled [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/) public-domain country geometry. No map service or tiles are needed. Stations without coordinates remain available in the list. Directory positions are approximate, not verified broadcast locations. The count distinguishes mapped entries from all results; selected/current pins outside the results are disclosed separately. Camera regions never silently filter results. Drag, scroll, double-click or pinch to explore; arrow keys pan, +/− zoom and Home restores the world. Nearby and coincident positions form clusters with a compact station chooser. Selected and playing states remain visible on clusters.
 
-The explorer opens in a centered modal with a lightly blurred backdrop, bounded by the viewport (maximum 1200×800px). Desktop uses an approximately 61/39 map/discovery split with one persistent player. Narrow windows switch between Map and Stations; short narrow windows scroll filters and results together. Selecting a marker or station row inspects it without starting audio; Play is explicit, and Locate moves the map only when requested. Mobile inspection stays in the current Map or Stations view and transfers focus to Play. Details use a reserved dock rather than covering the map; short windows use a single compact action strip. Expand reveals metadata and Locate. Dismiss keeps the selection and returns focus to the map or search, with a way to reopen details. Escape, the close button or a click on the backdrop dismisses it.
+The explorer opens in a centered modal with a lightly blurred backdrop, bounded by the viewport (maximum 1200×800px). Desktop uses an approximately 61/39 map/discovery split with one persistent player. Narrow windows switch between Map and Stations; short narrow windows scroll filters and results together. Clicking a marker or station row starts playback directly; clicking the current armed station pauses it. Playback and favorites stay in the player and station rows, without a separate station-details dock or restore button. Escape, the close button or a click on the backdrop dismisses it.
 
 Desktop playback uses three balanced groups: station identity, centered Previous/Play/Next and Favorite, then volume/Mute/Surprise me. Previous and Next follow the current Discover/Favorites/Recent list and filters, wrap at either end, and start at the appropriate end if the current station is outside the results. Empty results and an already-current sole result disable navigation. Regions share one horizontally scrollable map toolbar. Country flags use platform emoji rendering, with a radio fallback for missing country codes. The daily station is one compact row and exposes the current Play/Pause/Retry action. Requested footer captions remain removed; directory/projection attribution is retained in this documentation.
 
 ## Playback and local state
+
+The nine original YouTube sources appear first on Discover as Global workspace
+streams, including Claude FM and the four Lofi Girl variants. Each has a themed
+SVG icon and local favorite control; played sources also appear in Recent.
+They remain searchable when the directory is unavailable. Station rows use two
+lines: name, then country/source metadata with inline playback status. Long
+metadata truncates before the status. Playing rows use a quiet fill without a
+colored left-edge stripe.
 
 One player serves the character and explorer. Hiding the character or closing Radio keeps music playing. Reload restores the selected station without autoplay. Native audio streams connect directly from the browser to the broadcaster; HLS uses the existing lazy-loaded player support. The directory’s explicit HLS flag is preserved locally and identifies extensionless streams; URL-based detection still supports manually added .m3u8 streams. Explicit directory playback refreshes cached format data while preserving personal station names, and resuming a changed current station makes a new playback request. Saving a favorite never triggers a stream refresh. Failed streams can be selected again to retry.
 
@@ -31,7 +39,7 @@ Station passport, listening statistics, song recognition and richer collections 
 
 ### Interaction refinement
 
-The search field keeps one clear action and returns focus to typing when cleared. Mute/Unmute reserves its width, including narrow windows, to keep volume and transport controls stationary. Hover feedback applies to precise pointers; selected, playing and muted states remain persistent. Keyboard camera and inspector actions respond immediately. Pointer press feedback uses short transform transitions and respects reduced motion. Discovery results retain their count above the list; the redundant limit footer is removed.
+The search field keeps one clear action and returns focus to typing when cleared. Mute/Unmute reserves its width, including narrow windows, to keep volume and transport controls stationary. Hover feedback applies to precise pointers; selected, playing and muted states remain persistent. Keyboard camera and playback actions respond immediately. Pointer press feedback uses short transform transitions and respects reduced motion. Discovery results retain their count above the list; the redundant limit footer is removed.
 
 
 ### Radio signal loading state

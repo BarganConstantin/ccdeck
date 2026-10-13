@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FM_SOURCE_OPTIONS, FM_VOLUME_STEP, type FmSource } from "../appearance";
 import { customFmSelection, type FmSelection } from "../fm-stations";
 import { adjacentRadioStation, dailyStation, matchesRadio, resolveRadioStations, surpriseStation, type RadioStation } from "../radio-library";
@@ -32,8 +32,6 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
 }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const focusInspection = useRef(false);
-  const previousExpansion = useRef(false);
   const [keyboardOpened] = useState(() => document.activeElement?.matches(":focus-visible") ?? false);
   const panel = useModalDismiss<HTMLDivElement>(onClose, { focusRef: searchRef });
   const [query, setQuery] = useState("");
@@ -45,20 +43,14 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [inspected, setInspected] = useState<RadioStation>();
-  const [inspectionVisible, setInspectionVisible] = useState(true);
-  const [inspectionExpanded, setInspectionExpanded] = useState(false);
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 840px)").matches);
-  const [compactInspection, setCompactInspection] = useState(() => window.matchMedia("(max-width: 840px) and (max-height: 600px)").matches);
-  const [locateRequest, setLocateRequest] = useState(0);
   const [mobileView, setMobileView] = useState("stations");
   const { updateCatalogue } = library;
   useEffect(() => {
     const media = window.matchMedia("(max-width: 840px)");
-    const short = window.matchMedia("(max-width: 840px) and (max-height: 600px)");
-    const resize = () => { setNarrow(media.matches); setCompactInspection(short.matches); };
-    media.addEventListener("change", resize); short.addEventListener("change", resize);
-    return () => { media.removeEventListener("change", resize); short.removeEventListener("change", resize); };
+    const resize = () => setNarrow(media.matches);
+    media.addEventListener("change", resize);
+    return () => { media.removeEventListener("change", resize); };
   }, []);
 
   useEffect(() => {
@@ -104,22 +96,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const status = !enabled ? disabledReason : showFailure ? autoNext ? `Stream unavailable · trying ${autoNext} next…` : "Stream unavailable · retry or choose another" : player.dead ? "Choose a station to start listening" : player.armed && !player.playing ? player.buffering ? "Buffering…" : "Connecting…" : player.playing ? "Playing live" : "Paused";
   const resetFilters = () => { setQuery(""); setCountry(""); setGenre(""); setLanguage(""); };
   const toggleFavorite = (station: RadioStation) => { fm.addFmStation(station); library.toggleFavorite(station.id); };
-  const inspect = useCallback((station: RadioStation) => {
-    setInspected({ ...station }); setInspectionVisible(true); setInspectionExpanded(false);
-    focusInspection.current = true;
-  }, []);
-  useEffect(() => {
-    if (!focusInspection.current) return;
-    focusInspection.current = false;
-    panel.current?.querySelector<HTMLButtonElement>(".radio-inspector-actions button")?.focus({ preventScroll: true });
-  }, [inspected, inspectionVisible, mobileView, panel]);
-  useEffect(() => {
-    if (compactInspection && previousExpansion.current !== inspectionExpanded) {
-      panel.current?.querySelector<HTMLButtonElement>(inspectionExpanded ? ".radio-details-toggle" : ".radio-inspector-name")?.focus();
-    }
-    previousExpansion.current = inspectionExpanded;
-  }, [inspectionExpanded, compactInspection, panel]);
-  const pick = (station: RadioStation) => { setInspected(station); setInspectionVisible(true); onPick(station); };
+  const pick = onPick;
   const playCurrent = () => {
     if (current) {
       const fresh = results.find(station => station.id === current.id) ?? library.catalogue.find(station => station.id === current.id) ?? current;
@@ -127,18 +104,13 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     } else if (player.dead) fm.pickFmSource(fm.fmSource);
     else player.press();
   };
-  const dismissInspection = () => {
-    setInspectionVisible(false); setInspectionExpanded(false);
-    if (narrow && mobileView === "stations") searchRef.current?.focus({ preventScroll: true });
-    else panel.current?.querySelector<SVGSVGElement>(".radio-map-canvas")?.focus();
-  };
   useEffect(() => {
-    if (!inspected || !listRef.current) return;
-    const list = listRef.current, row = list.querySelector<HTMLElement>(`[data-station-id="${CSS.escape(inspected.id)}"]`);
+    if (!current || !listRef.current) return;
+    const list = listRef.current, row = list.querySelector<HTMLElement>(`[data-station-id="${CSS.escape(current.id)}"]`);
     if (!row) return;
     if (row.offsetTop < list.scrollTop) list.scrollTop = row.offsetTop;
     else if (row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = row.offsetTop + row.offsetHeight - list.clientHeight;
-  }, [inspected?.id]);
+  }, [current?.id]);
   const pickBuiltIn = (source: FmSelection) => {
     if (source === fm.fmSource && !player.dead) player.press(); else fm.pickFmSource(source);
   };
@@ -158,15 +130,6 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     .filter(source => collection === "discover" || (collection === "favorites" ? library.favorites : library.recent).includes(source.id))
     .sort((a, b) => collection === "recent" ? library.recent.indexOf(a.id) - library.recent.indexOf(b.id) : 0) : [];
   const visibleOwnCount = ownStreams.length;
-  const inspectionPlay = inspected && (<button type="button" aria-describedby="radio-inspected-name radio-inspected-state" className="btn primary radio-inspector-button" disabled={!enabled} aria-label={inspected.id === current?.id && player.armed ? "Pause station" : "Play station"} onClick={() => pick(inspected)}><RadioIcon name={inspected.id === current?.id && player.armed ? "pause" : "play"} /><span>{inspected.id === current?.id && player.armed ? "Pause" : fm.unavailableFmStations.has(inspected.id) ? "Retry stream" : "Play station"}</span></button>);
-  const inspectionSave = inspected && (<button type="button" aria-describedby="radio-inspected-name radio-inspected-state" className="btn radio-inspector-button radio-favorite" aria-pressed={library.favorites.includes(inspected.id)} onClick={() => toggleFavorite(inspected)}><RadioIcon name="heart" /><span>{library.favorites.includes(inspected.id) ? "Saved" : "Save"}</span></button>);
-  const inspector = inspected && (inspectionVisible ? <section className="radio-inspector" data-expanded={inspectionExpanded} aria-label="Station details">
-    {compactInspection && !inspectionExpanded ? <div className="radio-inspector-compact"><button type="button" className="radio-inspector-name" aria-label="Expand station details" aria-describedby="radio-inspected-name radio-inspected-state" aria-expanded={false} aria-controls="radio-station-information" onClick={() => setInspectionExpanded(true)}><strong id="radio-inspected-name" title={inspected.name}>{inspected.name}</strong><span id="radio-inspected-state">{inspected.id === current?.id && player.playing ? "Playing live" : "Selected"}{inspected.radio.country ? ` · ${inspected.radio.country}` : ""}</span><RadioIcon name="back" /></button><div className="radio-inspector-actions">{inspectionPlay}{inspectionSave}<button type="button" className="icon-btn" aria-label="Dismiss station details" onClick={dismissInspection}><RadioIcon name="close" /></button></div></div> : <>
-    <div className="radio-inspector-title"><div><strong id="radio-inspected-name" title={inspected.name}>{inspected.name}</strong><span id="radio-inspected-state">{inspected.id === current?.id && player.playing ? "Playing live" : "Selected"}{inspected.radio.country ? ` · ${inspected.radio.country}` : ""}</span></div><button type="button" className="icon-btn" aria-label="Dismiss station details" onClick={dismissInspection}><RadioIcon name="close" /></button></div>
-    <div className="radio-inspector-actions">{inspectionPlay}{inspectionSave}<button type="button" className="icon-btn radio-details-toggle" aria-label={inspectionExpanded ? "Collapse station details" : "Expand station details"} aria-expanded={inspectionExpanded} aria-controls="radio-station-information" onClick={() => setInspectionExpanded(value => !value)}><RadioIcon name="back" /></button></div>
-    </>}
-    <div id="radio-station-information" className="radio-station-information" hidden={!inspectionExpanded}><p>{[inspected.radio.region, inspected.radio.tags, inspected.radio.language, inspected.radio.bitrate ? `${inspected.radio.bitrate} kbps` : ""].filter(Boolean).join(" · ") || "No additional station information"}</p>{inspected.radio.lat !== null && inspected.radio.lon !== null ? <button type="button" className="btn radio-locate" onClick={() => { setMobileView("map"); setLocateRequest(value => value + 1); }}><RadioIcon name="globe" />Locate on map</button> : <span>No location provided</span>}</div>
-  </section> : <button type="button" className="btn radio-inspector-restore" onClick={() => { setInspectionVisible(true); focusInspection.current = true; }}>Station details <span>{inspected.name}</span></button>);
   return <div ref={panel} id="radio-panel" className="radio-panel nodrag nopan nowheel" role="dialog" aria-modal="true" aria-labelledby="radio-title"
     data-keyboard-interaction={keyboardOpened || undefined}
     onKeyDownCapture={event => { event.currentTarget.dataset.keyboardInteraction = "true"; }}
@@ -195,9 +158,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     </div>
     <div className="radio-mobile-view" role="group" aria-label="Explorer view"><button type="button" className="radio-view" aria-pressed={mobileView === "map"} onClick={() => setMobileView("map")}><RadioIcon name="globe" />Map</button><button type="button" className="radio-view" aria-pressed={mobileView === "stations"} onClick={() => setMobileView("stations")}><RadioIcon name="search" />Stations</button></div>
     <div className="radio-workspace" data-view={mobileView}>
-      <RadioMap stations={enabled ? stations : []} selected={inspected} current={current} playing={player.playing} onInspect={inspect} locateRequest={locateRequest}>
-        {(!narrow || mobileView === "map") && inspector}
-      </RadioMap>
+      <RadioMap stations={enabled ? stations : []} selected={current} current={current} playing={player.playing} onPick={pick} />
       <section className="radio-discovery" aria-label="Station discovery">
         <div className="radio-collections" role="group" aria-label="Station collection">{[["discover", "Discover"], ["favorites", `Favorites${library.favorites.length ? ` · ${library.favorites.length}` : ""}`], ["recent", "Recent"]].map(([value, text]) => <button type="button" className="radio-collection" key={value} aria-pressed={collection === value} onClick={() => setCollection(value)}>{text}</button>)}</div>
         <div className="radio-search"><RadioIcon name="search" /><label className="vis-hidden" htmlFor="radio-search">Search stations</label><input ref={searchRef} id="radio-search" type="search" placeholder="Search station names…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" className="icon-btn" aria-label="Clear search" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><RadioIcon name="close" /></button>}</div>
@@ -207,7 +168,7 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
           {enabled && visibleOwnCount > 0 && <details className="radio-own" open><summary>Workspace streams <span>{visibleOwnCount}</span></summary>{ownStreams.map(source => {
             const active = fm.fmSource === source.value;
             return <div className={`radio-station${active ? " current" : ""}${active && player.playing ? " playing" : ""}`} key={source.value}>
-              <button type="button" className="radio-own-station radio-station-pick" aria-current={active || undefined} aria-label={`${active && player.armed ? "Pause" : "Play"} ${source.name}`} onClick={() => pickBuiltIn(source.value)}><span className="radio-station-code radio-own-icon"><RadioIcon name={source.icon} /></span><span className="radio-station-copy"><strong>{source.name}</strong><span>{source.metadata}</span>{active && <span className="radio-row-state">{player.playing ? "Playing live" : player.armed ? "Connecting…" : "Paused"}</span>}</span></button>
+              <button type="button" className="radio-own-station radio-station-pick" aria-current={active || undefined} aria-label={`${active && player.armed ? "Pause" : "Play"} ${source.name}`} onClick={() => pickBuiltIn(source.value)}><span className="radio-station-code radio-own-icon"><RadioIcon name={source.icon} /></span><span className="radio-station-copy"><strong>{source.name}</strong><span className="radio-station-meta"><span>{source.metadata}</span>{active && <span className="radio-row-state"> · {player.playing ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></span></button>
               <button type="button" className="icon-btn radio-row-play" aria-label={`${active && player.armed ? "Pause" : "Play"} ${source.name} stream`} onClick={() => pickBuiltIn(source.value)}><RadioIcon name={active && player.armed ? "pause" : "play"} /></button>
               <button type="button" className="icon-btn radio-favorite" aria-pressed={library.favorites.includes(source.id)} aria-label={`${library.favorites.includes(source.id) ? "Unsave" : "Save"} ${source.name}`} onClick={() => library.toggleFavorite(source.id)}><RadioIcon name="heart" /></button>
             </div>;
@@ -217,16 +178,15 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
           {enabled && loading && collection === "discover" && !stations.length && <RadioLoading />}
           {enabled && today && collection === "discover" && !hasFilters && <button type="button" className="radio-daily" aria-label={`${today.id === current?.id && player.armed ? "Pause" : fm.unavailableFmStations.has(today.id) ? "Retry" : "Play"} today’s station: ${today.name}${today.radio.country ? `, ${today.radio.country}` : ""}`} onClick={() => pick(today)}><span className="radio-daily-label">Today’s station</span><strong>{today.name}</strong>{today.radio.country && <span className="radio-daily-country">{today.radio.country}</span>}<RadioIcon name={today.id === current?.id && player.armed ? "pause" : "play"} /></button>}
           {enabled && stations.map(station => {
-            const selected = inspected?.id === station.id, active = current?.id === station.id, audible = active && player.playing, unavailable = fm.unavailableFmStations.has(station.id);
-            return <div className={`radio-station${selected ? " selected" : ""}${active ? " current" : ""}${audible ? " playing" : ""}`} key={station.id} data-station-id={station.id}>
-              <button type="button" className="radio-station-pick" aria-label={`Inspect ${station.name}, ${station.radio.country}`} aria-pressed={selected} onClick={() => inspect(station)}><span className="radio-station-code" aria-hidden="true"><RadioCountryFlag code={station.radio.countryCode} /></span><span className="radio-station-copy"><strong title={station.name}>{station.name}</strong><span>{unavailable ? "Stream unavailable · retry" : stationMetadata(station) || "No station details"}</span>{active && !unavailable && <span className="radio-row-state">{audible ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></button>
+            const active = current?.id === station.id, audible = active && player.playing, unavailable = fm.unavailableFmStations.has(station.id);
+            return <div className={`radio-station${active ? " selected current" : ""}${audible ? " playing" : ""}`} key={station.id} data-station-id={station.id}>
+              <button type="button" className="radio-station-pick" aria-label={`${active && player.armed ? "Pause" : unavailable ? "Retry" : "Play"} ${station.name}, ${station.radio.country}`} aria-pressed={active && player.armed} onClick={() => pick(station)}><span className="radio-station-code" aria-hidden="true"><RadioCountryFlag code={station.radio.countryCode} /></span><span className="radio-station-copy"><strong title={station.name}>{station.name}</strong><span className="radio-station-meta"><span>{unavailable ? "Stream unavailable · retry" : stationMetadata(station) || "No station details"}</span>{active && !unavailable && <span className="radio-row-state"> · {audible ? "Playing live" : player.armed ? player.buffering ? "Buffering…" : "Connecting…" : "Paused"}</span>}</span></span></button>
               <button type="button" className="icon-btn radio-row-play" aria-label={`${active && player.armed ? "Pause" : unavailable ? "Retry" : "Play"} ${station.name}, ${station.radio.country}`} onClick={() => pick(station)}><RadioIcon name={active && player.armed ? "pause" : "play"} /></button>
               <button type="button" className="icon-btn radio-favorite" aria-pressed={library.favorites.includes(station.id)} aria-label={`${library.favorites.includes(station.id) ? "Unsave" : "Save"} ${station.name}`} onClick={() => toggleFavorite(station)}><RadioIcon name="heart" /></button>
             </div>;
           })}
           {enabled && !stations.length && !visibleOwnCount && !(loading && collection === "discover") && <div className="radio-empty"><RadioIcon name={collection === "favorites" ? "heart" : "search"} /><strong>{collection === "favorites" ? hasFilters ? "No favorites match" : "Keep your favorite frequencies" : collection === "recent" ? hasFilters ? "No recent stations match" : "Your listening trail starts here" : "No stations match"}</strong><p>{hasFilters ? "Try a different name or clear the filters." : collection === "favorites" ? "Save a station with the heart to find it here." : collection === "recent" ? "Stations you play will appear here." : "Choose a different country, sound or language."}</p>{hasFilters && <button type="button" className="btn" onClick={resetFilters}>Clear filters</button>}</div>}
         </div>
-        {narrow && mobileView === "stations" && inspector}
       </section>
     </div>
   </div>;
