@@ -1,3 +1,4 @@
+import ToolAuditModal from "./ToolAuditModal";
 // UsagePanel — floating panel showing aggregated token usage and cost
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
@@ -82,6 +83,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 }) {
   const singleKeys = useSingleKeyShortcuts();
   const [inspectedSession, setInspectedSession] = useState<SessionSelection | null>(null);
+  const [toolAuditOpen, setToolAuditOpen] = useState<"pointer" | "keyboard" | null>(null);
   const [quotaHistoryOpen, setQuotaHistoryOpen] = useState<"pointer" | "keyboard" | null>(null);
   const boardProviders = useMemo(() => new Map(
     [...state.agents.values()].filter(agent => agent.kind === "root")
@@ -296,6 +298,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
         <h2>Usage</h2>
         <div className="up-header-right">
+          <button type="button" className="glyph-btn" aria-label="Open tool activity" title="Tool activity" onClick={event => setToolAuditOpen(event.detail === 0 ? "keyboard" : "pointer")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 20V10m5 10V4m5 16v-7m5 7V7" /></svg>
+          </button>
           {(providers.claude || providers.codex) && <button type="button"
             className="glyph-btn up-history-btn" aria-label="Open quota history"
             title="Quota history" onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
@@ -506,6 +511,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       <div className="film-foot"><FilmLink film="usage" /></div>
       {inspectedSession && <SessionUsageModal key={`${inspectedSession.agent}:${inspectedSession.sessionId}`}
         session={inspectedSession} onClose={() => setInspectedSession(null)} />}
+      {toolAuditOpen && <ToolAuditModal instant={toolAuditOpen === "keyboard"} onClose={() => setToolAuditOpen(null)} />}
       {quotaHistoryOpen && <QuotaHistoryModal providers={providers} instant={quotaHistoryOpen === "keyboard"}
         accounts={{ claude: quota?.historyAccount, codex: codexQuota?.historyAccount }} onClose={() => setQuotaHistoryOpen(null)} />}
     </aside>

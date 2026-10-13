@@ -164,6 +164,8 @@ import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettin
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
 import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl, handleRadioStations, handleRadioClick, handleMusicConfig } from "./music-routes.mjs";
 // The usage panel's quota and history reads — see usage-routes.mjs.
+import { startToolAudit } from "./tool-audit.mjs";
+import { handleToolAudit } from "./tool-audit-routes.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
 import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaHistory } from "./usage-routes.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
@@ -192,6 +194,7 @@ export function requestUrl(rawUrl) {
 
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
   startQuotaHistory();
+  await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
@@ -318,6 +321,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/restart")     return guard(handleRestart(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
+    if (["GET", "POST"].includes(req.method) && ["/api/tool-audit", "/api/tool-audit/storage"].includes(url.pathname)) return guard(handleToolAudit(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);

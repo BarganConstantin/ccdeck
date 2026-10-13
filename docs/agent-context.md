@@ -3,6 +3,19 @@
 Updated: 2026-10-13. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
+## Tool activity audit preview on Mac — 2026-10-13
+
+- Issue #2122, branch `feat/2122-tool-audit`, worktree
+  `/Users/constantin/Desktop/ccdeck-tool-audit`, based on development `d2ca5ba6`.
+- Frontend `http://127.0.0.1:4545/`, backend 4546, isolated data
+  `CCDECK_HOME=/tmp/ccdeck-tool-audit-preview`. Installed app is untouched.
+- Usage header bar-chart icon opens the device-wide tool report. General
+  Settings has retention/actual size/clear. New calls only; no historical import.
+- Concrete shell operations are grouped without arguments. Shared wrapper and
+  compound timing describes the containing call, not independent inner work.
+- Implementation and verification: `docs/features/tool-audit.md`.
+  Owner preview review pending; no merge into development yet.
+
 ## Usage insights preview on Mac — 2026-10-13
 
 - Issue #2121: quota history and session cached input reuse.

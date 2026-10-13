@@ -290,7 +290,7 @@ describe("the deck's ten overlays", () => {
     // Appearance modal it replaced was never counted here: its backdrop wore
     // two classes, which the sweep's one-class pattern does not match.
     // Quota history (#2121) shares the same trap and named close focus.
-    expect(MODALS.length).toBe(27);
+    expect(MODALS.length).toBe(28);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -372,7 +372,7 @@ describe("the deck's ten overlays", () => {
       // is walked by, and a door that opened it at Sounds lands the reader on
       // "Sounds", which says where they are. Its × is a Shift+Tab away.
       "SettingsModal.tsx",
-      "ShareAccountsDialog.tsx", "UsageHistoryModal.tsx",
+      "ShareAccountsDialog.tsx", "ToolAuditModal.tsx", "UsageHistoryModal.tsx",
     ]);
     expect(hook).toMatch(/\(focusRef\?\.current \?\? tabbablesIn\(dialogRef\.current\)\[0\]\)\?\.focus\(\)/);
   });

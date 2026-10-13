@@ -1,0 +1,101 @@
+# Tool activity audit
+
+Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122).
+
+Open **Usage → Tool activity** (bar-chart icon). This is a device-wide report
+across Claude and Codex, independent of retained sessions on the canvas.
+Collection starts with new events after this build starts; no old session import.
+
+## What the report measures
+
+Operations such as `git status`, `git commit`, `git push`, `npm run build`, and
+`dotnet test` have separate rows. Variable arguments, messages, paths, and output
+are not retained. Non-shell tool names remain concrete, including MCP names.
+Codex `exec` wrappers are tokenized without executing JavaScript: literal tool
+calls/commands can be classified; dynamic commands remain unclassified.
+
+Calls count observed containing tool calls. Compound commands and orchestration
+wrappers can contain several operations, but do not prove every conditional
+branch executed. Each identified operation is counted once per containing call;
+its duration/outcome belongs to that call. The shared-timing label and measurement
+notes disclose this. Repeated inner executions cannot be counted independently.
+
+Completed success/failure calls contribute to total, median, maximum and P95
+elapsed intervals; P95 requires 20 valid samples. Error percentages use completed
+observed outcomes. Claude uses hook receipt intervals; Codex passes rollout
+source timestamps through the watcher to the collector without changing canvas
+receipt-time semantics. Invalid, missing or negative intervals are unavailable,
+not zero. Calls with no outcome stay unmatched rather than being settled by the
+canvas's stale sweep. Parallel calls overlap, so total tool time is not elapsed
+session time. Wrapper intervals include orchestration/delivery/approval waits.
+
+Provider/period/custom UTC date filters, ranking and operation search are in the
+report. Selecting an operation reads its 20 slowest measured calls or latest 30
+recorded calls. No full arguments/output drill-down is stored. Each request is a
+fresh snapshot; details may include calls captured since the main table loaded.
+
+## Local storage and boundaries
+
+`deckDataDir()/tool-audit/` honors `CCDECK_HOME` and contains atomic settings plus
+append-only daily JSONL metadata journals. Settings include a stable random
+device identity, clear-generation identity, retention and collection start.
+Call IDs hash device/generation/provider/session/call identity; raw session IDs
+are not stored. This gives future synchronization a namespace without enabling
+sync, uploading these records or aggregating other devices now.
+
+General Settings shows actual journal/settings bytes, retention 30/60/90 days
+(default90), size refresh and a separate clear action. Shorter retention and
+clear require inline confirmation. Clear preserves device identity/retention,
+changes generation and resets the collection start. Retention is by UTC journal
+day; older files are physically removed on startup, active collection and reads.
+Only tool-history files are affected; the canvas/event log/quota history remain
+independent.
+
+The ingest path queues small sanitized records and batches disk writes. At most
+25,000 pending events are buffered; failed/dropped records are disclosed for the
+running process. A report flushes queued observations, captures file sizes and
+runs streaming aggregation in a bounded worker. Graceful launcher shutdown
+drains pending tool records with a three-second deadline; an abrupt kill can
+lose the last not-yet-written batch. Workers use the already-loaded
+report function, so an on-disk self-update cannot mix report implementations.
+Closing/changing a report cancels its worker. There is one report worker per
+process; UI briefly retries a busy response during cancellation.
+
+Report limits: 64MiB per daily journal, 500,000 distinct retained calls, 256MiB
+worker heap, 60-second deadline. Exceeding these fails the report rather than
+silently returning partial totals. Raw journal records are validated; skipped
+corrupt rows and unmatched outcomes are disclosed. Retention reduction can
+reduce the retained workload. Collection failure cannot stop the event stream.
+
+Current implementation is intended for one writer per deck data directory.
+Concurrent ccdeck processes using that same directory share files, but settings
+and clears are not coordinated across those processes. Use separate
+`CCDECK_HOME` directories for separate preview instances. Durable dropped-write
+accounting and coordinated multi-process clear are future work before remote
+sync.
+
+## Interaction and verification
+
+Radio's `radioOpen`200ms entry is reused; keyboard entry and reduced motion are
+instant. While actual aggregation runs, an indeterminate indicator and skeleton
+show work without invented percentages. The report updates on open/filter/change
+or Refresh, not a background polling loop. Escape restores focus to its entry.
+
+Preview: `http://127.0.0.1:4545/`, backend4546,
+`CCDECK_HOME=/tmp/ccdeck-tool-audit-preview`. Owner's installed deck is untouched.
+Browser QA uses isolated contexts and intercepted fixtures; those fixture records
+are never saved to the live preview. Unit tests cover normalization, paired
+outcomes, zero/missing timing, duplicates, restarts, replay exclusion, retention,
+clear, corruption and validation. A real watcher integration asserts the4500ms
+rollout interval for call/output records consumed in one batch. Existing modal,
+settings, guarded-read, self-update and Codex translation checks also pass.
+Brave covers all nine themes at1280/390/320px, table/details, ranking/search,
+loading/empty/error/storage states, keyboard/reduced-motion, refresh dedup and
+retention/clear confirmations. Typecheck and production build are required.
+
+
+Browser execution was on macOS Brave; Windows/Linux native execution is not
+claimed. SVG icons inherit theme colors without depending on emoji rendering.
+Independent final visual review remains outstanding because reviewer attempts
+failed due service capacity. Loading captures requested by the initial evidence
+check were corrected before the retries. No independent ship verdict is claimed.
