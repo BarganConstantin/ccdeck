@@ -60,3 +60,34 @@ After implementation, the first additional critique/fix pass qualified elapsed e
 ### Limits
 
 Provider timestamps describe reported reset times at an observation, not confirmation that capacity renewed. The existing readiness calculation can include last readings, held-out accounts and elapsed-window estimates; its UI now states that basis. Telemetry collection accuracy, physical touch hardware, Safari and a full screen-reader session were not verified. Browser fixtures validate application behavior rather than real-account collection. No recurrence is invented and no account is switched or refreshed by these tests.
+
+
+## Product composition refinement — 2026-10-13
+
+The owner's follow-up identified a real decision-support gap: recent schedules and accounts requiring fresh readings had similar significance, but lived in separate scrolling sections. The supplied reference is illustrative; the implementation continues to use actual provider observations, not its invented schedule.
+
+Method: independent Assessment A (Hubble, 01a133ad-15f2-77f0-9a0a-092867f6a411) and Assessment B (Singer, 01a133ad-173d-7441-b47f-f415d9bbf32d). A identified fragmented planning context, buried reliability meaning, duplicate simultaneous times, generic date boxes and unclear global versus selected scope (provisional 23/40 Nielsen score). B's targeted detector ran once with zero findings; source review still found confidence wording inconsistencies and small secondary touch targets. Questions skipped: the owner authorized autonomous implementation and no unresolved product choice required input.
+
+### Alternatives
+
+| Composition | Scanning / discovery | Interaction / responsive cost | Decision |
+| --- | --- | --- | --- |
+| Unified planning header + category views | Next event, week distribution and observation coverage are together; one press reaches affected accounts | One stable reading order; header remains visible above one agenda scroller | Selected |
+| Context rail beside agenda | Good desktop glanceability but splits temporal and reliability context | Rail stacks or collapses on phones, recreating the distance problem | Rejected |
+
+### Implemented outcome
+
+- Persistent planning header combines next reported event, exact local time, existing-clock countdown, observation basis and three direct category controls: Upcoming, Need fresh readings, Other reset times. Counts remain disjoint according to the existing schedule model; older in-range schedules are excluded from upcoming, while unknown/elapsed/later timestamps retain their own causes.
+- Seven dates are one quiet temporal instrument, without repeated bordered boxes. Populated dates have stronger numerals and a small activity mark with an explicit numeric count; empty dates are quieter. Today and selected/focused dates remain distinct, with full-date/count screen-reader labels.
+- Chronological date rails group accounts by exact reported timestamp, showing a shared time/countdown once. Account identity and observation percentage lead each compact row; the small meter is secondary. Depleted capacity uses warning ink in this calendar, not error ink.
+- Older observations have their actual collection reason beside Last read usage; their expanded details also qualify the reading and show Last reported reset rather than a current countdown. Every category, including unknown and elapsed times, provides native account inspection for both windows.
+- Category and date changes return the agenda to its beginning, while polling and clock updates retain the user's scroll position. Category, selected day and table sort survive switching to Accounts and back. Clicking a date selects Upcoming; category controls return to all days, and the global next event remains explicitly global.
+- One scroll region beneath the planning header; stable viewport-constrained calendar height. On narrow/short screens the header rearranges into a compact instrument, retaining data category counts and a complete first agenda entry. Account rows, date targets and All days meet 44px mobile hit-area sizing. Supplementary basis copy is visually condensed on short phones and remains available to screen readers/details.
+
+### Two critique/fix passes and finish review
+
+Pass one corrected the mobile header consuming the whole viewport and removed repetitive stale-row phrasing; grouped timestamp events substantially reduce agenda height. Pass two adjusted the narrow summary hierarchy, moved incidental labels into accessible detail at short heights, corrected whole-identifier wrapping, and stabilized the scope workspace. The independent finish reviewer found two concrete workflow gaps: unknown/elapsed account inspection and retained scroll on category changes; both were fixed with the existing disclosure and explicit-event scroll reset.
+
+Final artifacts: `/tmp/ccdeck-capacity-refinement/before/`, `/tmp/ccdeck-capacity-refinement/pass1/`, `/tmp/ccdeck-capacity-refinement/pass2/`, `/tmp/ccdeck-capacity-refinement/after/`. Final captures include top/middle/bottom of a 24-account schedule, selected/empty dates, expanded current/older/other accounts, all-old/no-upcoming rosters, loading/error recovery, dark/light and desktop/320/390/short layouts. Synthetic identifiers only.
+
+Validation for this refinement: 260 tests across 15 files, TypeScript and production build passed; only the existing large-chunk build warning remains. Chromium workflows passed, including category state retention, older/other-account inspection, fixed header during 24-account scrolling and explicit category scroll reset. Independent finish review (Erdos, 01a133b5-b890-74f2-9f1f-9870ffe52958) scored both specified fixes as ship; its source review did not independently rerun the browser harness. Provider timestamp, readiness-estimate and telemetry limitations described above remain; no new data collection, recurrence, clock or dependency was introduced.

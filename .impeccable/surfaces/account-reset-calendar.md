@@ -1,6 +1,6 @@
 # Account capacity and reset calendar
 
-Current surface brief — 2026-10-13. Inherit ccdeck's theme, typography, control
+Current surface brief — 2026-10-13, product composition refinement. Inherit ccdeck's theme, typography, control
 edges, focus tokens and native dialog behavior; this is scheduling and capacity
 decision support, not a pooled-quota analytics dashboard.
 
@@ -10,18 +10,29 @@ selected date. No extra fetch, timer, dependency or account mutation.
 
 ## Hierarchy and interactions
 
-The next reported weekly event leads with its account or simultaneous-account
-count, local date/time and countdown. Individual identities remain in the agenda.
-A compact seven-day navigator shows reset counts, not usage. Today is underlined;
-selection uses accent edging and aria-pressed; hover remains neutral and focus
-uses the shared visible ring. Selecting a date filters the agenda. The always
-available All days button clears selection without discarding keyboard focus.
+One persistent planning header combines the next reported weekly event, account
+or simultaneous-account count, local date/time, countdown and observation basis.
+Three direct category controls show Upcoming, Need fresh readings and Other reset
+times. Uncertainty is reachable without scrolling through upcoming accounts.
+Category, date and sort state survive switching between the two existing views.
 
-Agenda rows align reset time, expandable identity and observed weekly use.
-Native account disclosures expose both 5-hour and weekly windows, held-out status
-and the separate-limit caveat. Coverage links open and focus native disclosures
-for older readings and other reset times. Explanations remain progressive rather
-than obscuring the main schedule.
+The seven-day navigator is a temporal strip, without repeated bordered boxes.
+Empty dates are quiet; populated dates have stronger numerals and an activity mark
+with a numeric count. Today is underlined; selected dates use accent edging and
+aria-pressed. Full-date/count accessible labels and shared focus rings remain.
+A date selects Upcoming and filters its agenda; All days clears the filter.
+Category controls show all days in their category; the next event stays global.
+
+Date rails group accounts by exact reported timestamp, sharing one time/countdown.
+Compact rows lead with expandable identity and observed weekly use, supported by
+a small meter. Capacity limits use warning ink in the calendar, not error ink.
+Native disclosures in all three categories reveal both primary windows, estimate
+basis and the separate-limit caveat. Older readings also carry their confidence
+inside expanded details; they never regain current-reading wording there.
+
+Explicit category/day changes return the single agenda scroller to its start.
+Polling and clock updates preserve scroll. No programmatic focus jump is needed;
+category buttons retain focus and expose pressed state.
 
 Use provider-reported Unix timestamps, local calendar arithmetic and browser
 locale/timezone. Never infer recurring schedules or confirmed renewal from elapsed
@@ -34,26 +45,35 @@ but excluded from automatic rotation. Summary percentages are per-account averag
 
 ## Responsive behavior
 
-Viewport-constrained modal, maximum 900px wide, with a single vertical body scroller.
-Narrow Accounts retains every field and sorting control in grouped two-column rows,
-without a horizontal table scroller. Long identifiers wrap. Calendar rows stack
-metadata deliberately; at 320px dates form a 4+3 grid with 44px targets. Short
-viewports compact the lead and header so the first complete agenda entry remains
-visible. The dialog title stays visible on phones. No decorative motion; date
-transitions respect reduced motion, and usage meters use transforms.
+Viewport-constrained modal, maximum 900px wide; calendar has stable maximum 740px
+height and one agenda scroller beneath the fixed planning header. Accounts retains
+its responsive grouped rows and every sortable field without a horizontal table
+scroller. Long identifiers wrap in rows; the next-event identifier uses two visual
+lines at most while retaining its accessible text.
+
+At 320px the seven dates form a 4+3 instrument with 44px targets. Narrow headers
+recompose the summary and category controls; short phones visually condense basis
+labels while retaining accessible context and a complete first agenda entry.
+Mobile account summaries and All days have 44px hit areas. No decorative animation;
+date/category feedback respects reduced motion and meters use transforms.
 
 ## Verification and limits
 
-Two independent assessments, two focused critique/fix iterations and an independent
-finish scoring pass informed implementation. Final disposition: ship for the scored
-fixes after mobile summary wrapping, tied-reset hierarchy and short-viewport fixes.
+Independent design and detector assessments informed the revised composition.
+The targeted detector returned zero findings, not a visual approval. Two focused
+critique/fix passes corrected short-phone density, stale-detail wording and scope
+navigation; independent finish review scored the specified fixes as ship.
 
-258 relevant tests, TypeScript and production build passed. Chromium fixtures
-covered both incumbent themes, 1280px desktop, 390px, 320×568 and 1024×500, including
-loading, failed-read retention/recovery, selection, details, sort retention, keyboard
-activation, reduced-motion transitions, Tab trapping and Escape focus restoration.
-Fixtures use synthetic identifiers. Real telemetry collection, physical touch,
-Safari and a full screen-reader session remain unverified.
+260 tests across 15 relevant files, TypeScript and production build passed. Chromium
+fixtures covered both themes, 1280px desktop, 390px, 320×568 and 1024×500, including
+loading, failed-read retention/recovery, empty/all-old rosters, 24-account schedules,
+category/day selection, current/older/other account inspection, sorting retention,
+keyboard activation, reduced motion, Tab trapping and Escape focus restoration.
+The fixed overview stayed in place during agenda scrolling; explicit scope actions
+returned the results to the start. Before/after and top/middle/bottom captures are
+under /tmp/ccdeck-capacity-refinement, with synthetic identifiers only.
 
-See docs/features/account-capacity-redesign-review.md for concept evaluation,
-product evidence, implementation decisions and artifact locations.
+Real telemetry collection, physical touch, Safari and a full screen-reader session
+remain unverified. Provider-reported times never guarantee renewed capacity.
+See docs/features/account-capacity-redesign-review.md for comparison, product
+truth, audit provenance, implementation decisions and artifact locations.
