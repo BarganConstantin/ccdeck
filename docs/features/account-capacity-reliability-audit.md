@@ -153,3 +153,20 @@ legacy responses without UUID retain display-name identity fallback. UUID adopti
 may reset an older saved presentation order once rather than reuse an ambiguous
 identity. Real provider restart/auth recovery, Safari, Windows/Linux and packaged
 Electron were not exercised in this Mac/Chromium audit.
+
+## Development integration verification
+
+On 2026-10-13, both the four-commit reliability branch and `feat/product-ui-craft`
+were merged into an isolated `integrate/capacity-reliability` checkout based on
+current development `a07b7202`, including the recent Radio Explorer fixes.
+The merge had no source conflicts. An inherited text-tier inventory still named
+the removed daily-station label/country selectors; it was aligned with the
+existing `.radio-daily-meta` selector without changing contrast requirements.
+
+Integrated validation passed: TypeScript and production build (exit 0),
+1,205 tests in 94 files (exit 0), the controlled Chromium capacity regression
+script against port 5193 (exit 0), and official skill validation (exit 0).
+The browser's recovery capture was inspected. Logs are
+`/tmp/ccdeck-capacity-integration-{typecheck,build,tests,browser}.log`, with images
+in `/tmp/ccdeck-capacity-integration-browser/`. The live-provider and runtime
+timezone limitations above remain unchanged.
