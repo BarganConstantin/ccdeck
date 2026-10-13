@@ -16,7 +16,7 @@ Desktop playback uses three balanced groups: station identity, centered Previous
 
 ## Playback and local state
 
-The nine original YouTube sources appear first on Discover as Global workspace
+The seven retained YouTube sources appear first on Discover as Global workspace
 streams, including Claude FM and the four Lofi Girl variants. Each has a themed
 SVG icon and local favorite control; played sources also appear in Recent.
 They remain searchable when the directory is unavailable. Station rows use two

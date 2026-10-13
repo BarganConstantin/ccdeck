@@ -24,7 +24,7 @@ describe("character appearance preference", () => {
   it("keeps the station labels in the shared appearance metadata", () => {
     expect(FM_SOURCE_OPTIONS.map(source => source.value)).toEqual([
       "claude-fm", "lofi-relax", "lofi-game", "lofi-vibe", "lofi-sleep",
-      "radio-mix", "best-of-nostalgia", "good-life-radio", "cafe-music-bgm",
+      "radio-mix", "good-life-radio",
     ]);
   });
 

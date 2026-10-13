@@ -21,9 +21,7 @@ export const FM_SOURCE_OPTIONS: FmSourceOption[] = [
   { group: "📻 Lofi Girl", value: "lofi-vibe", label: "🌅 Vibe / chill" },
   { group: "📻 Lofi Girl", value: "lofi-sleep", label: "💤 Sleep / chill" },
   { group: "📻 Radio Mix", value: "radio-mix", label: "📡 Live radio mix" },
-  { group: "📻 Best of Nostalgia", value: "best-of-nostalgia", label: "📼 Best of nostalgia live" },
   { group: "📻 The Good Life Radio", value: "good-life-radio", label: "🌴 The Good Life Radio" },
-  { group: "☕ Cafe Music BGM", value: "cafe-music-bgm", label: "☕ Cafe music BGM" },
 ];
 
 export function resolveFmSource(stored: string | null | undefined): FmSource {
