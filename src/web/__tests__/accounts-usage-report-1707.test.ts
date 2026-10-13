@@ -95,7 +95,7 @@ describe("what is left out, and why — never as 0%", () => {
     const c = readingOf(acct(1, 90, 10, {}, [NOW - 18 * 60]), "five_hour", NOW);
     expect(c).toMatchObject({ counted: false, why: "reset", last: 90 });
     // When it reset, and what it read before (accounts-report-reset-row).
-    expect(c.counted === false && c.say).toBe("Reset 18m ago, 90% when read 4m ago");
+    expect(c.counted === false && c.say).toBe("Reported reset time passed 18m ago, 90% when read 4m ago");
   });
 
   it("leaves out an account whose login no switch can get past", () => {
@@ -123,7 +123,7 @@ describe("what is left out, and why — never as 0%", () => {
       acct(4, null, null),
     ], NOW);
     expect(r.windows.map(w => [w.reporting, w.included, w.total])).toEqual([[1, 3, 4], [1, 3, 4]]);
-    for (const w of r.windows) expect(w.used).toBeCloseTo((20 + 80 + 0) / 3, 10);
+    for (const w of r.windows) expect(w.used).toBeCloseTo((20 + 80 + 60) / 3, 10);
     // Only the account never read is out; it is never a 0% it was not given.
     expect(r.rows[3].cells.five_hour).toMatchObject({ counted: false, estimate: null });
     // And the rows are judged on the same numbers the total takes; only the
@@ -166,7 +166,7 @@ describe("what each account can do now (#1713)", () => {
     expect(stateOf(acct(1, 100, 40, { stale: true }))).toBe("limited");
     expect(stateOf(acct(1, 100, 100, { stale: true }))).toBe("exhausted");
     // A window that has reset since it was read is taken as unused.
-    expect(stateOf(acct(1, 100, 10, {}, [NOW - 60]))).toBe("ready");
+    expect(stateOf(acct(1, 100, 10, {}, [NOW - 60]))).toBe("limited");
   });
 
   it("is Stale only where the numbers cannot speak: never read, or behind a login", () => {

@@ -12,7 +12,7 @@ const timeUntil = (at: number, nowSec: number) => at - nowSec < 60 ? "less than 
 
 function ResetTime({ at }: { at: number }) {
   const date = new Date(at * 1000);
-  return <time className="ap-reset-time" dateTime={date.toISOString()} title={date.toLocaleString()}>
+  return <time className="ap-reset-time" dateTime={date.toISOString()} title={`${date.toLocaleString(undefined, { timeZoneName: "shortOffset" })} · ${date.toISOString()} (UTC)`}>
     {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
   </time>;
 }
@@ -34,7 +34,7 @@ function AccountDetails({ entry, row, nowSec, withReading = false, older = false
         const pct = cell.counted ? cell.pct : cell.last;
         const at = row.resets[id];
         return <p key={id}><strong>{id === "five_hour" ? "5-hour" : "7-day"}</strong>
-          <span>{!cell.counted && cell.reset ? "Estimated unused · awaiting a fresh reading" : pct == null ? "No usage reading" : `${entry.stale || !cell.counted ? "Last read: " : ""}${shownUsed(pct)}% used`}</span>
+          <span>{pct == null ? "No usage reading" : `${entry.stale || !cell.counted ? "Last read: " : ""}${shownUsed(pct)}% used`}</span>
           <span>{at == null ? "Reset time unknown" : at <= nowSec ? "Reported time passed · awaiting a new reading" : <>{entry.stale ? "Last reported reset" : `Reset in ${timeUntil(at, nowSec)}`} · <ResetTime at={at} /></>}</span>
         </p>;
       })}
