@@ -170,3 +170,12 @@ The browser's recovery capture was inspected. Logs are
 `/tmp/ccdeck-capacity-integration-{typecheck,build,tests,browser}.log`, with images
 in `/tmp/ccdeck-capacity-integration-browser/`. The live-provider and runtime
 timezone limitations above remain unchanged.
+
+The first full CI run on this integration reported 22 failures in 13 shared
+quality-gate files on Linux, macOS and Windows. Running those files on untouched
+development `a07b7202` reproduced the same 22 failures; the integrated tree had
+the identical failure set. No failure was unique to this change. Development
+then received quality-gate corrections in `81b95f26` and version preparation in
+`f0641fcb`; both were merged into the integration without conflicts, preserving
+3.41.0. Final cross-platform results and delivery status are recorded on
+[PR #2124](https://github.com/BarganConstantin/ccdeck/pull/2124).

@@ -9,6 +9,9 @@ branches still have the same state. Verify them at the start of a new session.
   skill into development. Integration checkout:
   `/Users/constantin/Desktop/ccdeck-capacity-integration`, branch
   `integrate/capacity-reliability`, based on development `a07b7202`.
+- Subsequently synchronized development `f0641fcb`, including its shared
+  quality-gate corrections and 3.41.0 version preparation. Delivery and final CI:
+  https://github.com/BarganConstantin/ccdeck/pull/2124.
 - Preview Vite port 5193; API forwarding remains on the existing 4388 backend.
   Browser verification intercepted account APIs and used only synthetic data.
 - Typecheck/build, 1,205 tests in 94 files, Chromium capacity regressions and
