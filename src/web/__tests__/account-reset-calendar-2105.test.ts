@@ -113,6 +113,23 @@ describe("weekly account reset schedule", () => {
   });
 });
 
+describe("Chisinau timezone boundaries", () => {
+  it.each([{ month: 2, day: 29, hours: 23 }, { month: 9, day: 25, hours: 25 }])("keeps local dates across a $hours-hour day", ({ month, day, hours }) => {
+    const before = process.env.TZ;
+    try {
+      process.env.TZ = "Europe/Chisinau";
+      const start = new Date(2026, month, day);
+      const end = new Date(2026, month, day + 1);
+      expect((end.getTime() - start.getTime()) / 3_600_000).toBe(hours);
+      const clock = start.getTime() / 1000;
+      const instant = new Date(2026, month, day + 1, 0, 15).getTime() / 1000;
+      const result = resetCalendar([account(1, instant, {}, clock)], clock);
+      expect(result.days[1].scheduled).toBe(1);
+      expect(new Set(result.days.map(date => date.key)).size).toBe(7);
+    } finally { process.env.TZ = before; }
+  });
+});
+
 describe("reset calendar content", () => {
   const html = (accounts: Account[], held: string | null = null) => renderToStaticMarkup(createElement(AccountResetCalendar, { accounts, nowSec: now(), held }));
 
@@ -177,7 +194,15 @@ describe("reset calendar content", () => {
     expect(output).not.toContain("--reset-height");
     expect(output).toContain('1 scheduled resets, 2 readings need updating');
     expect(output).toContain('2 scheduled resets');
-    expect(output).toContain("3 resets");
+    expect(output).toContain("3 weekly resets");
+  });
+
+  it("names simultaneous fresh resets without grouping stale observations into the next event", () => {
+    const output = html([
+      account(1, at(13)), account(2, at(13)), account(3, at(13), { stale: true }),
+    ]);
+    expect(output).toContain("2 accounts reset at this time");
+    expect(output).not.toContain("3 accounts reset at this time");
   });
 
   it("renders only the chosen day, with today independent from selection", () => {
@@ -202,5 +227,11 @@ describe("reset calendar content", () => {
     expect(output).toContain("5-hour");
     expect(output).toContain("A weekly reset does not remove a separate 5-hour limit.");
     expect(output).toContain("A timestamp passing does not confirm renewed capacity.");
+    const elapsed = html([account(1, at(13), { lanes: [
+      { id: "five_hour", label: "5h", pct: 100, resetAt: at(11) },
+      { id: "seven_day", label: "7d", pct: 80, resetAt: at(13) },
+    ] })]);
+    expect(elapsed).toContain("Estimated unused · awaiting a fresh reading");
+    expect(elapsed).toContain("Reset due · awaiting a new reading");
   });
 });

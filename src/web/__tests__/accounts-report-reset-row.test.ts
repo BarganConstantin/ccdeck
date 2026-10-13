@@ -56,7 +56,7 @@ const cellsOf = (out: string) => [...out.matchAll(/<td class="ap-report-cell"[^]
 /** What a cell shows the eye: its markup without what only a screen reader
  *  hears, and without its tags. */
 const seen = (cell: string) =>
-  cell.replace(/<span class="vis-hidden">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "").trim();
+  cell.replace(/<span class="ap-report-mobile-label"[^>]*>[^<]*<\/span>/g, "").replace(/<span class="vis-hidden">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "").trim();
 
 describe("a reading past its reset", () => {
   it("a reading past its reset says reset in its row and counts as unused", () => {
@@ -68,19 +68,19 @@ describe("a reading past its reset", () => {
 
     const out = html([lapsedAndOld]);
     const [cell5, cell7] = cellsOf(out);
-    expect(seen(cell5)).toBe("reset");
-    expect(seen(cell7)).toBe("reset");
+    expect(seen(cell5)).toBe("Estimated unused");
+    expect(seen(cell7)).toBe("Estimated unused");
     // Dimmed like every reading the total does not take as it stands, and the
     // facts on hover and for a screen reader.
     expect(cell5).toContain('data-uncounted=""');
-    expect(cell5).toContain('title="Reset 15h ago, 96% when read 18h ago"');
-    expect(cell5).toContain('<span class="vis-hidden">Reset 15h ago, 96% when read 18h ago</span>');
+    expect(cell5).toContain('title="Reported reset due 15h ago, 96% when read 18h ago. Estimated unused; awaiting a fresh reading."');
+    expect(cell5).toContain('<span class="vis-hidden">Reported reset due 15h ago, 96% when read 18h ago. Estimated unused; awaiting a fresh reading.</span>');
     // Never the old window's number, and never a zero it was not given.
     expect(out).not.toMatch(/>96%<|>84%<|>0%</);
 
     const r = usageReport([lapsedAndOld], NOW);
     expect(r.windows.map(w => w.used)).toEqual([0, 0]);
-    expect(out).toContain('<p class="ap-report-left"><b>100%</b> remaining</p>');
+    expect(out).toContain('<p class="ap-report-left"><b>100%</b> average remaining</p>');
     // Judged on what the total takes for it: both windows unused.
     expect(r.rows[0].status).toBe("ready");
     expect(freshness(r.rows[0], NOW)).toEqual({ text: "18h ago", old: true });
@@ -92,7 +92,7 @@ describe("a reading past its reset", () => {
     expect(c).toMatchObject({ counted: false, why: "reset", last: 92, estimate: 0 });
     expect(c.counted === false && c.reset).toBe("Reset 4m ago, 92% when read 10m ago");
     const [cell5, cell7] = cellsOf(html([fresh]));
-    expect(seen(cell5)).toBe("reset");
+    expect(seen(cell5)).toBe("Estimated unused");
     expect(seen(cell7)).toMatch(/^30%/);
     expect(usageReport([fresh], NOW).windows[0].used).toBe(0);
   });
@@ -118,8 +118,8 @@ describe("a reading past its reset", () => {
     expect(freshness(r.rows[0], NOW).text).toMatch(/login expired/i);
     // The total takes the window as unused, so the row says why: it reset.
     const out = html([blocked]);
-    expect(cellsOf(out).map(seen)).toEqual(["reset", "reset"]);
-    expect(out).toMatch(/<td class="ap-report-upd" data-old="">[^<]*login expired/i);
+    expect(cellsOf(out).map(seen)).toEqual(["Estimated unused", "Estimated unused"]);
+    expect(out).toMatch(/<td class="ap-report-upd" data-old="">[^]*?login expired/i);
   });
 
   it("orders a reset window with the unused, not at its old number", () => {
@@ -143,13 +143,13 @@ describe("the rows and the cards", () => {
   it("the cards' average equals the average of what the rows count", () => {
     const out = html(twelve);
     const cells = cellsOf(out).map(seen);
-    const remaining = [...out.matchAll(/<p class="ap-report-left"><b>(\d+)%<\/b> remaining<\/p>/g)].map(m => Number(m[1]));
+    const remaining = [...out.matchAll(/<p class="ap-report-left"><b>(\d+)%<\/b> average remaining<\/p>/g)].map(m => Number(m[1]));
     // The report's own figures: 45% and 36% remaining.
     expect(remaining).toEqual([45, 36]);
     for (const i of [0, 1]) {
       // A row counts its number, or nothing at all for a window that reset:
       // it counts as unused.
-      const counted = cells.filter((_, k) => k % 2 === i).map(t => (t === "reset" ? 0 : Number.parseInt(t, 10)));
+      const counted = cells.filter((_, k) => k % 2 === i).map(t => (t === "Estimated unused" ? 0 : Number.parseInt(t, 10)));
       expect(counted.every(Number.isFinite)).toBe(true);
       const rowsAverage = counted.reduce((s, x) => s + x, 0) / counted.length;
       expect(usedAndAvailable(rowsAverage).available).toBe(remaining[i]);

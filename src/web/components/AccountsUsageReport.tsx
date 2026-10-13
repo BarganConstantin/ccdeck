@@ -96,7 +96,7 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
         // 25m" under 88% read as all of it coming back then. The name is the
         // one part that may be cut; the rest stays whole.
         <p className="ap-report-reset" title={soonest(w.nextReset)}>
-          <span>Next reset in <span className="ap-report-num">{reset}</span></span>
+          <span>Next reported reset in <span className="ap-report-num">{reset}</span></span>
           <span aria-hidden>·</span>
           <span className="ap-report-who">{w.nextReset.name}</span>
           {w.nextReset.more > 0 && <span className="ap-report-more">+{w.nextReset.more}</span>}
@@ -120,8 +120,8 @@ function UsedCell({ cell, label }: { cell: Cell; label: string }) {
     // one above it. Not "0%" either: nobody has read this window since it
     // came back. When and at what it was read are on hover, and said.
     return (
-      <td className="ap-report-cell" data-uncounted="" title={cell.reset}><span className="ap-report-mobile-label">{label} used</span>
-        <span className="ap-report-pct"><span aria-hidden>reset</span><span className="vis-hidden">{cell.reset}</span></span>
+      <td className="ap-report-cell" data-uncounted="" title={`${cell.reset.replace(/^Reset /, "Reported reset due ")}. Estimated unused; awaiting a fresh reading.`}><span className="ap-report-mobile-label" aria-hidden="true">{label} used</span>
+        <span className="ap-report-pct"><span className="ap-report-estimate" aria-hidden>Estimated unused</span><span className="vis-hidden">{cell.reset.replace(/^Reset /, "Reported reset due ")}. Estimated unused; awaiting a fresh reading.</span></span>
       </td>
     );
   }
@@ -133,7 +133,7 @@ function UsedCell({ cell, label }: { cell: Cell; label: string }) {
     // screen reader the card's average left out a number it had added in.
     const said = cell.estimate == null ? ", not counted" : ", last reading, counted as is";
     return (
-      <td className="ap-report-cell" data-uncounted=""><span className="ap-report-mobile-label">{label} used</span>
+      <td className="ap-report-cell" data-uncounted=""><span className="ap-report-mobile-label" aria-hidden="true">{label} used</span>
         <span className="ap-report-pct">
           {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">no reading</span></> : `${shownUsed(cell.last)}%`}
         </span>
@@ -142,7 +142,7 @@ function UsedCell({ cell, label }: { cell: Cell; label: string }) {
     );
   }
   return (
-    <td className="ap-report-cell"><span className="ap-report-mobile-label">{label} used</span>
+    <td className="ap-report-cell"><span className="ap-report-mobile-label" aria-hidden="true">{label} used</span>
       <span className="ap-report-pct" data-level={level(cell.pct)}>{shownUsed(cell.pct)}%</span>
     </td>
   );
@@ -152,11 +152,12 @@ function UsedCell({ cell, label }: { cell: Cell; label: string }) {
  *  the login has expired. The exact time remains available alongside its
  *  countdown; a passed reset never looks like a future one. */
 function ResetCell({ at, nowSec, label }: { at: number | null; nowSec: number; label: string }) {
-  if (at == null) return <td className="ap-report-reset-cell"><span className="ap-report-mobile-label">{label} reset</span><span aria-hidden>—</span><span className="vis-hidden">No reset time</span></td>;
+  if (at == null) return <td className="ap-report-reset-cell"><span className="ap-report-mobile-label" aria-hidden="true">{label} reset</span><span aria-hidden>—</span><span className="vis-hidden">No reset time</span></td>;
   const when = new Date(at * 1000);
   const countdown = resetCountdown(at, nowSec);
-  return <td className="ap-report-reset-cell" title={`Recorded reset: ${when.toLocaleString()}`}><span className="ap-report-mobile-label">{label} reset</span>
-    <time dateTime={when.toISOString()}><span className="vis-hidden">{countdown ? "resets in " : "reset already "}</span>{countdown ?? "passed"}</time>
+  return <td className="ap-report-reset-cell" title={`Recorded reset: ${when.toLocaleString()}`}><span className="ap-report-mobile-label" aria-hidden="true">{label} reset</span>
+    <time dateTime={when.toISOString()}><span className="vis-hidden">{countdown ? "reported reset in " : "reported reset "}</span>{countdown ?? "due"}</time>
+    {!countdown && <span className="ap-report-state-note">Awaiting read</span>}
     <span className="vis-hidden"> · Recorded reset: {when.toLocaleString()}</span>
   </td>;
 }
@@ -171,8 +172,9 @@ const STATE_WORD: Record<Status, string> = {
 /** What the row can do now, as a mark and a word, on one line. */
 function StateCell({ row }: { row: ReportRow }) {
   return (
-    <td className="ap-report-state" data-status={row.status}><span className="ap-report-mobile-label">Status</span>
+    <td className="ap-report-state" data-status={row.status}><span className="ap-report-mobile-label" aria-hidden="true">Status</span>
       <span className="ap-report-state-word"><i aria-hidden />{STATE_WORD[row.status]}</span>
+      {Object.values(row.cells).some(cell => !cell.counted && cell.reset) && <span className="ap-report-state-note">Estimated</span>}
     </td>
   );
 }
@@ -180,7 +182,7 @@ function StateCell({ row }: { row: ReportRow }) {
 /** How current the row's numbers are: "now", an age, or why there are none. */
 function UpdatedCell({ row, nowSec }: { row: ReportRow; nowSec: number }) {
   const f = freshness(row, nowSec);
-  return <td className="ap-report-upd" data-old={f.old ? "" : undefined}><span className="ap-report-mobile-label">Updated</span>{f.text}</td>;
+  return <td className="ap-report-upd" data-old={f.old ? "" : undefined}><span className="ap-report-mobile-label" aria-hidden="true">Updated</span>{f.text}</td>;
 }
 
 /** The disclosure's mark: drawn, in the stroke the deck's other glyphs use. */
@@ -223,7 +225,7 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
           Ready, by construction. */}
       <div className="ap-report-overview"><p className="ap-report-lead">
         <b>{shownReady}</b> of {plural(total, "Claude account", "Claude accounts")} ready
-      </p><p className="ap-report-basis">Based on last readings · {report.rows.filter(row => row.heldOut).length} held out of rotation</p></div>
+      </p><p className="ap-report-confidence">Based on last readings{report.rows.some(row => Object.values(row.cells).some(cell => !cell.counted && cell.reset)) && " · includes elapsed-window estimates"}{report.rows.some(row => row.heldOut) && ` · ${report.rows.filter(row => row.heldOut).length} held out of rotation`}</p></div>
       <div className="ap-report-sums">
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
       </div>
@@ -277,7 +279,7 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
           <p>
             Every account here, at its last reading: <b>used</b> is their average, and <b>remaining</b> is
             the rest, not pooled quota. A window whose reported reset time has passed is estimated as unused until refreshed, and its row
-            says <b>reset</b>.
+            says <b>Estimated unused</b> until refreshed.
           </p>
           <p>
             <b>Ready</b> has room in both windows. <b>Limited</b> is at the limit of one, and <b>Exhausted</b> of

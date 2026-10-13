@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import type { Account } from "../claude-accounts";
 import { resetCalendar, type ResetEntry, type ResetDay, type UnscheduledReset } from "../account-reset-calendar";
 import { shownUsed, usageReport, type ReportRow } from "../accounts-usage-report";
@@ -33,7 +33,7 @@ function AccountDetails({ entry, row, nowSec }: { entry: ResetEntry; row?: Repor
         const pct = cell.counted ? cell.pct : cell.last;
         const at = row.resets[id];
         return <p key={id}><strong>{id === "five_hour" ? "5-hour" : "7-day"}</strong>
-          <span>{pct == null ? "No usage reading" : `${!cell.counted ? "Last read: " : ""}${shownUsed(pct)}% used`}</span>
+          <span>{cell.reset ? "Estimated unused · awaiting a fresh reading" : pct == null ? "No usage reading" : `${!cell.counted ? "Last read: " : ""}${shownUsed(pct)}% used`}</span>
           <span>{at == null ? "Reset time unknown" : at <= nowSec ? "Reset due · awaiting a new reading" : <>Reset in {timeUntil(at, nowSec)} · <ResetTime at={at} /></>}</span>
         </p>;
       })}
@@ -100,20 +100,34 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
   const allOutdated = days.reduce((sum, day) => sum + day.outdated, 0);
   const shownCount = selected ? selected.scheduled : scheduled;
   const next = days.flatMap(day => day.entries).find(entry => !entry.stale);
+  const simultaneous = next ? days.flatMap(day => day.entries).filter(entry => !entry.stale && entry.at === next.at) : [];
+  const olderRef = useRef<HTMLDetailsElement>(null);
+  const otherRef = useRef<HTMLDetailsElement>(null);
+  const inspectCoverage = (target: "older" | "other") => {
+    onSelect(null);
+    requestAnimationFrame(() => {
+      const detail = (target === "older" ? olderRef : otherRef).current;
+      if (detail) { detail.open = true; detail.querySelector("summary")?.focus(); }
+    });
+  };
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const rows = new Map(usageReport(accounts, nowSec).rows.map(row => [row.key, row]));
   return <div className="ap-proj-body ap-report-body ap-reset-body" role="region" aria-label="Weekly reset calendar">
     {held && <p className="ap-report-held">{held}</p>}
     <section className="ap-reset-next" aria-label="Next weekly reset">
       {next ? <>
-        <div className="ap-reset-next-identity"><h3>Next weekly reset</h3><AccountName entry={next} />
+        <div className="ap-reset-next-identity"><h3>Next weekly reset</h3>
+          {simultaneous.length > 1 ? <span className="ap-reset-name">{simultaneous.length} accounts reset at this time</span> : <AccountName entry={next} />}
           <p>{weekday(new Date(next.at! * 1000))}, {dayLabel(new Date(next.at! * 1000))} · <ResetTime at={next.at!} /></p></div>
         <p className="ap-reset-countdown"><strong>{timeUntil(next.at!, nowSec)}</strong><span>until reported reset</span></p>
       </> : <div className="ap-reset-next-identity"><h3>No upcoming weekly resets</h3><p>{allOutdated ? "Some schedules need a fresh reading. Check the last reported times below." : "No reported weekly resets in these seven days. Unknown and elapsed times remain below."}</p></div>}
     </section>
     <section className="ap-reset-navigation" aria-label="Choose a calendar day">
-      <div className="ap-reset-intro"><h3>Next 7 days <span>{scheduled} {scheduled === 1 ? "reset" : "resets"}</span></h3><p>{zone}</p></div>
-      {allOutdated > 0 && <p className="ap-reset-confidence">{allOutdated} {allOutdated === 1 ? "account needs" : "accounts need"} a fresh reading · excluded from the schedule</p>}
+      <div className="ap-reset-intro"><h3>Next 7 days <span>{scheduled} weekly {scheduled === 1 ? "reset" : "resets"}</span></h3><p>{zone}</p></div>
+      {(allOutdated > 0 || unscheduled.length > 0) && <div className="ap-reset-coverage">
+        {allOutdated > 0 && <button type="button" className="ap-reset-coverage-link" onClick={() => inspectCoverage("older")}>{allOutdated} need fresh readings</button>}
+        {unscheduled.length > 0 && <button type="button" className="ap-reset-coverage-link" onClick={() => inspectCoverage("other")}>{unscheduled.length} other reset times</button>}
+      </div>}
       <ol className="ap-reset-week" role="list" aria-label="Seven-day reset counts">
         {days.map((day, i) => <li key={day.key} data-today={i === 0 ? "" : undefined}>
           <button type="button" className="ap-reset-day-button" aria-pressed={selected?.key === day.key}
@@ -134,18 +148,18 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
       {shownCount > 0 ? <Agenda days={visibleDays} rows={rows} nowSec={nowSec} />
         : <p className="ap-reset-empty">{selected ? "No upcoming resets on this day. Choose another date or All days." : "The schedule updates with new account readings. No weekly recurrence is assumed."}</p>}
     </section>
-    {outdated > 0 && <details className="ap-reset-disclosure" key={selected?.key ?? "all"}>
+    {outdated > 0 && <details ref={olderRef} className="ap-reset-disclosure" key={selected?.key ?? "all"}>
       <summary>Needs a fresh reading <span>{outdated} {outdated === 1 ? "account" : "accounts"} · excluded from counts</span></summary>
       <p className="ap-reset-explain">These times come from older or unavailable account readings, not current schedules. Last reported times and usage are kept until updated.</p>
       <Agenda days={visibleDays} rows={rows} nowSec={nowSec} outdated />
     </details>}
-    {unscheduled.length > 0 && <details className="ap-reset-disclosure ap-reset-unplaced">
+    {unscheduled.length > 0 && <details ref={otherRef} className="ap-reset-disclosure ap-reset-unplaced">
       <summary>Other reset times <span>{unscheduled.length} {unscheduled.length === 1 ? "account" : "accounts"} · unknown, elapsed or later</span></summary>
       <ul>{unscheduled.map(entry => <Unscheduled key={entry.key} entry={entry} />)}</ul>
     </details>}
     <details className="ap-reset-about">
       <summary>How to read this schedule</summary>
-      <p className="ap-reset-explain">Counts are reported weekly account resets, not token amounts. A timestamp passing does not confirm renewed capacity. Older readings are excluded from upcoming counts. Times use {zone}; a separate 5-hour limit may still apply.</p>
+      <p className="ap-reset-explain">Counts are reported weekly account resets, not token amounts. Zero means no upcoming reset on that day, not zero usage. Held-out accounts still appear in the schedule. A timestamp passing does not confirm renewed capacity. Older readings are excluded from upcoming counts. Times use {zone}; a separate 5-hour limit may still apply.</p>
     </details>
   </div>;
 }
