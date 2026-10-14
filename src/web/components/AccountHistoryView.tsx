@@ -14,6 +14,8 @@ import {
   formatHistoryAxis,
   clampHistoryRange,
   zoomHistoryRange,
+  clampUsageRange,
+  zoomUsageRange,
   type HistoryRange,
 } from "../account-history";
 import "./account-history.css";
@@ -24,6 +26,7 @@ function HistoryChart({
   start,
   end,
   zoomed,
+  usageRange,
   onZoom,
   onPan,
   onReset,
@@ -33,14 +36,16 @@ function HistoryChart({
   start: number;
   end: number;
   zoomed: boolean;
-  onZoom: (factor: number, anchor?: number) => void;
-  onPan: (delta: number) => void;
+  usageRange: HistoryRange;
+  onZoom: (factor: number, anchor?: number, usageAnchor?: number) => void;
+  onPan: (delta: number, usageDelta?: number) => void;
   onReset: () => void;
 }) {
   const chartRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const clipId = useId();
   const dragX = useRef<number | null>(null);
+  const dragY = useRef<number | null>(null);
   const touchStart = useRef<{ x: number; y: number; moved: boolean } | null>(
     null,
   );
@@ -75,11 +80,18 @@ function HistoryChart({
       onZoom(
         Math.exp(Math.max(-100, Math.min(100, event.deltaY)) * 0.005),
         anchor,
+        Math.max(
+          0,
+          Math.min(
+            1,
+            (height - 30 - (event.clientY - rect.top)) / (height - 50),
+          ),
+        ),
       );
     };
     svg.addEventListener("wheel", wheel, { passive: false });
     return () => svg.removeEventListener("wheel", wheel);
-  }, [onZoom, onPan, start, end]);
+  }, [onZoom, onPan, start, end, height]);
   const [hover, setHover] = useState<{
     key: string;
     x: number;
@@ -113,7 +125,11 @@ function HistoryChart({
   const tracked = hovered ?? (selected ? p : undefined);
   const visibleAccounts = new Set(values.map((p) => p.account.id)).size;
   const x = (t: number) => 36 + ((t - start) / (end - start)) * (width - 50);
-  const y = (used: number) => height - 30 - (used / 100) * (height - 50);
+  const y = (used: number) =>
+    height -
+    30 -
+    ((used - usageRange.start) / (usageRange.end - usageRange.start)) *
+      (height - 50);
   return (
     <section
       className="ah-chart"
@@ -136,7 +152,7 @@ function HistoryChart({
           viewBox={`0 0 ${width} ${height}`}
           role="group"
           tabIndex={0}
-          aria-label={`${window === "five_hour" ? "5-hour" : "7-day"} interactive capacity chart. Top is 100 percent used (exhausted); bottom is zero used. Scroll to zoom, drag to pan, double-click to reset. Keyboard: plus or minus to zoom, left or right arrows to pan, zero to reset. Gaps indicate missing observations or changed reset windows.`}
+          aria-label={`${window === "five_hour" ? "5-hour" : "7-day"} interactive capacity chart. Top is ${Number(usageRange.end.toFixed(1))} percent used; bottom is ${Number(usageRange.start.toFixed(1))} percent used. 100 percent means exhausted. Scroll to zoom both axes, drag to pan, double-click to reset. Keyboard: plus or minus to zoom, arrow keys to pan both axes, zero to reset. Gaps indicate missing observations or changed reset windows.`}
           onDoubleClick={() => {
             if (pointerKind.current !== "touch") onReset();
           }}
@@ -151,18 +167,26 @@ function HistoryChart({
             } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
               e.preventDefault();
               onPan((end - start) * (e.key === "ArrowLeft" ? -0.5 : 0.5));
+            } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              onPan(
+                0,
+                (usageRange.end - usageRange.start) *
+                  (e.key === "ArrowUp" ? 0.25 : -0.25),
+              );
             } else if (e.key === "0" || e.key === "Home") {
               e.preventDefault();
               onReset();
             }
           }}
-          className={zoomed ? "ah-plot ah-plot-zoomed" : "ah-plot"}
+          className={`ah-plot${zoomed ? " ah-plot-zoomed" : ""}${hovered ? " ah-plot-inspecting" : ""}`}
           onPointerDown={(e) => {
             pointerKind.current = e.pointerType;
             if (e.pointerType === "touch")
               touchStart.current = { x: e.clientX, y: e.clientY, moved: false };
             if (!zoomed || e.button !== 0) return;
             dragX.current = e.clientX;
+            dragY.current = e.clientY;
             e.currentTarget.setPointerCapture(e.pointerId);
           }}
           onPointerLeave={() => setHover(null)}
@@ -188,9 +212,14 @@ function HistoryChart({
               const candidates = target
                 ? values.filter((v) => v.account.id === target)
                 : values;
+              const visibleCandidates = candidates.filter(
+                (v) =>
+                  v[window]!.pct >= usageRange.start &&
+                  v[window]!.pct <= usageRange.end,
+              );
               let nearest: (typeof values)[number] | undefined;
               let distance = Infinity;
-              for (const candidate of candidates) {
+              for (const candidate of visibleCandidates) {
                 const d = Math.hypot(
                   x(candidate.t) - mx,
                   y(candidate[window]!.pct) - my,
@@ -213,10 +242,13 @@ function HistoryChart({
             }
             setHover(null);
             const dx = e.clientX - dragX.current;
+            const dy = e.clientY - (dragY.current ?? e.clientY);
             dragX.current = e.clientX;
+            dragY.current = e.clientY;
             onPan(
               (-dx / (e.currentTarget.getBoundingClientRect().width - 50)) *
                 (end - start),
+              (dy / (height - 50)) * (usageRange.end - usageRange.start),
             );
           }}
           onPointerUp={(e) => {
@@ -254,14 +286,17 @@ function HistoryChart({
             }
             touchStart.current = null;
             dragX.current = null;
+            dragY.current = null;
           }}
           onPointerCancel={() => {
             touchStart.current = null;
             lastTap.current = null;
             dragX.current = null;
+            dragY.current = null;
           }}
           onLostPointerCapture={() => {
             dragX.current = null;
+            dragY.current = null;
           }}
         >
           <defs>
@@ -269,7 +304,11 @@ function HistoryChart({
               <rect x="36" y="16" width={width - 50} height={height - 42} />
             </clipPath>
           </defs>
-          {[0, 50, 100].map((v) => (
+          {[
+            usageRange.start,
+            (usageRange.start + usageRange.end) / 2,
+            usageRange.end,
+          ].map((v) => (
             <g key={v}>
               <line
                 x1="36"
@@ -279,7 +318,7 @@ function HistoryChart({
                 className="ah-grid"
               />
               <text x="3" y={y(v) + 4}>
-                {v}%
+                {Number(v.toFixed(1))}%
               </text>
             </g>
           ))}
@@ -350,7 +389,11 @@ function HistoryChart({
             </g>
           ))}
           {tracked && (
-            <g pointerEvents="none" data-tracked-observation={tracked.key}>
+            <g
+              pointerEvents="none"
+              data-tracked-observation={tracked.key}
+              clipPath={`url(#${clipId})`}
+            >
               <line
                 className="ah-crosshair"
                 x1={x(tracked.t)}
@@ -408,7 +451,16 @@ function HistoryChart({
           <select
             aria-label={`Inspect ${window === "five_hour" ? "5-hour" : "7-day"} observation`}
             value={p?.key ?? ""}
-            onChange={(e) => setSelected(e.target.value)}
+            onChange={(e) => {
+              setSelected(e.target.value);
+              const reading = values.find((v) => v.key === e.target.value)?.[
+                window
+              ];
+              if (reading && reading.pct < usageRange.start)
+                onPan(0, reading.pct - usageRange.start);
+              else if (reading && reading.pct > usageRange.end)
+                onPan(0, reading.pct - usageRange.end);
+            }}
             disabled={!values.length}
           >
             {!values.length && <option value="">No observations</option>}
@@ -440,7 +492,7 @@ export default function AccountHistoryView() {
     [days, setDays] = useState(7),
     [retry, setRetry] = useState(0);
   const [activeWindow, setActiveWindow] = useState<"five_hour" | "seven_day">(
-    "five_hour",
+    "seven_day",
   );
   const [viewport, setViewport] = useState<
     (HistoryRange & { key: string }) | null
@@ -501,12 +553,21 @@ export default function AccountHistoryView() {
     from,
     now,
   );
+  const [usageViewport, setUsageViewport] = useState<
+    (HistoryRange & { key: string }) | null
+  >(null);
   const viewKey = `${selectedAccount}:${days}`;
+  const usageRange =
+    usageViewport?.key === viewKey
+      ? clampUsageRange(usageViewport)
+      : { start: 0, end: 100 };
   const view =
     viewport?.key === viewKey ? clampHistoryRange(viewport, full) : full;
   const { start, end } = view;
-  const zoomed = end - start < full.end - full.start - 1;
-  const zoom = (factor: number, anchor = 0.5) =>
+  const zoomed =
+    end - start < full.end - full.start - 1 ||
+    usageRange.end - usageRange.start < 100;
+  const zoom = (factor: number, anchor = 0.5, usageAnchor = 0.5) => {
     setViewport((previous) => ({
       ...zoomHistoryRange(
         previous?.key === viewKey ? clampHistoryRange(previous, full) : full,
@@ -516,7 +577,18 @@ export default function AccountHistoryView() {
       ),
       key: viewKey,
     }));
-  const pan = (delta: number) =>
+    setUsageViewport((previous) => ({
+      ...zoomUsageRange(
+        previous?.key === viewKey
+          ? clampUsageRange(previous)
+          : { start: 0, end: 100 },
+        factor,
+        usageAnchor,
+      ),
+      key: viewKey,
+    }));
+  };
+  const pan = (delta: number, usageDelta = 0) => {
     setViewport((previous) => {
       const current =
         previous?.key === viewKey ? clampHistoryRange(previous, full) : full;
@@ -528,6 +600,24 @@ export default function AccountHistoryView() {
         key: viewKey,
       };
     });
+    setUsageViewport((previous) => {
+      const current =
+        previous?.key === viewKey
+          ? clampUsageRange(previous)
+          : { start: 0, end: 100 };
+      return {
+        ...clampUsageRange({
+          start: current.start + usageDelta,
+          end: current.end + usageDelta,
+        }),
+        key: viewKey,
+      };
+    });
+  };
+  const reset = () => {
+    setViewport(null);
+    setUsageViewport(null);
+  };
   const hasPoints = series.some((a) => a.points.length > 0);
   return (
     <div className="ah-workspace ah-redesign">
@@ -545,7 +635,7 @@ export default function AccountHistoryView() {
             value={days}
             onChange={(e) => {
               setDays(Number(e.target.value));
-              setViewport(null);
+              reset();
             }}
           >
             {[7, 30, 60, 90]
@@ -622,9 +712,10 @@ export default function AccountHistoryView() {
                         start={start}
                         end={end}
                         zoomed={zoomed}
+                        usageRange={usageRange}
                         onZoom={zoom}
                         onPan={pan}
-                        onReset={() => setViewport(null)}
+                        onReset={reset}
                       />
                     </div>
                   ))}
@@ -638,6 +729,10 @@ export default function AccountHistoryView() {
                         {" "}
                         · Touch: double-tap to zoom/reset
                       </span>
+                    </p>
+                    <p className="ah-note">
+                      Recorded observations · The live account panel may have
+                      newer readings.
                     </p>
                   </div>
                 </>
@@ -655,7 +750,7 @@ export default function AccountHistoryView() {
                   value={selectedAccount}
                   onChange={(e) => {
                     setAccount(e.target.value);
-                    setViewport(null);
+                    reset();
                   }}
                   disabled={!data.accounts.length}
                 >
@@ -682,7 +777,7 @@ export default function AccountHistoryView() {
                       aria-pressed={selectedAccount === a.id}
                       onClick={() => {
                         setAccount(selectedAccount === a.id ? "" : a.id);
-                        setViewport(null);
+                        reset();
                       }}
                       title={a.name}
                     >

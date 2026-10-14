@@ -4,11 +4,41 @@ import {
   historyTimeDomain,
   clampHistoryRange,
   zoomHistoryRange,
+  clampUsageRange,
+  zoomUsageRange,
 } from "../account-history";
 
 const MINUTE = 60_000;
 const DAY = 86400_000;
 const now = Date.UTC(2026, 9, 14, 12);
+
+describe("usage axis navigation", () => {
+  it("zooms around the chosen usage value", () => {
+    expect(zoomUsageRange({ start: 0, end: 100 }, 0.5, 0.2)).toEqual({
+      start: 10,
+      end: 60,
+    });
+  });
+  it("pans without changing scale and never leaves valid percentages", () => {
+    expect(clampUsageRange({ start: -20, end: 30 })).toEqual({
+      start: 0,
+      end: 50,
+    });
+    expect(clampUsageRange({ start: 80, end: 130 })).toEqual({
+      start: 50,
+      end: 100,
+    });
+    expect(clampUsageRange({ start: 30, end: 80 })).toEqual({
+      start: 30,
+      end: 80,
+    });
+  });
+  it("limits zoom and restores the full usage range on zoom-out", () => {
+    const tiny = zoomUsageRange({ start: 0, end: 100 }, 0.0001);
+    expect(tiny.end - tiny.start).toBe(5);
+    expect(zoomUsageRange(tiny, 1000)).toEqual({ start: 0, end: 100 });
+  });
+});
 
 describe("adaptive history time axis", () => {
   it("fits a few minutes of observations instead of a week of empty space", () => {

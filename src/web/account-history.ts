@@ -131,3 +131,23 @@ export function zoomHistoryRange(
     full,
   );
 }
+
+/** Usage percentages stay inside their real 0–100 domain, with a 5pp minimum. */
+export function clampUsageRange(range: HistoryRange): HistoryRange {
+  const span = Math.max(5, Math.min(100, range.end - range.start));
+  const start = Math.max(0, Math.min(range.start, 100 - span));
+  return { start, end: start + span };
+}
+
+export function zoomUsageRange(
+  range: HistoryRange,
+  factor: number,
+  anchor = 0.5,
+) {
+  const span = Math.max(5, Math.min(100, (range.end - range.start) * factor));
+  const pivot = range.start + (range.end - range.start) * anchor;
+  return clampUsageRange({
+    start: pivot - span * anchor,
+    end: pivot + span * (1 - anchor),
+  });
+}

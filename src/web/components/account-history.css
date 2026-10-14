@@ -215,12 +215,19 @@
 
 .ah-plot {
   user-select: none;
+  touch-action: pan-y;
 }
 .ah-plot-zoomed {
   cursor: grab;
-  touch-action: pan-y;
+  touch-action: none;
 }
 .ah-plot-zoomed:active {
+  cursor: grabbing;
+}
+.ah-plot.ah-plot-inspecting {
+  cursor: pointer;
+}
+.ah-plot.ah-plot-zoomed:active {
   cursor: grabbing;
 }
 

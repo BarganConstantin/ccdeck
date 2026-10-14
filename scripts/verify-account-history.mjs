@@ -100,6 +100,20 @@ try {
   await shot("baseline-accounts");
   await page.getByRole("button", { name: "History", exact: true }).click();
   await page
+    .getByRole("heading", { name: "7-day window", exact: true })
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "7-day window", exact: true })
+      .getAttribute("aria-pressed"),
+    "true",
+    "History must default to the weekly window",
+  );
+  await shot("default-weekly");
+  await page
+    .getByRole("button", { name: "5-hour window", exact: true })
+    .click();
+  await page
     .getByRole("heading", { name: "5-hour window", exact: true })
     .waitFor();
   assert.equal(
@@ -201,6 +215,30 @@ try {
     axisLabels[1],
     "Both charts must use the same zoomed axis",
   );
+  const zoomedY = await page
+    .locator(".ah-chart:visible svg text")
+    .allTextContents();
+  assert.notDeepEqual(
+    zoomedY.slice(0, 3),
+    ["0%", "50%", "100%"],
+    "Zoom must also change the usage axis",
+  );
+  const priorY = zoomedY.slice(0, 3).join("|");
+  assert.ok(
+    (
+      await page.locator(".ah-chart:visible svg").getAttribute("aria-label")
+    ).includes("Top is 75 percent used; bottom is 25 percent used"),
+    "Accessible description must follow the zoomed usage bounds",
+  );
+  await page.keyboard.press("ArrowUp");
+  assert.notEqual(
+    (await page.locator(".ah-chart:visible svg text").allTextContents())
+      .slice(0, 3)
+      .join("|"),
+    priorY,
+    "Keyboard must pan usage axis",
+  );
+  await page.keyboard.press("ArrowDown");
   await shot("zoomed");
   const beforePan = await viewLabel.textContent();
   await page.keyboard.press("ArrowRight");
@@ -229,10 +267,15 @@ try {
     "Modified wheel must zoom the chart",
   );
   const beforeDrag = await viewLabel.textContent();
+  const beforeDragY = (
+    await page.locator(".ah-chart:visible svg text").allTextContents()
+  )
+    .slice(0, 3)
+    .join("|");
   await page.mouse.down();
   await page.mouse.move(
     wheelPlot.x + wheelPlot.width * 0.5 + 60,
-    wheelPlot.y + 80,
+    wheelPlot.y + 120,
     {
       steps: 5,
     },
@@ -242,6 +285,13 @@ try {
     await viewLabel.textContent(),
     beforeDrag,
     "Dragging a zoomed chart must pan",
+  );
+  assert.notEqual(
+    (await page.locator(".ah-chart:visible svg text").allTextContents())
+      .slice(0, 3)
+      .join("|"),
+    beforeDragY,
+    "Mouse drag must pan the usage axis too",
   );
   assert.equal(
     await page.evaluate(() => getSelection()?.toString()),
@@ -276,6 +326,13 @@ try {
   });
   await page.mouse.move(hitPoint.x, hitPoint.y);
   await page.getByRole("tooltip").waitFor();
+  assert.equal(
+    await page
+      .locator(".ah-chart:visible svg")
+      .evaluate((el) => getComputedStyle(el).cursor),
+    "pointer",
+    "A visible hover reading must make the plot cursor a pointer",
+  );
   assert.ok(
     (await page.getByRole("tooltip").textContent()).includes(
       "Primary example account",
@@ -296,6 +353,25 @@ try {
     .getByRole("button", { name: "5-hour window", exact: true })
     .click();
   await page.locator(".ah-inspector").first().locator("summary").click();
+  await page.locator(".ah-chart:visible svg").focus();
+  await page.keyboard.press("+");
+  await page
+    .getByLabel("Inspect 5-hour observation", { exact: true })
+    .selectOption(`a:${state.accounts[0].points[21].t}`);
+  assert.equal(
+    (await page.locator(".ah-chart:visible svg text").allTextContents())[0],
+    "0%",
+    "Choosing an observation outside the zoomed usage range must bring it into view",
+  );
+  const selectedMarker = page.locator(
+    ".ah-chart:visible [data-tracked-observation] circle",
+  );
+  assert.ok(
+    Number(await selectedMarker.getAttribute("cy")) <= 456,
+    "Selected observation marker must remain inside the plot",
+  );
+  await page.locator(".ah-chart:visible svg").focus();
+  await page.keyboard.press("0");
   await page.locator(".ah-legend-account").first().click();
   assert.equal(
     await page.getByLabel("Account", { exact: true }).inputValue(),
@@ -400,13 +476,18 @@ try {
     "Touch double-tap must initiate shared zoom",
   );
   const touchRange = await viewLabel.textContent();
+  const touchY = (
+    await page.locator(".ah-chart:visible svg text").allTextContents()
+  )
+    .slice(0, 3)
+    .join("|");
   await touchSession.send("Input.dispatchTouchEvent", {
     type: "touchStart",
     touchPoints: [{ x: tx, y: ty }],
   });
   await touchSession.send("Input.dispatchTouchEvent", {
     type: "touchMove",
-    touchPoints: [{ x: tx + 60, y: ty }],
+    touchPoints: [{ x: tx + 60, y: ty + 40 }],
   });
   await touchSession.send("Input.dispatchTouchEvent", {
     type: "touchEnd",
@@ -416,6 +497,13 @@ try {
     await viewLabel.textContent(),
     touchRange,
     "Touch drag must pan after zoom",
+  );
+  assert.notEqual(
+    (await page.locator(".ah-chart:visible svg text").allTextContents())
+      .slice(0, 3)
+      .join("|"),
+    touchY,
+    "Native vertical touch movement must pan usage as well",
   );
   await touchTap();
   await touchTap();
@@ -495,6 +583,9 @@ try {
   await page.locator("#launch").click();
   await page.getByRole("button", { name: "History", exact: true }).click();
   await page
+    .getByRole("button", { name: "5-hour window", exact: true })
+    .click();
+  await page
     .getByRole("heading", { name: "5-hour window", exact: true })
     .waitFor();
   assert.equal(await page.locator(".ah-legend-account").count(), 12);
@@ -518,6 +609,9 @@ try {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.locator("#launch").click();
   await page.getByRole("button", { name: "History", exact: true }).click();
+  await page
+    .getByRole("button", { name: "5-hour window", exact: true })
+    .click();
   const bottomPoint = page.locator(".ah-chart:visible .ah-dot").first();
   await bottomPoint.scrollIntoViewIfNeeded();
   const bottomBox = await bottomPoint.boundingBox();
