@@ -79,6 +79,10 @@
 }
 .ah-dot {
   fill: var(--accent);
+  opacity: 0;
+}
+.ah-dot-end {
+  opacity: 1;
 }
 .ah-line-hit {
   fill: none;

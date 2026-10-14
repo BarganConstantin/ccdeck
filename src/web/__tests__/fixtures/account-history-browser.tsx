@@ -7,6 +7,8 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") modalStack.dismissTop();
 });
 const root = createRoot(document.getElementById("root")!);
+const renderMetrics: number[] = [];
+Object.assign(window, { __historyProfile: renderMetrics });
 const now = Date.now();
 const accounts = [
   {
@@ -30,13 +32,18 @@ const accounts = [
 ];
 window.openReport = () =>
   root.render(
-    <Report
-      accounts={accounts}
-      order={[]}
-      failed={null}
-      nowSec={now / 1000}
-      onClose={() => root.render(null)}
-    />,
+    <React.Profiler
+      id="history-review"
+      onRender={(_id, _phase, duration) => renderMetrics.push(duration)}
+    >
+      <Report
+        accounts={accounts}
+        order={[]}
+        failed={null}
+        nowSec={now / 1000}
+        onClose={() => root.render(null)}
+      />
+    </React.Profiler>,
   );
 document.getElementById("launch")!.onclick = window.openReport;
 document.getElementById("settings")!.onclick = () =>

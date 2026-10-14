@@ -1,6 +1,7 @@
 import React, {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useId,
   useRef,
   useState,
@@ -9,7 +10,8 @@ import {
   type AccountHistory,
   type SnapshotAccount,
   historySegments,
-  formatSnapshotTime,
+  smoothHistoryPath,
+  createSnapshotTimeFormatter,
   historyTimeDomain,
   formatHistoryAxis,
   clampHistoryRange,
@@ -19,7 +21,6 @@ import {
   type HistoryRange,
 } from "../account-history";
 import "./account-history.css";
-const stamp = formatSnapshotTime;
 function HistoryChart({
   accounts,
   window,
@@ -27,6 +28,7 @@ function HistoryChart({
   end,
   zoomed,
   usageRange,
+  active,
   onZoom,
   onPan,
   onReset,
@@ -37,10 +39,12 @@ function HistoryChart({
   end: number;
   zoomed: boolean;
   usageRange: HistoryRange;
+  active: boolean;
   onZoom: (factor: number, anchor?: number, usageAnchor?: number) => void;
   onPan: (delta: number, usageDelta?: number) => void;
   onReset: () => void;
 }) {
+  const stamp = createSnapshotTimeFormatter().format;
   const chartRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const clipId = useId();
@@ -98,13 +102,18 @@ function HistoryChart({
     y: number;
   } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const values = accounts
-    .flatMap((a) =>
-      a.points
-        .filter((p) => p[window] && p.t >= start && p.t <= end)
-        .map((p) => ({ ...p, account: a, key: `${a.id}:${p.t}` })),
-    )
-    .sort((a, b) => a.t - b.t || a.account.id.localeCompare(b.account.id));
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const values = useMemo(
+    () =>
+      accounts
+        .flatMap((a) =>
+          a.points
+            .filter((p) => p[window] && p.t >= start && p.t <= end)
+            .map((p) => ({ ...p, account: a, key: `${a.id}:${p.t}` })),
+        )
+        .sort((a, b) => a.t - b.t || a.account.id.localeCompare(b.account.id)),
+    [accounts, window, start, end],
+  );
   const p = values.find((p) => p.key === selected) ?? values.at(-1);
   const w = p?.[window];
   const hovered = values.find((v) => v.key === hover?.key);
@@ -130,6 +139,68 @@ function HistoryChart({
     30 -
     ((used - usageRange.start) / (usageRange.end - usageRange.start)) *
       (height - 50);
+  const geometry = useMemo(
+    () =>
+      new Map(
+        !active
+          ? []
+          : accounts.map((a) => [
+              a.id,
+              <>
+                {historySegments(a.points, window).map((s, i) => (
+                  <g key={i}>
+                    <path
+                      d={smoothHistoryPath(
+                        s.map((p) => ({ x: x(p.t), y: y(p.pct) })),
+                      )}
+                      className="ah-line"
+                      style={{ stroke: a.color }}
+                    ></path>
+                    <path
+                      d={smoothHistoryPath(
+                        s.map((p) => ({ x: x(p.t), y: y(p.pct) })),
+                      )}
+                      className="ah-line-hit"
+                    ></path>
+                    {s.map((p, index) => (
+                      <circle
+                        key={p.t}
+                        cx={x(p.t)}
+                        cy={y(p.pct)}
+                        r="2.5"
+                        className={`ah-dot${index === 0 || index === s.length - 1 ? " ah-dot-end" : ""}`}
+                        style={{ fill: a.color }}
+                      ></circle>
+                    ))}
+                  </g>
+                ))}
+              </>,
+            ]),
+      ),
+    [
+      accounts,
+      window,
+      start,
+      end,
+      width,
+      height,
+      usageRange.start,
+      usageRange.end,
+      active,
+    ],
+  );
+  const options = useMemo(
+    () =>
+      !active || !inspectorOpen
+        ? []
+        : [...values].reverse().map((v) => (
+            <option key={v.key} value={v.key}>
+              {accounts.length > 1 ? `${v.account.name} · ` : ""}
+              {stamp(v.t)} · {v[window]!.pct}% used
+            </option>
+          )),
+    [values, accounts.length, window, active, inspectorOpen],
+  );
   return (
     <section
       className="ah-chart"
@@ -358,34 +429,7 @@ function HistoryChart({
                 opacity: tracked && tracked.account.id !== a.id ? 0.25 : 1,
               }}
             >
-              {historySegments(a.points, window).map((s, i) => (
-                <g key={i}>
-                  <polyline
-                    points={s.map((p) => `${x(p.t)},${y(p.pct)}`).join(" ")}
-                    className="ah-line"
-                    style={{ stroke: a.color }}
-                  ></polyline>
-                  <path
-                    d={s
-                      .map(
-                        (p, index) =>
-                          `${index ? "L" : "M"}${x(p.t)},${y(p.pct)}`,
-                      )
-                      .join(" ")}
-                    className="ah-line-hit"
-                  ></path>
-                  {s.map((p) => (
-                    <circle
-                      key={p.t}
-                      cx={x(p.t)}
-                      cy={y(p.pct)}
-                      r="2.5"
-                      className="ah-dot"
-                      style={{ fill: a.color }}
-                    ></circle>
-                  ))}
-                </g>
-              ))}
+              {geometry.get(a.id)}
             </g>
           ))}
           {tracked && (
@@ -444,7 +488,10 @@ function HistoryChart({
           </div>
         )}
       </div>
-      <details className="ah-inspector">
+      <details
+        className="ah-inspector"
+        onToggle={(e) => setInspectorOpen(e.currentTarget.open)}
+      >
         <summary>Inspect recorded readings</summary>
         <label className="ah-inspect">
           Inspect observation
@@ -464,12 +511,7 @@ function HistoryChart({
             disabled={!values.length}
           >
             {!values.length && <option value="">No observations</option>}
-            {[...values].reverse().map((v) => (
-              <option key={v.key} value={v.key}>
-                {accounts.length > 1 ? `${v.account.name} · ` : ""}
-                {stamp(v.t)} · {v[window]!.pct}% used
-              </option>
-            ))}
+            {options}
           </select>
         </label>
         <p className="ah-note">
@@ -486,6 +528,7 @@ function HistoryChart({
   );
 }
 export default function AccountHistoryView() {
+  const stamp = createSnapshotTimeFormatter().format;
   const [data, setData] = useState<AccountHistory | null>(null),
     [error, setError] = useState(""),
     [account, setAccount] = useState(""),
@@ -713,6 +756,7 @@ export default function AccountHistoryView() {
                         end={end}
                         zoomed={zoomed}
                         usageRange={usageRange}
+                        active={activeWindow === window}
                         onZoom={zoom}
                         onPan={pan}
                         onReset={reset}

@@ -145,7 +145,7 @@ try {
     await page
       .locator(".ah-chart")
       .first()
-      .locator('g[data-account="a"] polyline')
+      .locator('g[data-account="a"] .ah-line')
       .count(),
     2,
     "Timestamp jitter must not break the two actual reset cycles",
@@ -591,6 +591,73 @@ try {
   assert.equal(await page.locator(".ah-legend-account").count(), 12);
   assert.equal(await page.locator(".ah-chart:visible").count(), 1);
   await shot("many-accounts");
+  if (process.env.CCDECK_HISTORY_PROFILE) {
+    await page.evaluate(() => {
+      window.__historyProfile.length = 0;
+    });
+    const targets = await page
+      .locator('g[data-account="a"] .ah-line')
+      .first()
+      .evaluate((el) =>
+        Array.from({ length: 60 }, (_, i) => {
+          const point = el.getPointAtLength(
+            el.getTotalLength() * (0.2 + (i * 0.6) / 59),
+          );
+          const position = new DOMPoint(point.x, point.y).matrixTransform(
+            el.getScreenCTM(),
+          );
+          return { x: position.x, y: position.y };
+        }),
+      );
+    for (const target of targets) await page.mouse.move(target.x, target.y);
+    await page.waitForTimeout(100);
+    const profile = await page.evaluate(() => {
+      const values = [...window.__historyProfile].sort((a, b) => a - b);
+      return {
+        commits: values.length,
+        totalRenderMs: Math.round(values.reduce((a, b) => a + b, 0)),
+        p95RenderMs: Number(
+          (values[Math.floor(values.length * 0.95)] ?? 0).toFixed(2),
+        ),
+      };
+    });
+    console.log(
+      `History hover profile (60 pointer moves, 12 accounts): ${JSON.stringify(profile)}`,
+    );
+    await page.mouse.move(5, 5);
+    await page.locator(".ah-chart:visible svg").focus();
+    await page.keyboard.press("+");
+    const panBox = await page.locator(".ah-chart:visible svg").boundingBox();
+    await page.mouse.move(
+      panBox.x + panBox.width * 0.5,
+      panBox.y + panBox.height * 0.5,
+    );
+    await page.evaluate(() => {
+      window.__historyProfile.length = 0;
+    });
+    await page.mouse.down();
+    await page.mouse.move(
+      panBox.x + panBox.width * 0.5 + 80,
+      panBox.y + panBox.height * 0.5 + 60,
+      { steps: 30 },
+    );
+    await page.mouse.up();
+    const panProfile = await page.evaluate(() => {
+      const values = [...window.__historyProfile].sort((a, b) => a - b);
+      return {
+        commits: values.length,
+        totalRenderMs: Math.round(values.reduce((a, b) => a + b, 0)),
+        p95RenderMs: Number(
+          (values[Math.floor(values.length * 0.95)] ?? 0).toFixed(2),
+        ),
+      };
+    });
+    console.log(
+      `History pan profile (30 pointer moves, 12 accounts): ${JSON.stringify(panProfile)}`,
+    );
+    await page.locator(".ah-chart:visible svg").focus();
+    await page.keyboard.press("0");
+  }
   await page.locator(".ah-workspace").evaluate((el) => {
     el.scrollTop = el.scrollHeight;
   });

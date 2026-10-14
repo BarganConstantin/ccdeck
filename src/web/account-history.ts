@@ -60,8 +60,8 @@ export function historySegments(
   return segments;
 }
 
-export const formatSnapshotTime = (t: number, timeZone?: string) =>
-  new Date(t).toLocaleString(undefined, {
+export const createSnapshotTimeFormatter = (timeZone?: string) =>
+  new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -69,6 +69,8 @@ export const formatSnapshotTime = (t: number, timeZone?: string) =>
     timeZoneName: "short",
     ...(timeZone ? { timeZone } : {}),
   });
+export const formatSnapshotTime = (t: number, timeZone?: string) =>
+  createSnapshotTimeFormatter(timeZone).format(t);
 
 /** Fit real observations, not the full lookback. Padding is viewing space only. */
 export function historyTimeDomain(times: number[], from: number, to: number) {
@@ -132,6 +134,53 @@ export function zoomHistoryRange(
   );
 }
 
+/** Shape-preserving cubic guide: passes through readings, never overshoots them. */
+export function smoothHistoryPath(points: { x: number; y: number }[]) {
+  if (!points.length) return "";
+  const move = `M${points[0].x},${points[0].y}`;
+  if (points.length === 1) return move;
+  const dx = points.slice(1).map((p, i) => p.x - points[i].x);
+  if (dx.some((d) => d <= 0))
+    return (
+      move +
+      points
+        .slice(1)
+        .map((p) => `L${p.x},${p.y}`)
+        .join("")
+    );
+  const slopes = points.slice(1).map((p, i) => (p.y - points[i].y) / dx[i]);
+  const tangents = points.map((_, i) =>
+    i === 0
+      ? slopes[0]
+      : i === slopes.length
+        ? slopes[i - 1]
+        : slopes[i - 1] * slopes[i] <= 0
+          ? 0
+          : (slopes[i - 1] + slopes[i]) / 2,
+  );
+  slopes.forEach((slope, i) => {
+    if (slope === 0) {
+      tangents[i] = tangents[i + 1] = 0;
+      return;
+    }
+    const length = Math.hypot(tangents[i] / slope, tangents[i + 1] / slope);
+    if (length > 3) {
+      tangents[i] *= 3 / length;
+      tangents[i + 1] *= 3 / length;
+    }
+  });
+  return (
+    move +
+    points
+      .slice(1)
+      .map((p, i) => {
+        const a = points[i],
+          step = dx[i] / 3;
+        return `C${a.x + step},${a.y + tangents[i] * step} ${p.x - step},${p.y - tangents[i + 1] * step} ${p.x},${p.y}`;
+      })
+      .join("")
+  );
+}
 /** Usage percentages stay inside their real 0–100 domain, with a 5pp minimum. */
 export function clampUsageRange(range: HistoryRange): HistoryRange {
   const span = Math.max(5, Math.min(100, range.end - range.start));
