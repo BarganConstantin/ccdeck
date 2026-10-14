@@ -37,7 +37,7 @@ let state = {
         savedAt: now - (40 - i) * 15 * 60000,
         five_hour: {
           pct: i < 20 ? i * 4 : (i - 20) * 3,
-          resetAt: (now + (i < 20 ? 0 : 5 * 3600_000)) / 1000,
+          resetAt: (now + (i < 20 ? 0 : 5 * 3600_000)) / 1000 + (i % 3) * 0.2,
         },
         seven_day: { pct: i * 2, resetAt: (now + 6 * 86400_000) / 1000 },
       })),
@@ -120,6 +120,22 @@ try {
     "Recent observations should fill the plot, not a tiny edge of a week",
   );
   await shot("desktop");
+  assert.equal(
+    await page
+      .locator(".ah-chart")
+      .first()
+      .locator('g[data-account="a"] polyline')
+      .count(),
+    2,
+    "Timestamp jitter must not break the two actual reset cycles",
+  );
+  assert.equal(
+    await page
+      .locator(".ah-line")
+      .first()
+      .evaluate((el) => getComputedStyle(el).strokeLinejoin),
+    "round",
+  );
   await page.locator(".ah-legend-account").first().click();
   assert.equal(
     await page.getByLabel("Account", { exact: true }).inputValue(),

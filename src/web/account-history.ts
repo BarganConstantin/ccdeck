@@ -35,6 +35,7 @@ export function historySegments(
 ) {
   const segments: { t: number; pct: number }[][] = [];
   let prev: AccountSnapshot | null = null;
+  let segmentReset: number | null = null;
   for (const p of points) {
     const w = p[window];
     if (!w) {
@@ -44,9 +45,15 @@ export function historySegments(
     if (
       !prev ||
       p.t - prev.t > 30 * 60_000 ||
-      prev[window]?.resetAt !== w.resetAt
-    )
+      // Reported timestamps can jitter below second precision between readings.
+      // Compare with the segment anchor so small changes cannot accumulate.
+      (segmentReset == null || w.resetAt == null
+        ? segmentReset !== w.resetAt
+        : Math.abs(segmentReset - w.resetAt) > 1)
+    ) {
       segments.push([]);
+      segmentReset = w.resetAt;
+    }
     segments.at(-1)!.push({ t: p.t, pct: w.pct });
     prev = p;
   }

@@ -248,9 +248,29 @@ describe("account snapshots", () => {
     });
     expect(
       historySegments(
-        [point(0, 1), point(1000, 2), point(40 * 60000, 2)],
+        [point(0, 3600), point(1000, 7200), point(40 * 60000, 7200)],
         "five_hour",
       ),
     ).toHaveLength(3);
+  });
+  it("connects subsecond reset jitter without allowing cumulative drift", () => {
+    const point = (t: number, resetAt: number | null) => ({
+      t,
+      savedAt: t,
+      five_hour: { pct: 70, resetAt },
+      seven_day: null,
+    });
+    const segments = historySegments(
+      [
+        point(0, 3600),
+        point(60_000, 3600.8),
+        point(120_000, 3599.9),
+        point(180_000, 3601.5),
+        point(240_000, null),
+        point(300_000, null),
+      ],
+      "five_hour",
+    );
+    expect(segments.map((s) => s.length)).toEqual([3, 1, 2]);
   });
 });
