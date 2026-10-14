@@ -84,6 +84,11 @@ await page.route("**/api/accounts/history/clear", async (r) => {
   await r.fulfill({ json: state });
 });
 const shot = async (name) => {
+  await page.locator(".ah-workspace").evaluateAll((nodes) =>
+    nodes.forEach((el) => {
+      el.scrollTop = 0;
+    }),
+  );
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${out}/${name}.png` });
 };
@@ -94,7 +99,9 @@ try {
   await page.locator("#launch").click();
   await shot("baseline-accounts");
   await page.getByRole("button", { name: "History", exact: true }).click();
-  await page.getByText("5-hour window", { exact: true }).waitFor();
+  await page
+    .getByRole("heading", { name: "5-hour window", exact: true })
+    .waitFor();
   assert.equal(
     await page.getByLabel("Account", { exact: true }).inputValue(),
     "",
@@ -253,23 +260,36 @@ try {
       .locator(".ah-chart svg")
       .first()
       .evaluate((svg) => svg.getBoundingClientRect().height),
-    290,
+    360,
   );
   const hit = page.locator('g[data-account="a"] .ah-line-hit').first();
-  assert.equal(
-    await hit.locator("title").textContent(),
-    "Primary example account",
-  );
-  const hitTarget = await hit.evaluate((el) => {
+  const hitPoint = await hit.evaluate((el) => {
     const p = el.getPointAtLength(el.getTotalLength() * 0.47);
     const screen = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM());
-    const target = document.elementFromPoint(screen.x, screen.y);
-    return target?.querySelector("title")?.textContent;
+    return { x: screen.x, y: screen.y };
   });
+  await page.mouse.move(hitPoint.x, hitPoint.y);
+  await page.getByRole("tooltip").waitFor();
   assert.ok(
-    hitTarget?.includes("Primary example account"),
-    "Hovering a line must identify its account",
+    (await page.getByRole("tooltip").textContent()).includes(
+      "Primary example account",
+    ),
   );
+  assert.ok(
+    (await page.getByRole("tooltip").textContent()).includes("Observed"),
+  );
+  await shot("hover");
+  await page.mouse.move(5, 5);
+  await page.getByRole("button", { name: "7-day window", exact: true }).click();
+  assert.equal(await page.locator(".ah-chart:visible").count(), 1);
+  await page
+    .getByRole("heading", { name: "7-day window", exact: true })
+    .waitFor();
+  await shot("weekly");
+  await page
+    .getByRole("button", { name: "5-hour window", exact: true })
+    .click();
+  await page.locator(".ah-inspector").first().locator("summary").click();
   await page.locator(".ah-legend-account").first().click();
   assert.equal(
     await page.getByLabel("Account", { exact: true }).inputValue(),
@@ -288,6 +308,22 @@ try {
   await page
     .getByLabel("Inspect 5-hour observation", { exact: true })
     .selectOption(`a:${state.accounts[0].points[1].t}`);
+  const inspector = page.getByLabel("Inspect 5-hour observation", {
+    exact: true,
+  });
+  await inspector.focus();
+  await page.keyboard.press("ArrowUp");
+  const keyboardReading = await inspector.inputValue();
+  assert.equal(
+    await page
+      .locator(".ah-chart")
+      .first()
+      .locator("[data-tracked-observation]")
+      .getAttribute("data-tracked-observation"),
+    keyboardReading,
+    "Keyboard inspection must track the selected observation on the plot",
+  );
+  await shot("keyboard-inspection");
   await page.getByLabel("Period", { exact: true }).selectOption("30");
   await page
     .getByLabel("Inspect 5-hour observation", { exact: true })
@@ -303,7 +339,7 @@ try {
   await page.getByText("0% remaining", { exact: true }).waitFor();
   assert.equal(
     await page.locator(".ah-chart svg circle").first().getAttribute("cy"),
-    "260",
+    "330",
     "An exhausted account must be at the bottom",
   );
   assert.deepEqual(
@@ -331,6 +367,62 @@ try {
   await page.getByText("Removed account", { exact: false }).count();
   await shot("removed-account");
   await page.getByLabel("Account", { exact: true }).selectOption("a");
+  await page.locator(".ah-chart svg").first().scrollIntoViewIfNeeded();
+  const touchBox = await page.locator(".ah-chart svg").first().boundingBox();
+  const touchSession = await page.context().newCDPSession(page);
+  await touchSession.send("Emulation.setTouchEmulationEnabled", {
+    enabled: true,
+  });
+  const tx = touchBox.x + touchBox.width * 0.5,
+    ty = touchBox.y + 150;
+  const touchTap = async () => {
+    await touchSession.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: tx, y: ty }],
+    });
+    await touchSession.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  };
+  await touchTap();
+  await touchTap();
+  await page.waitForTimeout(100);
+  assert.equal(
+    await page.locator(".ah-plot-zoomed").count(),
+    2,
+    "Touch double-tap must initiate shared zoom",
+  );
+  const touchRange = await viewLabel.textContent();
+  await touchSession.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: tx, y: ty }],
+  });
+  await touchSession.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [{ x: tx + 60, y: ty }],
+  });
+  await touchSession.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  assert.notEqual(
+    await viewLabel.textContent(),
+    touchRange,
+    "Touch drag must pan after zoom",
+  );
+  await touchTap();
+  await touchTap();
+  await page.waitForTimeout(100);
+  assert.equal(
+    await page.locator(".ah-plot-zoomed").count(),
+    0,
+    "Touch double-tap must reset zoom",
+  );
+  await touchSession.send("Emulation.setTouchEmulationEnabled", {
+    enabled: false,
+  });
+  await touchSession.detach();
   for (const [width, height, name] of [
     [390, 844, "mobile"],
     [320, 568, "narrow"],
@@ -369,6 +461,38 @@ try {
     true,
   );
   await page.setViewportSize({ width: 1280, height: 900 });
+  const originalAccounts = state.accounts;
+  state.accounts = [
+    ...originalAccounts,
+    ...Array.from({ length: 10 }, (_, i) => ({
+      ...originalAccounts[0],
+      id: `comparison-${i}`,
+      name: `Account ${i + 3} · sample@example.test`,
+      points: originalAccounts[0].points.map((p) => ({
+        ...p,
+        five_hour: p.five_hour
+          ? {
+              ...p.five_hour,
+              pct: Math.min(100, (p.five_hour.pct + i * 7) % 101),
+            }
+          : null,
+      })),
+    })),
+  ];
+  await page.locator("#launch").click();
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "5-hour window", exact: true })
+    .waitFor();
+  assert.equal(await page.locator(".ah-legend-account").count(), 12);
+  assert.equal(await page.locator(".ah-chart:visible").count(), 1);
+  await shot("many-accounts");
+  await page.locator(".ah-workspace").evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await page.screenshot({ path: `${out}/bottom.png` });
+  await page.keyboard.press("Escape");
+  state.accounts = originalAccounts;
   await page.locator("#settings").click();
   await page.getByRole("switch").waitFor();
   await page.getByRole("switch").click();
@@ -414,7 +538,7 @@ try {
   await page.getByText("No readings in this period").waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS real components: history, windows, account selection, removed/partial reading, narrow/short bounds, Escape/focus restore, pause, retention confirmation, clear/cancel, empty; no page errors.",
+    "PASS History studio: window switching, instant tooltip, keyboard point tracking, wheel/drag/double-click, touch zoom/pan/reset, 12-account comparison, partial/empty/error states, responsive bounds, Escape/focus restore and settings; no page errors.",
   );
 } finally {
   await browser.close();

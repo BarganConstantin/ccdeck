@@ -1,10 +1,24 @@
 # Account quota snapshots (#2104)
 
-## Agreed product behavior
+Current built behavior and handoff — 14 October 2026.
 
-Claude account snapshots are enabled by default. Settings → Account history can pause recording, show the file's actual disk size, clear all snapshots with confirmation, and select 30, 60 or 90 days of retention (30 by default). Shortening retention explicitly warns before older readings are removed. Retention still applies while recording is paused. Removed accounts keep their historical readings until retention or an explicit clear removes them.
+## Product behavior
 
-Account capacity retains Accounts and Reset calendar, and adds History. Choose an account and inspect its reported five-hour and seven-day usage separately. The initial period is seven days; longer periods follow configured retention. The observation selector provides keyboard-accessible timestamps and values. All dates use the browser's local timezone.
+Claude account snapshots are enabled by default. Settings → Account history can pause recording, show actual file size, clear snapshots with confirmation, and select 30/60/90-day retention (30 by default). Shortening retention warns before older readings are removed; retention still applies while paused. Removed accounts retain readings until pruning or clear.
+
+Account capacity retains Accounts and Reset calendar and adds History. The built History view is a comparative studio: one visible 5-hour or 7-day plot, an adjacent account rail and a period selector. It defaults to All accounts, the 5-hour window and seven days; longer periods follow retention. The rail shows each account’s latest recorded remaining percentage and observation time for the active window within the period, independently of the zoomed interval. Missing readings show a dash; removed accounts are labeled. These values do not claim current or fresh capacity. Clicking an account isolates it; clicking again or choosing All accounts restores comparison. Account colors remain consistent between windows.
+
+Only one window is visible at a time; the shared absolute-time zoom survives switching between them. This reduces scrolling for comparison while requiring a window switch to inspect the other quota. No new dependencies or major product/brand changes were introduced, and the source collection, persistence, retention and usage business logic is unchanged.
+
+## Inspection and navigation
+
+The chart is a 360px SVG with a 310px vertical data range. It displays **capacity remaining**, derived as 100 minus reported usage, with full capacity at the top and exhausted capacity at the bottom. An immediate custom tooltip shows the account, actual observation time, remaining percentage and reported reset or unknown reset. A crosshair and marker track the actual observation and dim other series; hover does not invent interpolated readings.
+
+The secondary “Inspect recorded readings” details disclosure contains a labeled keyboard-accessible native observation selector. It lists actual readings within the visible interval, retaining percentage used, and keyboard selection tracks the same point and account highlight. Keys include account identity and timestamp; unavailable selections fall back to the latest visible reading. A disappeared account selection falls back to All accounts. “About these readings” preserves uncertainty in progressive disclosure. Dates use browser local time with timezone context.
+
+The period is a maximum lookback, not forced chart width. The axis fits observations with 5% padding (at least 15 minutes per edge); a single reading is centered in a 30-minute view. Both windows share wheel zoom around the pointer, horizontal wheel pan, drag-to-pan while zoomed and double-click reset. Touch double-tap enters a bounded 2× zoom; horizontal drag pans and another double-tap resets, with vertical touch scrolling available. Keyboard chart controls are +/−, left/right and 0/Home; visible focus underlines the chart heading. The range is bounded to available history with a five-minute minimum, resets on account/period changes and is preserved/clamped on refresh. Outside-plot scrolling scrolls the dialog. Visible-range status and no-reading intervals are explicit.
+
+The desktop account rail is 220px wide beside the plot. Below 700px it follows the plot in two columns, below 380px in one. Short dialogs scroll, and narrow/light states preserve the same task order. Loading, read errors with Retry, storage errors and empty/paused history retain explicit feedback.
 
 ## Sources and boundaries
 
@@ -12,7 +26,7 @@ The sampler reads claude-swap's `sequence.json` and schema-2 `cache/usage.json` 
 
 New fresh observations are folded into fifteen-minute observation-time buckets, keeping the most recent point in a bucket. A changed reported reset window starts a separate point even in the same bucket. Raw claude-swap observation times are Unix seconds; the sampler reuses the roster's `observedMs` conversion to milliseconds before capture. Stored timestamps distinguish the original provider observation from the local save. Failed, future, missing or older-than-fifteen-minute observations are not new samples. Missing individual windows remain null, never zero.
 
-A reported reset time is not a confirmed capacity renewal. Historical percentages remain measured values even after that time passes. Plot lines break across changed reset windows or more than thirty minutes between observations; missing individual windows also break their series. Dashed markers denote reported reset timestamps. No estimate of token consumption is derived from percentage changes.
+A reported reset time is not a confirmed capacity renewal. Historical percentages remain measured values even after that time passes. Plot lines break across materially changed reset windows or more than thirty minutes between observations; missing individual windows also break their series. Reset timestamp precision differences up to one second relative to the segment’s first reset are tolerated without cumulative drift; stored timestamps are unchanged. Dashed markers denote reported reset timestamps. No estimate of token consumption is derived from percentage changes.
 
 No samples are fabricated while the backend is stopped or after restart. New snapshots use available observations; this feature does not make inactive accounts collect more frequently. Existing cost/token Usage history and the active-provider quota history are separate and unchanged.
 
@@ -22,41 +36,19 @@ No samples are fabricated while the backend is stopped or after restart. New sna
 
 The history GET endpoint is a guarded private data read. The clear POST requires the existing mutation gate and explicit `confirm: true`. Snapshots store account labels and hashes, usage values and timestamps; never login tokens, credential payloads, transcripts or prompts.
 
-## Verification
+## Verification and review evidence
 
-Automated tests cover identity, deduplication, partial/missing/stale observations, cycle changes, paused retention, removed accounts, clear/restart, corrupt files, actual file persistence, schema-2 passive reading, no fetch calls, protected route membership and clock-driven sampler shutdown. Existing calendar, capacity, preference-route and settings tests are included.
+The parent reports the latest completed checks:
 
-Optional browser runner: `scripts/verify-account-history.mjs`. Start Vite on port 4569 (`npm run dev:web -- --host 127.0.0.1 --port 4569 --strictPort`), then run the script with an existing Playwright installation. `CCDECK_BROWSER_MODULE` may name that installation's module URL; `PLAYWRIGHT_EXECUTABLE_PATH` optionally selects an existing browser. No Playwright dependency was added. `CCDECK_REVIEW_ORIGIN` and `CCDECK_SCREENSHOT_DIR` override the default local origin and screenshot destination.
+- **68 tests / four files passed**: snapshot unit, passive integration, settings and axis coverage.
+- **Typecheck and production build passed.**
+- **Browser runner passed**: normal workflows, window switching, native CDP touch gestures, keyboard tracked marker, 12 accounts, empty/error/retry and short/narrow/light states.
+- Reviewer’s initial two material findings—touch initialization and keyboard tracking—both scored **PASS after fixes**, at source/screenshot scope. The parent separately confirmed **native CDP touch runtime PASS**.
 
-The runner mounts real components through `src/web/__tests__/fixtures/account-history-browser.tsx`, using synthetic non-private observations and mocked APIs. It verifies account and period selection, both windows, removed/partial accounts, desktop/narrow/short bounds, dark/light themes, observation selection fallback after account/range changes, Escape/focus restoration, pause, retention confirmation, clear/cancel, empty state and failed-read retry/recovery. This is browser interaction evidence, not live provider verification.
+The browser runner (`scripts/verify-account-history.mjs`) mounts real components through `src/web/__tests__/fixtures/account-history-browser.tsx`, using controlled mocked APIs and synthetic accounts. No Playwright dependency was added. This establishes the tested interactions, not live-provider truth or whole-product certification. Native hardware touch, Safari and full screen-reader sessions remain unverified. This documentation pass did not run tests, a detector or another visual review, and does not imply a published release.
 
-Screenshots are under `.impeccable/review/2104/`: baseline-accounts, desktop, mobile, narrow, short, removed-account, settings and empty. Initial capture/test harness errors were corrected before the successful complete run. Real provider data, native Windows/Linux, Safari/Firefox and screen-reader sessions have not been verified by this work.
+Capture directory: `.impeccable/review/2104/`. Current evidence: `desktop.png`, `hover.png`, `weekly.png`, `many-accounts.png`, `bottom.png`, `keyboard-inspection.png`, `mobile.png`, `narrow.png`, `light.png`. `before-redesign.png` captures the prior git HEAD at the same 1280×900 viewport. Direction and alternatives are recorded in `redesign-notes.md`; current surface guidance is `.impeccable/surfaces/account-usage-history.md`.
 
-## Final evidence (14 October 2026)
+## Earlier iterations
 
-- Targeted Vitest command (snapshot history/passive integration, preference route fields, settings surface, boot module graph, capacity reliability, reset calendar and active quota history): **141 tests / eight files passed**.
-- `npm run typecheck`: **passed**.
-- `npm run build`: **passed**, final build 6.52s. Existing large-chunk warning remains. The first build used a shared dependency directory missing codec tools; `npm ci --ignore-scripts` in this worktree resolved it without changing dependencies or lockfile.
-- `node scripts/verify-account-history.mjs` with the available Playwright module/browser: **passed**, including dark/light captures, older-observation account/range fallback and controlled API failure/retry; no page errors.
-- Impeccable detector ran once. Its 14px advisory conflicts with DESIGN.md's explicitly documented small-heading size; 14px is retained. The independent finish reviewer scored all four material fixes resolved: source timestamp units, control/guide edges, measurement typography and observation selection fallback. This was a scoped verdict pass, not whole-product certification.
-- Screenshot capture timing and browser-runner sequencing defects were corrected before final successful runs.
-
-**SHIP WITH FOLLOW-UPS**, at the tested scope. No live private account/provider operations were performed. Native platform, Safari/Firefox and full assistive-technology sessions remain unverified. Feature branch is separate from development/main; this report does not imply a published release.
-
-## All-account comparison (owner refinement)
-
-History now defaults to All accounts, overlaying each account on the same time axis in both windows. A shared legend names the accounts and matches line colors. Clicking a legend entry isolates that account; clicking it again or selecting All accounts restores the combined view. Colors name accounts, not quota health, and remain consistent between the two windows and single-account filtering. Observation keys include both account identity and timestamp, keeping simultaneous readings distinct.
-
-Browser checks cover the default combined series, legend filtering/restoration, account and period changes, missing windows and narrow/light/short states. Historical snapshots, collection and retention are unchanged.
-
-## Interactive chart inspection
-
-The time axis fits available readings within the selected lookback. Short histories display local times; a single observation is centered with viewing padding. Subsecond precision changes in reported reset times do not split otherwise continuous lines, while missing readings and real cycle changes remain breaks.
-
-Both windows share zoom and pan. Scroll inside a plot to zoom around the pointer, drag when zoomed to pan, and double-click to reset. Horizontal trackpad scrolling pans. Scrolling outside the plots still scrolls the modal. The plots are keyboard-focusable: +/− zoom, left/right arrows pan, and 0 or Home resets. The visible range is bounded to available history, has a five-minute minimum and resets on account/period changes. No chart dependency was added. Clipping preserves original data and the observation selector lists actual readings in the visible interval.
-
-Latest checks: 32 focused Vitest tests passed, TypeScript passed, production build passed, and browser interaction checks passed (keyboard zoom/reset, synchronized axes, pan, wheel zoom, drag without text selection, double-click reset, account hover hit-testing and 290px plot height, plus existing workflows). Updated renders include `zoomed.png`. Independent scoped review found no material issue. Native touch and full screen-reader verification remain follow-ups.
-
-Owner refinement: plots are 290px high (240px data area). Line hover identifies the account using SVG titles and a transparent 12px hit target; point hover retains exact observation details. The visible zoom toolbar was removed in favor of direct gestures and keyboard equivalents.
-
-The vertical axis now shows **capacity remaining**, derived as 100 minus reported usage: full capacity is at the top and exhausted capacity is at the bottom. Observation controls retain the provider's usage-consumed values; point tooltips name both measures. This changes presentation only, not readings, freshness or renewal classification. Chart focus uses a heading underline for keyboard navigation instead of a rectangular frame. Browser assertions verify exhausted accounts at the bottom, axis labels, no outline and visible keyboard focus; TypeScript and build passed.
+The original surface stacked two charts with a top legend, native SVG-title inspection and primary observation selectors. Subsequent work added fitted time extents, reset-jitter tolerance, shared direct zoom and remaining-capacity orientation. The current comparative studio supersedes that composition, its 290px/240px chart sizing and its earlier unverified-touch status. Earlier test totals describe earlier scopes; the latest verification above is the current handoff evidence.

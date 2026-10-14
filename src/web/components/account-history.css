@@ -233,3 +233,280 @@
   text-underline-offset: 5px;
   text-decoration-thickness: 2px;
 }
+
+/* Comparison studio: one temporal workspace, account context beside it. */
+.ah-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.ah-heading h2 {
+  font-size: 18px;
+  letter-spacing: -0.3px;
+  margin: 0;
+  color: var(--text);
+}
+.ah-heading .ah-note {
+  margin: 6px 0 0;
+}
+.ah-period,
+.ah-account-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.ah-period select,
+.ah-account-picker select {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 4px 8px;
+}
+.ah-context {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.ah-studio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 20px;
+  padding-top: 16px;
+}
+.ah-canvas {
+  min-width: 0;
+}
+.ah-window-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.ah-window-switch button {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  min-height: 34px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.ah-window-switch button[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--bg-soft);
+  border-color: var(--ctl-edge);
+}
+.ah-window-switch button:hover {
+  color: var(--text);
+  background: var(--bg-soft);
+}
+.ah-window-switch > span {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.ah-redesign .ah-chart {
+  padding: 16px 0 0;
+  border: 0;
+}
+.ah-redesign .ah-chart > .ah-note {
+  display: none;
+}
+.ah-plot-wrap {
+  position: relative;
+  margin: 14px 0;
+  background: var(--bg-soft);
+  border-radius: 8px;
+}
+.ah-redesign .ah-chart svg {
+  height: 360px;
+  margin: 0;
+}
+.ah-tooltip {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  width: 224px;
+  max-width: calc(100% - 8px);
+  padding: 12px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 4px 12px #0002;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.ah-tooltip strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ah-tooltip b {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.ah-tooltip b span,
+.ah-tooltip > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+.ah-inspector {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.ah-inspector summary,
+.ah-data-notes summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 6px 0;
+}
+.ah-inspector[open] .ah-inspect {
+  margin-top: 12px;
+}
+.ah-chart-caption {
+  margin-top: 12px;
+}
+.ah-chart-caption .ah-note {
+  margin: 6px 0;
+  font-size: 11px;
+}
+.ah-accounts {
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+}
+.ah-accounts-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 4px 0 14px;
+}
+.ah-accounts-heading h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.ah-accounts-heading > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ah-redesign .ah-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+}
+.ah-redesign .ah-legend-account {
+  width: 100%;
+  padding: 6px;
+  gap: 8px;
+  align-items: flex-start;
+}
+.ah-redesign .ah-swatch {
+  width: 10px;
+  height: 3px;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.ah-account-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 12px;
+}
+.ah-account-name small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-crosshair {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  opacity: 0.7;
+}
+.ah-touch-hint {
+  display: none;
+}
+@media (pointer: coarse) {
+  .ah-touch-hint {
+    display: inline;
+  }
+}
+.ah-account-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.ah-data-notes {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.ah-period select:focus-visible,
+.ah-account-picker select:focus-visible,
+.ah-window-switch button:focus-visible,
+.ah-inspector summary:focus-visible,
+.ah-data-notes summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  .ah-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .ah-studio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ah-accounts {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+  .ah-redesign .ah-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ah-window-switch > span {
+    display: none;
+  }
+}
+@media (max-width: 380px) {
+  .ah-redesign .ah-legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
