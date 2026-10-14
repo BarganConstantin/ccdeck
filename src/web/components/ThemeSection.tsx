@@ -50,7 +50,10 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
     event.preventDefault();
-    const current = THEMES.indexOf(theme);
+    // Focus moves immediately, even while a previous theme snapshot is being
+    // captured, so held arrow keys do not keep requesting the same neighbour.
+    const focused = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-theme-choice]')?.dataset.themeChoice;
+    const current = THEMES.indexOf((focused as Theme | undefined) ?? theme);
     const next = (current + (event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1) + THEMES.length) % THEMES.length;
     onTheme(THEMES[next]);
     (event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next])?.focus();

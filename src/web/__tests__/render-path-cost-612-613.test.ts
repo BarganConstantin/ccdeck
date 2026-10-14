@@ -409,7 +409,7 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // The ordering that keeps a flip from going stale. Both statements must
     // live in the same effect, with the attribute first — a palette read before
     // `data-theme` is written answers with the theme being replaced.
-    const effect = /useEffect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(appearance);
+    const effect = /use(?:Layout)?Effect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(appearance);
     expect(effect, "the data-theme effect is no longer recognisable").not.toBeNull();
     expect(effect![0]).toMatch(/setPalette\(/);
     expect(effect![0].indexOf("dataset.theme")).toBeLessThan(effect![0].indexOf("setPalette"));
