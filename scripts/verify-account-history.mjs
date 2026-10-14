@@ -160,6 +160,24 @@ try {
   );
   assert.equal(await viewLabel.textContent(), originalRange);
   await page.locator(".ah-chart svg").first().focus();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(
+    await page
+      .locator(".ah-chart svg")
+      .first()
+      .evaluate((el) => getComputedStyle(el).outlineStyle),
+    "none",
+    "Chart focus must not draw a rectangular frame",
+  );
+  assert.equal(
+    await page
+      .locator(".ah-chart h3")
+      .first()
+      .evaluate((el) => getComputedStyle(el).textDecorationLine),
+    "underline",
+    "Keyboard focus must remain visible on the chart heading",
+  );
   await page.keyboard.press("+");
   assert.notEqual(await viewLabel.textContent(), originalRange);
   assert.equal(await page.locator(".ah-plot-zoomed").count(), 2);
@@ -282,7 +300,21 @@ try {
     `a:${state.accounts[0].points.at(-1).t}`,
   );
   await page.getByLabel("Account", { exact: true }).selectOption("b");
-  await page.getByText("100% used", { exact: true }).waitFor();
+  await page.getByText("0% remaining", { exact: true }).waitFor();
+  assert.equal(
+    await page.locator(".ah-chart svg circle").first().getAttribute("cy"),
+    "260",
+    "An exhausted account must be at the bottom",
+  );
+  assert.deepEqual(
+    await page
+      .locator(".ah-chart svg")
+      .first()
+      .locator("text")
+      .allTextContents()
+      .then((labels) => labels.slice(0, 3)),
+    ["100%", "50%", "0%"],
+  );
   const singlePointPosition = await page
     .locator(".ah-chart svg")
     .first()

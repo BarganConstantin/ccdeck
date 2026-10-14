@@ -78,7 +78,7 @@ function HistoryChart({
   const w = p?.[window];
   const visibleAccounts = new Set(values.map((p) => p.account.id)).size;
   const x = (t: number) => 36 + ((t - start) / (end - start)) * (width - 50);
-  const y = (pct: number) => 260 - pct * 2.4;
+  const y = (used: number) => 20 + used * 2.4;
   return (
     <section
       className="ah-chart"
@@ -90,16 +90,17 @@ function HistoryChart({
           {accounts.length > 1
             ? `${visibleAccounts} ${visibleAccounts === 1 ? "account" : "accounts"}`
             : w
-              ? `${w.pct}% used`
+              ? `${100 - w.pct}% remaining`
               : "No observations"}
         </span>
       </header>
+      <p className="ah-note">Capacity remaining</p>
       <svg
         ref={chartRef}
         viewBox={`0 0 ${width} 290`}
         role="group"
         tabIndex={0}
-        aria-label={`${window === "five_hour" ? "5-hour" : "7-day"} interactive usage chart. Scroll to zoom, drag to pan, double-click to reset. Keyboard: plus or minus to zoom, left or right arrows to pan, zero to reset. Gaps indicate missing observations or changed reset windows.`}
+        aria-label={`${window === "five_hour" ? "5-hour" : "7-day"} interactive capacity chart. Top is 100 percent remaining; bottom is zero remaining. Remaining capacity is 100 minus reported usage. Scroll to zoom, drag to pan, double-click to reset. Keyboard: plus or minus to zoom, left or right arrows to pan, zero to reset. Gaps indicate missing observations or changed reset windows.`}
         onDoubleClick={onReset}
         onKeyDown={(e) => {
           if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -157,7 +158,7 @@ function HistoryChart({
               className="ah-grid"
             />
             <text x="3" y={y(v) + 4}>
-              {v}%
+              {100 - v}%
             </text>
           </g>
         ))}
@@ -214,7 +215,8 @@ function HistoryChart({
                     style={{ fill: a.color }}
                   >
                     <title>
-                      {a.name} · {stamp(p.t)} · {p.pct}% used
+                      {a.name} · {stamp(p.t)} · {100 - p.pct}% remaining ·{" "}
+                      {p.pct}% used
                     </title>
                   </circle>
                 ))}
@@ -485,8 +487,9 @@ export default function AccountHistoryView() {
             </>
           )}
           <p className="ah-note">
-            Percentages describe reported capacity used, not token consumption.
-            A reported reset time does not confirm renewed capacity.
+            Charts show capacity remaining (100% minus reported usage).
+            Observations show reported capacity used, not token consumption. A
+            reported reset time does not confirm renewed capacity.
           </p>
         </>
       )}
