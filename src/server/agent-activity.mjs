@@ -33,10 +33,16 @@
 //     the same GitLab project — settings, jobs, branches. Fourteen rows
 //     describe that worse than one card does. That is what toEpisodes is for.
 //   * Without exclusions the deck reports ITSELF: 41 visits to 127.0.0.1:4317
-//     and 34 to 127.0.0.1:4399 carry FROM_API, because ccdeck opens its own tab
-//     through `open` on every start (bin/deck.js) and the listen fallback range
+//     and 34 to 127.0.0.1:4399 carry FROM_API, and the listen fallback range
 //     means it is not always the same port. defaultExclusions() is that, and
-//     only that.
+//     only that. This note used to say `open` was the reason — ccdeck opens its
+//     own tab with it on every start (bin/deck.js). Retested on 2026-10-14, a
+//     URL that `open` (macOS, Chrome 155) or `xdg-open` (Linux, Brave 1.95)
+//     hands to a running Chromium is recorded as AUTO_TOPLEVEL WITHOUT the bit,
+//     so those 75 visits most likely came from something else that loaded the
+//     deck's page (they were FROM_API over LINK, the shape an extension's
+//     tabs.update leaves). The exclusion stands either way: the deck's own
+//     origin does collect FROM_API visits.
 //
 // WHAT "NOBODY WAS AT THE BROWSER" MEANS HERE. It is derived from the visit
 // list itself: a human visit is any visit WITHOUT the bit. There is no OS idle
@@ -65,8 +71,25 @@
 // reports program navigation; the person reading the card decides what it was.
 
 /** Chrome's PAGE_TRANSITION_FROM_API qualifier — bit 27 of `visits.transition`.
- *  Set when the navigation was started through an API rather than by a person
- *  in the UI, which covers `open`, the debugger protocol, and an extension. */
+ *  Chromium defines it only as "originated from an external application", so
+ *  what sets it is Chrome's own code, and it is narrower than "any API":
+ *
+ *    SET by a page loaded with the DevTools protocol's `Page.navigate`, whatever
+ *    transition type was asked for (content/browser/devtools/protocol/
+ *    page_handler.cc), which is how Playwright and Puppeteer go to an address,
+ *    and by an extension's `chrome.tabs.update` with a URL
+ *    (chrome/browser/extensions/api/tabs/tabs_api.cc).
+ *
+ *    NOT SET by `Target.createTarget` with a URL (AUTO_TOPLEVEL,
+ *    chrome/browser/devtools/chrome_devtools_manager_delegate.cc), an
+ *    extension's `chrome.tabs.create` (LINK, extensions/open_tab_helper.cc), a
+ *    link a program clicks, or a URL handed over by `open` or `xdg-open`
+ *    (AUTO_TOPLEVEL, chrome/browser/ui/startup/startup_browser_creator_impl.cc).
+ *
+ *  Tested on 2026-10-14 on Brave 1.95 (Chromium 153, Linux) and Chrome 155
+ *  (macOS 26.6) with throwaway profiles. The NOT SET ones are invisible to this
+ *  module, and since a visit without the bit counts as a person (classify),
+ *  they can also cancel a program's flagged page within the quiet window. */
 export const FROM_API = 0x08000000;
 
 /** The same bit for the arbitrary-precision path below. */
@@ -227,11 +250,11 @@ function hostParts(text) {
  * Exclusion matchers for the deck's own pages, from the origins it is listening
  * on — `["http://127.0.0.1:4317"]`, or whatever the fallback range settled on.
  *
- * This is not politeness. ccdeck opens its own tab through `open`, so every
- * start writes a FROM_API visit to the deck's own origin, and those visits land
- * exactly where the rule is most sensitive: nobody is browsing at the moment a
- * background process opens a tab. Unfiltered, the feature's loudest and most
- * frequent finding is the feature itself.
+ * This is not politeness. The measured profile held FROM_API visits to the
+ * deck's own origin (the header's note says why `open` is not their cause),
+ * and those visits land exactly where the rule is most sensitive: nobody is
+ * browsing while a program loads the deck's page. Unfiltered, the feature's
+ * loudest and most frequent finding is the feature itself.
  *
  * Each origin expands to its port on all three loopback spellings, because the
  * deck opens 127.0.0.1 and a returning user may have typed localhost, and one
