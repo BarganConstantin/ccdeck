@@ -75,7 +75,7 @@
     "3.38.2",
     "3.38.6",
     "3.39.4",
-    "3.40.1", "3.40.2"
+    "3.40.1"
   ],
   "3.41.1": [
     {
@@ -121,6 +121,12 @@
       "body": "Change individual telemetry flags and use a simpler Monitor view."
     }
   ],
+  "3.40.2": [
+    {
+      "title": "📻 Music is in Radio now, not in Settings",
+      "body": "Settings no longer has a Music section. Claude FM, Lofi Girl and the streams you added are under Workspace streams in Radio, on the right sidebar, and Radio’s player has the volume and mute. Your station, volume and streams are kept. Adding, renaming or removing a stream link is no longer offered."
+    }
+  ],
   "3.40.0": [
     {
       "title": "📻 Explore radio around the world",
@@ -128,7 +134,7 @@
     },
     {
       "title": "🦊 Choose your canvas companion",
-      "body": "Choose Deck companion, Fox or Penguin in Settings › Appearance. Your companion shares the existing canvas movements and music controls, and your choice stays saved."
+      "body": "Choose Deck companion, Fox or Penguin in Settings › General. Your companion shares the existing canvas movements and music controls, and your choice stays saved."
     },
     {
       "title": "📊 See what each session used",
@@ -147,12 +153,16 @@
     {
       "title": "Clearer account usage and Telemetry Radar",
       "body": "Account usage shows reset times together with capacity. Telemetry Radar has a clearer monitoring workspace and keeps history for up to 24 hours. Radar remains Beta."
+    },
+    {
+      "title": "🔎 Telemetry Radar on Linux and Windows, with no Terminal step",
+      "body": "Radar now works on macOS, Linux and Windows. Press Start monitoring and ccdeck runs the capture itself, with no command to paste into Terminal, and keeps listening until you stop it. Capture needs a one-time setup for your user: Wireshark’s ChmodBPF helper on macOS, tcpdump with capture permission on Linux, or Wireshark with Npcap on Windows. Radar says what is missing, and once permission is granted it starts listening by itself."
     }
   ],
   "3.39.1": [
     {
       "title": "🎨 More themes, with clearer contrast",
-      "body": "Choose Omarchy, Matrix, Black Contrast, White Contrast or Catppuccin Mocha in Settings › Appearance. Fresh installations start with Rider Black; your saved theme choice is preserved."
+      "body": "Choose Omarchy, Matrix, Black Contrast, White Contrast or Catppuccin Mocha in Settings › General. Fresh installations start with Rider Black; your saved theme choice is preserved."
     },
     {
       "title": "A little more room on the canvas",
@@ -162,7 +172,7 @@
   "3.39.0": [
     {
       "title": "🔎 Inspect Claude Code telemetry on macOS",
-      "body": "Telemetry Radar shows Claude Code's configured telemetry and can inspect traffic at destinations you choose. When settings are absent, it can show observed connections separately; a connection alone does not prove telemetry or reveal message contents. Capture starts only after you run its generated command in Terminal, which uses macOS tcpdump with administrator permission. Captured telemetry can contain prompt or response content, and other apps sending to the same destination may appear too. Messages stay in ccdeck's memory for up to five minutes; no capture file is written."
+      "body": "Telemetry Radar shows Claude Code's configured telemetry and can inspect traffic at destinations you choose. When settings are absent, it can show observed connections separately; a connection alone does not prove telemetry or reveal message contents. Captured telemetry can contain prompt or response content, and other apps sending to the same destination may appear too. Captured messages stay in ccdeck's memory, and no capture file is written."
     },
     {
       "title": "🧭 Open panels from the edges",
@@ -174,13 +184,13 @@
     },
     {
       "title": "🎨 Two new dark themes",
-      "body": "Choose Rider Black or VS Code Black in Settings › Appearance. Both add a darker canvas with flatter panels and distinct focus accents; your existing Light or Dark choice stays as it was."
+      "body": "Choose Rider Black or VS Code Black in Settings › General. Both add a darker canvas with flatter panels and distinct focus accents; your existing Light or Dark choice stays as it was."
     }
   ],
   "3.38.5": [
     {
       "title": "🔧 Settings are in one place now",
-      "body": "The theme, the sounds, notifications, Claude FM and the minimap character are all in Settings, behind the gear at the right of the topbar, or Cmd+, (Ctrl+, on Windows and Linux). The speaker beside it keeps the quick things one click away: sounds on or off, and how loud each tone is. Nothing you had set has changed, it has only moved, and T still switches the theme. The auto-switch threshold also takes a custom value now: pick Custom… and type a whole percent from 50 to 99."
+      "body": "The theme, the sounds, notifications and the minimap character are all in Settings, behind the gear at the right of the topbar, or Cmd+, (Ctrl+, on Windows and Linux). V opens it at Sounds, with each tone's volume and sound, and M turns sounds off or on from anywhere. Nothing you had set has changed, it has only moved, and T still switches the theme. The auto-switch threshold also takes a custom value now: pick Custom… and type a whole percent from 50 to 99."
     },
     {
       "title": "Windows: no more temperature stuck at 28 °C",
@@ -190,7 +200,7 @@
   "3.38.4": [
     {
       "title": "🔔 A notification when Auto-switch changes your account",
-      "body": "When Auto-switch moves Claude Code to another account, ccdeck now tells you once, with where it went and why, for example \"Switched to work · personal@example.com reached 90%\". You can turn it off in the sound settings, where two more wait, off until you turn them on: one when a quota window of the Claude or Codex account you are on reaches 90% and again at 100%, and one when a window that had reached 90% is available again. Each is said once per window and a restart does not repeat it. With either quota notification on, the deck reads quota about every two minutes even while no page is open."
+      "body": "When Auto-switch moves Claude Code to another account, ccdeck now tells you once, with where it went and why, for example \"Switched to work · personal@example.com reached 90%\". You can turn it off in Settings › Notifications, where two more wait, off until you turn them on: one when a quota window of the Claude or Codex account you are on reaches 90% and again at 100%, and one when a window that had reached 90% is available again. Each is said once per window and a restart does not repeat it. With either quota notification on, the deck reads quota about every two minutes even while no page is open."
     }
   ],
   "3.38.3": [
@@ -228,7 +238,7 @@
     },
     {
       "title": "💬 Send feedback from inside the deck",
-      "body": "Appearance settings has a \"Send feedback…\" button: pick what kind it is, write a title and a few lines, and add a way to reach you if you want an answer. It goes to the people who make ccdeck, who may open a public issue from it, never with your contact in it. If it cannot be sent, the form stays filled in and says why."
+      "body": "Feedback, beside Settings at the right of the topbar (under More on a phone), opens a short form: pick what kind it is, write a few lines, and add a way to reach you under Add details if you want an answer. It goes to the people who make ccdeck, who may open a public issue from it, never with your contact in it. If it cannot be sent, the form stays filled in and says why."
     }
   ],
   "3.33.0": [
@@ -382,7 +392,7 @@
     },
     {
       "title": "📅 Projects opens on Today",
-      "body": "The Projects report per account starts with today's work, and an empty window offers the next wider one. The topbar also shows this month's usage, and the desktop app can restart into an update from its own window."
+      "body": "The Projects report per account starts with today's work, and an empty window offers the next wider one. The desktop app can also restart into an update from its own window."
     }
   ],
   "3.27.0": [
@@ -440,7 +450,7 @@
     },
     {
       "title": "🎨 See each theme before you pick it",
-      "body": "The Appearance menu shows a small preview of the deck in Light and in Dark. Claude FM also keeps its volume when a notification chime plays, instead of dipping under it."
+      "body": "Settings › General shows a small preview of the deck in each theme. Claude FM also keeps its volume when a notification chime plays, instead of dipping under it."
     }
   ],
   "3.24.1": [
@@ -598,11 +608,11 @@
     },
     {
       "title": "⎋ Esc leaves the machine panel where it is",
-      "body": "The × on **This machine** read `Close (Esc)`, so Escape put the panel away. Escape belongs to the canvas — it deselects and hands the keyboard back — and pressing it while you are reading your instruments should not close them.\n\nThe panel now closes the two ways it opens: its ×, and the meter in the topbar. The × says `Close`, and names no key it does not answer."
+      "body": "The × on **This machine** read `Close (Esc)`, so Escape put the panel away. Escape belongs to the canvas — it deselects and hands the keyboard back — and pressing it while you are reading your instruments should not close them.\n\nThe panel now closes the ways it opens: its ×, its button on the window's right edge, and S. The × says `Close`, and names no key it does not answer."
     },
     {
       "title": "🖥 The machine moved out of the topbar and into a button",
-      "body": "The small CPU sparkline and memory bar in the topbar are gone. A chip glyph in the icon row beside `$` and the accounts silhouette opens the same **This machine** panel — cores, memory, swap, load, temperature, busiest processes — and the bar stops moving in the corner of your eye.\n\nIt also stops asking. The deck read your machine every three seconds for the life of every tab to feed that meter; it now reads only while the panel is open, and the history behind the readings is kept by the deck itself, so a panel opened an hour from now still has the hour behind it."
+      "body": "The small CPU sparkline and memory bar in the topbar are gone. A chip glyph, on the window's right edge now, opens the same **This machine** panel — cores, memory, swap, load, temperature, busiest processes — and the bar stops moving in the corner of your eye.\n\nIt also stops asking. The deck read your machine every three seconds for the life of every tab to feed that meter; it now reads only while the panel is open, and the history behind the readings is kept by the deck itself, so a panel opened an hour from now still has the hour behind it."
     },
     {
       "title": "🔎 The panel's eight process rows became one way in",
@@ -660,7 +670,7 @@
   "3.9.0": [
     {
       "title": "🎛️ Five switches that were not where the thing they control is",
-      "body": "**The session list has a button again.** It lost one a while back and only the `L` key was left — and `L` is written down in one place, a shortcuts sheet behind a small `?` in the corner of the canvas. If you use a mouse there was no way to open the list at all. The `☰` is back at the left of the top bar.\n\n**The Notifications switch now tells you whether the browser will actually show one.** It said `on` while this browser had never been asked for permission, which is not the same thing. It now says so on that row and offers the ask right there. Before, the only place to grant it was a button that appears solely while a session is stuck waiting — so on a machine where that rarely happens you could not switch notifications on at all.\n\n**Started with `--workspace` or `--scope` and seeing nothing?** The empty screen used to tell everyone to \"run `claude` or `codex` in any folder\", which is the one thing that cannot work for you. It now names the folder the deck is actually watching.\n\n**Browser Watch says when a setting did not save.** Flipping the switch and having it fail showed a red line reading \"Could not read\" — about reading history, not about your press — and ten seconds later the panel wiped it and looked perfectly healthy with the setting unchanged. A failed save now says so, in its own words, and stays until you dismiss it. The \"nobody browsing for\" menu also follows the stored value again: change it in a second tab and this one never caught up.\n\n**The deck no longer restarts itself when nothing on screen offers to stop it.** Thirty seconds after the last agent went quiet, with a new version on disk, the server would exit, come back and reload the page. The `auto when idle` switch that controls that lives inside the update banner — so if you had closed the banner with its `×`, it happened with no visible setting anywhere. Closing the banner now also stands down the restart; clicking the version chip brings back both together."
+      "body": "**The session list has a button again.** It lost one a while back and only the `L` key was left — and `L` is written down in one place, a shortcuts sheet behind a small `?` in the corner of the canvas. If you use a mouse there was no way to open the list at all. Its button is on the window's left edge now.\n\n**The Notifications switch now tells you whether the browser will actually show one.** It said `on` while this browser had never been asked for permission, which is not the same thing. It now says so on that row and offers the ask right there. Before, the only place to grant it was a button that appears solely while a session is stuck waiting — so on a machine where that rarely happens you could not switch notifications on at all.\n\n**Started with `--workspace` or `--scope` and seeing nothing?** The empty screen used to tell everyone to \"run `claude` or `codex` in any folder\", which is the one thing that cannot work for you. It now names the folder the deck is actually watching.\n\n**Browser Watch says when a setting did not save.** Flipping the switch and having it fail showed a red line reading \"Could not read\" — about reading history, not about your press — and ten seconds later the panel wiped it and looked perfectly healthy with the setting unchanged. A failed save now says so, in its own words, and stays until you dismiss it. The \"nobody browsing for\" menu also follows the stored value again: change it in a second tab and this one never caught up.\n\n**The deck no longer restarts itself when nothing on screen offers to stop it.** Thirty seconds after the last agent went quiet, with a new version on disk, the server would exit, come back and reload the page. The `auto when idle` switch that controls that lives inside the update banner — so if you had closed the banner with its `×`, it happened with no visible setting anywhere. Closing the banner now also stands down the restart; clicking the version chip brings back both together."
     }
   ],
   "3.8.9": [
@@ -714,25 +724,25 @@
   "3.8.1": [
     {
       "title": "🔒 Security: update if the deck runs on a Mac",
-      "body": "A local process able to reach the deck's port — no token, no browser, no tab — could get a string of its choosing compiled as AppleScript when the deck raised a desktop notification with no page open. On macOS that is code running as you.\n\nThe strings were already passed as arguments rather than pasted into the script, which is normally the whole defence. It is not enough for `osascript`: its option parser reads any argument starting with a dash as an option, so a name beginning with `-e` was taken as more script instead of as text. Every place the deck hands `osascript` or `notify-send` something from outside now carries an explicit end-of-options marker, so nothing from outside can be read as an instruction again.\n\nNothing to change on your side beyond updating. If you would rather keep the deck off the desktop entirely, the Notifications switch in the sound menu does that, and `AGENTS_DECK_NO_NOTIFY=1` does it at launch — but the fix is the thing to have."
+      "body": "A local process able to reach the deck's port — no token, no browser, no tab — could get a string of its choosing compiled as AppleScript when the deck raised a desktop notification with no page open. On macOS that is code running as you.\n\nThe strings were already passed as arguments rather than pasted into the script, which is normally the whole defence. It is not enough for `osascript`: its option parser reads any argument starting with a dash as an option, so a name beginning with `-e` was taken as more script instead of as text. Every place the deck hands `osascript` or `notify-send` something from outside now carries an explicit end-of-options marker, so nothing from outside can be read as an instruction again.\n\nNothing to change on your side beyond updating. If you would rather keep the deck off the desktop entirely, the Notifications switch in Settings › Notifications does that, and `AGENTS_DECK_NO_NOTIFY=1` does it at launch — but the fix is the thing to have."
     }
   ],
   "3.8.0": [
     {
       "title": "🔕 Notifications now have an off switch",
-      "body": "3.7.0 gave you a \"notify me\" button and no way back. Turning them off meant digging into your browser's site settings — which no page can do for you — and that still left the other notifier, the one the deck raises when no page is open at all. Silencing that one meant quitting the deck and starting it again with `AGENTS_DECK_NO_NOTIFY=1` in front. The person who wanted quiet was the one doing the work.\n\nThere is a **Notifications** switch in the sound menu now, beside the one for sound — that menu is already \"how loudly does this deck interrupt me\". One switch governs both notifiers, it takes effect immediately without a restart, and it is remembered across restarts.\n\nIt is kept by the deck rather than by your browser, because the second notifier runs when no page exists and a setting living in a page could never reach it. `AGENTS_DECK_NO_NOTIFY=1` still wins over the switch — a machine told at launch to stay off the desktop stays off it — and when that is the case the menu says so instead of showing an \"on\" that will not happen."
+      "body": "3.7.0 gave you a \"notify me\" button and no way back. Turning them off meant digging into your browser's site settings — which no page can do for you — and that still left the other notifier, the one the deck raises when no page is open at all. Silencing that one meant quitting the deck and starting it again with `AGENTS_DECK_NO_NOTIFY=1` in front. The person who wanted quiet was the one doing the work.\n\nThere is a **Notifications** switch in Settings › Notifications now. One switch governs both notifiers, it takes effect immediately without a restart, and it is remembered across restarts.\n\nIt is kept by the deck rather than by your browser, because the second notifier runs when no page exists and a setting living in a page could never reach it. `AGENTS_DECK_NO_NOTIFY=1` still wins over the switch — a machine told at launch to stay off the desktop stays off it — and when that is the case Settings says so instead of showing an \"on\" that will not happen."
     }
   ],
   "3.7.1": [
     {
       "title": "🔔 The notifications now fire on the thing that actually stops your agent",
-      "body": "3.7.0 could tell you a session was waiting — but only when Claude Code asked permission to run a tool. If you work with permissions bypassed, that never happens, and the whole feature was silent for you. Measured on one real log: 1683 events, every one of them in bypassPermissions, and a single permission prompt in the entire history.\n\nWhat fires constantly on that setup is the other kind: the agent asking you a question and stopping for the answer. The deck was throwing those away — no amber chip, no row in the sidebar, no notification, and no \"notify me\" button, because the button only appears while something is actually blocked.\n\nNow they count. The card carries the question itself rather than a generic \"Your turn\" — \"paycore needs your input: merge both branches to main, or just one?\" — and so does the notification, on the desktop, whether the tab is behind something or not open at all.\n\nAn idle prompt still stays quiet: a turn that ended is not a session that is stuck, and a channel that cries wolf is one you switch off."
+      "body": "3.7.0 could tell you a session was waiting — but only when Claude Code asked permission to run a tool. If you work with permissions bypassed, that never happens, and the whole feature was silent for you. Measured on one real log: 1683 events, every one of them in bypassPermissions, and a single permission prompt in the entire history.\n\nWhat fires constantly on that setup is the other kind: the agent asking you a question and stopping for the answer. The deck was throwing those away — no amber chip, no row in the sidebar, no notification, and no \"notify me\" button, because the button only appeared while something was actually blocked.\n\nNow they count. The card carries the question itself rather than a generic \"Your turn\" — \"paycore needs your input: merge both branches to main, or just one?\" — and so does the notification, on the desktop, whether the tab is behind something or not open at all.\n\nAn idle prompt still stays quiet: a turn that ended is not a session that is stuck, and a channel that cries wolf is one you switch off."
     }
   ],
   "3.7.0": [
     {
       "title": "🔔 The deck can reach you when you are not looking at it",
-      "body": "The deck's whole point is telling you which agent is waiting on you, and until now it could only say so on screen — the amber chip, the tab title, the favicon. Every one of those is drawn inside a page, so the one moment it matters, when you have walked away and four agents have gone quiet, the deck was silent.\n\nNow it reaches the desktop, two ways that never overlap. With the deck open behind something, the page raises the notification itself: a \"notify me\" button appears in the top bar the first time a session blocks, and the browser asks you — nothing is requested before there is something to notify you about. With no page open at all, the server raises it, because it can see that nobody is connected and therefore that no other surface is saying anything.\n\nOne notification per session, replaced rather than stacked if a second deck raises it too. Clicking it brings the tab forward. `AGENTS_DECK_NO_NOTIFY=1` turns the desktop side off entirely, and if you refuse the browser prompt the deck says so plainly instead of leaving you thinking you switched something on — after a refusal only your browser's site settings can undo it, which no page is allowed to touch."
+      "body": "The deck's whole point is telling you which agent is waiting on you, and until now it could only say so on screen — the amber chip, the tab title, the favicon. Every one of those is drawn inside a page, so the one moment it matters, when you have walked away and four agents have gone quiet, the deck was silent.\n\nNow it reaches the desktop, two ways that never overlap. With the deck open behind something, the page raises the notification itself: the browser asks for permission when you turn notifications on in Settings › Notifications — nothing is requested before you do. With no page open at all, the server raises it, because it can see that nobody is connected and therefore that no other surface is saying anything.\n\nOne notification per session, replaced rather than stacked if a second deck raises it too. Clicking it brings the tab forward. `AGENTS_DECK_NO_NOTIFY=1` turns the desktop side off entirely, and if you refuse the browser prompt the deck says so plainly instead of leaving you thinking you switched something on — after a refusal only your browser's site settings can undo it, which no page is allowed to touch."
     },
     {
       "title": "🧩 A blocked session now says what it is asking for",
@@ -762,7 +772,7 @@
     },
     {
       "title": "🧹 The board's own figure is out of the Usage panel",
-      "body": "3.3.0 put the canvas's live spend on its own labelled line, under whichever period you had chosen. In front of a panel that answers today, this month and all time from the logs on disk, that second money figure answers a question nobody asked at that moment — and it invited a comparison it could never win, $7,385 on the board beneath $170 for today.\n\nIt is gone. The board's tokens and cost are still on the topbar, with the sentence that explains why they fall on their own, and the panel still shows them when ccusage cannot answer at all."
+      "body": "3.3.0 put the canvas's live spend on its own labelled line, under whichever period you had chosen. In front of a panel that answers today, this month and all time from the logs on disk, that second money figure answers a question nobody asked at that moment — and it invited a comparison it could never win, $7,385 on the board beneath $170 for today.\n\nIt is gone. The panel still shows the board's tokens and cost when ccusage cannot answer at all."
     }
   ],
   "3.3.0": [
@@ -776,7 +786,7 @@
     },
     {
       "title": "👁 Browser Watch reads nothing while it is switched off",
-      "body": "The switch used to control only what was KEPT. The read happened anyway — every five minutes, on every deck, the panel's badge poll discovered each Chromium profile and copied its whole History database to a temp file to query it. A switch that says off while that continues is not a switch.\n\nWith the watch off, nothing touches a browser now. Opening the panel still reads live, because that is you looking, and a watch that is ON still records in the background — that is the feature. The trade is that the topbar badge no longer counts findings while the watch is off; open the panel to see them.\n\nThe README has a Browser Watch section now: what is read, when, where the copy goes, and that only visits after the deck started are ever considered."
+      "body": "The switch used to control only what was KEPT. The read happened anyway — every five minutes, on every deck, the panel's badge poll discovered each Chromium profile and copied its whole History database to a temp file to query it. A switch that says off while that continues is not a switch.\n\nWith the watch off, nothing touches a browser now. Opening the panel still reads live, because that is you looking, and a watch that is ON still records in the background — that is the feature. The trade is that the Browser Watch badge no longer counts findings while the watch is off; open the panel to see them.\n\nThe README has a Browser Watch section now: what is read, when, where the copy goes, and that only visits after the deck started are ever considered."
     },
     {
       "title": "🔒 The deck's own data is no longer readable by anything on the machine",
@@ -846,7 +856,7 @@
   "1.48.0": [
     {
       "title": "👁 Browser Watch — see what a program opened while you were away",
-      "body": "There is a new eye in the top bar. It watches the browsers on this machine and tells you when a program — an extension, an agent, a command — opened pages while nobody was touching the browser.\n\nUsually that is your own agent doing what you asked, and the panel says so rather than crying intrusion. What it gives you is the evidence: which pages, in which browser, at what time, with every address written out in full.\n\nIt is off until you switch it on, and nothing leaves this machine. It reads a copy of the browser's own history and only pages newer than the moment the deck started — never anything from before, never cookies, never saved passwords. Open ⚙ inside the panel and \"What Browser Watch can access\" says exactly what it reads, keeps and sends.\n\nWhen it finds something the eye turns amber with a count. You can dismiss a finding once you have looked at it and it stays gone, while the log file on disk keeps the record. On a Mac it can also close the tab it found, or quit the browser."
+      "body": "Browser Watch is new, on the window's right edge (or press B). It watches the browsers on this machine and tells you when a program — an extension, an agent, a command — opened pages while nobody was touching the browser.\n\nUsually that is your own agent doing what you asked, and the panel says so rather than crying intrusion. What it gives you is the evidence: which pages, in which browser, at what time, with every address written out in full.\n\nIt is off until you switch it on, and nothing leaves this machine. It reads a copy of the browser's own history and only pages newer than the moment the deck started — never anything from before, never cookies, never saved passwords. Open ⚙ inside the panel and \"What Browser Watch can access\" says exactly what it reads, keeps and sends.\n\nWhen it finds something, its button shows a count. You can dismiss a finding once you have looked at it and it stays gone, while the log file on disk keeps the record. On a Mac it can also close the tab it found, or quit the browser."
     },
     {
       "title": "🔑 Move all your accounts to another machine in one paste",
@@ -866,7 +876,7 @@
   "1.46.0": [
     {
       "title": "🔊 Pick a volume and a sound for each of the two tones",
-      "body": "Click the speaker in the top bar and a small menu opens. There are two tones — one when a turn finishes, one when Claude is waiting for you — and each has its own volume and its own sound, six to choose from. Press \"Hear it\" to try one straight away, without waiting for a real turn.\n\nThe two lists are separate on purpose, so you can never end up with both tones sounding the same. A finish tone always falls; an asking tone always rises. That is how you tell them apart without looking at the screen.\n\nM still turns the sound on and off from anywhere."
+      "body": "Open Settings › Sounds, or press V. There are two tones — one when a turn finishes, one when Claude is waiting for you — and each has its own volume and its own sound, six to choose from. Press \"Hear it\" to try one straight away, without waiting for a real turn.\n\nThe two lists are separate on purpose, so you can never end up with both tones sounding the same. A finish tone always falls; an asking tone always rises. That is how you tell them apart without looking at the screen.\n\nM still turns the sound on and off from anywhere."
     },
     {
       "title": "✨ This box is new",
