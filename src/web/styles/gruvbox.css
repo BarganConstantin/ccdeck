@@ -73,6 +73,34 @@
   --lod-edge: color-mix(in srgb, var(--err) 80%, var(--panel));
 }
 
+/* Opaque beds keep status text readable on cards, hover fills and panels.
+   A translucent bright pink wash consumed the live label's contrast. */
+:root[data-theme="gruvbox-material"] .state-pill.state-active,
+:root[data-theme="gruvbox-material"] .state-pill.state-done,
+:root[data-theme="gruvbox-material"] .state-pill.state-err,
+:root[data-theme="gruvbox-material"] .topbar .status .pill.live,
+:root[data-theme="gruvbox-material"] .topbar .status .pill.paused,
+:root[data-theme="gruvbox-material"] .topbar .status .pill.dead {
+  background: var(--bg-soft);
+}
+:root[data-theme="gruvbox-material"] .state-pill.state-active {
+  border-color: color-mix(in srgb, var(--inflight) 55%, var(--bg-soft));
+}
+:root[data-theme="gruvbox-material"] .state-pill.state-done,
+:root[data-theme="gruvbox-material"] .topbar .status .pill.live {
+  border-color: color-mix(in srgb, var(--ok) 55%, var(--bg-soft));
+}
+:root[data-theme="gruvbox-material"] .state-pill.state-err,
+:root[data-theme="gruvbox-material"] .topbar .status .pill.dead {
+  border-color: color-mix(in srgb, var(--err) 55%, var(--bg-soft));
+}
+:root[data-theme="gruvbox-material"] .topbar .status .pill.paused {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--bg-soft));
+}
+:root[data-theme="gruvbox-material"] .session-list .sl-waiting-tool {
+  color: var(--text-secondary);
+}
+
 /* Light's shared component rules use opaque white-era status beds and a
    violet running border. Retint those states for the warm paper palette. */
 :root[data-theme="gruvbox-light"] .topbar .status .pill.live {
