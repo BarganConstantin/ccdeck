@@ -1216,7 +1216,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // until #546; it is a fit-view button and never was one.)
       ".cluster-label",
       // Gruvbox retunes the same decorative rim, preserving hover and alarm states.
-      ':root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not(.dragging):not([data-alarm]))',
+      ':root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not([data-alarm]))',
       // The same label for a session stopped until a human answers. It only
       // RECOLOURS the rim above to --warn — the aria-busy argument: nothing
       // appears or moves, the label is still identified by the name written in

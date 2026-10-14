@@ -65,23 +65,25 @@ budgets and container cutoffs. Expanded cards and detail panels enlarge normally
 React Flow measurement and its DOM fallback supply updated card dimensions to
 layout rather than changing the camera scale.
 
-Verification limits: latest supplied evidence reports 150 passing tests across
-four files, a passing typecheck and a passing production build (5.06s). Earlier
-32-file/668-test evidence predates subsequent adjustments. Actual-app browser
-checks passed keyboard focus outlines, rapid-selection settlement, reduced-motion
-0s versus normal 180ms backplate timing, and density strokes at all checked
-viewports, alongside the previous reload, cross-tab, denied-storage, reset,
-Escape/focus-return, unchanged canvas-scale, narrow/short and light-theme flows.
-A forced-colors screenshot was captured. The fresh reviewer found a mobile
-generic-span layout bug; the text-only last-span selector fixes it, with new
-confirming screenshots reported. The earlier conditional-save-copy finding is
-resolved; the bounded visual review verdict is SHIP. The complete Node 26 suite
-hit an unrelated event-serialization baseline failure also reproduced on
-unchanged development; that baseline passes under Node 22. The full Node 22
-suite is currently running, with no result claimed. Earlier focused passes
-do not establish a full-suite pass after these integration corrections.
-Evidence is scoped to the reported checks, not full certification or measured
-frame-rate performance. This
-documentation pass rechecked source without rerunning tests, browser checks or
-builds. No new detector was run. Write scope is this brief only; source, git,
-DESIGN.md, other docs and private external records remain outside scope.
+Verification limits: the branch integrated development 87137340 while preserving
+theme transitions. Final typecheck and production build passed (14.25s); both
+actual-app browser scripts passed after integration, covering keyboard/focus,
+rapid selection, normal/reduced motion, density strokes, persistence, denied
+storage, reset/dismissal, unchanged canvas scale and responsive layouts. Separate
+Largest/Comfortable checks passed for Gruvbox Dark, Light and Material. Two latest
+development source invariants were reproduced on the baseline and fixed; the
+control-edge inventory's exact selector was also updated. Three targeted
+integration and contrast files passed 57 tests. Conditional-save copy and mobile
+density-sample findings are resolved; the bounded visual/source review verdict
+is SHIP. Node 26's unrelated event-serialization failure also reproduced on
+unchanged development; those baseline tests pass under Node 22. The final full
+Node 22 suite passed exclusively, without concurrent build/source mutation:
+1,068 files and 13,343 tests passed in 218.35s, exit 0, confirmed in
+`/tmp/ccdeck-reading-complete-tests.log`. Final readiness is SHIP WITH FOLLOW-UPS
+at the scoped runtime/platform coverage. The rewritten
+`.impeccable/review/text-density/verification.md` records checks and limits.
+Earlier focused passes do not replace that final result. Evidence does not
+establish full accessibility/platform certification, live-provider correctness
+or measured frame-rate performance. This documentation pass ran no builds,
+tests, browser checks or detector. Write scope is this paragraph only; source,
+git, other docs and private external records remain outside scope.
