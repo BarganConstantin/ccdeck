@@ -41,6 +41,13 @@
   color: var(--text-secondary);
 }
 
+/* A little more hue in the light session frames separates neighbouring trees
+   on pale paper. The label and the stable session hue remain their identity. */
+:root[data-theme="gruvbox-light"] .cluster-card {
+  border-color: hsl(var(--session-hue, 200) 38% var(--session-rim-l) / 0.52);
+  background: hsl(var(--session-hue, 200) 38% var(--session-rim-l) / 0.06);
+}
+
 /* Light's shared component rules use opaque white-era status beds and a
    violet running border. Retint those states for the warm paper palette. */
 :root[data-theme="gruvbox-light"] .topbar .status .pill.live {
