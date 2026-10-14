@@ -145,6 +145,8 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
+  ["usageSnapshots", { usageSnapshots: false }, p => p.usageSnapshots, false],
+  ["snapshotRetentionDays", { snapshotRetentionDays: 60 }, p => p.snapshotRetentionDays, 60],
   ["lan.enabled", { lan: { enabled: false } }, p => p.lan.enabled, false],
   ["lan.manual", { lan: { manual: ["10.0.0.1:5000", "10.0.0.2:5001"] } }, p => p.lan.manual, ["10.0.0.1:5000", "10.0.0.2:5001"]],
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
@@ -159,6 +161,11 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
 ];
 
 describe("POST /api/prefs and the fields the page edits", () => {
+  it("rejects invalid history settings without changing retention or enabling recording", async()=>{
+    expect((await post({snapshotRetentionDays:1})).status).toBe(400);
+    expect((await post({usageSnapshots:"false"})).status).toBe(400);
+    expect((await restart()).snapshotRetentionDays).toBe(30);
+  });
   for (const [name, body, read, want] of WRITES) {
     it(`takes ${name}`, async () => {
       const { status, out } = await post(body);
@@ -185,7 +192,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "usageSnapshots", "snapshotRetentionDays"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

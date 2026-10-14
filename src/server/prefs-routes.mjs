@@ -52,6 +52,10 @@ export async function handlePrefsWrite(req, res) {
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
+  if ((Object.hasOwn(body,"snapshotRetentionDays") && ![30,60,90].includes(body.snapshotRetentionDays))
+      || (Object.hasOwn(body,"usageSnapshots") && typeof body.usageSnapshots !== "boolean")) {
+    return send(res,400,{ok:false,reason:"bad_history_settings"});
+  }
   // Only the fields the page edits. The rest — the LAN key and pairings, the
   // reports switch (#1853), the reporter's state, the accounts the deck signed
   // in (#1893) — are the deck's own and keep what is on disk; see pagePatch.

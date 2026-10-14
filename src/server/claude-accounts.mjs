@@ -518,7 +518,7 @@ async function readRoster(now, gen) {
  * verdict cache, and asks the registered repair about a `stale-copy` row —
  * which is what starts that repair (see repairStaleCopyWith).
  */
-function observedMs(seconds) {
+export function observedMs(seconds) {
   const ms = typeof seconds === "number" ? seconds * 1000 : NaN;
   return Number.isFinite(ms) && ms > 0 && Number.isFinite(new Date(ms).getTime()) ? ms : null;
 }

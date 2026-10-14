@@ -82,6 +82,8 @@ export const DEFAULTS = Object.freeze({
   notifySwap: true,
   notifyQuota: false,
   notifyReset: false,
+  usageSnapshots: true,
+  snapshotRetentionDays: 30,
   // The Electron window can open on a new localhost port after an update.
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
@@ -317,6 +319,8 @@ export function normalise(raw) {
     notifySwap: flagOr(src.notifySwap, DEFAULTS.notifySwap),
     notifyQuota: flagOr(src.notifyQuota, DEFAULTS.notifyQuota),
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
+    usageSnapshots: flagOr(src.usageSnapshots, DEFAULTS.usageSnapshots),
+    snapshotRetentionDays: [30, 60, 90].includes(src.snapshotRetentionDays) ? src.snapshotRetentionDays : 30,
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     reports: flagOr(src.reports, DEFAULTS.reports),
@@ -701,7 +705,7 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"]),
+  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "usageSnapshots", "snapshotRetentionDays"]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

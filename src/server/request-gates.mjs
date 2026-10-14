@@ -448,6 +448,7 @@ export const GUARDED_READS = new Set([
   // route above is guarded for.
   "/api/codex-quota",
   "/api/quota/history",
+  "/api/accounts/history",
   // And the rest of the usage panel, by the rule /api/account-projects is here
   // under: the active account's quota windows, Claude's spend by day and by
   // session, Codex's token spend, and the auto-switch settings with the last
