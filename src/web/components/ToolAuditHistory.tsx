@@ -48,14 +48,15 @@ export default function ToolAuditHistory({ history }: { history: AuditHistory })
     </svg>
     <div className="ta-history-count-label"><span>Containing calls per day</span><span>0–{maxCalls.toLocaleString()}</span></div>
     <svg className="ta-history-counts" viewBox={`0 0 ${width} 38`} role="img" aria-label="Daily containing-call count, on a separate count scale." onPointerMove={choosePoint} onPointerDown={choosePoint}>
+      <line className="ta-history-cursor" x1={x(index)} x2={x(index)} y1="2" y2="36" />
       {days.map((day, i) => <rect key={day.date} x={x(i) - Math.min(5, (right - left) / days.length / 3)} y={34 - day.calls / maxCalls * 30} width={Math.min(10, (right - left) / days.length * .65)} height={day.calls / maxCalls * 30} data-selected={i === index || undefined} />)}
     </svg>
     <div className="ta-history-day-nav"><button type="button" className="ta-history-step" aria-label="Previous day" disabled={index === 0} onClick={() => setSelected(days[index - 1].date)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg></button><label id={`${id}-day-label`} htmlFor={`${id}-day`}>{dateLabel(day.date, true)}</label><button type="button" className="ta-history-step" aria-label="Next day" disabled={index === days.length - 1} onClick={() => setSelected(days[index + 1].date)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg></button></div>
     <input id={`${id}-day`} className="ta-history-day-slider" type="range" min="0" max={days.length - 1} value={index} disabled={days.length === 1} aria-labelledby={`${id}-day-label`} aria-valuetext={`${dateLabel(day.date, true)}, ${day.calls} containing calls, ${day.measured} timed, ${historyDayStatus(day)}`} onChange={event => setSelected(days[Number(event.target.value)].date)} />
     <div className="ta-history-day" aria-live="polite" aria-atomic="true"><p className="ta-note">{historyDayStatus(day)}{day.partial && ' · partial day'}</p><dl><div><dt>Calls</dt><dd>{day.calls.toLocaleString()}</dd></div><div><dt>Valid timings</dt><dd>{day.measured.toLocaleString()}</dd></div>{(['averageMs', 'medianMs', 'p95Ms', 'maxMs'] as const).map(metric => <div key={metric}><dt>{historyLabels[metric]}</dt><dd title={reportExactInterval(day[metric])} aria-label={reportExactInterval(day[metric])}>{historyIntervalText(day[metric])}</dd></div>)}</dl>
       {day.measured < 20 && day.status !== 'outside-history' && <p className="ta-note">P95 needs 20 valid timings in this day.</p>}
-      <p className="ta-note">Claude {day.providers.claude} · Codex {day.providers.codex}{day.shared > 0 && ` · ${day.shared} shared calls`}</p>
+      <p className="ta-note">Claude {day.providers.claude.toLocaleString()} · Codex {day.providers.codex.toLocaleString()}{day.shared > 0 && ` · ${day.shared.toLocaleString()} shared ${day.shared === 1 ? 'call' : 'calls'}`}</p>
     </div>
-    <p className="ta-note ta-history-caption">Gaps are unknown, not zero. Counts give sample context; waits and shared intervals can affect measurements.</p>
+    <p className="ta-note ta-history-caption">Select a day on either chart or use the day controls. Gaps are unknown, not zero; waits and shared intervals can affect measurements.</p>
   </section>;
 }

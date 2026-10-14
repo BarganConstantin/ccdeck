@@ -25,7 +25,7 @@ export default function ToolAuditInspector({ row, details, loading, error, kind,
     <section className="ta-inspector-section" aria-label="Measured containing-call intervals">
       <div className="ta-inspector-section-head"><h4>Observed call intervals</h4><ToolAuditMetricHelp kind="intervals" /></div>
       <dl className="ta-interval-stats">{intervals.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={reportExactInterval(value)} aria-label={reportExactInterval(value)}>{historyIntervalText(value)}</dd></div>)}</dl>
-      <p className="ta-note">{row.measured.toLocaleString()} valid timings · {row.calls.toLocaleString()} containing calls</p>
+      <p className="ta-note">{row.measured.toLocaleString()} valid {row.measured === 1 ? 'timing' : 'timings'} · {row.calls.toLocaleString()} containing {row.calls === 1 ? 'call' : 'calls'}</p>
       {row.measured < 20 && <p className="ta-note">P95 unavailable · needs 20 valid measurements.</p>}
       {row.providers.claude > 0 && row.providers.codex > 0 && <p className="ta-note">Mixed clocks · not a provider speed benchmark.</p>}
       <p className="ta-note">Includes waits; not isolated command runtime.</p>
@@ -40,13 +40,13 @@ export default function ToolAuditInspector({ row, details, loading, error, kind,
         <div><dt>Reported failures</dt><dd className={row.failed ? 'ta-failures' : undefined}>{row.failed.toLocaleString()}<span> / {row.completed.toLocaleString()}</span></dd></div>
         <div><dt>Failure rate</dt><dd>{row.errorRate === null ? '—' : `${(row.errorRate * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`}</dd></div>
       </dl><p className="ta-note">Reported containing-call outcomes; an inner command may not have failed.</p>
-      {row.missingTiming > 0 && <p className="ta-note">{row.missingTiming.toLocaleString()} calls lack timing. Missing measurements are unknown, not zero.</p>}
-      {row.completed < 20 && row.errorRate !== null && <p className="ta-note">Small sample · {row.completed} completed outcomes. The rate describes this sample, not reliability.</p>}
+      {row.missingTiming > 0 && <p className="ta-note">{row.missingTiming.toLocaleString()} {row.missingTiming === 1 ? 'call lacks' : 'calls lack'} timing. Missing measurements are unknown, not zero.</p>}
+      {row.completed < 20 && row.errorRate !== null && <p className="ta-note">Small sample · {row.completed} completed {row.completed === 1 ? 'outcome' : 'outcomes'}. The rate describes this sample, not reliability.</p>}
       <p className="ta-note">Associated cumulative intervals: <b>{auditDuration(row.totalMs)}</b>. Overlaps are included; this is not elapsed time.</p>
     </section>
     <section className="ta-inspector-section" aria-label="Recorded calls">
       <div className="ta-calls-head"><h4>Recorded calls</h4><div className="ta-detail-tabs" role="group" aria-label="Operation calls"><button type="button" aria-pressed={kind === 'slowest'} onClick={() => setKind('slowest')}>Slowest calls</button><button type="button" aria-pressed={kind === 'recent'} onClick={() => setKind('recent')}>Recent calls</button></div></div>
-      {details && <><p className="ta-note">Showing {details[kind].length} of {details.total.toLocaleString()} calls</p>
+      {details && <><p className="ta-note">Showing {details[kind].length} of {details.total.toLocaleString()} {details.total === 1 ? 'call' : 'calls'}</p>
         <ul className="ta-calls">{details[kind].map(call => <li key={call.id} data-outcome={call.state}><span>{auditDate(call.capturedAt)}<small>{call.provider === 'claude' ? 'Claude · hook interval' : 'Codex · rollout interval'}{call.shared && ' · shared'}</small></span><span title={reportExactInterval(call.durationMs)}>{auditDuration(call.durationMs)}<small><span className="ta-outcome"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d={call.state === 'failed' ? 'm4 4 8 8m0-8-8 8' : call.state === 'success' ? 'm3 8 3 3 7-7' : 'M4 8h8'} /></svg>{call.state === 'unmatched' ? 'No outcome' : call.state === 'failed' ? 'Reported failure' : 'Success'}</span></small></span></li>)}</ul>
         {!details[kind].length && <p className="ta-note">{kind === 'slowest' ? 'No measured calls to inspect.' : 'No recent calls in this snapshot.'}</p>}
       </>}

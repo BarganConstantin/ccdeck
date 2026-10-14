@@ -5,7 +5,7 @@ import { auditExplanations, auditReadingGuide } from '../tool-audit-education';
 import type { AuditRow } from '../tool-audit';
 describe('verified general operation purposes', () => {
   it('describes exact verified commands and tool contracts', () => {
-    for (const operation of ['rg', 'cat', 'sed', 'head', 'tail', 'git diff', 'git status', 'git add', 'git commit', 'sleep', 'write_stdin', 'view_image', 'apply_patch', 'multi_agent_v1__wait_agent', 'shell (unclassified)']) {
+    for (const operation of ['rg', 'grep', 'ls', 'cut', 'cat', 'sed', 'head', 'tail', 'git diff', 'git log', 'git status', 'git add', 'git commit', 'sleep', 'write_stdin', 'view_image', 'apply_patch', 'multi_agent_v1__wait_agent', 'shell (unclassified)']) {
       expect(operationDescription(operation)?.purpose.length).toBeGreaterThan(10);
       expect(operationDescription(operation)?.basis).toMatch(/manual|tool-contract|classifier/);
     }

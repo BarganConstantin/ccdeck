@@ -2,11 +2,15 @@
 export interface OperationDescription { purpose: string; basis: 'manual' | 'tool-contract' | 'classifier' }
 const entries = {
   rg: { purpose: 'Search for matching text across files.', basis: 'manual' },
+  grep: { purpose: 'Find lines matching a text pattern in files or input.', basis: 'manual' },
+  ls: { purpose: 'List files and directories.', basis: 'manual' },
+  cut: { purpose: 'Extract selected fields or characters from each line of text.', basis: 'manual' },
   cat: { purpose: 'Read and combine file contents or input into output.', basis: 'manual' },
   sed: { purpose: 'Filter and transform text using editing rules.', basis: 'manual' },
   head: { purpose: 'Show the beginning of a file or text input.', basis: 'manual' },
   tail: { purpose: 'Show the end of a file or text input.', basis: 'manual' },
   'git diff': { purpose: 'Show differences between code versions or working changes.', basis: 'manual' },
+  'git log': { purpose: 'Show Git commit history.', basis: 'manual' },
   'git status': { purpose: 'Show staged, unstaged and untracked Git working-tree changes.', basis: 'manual' },
   'git add': { purpose: 'Stage file changes for the next Git commit.', basis: 'manual' },
   'git commit': { purpose: 'Record staged changes in Git history.', basis: 'manual' },
