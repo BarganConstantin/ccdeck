@@ -1,19 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   type AccountHistory,
-  type AccountSnapshot,
+  type SnapshotAccount,
   historySegments,
   formatSnapshotTime,
 } from "../account-history";
 import "./account-history.css";
 const stamp = formatSnapshotTime;
 function HistoryChart({
-  points,
+  accounts,
   window,
   start,
   end,
 }: {
-  points: AccountSnapshot[];
+  accounts: (SnapshotAccount & { color: string })[];
   window: "five_hour" | "seven_day";
   start: number;
   end: number;
@@ -29,9 +29,15 @@ function HistoryChart({
     observer.observe(svg);
     return () => observer.disconnect();
   }, []);
-  const [selected, setSelected] = useState<number | null>(null);
-  const values = points.filter((p) => p[window]);
-  const p = values.find((p) => p.t === selected) ?? values.at(-1);
+  const [selected, setSelected] = useState<string | null>(null);
+  const values = accounts
+    .flatMap((a) =>
+      a.points
+        .filter((p) => p[window])
+        .map((p) => ({ ...p, account: a, key: `${a.id}:${p.t}` })),
+    )
+    .sort((a, b) => a.t - b.t || a.account.id.localeCompare(b.account.id));
+  const p = values.find((p) => p.key === selected) ?? values.at(-1);
   const w = p?.[window];
   const x = (t: number) => 36 + ((t - start) / (end - start)) * (width - 50);
   const y = (pct: number) => 140 - pct * 1.2;
@@ -42,7 +48,13 @@ function HistoryChart({
     >
       <header>
         <h3>{window === "five_hour" ? "5-hour window" : "7-day window"}</h3>
-        <span>{w ? `${w.pct}% used` : "No observations"}</span>
+        <span>
+          {accounts.length > 1
+            ? `${accounts.filter((a) => a.points.some((p) => p[window])).length} ${accounts.filter((a) => a.points.some((p) => p[window])).length === 1 ? "account" : "accounts"}`
+            : w
+              ? `${w.pct}% used`
+              : "No observations"}
+        </span>
       </header>
       <svg
         ref={chartRef}
@@ -66,7 +78,8 @@ function HistoryChart({
         ))}
         {[
           ...new Set(
-            points
+            accounts
+              .flatMap((a) => a.points)
               .map((p) => p[window]?.resetAt)
               .filter(
                 (t): t is number =>
@@ -85,24 +98,30 @@ function HistoryChart({
             <title>Reported reset {stamp(t * 1000)}</title>
           </line>
         ))}
-        {historySegments(points, window).map((s, i) => (
-          <g key={i}>
-            <polyline
-              points={s.map((p) => `${x(p.t)},${y(p.pct)}`).join(" ")}
-              className="ah-line"
-            />
-            {s.map((p) => (
-              <circle
-                key={p.t}
-                cx={x(p.t)}
-                cy={y(p.pct)}
-                r="2.5"
-                className="ah-dot"
-              >
-                <title>
-                  {stamp(p.t)} · {p.pct}% used
-                </title>
-              </circle>
+        {accounts.map((a) => (
+          <g key={a.id} data-account={a.id}>
+            {historySegments(a.points, window).map((s, i) => (
+              <g key={i}>
+                <polyline
+                  points={s.map((p) => `${x(p.t)},${y(p.pct)}`).join(" ")}
+                  className="ah-line"
+                  style={{ stroke: a.color }}
+                />
+                {s.map((p) => (
+                  <circle
+                    key={p.t}
+                    cx={x(p.t)}
+                    cy={y(p.pct)}
+                    r="2.5"
+                    className="ah-dot"
+                    style={{ fill: a.color }}
+                  >
+                    <title>
+                      {a.name} · {stamp(p.t)} · {p.pct}% used
+                    </title>
+                  </circle>
+                ))}
+              </g>
             ))}
           </g>
         ))}
@@ -117,13 +136,14 @@ function HistoryChart({
         Inspect observation
         <select
           aria-label={`Inspect ${window === "five_hour" ? "5-hour" : "7-day"} observation`}
-          value={p?.t ?? ""}
-          onChange={(e) => setSelected(Number(e.target.value))}
+          value={p?.key ?? ""}
+          onChange={(e) => setSelected(e.target.value)}
           disabled={!values.length}
         >
           {!values.length && <option value="">No observations</option>}
           {[...values].reverse().map((v) => (
-            <option key={v.t} value={v.t}>
+            <option key={v.key} value={v.key}>
+              {accounts.length > 1 ? `${v.account.name} · ` : ""}
               {stamp(v.t)} · {v[window]!.pct}% used
             </option>
           ))}
@@ -135,7 +155,7 @@ function HistoryChart({
       </p>
       <p className="ah-note">
         {p
-          ? `Read ${stamp(p.t)}${w?.resetAt ? ` · Reported reset ${stamp(w.resetAt * 1000)}` : " · Reset time unknown"}`
+          ? `${accounts.length > 1 ? p.account.name + " · " : ""}Read ${stamp(p.t)}${w?.resetAt ? ` · Reported reset ${stamp(w.resetAt * 1000)}` : " · Reset time unknown"}`
           : "Readings will appear as they are collected."}
       </p>
     </section>
@@ -182,11 +202,21 @@ export default function AccountHistoryView() {
   useEffect(() => {
     if (data && days > data.retentionDays) setDays(data.retentionDays);
   }, [data?.retentionDays, days]);
-  const chosen =
-    data?.accounts.find((a) => a.id === account) ?? data?.accounts[0];
+  const chosen = data?.accounts.find((a) => a.id === account);
+  const selectedAccount = chosen?.id ?? "";
+  const colored = (data?.accounts ?? []).map((a, index) => ({
+    ...a,
+    color: `hsl(${(210 + index * 137.508) % 360} 60% var(--session-accent-l, 65%))`,
+  }));
   const end = Date.now(),
     start = end - days * 86400_000;
-  const points = chosen?.points.filter((p) => p.t >= start && p.t <= end) ?? [];
+  const series = colored
+    .filter((a) => !selectedAccount || a.id === selectedAccount)
+    .map((a) => ({
+      ...a,
+      points: a.points.filter((p) => p.t >= start && p.t <= end),
+    }));
+  const hasPoints = series.some((a) => a.points.length > 0);
   return (
     <div className="ah-workspace">
       <div className="ah-toolbar">
@@ -194,10 +224,11 @@ export default function AccountHistoryView() {
           Account
           <select
             aria-label="Account"
-            value={chosen?.id ?? ""}
+            value={selectedAccount}
             onChange={(e) => setAccount(e.target.value)}
             disabled={!data?.accounts.length}
           >
+            <option value="">All accounts</option>
             {!data?.accounts.length && (
               <option value="">No recorded accounts</option>
             )}
@@ -247,7 +278,33 @@ export default function AccountHistoryView() {
             remain gaps.
           </p>
           {data.storageError && <p role="alert">{data.storageError}</p>}
-          {!points.length ? (
+          {data.accounts.length > 0 && (
+            <div className="ah-legend" aria-label="Account legend">
+              {colored.map((a) => (
+                <button
+                  type="button"
+                  key={a.id}
+                  className="ah-legend-account"
+                  aria-pressed={selectedAccount === a.id}
+                  onClick={() =>
+                    setAccount(selectedAccount === a.id ? "" : a.id)
+                  }
+                  title={a.name}
+                >
+                  <span
+                    className="ah-swatch"
+                    style={{ background: a.color }}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {a.name}
+                    {a.removed ? " · Removed" : ""}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {!hasPoints ? (
             <div className="ah-empty">
               <h3>No readings in this period</h3>
               <p>
@@ -259,13 +316,13 @@ export default function AccountHistoryView() {
           ) : (
             <>
               <HistoryChart
-                points={points}
+                accounts={series}
                 window="five_hour"
                 start={start}
                 end={end}
               />
               <HistoryChart
-                points={points}
+                accounts={series}
                 window="seven_day"
                 start={start}
                 end={end}

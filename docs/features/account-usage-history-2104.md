@@ -42,3 +42,9 @@ Screenshots are under `.impeccable/review/2104/`: baseline-accounts, desktop, mo
 - Screenshot capture timing and browser-runner sequencing defects were corrected before final successful runs.
 
 **SHIP WITH FOLLOW-UPS**, at the tested scope. No live private account/provider operations were performed. Native platform, Safari/Firefox and full assistive-technology sessions remain unverified. Feature branch is separate from development/main; this report does not imply a published release.
+
+## All-account comparison (owner refinement)
+
+History now defaults to All accounts, overlaying each account on the same time axis in both windows. A shared legend names the accounts and matches line colors. Clicking a legend entry isolates that account; clicking it again or selecting All accounts restores the combined view. Colors name accounts, not quota health, and remain consistent between the two windows and single-account filtering. Observation keys include both account identity and timestamp, keeping simultaneous readings distinct.
+
+Browser checks cover the default combined series, legend filtering/restoration, account and period changes, missing windows and narrow/light/short states. Historical snapshots, collection and retention are unchanged.

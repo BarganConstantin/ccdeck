@@ -95,21 +95,44 @@ try {
   await shot("baseline-accounts");
   await page.getByRole("button", { name: "History", exact: true }).click();
   await page.getByText("5-hour window", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByLabel("Account", { exact: true }).inputValue(),
+    "",
+  );
+  assert.equal(await page.locator(".ah-legend-account").count(), 2);
+  assert.equal(
+    await page.locator(".ah-chart").first().locator("g[data-account]").count(),
+    2,
+  );
   await shot("desktop");
+  await page.locator(".ah-legend-account").first().click();
+  assert.equal(
+    await page.getByLabel("Account", { exact: true }).inputValue(),
+    "a",
+  );
+  assert.equal(
+    await page.locator(".ah-chart").first().locator("g[data-account]").count(),
+    1,
+  );
+  await page.locator(".ah-legend-account").first().click();
+  assert.equal(
+    await page.getByLabel("Account", { exact: true }).inputValue(),
+    "",
+  );
   assert.equal(await page.locator(".ah-chart").count(), 2);
   await page
     .getByLabel("Inspect 5-hour observation", { exact: true })
-    .selectOption(String(state.accounts[0].points[1].t));
+    .selectOption(`a:${state.accounts[0].points[1].t}`);
   await page.getByLabel("Period", { exact: true }).selectOption("30");
   await page
     .getByLabel("Inspect 5-hour observation", { exact: true })
-    .selectOption(String(state.accounts[0].points[0].t));
+    .selectOption(`a:${state.accounts[0].points[0].t}`);
   await page.getByLabel("Period", { exact: true }).selectOption("7");
   assert.equal(
     await page
       .getByLabel("Inspect 5-hour observation", { exact: true })
       .inputValue(),
-    String(state.accounts[0].points.at(-1).t),
+    `a:${state.accounts[0].points.at(-1).t}`,
   );
   await page.getByLabel("Account", { exact: true }).selectOption("b");
   await page.getByText("100% used", { exact: true }).waitFor();
