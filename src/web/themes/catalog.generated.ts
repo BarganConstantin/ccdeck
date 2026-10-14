@@ -35,6 +35,10 @@ export const THEME_DEFINITIONS = {
   "catppuccin-mocha": {
     "name": "Catppuccin Mocha",
     "colorScheme": "dark"
+  },
+  "gruvbox-dark": {
+    "name": "Gruvbox Dark",
+    "colorScheme": "dark"
   }
 } as const;
 export type Theme = keyof typeof THEME_DEFINITIONS;

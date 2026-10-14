@@ -585,6 +585,71 @@
   color-scheme: dark;
 }
 
+:root[data-theme="gruvbox-dark"] {
+  --bg: #282828;
+  --bg-soft: #2c2a29;
+  --panel: #32302f;
+  --line: #665c54;
+  --line-soft: #504945;
+  --text: #ebdbb2;
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
+  --text-secondary: #d5c4a1;
+  --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --ctl-edge: #a89984;
+  --chrome-bg: #32302f;
+  --chrome-edge: #665c54;
+  --sm-edge: #a89984;
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --muted: #bdae93;
+  --muted-dim: #7c6f64;
+  --text-dim: #bdae93;
+  --accent: #fabd2f;
+  --accent-dim: #fabd2f40;
+  --ok: #b8bb26;
+  --warn: #fe8019;
+  --err: #ff7865;
+  --inflight: #d3869b;
+  --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
+  --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
+  --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --node-grad: var(--panel);
+  --topbar-grad: var(--panel);
+  --conn-wash: #ff786518;
+  --burst-live-wash: #d3869b12;
+  --hero-core: #fabd2f;
+  --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
+  --glint: var(--text);
+  --grid-line: #3c3836;
+  --minimap-mask: rgba(40, 40, 40, .85);
+  --session-label-l: 78%;
+  --session-accent-l: 74%;
+  --session-rim-l: 55%;
+  --session-edge-l: 72%;
+  --session-edge-idle-l: 65%;
+  --mcp-dot-l: 65%;
+  --cat-file: #83a598;
+  --cat-shell: #fe8019;
+  --cat-web: #a3c7bd;
+  --cat-agent: #ebdbb2;
+  --cat-task: #b8bb26;
+  --cat-plan: #b4a5c7;
+  --cat-mcp: #8ec07c;
+  --cat-other: #bdae93;
+  --usage-purple: #d3869b;
+  --usage-blue: #83a598;
+  --usage-teal: #8ec07c;
+  --usage-lime: #b8bb26;
+  --usage-pink: #e9a4b0;
+  --usage-indigo: #b4a5c7;
+  --usage-orange: #fe8019;
+  --usage-zinc: #bdae93;
+  --usage-cyan: #a3c7bd;
+  color-scheme: dark;
+}
+
 .appearance-preview[data-swatch="light"] {
   --tp-canvas: #eef1f6;
   --tp-surface: #ffffff;
@@ -683,4 +748,16 @@
 :root[data-theme="catppuccin-mocha"] ::selection {
   background: #45475a;
   color: #cdd6f4;
+}
+
+.appearance-preview[data-swatch="gruvbox-dark"] {
+  --tp-canvas: #282828;
+  --tp-surface: #32302f;
+  --tp-rule: #665c54;
+  --tp-mark: #7c6f64;
+  --tp-accent: #fabd2f;
+}
+:root[data-theme="gruvbox-dark"] ::selection {
+  background: #504945;
+  color: #fbf1c7;
 }
