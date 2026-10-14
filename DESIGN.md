@@ -550,12 +550,14 @@ single-mode ranking for this surface; they do not redefine the global design.
   and completed-outcome denominator; a separate rate appears only with ≥20
   completed outcomes. Smaller samples say “Small sample · rate not compared.”
   Length and ordering always encode failure count, not rate. One pure description
-  in `src/web/tool-audit-report.ts` supplies both native title and accessible
-  button name in `ToolAuditComparison.tsx`: precise recorded milliseconds
+  in `src/web/tool-audit-report.ts` supplies accessible chart names and fallback
+  native titles for unknown operations: verified general purpose plus its
+  recorded-arguments/output qualification, precise recorded milliseconds
   (including fractions/zero), measured sample count, P95 definition/≥20 floor,
   median/P95 rather than min/max endpoints, and exact failed/completed proportion
-  with qualified rate. Visible values and qualifications remain primary; titles
-  supplement them. Native SVG geometry is hidden from assistive technology.
+  with qualified rate. Verified names use the shared contextual purpose hint;
+  visible values and qualifications remain primary. Native SVG geometry is
+  hidden from assistive technology.
   No visualization dependency or new data-visualization skill is installed;
   Key Findings remains omitted because it would duplicate visible leaders.
 - **Theme and responsive behavior:** existing blue usage, amber intervals, violet
@@ -595,8 +597,36 @@ single-mode ranking for this surface; they do not redefine the global design.
   operation heading. Escape closes evidence first; closing restores its origin,
   matching operation button or report Back fallback. Returning to the workspace
   restores a visible rail/More entry after resize. The existing inspector keeps
-  exact activity, median/P95/maximum, raw failure rate with small-sample
-  disclosure, provider counts and up to 20 slowest/30 recent sanitized calls.
+  exact activity, median/P95/maximum, raw failure rate with an immediate
+  small-sample qualification, provider counts and up to 20 slowest/30 recent
+  sanitized calls. Inspector P95 uses the existing eligibility helper, keeping
+  fewer than 20 valid timings unavailable.
+- **Verified operation purposes:** fourteen exact glossary entries cover `rg`,
+  `cat`, `sed`, `head`, `tail`, `git diff`, `git status`, `git commit`, `sleep`,
+  `write_stdin`, `view_image`, `apply_patch`, `multi_agent_v1__wait_agent` and
+  `shell (unclassified)`. Manual, callable-tool-contract or classifier evidence
+  supports each general purpose. Lookup uses own properties; no suffix guesses,
+  argument interpretation, network lookup or AI inference. Unknown identities
+  remain neutral; the persistent inspector explicitly says their purpose is
+  unverified. General purpose never proves a recorded effect, and recorded
+  arguments/outputs remain unavailable.
+- **Progressive education:** `ToolAuditOperationButton` reuses the chrome hint for
+  pointer rest and keyboard focus, including exact raw Median/P95 milliseconds
+  and measured count in P95 hints. Chart and table accessible names carry the
+  same verified purpose and `operationPurposeNote` qualification; unknown table
+  names retain exact identity. Both expose selected expanded state and the common
+  `tool-operation-inspector` target. Touch opens the same persistent purpose and
+  evidence. One Help trigger beside Slowest P95 and the same component beside
+  inspector Measured intervals explain Median as half of measured intervals this
+  long or shorter, P95 as approximately 95% this long or shorter, and whole-call
+  waits. The 20-measurement display floor is separate from percentile meaning
+  and is not a confidence guarantee. Initial focus goes to the help h4; Escape
+  or Got it returns to its anchor. Shared `AnchoredPopover` bounds the help to
+  the viewport with internal scroll and an optional dismissal layer. The nine-entry
+  plain-language metric guide opens only on explicit request inside Coverage &
+  definitions. Optional `useHint.followFocusedAnchor` keeps keyboard education
+  visible while scrolling, with flip/clamp placement; shared consumer defaults
+  and the existing focus hook remain unchanged.
 - **Honest measurement:** null is unavailable, never zero; measured zero and equal
   endpoints remain visible. Operation memberships/counts, associated intervals
   and reported outcomes are nonadditive containing-call evidence. Even unique
@@ -623,32 +653,39 @@ single-mode ranking for this surface; they do not redefine the global design.
   zero nonadvisory findings; the added 18px hour-summary role is intentional. Preserve 44px coarse-pointer main actions, visible
   focus and forced-color marks. Table rows use the existing hover background on
   `:focus-within`, preserving the focus-visible outline. Global typography is unchanged.
-  Keyboard/reduced-motion entry is immediate; otherwise the inherited entrance
-  is 200ms. Reduced motion disables refresh
-  and loading rotation.
-- **Verified finish:** the 2026-10-14 product quality closeout completed two
-  bounded rendered passes; fresh independent file-only
-  [finish review](.impeccable/review/tool-activity-quality/finish-review.md) returns
-  **disposition: ship**, no material fixes; handoff recommendation is
-  **SHIP WITH LIMITATIONS**. No further parent polish is owed. Retained results
-  record 231 tests/eight suites, successful typecheck/build, six Brave sizes and
-  nine themes, computed report text ≥4.5:1 and actual chart marks ≥3:1. New
-  assertions check advancing snapshot with unchanged observed starts and no
-  invented collection warning, plus `1 h 2 min` summary/chart formatting. Previous
-  precise P95/failure descriptions, phone active median/P95 sorting and sticky
-  geometry with 100 visible rows from 210 operation types still pass.
-  Read-only retained Codex snapshot: 1,653 observed/measured calls, 105 operations
-  and 14 reported failures; retained-report integration is not continuous-capture
-  proof. Current captures live in `.impeccable/review/tool-activity-quality/`;
-  individual viewport images establish layout, the complete scroll stitch only
-  content continuity. One closeout detector pass recorded 20 local typography
-  advisories and zero nonadvisory findings. Native Windows/Linux, Firefox/Safari,
-  live Claude, formal screen-reader usability/certification and participant study
-  remain unverified; no health heartbeat exists. The inherited large-chunk warning
-  remains. P95, reported containing-call failure attribution, memberships,
-  overlapping intervals, provider clocks and descriptive wait/sleep observations
-  are unchanged. No dependencies or backend change. This handoff reruns neither
-  context/QA nor detector and authorizes no publication.
+  Report keyboard/reduced-motion entry is immediate; its inherited pointer
+  entrance remains 200ms. Pointer drawer entry fades from 0.6 opacity over 160ms
+  with the house curve `cubic-bezier(0.23, 1, 0.32, 1)`; keyboard/reduced entry
+  and closing are immediate. Help retains the shared 120ms pointer entrance,
+  with immediate keyboard/reduced entry. Reduced motion disables refresh/loading
+  rotation. No chart or filter choreography is added.
+- **Verified education finish:** parent bounded critique and confirmation are
+  complete. The independent [finish review](.impeccable/review/tool-activity-education/finish-review.md)
+  requested one table accessible-name qualification fix. The same reviewer's
+  [final verdict](.impeccable/review/tool-activity-education/finish-verdict.md)
+  scores fix 1 **RESOLVED**, **disposition: ship**, with no further material fix
+  or regression; no further polish is owed. `operationPurposeNote` now supplies
+  table parity; retained browser known-purpose/qualification and neutral unknown
+  checks pass in `/tmp/ccdeck-education-parity.log`. This is scoped sign-off,
+  not formal screen-reader certification or publication authorization.
+  Retained evidence records **265 tests across 13 suites**, successful
+  typecheck/build, six Brave sizes and nine themes including help text ≥4.5:1
+  and original chart marks ≥3:1. Mouse/focus/touch, help focus/Escape/return,
+  common selection state, scope/search/sort/refresh, dense 210-operation paging,
+  P95 eligibility, unknown/null/zero, sticky headers, native point-click scroll
+  preservation and 125% zoom passed. Keyboard help/inspector animation-none
+  checks and reduced pointer Help/Inspector/Inspector Help at 320px passed.
+  Read-only retained Codex snapshot: **1,796 observed/measured calls, 105
+  operations and 14 reported failures**; this supports retained integration,
+  not continuous collection. Current captures live in
+  `.impeccable/review/tool-activity-education/`; individual viewport images
+  establish layout and scrolling, the complete report stitch only content
+  continuity. The single detector record remains 20 scoped typography advisories
+  and zero nonadvisory findings. Native Windows/Linux, Firefox/Safari, live Claude,
+  formal screen-reader usability and participant studies remain unverified.
+  The inherited large-chunk warning remains. Architecture, palette, type ramp,
+  collector and measurement semantics are preserved. This documentation handoff
+  inspects retained evidence without source edits or context/QA/detector reruns.
 
 ### Canvas objects
 

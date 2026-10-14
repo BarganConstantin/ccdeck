@@ -21,15 +21,17 @@ branches still have the same state. Verify them at the start of a new session.
   One report scroll, on-demand focus-protected evidence drawer, sortable
   operations table (50-row increments), no scatter plot or new dependency.
   Collector semantics unchanged; search scopes charts/table, not call summary.
-  231 tests across eight suites, typecheck/build, six-size/nine-theme Brave
+  265 tests across thirteen suites, typecheck/build, six-size/nine-theme Brave
   regression checks passed. Read-only live Codex data was checked separately.
-  Product-quality closeout distinguishes snapshot cut-off from latest observed
-  call start, without inferring capture health from inactivity. Hour durations
-  now preserve minutes; phone hour summaries remain compact. Existing exact
-  P95/failure descriptions and timing-sort values are retained.
-  Independent finish: ship, no material fixes; product recommendation
-  SHIP WITH LIMITATIONS. Evidence and limits in
-  `.impeccable/review/tool-activity-quality/`.
+  Current UX education: `docs/features/tool-activity-education.md`.
+  Fourteen exact verified local glossary entries; mouse/focus hints and persistent
+  inspector purposes; same Median/P95 help in chart/inspector; metric reading
+  guide on request. Unknown tools remain explicitly unverified. Pointer-only
+  inspector fade160ms; keyboard/reduced-motion entry stays immediate.
+  Snapshot/start distinctions, minute precision and measurement contract remain.
+  Independent education finish: ship after one resolved accessible-content
+  qualification fix. Evidence and limits in
+  `.impeccable/review/tool-activity-education/`.
   PR #2125 remains draft; owner preview review pending, no merge/deployment.
 
 ## Usage insights preview on Mac — 2026-10-13

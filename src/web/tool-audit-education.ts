@@ -1,0 +1,18 @@
+/** Teaching copy describes existing measurements, never execution claims. */
+export const auditExplanations = {
+  median: 'Half of the measured containing-call intervals were this long or shorter.',
+  p95: 'Approximately 95% of measured containing-call intervals were this long or shorter. The slowest 5% may take longer.',
+  sample: 'CCDeck displays P95 after 20 valid measurements. This is a minimum sample rule, not the definition of P95 or a confidence guarantee.',
+  intervals: 'These intervals include the whole containing call, including possible waits; they are not isolated inner-command runtimes.',
+} as const;
+export const auditReadingGuide = [
+  ['Observed tool calls', 'Distinct recorded tool-call starts in the selected provider and period.'],
+  ['Containing calls / Most used', 'Calls in which an operation was detected. One call can contain several operations, so operation counts cannot be added together.'],
+  ['Cumulative intervals', 'Adds measured call intervals. Some calls overlap, so this is not elapsed wall-clock time. Operation totals may share the same intervals.'],
+  ['Median', auditExplanations.median],
+  ['P95', `${auditExplanations.p95} ${auditExplanations.sample}`],
+  ['Timing coverage', 'Calls with a valid measured interval divided by observed calls. Missing timing is unknown, not zero or failure.'],
+  ['Reported failures / Failure rate', 'Recorded failed containing-call outcomes, divided by completed observed outcomes for the rate. This does not prove every inner operation failed. Rate comparisons require 20 outcomes.'],
+  ['Shared intervals', 'Several detected operations inherit the same containing-call interval and outcome; this does not measure each command separately.'],
+  ['Dates and clocks', 'Requested period is the filter. Observed starts are recorded endpoints, not continuous coverage. Snapshot is the report cut-off. Claude hook and Codex rollout clocks are different timing sources, not speed benchmarks.'],
+] as const;

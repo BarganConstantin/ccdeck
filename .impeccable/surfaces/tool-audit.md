@@ -6,8 +6,11 @@ centered four-mode ranking. It does not change the global design system.
 
 Implemented source is authoritative: `src/web/components/ToolAuditModal.tsx`,
 `ToolAuditComparison.tsx`, `ToolAuditIntervalPlot.tsx`, `ToolAuditOperations.tsx`,
-`ToolAuditDrawer.tsx` and the existing `ToolAuditInspector.tsx`, together with
-`src/web/tool-audit-report.ts`, `src/web/tool-audit.ts` and `src/web/styles/tool-audit.css`.
+`ToolAuditDrawer.tsx`, `ToolAuditInspector.tsx`, `ToolAuditOperationButton.tsx`
+and `ToolAuditMetricHelp.tsx`, together with `src/web/tool-audit-report.ts`,
+`src/web/operation-glossary.ts`, `src/web/tool-audit-education.ts`, `src/web/tool-audit.ts`
+and `src/web/styles/tool-audit.css`. Shared `AnchoredPopover` dismissal-layer and
+`useHint` focused-anchor behavior are opt-in; existing consumers retain defaults.
 The [Direction A contract](../../docs/features/tool-activity-report.md) records
 quality bar, visualization research and executed validation. The
 [verified data audit](../../docs/features/tool-explorer-design.md) remains the
@@ -26,8 +29,9 @@ paired primary comparisons, subordinate median–P95 and failures; mobile stacks
 **FORM:** full application viewport overlay, one report body scroll, contextual
 portal drawer; no route, metric mode switching or empty inspector reservation.
 **FINISH:** two bounded rendered passes complete; fresh independent finish review
-returns **disposition: ship** with no material fixes; user handoff recommendation
-is **SHIP WITH LIMITATIONS**. No additional parent polish is owed. This scoped documentation completes the
+requested one table accessible-name qualification fix; the same reviewer
+resolved it in the final **disposition: ship** verdict with no further material fix
+or regression. User handoff recommendation is **SHIP WITH LIMITATIONS**. No additional parent polish is owed. This scoped documentation completes the
 assigned persistence handoff; parent owns other documentation and PR work.
 
 **QUALITY BAR:** purpose and frequency leader should be apparent within five
@@ -70,7 +74,9 @@ not an executed participant study.
   description in `src/web/tool-audit-report.ts` preserves precise recorded
   milliseconds (including fractions/zero), measured sample count, the P95
   definition/sample floor and named median/P95 endpoints.
-  `ToolAuditComparison.tsx` reuses it for native title and accessible button name;
+  `ToolAuditComparison.tsx` reuses it for accessible button names and unknown
+  operations’ fallback native titles. Verified operations use the shared purpose
+  hint, with precise P95 values and the general-purpose/arguments qualification;
   compact visible interval labels remain rounded without inventing measurements.
 - **Reported failures:** up to three leaders ordered and sized by failed
   containing-call count. Red (`--err`) count lollipops retain exact count and
@@ -136,16 +142,98 @@ not an executed participant study.
   More after resizing. Selection/details survive viewport changes.
 - **Existing inspector:** Activity & outcomes and Measured intervals retain raw
   failure rate, exact median/P95/maximum, provider/timing counts and shared-call
-  context. Small raw rates are qualified in Definitions & coverage even though
-  overview rates are withheld. Slowest/Recent shows up to 20 measured or 30 recent
+  context. Small raw rates receive an immediate sample-size/descriptive-rate
+  qualification beside Activity & outcomes; overview rates remain withheld.
+  Inspector P95 uses the existing `auditMetricValue` eligibility helper, so fewer
+  than 20 valid measured calls cannot display an eligible P95. Slowest/Recent shows up to 20 measured or 30 recent
   sanitized containing calls from a separately fetched fresh snapshot, including
   loading/error/empty states.
 - **Access and motion:** inherited nine themes, native controls/color scheme,
   visible focus and forced-color marks/selection remain. Main coarse-pointer
-  actions have 44px targets. Keyboard and reduced-motion entry are immediate;
-  otherwise the inherited entrance is 200ms. Reduced motion disables refresh
-  glyph and loading rotation. Titles/values and endpoint shapes carry meaning
+  actions and education Help have 44px targets. Report keyboard/reduced entry
+  is immediate; the inherited report pointer entrance remains 200ms. Pointer
+  drawer entry fades from 0.6 opacity over 160ms with the house curve
+  `cubic-bezier(0.23, 1, 0.32, 1)`. Keyboard/reduced drawer entry and closing
+  are immediate. Help keeps the existing shared 120ms pointer entrance with
+  immediate keyboard/reduced entry. Reduced motion disables refresh glyph and
+  loading rotation. There is no chart/filter choreography. Titles/values and endpoint shapes carry meaning
   without color; loading never invents progress.
+
+## Verified purposes and progressive education
+
+The [education record](../../docs/features/tool-activity-education.md) identifies
+five resolved comprehension findings: unexplained operation identities,
+statistical vocabulary in Median/P95, native-title-only teaching, collapsed
+small-sample qualifications and abrupt pointer inspection. The refinement keeps
+Direction A's full page, four chart encodings/colors, complete explorer and data.
+
+`operation-glossary.ts` contains exactly fourteen verified general-purpose entries:
+
+| Exact identity | Purpose | Verification basis |
+| --- | --- | --- |
+| `rg` | Search for matching text across files. | ripgrep maintainer README |
+| `cat` | Read and combine file contents or input into output. | GNU Coreutils manual |
+| `sed` | Filter and transform text using editing rules. | GNU sed manual |
+| `head` | Show the beginning of a file or text input. | GNU Coreutils manual |
+| `tail` | Show the end of a file or text input. | GNU Coreutils manual |
+| `git diff` | Show differences between code versions or working changes. | Official Git diff manual |
+| `git status` | Show staged, unstaged and untracked Git working-tree changes. | Official Git status manual |
+| `git commit` | Record staged changes in Git history. | Official Git commit manual |
+| `sleep` | Wait for a specified duration. | GNU Coreutils manual |
+| `write_stdin` | Send input to, or read more output from, an existing process. | Installed callable-tool contract, 2026-10-14 |
+| `view_image` | Inspect an image stored in a local file. | Installed callable-tool contract, 2026-10-14 |
+| `apply_patch` | Apply structured changes to files. | Installed callable-tool contract, 2026-10-14 |
+| `multi_agent_v1__wait_agent` | Wait for one or more agents to reach a final status. | Installed callable-tool contract, 2026-10-14 |
+| `shell (unclassified)` | A shell command whose concrete operation could not be reliably identified. | Project classifier fallback |
+
+The education record links the primary manuals and records contract/classifier
+verification. Exact own-property lookup excludes prototype keys, arbitrary MCP
+suffix matches and argument interpretation. The unconfirmed single-underscore
+`multi_agent_v1_wait_agent` is not an alias. No network lookup or AI interpretation
+is added. Unknown names keep neutral identities; the inspector explicitly says
+no verified purpose is available (including an unverified MCP-purpose fallback).
+Every persistent purpose carries `operationPurposeNote`: “General purpose only;
+recorded arguments and outputs are not available.” This describes a tool in
+general, never what a particular recorded call accomplished.
+
+- **Mouse and keyboard:** `ToolAuditOperationButton` reuses the existing chrome
+  hint on pointer rest and focus. P95 hints retain exact raw Median/P95
+  milliseconds and measured sample count, including valid zero/fractional values.
+  Shared `useHint` optionally follows a focused visible anchor during scrolling,
+  flips and clamps to available space. Other consumers retain existing defaults.
+  No repeated purpose paragraph is added beneath each ranking row.
+- **Accessible parity and touch:** charts and table use verified purpose plus
+  the same qualification in accessible names. Unknown table names retain the exact
+  identity. Both expose selected `aria-expanded` and the common
+  `tool-operation-inspector` panel target. Touch selection opens the persistent
+  purpose in the same inspector, with existing evidence and focus protection.
+- **Focused metric help:** one Help beside Slowest P95 and the same component in
+  inspector Measured intervals reuse `AnchoredPopover`. Initial focus goes to
+  the h4 so short help starts at its beginning; Escape or the Got it completion
+  control returns to the anchor. Placement is viewport-bounded with internal
+  scrolling as needed. Optional layer 1103 dismisses help before its enclosing
+  report/drawer; other shared consumers keep defaults.
+- **Plain definitions:** Median means half of measured containing-call intervals
+  were this long or shorter. P95 means approximately 95% were this long or shorter;
+  the slowest 5% may take longer. The existing 20-valid-measurement display floor
+  is stated separately from percentile definition and does not guarantee
+  confidence. Whole containing-call intervals can include waits; they do not
+  isolate inner-command runtime. The generic nine-entry metric guide appears
+  only when explicitly opened within Coverage & definitions, preserving snapshot
+  and observed-data facts ahead of teaching copy.
+- **Immediate sample honesty:** raw inspector rates below 20 completed outcomes
+  immediately name the sample size and say the rate describes this sample, not
+  reliability. Overview rate comparisons remain withheld below their existing
+  floor. Inspector P95 validates through the existing eligibility helper;
+  aggregation, null/zero and provider timing semantics remain unchanged.
+
+The parent bounded critique and confirmation are complete. The large guide was
+moved behind its explicit disclosure and help starts at its focused heading.
+A tooltip beneath a stationary automated pointer caused Playwright actionability
+scrolling; the native point-click regression moved the pointer away and clicked
+visible screen coordinates, confirming report scroll preservation. The existing
+shared focus hook remains unchanged. Keyboard focus scrolling required only the
+opt-in focused-anchor hint behavior. No further polish is owed.
 
 ## Measurement and privacy boundaries
 
@@ -214,71 +302,81 @@ its advisories cleared.
 
 ## Verified finish and evidence
 
-The fresh independent [quality finish review](../review/tool-activity-quality/finish-review.md)
-returns **disposition: ship**, with **no material fixes**; user handoff recommendation
-is **SHIP WITH LIMITATIONS**. It is a fresh file-only review of all 25 required
-quality captures, the preceding before captures and conceptual reference, using
-retained source and validation evidence. It does not independently recertify
-browser measurements. Two bounded quality passes are complete: the first exposed
-an orphaned minute unit at 320px; the second confirmed the narrow 18px mobile
-hour-summary correction. No more parent polish is required.
+The independent [education finish review](../review/tool-activity-education/finish-review.md)
+returned **disposition: fix** for one table accessible-name omission: the purpose
+was present without the qualification carried by chart names and visible hints.
+`ToolAuditOperations` now appends the same `operationPurposeNote`. Actual known
+purpose/qualification and unchanged unknown-name browser checks passed in
+`/tmp/ccdeck-education-parity.log`. The same reviewer's
+[finish verdict](../review/tool-activity-education/finish-verdict.md) scores
+**fix 1 RESOLVED**, final **disposition: ship**, with no further material fix or
+fix-induced regression. It reopens the retained 25 before/after captures and
+scores the sole correction; it does not constitute a new whole-surface browser
+review or formal screen-reader certification. Recommendation remains
+**SHIP WITH LIMITATIONS**. Parent bounded critique and confirmation are complete;
+this documentation handoff owes no further polish.
 
-Existing [Product quality closeout](../../docs/features/tool-activity-report.md#product-quality-closeout--2026-10-14)
-records:
+Retained [education verification](../../docs/features/tool-activity-education.md#executed-verification)
+records the following actual checks, read for this handoff rather than rerun:
 
-- **231 tests across eight suites passed**, including nearest-minute hour precision
-  and carry, unchanged exact-hour/sub-hour/null/zero formatting, and existing
-  collector, precise fractional/zero/null P95 descriptions, ≥20 eligibility,
-  simple linear axis, containing-call failure numerator/denominator and sample
-  guards. TypeScript and production build passed; the inherited large-chunk warning
-  remains. No dependencies or backend change.
-- Brave fixtures passed at **1440×900, 1280×800, 1024×768, 800×600, 390×844 and
-  320×568**, with nine themes, 125% zoom, keyboard/focus/restoration, reduced
-  motion, provider/period/search, refresh coalescing/retained snapshot, selected
-  detail, resize and dense 210-type paging. Computed visible text met **≥4.5:1**;
-  actual marks across four charts met **≥3:1**. New inactive fixtures assert
-  snapshot advances while observed starts stay unchanged without an invented
-  collection warning; hour fixtures assert `1 h 2 min` in summary and chart.
-  Previous active phone median/P95 sorting and actual sticky-header geometry with
-  100 visible rows still pass. This is scoped evidence, not every theme at every
-  viewport or formal accessibility certification.
-- Sparse/missing/no-failures/zero/empty/unavailable/partial/no-search-match/tiny
-  failure samples retain truthful rendered states. P95, failure attribution,
-  nonadditive memberships, shared/overlapping intervals and provider-clock
-  qualifications are unchanged. Intentional wait/sleep names stay descriptive,
-  without inferred performance problems.
-- Read-only retained Codex API snapshot: **1,653 observed/measured calls,
-  105 operation identities and 14 reported failures**. This validates retained
-  report integration, not continuously active external capture or complete
-  requested history; counts are snapshot observations, not fixed expectations.
-- One closeout detector pass recorded **20 local typography advisories and zero
-  nonadvisory findings**. The additional local 18px role is intentional. No source
-  edits or QA/context/detector reruns accompany this documentation handoff.
+- **265 tests across 13 suites passed** in `/tmp/ccdeck-education-tests.log`:
+  exact glossary identities/prototype safety, unknown namespaces/argument
+  rejection, teaching semantics, collector/P95/failure contracts, focus/portal/
+  shortcuts/contrast and shared hint/popover regressions. Typecheck and production
+  build passed; inherited large main/HLS chunk warnings remain. No dependency or
+  backend change.
+- **Six Brave sizes:** 1440×900, 1280×800, 1024×768, 800×600, 390×844 and
+  320×568. `/tmp/ccdeck-education-browser.log` retains the passed matrix;
+  the education record details mouse/focus purposes, raw P95 hints, help heading
+  focus/trap/Escape/return, 390/320 touch inspector/help, expanded selection and
+  common target, scope/search/sorting/filter/refresh, dense 210-operation paging,
+  P95 eligibility, unknown/null/zero, sparse/missing/partial/empty/error/tiny
+  failures, sticky headers, native point-click scroll preservation and 125% zoom.
+  All nine themes include help text in sampled **≥4.5:1** checks and original
+  nonzero marks across four charts in **≥3:1** checks. This is sampled scoped
+  evidence, not every theme at every viewport or certified accessibility.
+- **Motion:** keyboard report help and inspector animation-none checks pass.
+  `/tmp/ccdeck-education-motion.log` confirms reduced pointer Help, Inspector and
+  Inspector Help have no animation in the 320px touch context. Existing reduced
+  report checks remain passed. Closing returns focus immediately.
+- **Read-only retained Codex integration:** `/tmp/ccdeck-education-live.log`
+  records **1,796 observed/measured calls, 105 operations and 14 reported
+  failures**, plus nonadditive memberships, partial history, keyboard trap/return,
+  resize and selected refresh. These are read-time snapshot observations;
+  screenshot moments can differ. Retained integration does not establish
+  continuously active collection or complete requested history.
+- **Single detector record:** 20 existing scoped typography advisories and zero
+  nonadvisory findings. No typography/global-theme change or claim that advisories
+  were cleared. This handoff does not rerun the detector.
 
-The preceding 229-test / 1,581-call / 19-advisory finish remains historical evidence
-in the [prior final review](../review/tool-activity-final/finish-review.md); the
-226-test / 1,466-call premium baseline remains in the feature contract and
-[premium review](../review/tool-activity-premium/finish-review.md).
-Current required quality captures were opened individually for this handoff:
+The prior quality closeout's 231-test/eight-suite and 1,653-call snapshot remain
+historical in the [report contract](../../docs/features/tool-activity-report.md#product-quality-closeout--2026-10-14)
+and [quality review](../review/tool-activity-quality/finish-review.md). Older final
+and premium review evidence remains historical as well; it is not the current
+education verdict.
 
-- [Inactive coverage, 1280×800](../review/tool-activity-quality/final-inactive-coverage-1280-800.png)
-- [Inactive coverage, 320×568](../review/tool-activity-quality/final-inactive-coverage-320-568.png)
-- [Compound hour summary, 320×568](../review/tool-activity-quality/final-hours-320-568.png)
-- [Secondary comparisons, 1280×800](../review/tool-activity-quality/final-secondary-1280-800.png)
-- [Light theme, 1280×800](../review/tool-activity-quality/final-theme-light-1280-800.png)
-- [Retained live overview, 1440px](../review/tool-activity-quality/final-live-overview-1440.png)
+These six required education captures were opened individually for this handoff:
 
-Secondary/operations/coverage captures are scrolled sections; drawer captures show
-contextual evidence. The complete live report is a body-scroll stitch with the
-original header, useful for content continuity only; individual viewport captures
-establish layout and scrolling. Synthetic fixtures are separate from collector
-history. Native titles supplement visible values/qualifications; their presence
-does not establish touch or screen-reader usability.
+- [Operation hover, 1280×800](../review/tool-activity-education/final-operation-hover-1280-800.png)
+- [Operation focus and raw P95 hint, 800×600](../review/tool-activity-education/final-operation-focus-800-600.png)
+- [P95 help, 1280×800](../review/tool-activity-education/final-p95-help-1280-800.png)
+- [Persistent touch purpose and inspector help, 390×844](../review/tool-activity-education/final-touch-description-390-844.png)
+- [Details, 320×568](../review/tool-activity-education/final-details-320-568.png)
+- [Light education help, 1280×800](../review/tool-activity-education/final-theme-education-light-1280-800.png)
 
-Live Claude hook collection, native Windows/Linux execution, Firefox/Safari,
-formal screen-reader usability/certification and participant comprehension research
-remain unverified. No health heartbeat exists; timestamp gaps alone cannot certify
-collector health. This handoff updates only the Tool Activity subsection of
-`DESIGN.md` and this surface record, checks scope/whitespace/local links, and does
-not rerun context, detector or QA. No source edit, git commit/push/merge or
+The focus capture is a scrolled report section; phone drawer/help captures show
+contextual, independently scrollable evidence. Individual viewport captures
+establish layout and scrolling. The complete live report stitch establishes
+content continuity only, including repeated sticky headers; it is not geometry
+or scroll proof. Synthetic fixtures remain separate from retained collector
+history. Screenshots cannot prove accessible names; source and the retained
+computed-name parity check establish that correction.
+
+Live Claude hook collection, native Windows/Linux execution, Safari/Firefox,
+formal screen-reader usability/certification and participant comprehension studies
+remain unverified. Five-second comprehension remains an expert heuristic.
+No health heartbeat exists; timestamp gaps alone cannot certify collector health.
+This handoff updates only the Tool Activity subsection of `DESIGN.md` and this
+surface record, checks scope/whitespace/local links, and inspects retained evidence.
+It performs no source edit, context/detector/QA rerun, git commit/push/merge or
 publication; parent owns other documentation and PR work.

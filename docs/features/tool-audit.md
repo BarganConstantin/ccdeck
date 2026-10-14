@@ -127,11 +127,13 @@ interface, not accessibility certification or permission to merge.
 The verified measurement audit is recorded in `tool-explorer-design.md`.
 Earlier visual iterations are historical; the selected full report and premium
 refinement, current screenshot evidence and actual validation are recorded in
-`tool-activity-report.md`. Current checks:231 tests across eight suites,
+`tool-activity-report.md`. Current checks:265 tests across thirteen suites,
 TypeScript and production build, six requested Brave viewport sizes and all
 nine themes. Separate live Codex integration was exercised; live Claude,
 native Windows/Linux, Safari/Firefox and screen-reader certification remain
 unverified. No new visualization dependency or collector change was introduced.
+Current verified operation glossary, metric help and accessible interaction
+verification are recorded in `tool-activity-education.md`.
 
 Manual browser runners: `scripts/qa-tool-explorer.cjs` uses intercepted,
 deterministic fixtures; `scripts/qa-tool-explorer-a11y.cjs` reads the live preview.

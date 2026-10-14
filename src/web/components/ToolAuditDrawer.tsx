@@ -12,7 +12,7 @@ export default function ToolAuditDrawer({ keyboard, ...props }: ComponentProps<t
     (keyboard ? root?.querySelector<HTMLElement>('#tool-operation-heading') : closeRef.current)?.focus({ preventScroll: true });
   }, [keyboard, dialogRef]);
   return createPortal(<div className="ta-drawer-backdrop" onClick={event => { if (event.target === event.currentTarget) props.onClose(); }}>
-    <div className="ta-drawer" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-operation-heading">
+    <div className="ta-drawer" data-keyboard={keyboard || undefined} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-operation-heading">
       <ToolAuditInspector {...props} />
     </div>
   </div>, document.body);

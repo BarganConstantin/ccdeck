@@ -1,3 +1,4 @@
+import { operationDescription, operationPurposeNote } from './operation-glossary';
 import { auditMetricValue, auditMetricText, auditMetrics, sortAuditRows, type AuditMetric, type AuditRow } from './tool-audit';
 
 export const reportMetrics = ['calls', 'totalMs', 'p95Ms', 'failed'] as const;
@@ -15,7 +16,8 @@ export function reportComparisonDescription(row: AuditRow, metric: ReportMetric)
     : metric === 'failed'
       ? `${row.failed.toLocaleString()} reported failed containing calls / ${row.completed.toLocaleString()} completed outcomes. Ranked by failure count, not rate. ${auditMetricValue(row, 'errorRate') === null ? 'Small sample; rate not compared.' : `Reported failure rate ${auditMetricText(row.errorRate, 'errorRate')}.`}`
       : `${auditMetricText(value, metric)} ${auditMetrics[metric].unit}.`;
-  return `${row.operation}. ${measurements} ${auditMetrics[metric].note}`;
+  const entry = operationDescription(row.operation);
+  return `${row.operation}. ${entry ? entry.purpose + " " + operationPurposeNote + " " : ""}${measurements} ${auditMetrics[metric].note}`;
 }
 
 /** Rank only measured/eligible evidence; zero is measured, not missing. */

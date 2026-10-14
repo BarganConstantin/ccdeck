@@ -30,8 +30,8 @@
 .ta-summary-coverage dd span { display: block; margin: 6px 0 0; }
 .ta-failures { color: var(--err); }
 .ta-coverage { color: var(--text-secondary); font-size: 11px; border-block: 1px solid var(--line); padding: 12px 0; }
-.ta-coverage summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; cursor: pointer; list-style: none; }
-.ta-coverage summary::-webkit-details-marker { display: none; }
+.ta-coverage > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; cursor: pointer; list-style: none; }
+.ta-coverage > summary::-webkit-details-marker { display: none; }
 .ta-quality-count { margin-left: auto; font-variant-numeric: tabular-nums; }
 .ta-coverage-label { color: var(--text); display: inline-flex; gap: 8px; align-items: center; }
 .ta-coverage-label::after { content: ''; width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); margin-top: -3px; }
@@ -155,8 +155,8 @@
   .ta-overview .ta-overview-primary dd { font-size: 28px; }
   .ta-overview dd span { display: none; }
   .ta-summary-coverage { display: none; }
-  .ta-coverage summary { gap: 8px; }
-  .ta-coverage summary > span:first-child { flex-basis: 100%; font-size: 10px; }
+  .ta-coverage > summary { gap: 8px; }
+  .ta-coverage > summary > span:first-child { flex-basis: 100%; font-size: 10px; }
   .ta-quality-count { margin-left: 0; }
   .ta-coverage-label { margin-left: auto; }
   .ta-report-charts { grid-template-columns: 1fr; gap: 28px; padding-top: 24px; }
@@ -208,3 +208,31 @@
 
 .ta-chart-identity { min-width: 0; display: grid; gap: 4px; }
 .ta-chart-identity > small { color: var(--text-secondary); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+/* Education is revealed on request, not repeated under every comparison. */
+.ta-help-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); cursor: pointer; flex: none; }
+.ta-help-trigger:hover { background: var(--ctl-fill); color: var(--text); }
+.ta-comparison-head h3 { flex: none; }
+.ta-comparison-head > .ta-text-button { margin-left: auto; }
+.ta-education-popover { z-index: 1103; width: min(340px, calc(100vw - 16px)); padding: 16px; color: var(--text); font-size: 12px; line-height: 1.6; box-shadow: none; }
+.ta-education-popover h4 { font-size: 13px; margin: 0 0 12px; }
+.ta-education-popover dt, .ta-reading-guide dt { color: var(--text); font-weight: 500; }
+.ta-education-popover dd { margin: 4px 0 12px; color: var(--text-secondary); }
+.ta-education-popover p { color: var(--text-secondary); margin: 10px 0; }
+.ta-education-popover :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.ta-reading-guide { margin: 0 0 16px; display: grid; gap: 10px; }
+.ta-reading-guide dd { margin: 4px 0 0; line-height: 1.6; }
+.ta-operation-purpose { line-height: 1.6; }
+.ta-operation-purpose p { color: var(--text); margin: 0 0 6px; }
+.ta-operation-purpose small { color: var(--text-secondary); font-size: 11px; }
+body:has(.ta-report) > .hint.hint-over-dialog { z-index: 1102; }
+body:has(.ta-report) > .hint .hint-label { overflow-wrap: anywhere; }
+.ta-drawer:not([data-keyboard]) { animation: ta-inspector-in 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes ta-inspector-in { from { opacity: .6; } }
+@media (pointer: coarse) { .ta-help-trigger { width: 44px; min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .ta-drawer, .ta-education-popover { animation: none !important; } }
+
+.ta-inspector-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ta-inspector-section-head h4 { margin: 0; }
+
+.ta-education-instant { animation: none; }

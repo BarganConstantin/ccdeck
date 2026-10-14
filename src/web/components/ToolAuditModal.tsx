@@ -1,3 +1,4 @@
+import { auditReadingGuide } from '../tool-audit-education';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { auditDate, auditRange, auditDuration, readAuditReport, type AuditMetric, type AuditProvider, type AuditReport } from '../tool-audit';
@@ -121,7 +122,7 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
             <p>One observed tool call may contain several detected operations. Counts, intervals and reported failures belong to containing calls, not independent inner executions. Conditional commands are identified from inputs; this is not proof that every command ran. Do not add operation totals together.</p>
             <p>Cumulative interval time includes overlapping calls and is not wall-clock execution time. Claude uses received hook intervals; Codex uses rollout timestamps. Approval, delivery and orchestration waits can be included. Timing does not imply API cost or token usage. Periods filter call starts; completed intervals are counted in full even when their outcome arrives after the range.</p>
             <p>Failures are reported outcomes. Codex recognizes specific wrapper failure markers; unrecognized errors can be missed. No command arguments, outputs or error messages are saved. Missing timing is not failure. P95 needs 20 measurements. Failure rates use observed completed outcomes.</p>
-            <p>Retained since {auditDate(data.retainedSince)}; retention {data.retentionDays} days. Observed endpoints describe recorded call starts, not continuous coverage. Journal-wide: {data.orphaned} outcomes without a retained start, {data.duplicates} duplicate records ignored, {data.corrupt} invalid records. This report is local to this device.</p></div>
+            <p>Retained since {auditDate(data.retainedSince)}; retention {data.retentionDays} days. Observed endpoints describe recorded call starts, not continuous coverage. Journal-wide: {data.orphaned} outcomes without a retained start, {data.duplicates} duplicate records ignored, {data.corrupt} invalid records. This report is local to this device.</p><details className="ta-inspector-definitions"><summary>Plain-language metric guide</summary><dl className="ta-reading-guide">{auditReadingGuide.map(([name, description]) => <div key={name}><dt>{name}</dt><dd>{description}</dd></div>)}</dl></details></div>
           </details>
 
           {provider === 'all' && data.providers.claude.measured > 0 && data.providers.codex.measured > 0 && <p className="ta-note ta-clock-note">Mixed timing sources · not a provider speed benchmark.</p>}

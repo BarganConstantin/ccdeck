@@ -75,6 +75,8 @@ interface Props {
    *  rather than the quiet Report this left of it in the issue popover. Left
    *  unset, useModalDismiss takes the first control. */
   focusRef?: RefObject<HTMLElement | null>;
+  /** Dismissal priority for a popover above an already open report/dialog. */
+  layer?: number;
   /** Where focus goes if the anchor stops being drawn while focus is inside:
    *  the anchor cannot take it back then. Left unset, it falls to the page. */
   fallbackFocus?: () => HTMLElement | null;
@@ -95,7 +97,7 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, boundaryId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, children,
+  anchorId, boundaryId, id, className, role, labelledBy, start = "first", focusRef, layer, fallbackFocus, onClose, children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -110,7 +112,7 @@ export default function AnchoredPopover({
   const ref = useModalDismiss<HTMLDivElement>(() => {
     document.getElementById(anchorId)?.focus();
     closeRef.current();
-  }, { popover: true, focusRef });
+  }, { popover: true, focusRef, layer });
 
   const place = useCallback(() => {
     const el = ref.current;
