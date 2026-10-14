@@ -28,6 +28,7 @@ import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
 import { characterKeyMuted, setSingleKeyShortcuts } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import AccountHistorySettings from "./AccountHistorySettings";
 import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
@@ -112,6 +113,7 @@ export default function SettingsModal({
 
   const pane = (() => {
     switch (section) {
+      case "history": return <AccountHistorySettings />;
       case "notifications":
         return (
           <NotificationsSection

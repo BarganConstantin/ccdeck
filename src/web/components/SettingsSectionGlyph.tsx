@@ -20,6 +20,7 @@ import type { SettingsSection } from "../settings";
 export default function SettingsSectionGlyph({ section }: { section: SettingsSection }) {
   return (
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {section === "history" && <><circle cx="7" cy="7" r="5"/><path d="M7 3.8V7l2.3 1.5"/></>}
       {section === "sounds" && (
         <>
           <path d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z" />

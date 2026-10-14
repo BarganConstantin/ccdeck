@@ -10,7 +10,8 @@
 // out of the panel — so the two reports opened from this panel read as one
 // family.
 //
-// NOTHING HERE FETCHES. The rows are the panel's own roster, handed in on
+// LIVE CAPACITY DOES NOT FETCH. History reads its separate local snapshot endpoint.
+// The rows are the panel's own roster, handed in on
 // every poll, and the countdowns run on the panel's clock, so an open report
 // moves with the panel and a second polling loop never starts. Its rows keep
 // the order the panel had when it was opened — a poll does not move them under
@@ -32,6 +33,7 @@ import {
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead } from "./SortHead";
 import { useCountUp } from "../use-count-up";
+import AccountHistoryView from "./AccountHistoryView";
 import AccountResetCalendar, { type ResetScope } from "./AccountResetCalendar";
 
 /** How full a reading is, in the inks the panel's rows use: the warning past
@@ -293,7 +295,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(onClose);
-  const [view, setView] = useState<"accounts" | "calendar">("accounts");
+  const [view, setView] = useState<"accounts" | "calendar" | "history">("accounts");
   const [resetScope, setResetScope] = useState<ResetScope>("upcoming");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   // Retain a missing/failed snapshot, but accept an authoritative empty roster. Keyed on the
@@ -327,6 +329,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
           <div className="ap-report-views" role="group" aria-label="Capacity view">
             <button type="button" className="ap-report-view" aria-pressed={view === "accounts"} onClick={() => setView("accounts")}>Accounts</button>
             <button type="button" className="ap-report-view" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}>Reset calendar</button>
+            <button type="button" className="ap-report-view" aria-pressed={view === "history"} onClick={() => setView("history")}>History</button>
           </div>
           <button ref={closeRef} type="button" className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>
@@ -336,7 +339,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
         <div className="vis-hidden" role="status" aria-atomic="true">{held ?? ""}</div>
         {view === "accounts"
           ? <UsageReportBody accounts={rows} nowSec={nowSec} held={held} sort={sorted?.sort ?? null} onSort={sortBy} />
-          : <AccountResetCalendar accounts={rows} nowSec={nowSec} held={held} selectedDate={selectedDate} onSelect={setSelectedDate} scope={resetScope} onScope={setResetScope} />}
+          : view === "history" ? <AccountHistoryView /> : <AccountResetCalendar accounts={rows} nowSec={nowSec} held={held} selectedDate={selectedDate} onSelect={setSelectedDate} scope={resetScope} onScope={setResetScope} />}
       </div>
     </div>,
     document.body,
