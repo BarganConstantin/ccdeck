@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatHistoryAxis, historyTimeDomain } from "../account-history";
+import {
+  formatHistoryAxis,
+  historyTimeDomain,
+  clampHistoryRange,
+  zoomHistoryRange,
+} from "../account-history";
 
 const MINUTE = 60_000;
 const DAY = 86400_000;
@@ -52,5 +57,34 @@ describe("adaptive history time axis", () => {
     const long = formatHistoryAxis(now, now - 7 * DAY, now);
     expect(long).not.toMatch(/\d{1,2}:\d{2}/);
     expect(long).toContain("14");
+  });
+});
+
+describe("history chart navigation", () => {
+  const full = { start: now - DAY, end: now };
+  it("zooms around the chosen instant", () => {
+    const range = zoomHistoryRange(full, full, 0.5, 0.25);
+    expect(range.end - range.start).toBe(DAY / 2);
+    expect(range.start + (range.end - range.start) * 0.25).toBe(
+      full.start + DAY / 4,
+    );
+  });
+  it("clamps panning to the available domain without changing zoom", () => {
+    const span = 3600_000;
+    expect(
+      clampHistoryRange({ start: full.start - span, end: full.start }, full),
+    ).toEqual({ start: full.start, end: full.start + span });
+    expect(
+      clampHistoryRange({ start: full.end, end: full.end + span }, full),
+    ).toEqual({ start: full.end - span, end: full.end });
+  });
+  it("limits zoom to five minutes and zoom-out to the full domain", () => {
+    const tiny = zoomHistoryRange(full, full, 0.000001);
+    expect(tiny.end - tiny.start).toBe(5 * MINUTE);
+    expect(zoomHistoryRange(tiny, full, 1e6)).toEqual(full);
+  });
+  it("recovers when the available domain changes", () => {
+    const narrowed = { start: now - 30 * MINUTE, end: now };
+    expect(clampHistoryRange(full, narrowed)).toEqual(narrowed);
   });
 });

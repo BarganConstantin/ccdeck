@@ -48,3 +48,11 @@ Screenshots are under `.impeccable/review/2104/`: baseline-accounts, desktop, mo
 History now defaults to All accounts, overlaying each account on the same time axis in both windows. A shared legend names the accounts and matches line colors. Clicking a legend entry isolates that account; clicking it again or selecting All accounts restores the combined view. Colors name accounts, not quota health, and remain consistent between the two windows and single-account filtering. Observation keys include both account identity and timestamp, keeping simultaneous readings distinct.
 
 Browser checks cover the default combined series, legend filtering/restoration, account and period changes, missing windows and narrow/light/short states. Historical snapshots, collection and retention are unchanged.
+
+## Interactive chart inspection
+
+The time axis fits available readings within the selected lookback. Short histories display local times; a single observation is centered with viewing padding. Subsecond precision changes in reported reset times do not split otherwise continuous lines, while missing readings and real cycle changes remain breaks.
+
+Both windows share zoom and pan. Use +/−, earlier/later arrows and Reset zoom, or Ctrl/Meta + wheel and drag when zoomed. Ordinary wheel scrolling still scrolls the modal. The visible range is bounded to available history, has a five-minute minimum and resets on account/period changes. No chart dependency was added. Clipping preserves original data and the observation selector lists actual readings in the visible interval.
+
+Latest checks: 32 focused Vitest tests passed, TypeScript passed, production build passed, and browser interaction checks passed (keyboard zoom, synchronized axes, pan, modified/ordinary wheel, drag without text selection and reset, plus existing workflows). Updated renders include `zoomed.png`. Independent scoped review found no material issue. Native touch and full screen-reader verification remain follow-ups.

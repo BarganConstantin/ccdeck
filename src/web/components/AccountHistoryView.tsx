@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import {
   type AccountHistory,
   type SnapshotAccount,
@@ -6,6 +6,9 @@ import {
   formatSnapshotTime,
   historyTimeDomain,
   formatHistoryAxis,
+  clampHistoryRange,
+  zoomHistoryRange,
+  type HistoryRange,
 } from "../account-history";
 import "./account-history.css";
 const stamp = formatSnapshotTime;
@@ -14,13 +17,21 @@ function HistoryChart({
   window,
   start,
   end,
+  zoomed,
+  onZoom,
+  onPan,
 }: {
   accounts: (SnapshotAccount & { color: string })[];
   window: "five_hour" | "seven_day";
   start: number;
   end: number;
+  zoomed: boolean;
+  onZoom: (factor: number, anchor?: number) => void;
+  onPan: (delta: number) => void;
 }) {
   const chartRef = useRef<SVGSVGElement>(null);
+  const clipId = useId();
+  const dragX = useRef<number | null>(null);
   const [width, setWidth] = useState(750);
   useEffect(() => {
     const svg = chartRef.current;
@@ -31,16 +42,36 @@ function HistoryChart({
     observer.observe(svg);
     return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    const svg = chartRef.current;
+    if (!svg) return;
+    const wheel = (event: WheelEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      event.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const anchor = Math.max(
+        0,
+        Math.min(1, (event.clientX - rect.left - 36) / (rect.width - 50)),
+      );
+      onZoom(
+        Math.exp(Math.max(-100, Math.min(100, event.deltaY)) * 0.005),
+        anchor,
+      );
+    };
+    svg.addEventListener("wheel", wheel, { passive: false });
+    return () => svg.removeEventListener("wheel", wheel);
+  }, [onZoom]);
   const [selected, setSelected] = useState<string | null>(null);
   const values = accounts
     .flatMap((a) =>
       a.points
-        .filter((p) => p[window])
+        .filter((p) => p[window] && p.t >= start && p.t <= end)
         .map((p) => ({ ...p, account: a, key: `${a.id}:${p.t}` })),
     )
     .sort((a, b) => a.t - b.t || a.account.id.localeCompare(b.account.id));
   const p = values.find((p) => p.key === selected) ?? values.at(-1);
   const w = p?.[window];
+  const visibleAccounts = new Set(values.map((p) => p.account.id)).size;
   const x = (t: number) => 36 + ((t - start) / (end - start)) * (width - 50);
   const y = (pct: number) => 140 - pct * 1.2;
   return (
@@ -52,7 +83,7 @@ function HistoryChart({
         <h3>{window === "five_hour" ? "5-hour window" : "7-day window"}</h3>
         <span>
           {accounts.length > 1
-            ? `${accounts.filter((a) => a.points.some((p) => p[window])).length} ${accounts.filter((a) => a.points.some((p) => p[window])).length === 1 ? "account" : "accounts"}`
+            ? `${visibleAccounts} ${visibleAccounts === 1 ? "account" : "accounts"}`
             : w
               ? `${w.pct}% used`
               : "No observations"}
@@ -63,7 +94,36 @@ function HistoryChart({
         viewBox={`0 0 ${width} 170`}
         role="img"
         aria-label="Reported usage from 0 to 100 percent. Gaps indicate missing observations; separate lines indicate changed reset windows."
+        className={zoomed ? "ah-plot ah-plot-zoomed" : "ah-plot"}
+        onPointerDown={(e) => {
+          if (!zoomed || e.button !== 0) return;
+          dragX.current = e.clientX;
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (dragX.current == null) return;
+          const dx = e.clientX - dragX.current;
+          dragX.current = e.clientX;
+          onPan(
+            (-dx / (e.currentTarget.getBoundingClientRect().width - 50)) *
+              (end - start),
+          );
+        }}
+        onPointerUp={() => {
+          dragX.current = null;
+        }}
+        onPointerCancel={() => {
+          dragX.current = null;
+        }}
+        onLostPointerCapture={() => {
+          dragX.current = null;
+        }}
       >
+        <defs>
+          <clipPath id={clipId}>
+            <rect x="36" y="16" width={width - 50} height="128" />
+          </clipPath>
+        </defs>
         {[0, 50, 100].map((v) => (
           <g key={v}>
             <line
@@ -101,7 +161,7 @@ function HistoryChart({
           </line>
         ))}
         {accounts.map((a) => (
-          <g key={a.id} data-account={a.id}>
+          <g key={a.id} data-account={a.id} clipPath={`url(#${clipId})`}>
             {historySegments(a.points, window).map((s, i) => (
               <g key={i}>
                 <polyline
@@ -158,7 +218,7 @@ function HistoryChart({
       <p className="ah-note">
         {p
           ? `${accounts.length > 1 ? p.account.name + " · " : ""}Read ${stamp(p.t)}${w?.resetAt ? ` · Reported reset ${stamp(w.resetAt * 1000)}` : " · Reset time unknown"}`
-          : "Readings will appear as they are collected."}
+          : "No readings in this visible interval."}
       </p>
     </section>
   );
@@ -169,6 +229,9 @@ export default function AccountHistoryView() {
     [account, setAccount] = useState(""),
     [days, setDays] = useState(7),
     [retry, setRetry] = useState(0);
+  const [viewport, setViewport] = useState<
+    (HistoryRange & { key: string }) | null
+  >(null);
   useEffect(() => {
     let alive = true,
       running = false;
@@ -218,13 +281,40 @@ export default function AccountHistoryView() {
       ...a,
       points: a.points.filter((p) => p.t >= from && p.t <= now),
     }));
-  const { start, end } = historyTimeDomain(
+  const full = historyTimeDomain(
     series.flatMap((a) =>
       a.points.filter((p) => p.five_hour || p.seven_day).map((p) => p.t),
     ),
     from,
     now,
   );
+  const viewKey = `${selectedAccount}:${days}`;
+  const view =
+    viewport?.key === viewKey ? clampHistoryRange(viewport, full) : full;
+  const { start, end } = view;
+  const zoomed = end - start < full.end - full.start - 1;
+  const zoom = (factor: number, anchor = 0.5) =>
+    setViewport((previous) => ({
+      ...zoomHistoryRange(
+        previous?.key === viewKey ? clampHistoryRange(previous, full) : full,
+        full,
+        factor,
+        anchor,
+      ),
+      key: viewKey,
+    }));
+  const pan = (delta: number) =>
+    setViewport((previous) => {
+      const current =
+        previous?.key === viewKey ? clampHistoryRange(previous, full) : full;
+      return {
+        ...clampHistoryRange(
+          { start: current.start + delta, end: current.end + delta },
+          full,
+        ),
+        key: viewKey,
+      };
+    });
   const hasPoints = series.some((a) => a.points.length > 0);
   return (
     <div className="ah-workspace">
@@ -234,7 +324,10 @@ export default function AccountHistoryView() {
           <select
             aria-label="Account"
             value={selectedAccount}
-            onChange={(e) => setAccount(e.target.value)}
+            onChange={(e) => {
+              setAccount(e.target.value);
+              setViewport(null);
+            }}
             disabled={!data?.accounts.length}
           >
             <option value="">All accounts</option>
@@ -254,7 +347,10 @@ export default function AccountHistoryView() {
           <select
             aria-label="Period"
             value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
+            onChange={(e) => {
+              setDays(Number(e.target.value));
+              setViewport(null);
+            }}
           >
             {[7, 30, 60, 90]
               .filter((n) => n <= Math.max(7, data?.retentionDays ?? 30))
@@ -295,9 +391,10 @@ export default function AccountHistoryView() {
                   key={a.id}
                   className="ah-legend-account"
                   aria-pressed={selectedAccount === a.id}
-                  onClick={() =>
-                    setAccount(selectedAccount === a.id ? "" : a.id)
-                  }
+                  onClick={() => {
+                    setAccount(selectedAccount === a.id ? "" : a.id);
+                    setViewport(null);
+                  }}
                   title={a.name}
                 >
                   <span
@@ -324,17 +421,79 @@ export default function AccountHistoryView() {
             </div>
           ) : (
             <>
+              <div
+                className="ah-explore"
+                role="group"
+                aria-label="History chart navigation"
+              >
+                <button
+                  type="button"
+                  className="btn"
+                  aria-label="Earlier observations"
+                  disabled={!zoomed || start <= full.start + 1}
+                  onClick={() => pan(-(end - start) * 0.5)}
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  aria-label="Zoom in"
+                  disabled={end - start <= 5 * 60_000 + 1}
+                  onClick={() => zoom(0.5)}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  aria-label="Zoom out"
+                  disabled={!zoomed}
+                  onClick={() => zoom(2)}
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  aria-label="Later observations"
+                  disabled={!zoomed || end >= full.end - 1}
+                  onClick={() => pan((end - start) * 0.5)}
+                >
+                  →
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={!zoomed}
+                  onClick={() => setViewport(null)}
+                >
+                  Reset zoom
+                </button>
+                <span className="ah-note">
+                  Ctrl/⌘ + scroll to zoom · Drag when zoomed
+                </span>
+              </div>
+              <p className="ah-note" role="status">
+                Viewing {stamp(start)} – {stamp(end)}
+              </p>
               <HistoryChart
                 accounts={series}
                 window="five_hour"
                 start={start}
                 end={end}
+                zoomed={zoomed}
+                onZoom={zoom}
+                onPan={pan}
               />
               <HistoryChart
                 accounts={series}
                 window="seven_day"
                 start={start}
                 end={end}
+                zoomed={zoomed}
+                onZoom={zoom}
+                onPan={pan}
               />
             </>
           )}

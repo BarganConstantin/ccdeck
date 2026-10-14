@@ -196,3 +196,32 @@
   flex-shrink: 0;
   border-radius: 2px;
 }
+
+.ah-explore {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.ah-explore .btn {
+  min-width: 34px;
+  min-height: 34px;
+}
+.ah-explore .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ah-explore .ah-note {
+  margin-left: 6px;
+}
+.ah-plot {
+  user-select: none;
+}
+.ah-plot-zoomed {
+  cursor: grab;
+  touch-action: pan-y;
+}
+.ah-plot-zoomed:active {
+  cursor: grabbing;
+}

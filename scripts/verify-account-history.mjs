@@ -136,6 +136,80 @@ try {
       .evaluate((el) => getComputedStyle(el).strokeLinejoin),
     "round",
   );
+  const viewLabel = page.locator('.ah-workspace p[role="status"]');
+  const originalRange = await viewLabel.textContent();
+  await page.getByRole("button", { name: "Zoom in", exact: true }).focus();
+  await page.keyboard.press("Space");
+  assert.notEqual(await viewLabel.textContent(), originalRange);
+  assert.equal(await page.locator(".ah-plot-zoomed").count(), 2);
+  const axisLabels = await page.locator(".ah-chart svg").evaluateAll((svgs) =>
+    svgs.map((svg) =>
+      [...svg.querySelectorAll("text")]
+        .slice(-2)
+        .map((t) => t.textContent)
+        .join("|"),
+    ),
+  );
+  assert.equal(
+    axisLabels[0],
+    axisLabels[1],
+    "Both charts must use the same zoomed axis",
+  );
+  await shot("zoomed");
+  const beforePan = await viewLabel.textContent();
+  await page.getByRole("button", { name: "Later observations" }).click();
+  assert.notEqual(await viewLabel.textContent(), beforePan);
+  await page.getByRole("button", { name: "Earlier observations" }).click();
+  const plot = await page.locator(".ah-chart svg").first().boundingBox();
+  await page.mouse.move(plot.x + plot.width * 0.5, plot.y + 80);
+  const beforeWheel = await viewLabel.textContent();
+  await page.mouse.wheel(0, 50);
+  await page.waitForTimeout(100);
+  assert.equal(
+    await viewLabel.textContent(),
+    beforeWheel,
+    "Ordinary scrolling must not change zoom",
+  );
+  await page.locator(".ah-chart svg").first().scrollIntoViewIfNeeded();
+  const wheelPlot = await page.locator(".ah-chart svg").first().boundingBox();
+  await page.mouse.move(wheelPlot.x + wheelPlot.width * 0.5, wheelPlot.y + 80);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up("Control");
+  await page.waitForTimeout(100);
+  assert.notEqual(
+    await viewLabel.textContent(),
+    beforeWheel,
+    "Modified wheel must zoom the chart",
+  );
+  const beforeDrag = await viewLabel.textContent();
+  await page.mouse.down();
+  await page.mouse.move(
+    wheelPlot.x + wheelPlot.width * 0.5 + 60,
+    wheelPlot.y + 80,
+    {
+      steps: 5,
+    },
+  );
+  await page.mouse.up();
+  assert.notEqual(
+    await viewLabel.textContent(),
+    beforeDrag,
+    "Dragging a zoomed chart must pan",
+  );
+  assert.equal(
+    await page.evaluate(() => getSelection()?.toString()),
+    "",
+    "Chart dragging must not select axis text",
+  );
+  await page.getByRole("button", { name: "Reset zoom" }).click();
+  assert.equal(await viewLabel.textContent(), originalRange);
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Zoom out", exact: true })
+      .isDisabled(),
+    true,
+  );
   await page.locator(".ah-legend-account").first().click();
   assert.equal(
     await page.getByLabel("Account", { exact: true }).inputValue(),

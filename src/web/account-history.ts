@@ -94,3 +94,40 @@ export function formatHistoryAxis(t: number, start: number, end: number) {
       : {}),
   });
 }
+
+export interface HistoryRange {
+  start: number;
+  end: number;
+}
+
+export function clampHistoryRange(
+  range: HistoryRange,
+  full: HistoryRange,
+): HistoryRange {
+  const span = Math.min(
+    Math.max(
+      range.end - range.start,
+      Math.min(5 * 60_000, full.end - full.start),
+    ),
+    full.end - full.start,
+  );
+  const start = Math.max(full.start, Math.min(range.start, full.end - span));
+  return { start, end: start + span };
+}
+
+export function zoomHistoryRange(
+  range: HistoryRange,
+  full: HistoryRange,
+  factor: number,
+  anchor = 0.5,
+) {
+  const span = Math.max(
+    Math.min(5 * 60_000, full.end - full.start),
+    Math.min(full.end - full.start, (range.end - range.start) * factor),
+  );
+  const pivot = range.start + (range.end - range.start) * anchor;
+  return clampHistoryRange(
+    { start: pivot - span * anchor, end: pivot + span * (1 - anchor) },
+    full,
+  );
+}
