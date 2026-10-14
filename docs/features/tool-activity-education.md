@@ -122,3 +122,15 @@ reopening all25 captures; no new material fix or regression was found. The
 separate parity check confirms known table purpose+qualification and unchanged
 unknown identity. Verdict: `tool-activity-education/finish-verdict.md`.
 This is scoped implementation sign-off, not permission to merge/deploy.
+
+
+## Principal refinement — 2026-10-14
+
+The [latest scoped refinement](tool-activity-principal-refinement.md) raises
+supporting typography to 12px, adds verified `git add`, teaches P95 with a
+3-second example, and reuses anchored education for cumulative intervals,
+failures, coverage and snapshot freshness. Unknown operation hints explicitly
+retain unverified purposes. Inspector failure attribution and missing timing
+are visible without opening definitions. Collection and aggregation are unchanged.
+The latest document records actual successful checks and the independently
+reproduced shared modal-inventory baseline failure.

@@ -8,6 +8,7 @@ const entries = {
   tail: { purpose: 'Show the end of a file or text input.', basis: 'manual' },
   'git diff': { purpose: 'Show differences between code versions or working changes.', basis: 'manual' },
   'git status': { purpose: 'Show staged, unstaged and untracked Git working-tree changes.', basis: 'manual' },
+  'git add': { purpose: 'Stage file changes for the next Git commit.', basis: 'manual' },
   'git commit': { purpose: 'Record staged changes in Git history.', basis: 'manual' },
   sleep: { purpose: 'Wait for a specified duration.', basis: 'manual' },
   write_stdin: { purpose: 'Send input to, or read more output from, an existing process.', basis: 'tool-contract' },

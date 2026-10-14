@@ -27,11 +27,14 @@ export default function ToolAuditInspector({ row, details, loading, error, kind,
         <div><dt>Reported failures</dt><dd className={row.failed ? 'ta-failures' : undefined}>{row.failed.toLocaleString()}<span> / {row.completed.toLocaleString()}</span></dd></div>
         <div><dt>Failure rate</dt><dd>{row.errorRate === null ? '—' : `${(row.errorRate * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`}</dd></div>
       </dl>
+      <p className="ta-note">{auditExplanations.failures}</p>
+      {row.missingTiming > 0 && <p className="ta-note">{row.missingTiming.toLocaleString()} calls lack timing. Missing measurements are unknown, not zero.</p>}
       {row.completed < 20 && row.errorRate !== null && <p className="ta-note">Small sample · {row.completed} completed outcomes. The rate describes this sample, not reliability.</p>}
     </section>
     <section className="ta-inspector-section" aria-label="Measured containing-call intervals">
       <div className="ta-inspector-section-head"><h4>Measured intervals</h4><ToolAuditMetricHelp /></div>
       <dl className="ta-stat-grid">{intervals.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      {row.measured < 20 && <p className="ta-note">P95 unavailable · {row.measured.toLocaleString()} / 20 valid measurements.</p>}
       <p className="ta-note">Adds measured containing-call intervals. Some overlap, so this is not elapsed wall-clock time.</p>
       {row.shared > 0 && <p className="ta-note">{row.shared.toLocaleString()} calls share their full interval and outcome across operations.</p>}
     </section>

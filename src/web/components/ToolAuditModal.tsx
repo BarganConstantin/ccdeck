@@ -6,6 +6,7 @@ import { reportMetrics, reportOperations } from '../tool-audit-report';
 import ToolAuditComparison from './ToolAuditComparison';
 import ToolAuditOperations from './ToolAuditOperations';
 import ToolAuditDrawer from './ToolAuditDrawer';
+import ToolAuditMetricHelp from './ToolAuditMetricHelp';
 import { useModalDismiss } from './use-modal-dismiss';
 
 const periodLabels: Record<string, string> = { '1': 'Last 24 hours', '7': 'Last 7 days', '30': 'Last 30 days', '60': 'Last 60 days', '90': 'Last 90 days' };
@@ -94,7 +95,7 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
   return createPortal(<div className="ta-report-backdrop">
     <div className="ta-report ta-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-keyboard-interaction={instant || undefined}>
       <header className="ta-report-header"><button type="button" ref={closeRef} className="ta-back" onClick={closeReport} aria-label="Close tool report"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18" /></svg><span>Back to workspace</span></button>
-        <h2 id="tool-audit-title">Tool Activity Report</h2><div className="ta-actions"><span className="ta-freshness" role="status" title="Report snapshot cut-off when aggregation begins; not the last observed tool event.">{loading ? data ? 'Refreshing…' : 'Reading local history…' : data ? `Snapshot ${auditDate(data.capturedAt)}` : 'Local to this device'}</span>
+        <h2 id="tool-audit-title">Tool Activity Report</h2><div className="ta-actions"><span className="ta-freshness" role="status" title="Report snapshot cut-off when aggregation begins; not the last observed tool event.">{loading ? data ? 'Refreshing…' : 'Reading local history…' : data ? <ToolAuditMetricHelp kind="freshness">Snapshot {auditDate(data.capturedAt)}</ToolAuditMetricHelp> : 'Local to this device'}</span>
         <button type="button" className="glyph-btn" aria-label="Refresh tool report" data-loading={loading || undefined} aria-disabled={loading || detailLoading || !validRange} onClick={doRefresh} title="Rebuild from local history"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg></button>
       </div></header>
       <div className="ta-body"><div className="ta-report-content">
@@ -112,9 +113,9 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
           {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <div className="ta-data-quality" role="status"><strong>Incomplete history</strong><p>{data.dropped > 0 && `${data.dropped.toLocaleString()} records could not be saved. `}{data.corrupt > 0 && `${data.corrupt.toLocaleString()} invalid retained-journal records were skipped. `}{!data.storageOk && 'History could not be saved. Check disk space and permissions. '}Totals exclude unavailable records.</p></div>}
           <dl className="ta-overview" aria-label="All calls in selected provider and period">
             <div className="ta-overview-primary"><dt>Observed tool calls</dt><dd>{data.total.toLocaleString()}</dd></div>
-            <div className={data.totalMs !== null && data.totalMs >= 3600000 ? 'ta-overview-long-duration' : undefined}><dt title="Cumulative measured containing-call intervals. Each measured call counted once; intervals overlap and are not wall-clock time.">Cumulative intervals</dt><dd>{auditDuration(data.totalMs)}</dd></div>
-            <div><dt>Reported failures</dt><dd className={data.failed ? 'ta-failures' : undefined}>{data.failed.toLocaleString()}<span> / {data.completed.toLocaleString()} outcomes</span></dd></div>
-            <div className="ta-summary-coverage"><dt>Timing coverage</dt><dd>{data.total ? `${Math.round(data.measured / data.total * 100)}%` : '—'}<span>{data.measured.toLocaleString()} / {data.total.toLocaleString()} calls</span></dd></div>
+            <div className={data.totalMs !== null && data.totalMs >= 3600000 ? 'ta-overview-long-duration' : undefined}><dt><ToolAuditMetricHelp kind="cumulative">Cumulative intervals</ToolAuditMetricHelp></dt><dd>{auditDuration(data.totalMs)}</dd></div>
+            <div><dt><ToolAuditMetricHelp kind="failures">Reported failures</ToolAuditMetricHelp></dt><dd className={data.failed ? 'ta-failures' : undefined}>{data.failed.toLocaleString()}<span> / {data.completed.toLocaleString()} outcomes</span></dd></div>
+            <div className="ta-summary-coverage"><dt><ToolAuditMetricHelp kind="coverage">Timing coverage</ToolAuditMetricHelp></dt><dd>{data.total ? `${Math.round(data.measured / data.total * 100)}%` : '—'}<span>{data.measured.toLocaleString()} / {data.total.toLocaleString()} calls</span></dd></div>
           </dl>
           <details className="ta-coverage">
             <summary><span>{data.observedSince === null ? 'No observed starts' : `Observed starts ${auditRange(data.observedSince, data.observedUntil!)}`}</span><span className="ta-quality-count">{data.measured.toLocaleString()} / {data.total.toLocaleString()} timed</span><span className="ta-coverage-label">Coverage & definitions</span></summary>

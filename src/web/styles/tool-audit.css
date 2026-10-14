@@ -1,20 +1,20 @@
 /* Viewport report: one report scroll, independently focus-protected evidence drawer. */
 .ta-report-backdrop { position: fixed; inset: 0; z-index: 1000; background: var(--bg); }
-.ta-report { height: 100%; display: flex; flex-direction: column; color: var(--text); background: var(--bg); font-size: 12px; animation: radioOpen 200ms cubic-bezier(.22, 1, .36, 1); }
+.ta-report { height: 100%; display: flex; flex-direction: column; color: var(--text); background: var(--bg); font-size: 13px; animation: radioOpen 200ms cubic-bezier(.22, 1, .36, 1); }
 .ta-report[data-keyboard-interaction] { animation: none; }
 .ta-report-header { min-height: 64px; padding: 10px 28px; box-sizing: border-box; display: flex; align-items: center; gap: 28px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; }
 .ta-report-header h2 { margin: 0; font-size: 17px; font-weight: 600; }
 .ta-back { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 0; border: 0; color: var(--text-secondary); background: transparent; font: inherit; cursor: pointer; }
 .ta-back:hover { color: var(--text); }
 .ta-actions { display: flex; align-items: center; margin-left: auto; gap: 16px; }
-.ta-freshness { color: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ta-freshness { color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
 .ta-actions .glyph-btn, .ta-inspector-head .glyph-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; flex: none; }
 .ta-actions [aria-disabled=true] { cursor: wait; }
 .ta-actions [data-loading] svg { animation: ta-spin 1000ms linear infinite; }
 .ta-body { min-height: 0; min-width: 0; flex: 1; overflow-y: auto; scrollbar-gutter: stable; }
 .ta-report-content { max-width: 1360px; margin: 0 auto; padding: 18px 40px 20px; }
 .ta-toolbar { display: grid; grid-template-columns: 160px 160px minmax(140px, 280px) auto; justify-content: start; align-items: end; gap: 16px; padding-bottom: 18px; }
-.ta-toolbar label, .ta-dates label, .ta-storage-row label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 11px; }
+.ta-toolbar label, .ta-dates label, .ta-storage-row label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; }
 .ta-toolbar select, .ta-toolbar input, .ta-dates input, .ta-storage-row select, .ta-table-sort select { font: inherit; font-size: 12px; min-width: 0; width: 100%; border: 1px solid var(--ctl-edge); background: var(--ctl-fill); color: var(--text); border-radius: var(--r-ctl); padding: 7px 10px; min-height: 36px; box-sizing: border-box; color-scheme: inherit; caret-color: var(--accent); }
 .ta-toolbar input::placeholder { color: var(--text-secondary); opacity: 1; }
 .ta-dates { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding-bottom: 16px; }
@@ -25,11 +25,11 @@
 .ta-overview dt { color: var(--text-secondary); font-size: 12px; margin-bottom: 10px; }
 .ta-overview dd { margin: 0; font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .ta-overview .ta-overview-primary dd { font-size: 32px; font-weight: 600; }
-.ta-overview dd span { font-size: 11px; color: var(--text-secondary); font-weight: 400; margin-left: 8px; }
+.ta-overview dd span { font-size: 12px; color: var(--text-secondary); font-weight: 400; margin-left: 8px; }
 .ta-summary-coverage dd { font-size: 20px; }
 .ta-summary-coverage dd span { display: block; margin: 6px 0 0; }
 .ta-failures { color: var(--err); }
-.ta-coverage { color: var(--text-secondary); font-size: 11px; border-block: 1px solid var(--line); padding: 12px 0; }
+.ta-coverage { color: var(--text-secondary); font-size: 12px; border-block: 1px solid var(--line); padding: 12px 0; }
 .ta-coverage > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; cursor: pointer; list-style: none; }
 .ta-coverage > summary::-webkit-details-marker { display: none; }
 .ta-quality-count { margin-left: auto; font-variant-numeric: tabular-nums; }
@@ -38,7 +38,7 @@
 .ta-coverage[open] .ta-coverage-label::after { transform: rotate(225deg); margin-top: 3px; }
 .ta-coverage > div { padding-top: 8px; max-width: 75ch; }
 .ta-coverage p { margin: 6px 0 0; line-height: 1.6; }
-.ta-note { margin: 0; color: var(--text-secondary); line-height: 1.6; font-size: 11px; }
+.ta-note { margin: 0; color: var(--text-secondary); line-height: 1.6; font-size: 12px; }
 .ta-clock-note, .ta-search-scope { margin-top: 12px; }
 .ta-report-charts { display: grid; grid-template-columns: 1fr 1fr; column-gap: 48px; row-gap: 24px; padding: 24px 0 28px; }
 .ta-comparison { min-width: 0; --ta-chart-color: var(--usage-blue); }
@@ -48,26 +48,26 @@
 .ta-comparison-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .ta-comparison-head h3 { font-size: 15px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 9px; }
 .ta-comparison-head svg { color: var(--ta-chart-color); flex: none; }
-.ta-text-button { font: inherit; font-size: 11px; color: var(--text-secondary); border: 0; background: transparent; padding: 6px 0 6px 6px; border-radius: var(--r-ctl); cursor: pointer; flex: none; }
+.ta-text-button { font: inherit; font-size: 12px; color: var(--text-secondary); border: 0; background: transparent; padding: 6px 0 6px 6px; border-radius: var(--r-ctl); cursor: pointer; flex: none; }
 .ta-text-button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
-.ta-chart-caption { margin: 6px 0 12px; font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+.ta-chart-caption { margin: 6px 0 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 .ta-comparison-list { list-style: none; padding: 0; margin: 0; }
 .ta-chart-operation { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 14px; padding: 7px 8px; width: 100%; box-sizing: border-box; min-height: 48px; text-align: left; font: inherit; border: 1px solid transparent; border-radius: var(--r-ctl); background: transparent; color: var(--text); cursor: pointer; }
 .ta-chart-operation:hover { background: var(--ctl-fill); }
 .ta-chart-operation[data-selected] { background: var(--ctl-fill); border-color: var(--ta-chart-color); }
-.ta-operation-name { font: 12px var(--font-mono); overflow-wrap: anywhere; min-width: 0; line-height: 1.5; }
+.ta-operation-name { font: 13px var(--font-mono); overflow-wrap: anywhere; min-width: 0; line-height: 1.5; }
 .ta-chart-value { text-align: right; font: 13px var(--font-mono); font-variant-numeric: tabular-nums; }
-.ta-chart-value small { display: block; font-size: 10px; font-family: inherit; color: var(--text-secondary); margin-top: 4px; }
+.ta-chart-value small { display: block; font-size: 12px; font-family: inherit; color: var(--text-secondary); margin-top: 4px; }
 .ta-rank-track { grid-column: 1 / -1; display: block; height: 7px; background: var(--panel); border-radius: var(--r-tag); overflow: hidden; }
 .ta-rank-track > span { display: block; height: 100%; background: var(--ta-chart-color); border-radius: inherit; }
 .ta-chart-empty { display: grid; gap: 8px; min-height: 112px; align-content: center; color: var(--text-secondary); line-height: 1.5; border-top: 1px solid var(--line); }
 .ta-chart-empty strong { font-size: 12px; font-weight: 500; color: var(--text); }
-.ta-chart-empty span { font-size: 11px; }
+.ta-chart-empty span { font-size: 12px; }
 .ta-explorer { border-top: 1px solid var(--line); padding-top: 24px; }
 .ta-explorer-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
 .ta-explorer-head h3 { margin: 0; font-size: 16px; font-weight: 600; scroll-margin-top: 20px; }
 .ta-explorer-head h3 span { margin-left: 8px; font-size: 12px; color: var(--text-secondary); font-weight: 400; font-variant-numeric: tabular-nums; }
-.ta-explorer-head p { margin: 6px 0 0; font-size: 11px; color: var(--text-secondary); }
+.ta-explorer-head p { margin: 6px 0 0; font-size: 12px; color: var(--text-secondary); }
 .ta-table-sort { display: none; }
 .ta-operation-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
 .ta-operation-table th:first-child { width: 36%; text-align: left; }
@@ -75,18 +75,18 @@
 .ta-operation-table th:first-child { padding-left: 0; }
 .ta-operation-table thead { color: var(--text-secondary); }
 .ta-operation-table thead th { background: var(--panel); position: sticky; top: 0; z-index: 1; }
-.ta-operation-table thead button { font: inherit; font-size: 11px; color: inherit; background: transparent; padding: 6px 0; border: 0; cursor: pointer; }
+.ta-operation-table thead button { font: inherit; font-size: 12px; color: inherit; background: transparent; padding: 6px 0; border: 0; cursor: pointer; }
 .ta-operation-table th[aria-sort=descending], .ta-operation-table th[aria-sort=ascending] { color: var(--text); }
-.ta-operation-table td { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; }
-.ta-operation-table td small { display: block; font-size: 10px; color: var(--text-secondary); margin-top: 4px; }
+.ta-operation-table td { font: 13px var(--font-mono); font-variant-numeric: tabular-nums; }
+.ta-operation-table td small { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
 .ta-table-operation { display: grid; gap: 4px; padding: 0; min-height: 36px; color: var(--text); background: transparent; border: 0; text-align: left; cursor: pointer; width: 100%; }
-.ta-table-provider { font-size: 10px; color: var(--text-secondary); }
+.ta-table-provider { font-size: 12px; color: var(--text-secondary); }
 .ta-operation-table tbody tr:hover, .ta-operation-table tr[data-selected] { background: var(--ctl-fill); }
 .ta-operation-table tbody tr:focus-within { background: var(--ctl-fill); }
 .ta-operation-table tr[data-selected] .ta-operation-name { text-decoration: underline; text-underline-offset: 4px; }
-.ta-explorer-footer { display: flex; align-items: center; justify-content: space-between; color: var(--text-secondary); font-size: 11px; min-height: 58px; }
-.ta-report-footer { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; font-size: 11px; color: var(--text-secondary); line-height: 1.6; }
-.ta-drawer-backdrop { position: fixed; inset: 0; z-index: 1001; color: var(--text); font-size: 12px; background: color-mix(in srgb, var(--bg) 35%, transparent); display: flex; justify-content: end; }
+.ta-explorer-footer { display: flex; align-items: center; justify-content: space-between; color: var(--text-secondary); font-size: 12px; min-height: 58px; }
+.ta-report-footer { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.ta-drawer-backdrop { position: fixed; inset: 0; z-index: 1001; color: var(--text); font-size: 13px; background: color-mix(in srgb, var(--bg) 35%, transparent); display: flex; justify-content: end; }
 .ta-drawer { width: min(440px, 100%); height: 100%; overflow-y: auto; box-sizing: border-box; background: var(--panel); border-left: 1px solid var(--ctl-edge); scrollbar-gutter: stable; }
 .ta-drawer .ta-inspector { border: 0; border-radius: 0; background: transparent; padding: 24px; gap: 20px; }
 .ta-report :focus-visible, .ta-drawer :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -94,16 +94,16 @@
 .ta-body, .ta-drawer { scrollbar-color: var(--ctl-edge) var(--bg); }
 .ta-inspector { border: 1px solid var(--line); background: var(--bg-soft); border-radius: var(--r-panel); padding: 16px; min-width: 0; display: grid; gap: 16px; }
 .ta-inspector-head { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
-.ta-inspector-head h3 { font: 13px var(--font-mono); margin: 3px 0 0; overflow-wrap: anywhere; scroll-margin: 16px; line-height: 1.5; }
-.ta-provider-counts { display: flex; flex-wrap: wrap; gap: 20px; color: var(--muted); font-size: 11px; }
+.ta-inspector-head h3 { font: 16px var(--font-mono); font-weight: 600; margin: 3px 0 0; overflow-wrap: anywhere; scroll-margin: 16px; line-height: 1.5; }
+.ta-provider-counts { display: flex; flex-wrap: wrap; gap: 20px; color: var(--muted); font-size: 12px; }
 .ta-provider-counts b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; margin-left: 4px; }
 .ta-inspector-section { border-top: 1px solid var(--line); padding-top: 14px; }
-.ta-inspector-section h4 { margin: 0 0 12px; font-size: 12px; font-weight: 500; }
+.ta-inspector-section h4 { margin: 0 0 12px; font-size: 13px; font-weight: 500; }
 .ta-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 0 0 12px; }
-.ta-stat-grid dt { font-size: 11px; color: var(--muted); margin-bottom: 5px; }
-.ta-stat-grid dd { margin: 0; font: 13px var(--font-mono); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.ta-stat-grid dd span { color: var(--muted); font-size: 11px; }
-.ta-inspector-definitions { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.ta-stat-grid dt { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.ta-stat-grid dd { margin: 0; font: 16px var(--font-mono); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.ta-stat-grid dd span { color: var(--muted); font-size: 12px; }
+.ta-inspector-definitions { font-size: 12px; color: var(--muted); line-height: 1.6; }
 .ta-inspector-definitions summary { color: var(--text); cursor: pointer; }
 .ta-inspector-definitions p { margin: 8px 0 0; }
 .ta-data-quality { padding: 12px; margin-top: 12px; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); background: var(--bg-soft); color: var(--text); font-size: 12px; line-height: 1.6; }
@@ -112,9 +112,9 @@
 .ta-detail-tabs, .ta-storage-actions, .ta-confirm > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .ta-detail-tabs button[aria-pressed=true] { background: var(--ctl-fill); border-color: var(--accent); }
 .ta-calls { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums; }
-.ta-calls li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding-block: 10px; font-size: 11px; }
+.ta-calls li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding-block: 10px; font-size: 12px; }
 .ta-calls li > span:last-child { text-align: right; flex: none; }
-.ta-calls small { display: block; color: var(--muted); font-size: 11px; line-height: 1.6; margin-top: 3px; }
+.ta-calls small { display: block; color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 3px; }
 .ta-message { margin: 0; padding-block: 20px; color: var(--muted); line-height: 1.6; }
 .ta-message p { margin: 0 0 12px; }
 .ta-more { margin-block: 14px; }
@@ -129,14 +129,14 @@
 .ta-storage-row { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; margin-block: 14px; }
 .ta-storage-row label { min-width: 130px; }
 .ta-storage-size { margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; color: var(--text); }
-.ta-storage-size small { display: block; color: var(--text-dim); font-size: 11px; margin-top: 6px; }
+.ta-storage-size small { display: block; color: var(--text-dim); font-size: 12px; margin-top: 6px; }
 .ta-confirm { margin-top: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .ta-confirm p { font-size: 12px; line-height: 1.6; margin: 0 0 12px; }
 .ta-settings > .ta-note:last-child { margin-top: 12px; }
 
 
 @keyframes ta-spin { to { transform: rotate(360deg); } }
-@media (max-width: 1024px) { .ta-report-header { gap: 20px; padding-inline: 20px; } .ta-report-content { padding-inline: 28px; } .ta-report-charts { column-gap: 32px; } .ta-freshness { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } }
+@media (max-width: 1024px) { .ta-report-header { gap: 20px; padding-inline: 20px; } .ta-report-content { padding-inline: 28px; } .ta-report-charts { column-gap: 32px; } .ta-freshness .ta-help-label { display: none; } .ta-freshness { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } }
 @media (max-width: 700px) {
   .ta-report-header { min-height: 60px; padding: 8px 16px; gap: 12px; }
   .ta-back span { display: none; }
@@ -149,21 +149,20 @@
   .ta-search { grid-column: 1 / -1; }
   .ta-reset { justify-self: start; }
   .ta-overview { grid-template-columns: 1fr 1fr 1fr; gap: 12px; padding-bottom: 16px; }
-  .ta-overview dt { font-size: 11px; min-height: 30px; line-height: 1.4; margin-bottom: 4px; }
+  .ta-overview dt { font-size: 12px; min-height: 30px; line-height: 1.4; margin-bottom: 4px; }
   .ta-overview dd { font-size: 22px; }
   .ta-overview .ta-overview-long-duration dd { font-size: 18px; }
   .ta-overview .ta-overview-primary dd { font-size: 28px; }
   .ta-overview dd span { display: none; }
   .ta-summary-coverage { display: none; }
   .ta-coverage > summary { gap: 8px; }
-  .ta-coverage > summary > span:first-child { flex-basis: 100%; font-size: 10px; }
+  .ta-coverage > summary > span:first-child { flex-basis: 100%; }
   .ta-quality-count { margin-left: 0; }
   .ta-coverage-label { margin-left: auto; }
   .ta-report-charts { grid-template-columns: 1fr; gap: 28px; padding-top: 24px; }
   .ta-comparison + .ta-comparison { border-top: 1px solid var(--line); padding-top: 24px; }
   .ta-chart-operation { min-height: 48px; }
-  .ta-chart-value small { font-size: 10px; }
-  .ta-table-sort { display: flex; align-items: end; gap: 8px; font-size: 11px; color: var(--text-secondary); min-width: 130px; }
+  .ta-table-sort { display: flex; align-items: end; gap: 8px; font-size: 12px; color: var(--text-secondary); min-width: 130px; }
   .ta-table-sort label { display: grid; gap: 6px; }
   .ta-table-sort button { border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); color: var(--text); background: var(--ctl-fill); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
   .ta-filter-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -174,22 +173,22 @@
   .ta-operation-table th:first-child { width: auto; grid-column: 1 / -1; padding: 0; }
   .ta-operation-table td { padding: 0; border: 0; text-align: left; }
   .ta-operation-table th { border: 0; }
-  .ta-operation-table td::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--text-secondary); font: 10px var(--font-mono); }
+  .ta-operation-table td::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--text-secondary); font: 12px var(--font-mono); }
   .ta-operation-table td[data-column=medianMs], .ta-operation-table td[data-column=p95Ms] { display: none; }
   .ta-operation-table[data-sort=medianMs] tr, .ta-operation-table[data-sort=p95Ms] tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ta-operation-table[data-sort=medianMs] td[data-column=medianMs], .ta-operation-table[data-sort=p95Ms] td[data-column=p95Ms] { display: block; }
   .ta-table-operation { min-height: 44px; }
   .ta-drawer .ta-inspector { padding: 20px; }
 }
-@media (max-width: 360px) { .ta-report-content { padding-inline: 16px; } .ta-report-header { padding-inline: 12px; gap: 8px; } .ta-report-header h2 { font-size: 15px; } .ta-chart-value { font-size: 12px; } .ta-coverage { font-size: 10px; } .ta-operation-name { font-size: 11px; } }
+@media (max-width: 360px) { .ta-report-content { padding-inline: 16px; } .ta-report-header { padding-inline: 12px; gap: 8px; } .ta-report-header h2 { font-size: 15px; } .ta-chart-value { font-size: 12px; } .ta-coverage { font-size: 12px; } .ta-operation-name { font-size: 12px; } }
 @media (pointer: coarse) { .ta-actions .glyph-btn, .ta-inspector-head .glyph-btn, .ta-back { width: 44px; height: 44px; } .ta-toolbar select, .ta-toolbar input, .ta-table-sort select, .ta-detail-tabs button, .ta-settings button, .ta-more, .ta-reset, .ta-text-button { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .ta-report, .ta-loading-mark, .ta-actions [data-loading] svg { animation: none; } }
 @media (forced-colors: active) { .ta-rank-track { border: 1px solid CanvasText; } .ta-rank-track > span { background: Highlight; forced-color-adjust: none; } .ta-chart-operation[data-selected] { outline: 1px solid Highlight; } }
 
 /* Analytical endpoints: geometry never replaces the exact textual measurements. */
-.ta-plot-key { display: flex; align-items: center; gap: 16px; color: var(--text-secondary); font-size: 11px; margin: -2px 8px 6px; }
+.ta-plot-key { display: flex; align-items: center; gap: 16px; color: var(--text-secondary); font-size: 12px; margin: -2px 8px 6px; }
 .ta-plot-key > span { display: inline-flex; align-items: center; gap: 5px; }
-.ta-plot-key > span:last-child { margin-left: auto; font-size: 10px; }
+.ta-plot-key > span:last-child { margin-left: auto; font-size: 12px; }
 .ta-interval-plot, .ta-count-plot { grid-column: 1 / -1; min-width: 0; padding-inline: 5px; }
 .ta-interval-plot svg, .ta-count-plot svg { display: block; overflow: visible; }
 .ta-plot-grid { stroke: var(--line); stroke-width: 1; }
@@ -197,24 +196,24 @@
 .ta-plot-median { fill: var(--bg); stroke: var(--ta-chart-color); stroke-width: 1.8; }
 .ta-plot-p95, .ta-plot-failure { fill: var(--ta-chart-color); }
 .ta-plot-count { stroke: var(--ta-chart-color); stroke-width: 2; }
-.ta-plot-axis { margin: 0 13px; color: var(--text-secondary); font-size: 10px; font-variant-numeric: tabular-nums; }
+.ta-plot-axis { margin: 0 13px; color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
 .ta-plot-axis > div { display: flex; justify-content: space-between; }
 .ta-plot-axis > span { display: block; margin-top: 6px; }
-.ta-failure-context { color: var(--text-secondary); font-size: 10px; grid-column: 1 / -1; }
-.ta-plot-footnote { color: var(--text-secondary); font-size: 10px; line-height: 1.5; margin: 8px 8px 0; }
+.ta-failure-context { color: var(--text-secondary); font-size: 12px; grid-column: 1 / -1; }
+.ta-plot-footnote { color: var(--text-secondary); font-size: 12px; line-height: 1.5; margin: 8px 8px 0; }
 .ta-comparison[data-metric=p95Ms] .ta-chart-operation, .ta-comparison[data-metric=failed] .ta-chart-operation { padding-block: 7px; }
 @media (max-width: 360px) { .ta-plot-key { gap: 12px; } .ta-plot-key > span:last-child { display: none; } .ta-comparison[data-metric=p95Ms] .ta-chart-value small { max-width: 116px; line-height: 1.4; } }
 @media (forced-colors: active) { .ta-plot-range, .ta-plot-count, .ta-plot-median { stroke: CanvasText; } .ta-plot-p95, .ta-plot-failure { fill: CanvasText; } .ta-plot-median { fill: Canvas; } }
 
 .ta-chart-identity { min-width: 0; display: grid; gap: 4px; }
-.ta-chart-identity > small { color: var(--text-secondary); font-size: 10px; font-variant-numeric: tabular-nums; }
+.ta-chart-identity > small { color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 /* Education is revealed on request, not repeated under every comparison. */
 .ta-help-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); cursor: pointer; flex: none; }
 .ta-help-trigger:hover { background: var(--ctl-fill); color: var(--text); }
-.ta-comparison-head h3 { flex: none; }
+.ta-comparison-head h3 { min-width: 0; }
 .ta-comparison-head > .ta-text-button { margin-left: auto; }
-.ta-education-popover { z-index: 1103; width: min(340px, calc(100vw - 16px)); padding: 16px; color: var(--text); font-size: 12px; line-height: 1.6; box-shadow: none; }
+.ta-education-popover { z-index: 1103; width: min(360px, calc(100vw - 16px)); padding: 16px; color: var(--text); font-size: 13px; line-height: 1.6; box-shadow: var(--shadow-contact), var(--shadow-2); }
 .ta-education-popover h4 { font-size: 13px; margin: 0 0 12px; }
 .ta-education-popover dt, .ta-reading-guide dt { color: var(--text); font-weight: 500; }
 .ta-education-popover dd { margin: 4px 0 12px; color: var(--text-secondary); }
@@ -224,7 +223,7 @@
 .ta-reading-guide dd { margin: 4px 0 0; line-height: 1.6; }
 .ta-operation-purpose { line-height: 1.6; }
 .ta-operation-purpose p { color: var(--text); margin: 0 0 6px; }
-.ta-operation-purpose small { color: var(--text-secondary); font-size: 11px; }
+.ta-operation-purpose small { color: var(--text-secondary); font-size: 12px; }
 body:has(.ta-report) > .hint.hint-over-dialog { z-index: 1102; }
 body:has(.ta-report) > .hint .hint-label { overflow-wrap: anywhere; }
 .ta-drawer:not([data-keyboard]) { animation: ta-inspector-in 160ms cubic-bezier(0.23, 1, 0.32, 1); }
@@ -236,3 +235,21 @@ body:has(.ta-report) > .hint .hint-label { overflow-wrap: anywhere; }
 .ta-inspector-section-head h4 { margin: 0; }
 
 .ta-education-instant { animation: none; }
+
+@media (hover: none) { .ta-chart-operation:hover, .ta-operation-table tbody tr:hover, .ta-help-trigger:hover { background: transparent; } .ta-chart-operation[data-selected], .ta-operation-table tr[data-selected], .ta-operation-table tbody tr:focus-within { background: var(--ctl-fill); } }
+
+/* Labels open concise help without adding an icon to every summary value. */
+.ta-help-label { font: inherit; color: inherit; background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 4px; text-decoration-color: var(--text-secondary); }
+.ta-help-label:hover { color: var(--text); text-decoration-style: solid; }
+.ta-value-label { color: var(--text-secondary); font-size: 12px; }
+.ta-chart-operation, .ta-operation-table tbody tr, .ta-help-trigger { transition: background-color 100ms ease, border-color 100ms ease; }
+body:has(.ta-report) > .hint.hint-over-dialog { max-width: min(360px, calc(100vw - 16px)); padding: 10px 12px; font-size: 13px; line-height: 1.5; }
+body:has(.ta-report) > .hint.hint-over-dialog .hint-detail { font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
+@media (max-width: 700px) {
+  .ta-comparison-head { gap: 8px; }
+  .ta-plot-key { flex-wrap: wrap; gap: 8px 12px; }
+  .ta-overview .ta-help-label { min-height: 32px; }
+  .ta-overview dt { min-height: 34px; }
+}
+.ta-chart-operation:focus-visible, .ta-operation-table tbody tr:focus-within { transition: none; }
+@media (prefers-reduced-motion: reduce) { .ta-chart-operation, .ta-operation-table tbody tr, .ta-help-trigger { transition: none; } }

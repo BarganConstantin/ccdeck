@@ -646,11 +646,13 @@ single-mode ranking for this surface; they do not redefine the global design.
   values and tabular numbers. Local header is 17px/600 (16px phone, 15px at
   ≤360px); chart titles 15px/600, explorer title 16px/600; summary values 26px/500,
   primary 32px/600, coverage 20px (phone 22px/500 and primary 28px/600).
-  Dense controls/data/context use 11/12px, exact chart/inspector values 13px,
-  qualifiers, sample counts and axes 10px (phone chart values 12px and identities
-  11px at ≤360px). These are Tool Activity role exceptions, not global scale
-  additions. The closeout detector recorded 20 local typography advisories and
-  zero nonadvisory findings; the added 18px hour-summary role is intentional. Preserve 44px coarse-pointer main actions, visible
+  Supporting context, qualifiers, sample counts, axes and table labels use 12px;
+  desktop operation identities and chart values use 13px (phone values/identities
+  use 12px at ≤360px). Inspector heading and measurements use 16px; educational
+  popovers use 13px with 12px hints. These are Tool Activity role exceptions, not
+  global scale additions. The latest source scan reported 11 type-ramp findings
+  for intentional report heading/summary roles; its exit 2 is not a pass. The
+  18px phone hour-summary role remains intentional. Preserve 44px coarse-pointer main actions, visible
   focus and forced-color marks. Table rows use the existing hover background on
   `:focus-within`, preserving the focus-visible outline. Global typography is unchanged.
   Report keyboard/reduced-motion entry is immediate; its inherited pointer
@@ -659,6 +661,14 @@ single-mode ranking for this surface; they do not redefine the global design.
   and closing are immediate. Help retains the shared 120ms pointer entrance,
   with immediate keyboard/reduced entry. Reduced motion disables refresh/loading
   rotation. No chart or filter choreography is added.
+- **2026-10-14 refinement:** dotted summary labels and snapshot open concise
+  anchored help; unknown operations use neutral pointer/focus hints with equivalent
+  accessible names. `git add` has a verified purpose. P95 has a plain caption,
+  direct value label and hypothetical 3-second example, separate from eligibility.
+  Inspector exposes containing-call failure attribution and missing timing.
+  Hover/selection background feedback uses 100ms; keyboard focus and reduced
+  motion remain immediate. Hidden narrow snapshot controls leave the focus order.
+  See [refinement evidence](docs/features/tool-activity-principal-refinement.md).
 - **Verified education finish:** parent bounded critique and confirmation are
   complete. The independent [finish review](.impeccable/review/tool-activity-education/finish-review.md)
   requested one table accessible-name qualification fix. The same reviewer's
