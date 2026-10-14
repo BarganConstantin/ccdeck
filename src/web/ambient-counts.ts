@@ -104,9 +104,41 @@ export function nextWaiting(waiting: BlockedSession[], lastId: string | null): B
  * `blockedSessions` is.
  */
 export function runningSessionCount(agents: Iterable<AgentNodeData>): number {
+  const rows = [...agents];
+  const byId = new Map(rows.map(a => [a.id, a]));
   const live = new Set<string>();
-  for (const a of agents) {
-    if (a.state === "active") live.add(a.sessionId);
+  for (const a of rows) {
+    if (a.state !== "active") continue;
+    if (a.provider !== "codex") {
+      live.add(`session:${a.sessionId}`);
+      continue;
+    }
+
+    const family = codexFamilyRoot(a, byId);
+    // Malformed or incomplete ancestry is deliberately isolated per agent.
+    // It must not merge unrelated children merely because they share a missing
+    // parent id or participate in the same cycle.
+    live.add(family ? `codex-family:${family}` : `codex-agent:${a.id}`);
   }
   return live.size;
+}
+
+/** Resolve a Codex child to its real root, rejecting incomplete/cyclic paths. */
+function codexFamilyRoot(
+  agent: AgentNodeData,
+  byId: Map<string, AgentNodeData>,
+): string | null {
+  if (agent.kind === "root") return agent.id;
+  if (agent.kind !== "subagent") return null;
+
+  const seen = new Set<string>();
+  let current = agent;
+  while (current.kind === "subagent") {
+    if (seen.has(current.id) || !current.parentId || seen.has(current.parentId)) return null;
+    seen.add(current.id);
+    const parent = byId.get(current.parentId);
+    if (!parent || parent.provider !== "codex") return null;
+    current = parent;
+  }
+  return current.kind === "root" && current.provider === "codex" ? current.id : null;
 }

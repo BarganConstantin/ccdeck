@@ -5,7 +5,8 @@
 // new, and never re-lays anything out — so an arrangement the user has lived
 // with survives it.
 import type { Node } from "reactflow";
-import { CARD_MARGIN, CROSS_SESSION_X, CROSS_SESSION_Y, footprint, sessionOfNode, type Lanes } from "./layout-geometry";
+import { buildVisualFamilies, type VisualFamilyAgent } from "./visual-family";
+import { CARD_MARGIN, CROSS_SESSION_X, CROSS_SESSION_Y, footprint, type Lanes } from "./layout-geometry";
 
 /**
  * Push apart only the nodes that overlap, leaving everything else where it is.
@@ -50,7 +51,16 @@ export function separateOverlaps(
 
   // Stable order: by y, then x, then id. Same input always yields the same
   // result, so a re-render cannot make nodes drift.
-  const sessionOf = new Map(nodes.map(n => [n.id, sessionOfNode(n)]));
+  const families = buildVisualFamilies(nodes.filter(n => n.type !== "recapNote").map(n => ({
+    ...(n.data as Partial<VisualFamilyAgent>), id: n.id,
+  } as VisualFamilyAgent)));
+  const sessionOf = new Map(nodes.map(n => {
+    const parentId = (n.data as { parentId?: string } | undefined)?.parentId;
+    const familyKey = (n.type === "recapNote" && parentId ? families.get(parentId)?.familyKey : undefined)
+      ?? families.get(n.id)?.familyKey
+      ?? `node:${n.id}`;
+    return [n.id, familyKey];
+  }));
 
   const placed: Array<{ x: number; y: number; w: number; h: number; sid: string }> = [];
   const ordered = nodes

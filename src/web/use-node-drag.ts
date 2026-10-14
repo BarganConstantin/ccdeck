@@ -11,12 +11,34 @@ import type { Node, NodeDragHandler } from "reactflow";
 
 import { hidePeek } from "./components/SessionPeek";
 import { saveLayout } from "./layout-storage";
+import { buildVisualFamilies } from "./visual-family";
 import type { GraphState } from "./reducer";
 import type { AgentNodeData } from "./types";
 import type { useDragTrash } from "./use-drag-trash";
 
 type Point = { x: number; y: number };
 type Trash = ReturnType<typeof useDragTrash>;
+
+/** Agent/note node ids covered by one visual family drag handle. */
+export function snapshotVisualFamily(nodes: Node[], familyKey: string): Map<string, Point> {
+  const agents = nodes.flatMap(n => {
+    const d = n.data as AgentNodeData | undefined;
+    return (n.type === "agent" || n.type == null) && d?.sessionId ? [{ ...d, id: d.id || n.id }] : [];
+  });
+  const families = buildVisualFamilies(agents);
+  const out = new Map<string, Point>();
+  for (const n of nodes) {
+    const d = n.data as AgentNodeData | undefined;
+    if (!d?.sessionId || d.exitAt != null) continue;
+    const id = n.type === "recapNote" && d.parentId ? d.parentId : (d.id || n.id);
+    if (families.get(id)?.familyKey === familyKey) out.set(n.id, { x: n.position.x, y: n.position.y });
+  }
+  return out;
+}
+
+export function translateFamilySnapshot(snapshot: Map<string, Point>, dx: number, dy: number): Map<string, Point> {
+  return new Map([...snapshot].map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy }]));
+}
 
 export function useNodeDrag({
   nodes, stateRef, pinnedRef, positionsRef, draggingRef, dragPatchRef,
@@ -67,9 +89,14 @@ export function useNodeDrag({
     if (n.type === "sessionGroup") {
       // Snapshot every member's start position so each move applies the
       // gesture delta to a fixed origin (the group node's own start).
-      const sid = (n.data as { sessionId?: string })?.sessionId;
-      const members = new Map<string, { x: number; y: number }>();
-      if (sid) {
+      const groupData = n.data as { sessionId?: string; familyKey?: string };
+      const sid = groupData?.sessionId;
+      const familyKey = groupData?.familyKey;
+      let members = new Map<string, { x: number; y: number }>();
+      if (familyKey) {
+        members = snapshotVisualFamily(nodes, familyKey);
+      } else if (sid) {
+        // Compatibility for a persisted/in-flight legacy group node.
         for (const m of nodes) {
           const d = m.data as AgentNodeData | undefined;
           if (d?.sessionId === sid) members.set(m.id, { x: m.position.x, y: m.position.y });
@@ -92,8 +119,7 @@ export function useNodeDrag({
       // Move every member by the delta. Writing pinned/positions is the
       // source of truth snapshotToFlow reads; the nonce forces an
       // immediate recompute so the nodes follow this frame.
-      for (const [id, p0] of g.members) {
-        const p = { x: p0.x + dx, y: p0.y + dy };
+      for (const [id, p] of translateFamilySnapshot(g.members, dx, dy)) {
         pinnedRef.current.set(id, p);
         positionsRef.current.set(id, p);
       }
@@ -101,7 +127,7 @@ export function useNodeDrag({
       // the whole graph on every pointer move as this used to.
       const patch = dragPatchRef.current;
       if (patch) {
-        for (const [id, p0] of g.members) patch.set(id, { x: p0.x + dx, y: p0.y + dy });
+        for (const [id, p] of translateFamilySnapshot(g.members, dx, dy)) patch.set(id, p);
         patch.set(n.id, { x: n.position.x, y: n.position.y });
       }
       setDragMoveTick(t => t + 1);
@@ -134,8 +160,7 @@ export function useNodeDrag({
       if (g) {
         const dx = n.position.x - g.start.x;
         const dy = n.position.y - g.start.y;
-        for (const [id, p0] of g.members) {
-          const p = { x: p0.x + dx, y: p0.y + dy };
+        for (const [id, p] of translateFamilySnapshot(g.members, dx, dy)) {
           pinnedRef.current.set(id, p);
           positionsRef.current.set(id, p);
         }

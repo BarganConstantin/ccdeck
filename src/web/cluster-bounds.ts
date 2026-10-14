@@ -13,9 +13,13 @@ import { clusterHeader, type ClusterHeader } from "./cluster-header";
 import { branchShort, type BranchSummary } from "./node-face";
 import { HEADER_H, LABEL_LIFT, PAD } from "./session-chrome";
 import { sessionDisplay } from "./session-display";
+import { buildVisualFamilies } from "./visual-family";
 import type { AgentNodeData } from "./types";
 
 export interface Cluster extends ClusterHeader {
+  familyKey: string;
+  rootId: string;
+  memberCount: number;
   sessionId: string;
   x: number; y: number; w: number; h: number;
   /** The session is stopped until a human answers — the root's `waiting`, the
@@ -30,6 +34,7 @@ export interface Cluster extends ClusterHeader {
 
 /** The part of a React Flow node the cluster geometry reads. */
 export interface ClusterNode {
+  id?: string;
   type?: string;
   position: { x: number; y: number };
   width?: number | null;
@@ -180,8 +185,16 @@ export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidt
  * bug came from, not the arithmetic.
  */
 export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
-  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string }>();
-  for (const n of nodes) {
+  const allNodes = [...nodes];
+  const agentId = (n: ClusterNode, d: AgentNodeData) => d.id || n.id || (d.kind === "root" ? d.sessionId : `${d.sessionId}::${d.parentId ?? `${n.position.x},${n.position.y}`}`);
+  const agents = allNodes.flatMap(n => {
+    if (n.type !== "agent") return [];
+    const d = n.data as AgentNodeData | undefined;
+    return d?.sessionId ? [{ ...d, id: agentId(n, d) }] : [];
+  });
+  const families = buildVisualFamilies(agents);
+  const byFamily = new Map<string, { familyKey: string; rootId: string; sessionId: string; memberCount: number; minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string }>();
+  for (const n of allNodes) {
     // Only agent cards define a session's bounds. The invisible per-session
     // drag handle is a React Flow node like any other and its data carries the
     // session's own sessionId, so walking the store by data alone counted the
@@ -207,12 +220,23 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
     const y1 = n.position.y;
     const x2 = x1 + n.width;
     const y2 = y1 + n.height;
-    const existing = bySession.get(d.sessionId);
-    const root = rootFields(d);
+    const familyAgentId = agentId(n, d);
+    const family = families.get(n.type === "recapNote" && d.parentId ? d.parentId : familyAgentId);
+    if (!family) continue;
+    const existing = byFamily.get(family.familyKey);
+    const rootNode = agents.find(a => a.id === family.rootId);
+    const root = rootFields((rootNode ?? d) as AgentNodeData);
+    // The wrapper's interactive identity is the real root agent id. The
+    // underlying nodes retain their own telemetry sessionIds unchanged.
+    const sessionId = family.rootId;
     if (!existing) {
-      bySession.set(d.sessionId, {
+      byFamily.set(family.familyKey, {
+        familyKey: family.familyKey,
+        rootId: family.rootId,
+        sessionId,
+        memberCount: n.type === "recapNote" ? 0 : 1,
         minX: x1, minY: y1, maxX: x2, maxY: y2,
-        label: root?.label ?? d.sessionId,
+        label: root?.label ?? family.rootId,
         name: root?.name,
         alarm: root?.alarm ?? false,
         branch: root?.branch,
@@ -222,6 +246,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
       existing.minY = Math.min(existing.minY, y1);
       existing.maxX = Math.max(existing.maxX, x2);
       existing.maxY = Math.max(existing.maxY, y2);
+      if (n.type !== "recapNote") existing.memberCount++;
       if (root) {
         existing.label = root.label ?? existing.label;
         existing.name = root.name;
@@ -237,19 +262,22 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
   // The ids themselves rather than a count of them, so the suffix can be made
   // long enough to differ from every other session under the label (#1732).
   const idsByLabel = new Map<string, string[]>();
-  for (const [sessionId, b] of bySession) {
+  for (const [, b] of byFamily) {
     const ids = idsByLabel.get(b.label);
-    if (ids) ids.push(sessionId);
-    else idsByLabel.set(b.label, [sessionId]);
+    if (ids) ids.push(b.rootId);
+    else idsByLabel.set(b.label, [b.rootId]);
   }
 
   const out: Cluster[] = [];
-  for (const [sessionId, b] of bySession) {
+  for (const [familyKey, b] of byFamily) {
     const peers = idsByLabel.get(b.label) ?? [];
     const needsSuffix = peers.length > 1;
     out.push({
-      sessionId,
-      ...clusterHeader(b.label, b.name, sessionId, needsSuffix, peers, { branch: b.branch, alarm: b.alarm }),
+      familyKey,
+      rootId: b.rootId,
+      sessionId: b.sessionId,
+      memberCount: b.memberCount,
+      ...clusterHeader(b.label, b.name, b.rootId, needsSuffix, peers, { branch: b.branch, alarm: b.alarm }),
       x: b.minX - PAD,
       y: b.minY - PAD - HEADER_H,
       w: b.maxX - b.minX + PAD * 2,
@@ -300,7 +328,7 @@ export function shallowEqualClusters(a: Cluster[], b: Cluster[]): boolean {
   for (let i = 0; i < a.length; i++) {
     const x = a[i], y = b[i];
     if (
-      x.sessionId !== y.sessionId ||
+      x.familyKey !== y.familyKey || x.rootId !== y.rootId || x.sessionId !== y.sessionId || x.memberCount !== y.memberCount ||
       x.label !== y.label ||
       // Both halves of the name. Two different names can truncate to the same
       // shown text, and only fullLabel would notice — that is the string the

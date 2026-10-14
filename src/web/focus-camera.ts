@@ -1,4 +1,5 @@
 import { FOCUS_MAX_ZOOM, FOCUS_MIN_ZOOM } from "./semantic-zoom";
+import { buildVisualFamilies, type VisualFamilyAgent } from "./visual-family";
 
 /** A box in flow (layout) units. */
 export interface FlowBox {
@@ -6,6 +7,47 @@ export interface FlowBox {
   y: number;
   width: number;
   height: number;
+}
+
+export interface FocusFlowNode {
+  id: string;
+  type?: string;
+  position: { x: number; y: number };
+  data?: { parentId?: string };
+}
+
+/** The anchor card and complete visual-family context for a focus request. */
+export function focusFamilyBoxes(
+  targetId: string,
+  agents: Iterable<VisualFamilyAgent>,
+  nodes: Iterable<FocusFlowNode>,
+  measured: ReadonlyMap<string, { width: number; height: number }>,
+  laneIds: { has(id: string): boolean },
+  laneAllowance: number,
+): { anchor: FlowBox; context: FlowBox } | null {
+  const rows = [...agents];
+  const families = buildVisualFamilies(rows);
+  const targetFamily = families.get(targetId);
+  const flowNodes = [...nodes];
+  const anchorNode = flowNodes.find(n => n.type === "agent" && n.id === targetId);
+  const anchorSize = anchorNode && measured.get(anchorNode.id);
+  if (!anchorNode || !anchorSize) return null;
+  const anchor = { ...anchorNode.position, ...anchorSize };
+  const boxes: FlowBox[] = [];
+  for (const node of flowNodes) {
+    if (node.type !== "agent" && node.type !== "recapNote") continue;
+    const agentId = node.type === "recapNote" ? node.data?.parentId : node.id;
+    const memberFamily = agentId ? families.get(agentId) : undefined;
+    const belongs = targetFamily
+      ? memberFamily?.familyKey === targetFamily.familyKey
+      : node.id === targetId;
+    if (!belongs) continue;
+    const size = measured.get(node.id);
+    if (!size) continue;
+    const lane = node.type === "agent" && laneIds.has(node.id) ? laneAllowance : 0;
+    boxes.push({ ...node.position, width: size.width + lane, height: size.height });
+  }
+  return { anchor, context: unionBox(boxes) ?? anchor };
 }
 
 /** What of the pane is not canvas, in screen px from each edge: the rail of

@@ -15,7 +15,7 @@
 // The rest were quieter and the same shape: a pulse line asserting every 800ms
 // that "hooks cannot find this deck" on a deck whose capture does not use hooks;
 // two topbar counters that count both CLIs under tooltips naming one; a README
-// tagline promising that Codex forks subagents, which it has never emitted; and
+// tagline that used to promise Codex subagents without a capture path; and
 // an empty detail panel waiting for a "first hook" that Codex cannot fire.
 //
 // The two counters have since been removed from the topbar outright, and
@@ -244,10 +244,13 @@ describe("the empty detail panel while the scope is unknown", () => {
 });
 
 describe("the README tagline, which is the npm page", () => {
-  it("stops promising that Codex forks subagents", () => {
-    // codexObjToPayload emits six event kinds and neither SubagentStart nor
-    // SubagentStop, so a Codex session is a root and its tools — never a tree.
-    expect(readme).not.toContain("OpenAI Codex fork subagents");
+  it("explains the rollout evidence used to connect Codex child nodes", () => {
+    expect(readme).toContain("When a Codex rollout records");
+    expect(readme).toContain("explicit parent and child IDs");
+    expect(readme).toContain("shows the child as soon as it sees the");
+    expect(readme).toContain("matches the later child rollout to that same node");
+    expect(readme).toContain("does not infer missing parent or");
+    expect(readme).not.toContain("a Codex session is one node with its tool calls");
     // The translation's own module, which is where the function is declared.
     const server = read("src", "server", "codex-translate.mjs");
     // Both lookups are the assertion, not preparation for it (#652). `slice()`

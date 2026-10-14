@@ -11,7 +11,99 @@ import { rootAgentId, type GraphState } from "./graph-state";
 import { injectedPrompt } from "./injected-prompt";
 import { HOOK_REDELIVERY_WINDOW_MS, recordPrompt, sessionEvidenceAt } from "./redelivery";
 import { settleUnanswered, shortPreview } from "./tool-calls";
-import type { HookPayload } from "./types";
+import type { AgentNodeData, HookPayload } from "./types";
+import { emptyUsage } from "./usage-wire";
+
+/** A Codex spawn may be learned from the parent's rollout before the child's
+ *  rollout header is present. Keep the child keyed by its own thread id so its
+ *  later SessionStart/tool/Stop records update this same node. */
+export function applyCodexSubagentStart(state: GraphState, p: HookPayload, now: number): AgentNodeData | null {
+  const id = typeof p.session_id === "string" ? p.session_id : "";
+  const parentId = typeof p.parent_session_id === "string" ? p.parent_session_id : "";
+  if (p.runtime !== "codex" || !id || !parentId || id === parentId) return null;
+  if (wouldCreateCodexCycle(state, id, parentId)) return null;
+  const knownChild = state.agents.get(id);
+  if (knownChild?.parentId && knownChild.parentId !== parentId) return null;
+
+  let parent = state.agents.get(parentId);
+  if (!parent) {
+    parent = {
+      id: parentId,
+      sessionId: parentId,
+      label: "session",
+      kind: "root",
+      state: "active",
+      startedAt: now,
+      lastEventAt: now,
+      tools: [],
+      prompts: [],
+      toolCount: 0,
+      childCount: 0,
+      synthetic: true,
+      provider: "codex",
+      usage: emptyUsage(),
+    };
+    state.agents.set(parentId, parent);
+  } else if (!parent.provider) {
+    parent.provider = "codex";
+  }
+
+  let child = state.agents.get(id);
+  if (!child) {
+    child = {
+      id,
+      sessionId: id,
+      label: "subagent",
+      kind: "subagent",
+      parentId,
+      state: "active",
+      startedAt: now,
+      lastEventAt: now,
+      tools: [],
+      prompts: [],
+      toolCount: 0,
+      childCount: 0,
+      provider: "codex",
+      usage: emptyUsage(),
+    };
+    state.agents.set(id, child);
+    parent.childCount += 1;
+  } else {
+    // A child rollout can arrive before the parent spawn record and create a
+    // root-shaped node. Upgrade it in place so its tools, model and timing stay.
+    if (child.kind === "root") child.kind = "subagent";
+    if (!child.parentId) {
+      child.parentId = parentId;
+      parent.childCount += 1;
+    }
+    child.provider = "codex";
+    // A late/replayed spawn notification describes identity, not a new run.
+    // In particular it must not revive a node whose child rollout already ended.
+    if (child.state !== "done" && child.state !== "err") child.state = "active";
+    if (child.state !== "done" && child.state !== "err") {
+      child.lastEventAt = Math.max(child.lastEventAt ?? 0, now);
+    }
+  }
+
+  if (typeof p.agent_type === "string" && p.agent_type) child.agentType = p.agent_type;
+  if (typeof p.agent_nickname === "string" && p.agent_nickname) child.agentNickname = p.agent_nickname;
+  if (typeof p.agent_role === "string" && p.agent_role) child.agentRole = p.agent_role;
+  if (typeof p.model === "string" && p.model) child.model = p.model;
+  const label = child.agentNickname ?? child.agentType ?? child.agentRole;
+  if (label) child.label = label;
+  return child;
+}
+
+function wouldCreateCodexCycle(state: GraphState, childId: string, parentId: string): boolean {
+  const visited = new Set<string>();
+  let cursor: string | undefined = parentId;
+  while (cursor) {
+    if (cursor === childId || visited.has(cursor)) return true;
+    visited.add(cursor);
+    cursor = state.agents.get(cursor)?.parentId;
+  }
+  return false;
+}
 
 /** That this session was heard from, whatever the event says: the root's
  *  `lastEventAt`, and a root the stale sweep reaped put back (#350).

@@ -5,8 +5,9 @@
 // Runs once the arrivals have their `autoLayout` slots, and moves whole
 // sessions only.
 import type { Node } from "reactflow";
+import { buildVisualFamilies, type VisualFamilyAgent } from "./visual-family";
 import {
-  cardSize, columnGap, CROSS_SESSION_Y, footprint, FULL_SIZE, groupBySession, SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
+  cardSize, columnGap, CROSS_SESSION_Y, footprint, FULL_SIZE, SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
 
 /**
@@ -72,10 +73,23 @@ export function fillGapsWithNewSessions(
   // cluster box stretches across the canvas to reach it and the parent→child
   // edge runs the length of the screen. A partially-new session keeps the slot
   // dagre just gave its new cards, beside their siblings.
-  const membersBySession = groupBySession(nodes, n => posOf(n.id) != null);
-  const wholeSessionArrived = new Set<string>();
-  for (const [sid, members] of membersBySession) {
-    if (members.every(n => newIds.has(n.id) && !pinned.has(n.id))) wholeSessionArrived.add(sid);
+  const families = buildVisualFamilies(nodes.filter(n => n.type !== "recapNote").map(n => ({
+    ...(n.data as Partial<VisualFamilyAgent>), id: n.id,
+  } as VisualFamilyAgent)));
+  const familyOf = (n: Node) => {
+    const parentId = (n.data as { parentId?: string } | undefined)?.parentId;
+    return (n.type === "recapNote" && parentId ? families.get(parentId)?.familyKey : undefined)
+      ?? families.get(n.id)?.familyKey
+      ?? `node:${n.id}`;
+  };
+  const membersByFamily = new Map<string, Node[]>();
+  for (const n of nodes) {
+    const key = familyOf(n);
+    (membersByFamily.get(key) ?? membersByFamily.set(key, []).get(key)!).push(n);
+  }
+  const wholeFamilyArrived = new Set<string>();
+  for (const [familyKey, members] of membersByFamily) {
+    if (members.every(n => newIds.has(n.id) && !pinned.has(n.id))) wholeFamilyArrived.add(familyKey);
   }
 
   // Group the arrivals, and keep anything already placed as an obstacle.
@@ -85,11 +99,11 @@ export function fillGapsWithNewSessions(
     const p = posOf(n.id);
     if (!p) continue;
     const { w, h } = sizeOf(n.id);
-    const sid = sessionOfNode(n);
-    if (wholeSessionArrived.has(sid)) {
-      (arriving.get(sid) ?? arriving.set(sid, []).get(sid)!).push(n);
+    const familyKey = familyOf(n);
+    if (wholeFamilyArrived.has(familyKey)) {
+      (arriving.get(familyKey) ?? arriving.set(familyKey, []).get(familyKey)!).push(n);
     } else {
-      settled.push({ sid, x: p.x, y: p.y, w, h, ...cardOf(n.id) });
+      settled.push({ sid: familyKey, x: p.x, y: p.y, w, h, ...cardOf(n.id) });
     }
   }
   if (arriving.size === 0 || (scoring && settled.length === 0)) return [];
@@ -192,7 +206,12 @@ export function fillGapsWithNewSessions(
         const p = posOf(n.id)!;
         positions.set(n.id, { x: p.x + dx, y: p.y + dy });
       }
-      moved.push(sid);
+      const sessionIds = new Set(members.map(sessionOfNode));
+      const rootId = families.get(members[0].id)?.rootId;
+      const root = rootId ? nodes.find(n => n.id === rootId) : undefined;
+      moved.push(sessionIds.size === 1
+        ? sessionIds.values().next().value!
+        : root ? sessionOfNode(root) : sid);
     }
     // Placed or not, it is an obstacle for the next arrival.
     for (const n of members) {
