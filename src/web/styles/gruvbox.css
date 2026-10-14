@@ -1,0 +1,42 @@
+/* Gruvbox keeps each session's stable hue, but mixes its cooler colours into
+   warm cream. These rules follow the component sheets to retune the palette
+   without changing their shared geometry or another theme's appearance. */
+:root[data-theme="gruvbox-dark"] .agent-node,
+:root[data-theme="gruvbox-dark"] .recap-note {
+  --accent: color-mix(in srgb, hsl(var(--session-hue, 200) 28% var(--session-accent-l)) 75%, var(--text));
+}
+:root[data-theme="gruvbox-dark"] .cluster-card {
+  border-color: hsl(var(--session-hue, 200) 28% var(--session-rim-l) / 0.32);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+:root[data-theme="gruvbox-dark"] .cluster-label {
+  color: color-mix(in srgb, hsl(var(--session-hue, 200) 28% var(--session-label-l)) 75%, var(--text));
+}
+/* The resting rim yields to the shared hover, dragging and waiting states. */
+:root[data-theme="gruvbox-dark"] .cluster-label:where(:not(:hover):not(.dragging):not([data-alarm])) {
+  border-color: hsl(var(--session-hue, 200) 28% var(--session-rim-l) / 0.5);
+}
+:root[data-theme="gruvbox-dark"] .react-flow__edge.sess-edge.sess-live .react-flow__edge-path {
+  stroke: color-mix(in srgb, hsl(var(--session-hue, 200) 28% var(--session-edge-l)) 75%, var(--text));
+}
+:root[data-theme="gruvbox-dark"] .react-flow__edge.sess-edge.sess-idle .react-flow__edge-path {
+  stroke: color-mix(in srgb, hsl(var(--session-hue, 200) 28% var(--session-edge-idle-l)) 75%, var(--text));
+}
+:root[data-theme="gruvbox-dark"] .recap-tie {
+  --tie: color-mix(in srgb, hsl(var(--session-hue, 200) 28% var(--session-edge-l)) 75%, var(--text));
+}
+
+/* Spend is a quantity, rather than a success state. Keep the chart's colours
+   and status marks; give the repeated figures the page's warm reading ink.
+   Unpriced labels retain their own muted treatment. */
+:root[data-theme="gruvbox-dark"] .up-total-value,
+:root[data-theme="gruvbox-dark"] .detail-hero .hero-cost-value {
+  color: var(--text);
+}
+:root[data-theme="gruvbox-dark"] .up-cost-val:not(.up-unpriced),
+:root[data-theme="gruvbox-dark"] .up-session-cost:not(.up-unpriced),
+:root[data-theme="gruvbox-dark"] .session-list .sl-cost b,
+:root[data-theme="gruvbox-dark"] .uh-stat-val.accent,
+:root[data-theme="gruvbox-dark"] .uh-detail-cost {
+  color: var(--text-secondary);
+}
