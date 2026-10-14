@@ -27,6 +27,7 @@ const sample = () => page.evaluate(() => {
     resetHeight: document.querySelector(".reading-footer button").getBoundingClientRect().height,
     overflow: document.documentElement.scrollWidth > innerWidth,
     zoom: style(document.body).zoom,
+    flowZoom: document.querySelector(".react-flow__viewport") ? new DOMMatrixReadOnly(style(document.querySelector(".react-flow__viewport")).transform).a : null,
     textSize: document.documentElement.dataset.textSize,
     density: document.documentElement.dataset.density };
 });
@@ -52,9 +53,12 @@ try {
   assert.equal(compact.padding, "8px");
   assert.ok(compact.resetHeight >= 38);
   assert.equal(compact.zoom, baseline.zoom);
+  assert.equal(compact.flowZoom, baseline.flowZoom, "Reading selection changed React Flow viewport zoom");
   await choose("density", "comfortable");
   assert.equal((await sample()).padding, "14px");
   await page.getByRole("dialog").screenshot({ path: `${output}/largest-comfortable-desktop.png` });
+  await page.locator(".settings-pane").evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await page.getByRole("dialog").screenshot({ path: `${output}/desktop-bottom.png` });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => document.documentElement.dataset.textSize === "largest");
   assert.equal((await page.evaluate(() => document.documentElement.dataset.density)), "comfortable");
@@ -74,6 +78,7 @@ try {
     await pane.evaluate(el => { el.scrollTop = el.scrollHeight; });
     await page.getByRole("button", { name: "Reset to defaults" }).scrollIntoViewIfNeeded();
     assert.ok(await page.getByRole("button", { name: "Reset to defaults" }).isVisible());
+    await page.getByRole("dialog").screenshot({ path: `${output}/${name}-bottom.png` });
     await pane.evaluate(el => { el.scrollTop = 0; });
     await page.getByRole("dialog").screenshot({ path: `${output}/${name}.png` });
   }
@@ -100,6 +105,7 @@ try {
   await denied.getByRole("tab", { name: "Text & density" }).click();
   await denied.locator('input[name="text-size"][value="larger"]').check();
   await denied.waitForFunction(() => document.documentElement.dataset.textSize === "larger");
+  assert.match(await denied.locator(".reading-footer").innerText(), /when storage is available/);
   await blocked.close();
   assert.deepEqual(errors, []);
   console.log("PASS default geometry, independent text/density, native keyboard radios, reload, cross-tab sync, reset, Escape/focus restoration, blocked storage, narrow/short/light rendering");

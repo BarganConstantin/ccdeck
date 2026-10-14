@@ -121,7 +121,7 @@
 .ap-list {
   list-style: none;
   margin: 0;
-  padding: 6px 6px 8px;
+  padding: calc(6px + var(--ui-row-increase, 0px)) 6px calc(8px + var(--ui-row-increase, 0px));
   display: flex;
   flex-direction: column;
   gap: 2px;

@@ -104,8 +104,8 @@ export default function ReadingSection({
       </section>
       <div className="reading-footer">
         <p>
-          Saved in this browser. Default restores the existing ccdeck
-          appearance.
+          Preferences stay in this browser when storage is available. Default
+          restores the existing ccdeck appearance.
         </p>
         <button
           type="button"
