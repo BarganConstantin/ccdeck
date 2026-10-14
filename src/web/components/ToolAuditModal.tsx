@@ -1,5 +1,5 @@
 import { auditReadingGuide } from '../tool-audit-education';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { auditDate, auditRange, auditDuration, readAuditReport, type AuditMetric, type AuditProvider, type AuditReport } from '../tool-audit';
 import { reportMetrics, reportOperations } from '../tool-audit-report';
@@ -17,7 +17,9 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
   const [since, setSince] = useState(''); const [until, setUntil] = useState('');
   const [metric, setMetric] = useState<AuditMetric>('calls'); const [ascending, setAscending] = useState(false);
   const [search, setSearch] = useState(''); const [limit, setLimit] = useState(50);
-  const [selected, setSelected] = useState<string | null>(null); const [keyboardSelection, setKeyboardSelection] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [selectionNotice, setSelectionNotice] = useState('');
+  const selectedRef = useRef(selected); selectedRef.current = selected; const [keyboardSelection, setKeyboardSelection] = useState(false);
   const selectionOrigin = useRef<HTMLElement | null>(null);
   const [data, setData] = useState<AuditReport | null>(null);
   const [details, setDetails] = useState<AuditReport['details']>(null);
@@ -26,6 +28,11 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
   const [error, setError] = useState(''); const [detailError, setDetailError] = useState('');
   const [refresh, setRefresh] = useState(0); const busy = useRef(false); const loadedQuery = useRef<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const scrollAnchor = useRef<{ element: HTMLElement; offset: number } | null>(null);
+  const rememberContext = (element: HTMLElement | null) => {
+    if (element?.isConnected && bodyRef.current) scrollAnchor.current = { element, offset: element.getBoundingClientRect().top - bodyRef.current.getBoundingClientRect().top };
+  };
   const opener = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const closeReport = () => {
     onClose();
@@ -50,7 +57,12 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
     void (async () => {
       try {
         const reply = await readAuditReport(query, controller.signal);
-        if (live) { loadedQuery.current = query; setData(reply); setSelected(current => reply.rows.some(row => row.operation === current) ? current : null); }
+        if (live) {
+          loadedQuery.current = query; setData(reply);
+          if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) {
+            setSelected(null); setSelectionNotice('The selected operation is no longer recorded in this provider and period.');
+          }
+        }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'The report took too long. Try Refresh or reduce retention in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
     })();
@@ -58,12 +70,17 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
   }, [query, validRange, refresh]);
 
   useEffect(() => {
-    setDetails(null); setDetailError('');
+    setDetails(previous => previous?.operation === selected && loadedQuery.current === query ? previous : null); setDetailError('');
     if (!selected || !data || loading) { setDetailLoading(false); return; }
     let live = true; const controller = new AbortController();
     const deadline = window.setTimeout(() => controller.abort(), 65000); setDetailLoading(true);
     void (async () => {
-      try { const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}`, controller.signal); if (live) setDetails(reply.details); }
+      try { const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}&history=1&timeZone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, controller.signal); if (live) {
+          if (reply.details?.measurements === null) {
+            setDetails(null); setSelected(null);
+            setSelectionNotice('The selected operation is no longer recorded in this snapshot. Refresh the report.');
+          } else setDetails(reply.details);
+        } }
       catch { if (live) setDetailError('Could not read recorded calls. Close and select this operation to retry.'); }
       finally { window.clearTimeout(deadline); if (live) setDetailLoading(false); }
     })();
@@ -72,15 +89,29 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
 
   const rows = useMemo(() => reportOperations(data?.rows ?? [], metric, search, ascending), [data, metric, search, ascending]);
   const selection = data?.rows.find(row => row.operation === selected);
+  const lastSelection = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (lastSelection.current && !selected && document.activeElement === document.body) {
+      const origin = selectionOrigin.current;
+      (origin?.isConnected && origin.checkVisibility() ? origin : closeRef.current)?.focus({ preventScroll: true });
+    }
+    lastSelection.current = selected;
+    const anchor = scrollAnchor.current, body = bodyRef.current;
+    if (anchor?.element.isConnected && body) {
+      const offset = Math.max(12, Math.min(anchor.offset, body.clientHeight - anchor.element.offsetHeight - 12));
+      body.scrollTop += anchor.element.getBoundingClientRect().top - body.getBoundingClientRect().top - offset;
+    }
+    scrollAnchor.current = null;
+  }, [selected, !!selection]);
   const selectOperation = (operation: string, keyboard: boolean, origin: HTMLElement) => {
-    selectionOrigin.current = origin; setKeyboardSelection(keyboard); setSelected(operation); setDetailKind('slowest');
+    setSelectionNotice(''); rememberContext(origin); selectionOrigin.current = origin; setKeyboardSelection(keyboard); setSelected(operation); setDetailKind('slowest');
   };
   const closeInspector = () => {
-    const operation = selected; setSelected(null);
+    rememberContext(selectionOrigin.current); const operation = selected; setSelected(null);
     requestAnimationFrame(() => {
       const original = selectionOrigin.current;
       const row = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('[data-operation]') ?? []).find(button => button.dataset.operation === operation);
-      (original?.isConnected ? original : row ?? closeRef.current)?.focus({ preventScroll: true });
+      (original?.isConnected && original.checkVisibility() ? original : row ?? closeRef.current)?.focus({ preventScroll: true });
     });
   };
   const doRefresh = () => { if (busy.current || detailLoading || !validRange) return; busy.current = true; setRefresh(value => value + 1); };
@@ -98,13 +129,15 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
         <h2 id="tool-audit-title">Tool Activity Report</h2><div className="ta-actions"><span className="ta-freshness" role="status" title="Report snapshot cut-off when aggregation begins; not the last observed tool event.">{loading ? data ? 'Refreshing…' : 'Reading local history…' : data ? <ToolAuditMetricHelp kind="freshness">Snapshot {auditDate(data.capturedAt)}</ToolAuditMetricHelp> : 'Local to this device'}</span>
         <button type="button" className="glyph-btn" aria-label="Refresh tool report" data-loading={loading || undefined} aria-disabled={loading || detailLoading || !validRange} onClick={doRefresh} title="Rebuild from local history"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg></button>
       </div></header>
-      <div className="ta-body"><div className="ta-report-content">
+      <div className="ta-workspace" data-inspecting={!!selection || undefined}>
+      <div className="ta-body" ref={bodyRef}><div className="ta-report-content">
         <div className="ta-toolbar">
           <label><span className="ta-filter-label">Provider</span><select aria-label="Provider" value={provider} onChange={event => setProvider(event.target.value as AuditProvider)}><option value="all">Claude + Codex</option><option value="claude">Claude</option><option value="codex">Codex</option></select></label>
           <label><span className="ta-filter-label">Period</span><select aria-label="Period" value={period} onChange={event => setPeriod(event.target.value)}><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="60">Last 60 days</option><option value="90">Last 90 days</option><option value="custom">Custom dates</option></select></label>
           <label className="ta-search"><span className="ta-filter-label">Find an operation</span><input type="search" placeholder="Search operations…" value={search} onChange={event => { setSearch(event.target.value); setLimit(50); }} /></label>
           {(provider !== 'all' || period !== '7' || search) && <button type="button" className="ta-reset" onClick={reset}>Reset</button>}
         </div>
+        {selectionNotice && <p className="ta-note ta-selection-notice" role="status">{selectionNotice}</p>}
         {period === 'custom' && <div className="ta-dates"><label>From<input type="date" value={since} onChange={event => setSince(event.target.value)} /></label><label>Through<input type="date" value={until} onChange={event => setUntil(event.target.value)} /></label><span className="ta-note">Up to 90 calendar days · UTC</span></div>}
         {!validRange && <p className="ta-message" role="status">Choose a start and end date, up to 90 calendar days inclusive.</p>}
         {loading && !data && <div className="ta-loading" role="status"><span className="ta-loading-mark" aria-hidden="true" /><strong>Building your tool report</strong><span>Reading local history and calculating intervals…</span><div className="ta-skeleton" aria-hidden="true">{[0, 1, 2, 3].map(i => <div key={i}><i /><i /><i /></div>)}</div></div>}
@@ -133,7 +166,8 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
           <footer className="ta-report-footer">This device · {data.retentionDays}-day retention · Arguments and outputs are not retained.</footer>
         </>}
       </div></div>
-      {selection && <ToolAuditDrawer keyboard={keyboardSelection} row={selection} details={details} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector} />}
+      {selection && <ToolAuditDrawer keyboard={keyboardSelection} row={details?.operation === selected && details.measurements ? details.measurements : selection} incomplete={!data?.storageOk || !!data?.dropped || !!data?.corrupt} details={details?.operation === selected ? details : null} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector} />}
+      </div>
     </div>
   </div>, document.body);
 }

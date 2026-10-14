@@ -661,6 +661,18 @@ single-mode ranking for this surface; they do not redefine the global design.
   and closing are immediate. Help retains the shared 120ms pointer entrance,
   with immediate keyboard/reduced entry. Reduced motion disables refresh/loading
   rotation. No chart or filter choreography is added.
+- **Integrated inspector and history:** closed composition is retained. Inspection
+  uses a flexible report plus a 360px complementary pane at ≥960px, independently
+  scrolling rows at 701–959px, and a modal phone dialog at ≤700px. A report container
+  stacks charts below 760px and adapts table controls below 600px. Selection restores
+  its visual scroll anchor; only phone inspection traps focus. Sticky operation/close
+  controls, 18px identity and 20px interval values define the pane. Average, Median,
+  P95 and Maximum precede daily Average/Median lines and a separate call-count plot.
+  Exact day evidence supports pointer, keyboard and touch; nulls break lines and P95
+  eligibility is per day. Provider clocks, shared intervals, partial dates and history
+  boundaries remain qualified. Details/history share one worker snapshot. The rail
+  uses a house-style wrench, replacing its terminal symbol. See
+  [layout/data policy and executed evidence](docs/features/tool-activity-history.md).
 - **2026-10-14 refinement:** dotted summary labels and snapshot open concise
   anchored help; unknown operations use neutral pointer/focus hints with equivalent
   accessible names. `git add` has a verified purpose. P95 has a plain caption,

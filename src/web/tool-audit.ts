@@ -3,16 +3,22 @@ export interface AuditRow {
   operation: string; calls: number; completed: number; failed: number; errorRate: number | null;
   measured: number; missingTiming: number; unmatched: number; shared: number;
   providers: { claude: number; codex: number }; tools: string[];
-  totalMs: number | null; medianMs: number | null; p95Ms: number | null; maxMs: number | null;
+  averageMs?: number | null; totalMs: number | null; medianMs: number | null; p95Ms: number | null; maxMs: number | null;
 }
 export interface AuditCall {
   id: string; operation: string; provider: 'claude' | 'codex'; tool: string; capturedAt: number;
   durationMs: number | null; state: 'unmatched' | 'failed' | 'success'; clock: 'hook' | 'rollout'; shared: boolean;
 }
+export interface AuditDay {
+  date: string; calls: number; measured: number; shared: number; providers: { claude: number; codex: number }; partial: boolean;
+  status: 'measured' | 'no-calls' | 'missing-timing' | 'outside-history';
+  averageMs: number | null; medianMs: number | null; maxMs: number | null; p95Ms: number | null;
+}
+export interface AuditHistory { timeZone: string; days: AuditDay[] }
 export interface AuditReport {
   ok: boolean; capturedAt: number; since: number; until: number; provider: AuditProvider;
   total: number; measured: number; failed: number; unmatched: number; corrupt: number; orphaned: number;
-  rows: AuditRow[]; details: { operation: string; total: number; slowest: AuditCall[]; recent: AuditCall[] } | null;
+  rows: AuditRow[]; details: { operation: string; total: number; capturedAt?: number; measurements?: AuditRow | null; history?: AuditHistory; slowest: AuditCall[]; recent: AuditCall[] } | null;
   totalMs: number | null; completed: number; observedSince: number | null; observedUntil: number | null; retainedSince: number;
   providers: Record<'claude' | 'codex', { calls: number; measured: number; failed: number }>;
   duplicates: number;

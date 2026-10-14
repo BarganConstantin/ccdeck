@@ -111,7 +111,6 @@ export const RadioGlyph = () => (
 
 export const ToolActivityGlyph = () => (
   <Glyph>
-    <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" />
-    <path d="m4 5 2 2-2 2M8 9h2" />
+    <path d="M8.7 1.8a3 3 0 0 0-3.5 3.8L1.8 9a1.8 1.8 0 0 0 2.5 2.5l3.4-3.4a3 3 0 0 0 3.8-3.5L9.6 6.5 7.7 4.6z" />
   </Glyph>
 );

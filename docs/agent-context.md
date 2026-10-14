@@ -7,7 +7,7 @@ branches still have the same state. Verify them at the start of a new session.
 
 - Issue #2122, branch `feat/2122-tool-audit`, worktree
   `/Users/constantin/Desktop/ccdeck-tool-audit`, based on development `d2ca5ba6`.
-- Frontend `http://127.0.0.1:4545/`, backend 4546, isolated data
+- Built UI and same-origin API `http://127.0.0.1:4545/`, isolated data
   `CCDECK_HOME=/tmp/ccdeck-tool-audit-preview`. Installed app is untouched.
 - Tool activity rail button below Usage history opens the device-wide operation explorer
   (More on phone); the Usage header entry was removed. General

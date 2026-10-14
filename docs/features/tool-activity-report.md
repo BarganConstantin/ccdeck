@@ -256,3 +256,14 @@ returned **disposition: ship**, no material fixes. Handoff recommendation:
 **SHIP WITH LIMITATIONS** at the stated platform/integration/accessibility scope.
 Evidence: `.impeccable/review/tool-activity-quality/finish-review.md`.
 The durable scoped DESIGN/surface record now reflects the verified build; no merge.
+
+
+## Integrated inspection and daily history — 2026-10-14
+
+The [new inspector/history contract](tool-activity-history.md) supersedes the
+earlier desktop-overlay architecture while preserving this report's overview
+and four analytical comparisons. Desktop inspection is now a layout column,
+intermediate inspection is stacked and phone inspection remains modal. Daily
+performance is an opt-in aggregation of retained journal metadata, with explicit
+timezone/state/sample semantics. The linked contract records real verification,
+calculation examples, screenshots and remaining limitations. No merge/deployment.

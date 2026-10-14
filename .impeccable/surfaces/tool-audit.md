@@ -1,4 +1,6 @@
-# Tool Activity — built Direction A report
+# Tool Activity — report, integrated inspector and daily history
+
+Latest inspector/history architecture: [implemented contract](../../docs/features/tool-activity-history.md). It supersedes the earlier desktop overlay/focus-trap passages below; those record previous iterations.
 
 Issue #2122. **Mode: Operate. World: established ccdeck instrument panel.**
 This is the scoped durable record for the full-page report, superseding the
