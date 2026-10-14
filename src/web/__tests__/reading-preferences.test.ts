@@ -46,7 +46,7 @@ describe("reading preferences before first paint", () => {
       });
     },
   );
-  it.each(["default", "larger", "largest"])(
+  it.each(["smallest", "smaller", "default", "larger", "largest"])(
     "restores %s text consistently with React",
     (value) => {
       expect(boot(value, "compact")["data-text-size"]).toBe(
@@ -78,7 +78,7 @@ describe("reading preferences before first paint", () => {
           onDensity() {},
         }),
       );
-    expect(draw("default").match(/name="text-size"/g)).toHaveLength(3);
+    expect(draw("default").match(/name="text-size"/g)).toHaveLength(5);
     expect(draw("default").match(/name="density"/g)).toHaveLength(3);
     expect(draw("default")).toMatch(/disabled="">Reset to defaults/);
     expect(draw("largest")).not.toMatch(/disabled="">Reset to defaults/);

@@ -23,11 +23,13 @@ export default function ReadingSection({
       <fieldset className="reading-group">
         <legend>Text size</legend>
         <p id="reading-size-help">
-          Enlarge interface text without changing your browser zoom.
+          Adjust interface text without changing your browser zoom.
         </p>
         <div className="reading-options" aria-describedby="reading-size-help">
           {(
             [
+              ["smallest", "Smallest", "−2 px"],
+              ["smaller", "Smaller", "−1 px"],
               ["default", "Default", "Original size"],
               ["larger", "Larger", "+2 px"],
               ["largest", "Largest", "+4 px"],

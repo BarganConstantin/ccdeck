@@ -15,8 +15,8 @@ identity. Preserve system typography, monospaced values, theme and semantic
 colors, control edges, radii and focus tokens. No new visual identity, gradients,
 brand artwork or dependencies. Default keeps the established type and spacing.
 
-Task: choose independently between Default, Larger (+2 px) and Largest (+4 px)
-text, and Compact, Default and Comfortable density. Native radios in labeled
+Task: choose independently between Smallest (−2 px), Smaller (−1 px), Default, Larger (+2 px)
+and Largest (+4 px) text, and Compact, Default and Comfortable density. Native radios in labeled
 fieldsets retain platform keyboard behavior. Changes apply immediately; the
 two illustrative session rows preview text and spacing. Reset to defaults
 restores both choices and is disabled when both are already Default.
@@ -57,3 +57,9 @@ not a full-repository or cross-platform accessibility certification. SVG/canvas
 chart typography remains under each chart's existing renderer; no cloud or
 cross-origin preference migration is implemented. No new detector was run after
 the single clean initial detector pass.
+
+Owner follow-up (2026-10-14): added both smaller choices. Five text choices retain
+the three-column desktop grid and single-column mobile layout; Default is unchanged.
+The follow-up passed 16 preference tests, browser interaction/reload checks,
+typecheck and production build. Earlier independent review covered the original
+three-choice version, not this additional pair.

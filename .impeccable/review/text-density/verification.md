@@ -46,3 +46,13 @@ targets CSS interface typography. Offline/cloud sync and cross-origin desktop
 preference migration are separate work. The settings preview uses illustrative
 session rows; runtime browser checks use the actual application and isolated
 synthetic session events, without executing agents or altering provider accounts.
+
+## Follow-up: two smaller text choices
+
+Owner requested Smallest (−2 px) and Smaller (−1 px). Added both to the native
+radio group, stored-value parser and pre-paint bootstrap; Default stays unchanged.
+`npm run test -- src/web/__tests__/reading-preferences.test.ts`: 16 passed.
+Browser runner passed again, including 11px/12px computed body text and reload
+of Smaller; desktop/narrow captures inspected. Typecheck passed and build passed
+(9.45 seconds). The earlier independent review applies to the original feature;
+this bounded follow-up used rendered verification without another review cycle.

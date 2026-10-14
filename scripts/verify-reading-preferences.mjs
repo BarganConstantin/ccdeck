@@ -41,6 +41,14 @@ try {
   assert.equal(baseline.padding, "10px");
   assert.equal(await page.getByRole("button", { name: "Reset to defaults" }).isDisabled(), true);
   await page.getByRole("dialog").screenshot({ path: `${output}/default-desktop.png` });
+  await choose("text-size", "smallest");
+  assert.equal((await sample()).size, "11px");
+  await choose("text-size", "smaller");
+  assert.equal((await sample()).size, "12px");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => document.documentElement.dataset.textSize === "smaller");
+  await open();
+  await choose("text-size", "default");
   // Native radio keyboard interaction moves the selection, not the canvas.
   await page.locator('input[name="text-size"][value="default"]').focus();
   await page.keyboard.press("ArrowRight");

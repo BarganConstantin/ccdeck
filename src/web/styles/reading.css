@@ -1,5 +1,7 @@
 /* Default supplies zero increments: the established type scale and spacing
    remain byte-for-byte equivalent in computed styles, without page zoom. */
+:root[data-text-size="smallest"] { --ui-text-increase: -2px; }
+:root[data-text-size="smaller"] { --ui-text-increase: -1px; }
 :root[data-text-size="larger"] { --ui-text-increase: 2px; }
 :root[data-text-size="largest"] { --ui-text-increase: 4px; }
 /* Zoomed-out faces have fixed, screen-space line budgets and container-query

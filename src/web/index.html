@@ -73,7 +73,7 @@
           size = window.localStorage.getItem("agent-dag.text-size");
           density = window.localStorage.getItem("agent-dag.density");
         } catch (e) {}
-        document.documentElement.setAttribute("data-text-size", size === "larger" || size === "largest" ? size : "default");
+        document.documentElement.setAttribute("data-text-size", size === "smallest" || size === "smaller" || size === "larger" || size === "largest" ? size : "default");
         document.documentElement.setAttribute("data-density", density === "compact" || density === "comfortable" ? density : "default");
       })();
     </script>
