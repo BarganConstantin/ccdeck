@@ -27,6 +27,32 @@ function spawn(child: string, parent: string, extra: Partial<HookPayload> = {}):
 }
 
 describe("Codex subagent spawn and rollout records share one node", () => {
+  it("marks only startup-discovery SessionStart seeds as joined-late lower bounds", () => {
+    seq = 0;
+    const seed = {
+      hook_event_name: "SessionStart",
+      session_id: "startup-seed",
+      provider: "codex",
+      startup_discovery: true,
+      timestamp: "2021-01-02T03:04:05.000Z",
+    } as HookPayload;
+    let state = send(initialState(), T0, seed);
+    expect(state.agents.get("startup-seed")).toMatchObject({
+      startedAt: T0,
+      synthetic: true,
+    });
+
+    state = send(state, T0 + 1, {
+      hook_event_name: "SessionStart", session_id: "ordinary-start", provider: "codex",
+    });
+    expect(state.agents.get("ordinary-start")).toMatchObject({ startedAt: T0 + 1, synthetic: false });
+
+    state = send(state, T0 + 2, {
+      hook_event_name: "SessionStart", session_id: "startup-seed", provider: "codex",
+    });
+    expect(state.agents.get("startup-seed")).toMatchObject({ startedAt: T0, synthetic: false });
+  });
+
   it("creates a child-id node and a parent edge from the spawn metadata", () => {
     seq = 0;
     const state = send(initialState(), T0, spawn("child-a", "root-a", {

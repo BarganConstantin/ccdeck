@@ -42,8 +42,9 @@ describe("every switch is the one switch (#886)", () => {
     // list — this counts the markup that draws them, not what it draws.
     // Seventeen with Settings › General's "Single-key shortcuts" (WCAG 2.1.4).
     // Sixteen after Music left Settings; Radio Explorer owns music controls.
-    // Seventeen with the editable telemetry flags in Radar.
-    expect(switches, "the seventeen switches in the source").toBe(17);
+    // Seventeen with the editable telemetry flags in Radar; eighteen with
+    // Codex startup discovery in Settings.
+    expect(switches, "the eighteen switches in the source").toBe(18);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

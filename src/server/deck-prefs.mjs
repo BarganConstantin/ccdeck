@@ -92,6 +92,10 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
+  // Read Codex rollout metadata at startup to restore currently unfinished
+  // threads and their parent relationships. This is distinct from live tailing:
+  // turning it off leaves existing cards and the live watcher alone.
+  codexStartupDiscoveryEnabled: true,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -319,6 +323,7 @@ export function normalise(raw) {
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
+    codexStartupDiscoveryEnabled: flagOr(src.codexStartupDiscoveryEnabled, DEFAULTS.codexStartupDiscoveryEnabled),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),
@@ -701,7 +706,7 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"]),
+  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "codexStartupDiscoveryEnabled"]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

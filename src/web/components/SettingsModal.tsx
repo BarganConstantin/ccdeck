@@ -23,6 +23,7 @@ import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
 import type { useCustomTones } from "../use-custom-tones";
+import type { useCodexStartupDiscovery } from "../use-codex-startup-discovery";
 import type { useOsNotifications } from "../use-os-notifications";
 import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
@@ -48,10 +49,11 @@ export interface SettingsModalProps {
   customTones: ReturnType<typeof useCustomTones>;
   notify: ReturnType<typeof useOsNotifications>;
   appearance: ReturnType<typeof useAppearance>;
+  codexStartupDiscovery: ReturnType<typeof useCodexStartupDiscovery>;
 }
 
 export default function SettingsModal({
-  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
+  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance, codexStartupDiscovery,
 }: SettingsModalProps) {
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
@@ -68,6 +70,7 @@ export default function SettingsModal({
 
   const { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter } = appearance;
   const singleKeys = useSingleKeyShortcuts();
+  const { codexStartupDiscoveryEnabled, toggleCodexStartupDiscovery } = codexStartupDiscovery;
 
   const moveSection = (event: KeyboardEvent<HTMLDivElement>) => {
     const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");
@@ -156,6 +159,30 @@ export default function SettingsModal({
               onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
             />
             <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
+            <section className="settings-group" aria-labelledby="settings-codex-startup-caption">
+              <div className="settings-caption">
+                <h3 id="settings-codex-startup-caption">Codex</h3>
+              </div>
+              <div className="appearance-controls">
+                <label className="appearance-row">
+                  <span className="appearance-row-label" id="settings-codex-startup-label">Include already-running Codex threads</span>
+                  <button
+                    type="button"
+                    className="switch"
+                    role="switch"
+                    aria-checked={codexStartupDiscoveryEnabled}
+                    aria-labelledby="settings-codex-startup-label"
+                    aria-describedby="settings-codex-startup-note"
+                    onClick={toggleCodexStartupDiscovery}
+                  >
+                    <span className="switch-knob" />
+                  </button>
+                  <span id="settings-codex-startup-note" className="appearance-row-note">
+                    Scans now and on startup for threads with a recorded unfinished turn. Turning this off stops additional history reads; cards already shown stay. A crash can leave a turn recorded as unfinished.
+                  </span>
+                </label>
+              </div>
+            </section>
           </>
         );
     }

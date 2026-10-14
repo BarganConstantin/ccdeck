@@ -199,7 +199,7 @@ export function codexObjToPayload(obj, sid, cwd) {
   if (type === "event_msg") {
     if (pl.type === "user_message") {
       const prompt = typeof pl.message === "string" ? pl.message : "";
-      return { ...base, hook_event_name: "UserPromptSubmit", prompt, model };
+      return { ...base, hook_event_name: "UserPromptSubmit", prompt, model, ...(typeof obj.timestamp === "string" ? { prompt_timestamp: obj.timestamp } : {}) };
     }
     // Codex 0.147 stopped writing `user_message` and writes the same submission
     // as an `item_completed` carrying a `UserMessage` item instead. The two are
@@ -217,7 +217,7 @@ export function codexObjToPayload(obj, sid, cwd) {
     // without it the `Stop` below would trade "live forever" for "done
     // forever", which is not better.
     if (pl.type === "item_completed" && pl.item && pl.item.type === "UserMessage") {
-      return { ...base, hook_event_name: "UserPromptSubmit", prompt: codexItemText(pl.item), model };
+      return { ...base, hook_event_name: "UserPromptSubmit", prompt: codexItemText(pl.item), model, ...(typeof obj.timestamp === "string" ? { prompt_timestamp: obj.timestamp } : {}) };
     }
     // Codex states THREE numbers on every `token_count` and this branch used to
     // take one of them (#399). The other two are what the context donut is drawn

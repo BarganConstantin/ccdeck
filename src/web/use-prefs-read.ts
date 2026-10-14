@@ -10,11 +10,13 @@ import { useEffect } from "react";
 import type { useAutoRestart } from "./use-auto-restart";
 import type { useOsNotifications } from "./use-os-notifications";
 import type { useReports } from "./use-reports";
+import type { useCodexStartupDiscovery } from "./use-codex-startup-discovery";
 
-export function usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs }: {
+export function usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs, loadCodexStartupPrefs }: {
   loadAutoRestartPrefs: ReturnType<typeof useAutoRestart>["loadAutoRestartPrefs"];
   loadNotifyPrefs: ReturnType<typeof useOsNotifications>["loadNotifyPrefs"];
   loadReportsPrefs: ReturnType<typeof useReports>["loadReportsPrefs"];
+  loadCodexStartupPrefs: ReturnType<typeof useCodexStartupDiscovery>["loadCodexStartupPrefs"];
 }): void {
   useEffect(() => {
     let alive = true;
@@ -23,6 +25,7 @@ export function usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReport
       loadAutoRestartPrefs(d);
       loadNotifyPrefs(d);
       loadReportsPrefs(d);
+      loadCodexStartupPrefs(d);
     }).catch(() => {});
     return () => { alive = false; };
   }, []);

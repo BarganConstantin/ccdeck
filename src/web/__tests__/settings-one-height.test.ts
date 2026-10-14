@@ -66,6 +66,11 @@ const draw = (section: SettingsSection) => renderToStaticMarkup(createElement(Se
     toggleAccountNotify: noop,
   },
   appearance: { theme: "dark", setTheme: noop, characterEnabled: true, setCharacterEnabled: noop },
+  codexStartupDiscovery: {
+    codexStartupDiscoveryEnabled: true,
+    loadCodexStartupPrefs: noop,
+    toggleCodexStartupDiscovery: noop,
+  },
 } as unknown as SettingsModalProps));
 
 /** The opening tag of the element carrying `marker`, attributes and all. */

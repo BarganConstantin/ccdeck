@@ -34,6 +34,7 @@ afterAll(() => rmTempDir(DIR));
 const MINE = { fp: "aaa-bbb-ccc-ddd", pub: "cHViLWtleS1taW5l", name: "laptop", at: 1_700_000_000_000 };
 const ON_DISK = {
   notifications: false,
+  codexStartupDiscoveryEnabled: true,
   tourSeen: false,
   autoUpdate: true,
   reports: true,
@@ -145,6 +146,7 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
+  ["codexStartupDiscoveryEnabled", { codexStartupDiscoveryEnabled: false }, p => p.codexStartupDiscoveryEnabled, false],
   ["lan.enabled", { lan: { enabled: false } }, p => p.lan.enabled, false],
   ["lan.manual", { lan: { manual: ["10.0.0.1:5000", "10.0.0.2:5001"] } }, p => p.lan.manual, ["10.0.0.1:5000", "10.0.0.2:5001"]],
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
@@ -185,7 +187,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "codexStartupDiscoveryEnabled"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
@@ -201,6 +203,8 @@ describe("the fields a page may write", () => {
       lan: ["secret", "onward", "trusted", "unpaired", "port", "aliases"],
     };
     const held = normalise({});
+    expect(held.codexStartupDiscoveryEnabled).toBe(true);
+    expect(normalise({ codexStartupDiscoveryEnabled: "false" }).codexStartupDiscoveryEnabled).toBe(true);
     expect([...PAGE_FIELDS.top, ...DECKS_OWN.top].sort()).toEqual(Object.keys(held).filter(k => k !== "lan").sort());
     expect([...PAGE_FIELDS.lan, ...DECKS_OWN.lan].sort()).toEqual(Object.keys(held.lan).sort());
   });

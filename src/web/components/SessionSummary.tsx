@@ -90,7 +90,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
             <Stat label="agents" value={summary.agentCount} />
             <Stat label="subagents" value={summary.subagentCount} />
             <Stat label="tool calls" value={summary.toolCount} />
-            <Stat label="prompts" value={summary.promptCount} />
+            <Stat label={summary.promptHistoryPartial ? "prompts seen" : "prompts"} value={summary.promptCount} />
             <Stat label="tokens" value={summary.tokensSum.toLocaleString()} />
             {summary.errCount > 0 && <Stat label="errors" value={summary.errCount} tone="err" />}
           </section>
@@ -110,7 +110,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
             </section>
           )}
 
-          {summary.firstPrompt && (
+          {summary.firstPrompt && !summary.promptHistoryPartial && (
             <section className="modal-section">
               <h4>Opening prompt</h4>
               <div className="ss-prompt">{summary.firstPrompt}</div>
@@ -146,6 +146,7 @@ interface Summary {
   errCount: number;
   topTools: Array<[string, number]>;
   firstPrompt?: string;
+  promptHistoryPartial: boolean;
 }
 
 function buildSummary(state: GraphState, sessionId: string): Summary | null {
@@ -162,6 +163,7 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
   const toolCounts = new Map<string, number>();
   let toolCount = 0, promptCount = 0, tokensSum = 0, errCount = 0, subagentCount = 0;
   let firstPrompt: string | undefined;
+  const promptHistoryPartial = root.promptHistoryPartial === true;
   let earliestStart = Infinity;
   let latestEnd = 0;
 
@@ -184,7 +186,7 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
     // Typed prompts only: a background task's notice is not a turn (#834).
     const typed = typedPrompts(a.prompts);
     promptCount += typed.length;
-    if (!firstPrompt && typed.length > 0) firstPrompt = typed[0].text;
+    if (!promptHistoryPartial && !firstPrompt && typed.length > 0) firstPrompt = typed[0].text;
     tokensSum += a.usage.inputTokens + a.usage.outputTokens;
     // Every call ever made, not just the bounded window the reducer retains —
     // and the errors and the ranking over the same calls (#1809). Read off
@@ -224,5 +226,6 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
     errCount,
     topTools,
     firstPrompt,
+    promptHistoryPartial,
   };
 }

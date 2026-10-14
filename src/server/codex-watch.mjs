@@ -29,6 +29,7 @@ import { maybeResolveCodexMemory } from "./session-enrichment.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
+import { codexStartupCursor, noteCodexLiveRecord, waitForCodexStartupBoundary } from "./codex-startup.mjs";
 
 // ─── Codex rollout watcher ────────────────────────────────────────────────
 // Codex CLI hooks never fire on Windows — the elevated/unelevated sandbox
@@ -346,11 +347,22 @@ async function openCodexCursor(path, st, now, firstRun) {
   // re-emitting every prompt, every PreToolUse/PostToolUse and every
   // UsageObserved in the file to every tab, and re-appending the lot to
   // the shared events.jsonl if this deck is the elected writer (#981).
+  const startupCursor = firstRun ? codexStartupCursor(path, st.size) : null;
   const fresh = !codexSeenEver.has(path);
-  const state = { offset: fresh ? 0 : st.size, sid: header.sid, cwd: header.cwd, skip: false, sawBeginning: fresh, rootOpened: false, seenAt: now };
+  const state = {
+    offset: startupCursor?.offset ?? (fresh ? 0 : st.size),
+    sid: header.sid, cwd: header.cwd, skip: false,
+    sawBeginning: startupCursor?.sawBeginning ?? fresh,
+    rootOpened: false, seenAt: now,
+  };
   codexFileState.set(path, state);
   rememberCodexPath(path);
   if (firstRun) {
+    if (startupCursor) {
+      // The one-shot reader owns everything through its captured boundary;
+      // bytes appended after that point are live and must not be skipped.
+      return state;
+    }
     // On startup, skip a pre-existing session's history entirely — no
     // replay. Only future appends (a live session that keeps going) will
     // lazily open the root via ensureCodexRoot.
@@ -395,6 +407,7 @@ function emitCodexLines(state, consume, persist) {
     if (!line) continue;
     let obj;
     try { obj = JSON.parse(line); } catch { continue; }
+    noteCodexLiveRecord(obj, state.sid);
     const prevModel = codexSessionModel.get(state.sid);
     const payload = codexObjToPayload(obj, state.sid, state.cwd);
     const subagentPayload = codexSubagentToPayload(obj, state.sid, state.cwd);
@@ -505,6 +518,10 @@ export async function scanCodexNow() {
 
 async function scanRollouts(firstRun) {
   try {
+    // Publish the one-shot inventory boundary before the live tail chooses its
+    // initial cursor. History through that boundary is handled by the snapshot;
+    // appends after it are handled exactly once by this watcher.
+    if (firstRun) await waitForCodexStartupBoundary();
     const now = Date.now();
     // Read at most once per scan, and only from the first rollout that actually
     // has new bytes: most ticks read nothing and must not pay a directory
