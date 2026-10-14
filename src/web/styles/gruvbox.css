@@ -17,8 +17,8 @@
 :root[data-theme^="gruvbox-"] .cluster-label {
   color: color-mix(in srgb, hsl(var(--session-hue, 200) 28% var(--session-label-l)) 75%, var(--text));
 }
-/* The resting rim yields to the shared hover, dragging and waiting states. */
-:root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not(.dragging):not([data-alarm])) {
+/* The resting rim yields to the shared hover and waiting states. */
+:root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not([data-alarm])) {
   border-color: hsl(var(--session-hue, 200) 28% var(--session-rim-l) / 0.5);
 }
 :root[data-theme^="gruvbox-"] .react-flow__edge.sess-edge.sess-live .react-flow__edge-path {

@@ -227,6 +227,10 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
+      // Gruvbox also uses secondary reading ink for neutral spend and the
+      // waiting explanation; these are intentional theme overrides.
+      ':root[data-theme^="gruvbox-"] .uh-detail-cost',
+      ':root[data-theme="gruvbox-material"] .session-list .sl-waiting-tool',
       ".reading-intro",
       ".radio-art",
       ".radio-cluster-preview button span",
