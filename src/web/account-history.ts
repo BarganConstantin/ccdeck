@@ -62,3 +62,28 @@ export const formatSnapshotTime = (t: number, timeZone?: string) =>
     timeZoneName: "short",
     ...(timeZone ? { timeZone } : {}),
   });
+
+/** Fit real observations, not the full lookback. Padding is viewing space only. */
+export function historyTimeDomain(times: number[], from: number, to: number) {
+  let first = Infinity;
+  let last = -Infinity;
+  for (const t of times) {
+    if (!Number.isFinite(t) || t < from || t > to) continue;
+    first = Math.min(first, t);
+    last = Math.max(last, t);
+  }
+  if (!Number.isFinite(first)) return { start: from, end: to };
+  const padding = Math.max(15 * 60_000, (last - first) * 0.05);
+  return { start: first - padding, end: last + padding };
+}
+
+export function formatHistoryAxis(t: number, start: number, end: number) {
+  const sameDay =
+    new Date(start).toDateString() === new Date(end).toDateString();
+  return new Date(t).toLocaleString(undefined, {
+    ...(sameDay ? {} : { month: "short", day: "numeric" }),
+    ...(end - start < 2 * 86400_000
+      ? { hour: "numeric", minute: "2-digit" }
+      : {}),
+  });
+}

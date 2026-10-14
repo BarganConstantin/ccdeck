@@ -4,6 +4,8 @@ import {
   type SnapshotAccount,
   historySegments,
   formatSnapshotTime,
+  historyTimeDomain,
+  formatHistoryAxis,
 } from "../account-history";
 import "./account-history.css";
 const stamp = formatSnapshotTime;
@@ -126,10 +128,10 @@ function HistoryChart({
           </g>
         ))}
         <text x="36" y="164">
-          {new Date(start).toLocaleDateString()}
+          {formatHistoryAxis(start, start, end)}
         </text>
         <text x={width - 14} y="164" textAnchor="end">
-          {new Date(end).toLocaleDateString()}
+          {formatHistoryAxis(end, start, end)}
         </text>
       </svg>
       <label className="ah-inspect">
@@ -208,14 +210,21 @@ export default function AccountHistoryView() {
     ...a,
     color: `hsl(${(210 + index * 137.508) % 360} 60% var(--session-accent-l, 65%))`,
   }));
-  const end = Date.now(),
-    start = end - days * 86400_000;
+  const now = Date.now(),
+    from = now - days * 86400_000;
   const series = colored
     .filter((a) => !selectedAccount || a.id === selectedAccount)
     .map((a) => ({
       ...a,
-      points: a.points.filter((p) => p.t >= start && p.t <= end),
+      points: a.points.filter((p) => p.t >= from && p.t <= now),
     }));
+  const { start, end } = historyTimeDomain(
+    series.flatMap((a) =>
+      a.points.filter((p) => p.five_hour || p.seven_day).map((p) => p.t),
+    ),
+    from,
+    now,
+  );
   const hasPoints = series.some((a) => a.points.length > 0);
   return (
     <div className="ah-workspace">
@@ -275,7 +284,7 @@ export default function AccountHistoryView() {
           <p className="ah-note">
             {data.enabled ? "Recording new observations" : "Recording paused"} ·{" "}
             {data.retentionDays}-day retention · Local time. Missing readings
-            remain gaps.
+            remain gaps. The time axis fits available readings.
           </p>
           {data.storageError && <p role="alert">{data.storageError}</p>}
           {data.accounts.length > 0 && (

@@ -104,6 +104,21 @@ try {
     await page.locator(".ah-chart").first().locator("g[data-account]").count(),
     2,
   );
+  const plottedFraction = await page
+    .locator(".ah-chart svg")
+    .first()
+    .evaluate((svg) => {
+      const xs = [...svg.querySelectorAll("circle")].map((c) =>
+        Number(c.getAttribute("cx")),
+      );
+      return (
+        (Math.max(...xs) - Math.min(...xs)) / (svg.viewBox.baseVal.width - 50)
+      );
+    });
+  assert.ok(
+    plottedFraction > 0.85,
+    "Recent observations should fill the plot, not a tiny edge of a week",
+  );
   await shot("desktop");
   await page.locator(".ah-legend-account").first().click();
   assert.equal(
@@ -136,6 +151,19 @@ try {
   );
   await page.getByLabel("Account", { exact: true }).selectOption("b");
   await page.getByText("100% used", { exact: true }).waitFor();
+  const singlePointPosition = await page
+    .locator(".ah-chart svg")
+    .first()
+    .evaluate((svg) => {
+      return (
+        (Number(svg.querySelector("circle").getAttribute("cx")) - 36) /
+        (svg.viewBox.baseVal.width - 50)
+      );
+    });
+  assert.ok(
+    Math.abs(singlePointPosition - 0.5) < 0.001,
+    "A single reading should be centered",
+  );
   await page.getByText("Removed account", { exact: false }).count();
   await shot("removed-account");
   await page.getByLabel("Account", { exact: true }).selectOption("a");

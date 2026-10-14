@@ -37,3 +37,9 @@ Not canonized: fixture launcher buttons and sample account identities are review
 History now defaults to All accounts, overlaying each account on the same time axis in both windows. A shared legend names the accounts and matches line colors. Clicking a legend entry isolates that account; clicking it again or selecting All accounts restores the combined view. Colors name accounts, not quota health, and remain consistent between the two windows and single-account filtering. Observation keys include both account identity and timestamp, keeping simultaneous readings distinct.
 
 Browser checks cover the default combined series, legend filtering/restoration, account and period changes, missing windows and narrow/light/short states. Historical snapshots, collection and retention are unchanged.
+
+## Adaptive time extent (owner refinement)
+
+The period selector is a maximum lookback filter, not a forced plot width. Both windows share an extent fitted to the selected accounts' visible observations, with 5% padding (at least 15 minutes per edge). A single reading is centered in a 30-minute view; padding never creates observations or implies renewed capacity. Empty periods retain the explicit empty state. Short spans display local times, adding dates across day boundaries; longer spans display dates. No persistence, refresh, retention or usage semantics changed.
+
+Verification: 6 deterministic axis tests and 21 snapshot regression tests passed; TypeScript and production build passed. Browser assertions verify recent readings fill more than 85% of the plot and a single reading is centered, alongside existing selection, settings, empty/error recovery and responsive checks. Updated desktop, single-point and narrow renders were inspected. Evidence remains controlled data, not live-provider certification.
