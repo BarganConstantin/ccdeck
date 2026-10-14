@@ -1,5 +1,9 @@
 import type { CSSProperties } from "react";
-import { TEXT_SIZES, type Density, type TextSize } from "../reading-preferences";
+import {
+  TEXT_SIZES,
+  type Density,
+  type TextSize,
+} from "../reading-preferences";
 
 interface Props {
   textSize: TextSize;
@@ -26,7 +30,15 @@ export default function ReadingSection({
         <p id="reading-size-help">
           Adjust interface text without changing your browser zoom.
         </p>
-        <div className="reading-options reading-size-options" aria-describedby="reading-size-help" style={{ "--reading-selected": TEXT_SIZES.indexOf(textSize) } as CSSProperties}>
+        <div
+          className="reading-options reading-size-options"
+          aria-describedby="reading-size-help"
+          style={
+            {
+              "--reading-selected": TEXT_SIZES.indexOf(textSize),
+            } as CSSProperties
+          }
+        >
           {(
             [
               ["smallest", "Smallest", "−2 px"],
@@ -45,9 +57,29 @@ export default function ReadingSection({
                 checked={textSize === value}
                 onChange={() => onTextSize(value)}
               />
-              <span className="reading-type-sample" aria-hidden="true">Aa</span>
-              <span className="reading-size-label"><strong>{label}</strong><small>{note}</small></span>
-              <svg className="reading-selected-mark" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="m2.5 6 2.2 2.2 4.8-4.4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span className="reading-type-sample" aria-hidden="true">
+                Aa
+              </span>
+              <span className="reading-size-label">
+                <strong>{label}</strong>
+                <small>{note}</small>
+              </span>
+              <svg
+                className="reading-selected-mark"
+                viewBox="0 0 12 12"
+                width="12"
+                height="12"
+                aria-hidden="true"
+              >
+                <path
+                  d="m2.5 6 2.2 2.2 4.8-4.4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </label>
           ))}
         </div>
@@ -77,7 +109,15 @@ export default function ReadingSection({
                 checked={density === value}
                 onChange={() => onDensity(value)}
               />
-              <span className={`reading-density-sample reading-density-${value}`} aria-hidden="true"><i /><i /><i /></span>
+              <span
+                className="reading-density-sample"
+                data-density={value}
+                aria-hidden="true"
+              >
+                <i />
+                <i />
+                <i />
+              </span>
               <span>
                 <strong>{label}</strong>
                 <small>{note}</small>

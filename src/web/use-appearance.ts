@@ -20,7 +20,7 @@ import { CHARACTER_KEY, storedCharacter, type Character } from "./character";
 import { type MinimapNode, minimapNodeColor } from "./minimap";
 import { type Palette, paletteReader, readPalette, samePalette } from "./palette";
 import { DENSITY_KEY, TEXT_SIZE_KEY, storedDensity, storedTextSize, resolveDensity, resolveTextSize, type Density, type TextSize } from "./reading-preferences";
-import { writeStored } from "./storage";
+import { localStore, writeStored } from "./storage";
 import { THEME_KEY, THEME_DEFINITIONS, type Theme, storedTheme } from "./theme";
 
 /**
@@ -74,7 +74,7 @@ export function useAppearance() {
   }, [density]);
   useEffect(() => {
     const changed = (event: StorageEvent) => {
-      try { if (event.storageArea !== window.localStorage) return; } catch { return; }
+      if (event.storageArea !== localStore()) return;
       if (event.key === TEXT_SIZE_KEY || event.key === null) setTextSize(resolveTextSize(event.newValue));
       if (event.key === DENSITY_KEY || event.key === null) setDensity(resolveDensity(event.newValue));
     };

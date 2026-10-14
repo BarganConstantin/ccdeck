@@ -2,7 +2,7 @@
 version: 1
 slug: "text-size-density"
 primary_target: "src/web/components/ReadingSection.tsx"
-related_targets: ["src/web/components/SettingsModal.tsx", "src/web/reading-preferences.ts", "src/web/styles/reading.css", "src/web/styles/accounts-panel.css", "src/web/use-appearance.ts", "src/web/index.html", "src/web/use-node-measurements.ts"]
+related_targets: ["src/web/components/SettingsModal.tsx", "src/web/reading-preferences.ts", "src/web/styles/reading.css", "src/web/styles/accounts-panel.css", "src/web/styles/touch-and-forced-colours.css", "src/web/use-appearance.ts", "src/web/index.html", "src/web/use-node-measurements.ts"]
 ---
 
 # Text size and density
@@ -21,20 +21,40 @@ fieldsets retain platform keyboard behavior. Changes apply immediately; the
 two illustrative session rows preview text and spacing. Reset to defaults
 restores both choices and is disabled when both are already Default.
 
-Layout and interaction: three choices per row become one column at 640px and
-below; mobile choice labels stay on one line without shrinking or breaking words.
-Keep help, preview and reset reachable in narrow and short windows at
-Largest/Comfortable. Selection uses the existing accent border and neutral
-fill; keyboard focus has a visible outline. Enlarged text raises control height
+Layout and interaction: five text choices form one horizontal scale with Default
+at the center. “Aa” illustrations use 17/18/19/21/23px to show the exact relative
+offsets; choice labels retain readable size floors. Native radios overlay each
+text choice, inheriting its cursor, with a selected checkmark and visible focus
+on the parent label.
+At 640px and below the scale becomes vertical with whole-word text labels.
+Density keeps visible native radios and three-stroke illustrations with
+2/4/8px gaps for Compact/Default/Comfortable, using a stable sample class and
+data-density attribute. Mobile text layout targets only
+the last text span, preserving the illustrations' vertical strokes. Keep help,
+preview and reset reachable in narrow and short windows at Largest/Comfortable.
+Selection uses neutral fill and existing control/focus tokens. Enlarged text raises control height
 floors; compact spacing must not reduce interactive rows below 24px. Density
 changes spacing independently of text size, including account-row padding;
 zero row increment preserves the original Default spacing.
+Forced-colors treatments live in the canonical touch-and-forced-colours.css
+block: system Highlight selection edges, Canvas surfaces and CanvasText strokes.
+
+Motion: after the owner's explicit impeccable animate request, the selection
+backplate moves horizontally or vertically through an interruptible CSS
+transform transition (180ms, cubic-bezier(0.23, 1, 0.32, 1)). Rapid selections
+retarget from the current position. The checkmark scales in over 140ms with
+120ms opacity feedback. Reduced motion makes the backplate instant and removes
+check scaling, retaining only an 80ms opacity transition. Choices also provide
+explicit press feedback at scale(0.97) with a 140ms transform transition;
+reduced motion removes the press transform and choice transitions. No animation
+loops or new dependencies; motion communicates selection and press feedback.
 
 Persistence: preferences belong to this browser/origin, not an account or paired
 machine. Guarded storage reads fall back to Default; failed writes leave the
 current interface usable without promising reload persistence. The inline
 index.html bootstrap applies validated choices before first paint; React starts
-from the same values. Storage events synchronize same-origin tabs, with missing,
+from the same values. Storage events use guarded localStore() to check the storage
+area and synchronize same-origin tabs, with missing,
 invalid or cleared values resolving to Default. The footer states “Preferences
 stay in this browser when storage is available,” qualifying persistence for a
 blocked store.
@@ -45,21 +65,23 @@ budgets and container cutoffs. Expanded cards and detail panels enlarge normally
 React Flow measurement and its DOM fallback supply updated card dimensions to
 layout rather than changing the camera scale.
 
-Verification: 32 focused test files / 668 tests passed before the last narrow-label
-and account-row adjustments. The final four-file check after those changes passed
-73 tests; final typecheck and production build passed. Actual-app browser checks
-passed keyboard radios, reload, cross-tab updates, denied storage, reset, Escape
-and focus return, unchanged React Flow viewport scale, narrow/short windows and
-light-theme rendering. Top and bottom Settings screenshots were inspected.
-The independent finish reviewer scored the material conditional-save-copy fix and
-optional whole-word-label follow-up resolved. SHIP at this bounded review scope;
-not a full-repository or cross-platform accessibility certification. SVG/canvas
-chart typography remains under each chart's existing renderer; no cloud or
-cross-origin preference migration is implemented. No new detector was run after
-the single clean initial detector pass.
-
-Owner follow-up (2026-10-14): added both smaller choices. Five text choices retain
-the three-column desktop grid and single-column mobile layout; Default is unchanged.
-The follow-up passed 16 preference tests, browser interaction/reload checks,
-typecheck and production build. Earlier independent review covered the original
-three-choice version, not this additional pair.
+Verification limits: latest supplied evidence reports 150 passing tests across
+four files, a passing typecheck and a passing production build (5.06s). Earlier
+32-file/668-test evidence predates subsequent adjustments. Actual-app browser
+checks passed keyboard focus outlines, rapid-selection settlement, reduced-motion
+0s versus normal 180ms backplate timing, and density strokes at all checked
+viewports, alongside the previous reload, cross-tab, denied-storage, reset,
+Escape/focus-return, unchanged canvas-scale, narrow/short and light-theme flows.
+A forced-colors screenshot was captured. The fresh reviewer found a mobile
+generic-span layout bug; the text-only last-span selector fixes it, with new
+confirming screenshots reported. The earlier conditional-save-copy finding is
+resolved; the bounded visual review verdict is SHIP. The complete Node 26 suite
+hit an unrelated event-serialization baseline failure also reproduced on
+unchanged development; that baseline passes under Node 22. The full Node 22
+suite is currently running, with no result claimed. Earlier focused passes
+do not establish a full-suite pass after these integration corrections.
+Evidence is scoped to the reported checks, not full certification or measured
+frame-rate performance. This
+documentation pass rechecked source without rerunning tests, browser checks or
+builds. No new detector was run. Write scope is this brief only; source, git,
+DESIGN.md, other docs and private external records remain outside scope.
