@@ -260,7 +260,13 @@ try {
       .locator(".ah-chart svg")
       .first()
       .evaluate((svg) => svg.getBoundingClientRect().height),
-    360,
+    486,
+  );
+  assert.ok(
+    await page
+      .getByRole("dialog")
+      .evaluate((el) => el.getBoundingClientRect().width > 1100),
+    "History modal should give the chart more horizontal space",
   );
   const hit = page.locator('g[data-account="a"] .ah-line-hit').first();
   const hitPoint = await hit.evaluate((el) => {
@@ -336,11 +342,11 @@ try {
     `a:${state.accounts[0].points.at(-1).t}`,
   );
   await page.getByLabel("Account", { exact: true }).selectOption("b");
-  await page.getByText("0% remaining", { exact: true }).waitFor();
+  await page.getByText("100% used", { exact: true }).waitFor();
   assert.equal(
     await page.locator(".ah-chart svg circle").first().getAttribute("cy"),
-    "330",
-    "An exhausted account must be at the bottom",
+    "20",
+    "An exhausted account must be at the top",
   );
   assert.deepEqual(
     await page
@@ -349,7 +355,7 @@ try {
       .locator("text")
       .allTextContents()
       .then((labels) => labels.slice(0, 3)),
-    ["100%", "50%", "0%"],
+    ["0%", "50%", "100%"],
   );
   const singlePointPosition = await page
     .locator(".ah-chart svg")

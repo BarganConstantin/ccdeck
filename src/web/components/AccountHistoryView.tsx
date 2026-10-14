@@ -40,12 +40,14 @@ function HistoryChart({
   const lastTap = useRef<{ x: number; y: number; at: number } | null>(null);
   const pointerKind = useRef("mouse");
   const [width, setWidth] = useState(750);
+  const [height, setHeight] = useState(440);
   useEffect(() => {
     const svg = chartRef.current;
     if (!svg) return;
-    const observer = new ResizeObserver(() =>
-      setWidth(Math.max(220, svg.clientWidth)),
-    );
+    const observer = new ResizeObserver(() => {
+      setWidth(Math.max(220, svg.clientWidth));
+      setHeight(Math.max(240, svg.clientHeight));
+    });
     observer.observe(svg);
     return () => observer.disconnect();
   }, []);
@@ -90,7 +92,7 @@ function HistoryChart({
   const tracked = hovered ?? (selected ? p : undefined);
   const visibleAccounts = new Set(values.map((p) => p.account.id)).size;
   const x = (t: number) => 36 + ((t - start) / (end - start)) * (width - 50);
-  const y = (used: number) => 20 + used * 3.1;
+  const y = (used: number) => height - 30 - (used / 100) * (height - 50);
   return (
     <section
       className="ah-chart"
@@ -102,18 +104,18 @@ function HistoryChart({
           {accounts.length > 1
             ? `${visibleAccounts} ${visibleAccounts === 1 ? "account" : "accounts"}`
             : w
-              ? `${100 - w.pct}% remaining`
+              ? `${w.pct}% used`
               : "No observations"}
         </span>
       </header>
-      <p className="ah-note">Capacity remaining</p>
+      <p className="ah-note">Capacity used</p>
       <div className="ah-plot-wrap">
         <svg
           ref={chartRef}
-          viewBox={`0 0 ${width} 360`}
+          viewBox={`0 0 ${width} ${height}`}
           role="group"
           tabIndex={0}
-          aria-label={`${window === "five_hour" ? "5-hour" : "7-day"} interactive capacity chart. Top is 100 percent remaining; bottom is zero remaining. Remaining capacity is 100 minus reported usage. Scroll to zoom, drag to pan, double-click to reset. Keyboard: plus or minus to zoom, left or right arrows to pan, zero to reset. Gaps indicate missing observations or changed reset windows.`}
+          aria-label={`${window === "five_hour" ? "5-hour" : "7-day"} interactive capacity chart. Top is 100 percent used (exhausted); bottom is zero used. Scroll to zoom, drag to pan, double-click to reset. Keyboard: plus or minus to zoom, left or right arrows to pan, zero to reset. Gaps indicate missing observations or changed reset windows.`}
           onDoubleClick={() => {
             if (pointerKind.current !== "touch") onReset();
           }}
@@ -243,7 +245,7 @@ function HistoryChart({
         >
           <defs>
             <clipPath id={clipId}>
-              <rect x="36" y="16" width={width - 50} height="318" />
+              <rect x="36" y="16" width={width - 50} height={height - 42} />
             </clipPath>
           </defs>
           {[0, 50, 100].map((v) => (
@@ -256,12 +258,12 @@ function HistoryChart({
                 className="ah-grid"
               />
               <text x="3" y={y(v) + 4}>
-                {100 - v}%
+                {v}%
               </text>
             </g>
           ))}
           {!accounts.some((a) => a.points.some((p) => p[window])) && (
-            <text x={width / 2} y="175" textAnchor="middle">
+            <text x={width / 2} y={height / 2} textAnchor="middle">
               No readings for this window
             </text>
           )}
@@ -281,7 +283,7 @@ function HistoryChart({
               x1={x(t * 1000)}
               x2={x(t * 1000)}
               y1="20"
-              y2="330"
+              y2={height - 30}
               className="ah-reset"
             >
               <title>Reported reset {stamp(t * 1000)}</title>
@@ -333,7 +335,7 @@ function HistoryChart({
                 x1={x(tracked.t)}
                 x2={x(tracked.t)}
                 y1="20"
-                y2="330"
+                y2={height - 30}
               />
               <circle
                 cx={x(tracked.t)}
@@ -345,10 +347,10 @@ function HistoryChart({
               />
             </g>
           )}
-          <text x="36" y="354">
+          <text x="36" y={height - 6}>
             {formatHistoryAxis(start, start, end)}
           </text>
-          <text x={width - 14} y="354" textAnchor="end">
+          <text x={width - 14} y={height - 6} textAnchor="end">
             {formatHistoryAxis(end, start, end)}
           </text>
         </svg>
@@ -366,8 +368,7 @@ function HistoryChart({
               {hovered.account.name}
             </strong>
             <b>
-              {Number((100 - hovered[window]!.pct).toFixed(2))}%{" "}
-              <span>remaining</span>
+              {Number(hovered[window]!.pct.toFixed(2))}% <span>used</span>
             </b>
             <span>Observed {stamp(hovered.t)}</span>
             <span>
@@ -578,7 +579,7 @@ export default function AccountHistoryView() {
                 >
                   7-day window
                 </button>
-                <span>Remaining capacity</span>
+                <span>Capacity used</span>
               </div>
               {!hasPoints ? (
                 <div className="ah-empty">
@@ -645,7 +646,7 @@ export default function AccountHistoryView() {
                   ))}
                 </select>
               </label>
-              <p className="ah-note">Latest recorded · % remaining</p>
+              <p className="ah-note">Latest recorded · % used</p>
               <div className="ah-legend" aria-label="Account legend">
                 {colored.map((a) => {
                   const latest = a.points
@@ -679,7 +680,7 @@ export default function AccountHistoryView() {
                       </span>
                       <span className="ah-account-value">
                         {latest
-                          ? `${Number((100 - latest[activeWindow]!.pct).toFixed(2))}%`
+                          ? `${Number(latest[activeWindow]!.pct.toFixed(2))}%`
                           : "—"}
                       </span>
                     </button>
@@ -691,7 +692,7 @@ export default function AccountHistoryView() {
           <details className="ah-data-notes">
             <summary>About these readings</summary>
             <p className="ah-note">
-              Remaining capacity is 100% minus reported usage, not token
+              Percentages describe reported capacity used, not token
               consumption. Missing readings remain gaps; reported reset times do
               not confirm renewed capacity. The time axis fits available
               readings. Dashed markers show reported resets.

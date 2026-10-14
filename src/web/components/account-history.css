@@ -334,7 +334,7 @@
   border-radius: 8px;
 }
 .ah-redesign .ah-chart svg {
-  height: 360px;
+  height: clamp(320px, 54dvh, 540px);
   margin: 0;
 }
 .ah-tooltip {
@@ -508,5 +508,15 @@
 @media (max-width: 380px) {
   .ah-redesign .ah-legend {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ap-report-modal[data-view="history"] {
+  width: min(1240px, calc(100vw - 32px));
+  max-height: min(1040px, calc(100dvh - 32px));
+}
+@media (max-width: 700px) {
+  .ah-redesign .ah-chart svg {
+    height: 320px;
   }
 }
