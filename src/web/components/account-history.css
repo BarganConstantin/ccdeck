@@ -57,7 +57,7 @@
 .ah-chart svg {
   display: block;
   width: 100%;
-  height: 170px;
+  height: 290px;
   margin: 12px 0;
   overflow: visible;
 }
@@ -79,6 +79,12 @@
 }
 .ah-dot {
   fill: var(--accent);
+}
+.ah-line-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
 }
 .ah-note {
   color: var(--text-dim);
@@ -197,24 +203,6 @@
   border-radius: 2px;
 }
 
-.ah-explore {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
-}
-.ah-explore .btn {
-  min-width: 34px;
-  min-height: 34px;
-}
-.ah-explore .btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.ah-explore .ah-note {
-  margin-left: 6px;
-}
 .ah-plot {
   user-select: none;
 }
@@ -224,4 +212,10 @@
 }
 .ah-plot-zoomed:active {
   cursor: grabbing;
+}
+
+.ah-plot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

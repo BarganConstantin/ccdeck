@@ -20,6 +20,7 @@ function HistoryChart({
   zoomed,
   onZoom,
   onPan,
+  onReset,
 }: {
   accounts: (SnapshotAccount & { color: string })[];
   window: "five_hour" | "seven_day";
@@ -28,6 +29,7 @@ function HistoryChart({
   zoomed: boolean;
   onZoom: (factor: number, anchor?: number) => void;
   onPan: (delta: number) => void;
+  onReset: () => void;
 }) {
   const chartRef = useRef<SVGSVGElement>(null);
   const clipId = useId();
@@ -46,8 +48,11 @@ function HistoryChart({
     const svg = chartRef.current;
     if (!svg) return;
     const wheel = (event: WheelEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
       event.preventDefault();
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        onPan((event.deltaX / svg.clientWidth) * (end - start));
+        return;
+      }
       const rect = svg.getBoundingClientRect();
       const anchor = Math.max(
         0,
@@ -60,7 +65,7 @@ function HistoryChart({
     };
     svg.addEventListener("wheel", wheel, { passive: false });
     return () => svg.removeEventListener("wheel", wheel);
-  }, [onZoom]);
+  }, [onZoom, onPan, start, end]);
   const [selected, setSelected] = useState<string | null>(null);
   const values = accounts
     .flatMap((a) =>
@@ -73,7 +78,7 @@ function HistoryChart({
   const w = p?.[window];
   const visibleAccounts = new Set(values.map((p) => p.account.id)).size;
   const x = (t: number) => 36 + ((t - start) / (end - start)) * (width - 50);
-  const y = (pct: number) => 140 - pct * 1.2;
+  const y = (pct: number) => 260 - pct * 2.4;
   return (
     <section
       className="ah-chart"
@@ -91,9 +96,27 @@ function HistoryChart({
       </header>
       <svg
         ref={chartRef}
-        viewBox={`0 0 ${width} 170`}
-        role="img"
-        aria-label="Reported usage from 0 to 100 percent. Gaps indicate missing observations; separate lines indicate changed reset windows."
+        viewBox={`0 0 ${width} 290`}
+        role="group"
+        tabIndex={0}
+        aria-label={`${window === "five_hour" ? "5-hour" : "7-day"} interactive usage chart. Scroll to zoom, drag to pan, double-click to reset. Keyboard: plus or minus to zoom, left or right arrows to pan, zero to reset. Gaps indicate missing observations or changed reset windows.`}
+        onDoubleClick={onReset}
+        onKeyDown={(e) => {
+          if (e.ctrlKey || e.metaKey || e.altKey) return;
+          if (e.key === "+" || e.key === "=") {
+            e.preventDefault();
+            onZoom(0.5);
+          } else if (e.key === "-" || e.key === "_") {
+            e.preventDefault();
+            onZoom(2);
+          } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            onPan((end - start) * (e.key === "ArrowLeft" ? -0.5 : 0.5));
+          } else if (e.key === "0" || e.key === "Home") {
+            e.preventDefault();
+            onReset();
+          }
+        }}
         className={zoomed ? "ah-plot ah-plot-zoomed" : "ah-plot"}
         onPointerDown={(e) => {
           if (!zoomed || e.button !== 0) return;
@@ -121,7 +144,7 @@ function HistoryChart({
       >
         <defs>
           <clipPath id={clipId}>
-            <rect x="36" y="16" width={width - 50} height="128" />
+            <rect x="36" y="16" width={width - 50} height="248" />
           </clipPath>
         </defs>
         {[0, 50, 100].map((v) => (
@@ -154,7 +177,7 @@ function HistoryChart({
             x1={x(t * 1000)}
             x2={x(t * 1000)}
             y1="20"
-            y2="140"
+            y2="260"
             className="ah-reset"
           >
             <title>Reported reset {stamp(t * 1000)}</title>
@@ -168,7 +191,19 @@ function HistoryChart({
                   points={s.map((p) => `${x(p.t)},${y(p.pct)}`).join(" ")}
                   className="ah-line"
                   style={{ stroke: a.color }}
-                />
+                >
+                  <title>{a.name}</title>
+                </polyline>
+                <path
+                  d={s
+                    .map(
+                      (p, index) => `${index ? "L" : "M"}${x(p.t)},${y(p.pct)}`,
+                    )
+                    .join(" ")}
+                  className="ah-line-hit"
+                >
+                  <title>{a.name}</title>
+                </path>
                 {s.map((p) => (
                   <circle
                     key={p.t}
@@ -187,10 +222,10 @@ function HistoryChart({
             ))}
           </g>
         ))}
-        <text x="36" y="164">
+        <text x="36" y="284">
           {formatHistoryAxis(start, start, end)}
         </text>
-        <text x={width - 14} y="164" textAnchor="end">
+        <text x={width - 14} y="284" textAnchor="end">
           {formatHistoryAxis(end, start, end)}
         </text>
       </svg>
@@ -421,59 +456,9 @@ export default function AccountHistoryView() {
             </div>
           ) : (
             <>
-              <div
-                className="ah-explore"
-                role="group"
-                aria-label="History chart navigation"
-              >
-                <button
-                  type="button"
-                  className="btn"
-                  aria-label="Earlier observations"
-                  disabled={!zoomed || start <= full.start + 1}
-                  onClick={() => pan(-(end - start) * 0.5)}
-                >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  aria-label="Zoom in"
-                  disabled={end - start <= 5 * 60_000 + 1}
-                  onClick={() => zoom(0.5)}
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  aria-label="Zoom out"
-                  disabled={!zoomed}
-                  onClick={() => zoom(2)}
-                >
-                  −
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  aria-label="Later observations"
-                  disabled={!zoomed || end >= full.end - 1}
-                  onClick={() => pan((end - start) * 0.5)}
-                >
-                  →
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={!zoomed}
-                  onClick={() => setViewport(null)}
-                >
-                  Reset zoom
-                </button>
-                <span className="ah-note">
-                  Ctrl/⌘ + scroll to zoom · Drag when zoomed
-                </span>
-              </div>
+              <p className="ah-note">
+                Scroll to zoom · Drag to pan · Double-click to reset
+              </p>
               <p className="ah-note" role="status">
                 Viewing {stamp(start)} – {stamp(end)}
               </p>
@@ -485,6 +470,7 @@ export default function AccountHistoryView() {
                 zoomed={zoomed}
                 onZoom={zoom}
                 onPan={pan}
+                onReset={() => setViewport(null)}
               />
               <HistoryChart
                 accounts={series}
@@ -494,6 +480,7 @@ export default function AccountHistoryView() {
                 zoomed={zoomed}
                 onZoom={zoom}
                 onPan={pan}
+                onReset={() => setViewport(null)}
               />
             </>
           )}

@@ -138,8 +138,29 @@ try {
   );
   const viewLabel = page.locator('.ah-workspace p[role="status"]');
   const originalRange = await viewLabel.textContent();
-  await page.getByRole("button", { name: "Zoom in", exact: true }).focus();
-  await page.keyboard.press("Space");
+  const browserZoomPreserved = await page
+    .locator(".ah-chart svg")
+    .first()
+    .evaluate((svg) => {
+      return ["ctrlKey", "metaKey", "altKey"].every((modifier) => {
+        const event = new KeyboardEvent("keydown", {
+          key: "+",
+          [modifier]: true,
+          bubbles: true,
+          cancelable: true,
+        });
+        svg.dispatchEvent(event);
+        return !event.defaultPrevented;
+      });
+    });
+  assert.equal(
+    browserZoomPreserved,
+    true,
+    "Modified keyboard shortcuts must remain available to the browser",
+  );
+  assert.equal(await viewLabel.textContent(), originalRange);
+  await page.locator(".ah-chart svg").first().focus();
+  await page.keyboard.press("+");
   assert.notEqual(await viewLabel.textContent(), originalRange);
   assert.equal(await page.locator(".ah-plot-zoomed").count(), 2);
   const axisLabels = await page.locator(".ah-chart svg").evaluateAll((svgs) =>
@@ -157,18 +178,18 @@ try {
   );
   await shot("zoomed");
   const beforePan = await viewLabel.textContent();
-  await page.getByRole("button", { name: "Later observations" }).click();
+  await page.keyboard.press("ArrowRight");
   assert.notEqual(await viewLabel.textContent(), beforePan);
-  await page.getByRole("button", { name: "Earlier observations" }).click();
+  await page.keyboard.press("ArrowLeft");
   const plot = await page.locator(".ah-chart svg").first().boundingBox();
   await page.mouse.move(plot.x + plot.width * 0.5, plot.y + 80);
   const beforeWheel = await viewLabel.textContent();
   await page.mouse.wheel(0, 50);
   await page.waitForTimeout(100);
-  assert.equal(
+  assert.notEqual(
     await viewLabel.textContent(),
     beforeWheel,
-    "Ordinary scrolling must not change zoom",
+    "Ordinary wheel over the chart must zoom",
   );
   await page.locator(".ah-chart svg").first().scrollIntoViewIfNeeded();
   const wheelPlot = await page.locator(".ah-chart svg").first().boundingBox();
@@ -202,13 +223,34 @@ try {
     "",
     "Chart dragging must not select axis text",
   );
-  await page.getByRole("button", { name: "Reset zoom" }).click();
+  await page.locator(".ah-chart svg").first().dblclick();
+  assert.equal(await viewLabel.textContent(), originalRange);
+  assert.equal(await page.locator(".ah-plot-zoomed").count(), 0);
+  await page.locator(".ah-chart svg").first().focus();
+  await page.keyboard.press("+");
+  await page.keyboard.press("0");
   assert.equal(await viewLabel.textContent(), originalRange);
   assert.equal(
     await page
-      .getByRole("button", { name: "Zoom out", exact: true })
-      .isDisabled(),
-    true,
+      .locator(".ah-chart svg")
+      .first()
+      .evaluate((svg) => svg.getBoundingClientRect().height),
+    290,
+  );
+  const hit = page.locator('g[data-account="a"] .ah-line-hit').first();
+  assert.equal(
+    await hit.locator("title").textContent(),
+    "Primary example account",
+  );
+  const hitTarget = await hit.evaluate((el) => {
+    const p = el.getPointAtLength(el.getTotalLength() * 0.47);
+    const screen = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM());
+    const target = document.elementFromPoint(screen.x, screen.y);
+    return target?.querySelector("title")?.textContent;
+  });
+  assert.ok(
+    hitTarget?.includes("Primary example account"),
+    "Hovering a line must identify its account",
   );
   await page.locator(".ah-legend-account").first().click();
   assert.equal(
