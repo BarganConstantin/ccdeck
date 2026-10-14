@@ -109,4 +109,9 @@ export const RadioGlyph = () => (
   <Glyph><path d="M2 5h10v7H2z M4 5l6-3 M4 8h3 M9 8h1 M4 10h1 M8 10h2" /></Glyph>
 );
 
-export const ToolActivityGlyph = () => <Glyph><path d="M2 11.5h10M4 9V6m3 3V2.5m3 6.5V4.5" /></Glyph>;
+export const ToolActivityGlyph = () => (
+  <Glyph>
+    <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" />
+    <path d="m4 5 2 2-2 2M8 9h2" />
+  </Glyph>
+);
