@@ -24,7 +24,9 @@ export const auditDuration = (ms: number | null) => {
   if (ms < 1000) return `${Math.round(ms)} ms`;
   if (ms < 60000) return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
   if (ms < 3600000) return `${(ms / 60000).toLocaleString(undefined, { maximumFractionDigits: 1 })} min`;
-  return `${(ms / 3600000).toLocaleString(undefined, { maximumFractionDigits: 1 })} h`;
+  const minutes = Math.round(ms / 60000);
+  const hours = Math.floor(minutes / 60), remainder = minutes % 60;
+  return `${hours.toLocaleString()} h${remainder ? ` ${remainder} min` : ''}`;
 };
 export const auditBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1048576
   ? `${(bytes / 1024).toLocaleString(undefined, { maximumFractionDigits: 1 })} KB`

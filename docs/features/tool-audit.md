@@ -42,6 +42,10 @@ remain provider/period-wide. Selecting any operation opens the same focus-protec
 side drawer without changing report scroll. Selection survives search, sorting
 and refresh while the operation exists. The table exposes all operations in
 50-row increments; narrow layouts retain exact values and detail access.
+The header snapshot timestamp is the aggregation cut-off, separate from the
+latest observed call start in the selected provider/period. Refresh can advance
+the snapshot without new starts; neither endpoint gaps nor sparse observations
+prove collector health or failure. Hour durations retain rounded whole minutes.
 Requested period, earliest/latest observed starts and retained recording boundary
 are distinct. Period filtering uses call starts; an entire completed interval is
 included even when its outcome arrives after the range. The overview cumulative
@@ -123,7 +127,7 @@ interface, not accessibility certification or permission to merge.
 The verified measurement audit is recorded in `tool-explorer-design.md`.
 Earlier visual iterations are historical; the selected full report and premium
 refinement, current screenshot evidence and actual validation are recorded in
-`tool-activity-report.md`. Current checks:229 tests across eight suites,
+`tool-activity-report.md`. Current checks:231 tests across eight suites,
 TypeScript and production build, six requested Brave viewport sizes and all
 nine themes. Separate live Codex integration was exercised; live Claude,
 native Windows/Linux, Safari/Firefox and screen-reader certification remain

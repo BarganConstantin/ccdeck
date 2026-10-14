@@ -7,7 +7,7 @@ centered four-mode ranking. It does not change the global design system.
 Implemented source is authoritative: `src/web/components/ToolAuditModal.tsx`,
 `ToolAuditComparison.tsx`, `ToolAuditIntervalPlot.tsx`, `ToolAuditOperations.tsx`,
 `ToolAuditDrawer.tsx` and the existing `ToolAuditInspector.tsx`, together with
-`src/web/tool-audit-report.ts` and `src/web/styles/tool-audit.css`.
+`src/web/tool-audit-report.ts`, `src/web/tool-audit.ts` and `src/web/styles/tool-audit.css`.
 The [Direction A contract](../../docs/features/tool-activity-report.md) records
 quality bar, visualization research and executed validation. The
 [verified data audit](../../docs/features/tool-explorer-design.md) remains the
@@ -26,7 +26,8 @@ paired primary comparisons, subordinate median–P95 and failures; mobile stacks
 **FORM:** full application viewport overlay, one report body scroll, contextual
 portal drawer; no route, metric mode switching or empty inspector reservation.
 **FINISH:** two bounded rendered passes complete; fresh independent finish review
-returns **SHIP** with no material fixes. This scoped documentation completes the
+returns **disposition: ship** with no material fixes; user handoff recommendation
+is **SHIP WITH LIMITATIONS**. No additional parent polish is owed. This scoped documentation completes the
 assigned persistence handoff; parent owns other documentation and PR work.
 
 **QUALITY BAR:** purpose and frequency leader should be apparent within five
@@ -49,8 +50,8 @@ not an executed participant study.
   precede incomplete-history notices. Unique observed calls, cumulative intervals,
   reported failures and timing coverage retain provider/period scope during
   search. Search narrows charts/table with explicit scope text. Collapsed Coverage
-  & definitions retains exact timed denominator and observed endpoints, then
-  requested dates, retained start, refreshed timestamp, provider counts,
+  & definitions retains exact timed denominator and Observed starts, then
+  requested dates, retained start, snapshot timestamp, latest observed call start, provider counts,
   unmatched outcomes and measurement definitions. Rounded coverage percentages
   always have an exact denominator; 100% can represent display rounding.
 - **Usage and interval comparisons:** each shows five eligible leaders, descending
@@ -115,6 +116,17 @@ not an executed participant study.
   search, sort and refresh while its identity remains, clearing when replacement
   data lacks it. Reset appears only for changed filters/search and restores all
   providers, seven days, empty search, descending calls and fifty rows.
+- **Snapshot and observed starts:** header Snapshot names report `capturedAt`,
+  the backend cutoff passed into aggregation, not the last tool event or completed
+  generation. Coverage labels Observed starts and latest observed call start;
+  `observedUntil` is the maximum start in the selected provider/period. Outcomes
+  may be later. Refresh rereads saved observations and can advance snapshot time
+  without new starts. No collection-health warning is inferred from inactivity.
+- **Duration precision:** `auditDuration` values ≥1 hour round total minutes to
+  the nearest minute, then derive integer hours and remaining minutes with correct
+  carry. 3,720,000ms renders `1 h 2 min`; exact hours remain `1 h`. Sub-hour,
+  unavailable and zero branches are unchanged. At ≤700px the hour-summary role
+  alone uses 18px to keep the compound value readable at 320px.
 - **Contextual drawer:** chart/table selections share one independently scrolling,
   focus-protected portal drawer, width `min(440px, 100%)`. It overlays the report
   without changing report scroll or reserving empty space. Keyboard selection
@@ -160,7 +172,11 @@ are completed outcomes, not all starts.
 
 Periods filter observed starts and count matched intervals in full even when the
 outcome is outside the range. Requested, retained and observed dates stay distinct;
-sparse endpoints do not establish continuous coverage. Forward-only device-local
+sparse endpoints do not establish continuous coverage. Source inspection of
+`src/server/tool-audit.mjs` and `src/server/tool-audit-report.mjs` confirms the
+snapshot/start contract above; both are unchanged. Timestamp gaps establish
+neither collector health nor failure; no health heartbeat exists. Only actual
+persisted-record quality flags trigger incomplete-history notices. Forward-only device-local
 history has no old-session import/synchronization. General Settings owns
 30/60/90-day retention, stored bytes and confirmed clear. Custom UTC dates allow
 at most 90 calendar days inclusive; reports load on demand.
@@ -181,80 +197,88 @@ to the global type ramp or permission to reuse hero steps on other surfaces.
 | Report title | 17px/600; 16px at ≤700px, 15px at ≤360px |
 | Comparison / explorer headings | 15px/600 / 16px/600 |
 | Summary values | 26px/500; primary 32px/600; coverage 20px |
-| Phone summary values | 22px/500; primary 28px/600 |
+| Phone summary values | 22px/500; primary 28px/600; hour-duration summary alone 18px at ≤700px |
 | Controls, table data, operation identities | 12px; context/labels 11px; identities 11px at ≤360px |
 | Exact chart / inspector values and inspector heading | 13px mono; chart values 12px at ≤360px |
 | Qualifiers, timed sample counts, axes, table provider metadata | 10px |
 
 System sans remains the UI voice; mono identities/exact measurements and tabular
 numbers keep the instrument character. Larger sans summary values establish glance
-priority; compact sample/axis roles support dense evidence. The existing single
-premium detector output `/tmp/ccdeck-premium-detector.json` recorded **19 local
-typography advisories and zero nonadvisory findings**. The single final refinement
-detector pass recorded the same 19 advisories and zero nonadvisory findings; no
-new type values were introduced. Preserve these narrow intentional roles. This
-documentation handoff does not rerun the detector or claim its advisories cleared.
+priority; compact sample/axis roles support dense evidence. The premium and preceding final refinement detector passes each recorded
+**19 local typography advisories and zero nonadvisory findings**. The single
+2026-10-14 quality closeout pass recorded **20 local typography advisories and zero
+nonadvisory findings**. The additional 18px mobile hour-summary role is intentional
+and narrowly scoped; it does not change the global type ramp. Preserve all existing
+role exceptions. This documentation handoff does not rerun the detector or claim
+its advisories cleared.
 
 ## Verified finish and evidence
 
-The fresh independent [final finish review](../review/tool-activity-final/finish-review.md),
-using the installed Impeccable finish-reviewer fallback, returns
-**disposition: ship**, with **no material fixes**. It was a fresh file-only review
-of all 25 required captures and the conceptual reference, using existing source
-and validation evidence. It does not independently recertify browser measurements.
-The two bounded final rendered passes are complete: first exposed an orphaned
-failure cell after revealing the phone timing column; second grouped all four
-values into two columns and confirmed identical states. The corrected sticky
-check uses 100 visible rows from 210 operation types; the initial short table
-could not activate sticking, which was a test limitation, not an application defect.
+The fresh independent [quality finish review](../review/tool-activity-quality/finish-review.md)
+returns **disposition: ship**, with **no material fixes**; user handoff recommendation
+is **SHIP WITH LIMITATIONS**. It is a fresh file-only review of all 25 required
+quality captures, the preceding before captures and conceptual reference, using
+retained source and validation evidence. It does not independently recertify
+browser measurements. Two bounded quality passes are complete: the first exposed
+an orphaned minute unit at 320px; the second confirmed the narrow 18px mobile
+hour-summary correction. No more parent polish is required.
 
-Existing [final executed checks](../../docs/features/tool-activity-report.md#final-refinement-executed-checks)
-record:
+Existing [Product quality closeout](../../docs/features/tool-activity-report.md#product-quality-closeout--2026-10-14)
+records:
 
-- **229 tests across eight suites passed**, including precise fractional/zero/null
-  interval descriptions, P95 definition/sample qualifications, failure numerator/
-  denominator and tiny-sample rate guards alongside existing chart/data contracts.
-  TypeScript and production build passed; inherited large main/HLS chunk warning
-  remains. No dependencies or backend behavior changed.
+- **231 tests across eight suites passed**, including nearest-minute hour precision
+  and carry, unchanged exact-hour/sub-hour/null/zero formatting, and existing
+  collector, precise fractional/zero/null P95 descriptions, ≥20 eligibility,
+  simple linear axis, containing-call failure numerator/denominator and sample
+  guards. TypeScript and production build passed; the inherited large-chunk warning
+  remains. No dependencies or backend change.
 - Brave fixtures passed at **1440×900, 1280×800, 1024×768, 800×600, 390×844 and
-  320×568**, with all nine themes, 125% zoom, keyboard traps/restoration,
-  reduced motion, sorting/search/provider/custom period, refresh coalescing and
-  retained snapshot, selected detail, resize and dense 210-type paging. Computed
-  visible report text met **≥4.5:1**; actual chart marks across all four sections,
-  including SVG endpoints/lollipops, met **≥3:1**. New assertions verify precise
-  tooltip/accessibility text, visible phone median/P95 sorting values and actual
-  sticky-header geometry with 100 rows. This is scoped measured evidence, not
-  every theme at every viewport or full accessibility certification.
+  320×568**, with nine themes, 125% zoom, keyboard/focus/restoration, reduced
+  motion, provider/period/search, refresh coalescing/retained snapshot, selected
+  detail, resize and dense 210-type paging. Computed visible text met **≥4.5:1**;
+  actual marks across four charts met **≥3:1**. New inactive fixtures assert
+  snapshot advances while observed starts stay unchanged without an invented
+  collection warning; hour fixtures assert `1 h 2 min` in summary and chart.
+  Previous active phone median/P95 sorting and actual sticky-header geometry with
+  100 visible rows still pass. This is scoped evidence, not every theme at every
+  viewport or formal accessibility certification.
 - Sparse/missing/no-failures/zero/empty/unavailable/partial/no-search-match/tiny
-  failure samples retain truthful rendered states.
-- Read-only live Codex API snapshot: **1,581 observed/measured calls,
-  105 operation identities and 14 reported failures**. Keyboard, resize,
-  selected-refresh, nonadditive memberships, partial history and nine-theme
-  placeholder checks passed. Counts change as collection continues; they are
-  snapshots, not permanent expectations or complete requested history.
-- One final detector pass recorded **19 unchanged local typography advisories
-  and zero nonadvisory findings**. Existing narrow exceptions remain; no new
-  type values, source edits or QA/detector reruns accompany this handoff.
+  failure samples retain truthful rendered states. P95, failure attribution,
+  nonadditive memberships, shared/overlapping intervals and provider-clock
+  qualifications are unchanged. Intentional wait/sleep names stay descriptive,
+  without inferred performance problems.
+- Read-only retained Codex API snapshot: **1,653 observed/measured calls,
+  105 operation identities and 14 reported failures**. This validates retained
+  report integration, not continuously active external capture or complete
+  requested history; counts are snapshot observations, not fixed expectations.
+- One closeout detector pass recorded **20 local typography advisories and zero
+  nonadvisory findings**. The additional local 18px role is intentional. No source
+  edits or QA/context/detector reruns accompany this documentation handoff.
 
-Premium captures and their 226-test / 1,466-call validation remain historical
-baseline evidence in the feature contract and
-[prior review](../review/tool-activity-premium/finish-review.md).
-Current final captures were opened individually for this documentation handoff:
+The preceding 229-test / 1,581-call / 19-advisory finish remains historical evidence
+in the [prior final review](../review/tool-activity-final/finish-review.md); the
+226-test / 1,466-call premium baseline remains in the feature contract and
+[premium review](../review/tool-activity-premium/finish-review.md).
+Current required quality captures were opened individually for this handoff:
 
-- [Phone P95 sort, 320×568](../review/tool-activity-final/final-sorted-p95Ms-320-568.png)
-- [Desktop secondary comparisons, 1280×800](../review/tool-activity-final/final-secondary-1280-800.png)
-- [Light theme, 1280×800](../review/tool-activity-final/final-theme-light-1280-800.png)
-- [Phone contextual detail, 390×844](../review/tool-activity-final/final-details-390-844.png)
+- [Inactive coverage, 1280×800](../review/tool-activity-quality/final-inactive-coverage-1280-800.png)
+- [Inactive coverage, 320×568](../review/tool-activity-quality/final-inactive-coverage-320-568.png)
+- [Compound hour summary, 320×568](../review/tool-activity-quality/final-hours-320-568.png)
+- [Secondary comparisons, 1280×800](../review/tool-activity-quality/final-secondary-1280-800.png)
+- [Light theme, 1280×800](../review/tool-activity-quality/final-theme-light-1280-800.png)
+- [Retained live overview, 1440px](../review/tool-activity-quality/final-live-overview-1440.png)
 
-Secondary/operations captures are scrolled sections; drawer captures show
-contextual evidence. The complete live report is a body-scroll stitch, useful for
-continuity only; individual viewport captures establish layout and scrolling.
-Synthetic fixture screenshots are separate from collector history. Native titles
-supplement visible values/qualifications; their presence does not establish touch
-or screen-reader usability.
+Secondary/operations/coverage captures are scrolled sections; drawer captures show
+contextual evidence. The complete live report is a body-scroll stitch with the
+original header, useful for content continuity only; individual viewport captures
+establish layout and scrolling. Synthetic fixtures are separate from collector
+history. Native titles supplement visible values/qualifications; their presence
+does not establish touch or screen-reader usability.
 
-Native Windows/Linux execution, Firefox/Safari, live Claude hook collection,
-screen-reader usability/certification and formal comprehension research remain
-unverified. This handoff updates only the Tool Activity subsection of `DESIGN.md`
-and this surface record, checks scope/whitespace/local links, and does not rerun
-context, detector or QA. No source edit, git commit/push/merge or publication.
+Live Claude hook collection, native Windows/Linux execution, Firefox/Safari,
+formal screen-reader usability/certification and participant comprehension research
+remain unverified. No health heartbeat exists; timestamp gaps alone cannot certify
+collector health. This handoff updates only the Tool Activity subsection of
+`DESIGN.md` and this surface record, checks scope/whitespace/local links, and does
+not rerun context, detector or QA. No source edit, git commit/push/merge or
+publication; parent owns other documentation and PR work.

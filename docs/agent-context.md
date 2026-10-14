@@ -1,9 +1,9 @@
 # Owner's ccdeck work — continuation context
 
-Updated: 2026-10-13. This is a handoff, not a claim that processes or remote
+Updated: 2026-10-14. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
-## Tool activity audit preview on Mac — 2026-10-13
+## Tool activity audit preview on Mac — 2026-10-14
 
 - Issue #2122, branch `feat/2122-tool-audit`, worktree
   `/Users/constantin/Desktop/ccdeck-tool-audit`, based on development `d2ca5ba6`.
@@ -21,11 +21,15 @@ branches still have the same state. Verify them at the start of a new session.
   One report scroll, on-demand focus-protected evidence drawer, sortable
   operations table (50-row increments), no scatter plot or new dependency.
   Collector semantics unchanged; search scopes charts/table, not call summary.
-  229 tests across eight suites, typecheck/build, six-size/nine-theme Brave
+  231 tests across eight suites, typecheck/build, six-size/nine-theme Brave
   regression checks passed. Read-only live Codex data was checked separately.
-  Final refinement adds precise accessible chart descriptions and visible
-  median/P95 values when sorting on phones. Independent file-only finish review: ship, no material fixes;
-  evidence and limits in `.impeccable/review/tool-activity-final/`.
+  Product-quality closeout distinguishes snapshot cut-off from latest observed
+  call start, without inferring capture health from inactivity. Hour durations
+  now preserve minutes; phone hour summaries remain compact. Existing exact
+  P95/failure descriptions and timing-sort values are retained.
+  Independent finish: ship, no material fixes; product recommendation
+  SHIP WITH LIMITATIONS. Evidence and limits in
+  `.impeccable/review/tool-activity-quality/`.
   PR #2125 remains draft; owner preview review pending, no merge/deployment.
 
 ## Usage insights preview on Mac — 2026-10-13

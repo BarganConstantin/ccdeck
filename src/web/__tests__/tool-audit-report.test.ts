@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reportComparison, reportComparisonDescription, reportExactInterval, reportOperations, reportIntervalScale, reportIntervalPosition } from '../tool-audit-report';
-import type { AuditRow } from '../tool-audit';
+import { auditDuration, type AuditRow } from '../tool-audit';
 const row = (operation: string, extra: Partial<AuditRow> = {}): AuditRow => ({
   operation, calls: 20, completed: 20, failed: 0, errorRate: 0, measured: 20,
   missingTiming: 0, unmatched: 0, shared: 0, providers: { claude: 0, codex: 20 }, tools: ['exec'],
@@ -84,5 +84,21 @@ describe('accessible exact chart evidence', () => {
     expect(tiny).toContain('Small sample');
     expect(tiny).not.toContain('50%');
     expect(reportComparisonDescription(row('eligible', { failed: 1, errorRate: .05 }), 'failed')).toContain('Reported failure rate 5%');
+  });
+});
+
+
+describe('compact hour precision', () => {
+  it('retains useful minutes instead of rounding one hour and two minutes to one hour', () => {
+    expect(auditDuration(3720000)).toBe('1 h 2 min');
+    expect(auditDuration(7260000)).toBe('2 h 1 min');
+    expect(auditDuration(3600000)).toBe('1 h');
+  });
+  it('rounds to the nearest minute with correct hour carry and leaves unknown/zero intact', () => {
+    expect(auditDuration(7170000)).toBe('2 h');
+    expect(auditDuration(3630000)).toBe('1 h 1 min');
+    expect(auditDuration(null)).toBe('—');
+    expect(auditDuration(0)).toBe('0 ms');
+    expect(auditDuration(9000)).toBe('9 s');
   });
 });

@@ -151,6 +151,7 @@
   .ta-overview { grid-template-columns: 1fr 1fr 1fr; gap: 12px; padding-bottom: 16px; }
   .ta-overview dt { font-size: 11px; min-height: 30px; line-height: 1.4; margin-bottom: 4px; }
   .ta-overview dd { font-size: 22px; }
+  .ta-overview .ta-overview-long-duration dd { font-size: 18px; }
   .ta-overview .ta-overview-primary dd { font-size: 28px; }
   .ta-overview dd span { display: none; }
   .ta-summary-coverage { display: none; }

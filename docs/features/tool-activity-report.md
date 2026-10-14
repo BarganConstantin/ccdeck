@@ -195,3 +195,64 @@ finish-reviewer fallback, returned **disposition: ship** with no material fixes.
 It opened all25 required individual captures and the conceptual reference;
 review evidence is `tool-activity-final/finish-review.md`. This scoped verdict
 does not authorize merge/deployment or certify untested platforms.
+
+
+## Product quality closeout — 2026-10-14
+
+Focused final gate, preserving Direction A, four comparisons, themes and table.
+Source investigation confirmed `capturedAt` is the server's report snapshot
+cut-off passed into aggregation; it is not the last tool event or completion of
+rendering. `observedUntil` is the maximum retained **start** timestamp among
+calls in the provider/period query; outcomes may occur later. The header now says
+Snapshot, coverage says Observed starts and separately names the latest observed
+call start. Refresh may advance snapshot time without new starts. Neither sparse
+endpoints nor this time difference establish continuous capture or collector
+failure/health; only actual persisted-record quality flags trigger incomplete
+history notices. No new heartbeat or collector semantics were introduced.
+
+Duration review reproduced3,720,000ms formatting as1h with the old one-decimal
+hour formatter. Values at least an hour now show integer hours plus remaining
+minutes, rounded to the nearest minute with hour carry; the example is1h2min.
+Exact integer hours remain compact. Sub-hour/ms, null and zero behavior is
+unchanged; precise P95 raw-ms tooltip/accessibility descriptions are retained.
+The first rendered batch exposed an orphaned min unit at320px; only the mobile
+hour-summary role uses18px to keep the compound value readable. Confirmation
+preserves the existing hierarchy and page composition.
+
+P95, failure attribution, nonadditive memberships, shared/overlapping intervals,
+provider-clock qualifications and intentional wait/sleep names are unchanged.
+No speculative performance diagnosis or redundant findings block was added.
+No installed validated data-visualization skill was found; Impeccable polish and
+Product UI Craft final-gate workflow apply within the incumbent design.
+
+Executed verification:
+-231 tests/eight suites passed, including hour/minute precision/carry and all
+ existing collector, eligible P95, exact descriptions, failure samples and sorts.
+-TypeScript and production build passed; no dependency change. Existing
+ large-chunk warning remains.
+-Brave deterministic matrix passed six sizes and nine themes, with existing
+ computed text>=4.5:1/actual marks>=3:1, keyboard/focus/selection, provider/period,
+ search, refresh, sticky dense table, incomplete/missing/zero/no-failure states,
+ reduced motion and125% zoom. Added hour and idle fixtures assert advancing
+ snapshot with unchanged start endpoints and no invented collection warning.
+-Read-only local Codex report check passed:1,653 observed/measured calls,
+ 105 operations,14 reported failures at API read time. This validates retained
+ report integration, not proof of a continuously active external event stream.
+-One detector pass:20 scoped typography advisories, no nonadvisory findings.
+ The added18px role is narrow and deliberate; global typography unchanged.
+
+Before: `.impeccable/review/tool-activity-final/final-*`.
+After: `.impeccable/review/tool-activity-quality/final-*`.
+Individual viewport captures establish layout; complete-report image is an
+actual body-scroll stitch with original header, for content continuity only.
+
+Limits remain live Claude, native Windows/Linux, Firefox/Safari, certified
+screen-reader usability and formal comprehension study. No health heartbeat
+exists; timestamp gaps alone cannot certify collector health. Independent finish
+review and durable scoped documentation follow; PR #2125 stays draft, no merge.
+
+Fresh independent finish review opened the required individual captures and
+returned **disposition: ship**, no material fixes. Handoff recommendation:
+**SHIP WITH LIMITATIONS** at the stated platform/integration/accessibility scope.
+Evidence: `.impeccable/review/tool-activity-quality/finish-review.md`.
+The durable scoped DESIGN/surface record now reflects the verified build; no merge.

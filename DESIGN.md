@@ -538,7 +538,7 @@ single-mode ranking for this surface; they do not redefine the global design.
   1360px including 40px desktop side padding. Compact
   provider/period/search controls and optional UTC dates precede unique call,
   cumulative interval, reported failure and timing-coverage summaries. Coverage &
-  definitions is collapsed, with exact timed denominator and observed endpoints
+  definitions is collapsed, with exact timed denominator and Observed starts
   visible. Theme surfaces and fine rules carry structure; no empty drawer space
   is reserved.
 - **Simultaneous comparisons:** Most used and Most measured time each show five
@@ -582,7 +582,13 @@ single-mode ranking for this surface; they do not redefine the global design.
   with status/error feedback and coalesces repeated requests. Selection survives
   search, sort and refresh while its identity exists. Reset restores all
   providers, seven days, empty search, descending calls and 50 rows; it appears
-  only for changed filters/search.
+  only for changed filters/search. Header Snapshot denotes report `capturedAt`,
+  the backend cutoff passed into aggregation, not the last tool event or completed
+  generation. Coverage names Observed starts and latest observed call start:
+  `observedUntil` is the maximum start in the selected provider/period; outcomes
+  may be later. Refresh can advance snapshot time without new starts. Timestamp
+  gaps imply neither collector health/failure nor continuous recording; no health
+  heartbeat exists. Incomplete-history notices use persisted-record quality flags.
 - **Contextual evidence and focus:** every chart/table selection opens the same
   portal drawer, at most 440px wide and full-width on phones, with its own scroll
   and protected focus, preserving report scroll. Keyboard selection focuses the
@@ -600,6 +606,12 @@ single-mode ranking for this surface; they do not redefine the global design.
   sparse endpoints do not prove continuous coverage. Arguments, outputs, error
   text and full traces are not retained; no trends, cost or execution proof is
   inferred.
+- **Duration precision:** `auditDuration` values ≥1 hour round total minutes to
+  the nearest minute, then show integer hours plus remaining minutes with correct
+  hour carry: 3,720,000ms is `1 h 2 min`; exact hours remain `1 h`. Sub-hour,
+  unavailable and measured-zero formatting is unchanged. At ≤700px only the
+  hour-duration summary uses 18px, keeping its compound value together at 320px
+  after the first rendered batch exposed an orphaned minute unit.
 - **Scoped typography and access:** retain system sans, mono identities/exact
   values and tabular numbers. Local header is 17px/600 (16px phone, 15px at
   ≤360px); chart titles 15px/600, explorer title 16px/600; summary values 26px/500,
@@ -607,31 +619,36 @@ single-mode ranking for this surface; they do not redefine the global design.
   Dense controls/data/context use 11/12px, exact chart/inspector values 13px,
   qualifiers, sample counts and axes 10px (phone chart values 12px and identities
   11px at ≤360px). These are Tool Activity role exceptions, not global scale
-  additions. The existing detector recorded 19 local typography advisories and
-  zero nonadvisory findings. Preserve 44px coarse-pointer main actions, visible
+  additions. The closeout detector recorded 20 local typography advisories and
+  zero nonadvisory findings; the added 18px hour-summary role is intentional. Preserve 44px coarse-pointer main actions, visible
   focus and forced-color marks. Table rows use the existing hover background on
-  `:focus-within`, preserving the focus-visible outline. No type values changed.
+  `:focus-within`, preserving the focus-visible outline. Global typography is unchanged.
   Keyboard/reduced-motion entry is immediate; otherwise the inherited entrance
   is 200ms. Reduced motion disables refresh
   and loading rotation.
-- **Verified finish:** final quality refinement completed two bounded rendered
-  passes; fresh independent file-only
-  [finish review](.impeccable/review/tool-activity-final/finish-review.md), using
-  the installed Impeccable fallback, returns
-  **SHIP**, with no material fixes. Existing final results record 229 tests/eight
-  suites, successful typecheck/build, six Brave sizes and nine themes, computed
-  report text ≥4.5:1 and actual chart marks ≥3:1. Added assertions check precise
-  title/accessibility descriptions, visible phone median/P95 sort values and
-  sticky-header geometry with 100 visible rows from 210 operation types.
-  Live Codex API snapshot: 1,581 observed/measured calls, 105 operations and
-  14 reported failures; counts are changing snapshot evidence. Final captures
-  live in `.impeccable/review/tool-activity-final/`; individual viewport images
-  establish layout, while the complete scroll stitch establishes continuity.
-  One final detector pass recorded 19 unchanged local typography advisories and
-  zero nonadvisory findings. Native Windows/Linux, Firefox/Safari, live Claude,
-  screen-reader usability/certification and formal comprehension study remain
-  unverified. The inherited large-chunk warning remains. This documentation
-  handoff reruns neither context/QA nor detector and authorizes no publication.
+- **Verified finish:** the 2026-10-14 product quality closeout completed two
+  bounded rendered passes; fresh independent file-only
+  [finish review](.impeccable/review/tool-activity-quality/finish-review.md) returns
+  **disposition: ship**, no material fixes; handoff recommendation is
+  **SHIP WITH LIMITATIONS**. No further parent polish is owed. Retained results
+  record 231 tests/eight suites, successful typecheck/build, six Brave sizes and
+  nine themes, computed report text ≥4.5:1 and actual chart marks ≥3:1. New
+  assertions check advancing snapshot with unchanged observed starts and no
+  invented collection warning, plus `1 h 2 min` summary/chart formatting. Previous
+  precise P95/failure descriptions, phone active median/P95 sorting and sticky
+  geometry with 100 visible rows from 210 operation types still pass.
+  Read-only retained Codex snapshot: 1,653 observed/measured calls, 105 operations
+  and 14 reported failures; retained-report integration is not continuous-capture
+  proof. Current captures live in `.impeccable/review/tool-activity-quality/`;
+  individual viewport images establish layout, the complete scroll stitch only
+  content continuity. One closeout detector pass recorded 20 local typography
+  advisories and zero nonadvisory findings. Native Windows/Linux, Firefox/Safari,
+  live Claude, formal screen-reader usability/certification and participant study
+  remain unverified; no health heartbeat exists. The inherited large-chunk warning
+  remains. P95, reported containing-call failure attribution, memberships,
+  overlapping intervals, provider clocks and descriptive wait/sleep observations
+  are unchanged. No dependencies or backend change. This handoff reruns neither
+  context/QA nor detector and authorizes no publication.
 
 ### Canvas objects
 
