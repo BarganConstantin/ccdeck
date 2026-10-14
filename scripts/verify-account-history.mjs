@@ -429,6 +429,7 @@ try {
     enabled: false,
   });
   await touchSession.detach();
+  await page.getByLabel("Account", { exact: true }).selectOption("");
   for (const [width, height, name] of [
     [390, 844, "mobile"],
     [320, 568, "narrow"],
@@ -443,8 +444,14 @@ try {
       false,
     );
     await shot(name);
+    assert.equal(
+      await page.locator(".ah-window-switch > span").isVisible(),
+      true,
+      "Usage semantics must remain visible in narrow all-account mode",
+    );
   }
   await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByLabel("Account", { exact: true }).selectOption("a");
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "white-contrast";
     document.documentElement.dataset.colorScheme = "light";
@@ -498,6 +505,47 @@ try {
   });
   await page.screenshot({ path: `${out}/bottom.png` });
   await page.keyboard.press("Escape");
+  state.accounts = [
+    {
+      ...originalAccounts[1],
+      name: `${"long-account-identifier-".repeat(7)}@example.test`,
+      points: originalAccounts[1].points.map((p) => ({
+        ...p,
+        five_hour: { ...p.five_hour, pct: 0 },
+      })),
+    },
+  ];
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.locator("#launch").click();
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  const bottomPoint = page.locator(".ah-chart:visible .ah-dot").first();
+  await bottomPoint.scrollIntoViewIfNeeded();
+  const bottomBox = await bottomPoint.boundingBox();
+  await page.mouse.move(
+    bottomBox.x + bottomBox.width / 2,
+    bottomBox.y + bottomBox.height / 2,
+  );
+  await page.getByRole("tooltip").waitFor();
+  await page.screenshot({ path: `${out}/long-tooltip.png` });
+  const tooltipBounds = await page.getByRole("tooltip").evaluate((el) => {
+    const rect = el.getBoundingClientRect(),
+      plot = el.closest(".ah-plot-wrap").getBoundingClientRect();
+    return {
+      inside:
+        rect.top >= plot.top &&
+        rect.bottom <= plot.bottom &&
+        rect.left >= plot.left &&
+        rect.right <= plot.right,
+      height: rect.height,
+      plotHeight: plot.height,
+    };
+  });
+  assert.ok(
+    tooltipBounds.inside,
+    `Long-identifier tooltip must fit the plot: ${JSON.stringify(tooltipBounds)}`,
+  );
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1280, height: 900 });
   state.accounts = originalAccounts;
   await page.locator("#settings").click();
   await page.getByRole("switch").waitFor();

@@ -502,7 +502,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .ah-window-switch > span {
-    display: none;
+    margin-left: 0;
+    flex-basis: 100%;
+    padding-top: 4px;
+    font-size: 12px;
   }
 }
 @media (max-width: 380px) {

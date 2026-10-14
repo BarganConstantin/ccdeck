@@ -1,4 +1,10 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import {
   type AccountHistory,
   type SnapshotAccount,
@@ -32,6 +38,7 @@ function HistoryChart({
   onReset: () => void;
 }) {
   const chartRef = useRef<SVGSVGElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const clipId = useId();
   const dragX = useRef<number | null>(null);
   const touchStart = useRef<{ x: number; y: number; moved: boolean } | null>(
@@ -89,6 +96,20 @@ function HistoryChart({
   const p = values.find((p) => p.key === selected) ?? values.at(-1);
   const w = p?.[window];
   const hovered = values.find((v) => v.key === hover?.key);
+  useLayoutEffect(() => {
+    const tooltip = tooltipRef.current;
+    if (!tooltip || !hover) return;
+    const left = Math.max(
+      4,
+      Math.min(hover.x, width - tooltip.offsetWidth - 4),
+    );
+    const top = Math.max(
+      4,
+      Math.min(hover.y, height - tooltip.offsetHeight - 4),
+    );
+    if (left !== hover.x || top !== hover.y)
+      setHover((current) => (current ? { ...current, x: left, y: top } : null));
+  }, [hover?.key, hover?.x, hover?.y, hovered?.account.name, width, height]);
   const tracked = hovered ?? (selected ? p : undefined);
   const visibleAccounts = new Set(values.map((p) => p.account.id)).size;
   const x = (t: number) => 36 + ((t - start) / (end - start)) * (width - 50);
@@ -356,6 +377,7 @@ function HistoryChart({
         </svg>
         {hovered && hover && (
           <div
+            ref={tooltipRef}
             className="ah-tooltip"
             role="tooltip"
             style={{ left: hover.x, top: hover.y }}
