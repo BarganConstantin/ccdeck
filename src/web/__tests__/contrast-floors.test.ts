@@ -25,7 +25,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops as readStops } from "./gradient-stops";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const css = sheetText();
 const agentNode = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
@@ -878,8 +878,8 @@ describe("the machine panel's process door, on the bed it is actually drawn on (
   });
 
   it("sets the panel's sentences at 11px, not 10", () => {
-    expect(decl(sub, "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
-    expect(decl(rule(".sd-note"), "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
+    expect(decl(sub, "font-size")).toBe("11px");
+    expect(decl(rule(".sd-note"), "font-size")).toBe("11px");
   });
 });
 

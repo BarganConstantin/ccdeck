@@ -14,7 +14,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { clustersSurface } from "./clusters-surface";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 /** The pill's style, built in cluster-bounds.ts since it left the component. */

@@ -41,7 +41,7 @@ import { versionNoticeLabel } from "../version-chip";
 import { openTags, withoutComments } from "./tsx-scan";
 import { usageSurface } from "./usage-surface";
 import { usageHistorySurface } from "./usage-history-surface";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = sheetText();

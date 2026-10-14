@@ -44,7 +44,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const rawCss = sheetText();

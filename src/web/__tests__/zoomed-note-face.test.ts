@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { faceTitle } from "../node-face";
 import { sheetRules } from "./sheet-cascade";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const node = read("../components/RecapNoteNode.tsx");
@@ -27,6 +27,7 @@ function rule(...sels: string[]): string {
   return hit.map(r => r.body).join("\n");
 }
 const px = (body: string, prop: string) => {
+  body = body.replace(/calc\((\d+(?:\.\d+)?px) \+ var\(--ui-text-increase, 0px\)\)/g, "$1");
   const m = new RegExp(`(?:^|[;{\\s])${prop}:\\s*([\\d.]+)px`).exec(body);
   expect(m, `${prop} in ${body}`).not.toBeNull();
   return Number(m![1]);

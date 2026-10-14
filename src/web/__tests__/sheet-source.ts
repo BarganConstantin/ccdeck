@@ -30,3 +30,15 @@ export function sheetText(): string {
   joined ??= sheetParts().map(([, text]) => text).join("");
   return joined;
 }
+
+/** Legacy geometry/type checks inspect the Default reading profile, not a
+ * browser's computed style. Resolve only our two explicitly zero-default
+ * increments; arbitrary calc(), other variables and malformed values remain
+ * untouched so those checks still fail on unrecognized changes. Browser tests
+ * verify the actual cascade for each non-default reading profile. */
+export function defaultReadingSheetText(): string {
+  return sheetText().replace(
+    /calc\((\d+(?:\.\d+)?px) \+ var\(--ui-(?:text|row)-increase, 0px\)\)/g,
+    "$1",
+  );
+}

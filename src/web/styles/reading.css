@@ -2,6 +2,10 @@
    remain byte-for-byte equivalent in computed styles, without page zoom. */
 :root[data-text-size="larger"] { --ui-text-increase: 2px; }
 :root[data-text-size="largest"] { --ui-text-increase: 4px; }
+/* Zoomed-out faces have fixed, screen-space line budgets and container-query
+   cutoffs. Keep those tiny summaries at their designed scale; full agent cards
+   and their detail panels enlarge normally and retain measured layout. */
+.lod-face { --ui-text-increase: 0px; }
 :root[data-density="compact"] {
   --panel-inset: 12px;
   --ctl-h: 28px;
@@ -16,7 +20,14 @@
    decreases the text scale or takes interactive rows below the 24px floor. */
 :root[data-text-size="larger"] { --ui-control-floor: 34px; }
 :root[data-text-size="largest"] { --ui-control-floor: 38px; }
-:root:not([data-text-size="default"]) :is(.btn, .settings-tab, .ap-field select, .ap-manage-input) {
+:root[data-text-size="larger"] .btn,
+:root[data-text-size="largest"] .btn,
+:root[data-text-size="larger"] .settings-tab,
+:root[data-text-size="largest"] .settings-tab,
+:root[data-text-size="larger"] .ap-field select,
+:root[data-text-size="largest"] .ap-field select,
+:root[data-text-size="larger"] .ap-manage-input,
+:root[data-text-size="largest"] .ap-manage-input {
   min-height: max(var(--ctl-h), var(--ui-control-floor, 24px));
 }
 .reading-intro { margin: 0; color: var(--text-secondary); line-height: 1.6; }
@@ -44,7 +55,11 @@
 .reading-preview-time { color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .reading-footer { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .reading-footer p { margin: 0; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; }
-@media (max-width: 640px) { .reading-options { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+  .reading-options { grid-template-columns: minmax(0, 1fr); }
+  .reading-choice > span { display: flex; flex: 1; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .reading-choice small { margin-top: 0; text-align: right; }
+}
 @media (forced-colors: active) {
   .reading-choice:has(input:checked) { border-color: Highlight; }
 }
