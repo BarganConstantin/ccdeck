@@ -3,9 +3,10 @@
 // The exclusion guessed a range — 4317 and the 4318-4400 the listen fallback
 // picks from — and that covers a deck started the ordinary way. It does not
 // cover `--port 4793`, which is what a deck running out of a git worktree was
-// using. It opened its own tab, that tab carried FROM_API because `open` is an
-// API call, and the panel reported it to its owner as a program driving the
-// browser. It was — and the program was ccdeck.
+// using. Its own page carried FROM_API (not because of `open`, which left no
+// FROM_API when tested — see FROM_API in agent-activity.mjs), and the panel
+// reported it to its owner as a program driving the browser. It was — and the
+// page was ccdeck's.
 //
 // The registry already holds a port per live deck, for the election. So the
 // answer was a fact the machine had, not a range somebody has to keep current.
