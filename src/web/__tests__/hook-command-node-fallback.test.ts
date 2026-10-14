@@ -83,7 +83,8 @@ describe.skipIf(process.platform === "win32")("the hook command when the recorde
   it("ends quietly when the machine has no node left at all", () => {
     const gone = join(ROOT, ".volta", "tools", "image", "node", "20.0.0", "bin", "node");
     const ran = fire(hookCommand(HOOK, "claude", gone, "linux"), shellOnly());
-    // Claude Code shows a hook error for any non-zero exit and for stderr.
+    // Exit 0 and silent: exit 2 would block the call, any other non-zero
+    // exit shows a hook error on it, and stderr is that error's text.
     expect(ran.status).toBe(0);
     expect(ran.stderr).toBe("");
     expect(ran.argv).toBeNull();
