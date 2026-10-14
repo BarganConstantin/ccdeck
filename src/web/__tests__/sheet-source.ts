@@ -40,5 +40,5 @@ export function defaultReadingSheetText(): string {
   return sheetText().replace(
     /calc\((\d+(?:\.\d+)?px) \+ var\(--ui-(?:text|row)-increase, 0px\)\)/g,
     "$1",
-  );
+  ).replace(/max\((\d+(?:\.\d+)?px), \1\)/g, "$1");
 }
