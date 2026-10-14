@@ -59,7 +59,7 @@
 .up-header h2,
 .ap-header h2,
 .session-list .sl-header h2 {
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
 }
 .session-list .sl-header h2 {
@@ -77,14 +77,14 @@
   background: var(--bg-soft);
   border: 1px solid var(--line);
   color: var(--text);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
   font-family: var(--font-mono);
 }
 .session-list .sl-live-count {
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--inflight);
@@ -93,7 +93,7 @@
 /* Beside the live count and ahead of it, since the two answer different
    questions and only one of them is asking you for something. */
 .session-list .sl-waiting-count {
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--warn);
@@ -143,7 +143,7 @@
 .session-list .sl-row.removed .sl-label { color: var(--muted); }
 .session-list .sl-removed {
   flex: none;
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   color: var(--muted);
   white-space: nowrap;
 }
@@ -157,7 +157,7 @@
 .session-list .sl-empty {
   padding: 16px 12px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-style: italic;
 }
 
@@ -178,7 +178,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 10px calc(var(--panel-inset) - var(--sl-card-gutter) - var(--sl-card-edge));
+  padding: calc(10px + var(--ui-row-increase, 0px)) calc(var(--panel-inset) - var(--sl-card-gutter) - var(--sl-card-edge));
   background: transparent;
   /* Longhands rather than the `1px solid transparent` shorthand this was,
      because the width is now a term in the padding above and has to be the
@@ -244,7 +244,7 @@
   width: 10px; height: 10px;
   margin-top: 5px;
   flex: 0 0 10px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 700;
   line-height: 1;
   color: var(--muted);
@@ -284,7 +284,7 @@
 }
 .session-list .sl-label {
   font-weight: 600;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -295,7 +295,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-family: var(--font-mono);
 }
@@ -337,7 +337,7 @@
   line-clamp: 3;
   overflow: hidden;
   overflow-wrap: anywhere;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.4;
   text-align: left;
   color: var(--text-secondary);
@@ -370,7 +370,7 @@
   line-clamp: 2;
   overflow: hidden;
   overflow-wrap: anywhere;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.4;
   text-align: left;
   color: var(--text-secondary);
@@ -402,7 +402,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.4;
   text-align: left;
   color: var(--muted);

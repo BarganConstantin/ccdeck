@@ -26,7 +26,7 @@
      says where it stops, and the 24px drop shadow it had added a second,
      softer edge that made it read as a dashboard widget. */
   box-shadow: none;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text);
   text-align: left;
   cursor: default;
@@ -150,9 +150,9 @@
    there is none. A sentence in the warning colour — no dot, no pill, no badge:
    the words are the state, so a reader who cannot see the colour loses
    nothing, and a reader who can has already found it. */
-.sd-flag { margin: 6px 0 0; color: var(--warn); font-size: 11px; line-height: 1.4; }
+.sd-flag { margin: 6px 0 0; color: var(--warn); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.4; }
 /* An <h2> since #879; the margin reset keeps the tag from moving the title. */
-.sd-title { margin: 0; font-size: 12px; font-weight: 600; }
+.sd-title { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .sd-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
 /* The bare glyph the rest of the deck's header closes have come to — the whole
    of its appearance is `.glyph-btn` now, and what is left here is the one thing
@@ -173,7 +173,7 @@
   align-items: baseline;
   gap: 4px;
   margin: 0 0 6px;
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -186,7 +186,7 @@
 .sd-h-val {
   margin-left: auto;
   color: var(--text);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
@@ -355,7 +355,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
 }
@@ -363,7 +363,7 @@
    11px and the secondary tier. --muted on the plate's composite measured 4.34:1
    in dark (#859) — the 4% tint lifts the ground under it, and the token pairs
    the contrast tests check never saw that ground. */
-.sd-door-sub { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 11px; }
+.sd-door-sub { display: block; margin-top: 3px; color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* THE BOX THE BUTTON USED TO BE, now that only the heading is one (#1771). A
    section's readings sat inside its history button, and a button's contents
    are presentational: a screen reader heard the button's name and not one
@@ -410,7 +410,7 @@
    one thing. */
 .sd-row-more {
   font-style: normal;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text-dim);
   transition: color 140ms ease;
 }
@@ -475,8 +475,8 @@
    box, which is two characters more than the widest caption needs. */
 .sd-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .sd-fig { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
-.sd-fig b { font-size: 13px; font-weight: 600; }
-.sd-fig-cap { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.sd-fig b { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.sd-fig-cap { color: var(--muted); font-size: calc(10px + var(--ui-text-increase, 0px)); white-space: nowrap; }
 /* THE OTHER ORDER, where the three columns are three different measurements
    rather than three samples of one: the name on top, and under it the number
    with its unit beside it rather than below it. "112" over "KB/s down" made
@@ -489,11 +489,11 @@
 /* Beside the number, not under it, and a tier down: a unit is part of the
    reading, and at the number's own weight "112 KB/s" reads as five characters
    of equal importance. */
-.sd-fig-unit { color: var(--muted); font-size: 10px; }
+.sd-fig-unit { color: var(--muted); font-size: calc(10px + var(--ui-text-increase, 0px)); }
 
 /* 11px, the panel's reading size (#859): these are sentences — "reading this
    machine…", why a reading is missing — not labels. */
-.sd-note { margin-top: 5px; color: var(--muted); font-size: 11px; }
+.sd-note { margin-top: 5px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* A reading that could not be taken says so in the warning colour, the one the
    load figures turn when the queue outgrows the cores. */
 .sd-note.sd-note-warn { color: var(--warn); }
@@ -518,7 +518,7 @@
   border: 0;
   background: none;
   font: inherit;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   text-align: left;
   cursor: pointer;
@@ -539,17 +539,17 @@
    measures. The term is the section heading's own type so the popover reads as
    part of the panel rather than as a tooltip that arrived from somewhere else. */
 .sd-pop { width: 240px; padding: 10px 12px 12px; }
-.sd-pop-title { margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--text); }
+.sd-pop-title { margin: 0 0 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
 .sd-pop-rows { display: grid; gap: 8px; margin: 0; }
 .sd-pop-row dt {
   margin: 0 0 2px;
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
 }
-.sd-pop-row dd { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text); }
+.sd-pop-row dd { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text); }
 
 :is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* PROPORTIONAL FIGURES WHERE THE COLUMN IS PROSE. The table sets tabular for
@@ -591,7 +591,7 @@
   border-radius: 4px;
   background: none;
   font: inherit;
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 500;
   line-height: 1;
   color: var(--muted);

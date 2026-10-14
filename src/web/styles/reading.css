@@ -1,0 +1,50 @@
+/* Default supplies zero increments: the established type scale and spacing
+   remain byte-for-byte equivalent in computed styles, without page zoom. */
+:root[data-text-size="larger"] { --ui-text-increase: 2px; }
+:root[data-text-size="largest"] { --ui-text-increase: 4px; }
+:root[data-density="compact"] {
+  --panel-inset: 12px;
+  --ctl-h: 28px;
+  --ui-row-increase: -2px;
+}
+:root[data-density="comfortable"] {
+  --panel-inset: 18px;
+  --ctl-h: 36px;
+  --ui-row-increase: 4px;
+}
+/* Text enlargement also gives controls enough vertical room. Density never
+   decreases the text scale or takes interactive rows below the 24px floor. */
+:root[data-text-size="larger"] { --ui-control-floor: 34px; }
+:root[data-text-size="largest"] { --ui-control-floor: 38px; }
+:root:not([data-text-size="default"]) :is(.btn, .settings-tab, .ap-field select, .ap-manage-input) {
+  min-height: max(var(--ctl-h), var(--ui-control-floor, 24px));
+}
+.reading-intro { margin: 0; color: var(--text-secondary); line-height: 1.6; }
+.reading-group { margin: 0; padding: 0; border: 0; min-width: 0; }
+.reading-group legend { padding: 0; font-weight: 600; }
+.reading-group > p { color: var(--muted); margin: 6px 0 12px; line-height: 1.5; }
+.reading-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.reading-choice {
+  display: flex; align-items: flex-start; gap: 8px; min-width: 0;
+  padding: 10px; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl);
+  cursor: pointer; background: transparent;
+}
+.reading-choice:hover { background: var(--ctl-fill); border-color: var(--text); }
+.reading-choice:has(input:checked) { background: var(--ctl-fill); border-color: var(--accent); }
+.reading-choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reading-choice input { flex: none; margin: 3px 0 0; accent-color: var(--accent); }
+.reading-choice strong { display: block; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
+.reading-choice small { display: block; margin-top: 5px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.reading-preview { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 16px; }
+.reading-preview h3 { margin: 0 0 10px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.reading-preview-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(10px + var(--ui-row-increase, 0px)) 0; }
+.reading-preview-row + .reading-preview-row { border-top: 1px solid var(--line-soft); }
+.reading-preview-row strong { font-weight: 500; }
+.reading-preview-row div > span { display: block; margin-top: 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.reading-preview-time { color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.reading-footer { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.reading-footer p { margin: 0; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+@media (max-width: 640px) { .reading-options { grid-template-columns: minmax(0, 1fr); } }
+@media (forced-colors: active) {
+  .reading-choice:has(input:checked) { border-color: Highlight; }
+}

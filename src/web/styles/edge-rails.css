@@ -72,7 +72,7 @@
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1;
   cursor: pointer;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -152,9 +152,9 @@
   border-radius: 999px;
   background: var(--muted);
   color: var(--bg);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 700;
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -166,7 +166,7 @@
   min-width: 14px;
   height: 14px;
   padding: 0 3px;
-  line-height: 14px;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
   pointer-events: none;
 }
 
@@ -216,13 +216,13 @@
     flex-direction: column;
     justify-content: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: calc(11px + var(--ui-text-increase, 0px));
   }
   .rail-btn-dock .rail-word {
     max-width: 100%;
     /* Its own line box: at the button's line-height of 1 the clip below cut
        the descenders off "Usage" and "Settings". */
-    line-height: 14px;
+    line-height: calc(14px + var(--ui-text-increase, 0px));
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

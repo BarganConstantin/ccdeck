@@ -31,7 +31,7 @@
   border-radius: 999px;
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   cursor: pointer;
   /* Against the bar rather than at a literal (#508). The flat 380px plus the
      `margin: 0 12px 0 4px` this rule used to carry cost 396px the instant an
@@ -81,10 +81,10 @@
   color: var(--ok);
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   white-space: nowrap;
 }
-.selected-ribbon .selected-rate { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.selected-ribbon .selected-rate { color: var(--muted); font-size: calc(10px + var(--ui-text-increase, 0px)); white-space: nowrap; }
 .selected-ribbon .selected-extra {
   display: inline-flex;
   align-items: center;
@@ -92,7 +92,7 @@
   border-radius: 999px;
   background: var(--accent-dim);
   color: var(--text);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   font-family: var(--font-mono);
 }
@@ -144,7 +144,7 @@
   flex: none;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   line-height: 1;
   cursor: pointer;
   transition: background 120ms, color 120ms,

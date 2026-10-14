@@ -34,8 +34,8 @@
    a 7% step: below anything a reader can resolve, so it was not saying that this
    modal outranks those, it was only the third spelling of one decision. It was
    also the last live rule at 15px, so the size retires with it. */
-.ctx-modal-title { font-size: 14px; font-weight: 600; }
-.ctx-modal-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ctx-modal-title { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.ctx-modal-sub { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); margin-top: 3px; }
 /* The context modal's × — a header close like the other five, and the last one
    still drawing its own 28px bordered box. `.glyph-btn` now, which takes the
    edge, the fill, the 28px square and the 18px glyph with it; the header this
@@ -67,13 +67,13 @@
 }
 .ctx-window-meta {
   display: flex; justify-content: space-between;
-  font-size: 11px; margin-top: 6px;
+  font-size: calc(11px + var(--ui-text-increase, 0px)); margin-top: 6px;
   font-family: var(--font-mono);
   color: var(--muted);
 }
 .ctx-window-pct { color: var(--text); font-weight: 600; }
 .ctx-section-title {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
@@ -89,7 +89,7 @@
   display: flex;
   justify-content: space-between;
   padding: 4px 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   border-bottom: 1px dashed var(--line);
 }
 .ctx-row.accent .ctx-row-val { color: var(--accent); font-weight: 600; }
@@ -99,7 +99,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ctx-empty {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
   padding: 8px 0;
 }
@@ -115,7 +115,7 @@
   gap: 12px;
   padding: 6px 0;
   border-bottom: 1px dashed var(--line);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 /* Deliberately no `direction: rtl`. It used to buy a left-side ellipsis so the
    end of the path survived, but an RTL paragraph leaves the leading '/' of a
@@ -159,7 +159,7 @@
   text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-family: var(--font-mono);
 }
@@ -168,7 +168,7 @@
   display: inline-flex;
   align-items: center;
   padding: 1px 8px;
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -222,7 +222,7 @@
   padding: 3px 8px;
   border: 1px solid transparent;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   min-width: 0;
 }
@@ -293,7 +293,7 @@
   border-radius: var(--r-node);
   box-shadow: var(--shadow-1);
   color: var(--text);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 /* The tie to the card (RecapTieEdge): a thread with beads on it. A hairline in
    the session's colour, at the lightness the live session edges are held to on
@@ -374,7 +374,7 @@
 }
 /* A note has no stripe: its hue is its edge, as it is at the full size. */
 .lod-face.recap-face::before { display: none; }
-.recap-face .recap-note-mark { flex: none; font-size: 11px; }
+.recap-face .recap-note-mark { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* The age is a value, so like a waiting row's duration it is never cut: cut
    to fit, "39m ago" read "3". It is drawn whole or not at all. The mark row
    wraps, and is one line tall with the second clipped, so an age the face is
@@ -396,7 +396,7 @@
 .canvas-wrap[data-lod="overview"] .recap-face .lod-id { height: 14px; }
 .recap-face-age {
   flex: none;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 400;
   color: var(--muted);
 }
@@ -434,7 +434,7 @@
   color: var(--accent);
 }
 .recap-note-age {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .recap-note-close {
@@ -484,7 +484,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 
@@ -502,7 +502,7 @@
   gap: 6px;
   margin-top: 7px;
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   min-width: 0;
   color: var(--muted);
@@ -530,7 +530,7 @@
   align-items: center;
   gap: 8px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   margin-top: 3px;
   font-family: var(--font-mono);
 }
@@ -564,7 +564,7 @@
    unmeasurable, for a legibility gain a 240px card at 11px will not show. */
 .agent-node .session-name {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-family: var(--font-mono);
   color: var(--text);
   white-space: nowrap;
@@ -630,7 +630,7 @@
 }
 .tool-spark-label {
   color: var(--muted);
-  font-size: 9px;
+  font-size: calc(9px + var(--ui-text-increase, 0px));
   font-family: var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -655,7 +655,7 @@
    for a failure this rare. */
 .agent-node .meta {
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
@@ -725,14 +725,14 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 .tokens-grid > div {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
 }
-.tokens-grid .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+.tokens-grid .k { color: var(--muted); font-size: calc(10px + var(--ui-text-increase, 0px)); text-transform: uppercase; letter-spacing: 0.06em; }
 .tokens-grid b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* The dashed edge is the whole difference. It also faded the card to 0.92,
@@ -749,7 +749,7 @@
   border-radius: 50%;
   border: 1px solid var(--muted);
   color: var(--muted);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 700;
   margin-left: 4px;
 }
@@ -763,7 +763,7 @@
   border: 1px solid var(--line);
   color: var(--accent);
   background: var(--bg-soft);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-family: var(--font-mono);
   font-weight: 600;
 }
@@ -779,7 +779,7 @@
   border: 1px solid var(--line);
   color: var(--text);
   background: var(--bg-soft);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-family: var(--font-mono);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -829,5 +829,5 @@
 
 /* React Flow edge label background — match theme */
 .react-flow__edge-textbg { fill: var(--bg-soft); fill-opacity: 0.9; }
-.react-flow__edge-text { font-family: var(--font-mono); font-size: 10px; fill: var(--text); }
+.react-flow__edge-text { font-family: var(--font-mono); font-size: calc(10px + var(--ui-text-increase, 0px)); fill: var(--text); }
 

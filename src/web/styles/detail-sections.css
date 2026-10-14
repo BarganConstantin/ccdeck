@@ -21,7 +21,7 @@
    one character rather than any width. */
 .detail-hero .hero-title {
   margin: 0;
-  font-size: 18px;
+  font-size: calc(18px + var(--ui-text-increase, 0px));
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--text);
@@ -34,7 +34,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-family: var(--font-mono);
   flex-wrap: wrap;
@@ -56,7 +56,7 @@
 }
 .detail-hero .hero-action-btn {
   padding: 5px 12px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 .detail-hero .hero-cost-headline {
   display: flex;
@@ -65,14 +65,14 @@
   margin-bottom: 8px;
 }
 .detail-hero .hero-cost-value {
-  font-size: 22px;
+  font-size: calc(22px + var(--ui-text-increase, 0px));
   font-weight: 700;
   color: var(--ok);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 .detail-hero .hero-cost-label {
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   text-transform: uppercase;
   letter-spacing: 0.10em;
   color: var(--muted);
@@ -166,7 +166,7 @@
   background: var(--bg-soft);
   border: 1px solid var(--line);
   color: var(--text);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
@@ -182,7 +182,7 @@
 .activity-counters {
   display: flex;
   gap: 12px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .activity-counters .ac-item b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -204,10 +204,10 @@
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--bg-soft);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-family: var(--font-mono);
 }
-.cat-chip .cat-emoji { font-size: 12px; line-height: 1; }
+.cat-chip .cat-emoji { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1; }
 .cat-chip .cat-count { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 /* The category's word, at rest (#841) — the key to the count beside it, in the
    key tier, at the chip's own 11px. */
@@ -271,14 +271,14 @@
 }
 .prompt-time {
   color: var(--muted);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-family: var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   margin-bottom: 4px;
 }
 .prompt-text {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--text);
   white-space: pre-wrap;
@@ -289,7 +289,7 @@
    it takes the secondary tier the card and the session list use. */
 .detail-recap {
   margin: 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--text-secondary);
   overflow-wrap: anywhere;
@@ -313,11 +313,11 @@
   align-items: baseline;
   gap: 8px;
 }
-.prompt-injected-label { color: var(--muted); font-size: 11px; }
+.prompt-injected-label { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .prompt-injected-detail {
   margin-top: 6px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.45;
   word-break: break-word;
 }
@@ -356,7 +356,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .shortcuts .sc { display: contents; }
 .shortcuts .sc kbd {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
   background: var(--bg-soft);
@@ -367,7 +367,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   text-align: center;
   min-width: 38px;
 }
-.shortcuts .sc span { color: var(--muted); font-size: 12px; }
+.shortcuts .sc span { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 
 /* hint row inside empty hero */
 /* A tier under the paragraph above it, not an opacity over it (#1787): 0.75
@@ -377,7 +377,7 @@ button.tool.clickable:last-child { border-bottom: none; }
    below it. */
 .empty-hero .hint-row {
   margin-top: 14px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--text-dim);
 }
 /* The hint is one line per capture path now (#404), and the 14px that separates

@@ -33,6 +33,7 @@ import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import ThemeSection from "./ThemeSection";
+import ReadingSection from "./ReadingSection";
 import CharacterSection from "./CharacterSection";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -112,6 +113,8 @@ export default function SettingsModal({
 
   const pane = (() => {
     switch (section) {
+      case "reading":
+        return <ReadingSection textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />;
       case "notifications":
         return (
           <NotificationsSection

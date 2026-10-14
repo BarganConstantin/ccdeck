@@ -248,7 +248,7 @@
   padding: 14px var(--panel-inset) 6px;
 }
 .up-total-value {
-  font-size: 26px;
+  font-size: calc(26px + var(--ui-text-increase, 0px));
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
@@ -256,7 +256,7 @@
   line-height: 1;
 }
 .up-total-label {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 
@@ -295,14 +295,14 @@
   display: flex;
   align-items: baseline;
   gap: 5px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
 }
 /* 11px, the usage panel's floor for content (#858): this is a monitor read all
    day, and --muted, not a smaller size, is what makes a key secondary. */
 .up-k {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-family: inherit;
 }
@@ -314,7 +314,7 @@
    `.up-tok` gives it the row's baseline and gap, this gives it the key's size
    and colour. Both themes answer for it through --muted, which each declares. */
 .up-scope {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-family: inherit;
 }
@@ -333,7 +333,7 @@
   align-items: baseline;
   gap: 8px;
   margin: 8px 0 6px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
@@ -404,7 +404,7 @@
 
 .up-section-age {
   margin-left: auto;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 400;
   color: var(--text-dim);
   text-transform: none;
@@ -415,13 +415,13 @@
 .up-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 .up-table th {
   text-align: left;
   color: var(--muted);
   font-weight: 500;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   padding: 0 0 4px;
   border-bottom: 1px solid var(--line-soft);
 }
@@ -440,7 +440,7 @@
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 .up-cost-val { color: var(--ok); }
 
@@ -461,7 +461,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   padding: 3px 0;
 }
 .up-session-label {
@@ -475,13 +475,13 @@
 .up-session-tokens {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .up-session-cost {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--ok);
   min-width: 36px;
   text-align: right;
@@ -500,13 +500,13 @@
 
 .up-hint {
   padding: 8px 14px 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   line-height: 1.5;
 }
 .up-empty {
   padding: 20px 14px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
   text-align: center;
   line-height: 1.6;
@@ -535,13 +535,13 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 .qb-label { color: var(--muted); }
 .qb-pct {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
 }
 .qb-track {
@@ -607,11 +607,11 @@
   min-height: 14px;
 }
 .qb-reset {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text-dim);
 }
 .qb-pace {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 500;
   text-align: right;
   flex-shrink: 0;
@@ -653,10 +653,10 @@ button.qb-pace::after {
   height: 24px;
   transform: translate(-50%, -50%);
 }
-.qb-why { font-size: 11px; line-height: 1.45; color: var(--text-dim); }
+.qb-why { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-dim); }
 .qb-limit-badge {
   margin-left: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 /* Plan tier next to the section heading, as inline metadata rather than a
    bordered tag: a plan is a fact about the account, not a state, and the box
@@ -664,7 +664,7 @@ button.qb-pace::after {
    this undoes that to keep "Pro 20x" readable as a product name, and
    --text-dim at normal weight keeps it a step under the words it annotates. */
 .up-plan-badge {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 400;
   color: var(--text-dim);
   text-transform: none;
@@ -674,7 +674,7 @@ button.qb-pace::after {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .up-quota-hint { color: var(--text-dim); }
@@ -693,7 +693,7 @@ button.qb-pace::after {
   color: var(--text);
   padding: 0 3px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 /* A provider's incident, under its quota heading (#1311): a link to the status
    page, in two rows. The first is the mark, the state in words at --text and
@@ -713,7 +713,7 @@ button.qb-pace::after {
   padding: 5px 8px;
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   text-decoration: none;
   transition: border-color 120ms, background 120ms;
@@ -737,8 +737,8 @@ button.qb-pace::after {
   overflow: hidden;
   overflow-wrap: anywhere;
 }
-.up-quota-loading { font-size: 11px; color: var(--text-dim); }
-.up-quota-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.up-quota-loading { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); }
+.up-quota-sub { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); margin-top: 4px; }
 /* Both of these are .up-quota-sub lines, so they have to come after it to win
    on source order — they read as dim grey otherwise. */
 .up-credits { color: var(--accent); }

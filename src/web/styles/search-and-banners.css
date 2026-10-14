@@ -29,7 +29,7 @@
   background: var(--conn-wash);
   border-bottom: 1px solid rgba(252,165,165,0.30);
   color: var(--err);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   animation: fadeIn 200ms ease;
 }
@@ -70,7 +70,7 @@
      row is the one that asks the user to restart — the worst place in the app
      to make someone squint. Dark was fine either way. */
   color: var(--text);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   animation: fadeIn 200ms ease;
 }
@@ -117,7 +117,7 @@
 .ver-banner .ver-cmd:active { transform: scale(0.97); }
 .ver-banner .ver-cmd code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   /* Stated, not assumed: if the copy button ever fails, selecting this by hand
      is the fallback, and it must survive any future user-select:none above. */
   user-select: text;
@@ -126,7 +126,7 @@
    sized for --panel, re-bedded on --line, is 4.14:1 in dark — under AA at 10px
    uppercase, which is the least forgiving type in this banner. 11.39:1 now. */
 .ver-banner .ver-cmd-hint {
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text);
@@ -176,7 +176,7 @@
      no longer the same hue as the thing it sits on. */
   color: var(--text);
   font: inherit;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
   cursor: pointer;
   transition: background 130ms, border-color 130ms,
@@ -209,7 +209,7 @@
   align-items: center;
   gap: 6px;
   color: var(--text);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 /* Armed means a restart is coming, so this switch fills with the banner's own
    warning colour rather than the accent every other switch fills with. After
@@ -234,7 +234,7 @@
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   line-height: 1;
   cursor: pointer;
   transition: background 120ms, color 120ms,

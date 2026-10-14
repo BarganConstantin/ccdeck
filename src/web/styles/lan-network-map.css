@@ -48,10 +48,10 @@
 }
 .nm-head { gap: 16px; }
 .nm-heading { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.nm-title { margin: 0; font-size: 14px; font-weight: 600; }
+.nm-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .nm-sub {
   margin: 0;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   overflow: hidden;
@@ -130,7 +130,7 @@
 .nm-zone-label {
   fill: var(--muted);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: calc(9px + var(--ui-text-increase, 0px));
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -315,8 +315,8 @@
   white-space: nowrap;
   text-align: center;
 }
-.nm-core-name { font-size: 12px; font-weight: 600; color: var(--text); }
-.nm-core-what { font-size: 10px; color: var(--muted); }
+.nm-core-name { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
+.nm-core-what { font-size: calc(10px + var(--ui-text-increase, 0px)); color: var(--muted); }
 
 /* A DECK. The button is the disc; its mark, its name and its caption hang off
    it. It is anchored at its own centre and moved there with `translate`, which
@@ -485,7 +485,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   line-height: 1.3;
   color: var(--text);
@@ -495,7 +495,7 @@
 .nm-name { transition: color var(--nm-fade) var(--nm-ease); }
 /* An address nothing has answered at: named by its host in the data voice,
    and drawn as a point rather than a machine, because it is not one yet. */
-.nm-node[data-kind="dialling"] .nm-name { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+.nm-node[data-kind="dialling"] .nm-name { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .nm-addr-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); }
 .nm-cap {
   max-width: 100%;
@@ -503,7 +503,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   line-height: 1.3;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -511,7 +511,7 @@
 .nm-node[data-kind="asks"] .nm-cap { color: var(--accent); }
 /* A crowded ring sets its names a step down and drops the line under them,
    so thirty decks still fit; the side panel has every caption in full. */
-.nm-stage[data-dense] .nm-name { font-size: 11px; }
+.nm-stage[data-dense] .nm-name { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .nm-stage[data-dense] .nm-node:not([data-kind="asks"]) .nm-cap { display: none; }
 .nm-stage[data-dense] .nm-label { max-width: 100px; }
 
@@ -522,7 +522,7 @@
   translate: -50% 0;
   width: min(320px, 80%);
   margin: 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--muted);
   text-align: center;
@@ -541,7 +541,7 @@
   border-top: 1px solid var(--line-soft);
   background: var(--bg);
   list-style: none;
-  font-size: 10px;
+  font-size: calc(10px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -605,7 +605,7 @@
   gap: 8px;
   margin: 0;
   min-width: 0;
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
   overflow-wrap: anywhere;
@@ -623,14 +623,14 @@
 .nm-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .nm-panel-head .nm-panel-name { flex: 1 1 auto; }
 .nm-panel-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nm-panel-self { margin: -6px 0 0; font-size: 11px; color: var(--muted); }
-.nm-panel-state { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.nm-panel-self { margin: -6px 0 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.nm-panel-state { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--muted); }
 .nm-panel-state[data-kind="asks"] { color: var(--accent); }
-.nm-panel-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
-.nm-back { align-self: flex-start; margin: -4px 0 0 -2px; font-size: 11px; }
+.nm-panel-hint { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); }
+.nm-back { align-self: flex-start; margin: -4px 0 0 -2px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 
 .nm-facts { row-gap: 6px; column-gap: 14px; }
-.nm-facts dd { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.nm-facts dd { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
 .nm-addrs { display: flex; flex-direction: column; gap: 2px; }
 
 .nm-counts {
@@ -644,7 +644,7 @@
 .nm-counts li { display: grid; grid-template-columns: 10px 24px minmax(0, 1fr); align-items: center; gap: 8px; }
 .nm-count-n {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-align: right;
   color: var(--text);
@@ -652,19 +652,19 @@
 }
 .nm-counts li[data-count="online"] .nm-count-n { color: var(--ok); }
 .nm-counts li[data-count="asks"] .nm-count-n { color: var(--accent); }
-.nm-count-words { font-size: 11px; color: var(--text); }
-.nm-counts-note { margin: -4px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.nm-count-words { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); }
+.nm-counts-note { margin: -4px 0 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); }
 /* The one thing worth doing, when there is one: a sentence somebody reads,
    so the prose tier. */
-.nm-next { margin: 0; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
+.nm-next { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text-secondary); }
 
 .nm-logins { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
-.nm-logins-title { margin: 0; font-size: 11px; font-weight: 600; color: var(--text); }
+.nm-logins-title { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
 .nm-lanes { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 /* One line each: the mark, the email, and whatever is wrong with it at the
    end of the same line — the email gives way first, the state never does. */
-.nm-lane { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 11px; }
-.nm-lane-said { flex: none; margin-left: auto; font-size: 10px; color: var(--muted); white-space: nowrap; }
+.nm-lane { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.nm-lane-said { flex: none; margin-left: auto; font-size: calc(10px + var(--ui-text-increase, 0px)); color: var(--muted); white-space: nowrap; }
 .nm-lane[data-tone="bad"] .nm-lane-said { color: var(--warn); }
 .nm-lane[data-tone="wait"] .nm-lane-said { color: var(--accent); }
 .nm-lane-dot { flex: none; align-self: center; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
@@ -683,9 +683,9 @@
    answers what comes from that deck, and a step quieter than the ones that
    need a look, so those still lead. */
 .nm-lane[data-tone="ok"] .nm-lane-email { color: var(--muted); }
-.nm-lane-used { flex: none; margin-left: auto; font-size: 10px; color: var(--accent); white-space: nowrap; }
+.nm-lane-used { flex: none; margin-left: auto; font-size: calc(10px + var(--ui-text-increase, 0px)); color: var(--accent); white-space: nowrap; }
 .nm-lane-said + .nm-lane-used { margin-left: 0; }
-.btn.nm-open { flex: none; min-height: 24px; padding: 0 10px; font-size: 11px; }
+.btn.nm-open { flex: none; min-height: 24px; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 
 /* NARROW: the panel goes under the picture rather than beside it, and the
    picture keeps the height a ring of names needs — the panel scrolls
