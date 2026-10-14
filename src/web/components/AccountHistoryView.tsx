@@ -11,6 +11,7 @@ import {
   type SnapshotAccount,
   historySegments,
   smoothHistoryPath,
+  historyTooltipPosition,
   createSnapshotTimeFormatter,
   historyTimeDomain,
   formatHistoryAxis,
@@ -100,6 +101,8 @@ function HistoryChart({
     key: string;
     x: number;
     y: number;
+    mouseX: number;
+    mouseY: number;
   } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -120,17 +123,35 @@ function HistoryChart({
   useLayoutEffect(() => {
     const tooltip = tooltipRef.current;
     if (!tooltip || !hover) return;
-    const left = Math.max(
-      4,
-      Math.min(hover.x, width - tooltip.offsetWidth - 4),
+    if (!hovered) return;
+    const position = historyTooltipPosition(
+      width,
+      height,
+      tooltip.offsetWidth,
+      tooltip.offsetHeight,
+      hover.mouseX,
+      hover.mouseY,
+      36 + ((hovered.t - start) / (end - start)) * (width - 50),
+      height -
+        30 -
+        ((hovered[window]!.pct - usageRange.start) /
+          (usageRange.end - usageRange.start)) *
+          (height - 50),
     );
-    const top = Math.max(
-      4,
-      Math.min(hover.y, height - tooltip.offsetHeight - 4),
-    );
-    if (left !== hover.x || top !== hover.y)
-      setHover((current) => (current ? { ...current, x: left, y: top } : null));
-  }, [hover?.key, hover?.x, hover?.y, hovered?.account.name, width, height]);
+    if (position.x !== hover.x || position.y !== hover.y)
+      setHover((current) => (current ? { ...current, ...position } : null));
+  }, [
+    hover?.key,
+    hover?.mouseX,
+    hover?.mouseY,
+    hovered?.account.name,
+    width,
+    height,
+    start,
+    end,
+    usageRange.start,
+    usageRange.end,
+  ]);
   const tracked = hovered ?? (selected ? p : undefined);
   const visibleAccounts = new Set(values.map((p) => p.account.id)).size;
   const x = (t: number) => 36 + ((t - start) / (end - start)) * (width - 50);
@@ -304,6 +325,8 @@ function HistoryChart({
                 nearest && (target || distance < 16)
                   ? {
                       key: nearest.key,
+                      mouseX: mx,
+                      mouseY: my,
                       x: Math.max(4, Math.min(width - 240, mx + 12)),
                       y: Math.max(4, my - 90),
                     }

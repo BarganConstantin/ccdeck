@@ -6,11 +6,26 @@ import {
   zoomHistoryRange,
   clampUsageRange,
   zoomUsageRange,
+  historyTooltipPosition,
 } from "../account-history";
 
 const MINUTE = 60_000;
 const DAY = 86400_000;
 const now = Date.UTC(2026, 9, 14, 12);
+
+describe("tooltip clearance", () => {
+  it("flips left at the right edge and leaves cursor and tracked point clear", () => {
+    const p = historyTooltipPosition(400, 300, 160, 100, 365, 150, 360, 151);
+    expect(p.x + 160).toBeLessThanOrEqual(344);
+    expect(p.y).toBeGreaterThanOrEqual(4);
+  });
+  it("uses vertical space when a narrow plot cannot fit either side", () => {
+    const p = historyTooltipPosition(240, 320, 224, 247, 144, 290, 144, 290);
+    expect(p.y + 247).toBeLessThanOrEqual(274);
+    expect(p.x).toBeGreaterThanOrEqual(4);
+    expect(p.x + 224).toBeLessThanOrEqual(236);
+  });
+});
 
 describe("usage axis navigation", () => {
   it("zooms around the chosen usage value", () => {

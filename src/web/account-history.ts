@@ -102,6 +102,43 @@ export interface HistoryRange {
   end: number;
 }
 
+export function historyTooltipPosition(
+  width: number,
+  height: number,
+  tooltipWidth: number,
+  tooltipHeight: number,
+  mouseX: number,
+  mouseY: number,
+  pointX: number,
+  pointY: number,
+) {
+  const gap = 16,
+    padding = 4;
+  const left = Math.min(mouseX, pointX) - gap,
+    right = Math.max(mouseX, pointX) + gap;
+  const top = Math.min(mouseY, pointY) - gap,
+    bottom = Math.max(mouseY, pointY) + gap;
+  const clampX = (x: number) =>
+    Math.max(padding, Math.min(x, width - tooltipWidth - padding));
+  const clampY = (y: number) =>
+    Math.max(padding, Math.min(y, height - tooltipHeight - padding));
+  const candidates = [
+    { x: right, y: clampY(mouseY - tooltipHeight / 2) },
+    { x: left - tooltipWidth, y: clampY(mouseY - tooltipHeight / 2) },
+    { x: clampX(mouseX - tooltipWidth / 2), y: top - tooltipHeight },
+    { x: clampX(mouseX - tooltipWidth / 2), y: bottom },
+  ];
+  return (
+    candidates.find(
+      (p) =>
+        p.x >= padding &&
+        p.y >= padding &&
+        p.x + tooltipWidth <= width - padding &&
+        p.y + tooltipHeight <= height - padding,
+    ) ?? { x: clampX(right), y: clampY(top - tooltipHeight) }
+  );
+}
+
 export function clampHistoryRange(
   range: HistoryRange,
   full: HistoryRange,

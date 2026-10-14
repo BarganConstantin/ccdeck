@@ -342,6 +342,49 @@ try {
     (await page.getByRole("tooltip").textContent()).includes("Observed"),
   );
   await shot("hover");
+  const endPoint = await page
+    .locator('g[data-account="a"] .ah-line')
+    .last()
+    .evaluate((el) => {
+      const p = el.getPointAtLength(el.getTotalLength() * 0.999);
+      const position = new DOMPoint(p.x, p.y).matrixTransform(
+        el.getScreenCTM(),
+      );
+      return { x: position.x, y: position.y };
+    });
+  await page.mouse.move(endPoint.x, endPoint.y);
+  await page.getByRole("tooltip").waitFor();
+  const clear = await page.getByRole("tooltip").evaluate((el, point) => {
+    const tip = el.getBoundingClientRect();
+    return {
+      mouse:
+        point.x < tip.left ||
+        point.x > tip.right ||
+        point.y < tip.top ||
+        point.y > tip.bottom,
+    };
+  }, endPoint);
+  assert.equal(clear.mouse, true, "Edge tooltip must not cover the cursor");
+  const markerClear = await page
+    .locator(".ah-chart:visible [data-tracked-observation] circle")
+    .evaluate((el) => {
+      const mark = el.getBoundingClientRect(),
+        tip = document
+          .querySelector('[role="tooltip"]')
+          .getBoundingClientRect();
+      return (
+        mark.right < tip.left ||
+        mark.left > tip.right ||
+        mark.bottom < tip.top ||
+        mark.top > tip.bottom
+      );
+    });
+  assert.equal(
+    markerClear,
+    true,
+    "Edge tooltip must leave the tracked reading visible",
+  );
+  await page.screenshot({ path: `${out}/tooltip-edge.png` });
   await page.mouse.move(5, 5);
   await page.getByRole("button", { name: "7-day window", exact: true }).click();
   assert.equal(await page.locator(".ah-chart:visible").count(), 1);
