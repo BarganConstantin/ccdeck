@@ -1,6 +1,11 @@
 /* Gruvbox keeps each session's stable hue, but mixes its cooler colours into
    the theme’s warm reading ink. These rules follow the component sheets to retune the palette
    without changing their shared geometry or another theme's appearance. */
+/* The longer name wraps before crowding the selection mark at 320px. */
+.appearance-theme[data-theme-choice="gruvbox-material"] .appearance-theme-name {
+  column-gap: 6px;
+}
+
 :root[data-theme^="gruvbox-"] .agent-node,
 :root[data-theme^="gruvbox-"] .recap-note {
   --accent: color-mix(in srgb, hsl(var(--session-hue, 200) 28% var(--session-accent-l)) 75%, var(--text));
@@ -46,6 +51,26 @@
 :root[data-theme="gruvbox-light"] .cluster-card {
   border-color: hsl(var(--session-hue, 200) 38% var(--session-rim-l) / 0.52);
   background: hsl(var(--session-hue, 200) 38% var(--session-rim-l) / 0.06);
+}
+
+/* Material's muted ink benefits from a little hue in each session's frame,
+   keeping adjacent trees distinct without a bright outline. */
+:root[data-theme="gruvbox-material"] .cluster-card {
+  border-color: hsl(var(--session-hue, 200) 28% var(--session-rim-l) / 0.42);
+  background: hsl(var(--session-hue, 200) 28% var(--session-rim-l) / 0.05);
+}
+/* Full cards and their compact faces use the same Material state colours. */
+:root[data-theme="gruvbox-material"] .agent-node.state-done {
+  border-color: color-mix(in srgb, var(--ok) 70%, var(--panel));
+}
+:root[data-theme="gruvbox-material"] .agent-node.state-done > .lod-face {
+  --lod-edge: color-mix(in srgb, var(--ok) 70%, var(--panel));
+}
+:root[data-theme="gruvbox-material"] .agent-node.state-err {
+  border-color: color-mix(in srgb, var(--err) 80%, var(--panel));
+}
+:root[data-theme="gruvbox-material"] .agent-node.state-err > .lod-face {
+  --lod-edge: color-mix(in srgb, var(--err) 80%, var(--panel));
 }
 
 /* Light's shared component rules use opaque white-era status beds and a
