@@ -13,7 +13,7 @@ import { laneMap, type FlowNodeData } from "./canvas-flow";
 import { stepTarget } from "./canvas-keys";
 import { focusCanvasNode, isCanvasNodeElement } from "./canvas-node-element";
 import { hidePeek } from "./components/SessionPeek";
-import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
+import { focusFamilyBoxes, focusViewport } from "./focus-camera";
 import type { GraphState } from "./reducer";
 import { TOOL_LANE_ALLOWANCE, type useCamera } from "./use-camera";
 import type { useSelection } from "./use-selection";
@@ -61,32 +61,18 @@ export function useAgentFocus({
     const agent = stateRef.current.agents.get(id);
     if (!pane || !agent) return;
     const lanes = laneMap(stateRef.current);
-    const boxOf = (n: Node<FlowNodeData>, withLane: boolean): FlowBox | null => {
-      const m = measuredRef.current.get(n.id);
-      if (!m) return null;
-      // The bubbles an agent has called are drawn to its right and are part
-      // of what the reader came to see: the same allowance fitLeft makes.
-      const lane = withLane && lanes.has(n.id) ? TOOL_LANE_ALLOWANCE : 0;
-      return { x: n.position.x, y: n.position.y, width: m.width + lane, height: m.height };
-    };
-    const own = nodesRef.current.find(n => n.id === id);
-    const anchor = own ? boxOf(own, false) : null;
-    if (!anchor) return;
-    const members: FlowBox[] = [];
-    for (const n of nodesRef.current) {
-      if (n.type !== "agent" && n.type !== "recapNote") continue;
-      if ((n.data as { sessionId?: string } | undefined)?.sessionId !== agent.sessionId) continue;
-      const b = boxOf(n, n.type === "agent");
-      if (b) members.push(b);
-    }
+    const boxes = focusFamilyBoxes(
+      id, stateRef.current.agents.values(), nodesRef.current, measuredRef.current, lanes, TOOL_LANE_ALLOWANCE,
+    );
+    if (!boxes) return;
     const rect = pane.getBoundingClientRect();
     const want = focusViewport({
       pane: { width: rect.width, height: rect.height },
       // Left: the control stack. Top: the tool filter bar. Right: whatever of
       // the rail of floating panels is open, as the rail effect measured it.
       insets: { top: 56, left: 72, bottom: 32, right: railInsetRef.current + 32 },
-      context: unionBox(members) ?? anchor,
-      anchor,
+      context: boxes.context,
+      anchor: boxes.anchor,
     });
     hidePeek();
     disableAutoFit();

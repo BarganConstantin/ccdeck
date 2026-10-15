@@ -22,6 +22,7 @@ import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
 import { CHARACTER_ENABLED_KEY, FM_SOURCE_KEY, FM_VOLUME_KEY } from "../appearance";
 import { FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY } from "../fm-stations";
 import { THEME_KEY } from "../theme";
+import { useCodexStartupDiscovery } from "../use-codex-startup-discovery";
 import { DEFAULTS } from "../../server/deck-prefs.mjs";
 import { sheetText } from "./sheet-source";
 import { sourceOf } from "./client-source";
@@ -49,6 +50,11 @@ function settingsProps(over: Partial<SettingsModalProps> = {}): SettingsModalPro
       notifySupported: true, askForNotifications: noop, loadNotifyPrefs: noop, accountNotify: ACCOUNT_NOTIFY_DEFAULTS,
       toggleAccountNotify: noop,
     },
+    codexStartupDiscovery: {
+      codexStartupDiscoveryEnabled: true,
+      loadCodexStartupPrefs: noop,
+      toggleCodexStartupDiscovery: noop,
+    } as ReturnType<typeof useCodexStartupDiscovery>,
     appearance: { theme: "dark", setTheme: noop, characterEnabled: true, setCharacterEnabled: noop },
     ...over,
   } as unknown as SettingsModalProps;
@@ -95,7 +101,33 @@ describe("a door into Settings opens it at the section it names", () => {
     expect(html.indexOf("Color theme")).toBeGreaterThan(-1);
     expect(html.indexOf(">Keyboard</h3>")).toBeGreaterThan(html.indexOf("Color theme"));
     expect(html).toMatch(/role="switch" aria-checked="true" aria-labelledby="settings-single-keys-label"/);
-    expect(html.match(/role="switch"/g)).toHaveLength(2);
+    expect(html.match(/role="switch"/g)).toHaveLength(3);
+  });
+
+  it("draws the persistent Codex startup switch and explains its scope", () => {
+    const enabled = drawSettings({
+      codexStartupDiscovery: {
+        codexStartupDiscoveryEnabled: true,
+        loadCodexStartupPrefs: noop,
+        toggleCodexStartupDiscovery: noop,
+      } as ReturnType<typeof useCodexStartupDiscovery>,
+    });
+    expect(enabled).toMatch(/role="switch" aria-checked="true" aria-labelledby="settings-codex-startup-label"/);
+    expect(enabled).toContain("Include already-running Codex threads");
+    expect(enabled).toContain("Scans now and on startup for threads with a recorded unfinished turn.");
+    expect(enabled).toContain("Turning this off stops additional history reads; cards already shown stay.");
+    expect(enabled).toContain("A crash can leave a turn recorded as unfinished.");
+    expect(enabled).toContain('id="tool-history-settings-title"');
+    expect(enabled.indexOf('id="tool-history-settings-title"')).toBeGreaterThan(enabled.indexOf('id="settings-codex-startup-caption"'));
+
+    const disabled = drawSettings({
+      codexStartupDiscovery: {
+        codexStartupDiscoveryEnabled: false,
+        loadCodexStartupPrefs: noop,
+        toggleCodexStartupDiscovery: noop,
+      } as ReturnType<typeof useCodexStartupDiscovery>,
+    });
+    expect(disabled).toMatch(/role="switch" aria-checked="false" aria-labelledby="settings-codex-startup-label"/);
   });
 
 

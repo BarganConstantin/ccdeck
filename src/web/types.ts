@@ -229,8 +229,8 @@ export interface ContextBreakdown {
 }
 
 export interface AgentNodeData {
-  id: string;                 // session_id or `${session}::${parent_tool_use_id}`
-  sessionId: string;          // root session id (same as id for root agents)
+  id: string;                 // session/thread id or `${session}::${parent_tool_use_id}`
+  sessionId: string;          // telemetry/tool session id; Claude children use their root session id
   label: string;              // human label (workspace basename, subagent_type, etc.)
   kind: "root" | "subagent";
   parentId?: string;
@@ -306,6 +306,14 @@ export interface AgentNodeData {
    *  Root only; absent on every interactive session. */
   job?: BackgroundJob;
   prompts: PromptEntry[];
+  /** The current Codex input recovered from an unfinished rollout at startup.
+   *  Kept apart from `prompts`: it is not a complete prompt history and must
+   *  not become the session's opening prompt. Cleared by the next live input. */
+  startupPrompt?: PromptEntry;
+  /** Source timestamp used only to order delayed Codex inputs against the snapshot. */
+  startupPromptSourceAt?: number;
+  /** Startup discovery did not recover all earlier prompt records. */
+  promptHistoryPartial?: boolean;
   toolCount: number;
   /** How many of the calls `toolCount` counts failed, over the same lifetime
    *  rather than over the window `tools` keeps (#1809) — a long session's early
@@ -317,12 +325,11 @@ export interface AgentNodeData {
    *  with the tool vocabulary and not with the session. A Map because the keys
    *  are whatever the payload named. Absent is none. */
   toolCountByName?: Map<string, number>;
-  /** Root nodes only. True when this session's node was created by something
-   *  other than a `SessionStart` — the deck is drawing a session it joined
-   *  after the beginning, so the start time, prompt history and early tool
-   *  calls this card shows are incomplete rather than empty. Set at creation
-   *  in `resolveOwner`, cleared only by a `SessionStart`, and drawn as the
-   *  dashed border and `?` chip on the card.
+  /** Root nodes only. True when the deck did not observe the session's true
+   *  beginning, so the elapsed time is only a lower bound and early prompt/tool
+   *  history may be incomplete. Set when a root is first seen late or seeded
+   *  from Codex startup discovery; a real `SessionStart` clears it. Drawn as
+   *  the dashed border and `?` chip on the card.
    *
    *  Subagents never carry it: only `SubagentStart` creates one, so a subagent
    *  node exists precisely when its beginning WAS observed. */
@@ -359,6 +366,10 @@ export interface AgentNodeData {
    *  see `usageByModel` above for why the two are different questions and why
    *  no cost surface may answer the second with this. */
   model?: string;
+  /** Codex subagent metadata from its rollout spawn record. */
+  agentType?: string;
+  agentNickname?: string;
+  agentRole?: string;
   /** Which CLI ecosystem this agent belongs to. Set from the hook payload's
    *  `provider` field on first event; defaults to "claude" for back-compat
    *  with replay events written before multi-provider support. */
@@ -614,6 +625,19 @@ export interface HookPayload {
   /** Real CC SubagentStart/Stop payloads. */
   agent_id?: string;
   agent_type?: string;
+  agent_nickname?: string;
+  agent_role?: string;
+  /** CodexSubagentStart: immediate parent thread id. */
+  parent_session_id?: string;
+  /** CodexSubagentStart discriminator; kept separate from provider stamping. */
+  runtime?: string;
+  /** Synthetic Codex SessionStart seed for an unfinished rollout discovered at startup. */
+  startup_discovery?: boolean;
+  /** Current user input read from that unfinished rollout. */
+  startup_prompt?: string;
+  startup_prompt_timestamp?: string;
+  /** Source-record time for a Codex UserPromptSubmit; receipt time remains the live-event clock. */
+  prompt_timestamp?: string;
   /** Synthetic / older alias used by some test fixtures. */
   parent_tool_use_id?: string;
   subagent_type?: string;

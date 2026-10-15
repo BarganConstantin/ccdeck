@@ -13,6 +13,7 @@ import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
 import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
+import { setCodexStartupDiscovery } from "./codex-startup.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -56,6 +57,7 @@ export async function handlePrefsWrite(req, res) {
   // reports switch (#1853), the reporter's state, the accounts the deck signed
   // in (#1893) — are the deck's own and keep what is on disk; see pagePatch.
   const patch = pagePatch(body);
+  const startupDiscoveryBefore = heldPrefs.current().codexStartupDiscoveryEnabled;
   try {
     await heldPrefs.write(patch);
   } catch (err) {
@@ -74,6 +76,13 @@ export async function handlePrefsWrite(req, res) {
   // so turning the switch off in the panel really does stop the sockets rather
   // than only changing what the panel says.
   await applyLanPrefs();
+  // The Codex startup-history preference takes effect in this process as soon
+  // as the write lands. The live rollout tail is intentionally unaffected.
+  const startupDiscoveryAfter = heldPrefs.current().codexStartupDiscoveryEnabled;
+  if (typeof body.codexStartupDiscoveryEnabled === "boolean"
+      && startupDiscoveryBefore !== startupDiscoveryAfter) {
+    void setCodexStartupDiscovery(startupDiscoveryAfter);
+  }
   // Somebody has just switched this on and is watching the panel for the answer
   // to one question: is anything going to turn up. Whatever the probe said
   // before is about a deck whose sockets were down — see forgetReach.

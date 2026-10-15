@@ -22,7 +22,7 @@ import { extractModel } from "./payload-model";
 import { initialState, rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { explicitSubagentKey, noteKeyedSubagent, resolveOwner } from "./agent-attribution";
 import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
-import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, noteSessionHeard } from "./session-lifecycle";
+import { applyCodexSubagentStart, applySessionStart, applyTurnEnd, applyUserPromptSubmit, noteSessionHeard } from "./session-lifecycle";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
 import { applyPreToolUse, applyToolOutcome, returnLentCalls } from "./tool-calls";
 import {
@@ -114,12 +114,18 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // Claude Code's supervisor writes `stopped` into it when it finds the process
   // gone, and hearing THAT would bring a session the stale sweep had rightly
   // settled back to life. A job that is really working fires hooks of its own.
-  if (name !== "JobObserved") noteSessionHeard(state, sessionId, now);
+  if (name !== "JobObserved" && name !== "CodexSubagentStart") noteSessionHeard(state, sessionId, now);
 
   // Facts about the session that ride on whatever payload carries them. Above
   // the transcript scans on purpose: every one of those returns early, and two
   // of these three ride on them.
   stampSessionFacts(state, p, sessionId);
+
+  if (name === "CodexSubagentStart") {
+    const child = applyCodexSubagentStart(state, p, now);
+    if (child) adoptParkedEnrichment(state, child.id);
+    return state;
+  }
 
   // The server's transcript scans enrich the root and stop here: none of them
   // is the session's own traffic, so none is attributed to an owner, stamps a

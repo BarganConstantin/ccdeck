@@ -37,6 +37,15 @@ export function sessionMeta(obj) {
   return obj && obj.type === "session_meta" && obj.payload ? obj.payload : null;
 }
 
+/** A Codex subagent activity in either the legacy flat or current item shape. */
+export function codexSubagentActivity(obj) {
+  if (obj?.type !== "event_msg") return null;
+  const payload = obj.payload;
+  if (payload?.type === "sub_agent_activity") return payload;
+  const item = payload?.item;
+  return item?.type === "SubAgentActivity" ? item : null;
+}
+
 /** The `info` of a `token_count` event: the session's cumulative spend
  *  (`total_token_usage`), the last request's (`last_token_usage`) and the
  *  window (`model_context_window`) — see codexObjToPayload for which is which —
@@ -59,6 +68,58 @@ export function taskStartedWindow(obj) {
 export function responseItemModel(obj) {
   const pl = obj && obj.payload;
   return obj && obj.type === "response_item" && pl && typeof pl.model === "string" ? pl.model : null;
+}
+
+const nonEmptyString = value => typeof value === "string" && value.length > 0 ? value : null;
+
+/**
+ * Translate the explicit parent/child IDs Codex writes into the existing
+ * subagent-start wire shape. This is deliberately a separate reader from
+ * codexObjToPayload: a SubAgentActivity is graph metadata, not evidence that
+ * the child is currently running, and a session_meta record must not replace
+ * the ordinary Codex root event stream.
+ */
+export function codexSubagentToPayload(obj, sid, cwd) {
+  let childId = null;
+  let parentId = null;
+  let metadata = null;
+  const meta = sessionMeta(obj);
+
+  if (meta) {
+    childId = nonEmptyString(meta.id);
+    const directParent = nonEmptyString(meta.parent_thread_id);
+    const nestedParent = nonEmptyString(meta.source?.subagent?.thread_spawn?.parent_thread_id);
+    // Do not choose arbitrarily if the two explicit declarations disagree.
+    if (directParent && nestedParent && directParent !== nestedParent) return null;
+    parentId = directParent || nestedParent;
+    metadata = meta;
+  } else if (obj?.type === "event_msg") {
+    const item = codexSubagentActivity(obj);
+    // Activity records also describe children that completed or were merely
+    // interacted with. Only the explicit start event creates a new child.
+    if (item?.kind !== "started") return null;
+    childId = nonEmptyString(item.agent_thread_id);
+    parentId = nonEmptyString(sid);
+    metadata = item;
+  } else {
+    return null;
+  }
+
+  if (!childId || !parentId || childId === parentId) return null;
+  const payload = {
+    session_id: childId,
+    parent_session_id: parentId,
+    cwd,
+    provider: "codex",
+    runtime: "codex",
+    hook_event_name: "CodexSubagentStart",
+  };
+  if (typeof obj.timestamp === "string") payload.timestamp = obj.timestamp;
+  for (const key of ["agent_type", "agent_nickname", "agent_role", "model"]) {
+    const value = nonEmptyString(metadata?.[key]);
+    if (value) payload[key] = value;
+  }
+  return payload;
 }
 
 /**
@@ -138,7 +199,7 @@ export function codexObjToPayload(obj, sid, cwd) {
   if (type === "event_msg") {
     if (pl.type === "user_message") {
       const prompt = typeof pl.message === "string" ? pl.message : "";
-      return { ...base, hook_event_name: "UserPromptSubmit", prompt, model };
+      return { ...base, hook_event_name: "UserPromptSubmit", prompt, model, ...(typeof obj.timestamp === "string" ? { prompt_timestamp: obj.timestamp } : {}) };
     }
     // Codex 0.147 stopped writing `user_message` and writes the same submission
     // as an `item_completed` carrying a `UserMessage` item instead. The two are
@@ -156,7 +217,7 @@ export function codexObjToPayload(obj, sid, cwd) {
     // without it the `Stop` below would trade "live forever" for "done
     // forever", which is not better.
     if (pl.type === "item_completed" && pl.item && pl.item.type === "UserMessage") {
-      return { ...base, hook_event_name: "UserPromptSubmit", prompt: codexItemText(pl.item), model };
+      return { ...base, hook_event_name: "UserPromptSubmit", prompt: codexItemText(pl.item), model, ...(typeof obj.timestamp === "string" ? { prompt_timestamp: obj.timestamp } : {}) };
     }
     // Codex states THREE numbers on every `token_count` and this branch used to
     // take one of them (#399). The other two are what the context donut is drawn

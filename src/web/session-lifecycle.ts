@@ -11,7 +11,99 @@ import { rootAgentId, type GraphState } from "./graph-state";
 import { injectedPrompt } from "./injected-prompt";
 import { HOOK_REDELIVERY_WINDOW_MS, recordPrompt, sessionEvidenceAt } from "./redelivery";
 import { settleUnanswered, shortPreview } from "./tool-calls";
-import type { HookPayload } from "./types";
+import type { AgentNodeData, HookPayload } from "./types";
+import { emptyUsage } from "./usage-wire";
+
+/** A Codex spawn may be learned from the parent's rollout before the child's
+ *  rollout header is present. Keep the child keyed by its own thread id so its
+ *  later SessionStart/tool/Stop records update this same node. */
+export function applyCodexSubagentStart(state: GraphState, p: HookPayload, now: number): AgentNodeData | null {
+  const id = typeof p.session_id === "string" ? p.session_id : "";
+  const parentId = typeof p.parent_session_id === "string" ? p.parent_session_id : "";
+  if (p.runtime !== "codex" || !id || !parentId || id === parentId) return null;
+  if (wouldCreateCodexCycle(state, id, parentId)) return null;
+  const knownChild = state.agents.get(id);
+  if (knownChild?.parentId && knownChild.parentId !== parentId) return null;
+
+  let parent = state.agents.get(parentId);
+  if (!parent) {
+    parent = {
+      id: parentId,
+      sessionId: parentId,
+      label: "session",
+      kind: "root",
+      state: "active",
+      startedAt: now,
+      lastEventAt: now,
+      tools: [],
+      prompts: [],
+      toolCount: 0,
+      childCount: 0,
+      synthetic: true,
+      provider: "codex",
+      usage: emptyUsage(),
+    };
+    state.agents.set(parentId, parent);
+  } else if (!parent.provider) {
+    parent.provider = "codex";
+  }
+
+  let child = state.agents.get(id);
+  if (!child) {
+    child = {
+      id,
+      sessionId: id,
+      label: "subagent",
+      kind: "subagent",
+      parentId,
+      state: "active",
+      startedAt: now,
+      lastEventAt: now,
+      tools: [],
+      prompts: [],
+      toolCount: 0,
+      childCount: 0,
+      provider: "codex",
+      usage: emptyUsage(),
+    };
+    state.agents.set(id, child);
+    parent.childCount += 1;
+  } else {
+    // A child rollout can arrive before the parent spawn record and create a
+    // root-shaped node. Upgrade it in place so its tools, model and timing stay.
+    if (child.kind === "root") child.kind = "subagent";
+    if (!child.parentId) {
+      child.parentId = parentId;
+      parent.childCount += 1;
+    }
+    child.provider = "codex";
+    // A late/replayed spawn notification describes identity, not a new run.
+    // In particular it must not revive a node whose child rollout already ended.
+    if (child.state !== "done" && child.state !== "err") child.state = "active";
+    if (child.state !== "done" && child.state !== "err") {
+      child.lastEventAt = Math.max(child.lastEventAt ?? 0, now);
+    }
+  }
+
+  if (typeof p.agent_type === "string" && p.agent_type) child.agentType = p.agent_type;
+  if (typeof p.agent_nickname === "string" && p.agent_nickname) child.agentNickname = p.agent_nickname;
+  if (typeof p.agent_role === "string" && p.agent_role) child.agentRole = p.agent_role;
+  if (typeof p.model === "string" && p.model) child.model = p.model;
+  const label = child.agentNickname ?? child.agentType ?? child.agentRole;
+  if (label) child.label = label;
+  return child;
+}
+
+function wouldCreateCodexCycle(state: GraphState, childId: string, parentId: string): boolean {
+  const visited = new Set<string>();
+  let cursor: string | undefined = parentId;
+  while (cursor) {
+    if (cursor === childId || visited.has(cursor)) return true;
+    visited.add(cursor);
+    cursor = state.agents.get(cursor)?.parentId;
+  }
+  return false;
+}
 
 /** That this session was heard from, whatever the event says: the root's
  *  `lastEventAt`, and a root the stale sweep reaped put back (#350).
@@ -46,17 +138,44 @@ export function noteSessionHeard(state: GraphState, sessionId: string, now: numb
   }
 }
 
-/** A session beginning — or beginning again, after `/clear` or `--resume`. The
- *  one event that retracts the joined-late marker (#677). */
+/** A session beginning — or beginning again, after `/clear` or `--resume`. A
+ *  real start retracts the joined-late marker (#677); startup discovery keeps
+ *  it because only the observation time is known. */
 export function applySessionStart(state: GraphState, p: HookPayload, sessionId: string, now: number): void {
   const root = ensureRoot(state, sessionId, now, false);
-  // The one thing that clears the "joined late" marker, and the reason it
+  // A real start clears the "joined late" marker, and the reason it
   // is cleared here rather than only seeded at creation: order independence
   // is this reducer's contract, so a `SessionStart` that arrives AFTER the
   // event that created the root — a racing hook POST, an out-of-order
   // replay — retracts the marker instead of leaving it standing on a
-  // session whose beginning we did, in the end, receive (#677).
-  root.synthetic = false;
+  // session whose beginning we did, in the end, receive (#677). Startup seeds
+  // are the exception: their synthetic SessionStart is received now, not when
+  // the rollout actually began.
+  // A startup scan knows that this rollout has an unfinished recorded turn,
+  // but it did not observe when the thread began. Keep the joined-late marker
+  // so elapsed time is shown as a lower bound from discovery, not as the
+  // thread's true age. A real SessionStart still clears it as before.
+  root.synthetic = p.startup_discovery === true;
+  if (p.startup_discovery === true) root.promptHistoryPartial = true;
+  if (p.startup_discovery === true) {
+    if (typeof p.startup_prompt === "string" && p.startup_prompt.trim()) {
+      const promptAt = typeof p.startup_prompt_timestamp === "string" ? Date.parse(p.startup_prompt_timestamp) : NaN;
+      const sourceWatermark = root.startupPromptSourceAt;
+      // The scan's bounded prefix precedes the live tail. If a live prompt has
+      // already reached the reducer, keep it regardless of timestamp clock:
+      // PromptEntry.at is receipt time, while this timestamp is source time.
+      // Compare source timestamps only with the source-clock watermark.
+      const stale = root.prompts.length > 0 || (Number.isFinite(promptAt) &&
+        typeof sourceWatermark === "number" && Number.isFinite(sourceWatermark) && promptAt <= sourceWatermark) ||
+        (!Number.isFinite(promptAt) && Number.isFinite(sourceWatermark));
+      if (!stale) {
+        root.startupPrompt = { at: Number.isFinite(promptAt) ? promptAt : now, text: p.startup_prompt };
+        if (Number.isFinite(promptAt)) root.startupPromptSourceAt = promptAt;
+      }
+    }
+  } else {
+    root.startupPrompt = undefined;
+  }
   root.state = "active";
   // A session that is starting is not a closed one, whatever an earlier
   // `SessionEnd` or a stale sweep concluded (#445). `/clear` is the case
@@ -90,6 +209,14 @@ export function applySessionStart(state: GraphState, p: HookPayload, sessionId: 
 /** The human typing into the session: a new turn on the ROOT, with the prompt
  *  recorded once however many copies of the submission arrive. */
 export function applyUserPromptSubmit(state: GraphState, p: HookPayload, sessionId: string, now: number): void {
+  const existingRoot = state.agents.get(rootAgentId(sessionId));
+  const promptAt = typeof p.prompt_timestamp === "string" ? Date.parse(p.prompt_timestamp) : NaN;
+  const startupPromptAt = existingRoot?.startupPromptSourceAt;
+  // Startup discovery can deliver the current turn's input before the watcher
+  // catches up with older rollout records. Ignore those old/duplicate records
+  // before they can reopen a stopped root or replace the newer captured input.
+  if (existingRoot?.promptHistoryPartial === true && typeof startupPromptAt === "number" && Number.isFinite(startupPromptAt) && Number.isFinite(promptAt) && promptAt <= startupPromptAt) return;
+
   // New turn — retire done subagents from prior turns so canvas focuses
   // on the current request. Same logic works for live AND replay:
   //   - live: exitAt = wall-clock now → 600ms fade-out animation
@@ -109,6 +236,10 @@ export function applyUserPromptSubmit(state: GraphState, p: HookPayload, session
     }
   }
   const root = ensureRoot(state, sessionId, now, false);
+  // A live input supersedes the one-time startup snapshot. Keep that snapshot
+  // out of `prompts` so the history count and opening-prompt summary stay true.
+  root.startupPrompt = undefined;
+  if (root.promptHistoryPartial && Number.isFinite(promptAt)) root.startupPromptSourceAt = promptAt;
   root.state = "active";
   root.endedAt = undefined;
   // `closedAt` travels with `endedAt` everywhere except at `Stop`, which is

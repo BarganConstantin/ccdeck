@@ -84,6 +84,7 @@ export { ccProjectSlug };
 // The Codex half of capture: the rollouts directory tailed for its events —
 // see codex-watch.mjs.
 import { startCodexWatcher } from "./codex-watch.mjs";
+import { startCodexStartupDiscovery, stopCodexStartupDiscovery } from "./codex-startup.mjs";
 // Exported from this file before they moved, and still. scanCodexNow is new,
 // and is here for the suites that import this file to drive the watcher.
 export { scanCodexNow, startCodexWatcher } from "./codex-watch.mjs";
@@ -131,7 +132,7 @@ import { armLifecycle, handlePresence, handleRestart, handleStop, handleUpgrade,
 export { markDeckReady, releaseRestart } from "./lifecycle.mjs";
 // The settings as this process holds them, and every write that changes them —
 // see prefs-state.mjs.
-import { prefsRead } from "./prefs-state.mjs";
+import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 // Quota read for the account notifications while no page reads it — only while
 // one of their quota switches is on (account-watch.mjs).
 import { startAccountWatch } from "./account-watch.mjs";
@@ -511,9 +512,19 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // that way. Comparing the candidate would hand those decks a manifest.
       boundPort = server.address()?.port ?? candidate;
       void trafficCapture.resume(boundPort).catch(() => {});
-      server.once("close", () => trafficCapture.dispose());
+      server.once("close", () => {
+        trafficCapture.dispose();
+        stopCodexStartupDiscovery();
+      });
       // Codex has no working hooks on Windows — tail its rollout files instead.
-      if (codex) startCodexWatcher(workspace);
+      if (codex) {
+        prefsRead.then(() => {
+          // Publish the historical scan boundary before the live watcher picks
+          // its initial cursor, so an append cannot fall between the two paths.
+          void startCodexStartupDiscovery(workspace, heldPrefs.current().codexStartupDiscoveryEnabled !== false);
+          startCodexWatcher(workspace);
+        }).catch(() => {});
+      }
       // What a session is producing between its tool calls. Claude only — it
       // reads `transcript_path`, which Codex hooks never send — and unref'd
       // like its neighbours.

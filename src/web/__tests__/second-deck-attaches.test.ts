@@ -465,7 +465,10 @@ describe("what a launcher that only asks never does", () => {
     // The metrics carry `probe: true` here and nowhere else: the network
     // section may reach out only from a process that is actually serving.
     expect(loop).toMatch(/await tryListen\(server, candidate, host\);[\s\S]*startSystemMetrics\(\{ probe: true \}\);[\s\S]*\bprefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
-    // And once: a second call site would be a second boot.
-    expect([...both.matchAll(/\bprefsRead\.then/g)]).toHaveLength(1);
+    // The same prefsRead result starts LAN and Codex history discovery; each
+    // is wired once after listen, without adding another prefs load.
+    expect(loop).toMatch(/\bprefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
+    expect(loop).toMatch(/\bprefsRead\.then\(\(\) => \{[\s\S]*?startCodexStartupDiscovery\(workspace,[\s\S]*?startCodexWatcher\(workspace\);[\s\S]*?\}\)\.catch/);
+    expect([...both.matchAll(/\bprefsRead\.then/g)]).toHaveLength(2);
   });
 });

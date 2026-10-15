@@ -166,7 +166,7 @@ export default function Detail({
           Claude Code's recap once that arrives. The heading says which. */}
       {(() => {
         const note = sessionNoteShown(agent);
-        if (!note) return null;
+        if (!note || note.source === "startup-input") return null;
         const written = promptTime(note.at, now);
         const heading = note.kind === "recap" ? "Recap" : noteTag(note.kind).replace(/^./, c => c.toUpperCase());
         return (
@@ -177,6 +177,13 @@ export default function Detail({
           </section>
         );
       })()}
+
+      {agent.startupPrompt && (
+        <section className="detail-section">
+          <h3>{agent.state === "active" ? "Current input" : "Input captured when found"}</h3>
+          <div className="prompt-text">{agent.startupPrompt.text}</div>
+        </section>
+      )}
 
       {agent.tools.length > 0 && (
         <section className="detail-section">
@@ -248,7 +255,7 @@ export default function Detail({
         <section className="detail-section">
           {/* The count is what was typed (#834). A background task's notice
               is listed as the event it is, collapsed, in its place in time. */}
-          <h3>Prompts <span className="section-count">{typedPrompts(agent.prompts).length}</span></h3>
+          <h3>{agent.promptHistoryPartial ? "Prompts seen since discovery" : "Prompts"} <span className="section-count">{typedPrompts(agent.prompts).length}</span></h3>
           <div className="prompts">
             {promptKeys(agent.prompts).reverse().map(({ pr, key }) => {
               const t = promptTime(pr.at, now);

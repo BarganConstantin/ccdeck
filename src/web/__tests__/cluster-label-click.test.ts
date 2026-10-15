@@ -166,9 +166,16 @@ describe("a double-click under reduced motion", () => {
   });
 
   it("is made before the layer can return nothing, so the hooks run on every render", () => {
-    const early = component.indexOf("if (clusters.length <= 1) return null;");
+    // The display gate now preserves a lone Codex family with children. Keep
+    // this test about the React rule: every hook must still run before any
+    // render-dependent early return, without pinning the full gate expression.
+    const early = component.search(/if\s*\(clusters\.length\s*===\s*0\s*\|\|\s*\(clusters\.length\s*===\s*1/);
     expect(early).toBeGreaterThan(0);
-    for (const hook of ["const [hold] = useState(", "useEffect(() => () => hold.cancel()"]) {
+    for (const hook of [
+      "useViewport()", "useStore(selectClusters", "useStore(selectPaneWidth", "useStore(selectPaneHeight",
+      "useStore(selectViewport", "useState<PaneBox[]>(", "useLayoutEffect(", "useRef(onFocusSession)",
+      "const [hold] = useState(", "useEffect(() => () => hold.cancel()",
+    ]) {
       expect(component.indexOf(hook), hook).toBeGreaterThan(0);
       expect(component.indexOf(hook), hook).toBeLessThan(early);
     }

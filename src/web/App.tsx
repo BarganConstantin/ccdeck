@@ -74,6 +74,7 @@ import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
 import { usePresenceBeacon } from "./use-presence-beacon";
 import { usePrefsRead } from "./use-prefs-read";
+import { useCodexStartupDiscovery } from "./use-codex-startup-discovery";
 import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
@@ -550,9 +551,15 @@ function Inner() {
   // use-os-notifications.ts. It is fed the same waiting set the sidebar draws.
   const notify = useOsNotifications({ waitingSessions, liveSince, focusSession });
   const { loadNotifyPrefs } = notify;
+  const codexStartupDiscovery = useCodexStartupDiscovery();
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
-  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
+  usePrefsRead({
+    loadAutoRestartPrefs,
+    loadNotifyPrefs,
+    loadReportsPrefs: reports.loadReportsPrefs,
+    loadCodexStartupPrefs: codexStartupDiscovery.loadCodexStartupPrefs,
+  });
 
   // The eight controls of the chrome, each defined once, and the edge each
   // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
@@ -791,6 +798,7 @@ function Inner() {
         upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
+        codexStartupDiscovery={codexStartupDiscovery}
       />
     </div>
   );

@@ -8,8 +8,9 @@
 import dagre from "dagre";
 import type { Node, Edge } from "reactflow";
 import {
-  cardSize, columnGap, fitZoom, footprint, groupBySession, SESSION_GAP, TOOL_LANE_W, type Lanes,
+  cardSize, columnGap, fitZoom, footprint, SESSION_GAP, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
+import { buildVisualFamilies, type VisualFamilyAgent } from "./visual-family";
 
 // The shared measurements are layout-geometry.ts's. The lane map's type and
 // its signature are part of what callers hand the passes, so the rest of the
@@ -158,13 +159,14 @@ function layoutSession(
   return { positions, width, height, pinnedBox };
 }
 
-/** One session after dagre, waiting to be packed into a column. */
+/** One visual family after dagre, waiting to be packed into a column. */
 type LaidSession = ReturnType<typeof layoutSession> & { sid: string };
 type Column = LaidSession[];
 
 /**
- * Every session run through dagre on its own, plus the gap the packer leaves
- * between columns.
+ * Every visual family run through dagre on its own, plus the gap between
+ * columns. Most providers have one family per session; Codex parent chains can
+ * span sessions and belong to one graph while keeping their session ids intact.
  *
  * Split out from autoLayout because this is the expensive half and the packing
  * below is the cheap one: `columnsWouldChange` scores the SAME sessions against
@@ -177,10 +179,21 @@ function laySessions(nodes: Node[], edges: Edge[], opts: LayoutOptions): { laid:
   const measured = opts.measured ?? new Map();
   const lanes = opts.lanes;
 
-  const sessions = groupBySession(nodes);
+  const families = buildVisualFamilies(nodes.map(n => ({
+    ...(n.data as Partial<VisualFamilyAgent>), id: n.id,
+  } as VisualFamilyAgent)));
+  const sessions = new Map<string, Node[]>();
+  for (const n of nodes) {
+    const parentId = (n.data as { parentId?: string } | undefined)?.parentId;
+    const noteFamily = n.type === "recapNote" && parentId ? families.get(parentId) : undefined;
+    const key = noteFamily?.familyKey ?? families.get(n.id)?.familyKey ?? `node:${n.id}`;
+    const members = sessions.get(key);
+    if (members) members.push(n);
+    else sessions.set(key, [n]);
+  }
 
-  // Lay out each session in its own dagre graph, then pack the subgraphs into
-  // columns. Sessions are ordered by id so the layout is stable across events.
+  // Lay out each visual family in its own dagre graph, then pack the subgraphs
+  // into columns. Keys sort stably across events.
   const sessionOrder = Array.from(sessions.keys()).sort();
   const laid = sessionOrder.map(sid => ({
     sid,

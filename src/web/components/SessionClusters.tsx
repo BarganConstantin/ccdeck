@@ -71,7 +71,11 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
   }));
   useEffect(() => () => hold.cancel(), [hold]);
 
-  if (clusters.length <= 1) return null; // no need to disambiguate one tree
+  // A lone ordinary session needs no disambiguating frame. A Codex family
+  // with children still needs its visible enclosure: the root and children
+  // have become one visual cluster, so the old multi-session gate would hide
+  // the only frame and title that show their relationship.
+  if (clusters.length === 0 || (clusters.length === 1 && !(clusters[0].familyKey.startsWith("codex-family:") && clusters[0].memberCount > 1))) return null;
 
   // A session's root card has the session's own id, so framing "the session"
   // is framing its root with everything it belongs with.

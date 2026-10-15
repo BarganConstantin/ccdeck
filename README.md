@@ -7,13 +7,13 @@
 
 # ccdeck — a live dashboard for Claude Code and Codex
 
-ccdeck is a free, open-source (AGPL-3.0) dashboard that runs on your machine and shows every Claude Code and OpenAI Codex CLI session, including ones started in a plain terminal: which Claude Code session needs input, each Claude Code subagent and every tool call as it runs, cost and quota left. Start it with `npx ccdeck` or the desktop app.
+ccdeck is a free, open-source (AGPL-3.0) dashboard that runs on your machine and shows every Claude Code and OpenAI Codex CLI session, including ones started in a plain terminal: which Claude Code session needs input, Claude Code subagents, Codex child sessions when their rollouts record parent and child IDs, and every tool call as it runs, cost and quota left. Start it with `npx ccdeck` or the desktop app.
 
 Step-by-step guides: [ccdeck.dev/guides](https://ccdeck.dev/guides/)
 
 **Know which agent is waiting on you, and for how long.**
 
-**ccdeck keeps them in one queue** — every session stopped on a human, longest wait first. The topbar names them, and its count is one click to the oldest. That queue is Claude Code's, because the deck reads Codex from its rollout log and a rollout carries no such signal; the canvas under it is both, with every Claude Code subagent on a node of its own.
+**ccdeck keeps them in one queue** — every session stopped on a human, longest wait first. The topbar names them, and its count is one click to the oldest. That queue is Claude Code's, because the deck reads Codex from its rollout log and a rollout carries no such signal; the canvas under it is both, with every Claude Code subagent and Codex child session with recorded parent and child IDs on a node of its own.
 
 [![npm](https://img.shields.io/npm/v/ccdeck?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/ccdeck)
 [![npm downloads](https://img.shields.io/npm/dm/ccdeck?color=blue)](https://www.npmjs.com/package/ccdeck)
@@ -96,7 +96,7 @@ The deck opens on these eight pictures the first time it runs — they are the w
 | **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it, and the session's name beside it, with how long it has waited and on what — one click from its card. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
 | **What each session is doing** | The note tied to each session's card — and the line under its row in the sidebar — says it while it works: the sentence the newest reply wrote, or the description on the command it ran. Once the turn is over it keeps the last thing the session did, until Claude Code's recap takes its place. A background session (`claude --bg`, or one started from `claude agents`) shows Claude Code's own line instead, read from its job folder in `~/.claude/jobs`: the question it is stuck on and the reply Claude Code suggests, or the headline of what it got done. No model is called for any of it. A Codex session, read from its rollout log, has the note only while a turn runs, and it says the first line of the prompt that began the turn: no line is taken from a Codex reply, and no recap follows. |
 | **Live DAG** | Nodes are agents and edges are spawns; each agent's latest tool calls sit beside its node and light up while they run. In-flight edges animate, settled ones dim. |
-| **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. Subagent cards are Claude Code only: a Codex session is one node with its tool calls. |
+| **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. Claude Code subagents and Codex child sessions with explicit parent and child IDs each get their own node. |
 | **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
 | **Double-click to inspect** | Any node opens its prompt, tool calls, token usage and timing in the side panel. A single click selects it and frames its session. |
 | **Survives restarts** | Events are appended to this platform's log directory (see `--history` below) and replayed on open. |
@@ -672,12 +672,14 @@ so existing clones, links and bookmarks keep working.
 
 **Does it work with Codex, or only Claude Code?**
 Both, on one canvas. Claude Code arrives through a hook, Codex through its
-rollout log, and the model chip tells them apart. Subagent cards are Claude
-Code only: a Codex session is one node with its tool calls. So is the *blocked
-on you* queue, because a rollout log is a record of what happened and the
-queue needs to know what is happening now. Codex does report it — its
-`app-server` pushes a thread status carrying `waitingOnApproval` — and reading
-that is open work, not a wall. Step by step:
+rollout log, and the model chip tells them apart. When a Codex rollout records
+explicit parent and child IDs, ccdeck shows the child as soon as it sees the
+spawn and matches the later child rollout to that same node. This is based on
+relationships recorded in the rollout; it does not infer missing parent or
+child IDs. The *blocked on you* queue is still Claude Code only: a rollout log
+records what happened, while that queue needs to know what is happening now.
+Codex does report it — its `app-server` pushes a thread status carrying
+`waitingOnApproval` — and reading that is open work, not a wall. Step by step:
 [Set up ccdeck for Codex CLI](https://ccdeck.dev/guides/codex/)
 
 **Does anything leave my machine?**
