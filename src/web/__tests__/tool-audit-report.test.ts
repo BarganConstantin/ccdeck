@@ -1,104 +1,72 @@
 import { describe, expect, it } from 'vitest';
-import { reportComparison, reportComparisonDescription, reportExactInterval, reportOperations, reportIntervalScale, reportIntervalPosition } from '../tool-audit-report';
-import { auditDuration, type AuditRow } from '../tool-audit';
+import { callTime, failureShare, findHighlights, percent, sortTools, summaryParts, toolSortValue } from '../tool-audit-report';
+import type { AuditRow } from '../tool-audit';
+
 const row = (operation: string, extra: Partial<AuditRow> = {}): AuditRow => ({
   operation, calls: 20, completed: 20, failed: 0, errorRate: 0, measured: 20,
-  missingTiming: 0, unmatched: 0, shared: 0, providers: { claude: 0, codex: 20 }, tools: ['exec'],
+  missingTiming: 0, unmatched: 0, shared: 0, providers: { claude: 20, codex: 0 }, tools: ['Bash'],
   totalMs: 2000, medianMs: 100, p95Ms: 120, maxMs: 200, ...extra,
 });
-describe('report evidence mapping', () => {
-  const data = [row('frequent-fast', { calls: 150, totalMs: 15000 }), row('rare-slow', { calls: 10, measured: 10, totalMs: 80000, medianMs: 8000, p95Ms: 9000 }), row('slow-tail', { p95Ms: 9000, failed: 3 }), row('unknown', { totalMs: null, measured: 0, p95Ms: null }), row('zero', { totalMs: 0, p95Ms: 0 })];
-  it('answers frequency and cumulative interval questions independently', () => {
-    expect(reportComparison(data, 'calls', '').rows[0].operation).toBe('frequent-fast');
-    const timing = reportComparison(data, 'totalMs', '');
-    expect(timing.rows[0].operation).toBe('rare-slow');
-    expect(timing.maximum).toBe(80000);
-    expect(timing.rows.find(r => r.operation === 'frequent-fast')!.totalMs! / timing.maximum).toBe(.1875);
-    expect(timing.rows.some(r => r.operation === 'unknown')).toBe(false);
-    expect(timing.rows.some(r => r.operation === 'zero')).toBe(true);
+
+describe('the tool list', () => {
+  const rows = [row('Read', { calls: 250, totalMs: 10000 }), row('npm test', { calls: 30, totalMs: 1500000, medianMs: 50000, failed: 6, completed: 30 }), row('untimed', { calls: 40, totalMs: null, medianMs: null, measured: 0 }), row('zero', { calls: 5, totalMs: 0, medianMs: 0 })];
+  it('puts what was never timed last, below a measured zero', () => {
+    expect(sortTools(rows, 'time').map(r => r.operation)).toEqual(['npm test', 'Read', 'zero', 'untimed']);
+    expect(sortTools(rows, 'slowest').at(-1)!.operation).toBe('untimed');
+    expect(toolSortValue(rows[2], 'time')).toBeNull();
   });
-  it('excludes ineligible P95 even if an upstream row carries a value', () => {
-    expect(reportComparison(data, 'p95Ms', '').rows.map(r => r.operation)).not.toContain('rare-slow');
-    expect(reportComparison(data, 'p95Ms', '').rows[0].operation).toBe('slow-tail');
+  it('breaks ties by use, then by name, so the order never jumps', () => {
+    expect(sortTools([row('b', { failed: 0 }), row('a', { failed: 0, calls: 20 }), row('c', { calls: 50 })], 'failed').map(r => r.operation)).toEqual(['c', 'a', 'b']);
   });
-  it('shows actual failure memberships only, without inflating zero outcomes', () => {
-    expect(reportComparison(data, 'failed', '').rows.map(r => r.operation)).toEqual(['slow-tail']);
-    expect(reportComparison(data, 'failed', 'zero').rows).toEqual([]);
-  });
-  it('filters all comparisons consistently without mutating source', () => {
-    const before = JSON.stringify(data);
-    expect(reportComparison(data, 'calls', ' FAST ').rows.map(r => r.operation)).toEqual(['frequent-fast']);
-    expect(reportComparison(data, 'totalMs', 'unknown').eligible).toBe(0);
-    expect(JSON.stringify(data)).toBe(before);
-  });
-  it('uses complete matching scale before slicing a dense ranking', () => {
-    const dense = Array.from({ length: 150 }, (_, i) => row(`op${i}`, { calls: i + 1 }));
-    expect(reportComparison(dense, 'calls', '', 6)).toMatchObject({ eligible: 150, maximum: 150 });
-    expect(reportComparison(dense, 'calls', '', 6).rows).toHaveLength(6);
-  });
-  it('keeps unknowns last in both table sort directions; zero stays first ascending', () => {
-    expect(reportOperations(data, 'totalMs', '', true).map(r => r.operation)).toEqual(['zero', 'slow-tail', 'frequent-fast', 'rare-slow', 'unknown']);
-    expect(reportOperations(data, 'totalMs', '', false).at(-1)!.operation).toBe('unknown');
-  });
-  it('handles no data and deterministic ties', () => {
-    expect(reportComparison([], 'calls', '')).toEqual({ rows: [], maximum: 0, eligible: 0 });
-    expect(reportOperations([row('z'), row('a')], 'calls', '', true).map(r => r.operation)).toEqual(['a', 'z']);
+  it('finds a tool by what it does as well as by its name, without touching the source', () => {
+    const before = JSON.stringify(rows);
+    expect(sortTools(rows, 'calls', 'tests').map(r => r.operation)).toEqual(['npm test']);
+    expect(sortTools(rows, 'calls', ' READ ').map(r => r.operation)).toEqual(['Read']);
+    expect(JSON.stringify(rows)).toBe(before);
   });
 });
 
-describe('median-to-P95 shared scale', () => {
-  it('uses a readable zero-origin linear domain without changing metrics', () => {
-    expect(reportIntervalScale(9000)).toEqual({ ceiling: 10000, unit: 'seconds', ticks: [{ value: 0, label: '0' }, { value: 5000, label: '5' }, { value: 10000, label: '10' }] });
-    expect(reportIntervalPosition(100, 10000)).toBe(1);
-    expect(reportIntervalPosition(9000, 10000)).toBe(90);
-    expect(reportIntervalScale(31000).ceiling).toBe(50000);
+describe('worth a look', () => {
+  it('names the tool that takes the most time, the one that fails often and the slowest other one', () => {
+    const rows = [
+      row('npm test', { calls: 33, measured: 33, totalMs: 1700000, medianMs: 56000, maxMs: 96000, failed: 7, completed: 33 }),
+      row('Agent', { calls: 13, measured: 13, totalMs: 1600000, medianMs: 126000, maxMs: 204000 }),
+      row('Read', { calls: 258, totalMs: 12000, failed: 1, completed: 258 }),
+    ];
+    const found = findHighlights(rows, 4000000);
+    expect(found.map(h => [h.kind, h.operation])).toEqual([['time', 'npm test'], ['failing', 'npm test'], ['slow', 'Agent']]);
+    expect(found[0].detail).toBe('28.3 min over 33 calls, 43% of all tool time.');
+    expect(found[1].detail).toBe('7 of 33 calls failed (21%).');
+    expect(found[2].detail).toBe('Usually 2.1 min per call; the longest took 3.4 min.');
   });
-  it('does not fabricate a median when absent, and keeps equal/zero endpoints', () => {
-    expect(reportIntervalPosition(null, 10000)).toBeNull();
-    expect(reportIntervalPosition(0, 10000)).toBe(0);
-    expect(reportIntervalPosition(120, 1000)).toBe(12);
-    expect(reportIntervalScale(0).ceiling).toBe(1);
-    expect(reportIntervalScale(120).unit).toBe('milliseconds');
+  it('says nothing rather than making a story out of a handful of calls', () => {
+    expect(findHighlights([row('once', { calls: 2, completed: 2, failed: 2, measured: 1, totalMs: 90000, medianMs: 90000 })], 90000)).toEqual([]);
+    expect(findHighlights([row('flaky', { completed: 40, failed: 2 })], 40000)).toEqual([]);
+    expect(findHighlights([], null)).toEqual([]);
   });
-});
-
-
-describe('accessible exact chart evidence', () => {
-  it('preserves fractional milliseconds and missing versus zero', () => {
-    expect(reportExactInterval(100.5)).toBe(`${(100.5).toLocaleString()} milliseconds`);
-    expect(reportExactInterval(0)).toBe('0 milliseconds');
-    expect(reportExactInterval(null)).toBe('not measured');
-  });
-  it('explains precise P95 endpoints, sample size and containing-call semantics', () => {
-    const text = reportComparisonDescription(row('git status', { medianMs: 100.5, p95Ms: 9055 }), 'p95Ms');
-    expect(text).toContain(`Median ${reportExactInterval(100.5)}; P95 ${reportExactInterval(9055)}`);
-    expect(text).toContain('20 measured containing calls');
-    expect(text).toContain('not minimum and maximum');
-    expect(text).toContain('95%');
-    expect(reportComparisonDescription(row('unknown', { medianMs: null, measured: 19, p95Ms: 9000 }), 'p95Ms')).toContain('P95 not measured');
-  });
-  it('states count ranking and completed denominator without promoting tiny rates', () => {
-    const tiny = reportComparisonDescription(row('rare', { completed: 2, failed: 1, errorRate: .5 }), 'failed');
-    expect(tiny).toContain('1 reported failed containing calls / 2 completed outcomes');
-    expect(tiny).toContain('Ranked by failure count, not rate');
-    expect(tiny).toContain('Small sample');
-    expect(tiny).not.toContain('50%');
-    expect(reportComparisonDescription(row('eligible', { failed: 1, errorRate: .05 }), 'failed')).toContain('Reported failure rate 5%');
+  it('does not call one tool the biggest time sink when time is spread out', () => {
+    const even = Array.from({ length: 10 }, (_, i) => row(`op${i}`, { totalMs: 1000 }));
+    expect(findHighlights(even, 10000).some(h => h.kind === 'time')).toBe(false);
   });
 });
 
-
-describe('compact hour precision', () => {
-  it('retains useful minutes instead of rounding one hour and two minutes to one hour', () => {
-    expect(auditDuration(3720000)).toBe('1 h 2 min');
-    expect(auditDuration(7260000)).toBe('2 h 1 min');
-    expect(auditDuration(3600000)).toBe('1 h');
+describe('plain numbers', () => {
+  it('writes the summary for the chosen agents and period', () => {
+    expect(summaryParts({ total: 1508, totalMs: 4140000, failed: 49, completed: 1506 }, 'all', '7')).toEqual({
+      lead: 'In the last 7 days, your agents made', calls: '1,508 tool calls', time: '1 h 9 min', failed: 49, failedShare: '3%',
+    });
+    expect(summaryParts({ total: 1, totalMs: null, failed: 0, completed: 0 }, 'codex', '1')).toMatchObject({ lead: 'In the last 24 hours, Codex made', calls: '1 tool call', time: null, failedShare: null });
   });
-  it('rounds to the nearest minute with correct hour carry and leaves unknown/zero intact', () => {
-    expect(auditDuration(7170000)).toBe('2 h');
-    expect(auditDuration(3630000)).toBe('1 h 1 min');
-    expect(auditDuration(null)).toBe('—');
-    expect(auditDuration(0)).toBe('0 ms');
-    expect(auditDuration(9000)).toBe('9 s');
+  it('shows a failure share only for calls that finished, and never rounds a failure to 0%', () => {
+    expect(failureShare({ failed: 0, completed: 10 })).toBeNull();
+    expect(failureShare({ failed: 1, completed: 0 })).toBeNull();
+    expect(failureShare({ failed: 1, completed: 258 })).toBe('<1%');
+    expect(percent(7, 33)).toBe('21%');
+  });
+  it('dates a call relative to today', () => {
+    const now = new Date(2026, 9, 15, 12, 0).getTime();
+    expect(callTime(new Date(2026, 9, 15, 9, 5).getTime(), now)).toMatch(/^Today /);
+    expect(callTime(new Date(2026, 9, 14, 23, 59).getTime(), now)).toMatch(/^Yesterday /);
+    expect(callTime(new Date(2026, 9, 12, 8, 0).getTime(), now)).toMatch(/12, /);
   });
 });

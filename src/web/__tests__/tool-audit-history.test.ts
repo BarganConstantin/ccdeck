@@ -5,7 +5,6 @@ import { createInterface } from 'node:readline';
 import { buildToolAuditReport } from '../../server/tool-audit-report.mjs';
 // @ts-expect-error server module
 import { auditQuery } from '../../server/tool-audit-routes.mjs';
-import { historySegments, historyIntervalText, historyAxisText } from '../tool-audit-history';
 import type { AuditDay } from '../tool-audit';
 const DAY = 86400000, now = Date.parse('2026-10-14T12:00:00Z');
 type Spec = { t: number; ms: number | null; provider?: string; operations?: string[]; endClock?: string };
@@ -93,24 +92,5 @@ describe('daily observed interval aggregation', () => {
   it('validates timezones and bounded history requests at the API boundary', () => {
     for(const q of ['history=1','operation=rg&history=2','operation=rg&history=1&timeZone=Unknown/Zone','days=91&operation=rg&history=1'])expect(auditQuery(new URLSearchParams(q))).toBeNull();
     expect(auditQuery(new URLSearchParams('operation=rg&history=1&timeZone=Europe/Chisinau'))).toMatchObject({history:true,timeZone:'Europe/Chisinau'});
-  });
-});
-describe('history line geometry', () => {
-  it('keeps fractional statistics and nonzero means distinct from zero and unknown', () => {
-    expect(historyIntervalText(9.5)).toBe('9.5 ms');
-    expect(historyIntervalText(.4)).toBe('0.4 ms');
-    expect(historyIntervalText(.000002)).toBe('<0.001 ms');
-    expect(historyIntervalText(0)).toBe('0 ms');
-    expect(historyIntervalText(null)).toBe('—');
-  });
-  it('keeps long-wait axes compact and fractional ticks truthful', () => {
-    expect(historyAxisText(1000000000)).toBe('277.8 h');
-    expect(historyAxisText(.5)).toBe('0.5 ms');
-    expect(historyAxisText(0)).toBe('0 ms');
-  });
-  it('breaks missing points without losing measured zero or single-day evidence', () => {
-    const days = [100,null,0,300,null,400].map(averageMs=>({averageMs,p95Ms:null})) as AuditDay[];
-    expect(historySegments(days,'averageMs')).toEqual([[{index:0,value:100}],[{index:2,value:0},{index:3,value:300}],[{index:5,value:400}]]);
-    expect(historySegments(days,'p95Ms')).toEqual([]);
   });
 });

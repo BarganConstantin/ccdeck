@@ -559,15 +559,15 @@ function Inner() {
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
   const [radioOpen, setRadioOpen] = useState(false);
-  const [toolAuditOpen, setToolAuditOpen] = useState<"pointer" | "keyboard" | null>(null);
-  const closeToolAudit = useCallback(() => setToolAuditOpen(null), []);
+  const [toolAuditOpen, setToolAuditOpen] = useState(false);
+  const closeToolAudit = useCallback(() => setToolAuditOpen(false), []);
   const closeRadio = useCallback(() => setRadioOpen(false), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
-    openToolActivity: keyboard => setToolAuditOpen(keyboard ? "keyboard" : "pointer"),
+    openToolActivity: () => setToolAuditOpen(true),
     toggles: panelReturn.toggles,
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
@@ -734,7 +734,7 @@ function Inner() {
           control before the region it discloses. */}
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
-      {toolAuditOpen && <ToolAuditModal instant={toolAuditOpen === "keyboard"} onClose={closeToolAudit} />}
+      {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} />}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only

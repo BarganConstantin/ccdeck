@@ -31,15 +31,16 @@ export default function ToolAuditSettings() {
     <div className="settings-caption"><h3 id="tool-history-settings-title">Tool history</h3></div>
     <p className="ta-note">Local statistics for Claude and Codex on this device. Commands are grouped by operation; raw arguments and outputs are not saved.</p>
     {storage ? <>
-      <div className="ta-storage-row"><label>Keep history<select aria-label="Tool history retention" value={storage.retentionDays} disabled={busy} onChange={e => {
+      <div className="ta-storage-row"><label>Keep history<select className="sm-select" aria-label="Tool history retention" value={storage.retentionDays} aria-busy={busy} onChange={e => {
+        if (busyRef.current) return;
         const days = Number(e.target.value) as 30 | 60 | 90;
         if (days < storage.retentionDays) setConfirm(days as 30 | 60); else void change('retention', days);
       }}>{[30, 60, 90].map(days => <option key={days} value={days}>{days} days</option>)}</select></label><span className="ta-storage-size">{auditBytes(storage.bytes)} used<small>Collection since {auditDate(storage.startedAt)}</small></span></div>
       {!storage.storageOk && <p className="ta-note" role="status">Some calls could not be saved. Check free space and storage permissions.</p>}
-      <div className="ta-storage-actions"><button type="button" aria-disabled={busy} onClick={() => { if (!busyRef.current) setConfirm('clear'); }}>Clear history…</button><button type="button" aria-disabled={busy} onClick={() => { void read(); }}>Refresh size</button></div>
-      {confirm !== null && <div className="ta-confirm"><p>{confirm === 'clear' ? 'Delete all recorded tool statistics on this device? This cannot be undone.' : `Keep ${confirm} days? Older calls will be permanently deleted.`}</p><div><button type="button" aria-disabled={busy} onClick={() => { void change(confirm === 'clear' ? 'clear' : 'retention', typeof confirm === 'number' ? confirm : undefined); }}>{confirm === 'clear' ? 'Delete tool history' : 'Apply retention'}</button><button type="button" aria-disabled={busy} onClick={() => { if (!busyRef.current) setConfirm(null); }}>Cancel</button></div></div>}
+      <div className="ta-storage-actions"><button type="button" className="btn" aria-busy={busy} onClick={() => { if (!busyRef.current) setConfirm('clear'); }}>Clear history…</button><button type="button" className="btn" aria-busy={busy} onClick={() => { void read(); }}>Refresh size</button></div>
+      {confirm !== null && <div className="ta-confirm"><p>{confirm === 'clear' ? 'Delete all recorded tool statistics on this device? This cannot be undone.' : `Keep ${confirm} days? Older calls will be permanently deleted.`}</p><div><button type="button" className="btn" aria-busy={busy} onClick={() => { void change(confirm === 'clear' ? 'clear' : 'retention', typeof confirm === 'number' ? confirm : undefined); }}>{confirm === 'clear' ? 'Delete tool history' : 'Apply retention'}</button><button type="button" className="btn" aria-busy={busy} onClick={() => { if (!busyRef.current) setConfirm(null); }}>Cancel</button></div></div>}
     </> : <p className="ta-note" role="status">{busy ? 'Reading storage…' : 'Storage size unavailable.'}</p>}
-    {error && <p className="ta-note" role="alert">{error} <button type="button" aria-disabled={busy} onClick={() => { void read(); }}>Retry</button></p>}
+    {error && <p className="ta-note" role="alert">{error} <button type="button" className="btn" aria-busy={busy} onClick={() => { void read(); }}>Retry</button></p>}
     {notice && <p className="ta-note" role="status">{notice}</p>}
   </section>;
 }

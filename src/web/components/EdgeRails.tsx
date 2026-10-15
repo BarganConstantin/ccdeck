@@ -31,7 +31,7 @@
 // single-key shortcuts are on.
 import {
   useCallback, useLayoutEffect, useRef, useState,
-  type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject,
+  type KeyboardEvent, type ReactNode, type RefObject,
 } from "react";
 import AnchoredPopover from "./AnchoredPopover";
 import { useHint, type HintSide, type HintSpec } from "./use-hint";
@@ -67,7 +67,7 @@ export interface RailItem {
   open?: boolean;
   /** The region's id, while it is mounted. */
   controls?: string;
-  onPress: (keyboard?: boolean) => void;
+  onPress: () => void;
   buttonRef?: RefObject<HTMLButtonElement>;
   /** Unread findings, drawn in the chrome's resting grey: never amber. */
   badge?: number;
@@ -170,7 +170,7 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       aria-haspopup={disclosure ? undefined : "dialog"}
       {...hintHandlers}
       onFocus={e => { onFocusIndex(index); hintHandlers.onFocus(e); }}
-      onClick={event => item.onPress(event.detail === 0)}
+      onClick={() => item.onPress()}
     >
       {item.glyph}
       {variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
@@ -223,10 +223,10 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
   const open = menu !== null;
   const unread = items.reduce((n, item) => n + (item.badge ?? 0), 0);
-  const pick = (item: RailItem) => (event: MouseEvent<HTMLButtonElement>) => {
+  const pick = (item: RailItem) => () => {
     document.getElementById(DOCK_MORE_ID)?.focus();
     setMenu(null);
-    item.onPress(event.detail === 0);
+    item.onPress();
   };
   return (
     <>

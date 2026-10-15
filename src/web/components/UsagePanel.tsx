@@ -296,7 +296,6 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
         <h2>Usage</h2>
         <div className="up-header-right">
-
           {(providers.claude || providers.codex) && <button type="button"
             className="glyph-btn" aria-label="Open quota history"
             title="Quota history" onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>

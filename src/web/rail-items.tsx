@@ -62,7 +62,7 @@ export function railItems({
   setTrafficRadarOpen?: Toggle;
   radioOpen?: boolean;
   setRadioOpen?: Toggle;
-  openToolActivity?: (keyboard: boolean) => void;
+  openToolActivity?: () => void;
   /** The one door into Settings (use-settings-menus.ts). */
   openSettings: (section?: SettingsSection) => void;
   onFeedback: () => void;
@@ -132,7 +132,7 @@ export function railItems({
     right: [[usage, machine], [history, ...(openToolActivity ? [{
       id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
       glyph: <ToolActivityGlyph />, kind: "dialog" as const,
-      detail: "Explore operation frequency and measured intervals", onPress: (keyboard?: boolean) => openToolActivity(keyboard === true),
+      detail: "Which tools your agents run, how long they take and what fails", onPress: () => openToolActivity(),
     }] : []), browserWatch, ...(setTrafficRadarOpen ? [{
       id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,

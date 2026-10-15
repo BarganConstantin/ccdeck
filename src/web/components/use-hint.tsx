@@ -92,12 +92,11 @@ function place(side: HintSide, box: DOMRect, w: number, h: number, within: DOMRe
 export type HintLayer = "chrome" | "dialog";
 const LAYER_CLASS: Record<HintLayer, string> = { chrome: "", dialog: " hint-over-dialog" };
 
-export function useHint(side: HintSide, layer: HintLayer = "chrome", options: { followFocusedAnchor?: boolean } = {}) {
+export function useHint(side: HintSide, layer: HintLayer = "chrome") {
   const [shown, setShown] = useState<Shown | null>(null);
   const showTimer = useRef<number | undefined>(undefined);
   const hideTimer = useRef<number | undefined>(undefined);
   const hintRef = useRef<HTMLSpanElement>(null);
-  const anchorRef = useRef<HTMLElement | null>(null);
 
   const hide = useCallback(() => {
     window.clearTimeout(showTimer.current);
@@ -109,7 +108,6 @@ export function useHint(side: HintSide, layer: HintLayer = "chrome", options: { 
   }, []);
 
   const show = useCallback((el: HTMLElement, spec: HintSpec, now: boolean) => {
-    anchorRef.current = el;
     window.clearTimeout(showTimer.current);
     window.clearTimeout(hideTimer.current);
     const another = current !== null;
@@ -137,20 +135,14 @@ export function useHint(side: HintSide, layer: HintLayer = "chrome", options: { 
     if (!up) return;
     const off = modalStack.push(hide, 0, "popover");
     window.addEventListener("resize", hide);
-    const onScroll = () => {
-      const anchor = anchorRef.current, box = anchor?.getBoundingClientRect();
-      if (options.followFocusedAnchor && anchor === document.activeElement && anchor?.matches(':focus-visible') && box && box.top >= 0 && box.bottom <= window.innerHeight) {
-        setShown(was => was ? { ...was, box } : was);
-      } else hide();
-    };
-    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("scroll", hide, true);
     return () => {
       off();
       window.removeEventListener("resize", hide);
-      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("scroll", hide, true);
       if (current === hide) current = null;
     };
-  }, [up, hide, options.followFocusedAnchor]);
+  }, [up, hide]);
 
   useEffect(() => () => {
     window.clearTimeout(showTimer.current);
@@ -164,14 +156,11 @@ export function useHint(side: HintSide, layer: HintLayer = "chrome", options: { 
     const el = hintRef.current;
     if (!el || !shown) return;
     const { width, height } = el.getBoundingClientRect();
-    const preferred = options.followFocusedAnchor && (side === 'above' || side === 'below')
-      ? shown.box.top >= height + GAP_PX + EDGE_PX ? 'above' : 'below' : side;
-    const at = place(preferred, shown.box, width, height, shown.within);
-    if (options.followFocusedAnchor) at.top = Math.max(EDGE_PX, Math.min(at.top, window.innerHeight - height - EDGE_PX));
+    const at = place(side, shown.box, width, height, shown.within);
     el.style.left = `${at.left}px`;
     el.style.top = `${at.top}px`;
     el.style.visibility = "visible";
-  }, [shown, side, options.followFocusedAnchor]);
+  }, [shown, side]);
 
   /** The handlers a control spreads to have this hint. Null says nothing. */
   const bind = useCallback((spec: HintSpec | null) => ({

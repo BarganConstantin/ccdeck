@@ -282,4 +282,10 @@
 
   /* Radio geography retains marker and cluster distinctions. */
   .radio-pin-dot { fill: LinkText; stroke: Canvas; } .radio-pin.selected .radio-pin-dot { fill: Highlight; } .radio-pin-playing { stroke: Highlight; } .radio-pin.clustered .radio-pin-dot, .radio-land { fill: Canvas; stroke: GrayText; } .radio-pin text { fill: CanvasText; }
+
+  /* Tool activity: bars keep their length in system ink, the described day and
+     a failures sort take Highlight, and an open row or finding is outlined. */
+  .ta-bar, .ta-history-bars i { forced-color-adjust: none; background: CanvasText; }
+  .ta-history-bars > span[data-shown] i, .ta-list[data-sort=failed] .ta-bar { background: Highlight; }
+  .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
 }

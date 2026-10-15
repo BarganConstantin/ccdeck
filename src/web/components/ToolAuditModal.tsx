@@ -1,73 +1,80 @@
-import { auditReadingGuide } from '../tool-audit-education';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { auditDate, auditRange, auditDuration, readAuditReport, type AuditMetric, type AuditProvider, type AuditReport } from '../tool-audit';
-import { reportMetrics, reportOperations } from '../tool-audit-report';
-import ToolAuditComparison from './ToolAuditComparison';
-import ToolAuditOperations from './ToolAuditOperations';
+import { auditDuration, readAuditReport, type AuditProvider, type AuditReport, type AuditRow } from '../tool-audit';
+import { auditDay, count, failureShare, findHighlights, periodLabels, sortTools, summaryParts, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
+import { operationDescription, operationName } from '../operation-glossary';
 import ToolAuditDrawer from './ToolAuditDrawer';
-import ToolAuditMetricHelp from './ToolAuditMetricHelp';
 import { useModalDismiss } from './use-modal-dismiss';
 
-const periodLabels: Record<string, string> = { '1': 'Last 24 hours', '7': 'Last 7 days', '30': 'Last 30 days', '60': 'Last 60 days', '90': 'Last 90 days' };
+const FIRST_ROWS = 12;
+const providers: { id: AuditProvider; label: string }[] = [{ id: 'all', label: 'All agents' }, { id: 'claude', label: 'Claude' }, { id: 'codex', label: 'Codex' }];
 
-export default function ToolAuditModal({ onClose, instant = false }: { onClose: () => void; instant?: boolean }) {
+const BackGlyph = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18" /></svg>;
+const RefreshGlyph = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg>;
+const SearchGlyph = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>;
+const highlightGlyph: Record<Highlight['kind'], ReactNode> = {
+  time: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M9.5 2.5h5" /></svg>,
+  failing: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6m0-6-6 6" /></svg>,
+  slow: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M3 17h18M6 17a6 6 0 0 1 12 0M12 17l3.5-4.5" /></svg>,
+};
+
+/** What a screen reader hears for a row: every value, with its meaning. */
+function rowLabel(row: AuditRow) {
+  const failed = row.failed ? `${row.failed.toLocaleString()} failed (${failureShare(row)})` : 'none failed';
+  const time = row.totalMs === null ? 'not timed' : `${auditDuration(row.totalMs)} in total, usually ${auditDuration(row.medianMs)}`;
+  return `${operationName(row.operation)}${operationDescription(row.operation) ? `, ${operationDescription(row.operation)}` : ''}: ${count(row.calls, 'call')}, ${time}, ${failed}`;
+}
+
+export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
   const [provider, setProvider] = useState<AuditProvider>('all');
   const [period, setPeriod] = useState('7');
-  const [since, setSince] = useState(''); const [until, setUntil] = useState('');
-  const [metric, setMetric] = useState<AuditMetric>('calls'); const [ascending, setAscending] = useState(false);
-  const [search, setSearch] = useState(''); const [limit, setLimit] = useState(50);
+  const [sort, setSort] = useState<ToolSort>('calls');
+  const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [selectionNotice, setSelectionNotice] = useState('');
-  const selectedRef = useRef(selected); selectedRef.current = selected; const [keyboardSelection, setKeyboardSelection] = useState(false);
+  const [keyboardSelection, setKeyboardSelection] = useState(false);
+  const selectedRef = useRef(selected); selectedRef.current = selected;
   const selectionOrigin = useRef<HTMLElement | null>(null);
   const [data, setData] = useState<AuditReport | null>(null);
   const [details, setDetails] = useState<AuditReport['details']>(null);
-  const [detailKind, setDetailKind] = useState<'slowest' | 'recent'>('slowest');
+  const [detailKind, setDetailKind] = useState<'recent' | 'slowest'>('recent');
   const [loading, setLoading] = useState(true); const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState(''); const [detailError, setDetailError] = useState('');
   const [refresh, setRefresh] = useState(0); const busy = useRef(false); const loadedQuery = useRef<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const scrollAnchor = useRef<{ element: HTMLElement; offset: number } | null>(null);
-  const rememberContext = (element: HTMLElement | null) => {
-    if (element?.isConnected && bodyRef.current) scrollAnchor.current = { element, offset: element.getBoundingClientRect().top - bodyRef.current.getBoundingClientRect().top };
-  };
-  const opener = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  // Read once, on the first render, while focus is still on the rail button that opened this.
+  const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const closeReport = () => {
     onClose();
     requestAnimationFrame(() => {
-      const original = opener.current;
+      const original = opener;
       const fallback = Array.from(document.querySelectorAll<HTMLElement>('[data-rail-item="tool-activity"], [data-rail-item="more"]')).find(element => element.checkVisibility());
-      (original?.isConnected && original.checkVisibility() ? original : fallback)?.focus({ preventScroll: true });
+      // Safari does not focus a button on click, so the opener can be <body>, which restores nothing.
+      (original && original !== document.body && original.isConnected && original.checkVisibility() ? original : fallback)?.focus({ preventScroll: true });
     });
   };
   const dialogRef = useModalDismiss(closeReport, { focusRef: closeRef });
-  const validRange = period !== 'custom' || (!!since && !!until && since <= until && Date.parse(until) - Date.parse(since) < 90 * 86400000);
-  const query = new URLSearchParams({ provider, days: period === 'custom' ? '90' : period, ...(period === 'custom' ? { since, until } : {}) }).toString();
+  const query = new URLSearchParams({ provider, days: period }).toString();
 
   useEffect(() => {
     const controller = new AbortController(); let live = true;
     const deadline = window.setTimeout(() => controller.abort(), 65000);
     setError('');
-    // Keep the visible snapshot during refresh; never display old data under new filters.
-    if (loadedQuery.current !== query || !validRange) { setData(null); setDetails(null); setLimit(50); }
-    if (!validRange) { setLoading(false); busy.current = false; window.clearTimeout(deadline); return; }
+    // A refresh keeps the numbers on screen; a new period or agent never shows the old ones.
+    if (loadedQuery.current !== query) { setData(null); setDetails(null); setShowAll(false); }
     busy.current = true; setLoading(true);
     void (async () => {
       try {
         const reply = await readAuditReport(query, controller.signal);
         if (live) {
           loadedQuery.current = query; setData(reply);
-          if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) {
-            setSelected(null); setSelectionNotice('The selected operation is no longer recorded in this provider and period.');
-          }
+          if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(null);
         }
-      } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'The report took too long. Try Refresh or reduce retention in Settings.'); }
+      } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
-  }, [query, validRange, refresh]);
+  }, [query, refresh]);
 
   useEffect(() => {
     setDetails(previous => previous?.operation === selected && loadedQuery.current === query ? previous : null); setDetailError('');
@@ -75,98 +82,113 @@ export default function ToolAuditModal({ onClose, instant = false }: { onClose: 
     let live = true; const controller = new AbortController();
     const deadline = window.setTimeout(() => controller.abort(), 65000); setDetailLoading(true);
     void (async () => {
-      try { const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}&history=1&timeZone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, controller.signal); if (live) {
-          if (reply.details?.measurements === null) {
-            setDetails(null); setSelected(null);
-            setSelectionNotice('The selected operation is no longer recorded in this snapshot. Refresh the report.');
-          } else setDetails(reply.details);
-        } }
-      catch { if (live) setDetailError('Could not read recorded calls. Close and select this operation to retry.'); }
+      try {
+        const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}&history=1&timeZone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, controller.signal);
+        if (live) { if (reply.details?.measurements === null) setSelected(null); else setDetails(reply.details); }
+      } catch { if (live) setDetailError('Could not read the calls for this tool. Close it and open it again to retry.'); }
       finally { window.clearTimeout(deadline); if (live) setDetailLoading(false); }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
   }, [selected, data, loading, query]);
 
-  const rows = useMemo(() => reportOperations(data?.rows ?? [], metric, search, ascending), [data, metric, search, ascending]);
+  const rows = useMemo(() => sortTools(data?.rows ?? [], sort, search), [data, sort, search]);
+  const highlights = useMemo(() => data ? findHighlights(data.rows, data.totalMs) : [], [data]);
+  const visible = showAll || search ? rows : rows.slice(0, FIRST_ROWS);
+  const top = rows.length ? toolSortValue(rows[0], sort) ?? 0 : 0;
   const selection = data?.rows.find(row => row.operation === selected);
-  const lastSelection = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    if (lastSelection.current && !selected && document.activeElement === document.body) {
-      const origin = selectionOrigin.current;
-      (origin?.isConnected && origin.checkVisibility() ? origin : closeRef.current)?.focus({ preventScroll: true });
-    }
-    lastSelection.current = selected;
-    const anchor = scrollAnchor.current, body = bodyRef.current;
-    if (anchor?.element.isConnected && body) {
-      const offset = Math.max(12, Math.min(anchor.offset, body.clientHeight - anchor.element.offsetHeight - 12));
-      body.scrollTop += anchor.element.getBoundingClientRect().top - body.getBoundingClientRect().top - offset;
-    }
-    scrollAnchor.current = null;
-  }, [selected, !!selection]);
-  const selectOperation = (operation: string, keyboard: boolean, origin: HTMLElement) => {
-    setSelectionNotice(''); rememberContext(origin); selectionOrigin.current = origin; setKeyboardSelection(keyboard); setSelected(operation); setDetailKind('slowest');
+
+  const select = (operation: string) => (event: MouseEvent<HTMLButtonElement>) => {
+    selectionOrigin.current = event.currentTarget;
+    setKeyboardSelection(event.detail === 0); setDetailKind('recent');
+    setSelected(current => current === operation ? null : operation);
   };
   const closeInspector = () => {
-    rememberContext(selectionOrigin.current); const operation = selected; setSelected(null);
+    const operation = selected; setSelected(null);
     requestAnimationFrame(() => {
-      const original = selectionOrigin.current;
-      const row = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('[data-operation]') ?? []).find(button => button.dataset.operation === operation);
-      (original?.isConnected && original.checkVisibility() ? original : row ?? closeRef.current)?.focus({ preventScroll: true });
+      const origin = selectionOrigin.current;
+      const row = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('.ta-row[data-operation]') ?? []).find(button => button.dataset.operation === operation);
+      (origin?.isConnected && origin.checkVisibility() ? origin : row ?? closeRef.current)?.focus({ preventScroll: true });
     });
   };
-  const doRefresh = () => { if (busy.current || detailLoading || !validRange) return; busy.current = true; setRefresh(value => value + 1); };
-  const reset = () => { setProvider('all'); setPeriod('7'); setSearch(''); setMetric('calls'); setAscending(false); setLimit(50); };
-  const sort = (next: AuditMetric) => { setAscending(next === metric ? !ascending : false); setMetric(next); setLimit(50); };
-  const explore = (next: AuditMetric) => {
-    setMetric(next); setAscending(false); setLimit(50);
-    const heading = document.getElementById('ta-all-operations');
-    heading?.scrollIntoView({ block: 'start' }); heading?.focus({ preventScroll: true });
-  };
+  const doRefresh = () => { if (busy.current || detailLoading) return; busy.current = true; setRefresh(value => value + 1); };
+  const summary = data && summaryParts(data, provider, period);
 
-  return createPortal(<div className="ta-report-backdrop">
-    <div className="ta-report ta-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-keyboard-interaction={instant || undefined}>
-      <header className="ta-report-header"><button type="button" ref={closeRef} className="ta-back" onClick={closeReport} aria-label="Close tool report"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18" /></svg><span>Back to workspace</span></button>
-        <h2 id="tool-audit-title">Tool Activity Report</h2><div className="ta-actions"><span className="ta-freshness" role="status" title="Report snapshot cut-off when aggregation begins; not the last observed tool event.">{loading ? data ? 'Refreshing…' : 'Reading local history…' : data ? <ToolAuditMetricHelp kind="freshness">Snapshot {auditDate(data.capturedAt)}</ToolAuditMetricHelp> : 'Local to this device'}</span>
-        <button type="button" className="glyph-btn" aria-label="Refresh tool report" data-loading={loading || undefined} aria-disabled={loading || detailLoading || !validRange} onClick={doRefresh} title="Rebuild from local history"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg></button>
-      </div></header>
-      <div className="ta-workspace" data-inspecting={!!selection || undefined}>
-      <div className="ta-body" ref={bodyRef}><div className="ta-report-content">
-        <div className="ta-toolbar">
-          <label><span className="ta-filter-label">Provider</span><select aria-label="Provider" value={provider} onChange={event => setProvider(event.target.value as AuditProvider)}><option value="all">Claude + Codex</option><option value="claude">Claude</option><option value="codex">Codex</option></select></label>
-          <label><span className="ta-filter-label">Period</span><select aria-label="Period" value={period} onChange={event => setPeriod(event.target.value)}><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="60">Last 60 days</option><option value="90">Last 90 days</option><option value="custom">Custom dates</option></select></label>
-          <label className="ta-search"><span className="ta-filter-label">Find an operation</span><input type="search" placeholder="Search operations…" value={search} onChange={event => { setSearch(event.target.value); setLimit(50); }} /></label>
-          {(provider !== 'all' || period !== '7' || search) && <button type="button" className="ta-reset" onClick={reset}>Reset</button>}
+  return createPortal(<div className="ta-report-backdrop" role="presentation">
+    <div className="ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title">
+      <header className="ta-report-header">
+        <button type="button" ref={closeRef} className="ta-back" onClick={closeReport} aria-label="Close tool activity"><BackGlyph /><span>Back to workspace</span></button>
+        <h2 id="tool-audit-title">Tool activity</h2>
+        <div className="ta-actions">
+          <span className="ta-freshness" role="status">{loading ? data ? 'Updating…' : 'Reading history…' : data ? `Updated ${new Date(data.capturedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+          <button type="button" className="glyph-btn" aria-label="Refresh tool activity" title="Refresh" data-loading={loading || undefined} aria-busy={loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
         </div>
-        {selectionNotice && <p className="ta-note ta-selection-notice" role="status">{selectionNotice}</p>}
-        {period === 'custom' && <div className="ta-dates"><label>From<input type="date" value={since} onChange={event => setSince(event.target.value)} /></label><label>Through<input type="date" value={until} onChange={event => setUntil(event.target.value)} /></label><span className="ta-note">Up to 90 calendar days · UTC</span></div>}
-        {!validRange && <p className="ta-message" role="status">Choose a start and end date, up to 90 calendar days inclusive.</p>}
-        {loading && !data && <div className="ta-loading" role="status"><span className="ta-loading-mark" aria-hidden="true" /><strong>Building your tool report</strong><span>Reading local history and calculating intervals…</span><div className="ta-skeleton" aria-hidden="true">{[0, 1, 2, 3].map(i => <div key={i}><i /><i /><i /></div>)}</div></div>}
-        {error && <div className="ta-message" role="alert"><p>{data && 'Showing the previous snapshot. '}{error}</p><button type="button" className="ta-more" onClick={doRefresh}>Try again</button></div>}
-        {data && <>
-          {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <div className="ta-data-quality" role="status"><strong>Incomplete history</strong><p>{data.dropped > 0 && `${data.dropped.toLocaleString()} records could not be saved. `}{data.corrupt > 0 && `${data.corrupt.toLocaleString()} invalid retained-journal records were skipped. `}{!data.storageOk && 'History could not be saved. Check disk space and permissions. '}Totals exclude unavailable records.</p></div>}
-          <dl className="ta-overview" aria-label="All calls in selected provider and period">
-            <div className="ta-overview-primary"><dt>Observed tool calls</dt><dd>{data.total.toLocaleString()}</dd></div>
-            <div className={data.totalMs !== null && data.totalMs >= 3600000 ? 'ta-overview-long-duration' : undefined}><dt><ToolAuditMetricHelp kind="cumulative">Cumulative intervals</ToolAuditMetricHelp></dt><dd>{auditDuration(data.totalMs)}</dd></div>
-            <div><dt><ToolAuditMetricHelp kind="failures">Reported failures</ToolAuditMetricHelp></dt><dd className={data.failed ? 'ta-failures' : undefined}>{data.failed.toLocaleString()}<span> / {data.completed.toLocaleString()} outcomes</span></dd></div>
-            <div className="ta-summary-coverage"><dt><ToolAuditMetricHelp kind="coverage">Timing coverage</ToolAuditMetricHelp></dt><dd>{data.total ? `${Math.round(data.measured / data.total * 100)}%` : '—'}<span>{data.measured.toLocaleString()} / {data.total.toLocaleString()} calls</span></dd></div>
-          </dl>
-          <details className="ta-coverage">
-            <summary><span>{data.observedSince === null ? 'No observed starts' : `Observed starts ${auditRange(data.observedSince, data.observedUntil!)}`}</span><span className="ta-quality-count">{data.measured.toLocaleString()} / {data.total.toLocaleString()} timed</span><span className="ta-coverage-label">Coverage & definitions</span></summary>
-            <div><p>Requested {periodLabels[period] ?? 'custom dates'}: {auditRange(data.since, data.until)}.</p><p>Snapshot as of {auditDate(data.capturedAt)} · recording retained since {auditDate(data.retainedSince)}. Refresh rereads saved observations; its snapshot time can advance without new call starts. Observed endpoints are call starts in this provider and period, not continuous coverage.</p><p>{data.observedUntil === null ? 'No observed call starts in this selection.' : `Latest observed call start: ${auditDate(data.observedUntil)}.`}</p><p>{data.unmatched.toLocaleString()} calls have no observed outcome. Missing timing is not failure.</p><p>Claude {data.providers.claude.calls.toLocaleString()} · Codex {data.providers.codex.calls.toLocaleString()} calls.</p>
-            <p>One observed tool call may contain several detected operations. Counts, intervals and reported failures belong to containing calls, not independent inner executions. Conditional commands are identified from inputs; this is not proof that every command ran. Do not add operation totals together.</p>
-            <p>Cumulative interval time includes overlapping calls and is not wall-clock execution time. Claude uses received hook intervals; Codex uses rollout timestamps. Approval, delivery and orchestration waits can be included. Timing does not imply API cost or token usage. Periods filter call starts; completed intervals are counted in full even when their outcome arrives after the range.</p>
-            <p>Failures are reported outcomes. Codex recognizes specific wrapper failure markers; unrecognized errors can be missed. No command arguments, outputs or error messages are saved. Missing timing is not failure. P95 needs 20 measurements. Failure rates use observed completed outcomes.</p>
-            <p>Retained since {auditDate(data.retainedSince)}; retention {data.retentionDays} days. Observed endpoints describe recorded call starts, not continuous coverage. Journal-wide: {data.orphaned} outcomes without a retained start, {data.duplicates} duplicate records ignored, {data.corrupt} invalid records. This report is local to this device.</p><details className="ta-inspector-definitions"><summary>Plain-language metric guide</summary><dl className="ta-reading-guide">{auditReadingGuide.map(([name, description]) => <div key={name}><dt>{name}</dt><dd>{description}</dd></div>)}</dl></details></div>
-          </details>
+      </header>
+      <div className="ta-workspace" data-inspecting={!!selection || undefined}>
+        <div className="ta-body"><div className="ta-report-content">
+          <div className="ta-filters">
+            <div className="uh-range" role="group" aria-label="Period">{Object.entries(periodLabels).map(([days, label]) => <button key={days} type="button" className="uh-range-btn" aria-pressed={period === days} onClick={() => setPeriod(days)}>{label}</button>)}</div>
+            <div className="uh-range" role="group" aria-label="Agent">{providers.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={provider === item.id} onClick={() => setProvider(item.id)}>{item.label}</button>)}</div>
+          </div>
 
-          {provider === 'all' && data.providers.claude.measured > 0 && data.providers.codex.measured > 0 && <p className="ta-note ta-clock-note">Mixed timing sources · not a provider speed benchmark.</p>}
-          {search && <p className="ta-note ta-search-scope">Charts and operations match “{search}”. Summary totals cover the selected provider and period.</p>}
-          <div className="ta-report-charts">{reportMetrics.map(key => <ToolAuditComparison key={key} rows={data.rows} metric={key} search={search} selected={selected} onSelect={selectOperation} onExplore={explore} />)}</div>
-          <ToolAuditOperations rows={rows} total={data.rows.length} metric={metric} ascending={ascending} limit={limit} search={search} selected={selected} onSort={sort} onSelect={selectOperation} onMore={() => setLimit(value => value + 50)} onClear={() => setSearch('')} />
-          <footer className="ta-report-footer">This device · {data.retentionDays}-day retention · Arguments and outputs are not retained.</footer>
-        </>}
-      </div></div>
-      {selection && <ToolAuditDrawer keyboard={keyboardSelection} row={details?.operation === selected && details.measurements ? details.measurements : selection} incomplete={!data?.storageOk || !!data?.dropped || !!data?.corrupt} details={details?.operation === selected ? details : null} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector} />}
+          {loading && !data && <div className="ta-loading" role="status" aria-label="Reading tool history"><i /><i /><i /><i /><i /></div>}
+          {error && <div className="ta-message" role="alert"><p>{data && 'Showing the last numbers. '}{error}</p><button type="button" className="btn" onClick={doRefresh}>Try again</button></div>}
+
+          {data && summary && (data.total === 0 ? <div className="ta-empty">
+            <h3>No tool calls in the last {periodLabels[period]}</h3>
+            <p>ccdeck records each tool {provider === 'all' ? 'Claude Code and Codex use' : provider === 'claude' ? 'Claude Code uses' : 'Codex uses'} on this device, starting {auditDay(data.startedAt)}. Run a session and the calls show up here.</p>
+            {period !== '90' && <button type="button" className="btn" onClick={() => setPeriod('90')}>Show the last 90 days</button>}
+          </div> : <>
+            <p className="ta-summary">
+              {summary.lead} <strong>{summary.calls}</strong>
+              {summary.time && <> and spent <strong>{summary.time}</strong> running them</>}.{' '}
+              {summary.failed ? <><strong className="ta-bad">{summary.failed.toLocaleString()} failed</strong> ({summary.failedShare}).</> : 'None failed.'}
+            </p>
+            {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">Some calls could not be saved or read, so these numbers may be a little low.{!data.storageOk && ' Check free disk space.'}</p>}
+
+            {highlights.length > 0 && <section className="ta-highlights" aria-labelledby="ta-highlights-title">
+              <h3 id="ta-highlights-title">Worth a look</h3>
+              <ul>{highlights.map(item => <li key={item.kind}><button type="button" className="ta-highlight" data-kind={item.kind} data-operation={item.operation} aria-expanded={selected === item.operation} aria-controls={selected === item.operation ? 'tool-operation-inspector' : undefined} onClick={select(item.operation)}>
+                <span className="ta-highlight-glyph">{highlightGlyph[item.kind]}</span>
+                <span className="ta-highlight-text"><span><code>{operationName(item.operation)}</code> {item.title}</span><small>{item.detail}</small></span>
+              </button></li>)}</ul>
+            </section>}
+
+            <section className="ta-tools" aria-labelledby="ta-tools-title">
+              <div className="ta-tools-head">
+                <h3 id="ta-tools-title">Tools and commands <span className="ta-count">{data.rows.length.toLocaleString()}</span></h3>
+                <label className="ta-search"><SearchGlyph /><input type="search" aria-label="Find a tool or command" placeholder="Find a tool or command" value={search} onChange={event => setSearch(event.target.value)} /></label>
+              </div>
+              <div className="uh-range ta-sorts" role="group" aria-label="Sort by">{toolSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{item.label}</button>)}</div>
+              <div className="ta-list-head" aria-hidden="true" data-sort={sort}><span>Name</span><span data-col="calls">Calls</span><span data-col="time">Total time</span><span data-col="slowest">Usually</span><span data-col="failed">Failed</span></div>
+              <ul className="ta-list" data-sort={sort}>{visible.map(row => {
+                const value = toolSortValue(row, sort);
+                const description = operationDescription(row.operation);
+                return <li key={row.operation}><button type="button" className="ta-row" data-operation={row.operation} data-selected={selected === row.operation || undefined} aria-expanded={selected === row.operation} aria-controls={selected === row.operation ? 'tool-operation-inspector' : undefined} aria-label={rowLabel(row)} onClick={select(row.operation)}>
+                  <span className="ta-row-name"><span className="ta-op">{operationName(row.operation)}</span>{description && <span className="ta-desc">{description}</span>}<span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && value ? Math.max(0.015, value / top) : 0 } as CSSProperties} /></span>
+                  <span className="ta-cell" data-col="calls">{row.calls.toLocaleString()}<span className="ta-unit"> {row.calls === 1 ? 'call' : 'calls'}</span></span>
+                  <span className="ta-cell" data-col="time">{auditDuration(row.totalMs)}<span className="ta-unit"> total</span></span>
+                  <span className="ta-cell" data-col="slowest"><span className="ta-unit">usually </span>{auditDuration(row.medianMs)}</span>
+                  <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString()}<span className="ta-unit"> failed</span><small>{failureShare(row)}</small></> : <span className="ta-zero">0<span className="ta-unit"> failed</span></span>}</span>
+                </button></li>;
+              })}</ul>
+              {!rows.length && <p className="ta-note ta-no-match">No tool or command matches “{search.trim()}”.</p>}
+              {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>Show all {rows.length.toLocaleString()}</button>}
+            </section>
+
+            <details className="ta-explain">
+              <summary>How this is counted</summary>
+              <ul>
+                <li>A call’s time runs from when the agent starts the tool until it reports back, so it can include waiting for your approval.</li>
+                <li>Total time adds every call together. Calls that ran at the same time each count, so it can be more than the time that actually passed.</li>
+                <li>“Usually” is the middle value: half of the calls were quicker, half took longer.</li>
+                <li>A command line such as <code>git add . &amp;&amp; git commit</code> counts once for each command in it, and shares its time and result with both.</li>
+                <li>Claude and Codex report times in different ways, so do not compare one with the other.</li>
+                <li>Recorded on this device since {auditDay(data.startedAt)} and kept for {data.retentionDays} days. Commands are grouped by name; their arguments and output are never saved. Change this in Settings.</li>
+              </ul>
+            </details>
+          </>)}
+        </div></div>
+        {selection && <ToolAuditDrawer keyboard={keyboardSelection} row={details?.operation === selected && details.measurements ? details.measurements : selection} details={details?.operation === selected ? details : null} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector} />}
       </div>
     </div>
   </div>, document.body);

@@ -38,30 +38,6 @@ export const auditBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes
   ? `${(bytes / 1024).toLocaleString(undefined, { maximumFractionDigits: 1 })} KB`
   : `${(bytes / 1048576).toLocaleString(undefined, { maximumFractionDigits: 1 })} MB`;
 export const auditDate = (ms: number) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-export const auditRange = (since: number, until: number) => {
-  const start = new Date(since), end = new Date(until);
-  return `${auditDate(since)} – ${start.toDateString() === end.toDateString() ? end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : auditDate(until)}`;
-};
-export type AuditMetric = 'calls' | 'totalMs' | 'medianMs' | 'p95Ms' | 'maxMs' | 'failed' | 'errorRate';
-export const auditMetrics: Record<AuditMetric, { label: string; short: string; unit: string; note: string }> = {
-  calls: { label: 'Most called', short: 'Calls', unit: 'containing calls', note: 'Calls containing each detected operation. One call can appear in several rows; counts are not additive.' },
-  totalMs: { label: 'Cumulative time', short: 'Cumulative', unit: 'cumulative measured interval', note: 'Sum of measured containing-call intervals for each operation. Shared and parallel intervals overlap; this is not wall-clock time.' },
-  medianMs: { label: 'Typical latency', short: 'Median', unit: 'median measured interval', note: 'Middle measured containing-call interval. Approval, delivery and orchestration waits may be included.' },
-  p95Ms: { label: 'Slow tails · P95', short: 'P95', unit: '95th percentile interval', note: '95% of measured intervals fall at or below P95. Requires at least 20 measured calls; smaller samples are unavailable.' },
-  maxMs: { label: 'Slowest single call', short: 'Max', unit: 'maximum measured interval', note: 'Largest observed containing-call interval, not a typical duration or a trend.' },
-  failed: { label: 'Reported failures', short: 'Failures', unit: 'reported failed containing calls', note: 'Reported failed outcomes, attributed to the containing call. In shared calls this does not identify which inner command failed.' },
-  errorRate: { label: 'Reported failure rate', short: 'Failure rate', unit: '% of completed outcomes', note: 'Reported failures / observed completed outcomes. Ranking requires at least 20 outcomes; this threshold is a sample floor, not statistical confidence.' },
-};
-export const auditMetricValue = (row: AuditRow, metric: AuditMetric): number | null => {
-  if (metric === 'p95Ms' && row.measured < 20 || metric === 'errorRate' && row.completed < 20) return null;
-  return row[metric];
-};
-export const auditMetricText = (value: number | null, metric: AuditMetric) => value === null ? '—'
-  : metric === 'errorRate' ? `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
-  : metric === 'calls' || metric === 'failed' ? value.toLocaleString() : auditDuration(value);
-export const sortAuditRows = (rows: AuditRow[], key: AuditMetric, search: string) => rows
-  .filter(r => r.operation.toLowerCase().includes(search.trim().toLowerCase()))
-  .slice().sort((a, b) => (auditMetricValue(b, key) ?? -1) - (auditMetricValue(a, key) ?? -1) || a.operation.localeCompare(b.operation));
 
 /** Busy responses do no disk work. Retry briefly while a cancelled worker exits. */
 export async function readAuditReport(query: string, signal: AbortSignal): Promise<AuditReport> {

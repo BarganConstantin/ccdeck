@@ -9,7 +9,8 @@ import { createToolAudit } from '../../server/tool-audit.mjs';
 import { auditOperations, shellOperations, scriptOperations } from '../../server/tool-audit-operations.mjs';
 // @ts-expect-error server module
 import { auditQuery } from '../../server/tool-audit-routes.mjs';
-import { auditDuration, auditMetricValue, auditMetricText, sortAuditRows, type AuditRow } from '../tool-audit';
+import { auditDuration, type AuditRow } from '../tool-audit';
+import { sortTools } from '../tool-audit-report';
 const dirs: string[] = []; const audits: any[] = [];
 let clock = Date.parse('2026-10-13T10:00:00Z');
 async function setup() {
@@ -128,8 +129,8 @@ describe('report boundary and display', () => {
   it('sorts unavailable timings last and distinguishes zero from missing', () => {
     expect(auditDuration(null)).toBe('—'); expect(auditDuration(0)).toBe('0 ms');
     const rows = [{ operation: 'git commit', calls: 10, totalMs: null }, { operation: 'git status', calls: 2, totalMs: 0 }, { operation: 'Read', calls: 9, totalMs: 500 }] as AuditRow[];
-    expect(sortAuditRows(rows, 'totalMs', '').map(r => r.operation)).toEqual(['Read', 'git status', 'git commit']);
-    expect(sortAuditRows(rows, 'calls', 'GIT').map(r => r.operation)).toEqual(['git commit', 'git status']);
+    expect(sortTools(rows, 'time').map(r => r.operation)).toEqual(['Read', 'git status', 'git commit']);
+    expect(sortTools(rows, 'calls', 'GIT').map(r => r.operation)).toEqual(['git commit', 'git status']);
   });
 });
 
@@ -161,21 +162,16 @@ describe('explorer measurement scopes', () => {
     expect(report.providers).toEqual({ claude: { calls: 1, measured: 1, failed: 1 }, codex: { calls: 1, measured: 1, failed: 0 } });
     const codex = await audit.report({ provider: 'codex', days: 7 }); expect(codex.totalMs).toBe(4000); expect(codex.failed).toBe(0);
   });
-  it('ranks frequency, cumulative intervals and tails independently with sample floors', () => {
+  it('answers how often, how long, how slow and how often it fails as separate orders', () => {
     const rows = [
-      { operation: 'rg', calls: 150, totalMs: 15000, medianMs: 100, measured: 150, p95Ms: 120, completed: 150, failed: 0, errorRate: 0 },
-      { operation: 'build', calls: 10, totalMs: 80000, medianMs: 8000, measured: 10, p95Ms: null, completed: 10, failed: 5, errorRate: .5 },
-      { operation: 'tail', calls: 25, totalMs: 25000, medianMs: 100, measured: 25, p95Ms: 9000, completed: 25, failed: 2, errorRate: .08 },
+      { operation: 'rg', calls: 150, totalMs: 15000, medianMs: 100, measured: 150, completed: 150, failed: 0 },
+      { operation: 'build', calls: 10, totalMs: 80000, medianMs: 8000, measured: 10, completed: 10, failed: 5 },
+      { operation: 'tail', calls: 25, totalMs: 25000, medianMs: 100, measured: 25, completed: 25, failed: 2 },
     ] as AuditRow[];
-    expect(sortAuditRows(rows, 'calls', '')[0].operation).toBe('rg');
-    expect(sortAuditRows(rows, 'totalMs', '')[0].operation).toBe('build');
-    expect(sortAuditRows(rows, 'p95Ms', '')[0].operation).toBe('tail');
-    expect(sortAuditRows(rows, 'failed', '')[0].operation).toBe('build');
-    expect(sortAuditRows(rows, 'medianMs', '')[0].operation).toBe('build');
-    expect(sortAuditRows(rows, 'errorRate', '')[0].operation).toBe('tail');
-    expect(auditMetricValue(rows[1], 'errorRate')).toBeNull();
-    expect(auditMetricText(0, 'totalMs')).toBe('0 ms'); expect(auditMetricText(null, 'p95Ms')).toBe('—');
-    expect(auditMetricText(.08, 'errorRate')).toBe('8%');
-    expect(sortAuditRows(rows, 'totalMs', ' RG ').map(row => row.operation)).toEqual(['rg']);
+    expect(sortTools(rows, 'calls')[0].operation).toBe('rg');
+    expect(sortTools(rows, 'time')[0].operation).toBe('build');
+    expect(sortTools(rows, 'slowest').map(row => row.operation)).toEqual(['build', 'rg', 'tail']);
+    expect(sortTools(rows, 'failed').map(row => row.operation)).toEqual(['build', 'tail', 'rg']);
+    expect(sortTools(rows, 'time', ' RG ').map(row => row.operation)).toEqual(['rg']);
   });
 });
