@@ -112,7 +112,7 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: calc(5px + var(--ui-row-increase, 0px)) 0;
+  padding: calc(5px * var(--ui-space, 1)) 0;
   border-bottom: 1px solid var(--line-soft);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   gap: 12px;
@@ -131,7 +131,7 @@
 .detail .tool {
   font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  padding: calc(5px + var(--ui-row-increase, 0px)) 0;
+  padding: calc(5px * var(--ui-space, 1)) 0;
   color: var(--text);
   display: flex;
   justify-content: space-between;

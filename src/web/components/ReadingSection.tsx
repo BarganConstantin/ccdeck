@@ -21,10 +21,13 @@ const SIZE_CHOICES = [
   ["larger", "Larger", "15 px"],
   ["largest", "Largest", "17 px"],
 ] as const;
+/** Each choice with the share of the designed spacing it keeps. */
 const DENSITY_CHOICES = [
-  ["compact", "Compact", "Less spacing"],
-  ["default", "Default", "Original spacing"],
-  ["comfortable", "Comfortable", "More spacing"],
+  ["tightest", "Tightest", "30%"],
+  ["tighter", "Tighter", "50%"],
+  ["compact", "Compact", "70%"],
+  ["default", "Default", "100%"],
+  ["comfortable", "Comfortable", "140%"],
 ] as const;
 
 function SelectedMark() {
@@ -134,7 +137,7 @@ export default function ReadingSection({
               <input
                 type="radio"
                 name="density"
-                aria-label={`${label} ${note}`}
+                aria-label={`${label} ${note} spacing`}
                 value={value}
                 checked={density === value}
                 onChange={() => onDensity(value)}

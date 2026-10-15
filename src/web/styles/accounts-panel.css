@@ -59,7 +59,7 @@
 .ap-scroll > * { flex: none; }
 .ap-foot {
   flex-shrink: 0;
-  padding: 10px var(--panel-inset) 12px;
+  padding: calc(10px * var(--ui-space, 1)) var(--panel-inset) calc(12px * var(--ui-space, 1));
   border-top: 1px solid var(--line-soft);
 }
 /* The way into Local network follows the policy row inside the same foot: one
@@ -79,7 +79,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px var(--panel-inset) 10px;
+  padding: calc(12px * var(--ui-space, 1)) var(--panel-inset) calc(10px * var(--ui-space, 1));
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
@@ -121,7 +121,7 @@
 .ap-list {
   list-style: none;
   margin: 0;
-  padding: calc(6px + var(--ui-row-increase, 0px)) 6px calc(8px + var(--ui-row-increase, 0px));
+  padding: calc(6px * var(--ui-space, 1)) 6px calc(8px * var(--ui-space, 1));
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -132,7 +132,7 @@
      popover layer. */
   position: relative;
   isolation: isolate;
-  padding: calc(6px + var(--ui-row-increase, 0px)) 8px;
+  padding: calc(6px * var(--ui-space, 1)) 8px;
   border-radius: var(--r-ctl);
 }
 /* A shut row is a door, and it answers the pointer with a tone rather than a
@@ -338,7 +338,7 @@
 .ap-lanes {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: calc(5px * var(--ui-space, 1));
 }
 .ap-lane {
   display: grid;
@@ -535,7 +535,7 @@
   align-items: flex-start;
   gap: 6px;
   margin: 8px var(--panel-inset) 0;
-  padding: calc(6px + var(--ui-row-increase, 0px)) 8px;
+  padding: calc(6px * var(--ui-space, 1)) 8px;
   border-radius: 4px;
   background: color-mix(in srgb, var(--err) 12%, transparent);
   color: var(--err);

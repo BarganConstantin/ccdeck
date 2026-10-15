@@ -12,7 +12,7 @@
   width: 260px;
   min-width: 220px;
   max-width: 260px;
-  padding: calc(10px + var(--ui-row-increase, 0px)) 12px calc(10px + var(--ui-row-increase, 0px)) 16px;
+  padding: calc(10px * var(--ui-space, 1)) 12px calc(10px * var(--ui-space, 1)) 16px;
   background: var(--node-grad);
   border: 1px solid var(--line);
   border-radius: var(--r-node);

@@ -18,7 +18,7 @@
   /* Named so the one thing inside that has to bleed PAST it can be derived
      from it rather than from a 14 somebody retypes. See .sd-open. */
   --pad-x: 14px;
-  padding: 12px var(--pad-x) 14px;
+  padding: 12px var(--pad-x) calc(14px * var(--ui-space, 1));
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
@@ -142,7 +142,7 @@
   top: -12px;
   z-index: 2;
   margin: -12px calc(var(--pad-x) * -1) 0;
-  padding: 12px var(--pad-x) 12px;
+  padding: 12px var(--pad-x) calc(12px * var(--ui-space, 1));
   background: var(--panel);
 }
 .sd-head { display: flex; align-items: baseline; gap: 8px; }
@@ -164,15 +164,15 @@
    boundary has to be wider than the gap inside one or the block does not read
    as one block. It is also 8px of daylight between two full-bleed hover bands
    where there were 5. */
-.sd-section + .sd-section { margin-top: 16px; }
+.sd-section + .sd-section { margin-top: calc(16px * var(--ui-space, 1)); }
 /* The strip and the load average are one reading of one thing, so they sit
    closer to each other than to the section after them. */
-.sd-cpu > .sd-reading + .sd-reading { margin-top: 12px; }
+.sd-cpu > .sd-reading + .sd-reading { margin-top: calc(12px * var(--ui-space, 1)); }
 .sd-h {
   display: flex;
   align-items: baseline;
   gap: 4px;
-  margin: 0 0 6px;
+  margin: 0 0 calc(6px * var(--ui-space, 1));
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   text-transform: uppercase;
@@ -275,7 +275,7 @@
   transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.sd-row + .sd-row { margin-top: 10px; }
+.sd-row + .sd-row { margin-top: calc(10px * var(--ui-space, 1)); }
 /* The THERMAL section is one control (#738): pressing anywhere in it opens the
    chart of what the machine did with its heat. One button rather than one per
    row, because both rows opened the same dialog showing both series — a second

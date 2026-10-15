@@ -32,9 +32,9 @@ export function sheetText(): string {
 }
 
 /** Legacy geometry/type checks inspect the Default reading profile, not a
- * browser's computed style. Resolve only our explicitly zero-default
- * increments — text, row and panel, and the floored small sizes'
- * `max(-1px, …)` — arbitrary calc(), other variables and malformed values
+ * browser's computed style. Resolve only our explicitly neutral defaults —
+ * the text and panel increments (0px), the floored small sizes' `max(-1px, …)`
+ * and the density factor `* var(--ui-space, 1)` — arbitrary calc(), other variables and malformed values
  * remain untouched so those checks still fail on unrecognized changes. Browser
  * tests verify the actual cascade for each non-default reading profile. */
 export function defaultReadingSheetText(): string {
@@ -42,8 +42,8 @@ export function defaultReadingSheetText(): string {
     /calc\((\d+(?:\.\d+)?px) \+ max\(-?\d+px, var\(--ui-text-increase, 0px\)\)\)/g,
     "$1",
   ).replace(
-    /calc\((\d+(?:\.\d+)?px) \+ var\(--ui-(?:text|row|panel)-increase, 0px\)\)/g,
+    /calc\((\d+(?:\.\d+)?px) \+ var\(--ui-(?:text|panel)-increase, 0px\)\)/g,
     "$1",
-  ).replace(/ \+ var\(--ui-panel-increase, 0px\)/g, "")
+  ).replace(/calc\((-?\d+(?:\.\d+)?px) \* var\(--ui-space, 1\)\)/g, "$1").replace(/ \+ var\(--ui-panel-increase, 0px\)/g, "")
     .replace(/max\((\d+(?:\.\d+)?px), \1\)/g, "$1");
 }

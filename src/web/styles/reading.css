@@ -24,16 +24,15 @@
    cutoffs. Keep those tiny summaries at their designed scale; full agent cards
    and their detail panels enlarge normally and retain measured layout. */
 .lod-face { --ui-text-increase: 0px; }
-:root[data-density="compact"] {
-  --panel-inset: 12px;
-  --ctl-h: 28px;
-  --ui-row-increase: -2px;
-}
-:root[data-density="comfortable"] {
-  --panel-inset: 18px;
-  --ctl-h: 36px;
-  --ui-row-increase: 4px;
-}
+/* Density is a factor on the vertical rhythm of the lists and panels people
+   scan — session rows, account rows, usage and machine sections, detail rows,
+   agent cards — plus the shared inset and control height. 1 at Default, so
+   every spacing it touches computes to its designed value. Controls never go
+   under the 24px floor. */
+:root[data-density="tightest"] { --panel-inset: 8px; --ctl-h: 24px; --ui-space: 0.3; }
+:root[data-density="tighter"] { --panel-inset: 10px; --ctl-h: 26px; --ui-space: 0.5; }
+:root[data-density="compact"] { --panel-inset: 12px; --ctl-h: 28px; --ui-space: 0.7; }
+:root[data-density="comfortable"] { --panel-inset: 18px; --ctl-h: 36px; --ui-space: 1.4; }
 /* Text enlargement also gives controls enough vertical room. Density never
    decreases the text scale or takes interactive rows below the 24px floor. */
 :root[data-text-size="larger"] { --ui-control-floor: 34px; }
@@ -69,9 +68,9 @@
 .reading-choice strong { display: block; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
 .reading-choice small { display: block; margin-top: 5px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 /* Both scales are one control each: the options in order, the familiar
-   default among them, and a plate that moves to the chosen one. Text size has
-   five steps and density three; --reading-count and --reading-selected come
-   from ReadingSection. Labels keep a readable floor when the deck is smaller. */
+   default among them, and a plate that moves to the chosen one. Both have
+   five steps; --reading-count and --reading-selected come from
+   ReadingSection. Labels keep a readable floor when the deck is smaller. */
 .reading-segmented { position: relative; isolation: isolate; grid-template-columns: repeat(var(--reading-count, 5), minmax(0, 1fr)); gap: 0; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px; }
 .reading-segmented::before { content: ""; position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--reading-count, 5)); box-sizing: border-box; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); background: var(--ctl-fill); transform: translateX(calc(var(--reading-selected, 2) * 100%)); transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); pointer-events: none; }
 .reading-segmented .reading-choice { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px 4px; border-color: transparent; text-align: center; }
@@ -95,11 +94,13 @@
 .reading-density-sample { display: flex; flex-direction: column; justify-content: center; gap: 4px; width: 22px; height: 28px; flex: none; pointer-events: none; }
 .reading-density-sample i { display: block; height: 2px; background: var(--muted); border-radius: 1px; }
 .reading-choice:has(input:checked) .reading-density-sample i { background: var(--text); }
-.reading-density-sample[data-density="compact"] { gap: 2px; }
+.reading-density-sample[data-density="tightest"] { gap: 1px; }
+.reading-density-sample[data-density="tighter"] { gap: 2px; }
+.reading-density-sample[data-density="compact"] { gap: 3px; }
 .reading-density-sample[data-density="comfortable"] { gap: 8px; }
 .reading-preview { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 16px; }
 .reading-preview h3 { margin: 0 0 10px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
-.reading-preview-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(10px + var(--ui-row-increase, 0px)) 0; }
+.reading-preview-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(10px * var(--ui-space, 1)) 0; }
 .reading-preview-row + .reading-preview-row { border-top: 1px solid var(--line-soft); }
 .reading-preview-row strong { font-weight: 500; }
 .reading-preview-row div > span { display: block; margin-top: 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }

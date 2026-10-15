@@ -120,7 +120,7 @@ try {
   await choose("density", "compact");
   const compact = await sample();
   assert.equal(compact.size, "17px");
-  assert.equal(compact.padding, "8px");
+  assert.equal(compact.padding, "7px");
   assert.ok(compact.resetHeight >= 38);
   assert.equal(compact.zoom, baseline.zoom);
   assert.equal(
@@ -189,7 +189,7 @@ try {
       );
     assert.deepEqual(
       densitySamples.map((x) => x.gap),
-      ["2px", "4px", "8px"],
+      ["1px", "2px", "3px", "4px", "8px"],
     );
     assert.ok(
       densitySamples.every((x) => x.stroke > 0),

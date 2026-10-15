@@ -32,7 +32,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px var(--panel-inset) 8px;
+  padding: calc(10px * var(--ui-space, 1)) var(--panel-inset) calc(8px * var(--ui-space, 1));
   border-bottom: 1px solid var(--line-soft);
   position: sticky;
   top: 0;
@@ -98,7 +98,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0;
-  margin: 14px var(--panel-inset) 10px;
+  margin: calc(14px * var(--ui-space, 1)) var(--panel-inset) calc(10px * var(--ui-space, 1));
   padding: 0;
   border: none;
   border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
@@ -245,7 +245,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 14px var(--panel-inset) 6px;
+  padding: calc(14px * var(--ui-space, 1)) var(--panel-inset) calc(6px * var(--ui-space, 1));
 }
 .up-total-value {
   font-size: calc(26px + var(--ui-text-increase, 0px));
@@ -289,7 +289,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px 16px;
-  padding: 6px var(--panel-inset) 10px;
+  padding: calc(6px * var(--ui-space, 1)) var(--panel-inset) calc(10px * var(--ui-space, 1));
 }
 .up-tok {
   display: flex;
@@ -325,14 +325,14 @@
    equal --panel-inset, so the literal cannot drift away from the token. */
 .up-section {
   padding: 0 14px;
-  margin-top: 4px;
+  margin-top: calc(4px * var(--ui-space, 1));
   border-top: 1px solid var(--line-soft);
 }
 .up-section-title {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin: 8px 0 6px;
+  margin: calc(8px * var(--ui-space, 1)) 0 calc(6px * var(--ui-space, 1));
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--muted);
@@ -462,7 +462,7 @@
   align-items: center;
   gap: 8px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  padding: 3px 0;
+  padding: calc(3px * var(--ui-space, 1)) 0;
 }
 .up-session-label {
   flex: 1;
@@ -513,7 +513,7 @@
 }
 
 /* ── quota bars ── */
-.up-quota-section { padding-top: 10px; border-top: none; }
+.up-quota-section { padding-top: calc(10px * var(--ui-space, 1)); border-top: none; }
 /* The ↻ beside the × above, and it moves with it — a header with one bare glyph
    and one 30px bordered box beside it is the split this change exists to end.
    #380 deleted a 14px font-size here that `button.btn`'s 12px had always beaten;
@@ -529,8 +529,8 @@
    stays on `.up-close`: there it is what the sheet asks of the × by name, here
    it was only a second spelling of the shared rule. */
 .up-refresh-btn { padding: 1px 8px; }
-.up-quota-bars { display: flex; flex-direction: column; gap: 10px; }
-.qb-row { display: flex; flex-direction: column; gap: 3px; }
+.up-quota-bars { display: flex; flex-direction: column; gap: calc(10px * var(--ui-space, 1)); }
+.qb-row { display: flex; flex-direction: column; gap: calc(3px * var(--ui-space, 1)); }
 .qb-meta {
   display: flex;
   justify-content: space-between;

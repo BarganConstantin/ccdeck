@@ -54,7 +54,7 @@ describe("reading preferences before first paint", () => {
       );
     },
   );
-  it.each(["compact", "default", "comfortable"])(
+  it.each(["tightest", "tighter", "compact", "default", "comfortable"])(
     "restores %s density consistently with React",
     (value) => {
       expect(boot("largest", value)["data-density"]).toBe(
@@ -79,7 +79,7 @@ describe("reading preferences before first paint", () => {
         }),
       );
     expect(draw("default").match(/name="text-size"/g)).toHaveLength(5);
-    expect(draw("default").match(/name="density"/g)).toHaveLength(3);
+    expect(draw("default").match(/name="density"/g)).toHaveLength(5);
     expect(draw("default")).toMatch(/disabled="">Reset to defaults/);
     expect(draw("largest")).not.toMatch(/disabled="">Reset to defaults/);
   });

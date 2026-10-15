@@ -39,7 +39,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px var(--panel-inset) 10px;
+  padding: calc(12px * var(--ui-space, 1)) var(--panel-inset) calc(10px * var(--ui-space, 1));
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
@@ -124,11 +124,11 @@
   --sl-card-edge: 1px;
   flex: 1;
   margin: 0;
-  padding: 6px var(--sl-card-gutter);
+  padding: calc(6px * var(--ui-space, 1)) var(--sl-card-gutter);
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: calc(4px * var(--ui-space, 1));
 }
 .session-list .sl-row-item {
   display: flex;
@@ -178,7 +178,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: calc(10px + var(--ui-row-increase, 0px)) calc(var(--panel-inset) - var(--sl-card-gutter) - var(--sl-card-edge));
+  padding: calc(10px * var(--ui-space, 1)) calc(var(--panel-inset) - var(--sl-card-gutter) - var(--sl-card-edge));
   background: transparent;
   /* Longhands rather than the `1px solid transparent` shorthand this was,
      because the width is now a term in the padding above and has to be the
@@ -274,7 +274,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: calc(4px * var(--ui-space, 1));
 }
 .session-list .sl-row-head {
   display: flex;
