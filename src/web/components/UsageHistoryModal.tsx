@@ -17,7 +17,7 @@ import type { Providers } from "../providers";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
 import { selfPressProps } from "../panel-press";
-import { byCost, historyTotals, legendOf, modelColor, percentOf } from "../usage-history";
+import { byCost, dayLabelStep, historyTotals, legendOf, modelColor, percentOf } from "../usage-history";
 // The ccusage run behind the chart, and the rules for which answer it keeps.
 import { useCcusage } from "../use-ccusage";
 import UsageDayDetail from "./UsageDayDetail";
@@ -92,6 +92,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   const split = agents.length > 1;
 
   const selectedDay = selected ? days.find(d => d.period === selected) ?? null : null;
+  const labelStep = dayLabelStep(days.length);
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
@@ -348,7 +349,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                         );
                       })}
                     </div>
-                    <span className="uh-bar-label">{d.period.slice(5)}</span>
+                    {(days.length - 1 - i) % labelStep === 0 && <span className="uh-bar-label">{d.period.slice(5)}</span>}
                   </button>
                 );
               })}
