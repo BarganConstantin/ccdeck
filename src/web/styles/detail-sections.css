@@ -72,7 +72,7 @@
   letter-spacing: -0.01em;
 }
 .detail-hero .hero-cost-label {
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   text-transform: uppercase;
   letter-spacing: 0.10em;
   color: var(--muted);
@@ -166,7 +166,7 @@
   background: var(--bg-soft);
   border: 1px solid var(--line);
   color: var(--text);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
@@ -271,7 +271,7 @@
 }
 .prompt-time {
   color: var(--muted);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-family: var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -356,7 +356,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .shortcuts .sc { display: contents; }
 .shortcuts .sc kbd {
   font-family: var(--font-mono);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   color: var(--text);
   background: var(--bg-soft);

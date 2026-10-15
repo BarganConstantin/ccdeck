@@ -46,7 +46,7 @@ const sample = () =>
       size: style(document.body).fontSize,
       padding: style(preview).paddingTop,
       resetHeight: document
-        .querySelector(".reading-footer button")
+        .querySelector(".reading-head .btn")
         .getBoundingClientRect().height,
       overflow: document.documentElement.scrollWidth > innerWidth,
       zoom: style(document.body).zoom,
@@ -68,7 +68,7 @@ try {
   await open();
   assert.equal(
     await page
-      .getByRole("radio", { name: /Default Original size/ })
+      .getByRole("radio", { name: /Default 13 px/ })
       .isChecked(),
     true,
   );
@@ -80,7 +80,7 @@ try {
     true,
   );
   const reducedTransition = await page
-    .locator(".reading-size-options")
+    .locator('.reading-segmented:has(input[name="text-size"])')
     .evaluate((el) => getComputedStyle(el, "::before").transitionDuration);
   assert.equal(
     reducedTransition,
@@ -232,7 +232,7 @@ try {
   await choose("text-size", "largest");
   await choose("text-size", "default");
   await page.waitForTimeout(220);
-  const motion = await page.locator(".reading-size-options").evaluate((el) => {
+  const motion = await page.locator('.reading-segmented:has(input[name="text-size"])').evaluate((el) => {
     const pseudo = getComputedStyle(el, "::before");
     const selected = el.querySelector("input:checked").closest("label");
     const outer = el.getBoundingClientRect(),
@@ -253,7 +253,7 @@ try {
   await page.keyboard.press("Tab");
   await page.locator('input[name="text-size"][value="default"]').focus();
   const focus = await page
-    .locator(".reading-size-options input:checked")
+    .locator('.reading-segmented:has(input[name="text-size"]) input:checked')
     .evaluate((el) => ({
       visible: el.matches(":focus-visible"),
       width: parseFloat(getComputedStyle(el.closest("label")).outlineWidth),

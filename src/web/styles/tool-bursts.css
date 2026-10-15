@@ -292,7 +292,7 @@
    the other has to follow — and the lane has 2px left for it (#978). */
 .tool-burst.sub {
   max-width: 140px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   padding: 4px 10px 4px 12px;
   opacity: 0.94;
   animation: bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both;

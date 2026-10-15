@@ -24,7 +24,7 @@
    width from its first frame to its last (styles/left-column.css). */
 .session-list {
   /* Same width as Accounts, so switching panels keeps the canvas in place. */
-  width: 288px;
+  width: calc(288px + var(--ui-panel-increase, 0px));
   background: var(--panel);
   border-right: 1px solid var(--line);
   display: flex;
@@ -77,14 +77,14 @@
   background: var(--bg-soft);
   border: 1px solid var(--line);
   color: var(--text);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
   font-family: var(--font-mono);
 }
 .session-list .sl-live-count {
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--inflight);
@@ -93,7 +93,7 @@
 /* Beside the live count and ahead of it, since the two answer different
    questions and only one of them is asking you for something. */
 .session-list .sl-waiting-count {
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--warn);
@@ -143,7 +143,7 @@
 .session-list .sl-row.removed .sl-label { color: var(--muted); }
 .session-list .sl-removed {
   flex: none;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   white-space: nowrap;
 }

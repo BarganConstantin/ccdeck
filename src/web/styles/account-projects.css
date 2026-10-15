@@ -182,7 +182,7 @@
 .ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
 .ap-proj-colseg { width: 100%; display: block; }
 .ap-proj-days-axis { display: flex; justify-content: flex-start; gap: 2px; margin-top: 4px; }
-.ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: calc(10px + var(--ui-text-increase, 0px)); color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }
+.ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }
 
 /* Click a day column for its own breakdown; keyboard-focusable as a button.
    Hover brightens (not a ring); selection and focus draw the accent ring. */
@@ -486,7 +486,7 @@
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--panel);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -536,7 +536,7 @@
 .ap-report-acct-in { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .ap-report-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-report-current,
-.ap-report-tag { flex: none; padding: 0 5px; border-radius: var(--r-tag); font-size: calc(10px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.ap-report-tag { flex: none; padding: 0 5px; border-radius: var(--r-tag); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 /* The account every new session starts on: named, in the accent the deck
    keeps for what is live, rather than a dot a reader has to know. */
 .ap-report-current { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }

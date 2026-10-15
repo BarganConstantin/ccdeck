@@ -16,7 +16,7 @@
      panel and left this one behind: the designed 20px between them opens to
      60px and the usage panel's right edge slides under the detail panel. */
   right: var(--rail-r);
-  width: 280px;
+  width: calc(280px + var(--ui-panel-increase, 0px));
   max-height: calc(100vh - var(--topbar-h) - 24px);
   overflow-y: auto;
   background: var(--panel);

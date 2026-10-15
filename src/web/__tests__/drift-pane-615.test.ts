@@ -59,7 +59,7 @@ import { fileURLToPath } from "node:url";
 import { isBoxOnPane, shouldRefit, type NodeBox, type PaneSize, type Viewport } from "../drift";
 import { clientText } from "./client-source";
 import { cascade, el, selects } from "./sheet-cascade";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const css = sheetText();
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");

@@ -113,7 +113,7 @@
    drags. */
 .cluster-label {
   font-family: var(--font-mono);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;

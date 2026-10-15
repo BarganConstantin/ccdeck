@@ -12,7 +12,7 @@
   top: calc(var(--topbar-h) + 8px);
   right: var(--rail-r);  /* the usage panel's slot, when usage is not using it */
   z-index: 20;
-  width: 280px;          /* the usage panel's width, so the rail reads as one system */
+  width: calc(280px + var(--ui-panel-increase, 0px));  /* the usage panel's width, so the rail reads as one system */
   max-height: calc(100vh - var(--topbar-h) - 24px);
   overflow-y: auto;
   /* Named so the one thing inside that has to bleed PAST it can be derived
@@ -52,7 +52,7 @@
 /* One panel further left: the rail's own offset, plus usage's width, plus the
    gap. Eight was too tight to read as two things; twenty separates them
    without opening a corridor. */
-.sysdetail.shifted { right: calc(var(--rail-r) + 280px + 20px); }
+.sysdetail.shifted { right: calc(var(--rail-r) + 280px + var(--ui-panel-increase, 0px) + 20px); }
 
 /* THE TWO RAIL PANELS STAY SIDE BY SIDE, over the canvas, as they were before
    #847: the owner chose that on 2026-09-14 after seeing them stacked in one
@@ -173,7 +173,7 @@
   align-items: baseline;
   gap: 4px;
   margin: 0 0 6px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -476,7 +476,7 @@
 .sd-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .sd-fig { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
 .sd-fig b { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.sd-fig-cap { color: var(--muted); font-size: calc(10px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.sd-fig-cap { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); white-space: nowrap; }
 /* THE OTHER ORDER, where the three columns are three different measurements
    rather than three samples of one: the name on top, and under it the number
    with its unit beside it rather than below it. "112" over "KB/s down" made
@@ -489,7 +489,7 @@
 /* Beside the number, not under it, and a tier down: a unit is part of the
    reading, and at the number's own weight "112 KB/s" reads as five characters
    of equal importance. */
-.sd-fig-unit { color: var(--muted); font-size: calc(10px + var(--ui-text-increase, 0px)); }
+.sd-fig-unit { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
 
 /* 11px, the panel's reading size (#859): these are sentences — "reading this
    machine…", why a reading is missing — not labels. */
@@ -543,7 +543,7 @@
 .sd-pop-rows { display: grid; gap: 8px; margin: 0; }
 .sd-pop-row dt {
   margin: 0 0 2px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -591,7 +591,7 @@
   border-radius: 4px;
   background: none;
   font: inherit;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 500;
   line-height: 1;
   color: var(--muted);

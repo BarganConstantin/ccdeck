@@ -60,8 +60,8 @@
 .ga-track { fill: color-mix(in srgb, var(--text) 12%, transparent); }
 .ga-bed-warn { fill: color-mix(in srgb, var(--warn) 10%, transparent); }
 .ga-t { font-size: calc(11px + var(--ui-text-increase, 0px)); fill: var(--text); }
-.ga-s { font-size: calc(10px + var(--ui-text-increase, 0px)); fill: var(--muted); }
-.ga-cap { font-size: calc(9px + var(--ui-text-increase, 0px)); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
+.ga-s { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--muted); }
+.ga-cap { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
 .ga-big { font-size: calc(26px + var(--ui-text-increase, 0px)); font-weight: 600; fill: var(--text); }
 .ga-strong { font-weight: 600; }
 .ga-mono { font-family: var(--font-mono); }
@@ -175,7 +175,7 @@
 .ap-lan-intro:hover:not(:disabled) { border-color: var(--accent); }
 .ap-lan-intro:active:not(:disabled) { transform: scale(0.97); }
 .ap-lan-intro-text { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-secondary); }
-.ap-lan-intro-go { font-size: calc(10px + var(--ui-text-increase, 0px)); color: var(--accent); }
+.ap-lan-intro-go { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); }
 .ap-lan-how { color: var(--accent); }
 
 /* The tour's two permanent doors, in the shortcuts sheet and the release
@@ -219,8 +219,8 @@
 /* Beside the card's `See how it works`, on its line, at its size: the card is
    one button, so the link stands over its corner rather than inside it. */
 .ap-lan-intro-row { position: relative; }
-.ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: calc(10px + var(--ui-text-increase, 0px)); }
-.ap-lan-how + .film-link { margin-left: 12px; font-size: calc(10px + var(--ui-text-increase, 0px)); }
+.ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
+.ap-lan-how + .film-link { margin-left: 12px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
 /* Beside the hero's tour button, and given its pointer back like it. */
 .empty-hero .empty-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .empty-hero .film-link { pointer-events: auto; margin-left: 0; }

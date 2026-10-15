@@ -320,7 +320,7 @@
   background: var(--ctl-fill);
   color: var(--text);
   font: inherit;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
   transition: border-color 120ms, color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -364,7 +364,7 @@
   background: var(--bg-soft);
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: calc(9px + var(--ui-text-increase, 0px));
+  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
   line-height: 1.4;
   user-select: all;
 }
@@ -372,7 +372,7 @@
    The row's own share used to wear these too, before it moved into the ⋯
    popover and took the popover's buttons. */
 .ap-share-foot { display: flex; align-items: center; gap: 8px; }
-.ap-manage-hint { color: var(--text-dim); font-size: calc(10px + var(--ui-text-increase, 0px)); min-width: 0; }
+.ap-manage-hint { color: var(--text-dim); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); min-width: 0; }
 /* Copy is the point of that foot, so it looks like it. The border is the
    accent itself rather than --accent-dim: at 1.91:1 dark / 1.39:1 light the dim
    edge was an invisible boundary. */

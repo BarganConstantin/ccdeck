@@ -84,7 +84,7 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   white-space: nowrap;
 }
-.selected-ribbon .selected-rate { color: var(--muted); font-size: calc(10px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.selected-ribbon .selected-rate { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); white-space: nowrap; }
 .selected-ribbon .selected-extra {
   display: inline-flex;
   align-items: center;
@@ -92,7 +92,7 @@
   border-radius: 999px;
   background: var(--accent-dim);
   color: var(--text);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   font-family: var(--font-mono);
 }

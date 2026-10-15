@@ -162,7 +162,7 @@
    caption's one piece of metadata — the shape .sm-key-note kbd draws inline. */
 .settings-key {
   font-family: var(--font-mono);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   line-height: calc(12px + var(--ui-text-increase, 0px));
   color: var(--text-dim);
@@ -441,7 +441,7 @@
 .appearance-source-group {
   padding: 6px 8px 3px;
   color: var(--text-dim);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -1017,8 +1017,8 @@ button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size
   align-items: center;
   gap: 6px;
 }
-.sm-custom-item > span { color: var(--muted); font-size: calc(10px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
-button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(10px + var(--ui-text-increase, 0px)); }
+.sm-custom-item > span { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
+button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
 /* Armed is the second press of the one act here nothing can undo, and it
    takes the error colour for the four seconds it waits — the LAN unpair's. */
 button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
@@ -1038,7 +1038,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
    needs — inline in a sentence, a letter box that wide reads as a button. */
 .sm-key-note kbd {
   font-family: var(--font-mono);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   color: var(--text);
   background: var(--bg-soft);

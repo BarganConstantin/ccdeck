@@ -126,7 +126,7 @@
    sized for --panel, re-bedded on --line, is 4.14:1 in dark — under AA at 10px
    uppercase, which is the least forgiving type in this banner. 11.39:1 now. */
 .ver-banner .ver-cmd-hint {
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text);

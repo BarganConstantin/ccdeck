@@ -41,7 +41,7 @@
    exist to hold. */
 .lan-note {
   margin: 6px 0 0;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--text-dim);
 }
@@ -75,7 +75,7 @@
 .lan-switch-detail {
   display: block;
   margin-top: 1px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -93,7 +93,7 @@
 }
 .lan-sub {
   margin: 0 0 6px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   color: var(--muted);
 }
@@ -110,7 +110,7 @@
    this panel already means by "this is the part that bites". */
 .lan-warn {
   margin: 0 0 8px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--warn);
 }
@@ -157,7 +157,7 @@
    they came for. */
 .ap-lan-reach-fix { margin: 8px 0 0; }
 .ap-lan-reach-fix > summary {
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
   list-style: revert;
   /* 14.5px of line box was the smallest target in the dialog by a clear margin
@@ -173,7 +173,7 @@
   margin: 6px 0;
   padding: 6px 8px;
   overflow-x: auto;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--text);
   background: var(--bg-soft);
@@ -350,7 +350,7 @@ input, textarea { caret-color: var(--accent); }
   color: var(--text);
   overflow-wrap: anywhere;
 }
-.lan-end-runs { font-size: calc(10px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.lan-end-runs { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
 
 .lan-link,
 .lan-lane {
@@ -400,7 +400,7 @@ input, textarea { caret-color: var(--accent); }
   text-align: center;
   overflow-wrap: anywhere;
 }
-.lan-link-label { font-size: calc(10px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
+.lan-link-label { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text); }
 .lan-lane-email { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text); }
 
 /* The network, in the row mark's own three states. */
@@ -420,7 +420,7 @@ input, textarea { caret-color: var(--accent); }
   grid-column: 2;
   margin: 2px 0 0;
   text-align: center;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -526,7 +526,7 @@ input, textarea { caret-color: var(--accent); }
    not a lane to mark: "current account hidden" when its owner switched the
    telling off, "on another account" when it is on one it does not share. The
    annotation tier, like what it runs. */
-.lan-end-note { font-size: calc(10px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); }
+.lan-end-note { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); }
 
 /* A dashed lane is a login with no copy that can move either way. */
 .lan-wire[data-flow="cut"] {
@@ -548,7 +548,7 @@ input, textarea { caret-color: var(--accent); }
   grid-column: 2;
   grid-row: 2;
   text-align: center;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -569,7 +569,7 @@ input, textarea { caret-color: var(--accent); }
   column-gap: 14px;
   row-gap: 4px;
   margin-top: 14px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -695,7 +695,7 @@ input, textarea { caret-color: var(--accent); }
   margin: 0;
 }
 .lan-fact { display: contents; }
-.lan-fact dt { font-size: calc(10px + var(--ui-text-increase, 0px)); line-height: 1.6; color: var(--muted); }
+.lan-fact dt { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.6; color: var(--muted); }
 .lan-fact dd {
   margin: 0;
   min-width: 0;
@@ -726,7 +726,7 @@ input, textarea { caret-color: var(--accent); }
   display: block;
   margin-top: 2px;
   font-family: var(--font-mono);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
 }
 .lan-done {
@@ -736,7 +736,7 @@ input, textarea { caret-color: var(--accent); }
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--text-dim);
 }
 .lan-done-what { color: var(--muted); }
@@ -777,14 +777,14 @@ input, textarea { caret-color: var(--accent); }
 /* A key the machine held before and dropped: paired, and nothing to dial. Said
    in words in the address's own column, in the annotation tier, rather than as
    an empty cell that reads like a rendering fault. */
-.lan-twin-none { font-size: calc(10px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.lan-twin-none { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
 /* Both lines tall, centred on the entry it ends: the verb is about the whole
    deck, not about either line of it. */
 .lan-twin-do { grid-column: 4; grid-row: span 2; align-self: center; }
 .lan-twin-meta {
   grid-column: 2 / 4;
   margin-bottom: 9px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -799,7 +799,7 @@ input, textarea { caret-color: var(--accent); }
    not a second alarm. */
 .lan-stale {
   margin: 0 0 8px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -808,14 +808,14 @@ input, textarea { caret-color: var(--accent); }
    same sentence under every one of them, in the warning ink each time. */
 .lan-spent {
   margin: 6px 0 0;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--warn);
 }
 /* A bar with something to say instead of a bar with nothing in it. */
 .lan-foot-note {
   margin: 0 auto 0 0;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -876,7 +876,7 @@ input, textarea { caret-color: var(--accent); }
   border-top: 1px solid var(--line);
   background: var(--bg-soft);
 }
-.lan-foot-note { margin-right: auto; font-size: calc(10px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--muted); }
+.lan-foot-note { margin-right: auto; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.45; color: var(--muted); }
 .lan-setup-foot .btn { min-width: 92px; justify-content: center; }
 
 /* ── the panel's one list of machines ───────────────────────────────────────
@@ -899,7 +899,7 @@ input, textarea { caret-color: var(--accent); }
   align-self: center;
   min-height: 24px;
   padding: 3px 8px;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
 }
 /* UNPAIR IS NOT PART OF READING THE LIST. It is the one act in this section
    that cannot be undone from this section, it is done about twice in a deck's
@@ -998,7 +998,7 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-checked {
   margin: 0 0 0 auto;
   align-self: center;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.45;
   color: var(--muted);
 }
@@ -1024,7 +1024,7 @@ input, textarea { caret-color: var(--accent); }
   padding: 4px 0;
   min-height: 24px;
   font: inherit;
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   cursor: pointer;
   transition: color 120ms ease, transform 120ms ease;

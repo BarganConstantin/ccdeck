@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import {
+  DENSITIES,
   TEXT_SIZES,
   type Density,
   type TextSize,
@@ -12,6 +13,41 @@ interface Props {
   onDensity: (value: Density) => void;
 }
 
+/** Each choice with the body size it gives, so the scale reads as sizes. */
+const SIZE_CHOICES = [
+  ["smallest", "Smallest", "11 px"],
+  ["smaller", "Smaller", "12 px"],
+  ["default", "Default", "13 px"],
+  ["larger", "Larger", "15 px"],
+  ["largest", "Largest", "17 px"],
+] as const;
+const DENSITY_CHOICES = [
+  ["compact", "Compact", "Less spacing"],
+  ["default", "Default", "Original spacing"],
+  ["comfortable", "Comfortable", "More spacing"],
+] as const;
+
+function SelectedMark() {
+  return (
+    <svg
+      className="reading-selected-mark"
+      viewBox="0 0 12 12"
+      width="12"
+      height="12"
+      aria-hidden="true"
+    >
+      <path
+        d="m2.5 6 2.2 2.2 4.8-4.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function ReadingSection({
   textSize,
   density,
@@ -21,33 +57,41 @@ export default function ReadingSection({
   const changed = textSize !== "default" || density !== "default";
   return (
     <>
-      <p className="reading-intro">
-        Make the deck comfortable to read. Changes apply immediately and stay
-        separate from canvas zoom.
-      </p>
+      {/* Reset sits with the intro, where it is in view without scrolling the
+          pane past the preview. */}
+      <div className="reading-head">
+        <p className="reading-intro">
+          Make the deck comfortable to read. Changes apply immediately and stay
+          separate from canvas zoom.
+        </p>
+        <button
+          type="button"
+          className="btn"
+          disabled={!changed}
+          onClick={() => {
+            onTextSize("default");
+            onDensity("default");
+          }}
+        >
+          Reset to defaults
+        </button>
+      </div>
       <fieldset className="reading-group">
         <legend>Text size</legend>
         <p id="reading-size-help">
           Adjust interface text without changing your browser zoom.
         </p>
         <div
-          className="reading-options reading-size-options"
+          className="reading-options reading-segmented"
           aria-describedby="reading-size-help"
           style={
             {
+              "--reading-count": TEXT_SIZES.length,
               "--reading-selected": TEXT_SIZES.indexOf(textSize),
             } as CSSProperties
           }
         >
-          {(
-            [
-              ["smallest", "Smallest", "−2 px"],
-              ["smaller", "Smaller", "−1 px"],
-              ["default", "Default", "Original size"],
-              ["larger", "Larger", "+2 px"],
-              ["largest", "Largest", "+4 px"],
-            ] as const
-          ).map(([value, label, note]) => (
+          {SIZE_CHOICES.map(([value, label, note]) => (
             <label key={value} className="reading-choice" data-size={value}>
               <input
                 type="radio"
@@ -60,26 +104,11 @@ export default function ReadingSection({
               <span className="reading-type-sample" aria-hidden="true">
                 Aa
               </span>
-              <span className="reading-size-label">
+              <span className="reading-label">
                 <strong>{label}</strong>
                 <small>{note}</small>
               </span>
-              <svg
-                className="reading-selected-mark"
-                viewBox="0 0 12 12"
-                width="12"
-                height="12"
-                aria-hidden="true"
-              >
-                <path
-                  d="m2.5 6 2.2 2.2 4.8-4.4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <SelectedMark />
             </label>
           ))}
         </div>
@@ -91,20 +120,21 @@ export default function ReadingSection({
           same.
         </p>
         <div
-          className="reading-options reading-density-options"
+          className="reading-options reading-segmented"
           aria-describedby="reading-density-help"
+          style={
+            {
+              "--reading-count": DENSITIES.length,
+              "--reading-selected": DENSITIES.indexOf(density),
+            } as CSSProperties
+          }
         >
-          {(
-            [
-              ["compact", "Compact", "Less spacing"],
-              ["default", "Default", "Original spacing"],
-              ["comfortable", "Comfortable", "More spacing"],
-            ] as const
-          ).map(([value, label, note]) => (
+          {DENSITY_CHOICES.map(([value, label, note]) => (
             <label key={value} className="reading-choice">
               <input
                 type="radio"
                 name="density"
+                aria-label={`${label} ${note}`}
                 value={value}
                 checked={density === value}
                 onChange={() => onDensity(value)}
@@ -118,10 +148,11 @@ export default function ReadingSection({
                 <i />
                 <i />
               </span>
-              <span>
+              <span className="reading-label">
                 <strong>{label}</strong>
                 <small>{note}</small>
               </span>
+              <SelectedMark />
             </label>
           ))}
         </div>
@@ -146,23 +177,10 @@ export default function ReadingSection({
           <span className="reading-preview-time">12m</span>
         </div>
       </section>
-      <div className="reading-footer">
-        <p>
-          Preferences stay in this browser when storage is available. Default
-          restores the existing ccdeck appearance.
-        </p>
-        <button
-          type="button"
-          className="btn"
-          disabled={!changed}
-          onClick={() => {
-            onTextSize("default");
-            onDensity("default");
-          }}
-        >
-          Reset to defaults
-        </button>
-      </div>
+      <p className="reading-footer">
+        Preferences stay in this browser when storage is available. Default
+        restores the existing ccdeck appearance.
+      </p>
     </>
   );
 }

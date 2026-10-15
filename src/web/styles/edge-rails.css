@@ -152,7 +152,7 @@
   border-radius: 999px;
   background: var(--muted);
   color: var(--bg);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 700;
   line-height: calc(16px + var(--ui-text-increase, 0px));
   text-align: center;

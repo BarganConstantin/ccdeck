@@ -16,7 +16,7 @@
 }
 .uh-titlewrap { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
 .uh-title { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.uh-sub { font-size: calc(10px + var(--ui-text-increase, 0px)); color: var(--text-dim); font-family: var(--font-mono); }
+.uh-sub { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); font-family: var(--font-mono); }
 /* Keep the close and refresh actions reachable when the range strip no longer
    fits beside the title. The range moves onto its own row on narrow windows. */
 @media (max-width: 520px) {
@@ -168,7 +168,7 @@
 }
 .uh-stat-val { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; font-variant-numeric: tabular-nums; }
 .uh-stat-val.accent { color: var(--ok); }
-.uh-stat-label { font-size: calc(9px + var(--ui-text-increase, 0px)); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.uh-stat-label { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* Cost by CLI, between the range totals and the daily chart (#431). Only drawn
    when ccusage reported two or more agents, so a machine running one CLI has
@@ -317,7 +317,7 @@
    already ellipsises, so a 1px lift changes what it can say, not where it sits. */
 .uh-bar-label {
   position: absolute; bottom: -15px;
-  font-size: calc(9px + var(--ui-text-increase, 0px)); color: var(--text-dim);
+  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); color: var(--text-dim);
   font-family: var(--font-mono);
   white-space: nowrap; transform: rotate(0deg);
   overflow: hidden; max-width: 100%; text-overflow: ellipsis;
@@ -345,12 +345,12 @@
 .uh-detail-agents {
   margin-left: auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: calc(10px + var(--ui-text-increase, 0px)); color: var(--text-dim); font-family: var(--font-mono);
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); font-family: var(--font-mono);
 }
 .uh-detail-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
 .uh-ministat { display: flex; flex-direction: column; gap: 1px; }
 .uh-ministat-val { font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
-.uh-ministat-label { font-size: calc(9px + var(--ui-text-increase, 0px)); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.uh-ministat-label { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .uh-detail-models { display: flex; flex-direction: column; gap: 5px; }
 .uh-model-row { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 8px; }
 .uh-model-name { display: inline-flex; align-items: center; gap: 5px; font-size: calc(11px + var(--ui-text-increase, 0px)); min-width: 0; }
