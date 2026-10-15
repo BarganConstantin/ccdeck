@@ -17,10 +17,10 @@
 .qh-summary > span { color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .qh-chart { display: block; width: 100%; height: auto; overflow: visible; }
 .qh-chart-wrap { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px 8px; padding-block: 6px; }
-.qh-axis { display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-dim); font: 11px var(--font-mono); }
+.qh-axis { display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-dim); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); }
 .qh-axis span:first-child { transform: translateY(-50%); }
 .qh-axis span:last-child { transform: translateY(50%); }
-.qh-times { grid-column: 2; display: flex; justify-content: space-between; gap: 8px; color: var(--text-dim); font: 11px var(--font-mono); }
+.qh-times { grid-column: 2; display: flex; justify-content: space-between; gap: 8px; color: var(--text-dim); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); }
 .qh-grid { stroke: var(--line); stroke-width: 1; }
 .qh-guide { stroke: var(--text-dim); stroke-width: 1; stroke-dasharray: 4 5; fill: none; }
 .qh-observed { stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; fill: none; }

@@ -864,7 +864,7 @@ button.btn.sm-hear {
 
    ONE RULE, because two of them seven lines apart argued the opposite cases and
    only one of them shipped. A bare `.sm-read` sat under this and restated
-   `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
+   `font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text)` — (0,1,0) against this rule's (0,2,0),
    so both declarations were dead and its comment described a span that has
    never been drawn that way. Reading either rule alone gave the wrong answer
    about what ships. Descendant-scoped on purpose, to the surface that draws

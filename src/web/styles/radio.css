@@ -53,7 +53,7 @@
 .radio-geography { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); padding: 18px 16px 0; }
 .radio-map-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; padding-block: 3px; flex: none; }
 .radio-map-heading h3 { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 500; white-space: nowrap; flex: none; }
-.radio-map-heading > span { font: 10px var(--font-mono); color: var(--text-secondary); }
+.radio-map-heading > span { font: calc(10px + max(-1px, var(--ui-text-increase, 0px))) var(--font-mono); color: var(--text-secondary); }
 .radio-map-heading > span { text-align: right; white-space: nowrap; margin-left: auto; flex: none; }
 .radio-map-heading small { display: block; font: inherit; margin-top: 4px; }
 .radio-regions { display: flex; flex-wrap: nowrap; gap: 3px; flex: 1; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }
@@ -169,7 +169,7 @@
 }
 .radio-own { border-bottom: 1px solid var(--line); margin-bottom: 12px; padding-bottom: 12px; }
 .radio-own summary { color: var(--text-secondary); padding: 6px; cursor: pointer; font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.radio-own summary span { font: 10px var(--font-mono); margin-left: 6px; }
+.radio-own summary span { font: calc(10px + max(-1px, var(--ui-text-increase, 0px))) var(--font-mono); margin-left: 6px; }
 .radio-own-station { font: inherit; }
 .radio-own-icon svg { width: 20px; height: 20px; }
 .radio-own-station[aria-current="true"] .radio-own-icon { color: var(--accent); }
@@ -314,7 +314,7 @@
 .radio-collections { margin: 0; gap: 4px; }
 .radio-collections .radio-collection { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 5px 10px; font-weight: 500; }
 .radio-collections .radio-collection[aria-selected="true"] { background: var(--ctl-fill); color: var(--text); }
-.radio-tab-count { color: var(--text-secondary); font: 11px var(--font-mono); font-variant-numeric: tabular-nums; }
+.radio-tab-count { color: var(--text-secondary); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; }
 .radio-search-tools { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .radio-search-tools .radio-search { flex: 1; min-width: 0; min-height: 36px; margin: 0; padding-block: 0; }
 .radio-search-tools .radio-search > svg { width: 16px; height: 16px; flex: none; }
@@ -344,7 +344,7 @@
 .radio-source-heading { display: flex; align-items: center; gap: 8px; padding: 12px 6px 4px; }
 .radio-source-heading h3 { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .radio-source-heading > svg { width: 16px; height: 16px; color: var(--text-secondary); flex: none; }
-.radio-source-heading > span { margin-left: auto; font: 11px var(--font-mono); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.radio-source-heading > span { margin-left: auto; font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .radio-source-help { margin: 0 6px 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text-secondary); }
 .radio-own { border: 0; margin: 0; padding: 0; }
 .radio-own[hidden] { display: none; }

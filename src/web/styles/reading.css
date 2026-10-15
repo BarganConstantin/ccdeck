@@ -18,6 +18,11 @@
 @media (max-width: 640px) {
   :root { --ui-panel-increase: min(calc(var(--ui-panel-text, 0px) + var(--ui-panel-room, 0px)), calc(100vw - 296px)); }
 }
+/* Tool activity's call list: its duration column holds "39.5 min" and its
+   state column "No result" at larger text, and no wider, so the time beside
+   them keeps to one line in the panel's standard width. */
+:root[data-text-size="larger"] .ta-calls li { grid-template-columns: minmax(0, 1fr) auto 72px 90px; }
+:root[data-text-size="largest"] .ta-calls li { grid-template-columns: minmax(0, 1fr) auto 80px 96px; }
 /* The phone's dock is six words in a fixed 48px strip; past +1px they meet. */
 :root[data-text-size="larger"] .edge-dock,
 :root[data-text-size="largest"] .edge-dock { --ui-text-increase: 1px; }

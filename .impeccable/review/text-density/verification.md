@@ -236,3 +236,21 @@ The tool bubbles keep the designed size: burst-layout.ts places them from a
 per-character estimate under a fixed max-width (#978), and grown with the text
 the sub pills clipped their own ellipsis at Larger. Pinned, no pill clips at
 any size. Full suite 1,068 files / 13,351 tests and both browser scripts passed.
+
+### development merged in — 2026-10-15
+
+development gained Tool activity (#2125) and Gruvbox's state colours (#2142).
+One conflict, a comment in gruvbox.css, kept as this branch had it (there is
+no dragging state). text-tiers.test.ts carried the two Gruvbox entries twice,
+once from each side; the branch's copy is gone.
+
+Tool activity arrived with 34 fixed font sizes, and the branch had left ten
+`font:` shorthands fixed in menus, quota history, account projects and radio;
+all 44 follow the text size now, with the same 9px floor. Rendered with a
+synthetic report (no real data) at Smallest, Default, Larger and Largest and
+on a phone: nothing truncated or overflowing. The details panel opens 12px
+wider per pixel of larger text (`standardDetailsWidth`, also what the
+splitter's reset returns to; a width the reader dragged is kept), and its
+duration and state columns hold "39.5 min" and "No result" at larger text, so a
+call's time keeps to one line. Full suite 1,073 files / 13,404 tests and both
+browser scripts passed.
