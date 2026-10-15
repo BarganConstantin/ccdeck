@@ -58,6 +58,9 @@ let launches: any[];
 let launchImpl: (o: any) => Promise<any>;
 let listed: any[];
 let killed: any[];
+let killImpl: (o: any) => Promise<boolean>;
+let labelled: any[];
+let labelImpl: (o: any) => Promise<boolean>;
 let claudeBin: string | null;
 let controls: FakeControl[];
 const tickets = createTicketStore();
@@ -80,6 +83,9 @@ beforeEach(() => {
   launchImpl = async (o) => ({ name: o.kind === "attach" ? "ccdeck-att-0b9f3c1e" : "ccdeck-claude-feedf00d", sessionId: o.sessionId || (o.agent === "claude" ? SID : ""), pane: "%40" });
   listed = [];
   killed = [];
+  killImpl = async () => true;
+  labelled = [];
+  labelImpl = async () => true;
   claudeBin = "/opt/claude/bin/claude";
   controls = [];
 });
@@ -97,7 +103,8 @@ beforeAll(async () => {
       resolveTarget: async (q: any, deps: any) => { resolved.push({ q, deps }); return target; },
       launchSession: (o: any) => { launches.push(o); return launchImpl(o); },
       listDeckSessions: async () => listed,
-      killDeckSession: async (o: any) => { killed.push(o); return true; },
+      killDeckSession: (o: any) => { killed.push(o); return killImpl(o); },
+      labelDeckSession: (o: any) => { labelled.push(o); return labelImpl(o); },
       claudeBin: () => claudeBin,
       openControl: (o: any) => { const c = new FakeControl(o); controls.push(c); return c; },
     },
@@ -193,6 +200,13 @@ describe("GET /api/terminal/target", () => {
     }
   });
 
+  it("is a read: it labels nothing, even for a pane whose id it has just learned", async () => {
+    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID };
+    const got = await ask("GET", path({ session: SID, provider: "codex", cwd: PROJECT }));
+    expect(got.body).toEqual({ ok: true, target: describeTarget({ kind: "A" }) });
+    expect(labelled).toEqual([]);
+  });
+
   it("asks about the session in lower case, on the deck's own socket", async () => {
     await ask("GET", path({ session: SID.toUpperCase(), provider: "codex", cwd: PROJECT }));
     const { q, deps } = resolved.at(-1);
@@ -220,6 +234,30 @@ describe("POST /api/terminal/open", () => {
     for (const secret of ["%12", "/secret", "ccdeck-claude-0a1b2c3d", "ccdeck-test-routes"]) expect(got.raw).not.toContain(secret);
   });
 
+  it("writes the id a deck-launched Codex was recognised by into its pane's label, once, and the page sees nothing of it", async () => {
+    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID };
+    const got = await opened(session({ provider: "codex" }));
+    expect(got.body.ok).toBe(true);
+    expect(labelled).toHaveLength(1);
+    expect(labelled[0]).toMatchObject({ tmux: TMUX_OK, name: "ccdeck-codex-5e6f7a8b", sessionId: SID, socket: DECK_SOCKET });
+    expect(got.body.target).toEqual(describeTarget({ kind: "A" }));
+    expect(got.binding).toMatchObject({ kind: "A", target: "ccdeck-codex-5e6f7a8b", pane: "%9" });
+  });
+
+  it("labels nothing for a pane that already says which session it holds", async () => {
+    await opened();
+    expect(labelled).toEqual([]);
+  });
+
+  it("attaches anyway when the label cannot be written", async () => {
+    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID };
+    labelImpl = async () => { throw new TerminalSessionError("tmux-failed", "tmux could not label the session.", "lost server"); };
+    const got = await opened(session({ provider: "codex" }));
+    expect(got.status).toBe(200);
+    expect(got.body.ok).toBe(true);
+    expect(got.binding).toMatchObject({ pane: "%9" });
+  });
+
   it("joins a pane in the user's own tmux at the pane's size", async () => {
     target = { kind: "B", socket: { path: "/tmp/tmux-1000/default" }, pane: "%3" };
     const got = await opened();
@@ -234,6 +272,19 @@ describe("POST /api/terminal/open", () => {
       expect(got.body).toEqual({ ok: false, target: describeTarget(t) });
     }
     expect(launches).toEqual([]);
+  });
+
+  it("shows an ended session's last frame from the newest dead deck pane it left, read-only and at that pane's size", async () => {
+    target = { kind: "gone", adoptable: true, deadSessions: ["ccdeck-claude-00000001", "ccdeck-claude-00000002"] };
+    const got = await opened();
+    expect(got.status).toBe(200);
+    expect(got.body.ok).toBe(true);
+    expect(got.body.target).toEqual(describeTarget(target));
+    expect(got.binding).toMatchObject({ kind: "A", socket: DECK_SOCKET, target: "ccdeck-claude-00000002", ignoreSize: true, readOnly: true });
+    // Showing it starts nothing and clears nothing: Reopen here is the adopt route's.
+    expect(launches).toEqual([]);
+    expect(killed).toEqual([]);
+    expect(got.raw).not.toContain("ccdeck-claude-00000002");
   });
 
   it("reaches a background session through its live attach wrapper, starting nothing", async () => {
@@ -343,6 +394,39 @@ describe("POST /api/terminal/adopt", () => {
     expect(got.body.ok).toBe(true);
     expect(got.body.target).toEqual(describeTarget({ kind: "A" }));
     expect(tickets.redeem(got.body.ticket)).toMatchObject({ kind: "A", target: "ccdeck-claude-feedf00d", pane: "%40", socket: DECK_SOCKET });
+  });
+
+  it("closes the dead deck panes the session left behind before it starts the resume", async () => {
+    target = { kind: "gone", adoptable: true, deadSessions: ["ccdeck-claude-00000001", "ccdeck-att-0b9f3c1e"] };
+    const order: string[] = [];
+    killImpl = async (o) => { order.push(`kill ${o.name}`); return true; };
+    const launch = launchImpl;
+    launchImpl = async (o) => { order.push("launch"); return launch(o); };
+    const got = await ask("POST", "/api/terminal/adopt", session());
+    expect(got.status).toBe(200);
+    expect(order).toEqual(["kill ccdeck-claude-00000001", "kill ccdeck-att-0b9f3c1e", "launch"]);
+    for (const k of killed) expect(k).toMatchObject({ tmux: TMUX_OK, socket: DECK_SOCKET });
+    expect(got.raw, "the names stay on the server").not.toContain("ccdeck-claude-00000001");
+  });
+
+  it("reopens the session even when a dead pane will not close", async () => {
+    target = { kind: "gone", adoptable: true, deadSessions: ["ccdeck-claude-00000001", "ccdeck-claude-00000002"] };
+    killImpl = async (o) => {
+      if (o.name === "ccdeck-claude-00000001") throw new TerminalSessionError("tmux-failed", "tmux could not close the session.", "lost server");
+      return true;
+    };
+    const got = await ask("POST", "/api/terminal/adopt", session());
+    expect(got.status).toBe(200);
+    expect(killed.map(k => k.name), "and still tries the rest").toEqual(["ccdeck-claude-00000001", "ccdeck-claude-00000002"]);
+    expect(launches).toHaveLength(1);
+  });
+
+  it("closes nothing when the session is not one it reopens", async () => {
+    for (const t of [{ kind: "C", adoptable: true, pid: 1 }, { kind: "gone", adoptable: false, deadSessions: ["ccdeck-claude-00000001"] }]) {
+      target = t;
+      await ask("POST", "/api/terminal/adopt", session());
+    }
+    expect(killed).toEqual([]);
   });
 
   it("resumes Codex as Codex", async () => {

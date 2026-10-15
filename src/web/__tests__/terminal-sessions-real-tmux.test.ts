@@ -28,7 +28,7 @@ import { rmTempDir } from "./rm-temp-dir";
 // @ts-expect-error — plain .mjs server module, no types
 import { findTmux, resetTmuxCache, runTmux } from "../../server/tmux.mjs";
 import {
-  findDeckSession, killDeckSession, launchSession, listDeckSessions,
+  findDeckSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions,
 } from "../../server/terminal-sessions.mjs";
 
 type Found = { ok: boolean; path?: string; reason?: string; install?: string };
@@ -171,6 +171,19 @@ describe("a deck session on a real tmux", () => {
     expect(list.filter(x => x.sessionId === id)).toHaveLength(1);
     expect(findDeckSession(list, id, { kinds: ["attach"] })?.name).toBe(first.name);
     expect(findDeckSession(list, id, { kinds: ["launch", "resume"] }), "a wrapper is not the session itself").toBeNull();
+  });
+
+  it("takes the id a new Codex was later recognised by, so the listing alone finds it from then on", async () => {
+    if (!found.ok) return expectNoTmux();
+    const s = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ["cat"] });
+    const id = randomUUID();
+    expect(findDeckSession(await listDeckSessions(opts()), id), "nothing names the id before it is learned").toBeNull();
+    expect(await labelDeckSession({ ...opts(), name: s.name, sessionId: id })).toBe(true);
+    const mine = (await listDeckSessions(opts())).find(x => x.name === s.name);
+    expect(mine, "the label, and the other three left as they were").toMatchObject({ sessionId: id, agent: "codex", kind: "launch", cwd: PROJECT });
+    expect(findDeckSession(await listDeckSessions(opts()), id)?.name).toBe(s.name);
+    await killDeckSession({ ...opts(), name: s.name });
+    expect(await labelDeckSession({ ...opts(), name: s.name, sessionId: id }), "gone meanwhile is an answer, not an error").toBe(false);
   });
 
   it("closes a session it started, and says so when it is already gone", async () => {

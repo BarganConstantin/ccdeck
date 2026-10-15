@@ -36,7 +36,7 @@ import { terminalOn } from "./deck-prefs.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import {
-  AGENTS, checkCwd, findDeckSession, killDeckSession, launchSession, listDeckSessions, resolveAgentBin,
+  AGENTS, checkCwd, findDeckSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions, resolveAgentBin,
 } from "./terminal-sessions.mjs";
 import { createTicketStore, terminalBridge } from "./terminal-socket.mjs";
 import { checkTargetQuery, describeTarget, resolveTarget } from "./terminal-target.mjs";
@@ -79,7 +79,8 @@ const adopting = new Set();
 /**
  * Everything these routes reach outside themselves, with the real ones as
  * defaults: the flag, the platform and environment, the deck's tmux socket,
- * the ticket store, tmux itself and the session and target modules.
+ * the ticket store, tmux itself and the session and target modules (the
+ * session module's launch, list, kill and label).
  * startServer passes its `terminal` option through here, which is how the
  * suite runs the routes on a tmux server of its own, or with no tmux at all.
  * The product passes nothing.
@@ -96,6 +97,7 @@ export function terminalDeps(overrides = {}) {
     launchSession,
     listDeckSessions,
     killDeckSession,
+    labelDeckSession,
     claudeBin: null,
     isDir,
     home: homedir,
@@ -181,6 +183,7 @@ export async function handleTerminalOpen(req, res, options) {
     const { tmux, target } = await locate(q, d);
     let binding;
     if (target.kind === "A") {
+      await learn(target, tmux, d);
       binding = { kind: "A", socket: target.socket, target: target.name, pane: target.pane, ignoreSize: false };
     } else if (target.kind === "B") {
       // The user's own tmux: their terminal owns the pane's size, and the
@@ -189,6 +192,17 @@ export async function handleTerminalOpen(req, res, options) {
     } else if (target.kind === "D") {
       const wrapper = target.wrapper ?? await attachWrapper(q, target, tmux, d);
       binding = { kind: "D", socket: d.deckSocket, target: wrapper.name, pane: wrapper.pane, ignoreSize: false };
+    } else if (target.kind === "gone" && target.deadSessions?.length) {
+      // An ended session whose deck pane is still there under remain-on-exit:
+      // its last frame is the most useful thing the stage can show, so the
+      // panel attaches to that pane and the bridge seeds it and says `ended`
+      // at once — the frozen frame with "Reopen here" under it, instead of a
+      // sentence over an empty stage. The newest pane is the latest word on
+      // the conversation. Read-only, because nothing typed reaches a dead
+      // pane; at the pane's own size, because resizing it would only cut the
+      // frame it kept.
+      const newest = target.deadSessions[target.deadSessions.length - 1];
+      binding = { kind: "A", socket: d.deckSocket, target: newest, ignoreSize: true, readOnly: true };
     } else {
       return send(res, 200, { ok: false, target: describeTarget(target) });
     }
@@ -209,6 +223,9 @@ export async function handleTerminalOpen(req, res, options) {
  * own start could ask about. The check is terminal-target's, with the blind
  * spot its header names: an idle plain `codex` outside the deck holds nothing
  * this can see, and reads as ended.
+ *
+ * The dead deck panes the session left behind are closed first (clearDead):
+ * the reopened session is the one the panel shows from now on.
  */
 export async function handleTerminalAdopt(req, res, options) {
   const d = terminalDeps(options);
@@ -227,6 +244,7 @@ export async function handleTerminalAdopt(req, res, options) {
       const said = describeTarget(target);
       return send(res, 409, { ok: false, error: said.label, ...(said.install ? { install: said.install } : {}) });
     }
+    await clearDead(target, tmux, d);
     const started = await d.launchSession({
       tmux, agent: q.provider, kind: "resume", sessionId: q.sessionId, cwd: q.cwd,
       socket: d.deckSocket, env: d.env, platform: d.platform,
@@ -314,6 +332,43 @@ async function locate(q, d) {
 function mint(d, req, tmux, binding) {
   const origin = typeof req?.headers?.origin === "string" ? req.headers.origin.trim().toLowerCase() : "";
   return d.tickets.mint({ ...binding, tmux: tmux?.path, ...(origin ? { origin } : {}) });
+}
+
+/**
+ * Write the id a deck pane was just recognised by into its `@ccdeck-session`
+ * (terminal-target's `learnedId`): a Codex the deck launched, found by the
+ * rollout its process holds open because its label was still empty. Once
+ * written, the next lookup of that session is the listing alone instead of a
+ * walk over every process on the machine.
+ *
+ * On the attach, not on GET /api/terminal/target, so the read stays a read.
+ * And never the reason an attach fails: the label is a shortcut for the next
+ * lookup, and a tmux that cannot set it now is asked again on the next open.
+ */
+async function learn(target, tmux, d) {
+  if (!target.learnedId) return;
+  try {
+    await d.labelDeckSession({ tmux, name: target.name, sessionId: target.learnedId, socket: d.deckSocket, env: d.env });
+  } catch { /* see above: a missed label costs one more process walk, no more */ }
+}
+
+/**
+ * Close the dead deck panes an ended session left behind (terminal-target's
+ * `deadSessions`), before it is reopened in a new one.
+ *
+ * remain-on-exit keeps a pane for its last frame, and every reopen would
+ * otherwise add one more to the deck's server for good: once the session runs
+ * again, nothing can show the old frame. killDeckSession refuses any name the
+ * deck did not give, and these names came from the deck's own listing. A pane
+ * that will not close is left where it is — the reopen is what was asked for,
+ * and the next one tries again.
+ */
+async function clearDead(target, tmux, d) {
+  for (const name of target.deadSessions ?? []) {
+    try {
+      await d.killDeckSession({ tmux, name, socket: d.deckSocket, env: d.env });
+    } catch { /* see above */ }
+  }
 }
 
 /**

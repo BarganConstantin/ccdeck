@@ -211,7 +211,35 @@ describe("a session the deck started (case A)", () => {
 
   it("says the session has ended when its deck pane is dead and nothing else holds it", async () => {
     const s = setup({ deck: [deckSession({ dead: true })] });
-    expect(await ask(s.deps)).toEqual({ kind: "gone", adoptable: true });
+    expect(await ask(s.deps)).toEqual({ kind: "gone", adoptable: true, deadSessions: ["ccdeck-claude-0a1b2c3d"] });
+  });
+
+  it("names every dead deck pane an ended session left behind, of any kind, and no live one or another session's", async () => {
+    // Started in the deck, reopened there, and reached once through a
+    // background attach, all of them ended: the adopt route clears these
+    // before the next reopen.
+    const s = setup({
+      deck: [
+        deckSession({ name: "ccdeck-claude-00000002", kind: "resume", dead: true, created: 2 }),
+        deckSession({ name: "ccdeck-claude-00000001", kind: "launch", dead: true, created: 1 }),
+        deckSession({ name: `ccdeck-att-${ID.slice(0, 8)}`, kind: "attach", dead: true, created: 3 }),
+        deckSession({ name: "ccdeck-claude-0000000a", sessionId: OTHER, dead: true }),
+        deckSession({ name: "ccdeck-codex-0000000b", sessionId: "", agent: "codex", dead: true }),
+      ],
+    });
+    expect(await ask(s.deps)).toEqual({
+      kind: "gone", adoptable: true,
+      deadSessions: ["ccdeck-claude-00000001", "ccdeck-claude-00000002", `ccdeck-att-${ID.slice(0, 8)}`],
+    });
+  });
+
+  it("names no dead pane when the session runs somewhere else now, since nothing is being reopened", async () => {
+    const s = setup({
+      deck: [deckSession({ dead: true })],
+      procs: [SYSTEMD_USER, TERMINAL, SHELL, PLAIN_CLAUDE],
+      records: [record(5001)],
+    });
+    expect(await ask(s.deps)).not.toHaveProperty("deadSessions");
   });
 
   it("looks past a dead deck pane for the session running somewhere else since", async () => {
@@ -236,8 +264,24 @@ describe("a session the deck started (case A)", () => {
         { pid: 950, ppid: 1923, cmd: ["/home/u/Applications/codex-web-gpt-app/codex-web-gpt-launcher", "--type=zygote"], fds: [rollout] },
       ],
     });
-    expect(await ask(s.deps, { provider: "codex" })).toEqual({ kind: "A", socket: DECK, pane: "%9", name: "ccdeck-codex-5e6f7a8b" });
+    expect(await ask(s.deps, { provider: "codex" }), "and hands on the id it was found by, for the pane's empty label")
+      .toEqual({ kind: "A", socket: DECK, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: ID });
     expect(s.opened, "the launcher-lookalike's open files were read").not.toContain("/proc/950/fd");
+  });
+
+  it("never offers a new id for a deck pane that already carries one", async () => {
+    // A Claude the deck launched as OTHER that has since moved on to ID (a
+    // /clear): found by its process, but the label stays the one it was
+    // launched under.
+    const s = setup({
+      deck: [deckSession({ name: "ccdeck-claude-5e6f7a8b", sessionId: OTHER, pane: "%9", panePid: 900 })],
+      procs: [
+        { pid: 900, ppid: 880, cmd: ["/bin/sh"] },
+        { pid: 901, ppid: 900, cmd: ["claude"], start: "1000", tty: "/dev/pts/9" },
+      ],
+      records: [record(901)],
+    });
+    expect(await ask(s.deps)).toEqual({ kind: "A", socket: DECK, pane: "%9", name: "ccdeck-claude-5e6f7a8b" });
   });
 
   it("matches a session id whatever its case, as the providers write it in lower case", async () => {
@@ -657,6 +701,13 @@ describe("describeTarget, the one sentence the panel shows", () => {
       reason: "missing",
       install: "sudo apt install tmux",
     });
+  });
+
+  it("leaves out what only the routes use: the id a pane was found by and the dead panes' names", () => {
+    expect(describeTarget({ kind: "A", socket: DECK, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: ID }))
+      .toEqual(describeTarget({ kind: "A" }));
+    expect(describeTarget({ kind: "gone", adoptable: true, deadSessions: ["ccdeck-claude-00000001"] }))
+      .toEqual(describeTarget({ kind: "gone", adoptable: true }));
   });
 
   it("answers something sensible for a target it does not know", () => {

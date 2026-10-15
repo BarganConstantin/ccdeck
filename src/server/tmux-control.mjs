@@ -50,6 +50,9 @@ import { EventEmitter } from "node:events";
 import { execFile as nodeExecFile, spawn as nodeSpawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { killTree, watchChild } from "./exec-children.mjs";
+// The one spelling of a tmux invocation (binary, -u, socket, then arguments),
+// of an argument tmux could split, and of the environment a tmux client gets.
+import { tmuxArg, tmuxCommand, tmuxEnv } from "./tmux.mjs";
 
 /**
  * The most bytes one `send-keys -H` carries. Each byte is three characters on
@@ -456,26 +459,19 @@ export function buildSeed({ info, lines = [], saved = [] }) {
   return Buffer.from(s, "utf8");
 }
 
-/** `-L name` or `-S path`; anything else is refused rather than defaulted. */
-function socketArgs(socket) {
-  if (socket && typeof socket.name === "string" && socket.name) return ["-L", socket.name];
-  if (socket && typeof socket.path === "string" && socket.path) return ["-S", socket.path];
-  // Never the default server by accident: case A is the deck's own socket and
-  // case B names the user's socket path, so an unnamed socket is a bug.
-  throw new TypeError("openControl needs a socket: { name } or { path }");
-}
-
 /**
- * The environment the control client runs with: the deck's, minus the two
- * variables that tell tmux it is running inside a pane. A deck started from a
- * tmux pane has them, and a client that thinks it is nested may refuse to
- * attach.
+ * The socket a control client may use: `{ name }` or `{ path }`, and nothing
+ * else. tmuxCommand reads a missing socket as the user's default server, which
+ * is right for the one lookup that wants it (terminal-target on macOS) and
+ * never right here: case A is the deck's own socket and case B names the
+ * user's socket path, so an unnamed socket is a bug, refused rather than
+ * defaulted.
  */
-function clientEnv(env) {
-  const out = { ...env };
-  delete out.TMUX;
-  delete out.TMUX_PANE;
-  return out;
+function requireSocket(socket) {
+  const named = typeof socket?.name === "string" && socket.name !== "";
+  const pathed = typeof socket?.path === "string" && socket.path !== "";
+  if (!named && !pathed) throw new TypeError("openControl needs a socket: { name } or { path }");
+  return socket;
 }
 
 const toBuffer = (bytes) =>
@@ -518,7 +514,7 @@ async function allOf(promises) {
  */
 class ControlClient extends EventEmitter {
   #tmux;
-  #sock;
+  #socket;
   #env;
   #target;
   #ignoreSize;
@@ -564,7 +560,11 @@ class ControlClient extends EventEmitter {
     super();
     this.#tmux = typeof tmux === "string" ? tmux : tmux?.path;
     if (!this.#tmux) throw new TypeError("openControl needs the tmux binary");
-    this.#sock = socketArgs(socket);
+    this.#socket = requireSocket(socket);
+    // Spelled once now, so a socket tmuxCommand refuses (a name with a path
+    // separator in it) is refused here, where the caller can see it, and not
+    // later inside #start where it would only reach 'exit'.
+    this.#argv([]);
     if (!target && !pane) throw new TypeError("openControl needs a target session or pane");
     this.#target = String(target || pane);
     // A pane id as the target is also the pane to stream, unless told otherwise.
@@ -574,7 +574,12 @@ class ControlClient extends EventEmitter {
     this.#pauseAfter = Math.max(0, Math.floor(Number(pauseAfter) || 0));
     this.#spawn = spawn;
     this.#execFile = execFile;
-    this.#env = clientEnv(env);
+    // tmux.mjs's client environment: the deck's own, without TMUX and
+    // TMUX_PANE — a client that thinks it is nested may refuse to attach — and
+    // without the deck's and a parent agent's variables, which a tmux client
+    // never reads and which a user's `update-environment` could otherwise copy
+    // into their own session when case B attaches to it.
+    this.#env = tmuxEnv(env);
     this.ready = new Promise((resolve, reject) => { this.#readyResolve = resolve; this.#readyReject = reject; });
     // A caller that only listens for 'exit' never awaits `ready`; its rejection
     // must not become an unhandled rejection that takes the deck down.
@@ -601,6 +606,14 @@ class ControlClient extends EventEmitter {
   /** True once the connection is over (exit emitted and tmux gone). */
   get closed() { return this.#torn; }
 
+  // The arguments after the binary for one tmux invocation on this client's
+  // socket, as tmux.mjs spells every invocation: `-u` (the deck may run under
+  // LANG=C — launchd, systemd — and tmux decides from the locale whether a
+  // client speaks UTF-8), the socket, then `args`.
+  #argv(args) {
+    return tmuxCommand(this.#tmux, this.#socket, args).slice(1);
+  }
+
   async #start() {
     let attachTo = this.#target;
     if (attachTo.startsWith("%")) {
@@ -612,7 +625,7 @@ class ControlClient extends EventEmitter {
       // session reaches a control client anyway.
       const found = await new Promise((resolve) => {
         try {
-          this.#execFile(this.#tmux, [...this.#sock, "display-message", "-p", "-t", attachTo, "#{session_id}"],
+          this.#execFile(this.#tmux, this.#argv(["display-message", "-p", "-t", attachTo, "#{session_id}"]),
             { timeout: 3000, env: this.#env, windowsHide: true },
             (err, stdout) => resolve(err ? null : String(stdout).trim()));
         } catch { resolve(null); }
@@ -631,12 +644,10 @@ class ControlClient extends EventEmitter {
     // At attach, not by a later refresh-client: between the two, a client that
     // does not ignore size could already have resized the user's window.
     if (this.#ignoreSize) flags.push("ignore-size");
-    // -u: the deck may run under LANG=C (launchd, systemd), and tmux decides
-    // whether a client speaks UTF-8 from its locale.
     // tmux's command line ends a command at any argument that ENDS in ";", so a
-    // session named "notes;" is passed as "notes\;", tmux's escape for it.
-    const target = attachTo.endsWith(";") ? `${attachTo.slice(0, -1)}\\;` : attachTo;
-    const argv = [...this.#sock, "-u", "-C", "attach-session", ...(flags.length ? ["-f", flags.join(",")] : []), "-t", target];
+    // session named "notes;" is passed as "notes\;" (tmuxArg), tmux's escape
+    // for it.
+    const argv = this.#argv(["-C", "attach-session", ...(flags.length ? ["-f", flags.join(",")] : []), "-t", tmuxArg(attachTo)]);
     let child;
     try {
       child = this.#spawn(this.#tmux, argv, { stdio: ["pipe", "pipe", "pipe"], env: this.#env, windowsHide: true });
@@ -871,8 +882,8 @@ class ControlClient extends EventEmitter {
     if (!this.#pane || !this.#session) return done("ended");
     try {
       // A lone ";" argument separates tmux commands; no shell is involved.
-      this.#execFile(this.#tmux, [...this.#sock, "has-session", "-t", this.#session, ";",
-        "display-message", "-p", "-t", this.#pane, "#{pane_dead}"],
+      this.#execFile(this.#tmux, this.#argv(["has-session", "-t", this.#session, ";",
+        "display-message", "-p", "-t", this.#pane, "#{pane_dead}"]),
       { timeout: 3000, env: this.#env, windowsHide: true },
       (err, stdout) => done(err || String(stdout).trim() !== "0" ? "ended" : "detached"));
     } catch {

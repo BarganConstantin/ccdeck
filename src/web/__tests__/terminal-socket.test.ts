@@ -545,11 +545,35 @@ describe("the bridge, in the order the panel expects", () => {
     expect(conn.texts().map(m => m.t)).toEqual(["hello"]);
   });
 
-  it("shows a pane that died before the panel had a frame its last frame, then says ended", async () => {
+  it("shows a pane that died before the panel had a frame its last frame, then says ended — before it was looking", async () => {
     const { conn, control } = bridge();
     control().emit("exit", { reason: "ended" });
     await vi.waitFor(() => expect(conn.closes.length).toBe(1));
     expect(conn.sent.map(s => (s.type === "text" ? s.msg.t : "seed"))).toEqual(["hello", "reset", "seed", "exit"]);
+    expect(conn.texts().at(-1)).toEqual({ t: "exit", reason: "ended", atOpen: true });
+  });
+
+  it("says a pane that was already dead at attach has ended right after its last frame, not a second later", async () => {
+    // An ended session's deck pane, opened read-only for its last frame:
+    // tmux's dead-pane subscription only reports once a second, and by then
+    // the panel would have drawn the frame as live.
+    const { conn, control, text } = bridge({ ignoreSize: true, readOnly: true });
+    (control() as any).ready = Promise.resolve({ pane: "%4", cols: 120, rows: 40, dead: true });
+    text({ t: "size", cols: 100, rows: 30 });
+    await vi.waitFor(() => expect(conn.closes.length).toBe(1));
+    expect(conn.sent.map(s => (s.type === "text" ? s.msg.t : "seed"))).toEqual(["hello", "reset", "seed", "exit"]);
+    expect(conn.texts().at(-1)).toEqual({ t: "exit", reason: "ended", atOpen: true });
+    expect(control().resizes, "a dead pane keeps its own size").toEqual([]);
+  });
+
+  it("keeps streaming a pane that was alive at attach", async () => {
+    const { conn, control, text } = bridge();
+    (control() as any).ready = Promise.resolve({ pane: "%4", cols: 120, rows: 40, dead: false });
+    text({ t: "size", cols: 100, rows: 30 });
+    await vi.waitFor(() => expect(control().seeds).toBe(1));
+    await settle();
+    expect(conn.closes).toEqual([]);
+    expect(conn.texts().map(m => m.t)).toEqual(["hello", "reset"]);
   });
 
   it("says ended without a frame when the pane cannot be captured any more", async () => {

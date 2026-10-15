@@ -1,0 +1,293 @@
+/* ---------------- the board navigator ----------------
+
+   The board's compact form while a session has the stage (BoardNavigator.tsx).
+   It is still the board, not a list: the same canvas ground under it, the same
+   cluster rim round each session, the same face a card wears at a distance,
+   the same edges in the same hue. What changes is that it is drawn at 1:1 in
+   screen pixels, so every word reads at the size it was written for.
+
+   The numbers that place a tile — its face, its rows, the gaps — are
+   board-navigator.ts's; this sheet only draws inside the boxes it is given.
+   Its Contrast-theme answers are in the one forced-colours block, at the end of
+   the sheet with every other. */
+
+.board-nav {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  /* The canvas ground, dot for dot: React Flow's <Background> draws a 1px dot
+     every 28px under the board (BoardFlow.tsx), and the board is hidden while
+     this is up. */
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, var(--grid-line) 0.5px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* "+ New session" where the Claude app keeps "New chat": the first thing in
+   the column of sessions. The count beside it is the board's own tally. */
+.nav-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 14px 6px;
+}
+button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
+.nav-new svg { flex: none; }
+.nav-count {
+  margin-left: auto;
+  font: 400 11px/1 var(--font-mono);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.nav-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+/* While the fold runs, tiles fly in from where the board drew them — mostly
+   outside this box — and a scroller would cut them off at its edge. */
+.board-nav[data-folding] .nav-scroll { overflow: visible; }
+.nav-tiles { position: relative; }
+
+/* ---------------- a tile ---------------- */
+
+.nav-tile {
+  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
+  position: absolute;
+  box-sizing: border-box;
+}
+/* The rim and the wash are the cluster's (.cluster-card), on a layer of their
+   own so the fold can scale the geometry without scaling a word. The radius is
+   the cluster's 16px written out: the canvas tier (--r-cluster) is read only by
+   the canvas's own objects (radius-tiers-1288), and this one is drawn outside
+   React Flow. The wash is mixed from the session's accent, which carries the
+   theme's tier, so it answers to data-theme as the rim does. */
+.nav-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.32);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  transform-origin: 0 0;
+}
+.nav-body { position: absolute; inset: 0; transform-origin: 0 0; }
+
+/* The task, on the rim's top edge. On a plate of the canvas ground, because it
+   sits ON the rim's line and the line would otherwise strike its words. In the
+   metadata ink: it is a label read at a glance, not a sentence. */
+.nav-pill {
+  position: absolute;
+  left: 12px;
+  top: -9px;
+  z-index: 1;
+  box-sizing: border-box;
+  max-width: calc(100% - 20px);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.5);
+  background: var(--bg);
+  color: var(--muted);
+  font: 400 10px/1 var(--font-mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-pill[data-alarm] { border-color: var(--warn); }
+
+/* The face's press target: a plain button the size of the face, with nothing
+   of its own to draw but the deck's one focus ring — which, inside a tile, is
+   the session's accent, exactly as a focused card's is. */
+.nav-open {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  top: 7px;
+  height: 50px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+/* The face: the card's distance face (.lod-face) at the navigator's size, with
+   its stripe, its state's edge and the one state that must win — stopped on a
+   human — on a variable of its own that the border reads first. */
+.nav-face {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px 6px 12px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text);
+  background: var(--node-grad);
+  border: 1px solid var(--nav-alarm, var(--nav-edge, var(--line)));
+  border-radius: 6px;
+  transition: background-color 120ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.nav-face::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.7;
+}
+/* The card's own state edges, theme for theme (agent-node.css .lod-face),
+   written from the tokens they were picked from. */
+.nav-face[data-state="active"] { --nav-edge: var(--inflight); }
+.nav-face[data-state="done"] { --nav-edge: color-mix(in srgb, var(--ok) 50%, transparent); }
+.nav-face[data-state="err"] { --nav-edge: color-mix(in srgb, var(--err) 60%, transparent); }
+:root[data-theme="light"] .nav-face[data-state="active"] { --nav-edge: color-mix(in srgb, var(--inflight) 65%, transparent); }
+:root[data-theme="light"] .nav-face[data-state="done"] { --nav-edge: var(--ok); }
+:root[data-theme="light"] .nav-face[data-state="err"] { --nav-edge: var(--err); }
+.nav-face[data-alarm] { --nav-alarm: var(--warn); }
+.nav-open:hover .nav-face { background: color-mix(in srgb, var(--text) 6%, var(--panel)); }
+
+.nav-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+}
+.nav-name,
+.nav-signal {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.nav-name { flex: 1 1 auto; }
+.nav-sid { font-weight: 400; color: var(--muted); }
+.nav-right { flex: none; margin-left: auto; display: inline-flex; align-items: center; }
+.nav-el {
+  font: 400 10px/1 var(--font-mono);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.nav-signal { color: var(--muted); }
+.nav-signal b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.board-nav [data-tone="warn"] { color: var(--warn); }
+.board-nav [data-tone="err"] { color: var(--err); }
+.board-nav [data-tone="idle"] { color: var(--accent); }
+
+/* ---------------- the subagents ---------------- */
+
+/* The trunk: one line down the tile's left and a branch to each row, in the
+   board's edge grammar — the .sess-edge classes and their two tiers, a live
+   subagent's branch flowing on the edges' own dashflow, a settled one solid. */
+.nav-trunk { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.nav-trunk path { fill: none; stroke-linejoin: round; }
+.nav-trunk .sess-edge.sess-live {
+  stroke: hsl(var(--session-hue, 200) 80% var(--session-edge-l));
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 0.5 4.5;
+  animation: dashflow 1.4s linear infinite;
+}
+.nav-trunk .sess-edge.sess-idle {
+  stroke: hsl(var(--session-hue, 200) 50% var(--session-edge-idle-l));
+  stroke-width: 1.5;
+}
+
+.nav-row {
+  position: absolute;
+  left: 22px;
+  right: 6px;
+  height: 22px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 6px;
+  border-radius: 6px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  /* A line box taller than the glyphs: the name and the call each clip at
+     their own edge, and at a line-height of 1 that edge cut every descender. */
+  line-height: 14px;
+  white-space: nowrap;
+}
+.nav-row-name { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+/* A finished subagent steps back by weight, not by ink: its name is still a
+   name, read at the same contrast as a running one's. */
+.nav-row[data-state="done"] .nav-row-name { font-weight: 500; }
+.nav-row-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+
+/* ---------------- the socket ----------------
+
+   The session on the stage leaves its face's skin behind it: the gradient and
+   the stripe have gone to the stage (they are its header now), and what stays
+   is the outline in the session's own hue, its words, and a chevron pointing
+   at the stage. */
+.nav-tile[data-attached] .nav-rim {
+  border-color: hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.62);
+  background: color-mix(in srgb, var(--accent) 7.5%, transparent);
+}
+.nav-tile[data-attached] .nav-face {
+  padding-right: 24px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1.5px solid var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.nav-tile[data-attached] .nav-face::before { opacity: 0; }
+/* On the hue wash --muted keeps little headroom in dark, so the signal steps
+   up to the text's own ink on the socket. A warning keeps its colour. */
+.nav-tile[data-attached] .nav-signal:not([data-tone="warn"]) { color: var(--text); }
+.nav-socket {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+/* When the socket moves to another tile it says so once, as a glow pulled in
+   from the edge — the stage changed under the pointer, or under j and k. */
+.nav-tile[data-attached][data-flash] .nav-face { animation: nav-socket-in 260ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes nav-socket-in {
+  from { box-shadow: inset 0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent); }
+}
+
+/* ---------------- the rail ----------------
+
+   A narrow window, or an expanded stage: one column of faces in the board's
+   reading order. The count goes and "+" keeps only its glyph — the button's
+   accessible name still says what it does. */
+.board-nav[data-density="rail"] .nav-count,
+.board-nav[data-density="rail"] .nav-new-word { display: none; }
+.board-nav[data-density="rail"] button.btn.nav-new { width: var(--ctl-h); padding: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-trunk .sess-edge.sess-live { animation: none; }
+  .nav-tile[data-attached][data-flash] .nav-face { animation: none; }
+}

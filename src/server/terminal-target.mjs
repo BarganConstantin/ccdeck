@@ -81,7 +81,7 @@ import { readdirSync, readFileSync, readlinkSync, statSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { run } from "./exec.mjs";
-import { findDeckSession, listDeckSessions } from "./terminal-sessions.mjs";
+import { deadDeckSessions, findDeckSession, listDeckSessions } from "./terminal-sessions.mjs";
 import { DECK_SOCKET, findTmux, runTmux } from "./tmux.mjs";
 
 /** Both providers name a session with a UUID. Anything else is refused before
@@ -295,12 +295,13 @@ export function attachIdOf(rec, sessionId) {
  * Where a session can be reached from, or why it cannot. See the header for
  * the kinds; the shapes are:
  *
- *   { kind: "A", socket, pane, name }      socket is the deck's own (DECK_SOCKET)
+ *   { kind: "A", socket, pane, name, learnedId? }
+ *                                          socket is the deck's own (DECK_SOCKET)
  *   { kind: "B", socket: { path }, pane }
  *   { kind: "D", attachId, wrapper? }      wrapper: a live deck pane already
  *                                          running `claude attach` for it
  *   { kind: "C", adoptable, pid }
- *   { kind: "gone", adoptable }
+ *   { kind: "gone", adoptable, deadSessions? }
  *   { kind: "unsupported", reason, install? }
  *     reason: "missing" | "too-old" | "unsupported-platform" (as findTmux
  *     says it) or "invalid" for a question that was not a session
@@ -309,6 +310,17 @@ export function attachIdOf(rec, sessionId) {
  * resumes by id and a working directory that still exists. It does not say
  * the original has stopped — for C it has not — which is the adopt route's
  * check to make when somebody asks.
+ *
+ * Two fields are for the routes and never reach the page (describeTarget
+ * leaves them out). `learnedId` is on an A that was found by its process
+ * because its pane's `@ccdeck-session` is still empty — a Codex the deck
+ * launched, recognised by the rollout it holds open — and is the id that
+ * process was found by, for the open route to write into the option so the
+ * next lookup is the listing alone. `deadSessions` is on a gone: the names of
+ * the dead deck panes this session left behind, which the adopt route clears
+ * before it reopens the session (terminal-sessions' deadDeckSessions).
+ *
+ * This module still writes nothing; it only says what it saw.
  *
  * Never rejects for a state of the machine: a missing tmux, a dead pane, a
  * torn record or an unreadable /proc are all answers. `deps`, every one
@@ -336,13 +348,16 @@ export async function resolveTarget(query, deps = {}) {
 
   const deck = await deckSessionsOf(io);
   const own = findDeckSession(deck, q.sessionId, { kinds: OWN_KINDS });
-  if (own && !own.dead) return deckTarget(io, own);
+  if (own && !own.dead) return deckTarget(io, own, q.sessionId);
   // A dead deck pane is not the end of it: the session may have been resumed
   // somewhere else since, so it is looked for like any other.
 
   const proc = platform === "linux" ? procView(io) : await psView(io);
   const holder = q.provider === "claude" ? claudeHolder(q.sessionId, io, proc) : codexHolder(q.sessionId, proc);
-  if (!holder) return { kind: "gone", adoptable: resumable(q, io) };
+  if (!holder) {
+    const dead = deadDeckSessions(deck, q.sessionId);
+    return { kind: "gone", adoptable: resumable(q, io), ...(dead.length ? { deadSessions: dead } : {}) };
+  }
 
   if (holder.background) {
     const found = findDeckSession(deck, q.sessionId, { kinds: ["attach"] });
@@ -363,7 +378,7 @@ export async function resolveTarget(query, deps = {}) {
   const pids = new Set(holder.chain.map((c) => c.pid));
   const under = holder.tty === "" ? undefined
     : deck.find((s) => !s.dead && OWN_KINDS.includes(s.kind) && pids.has(s.panePid));
-  if (under) return deckTarget(io, under);
+  if (under) return deckTarget(io, under, q.sessionId);
 
   const found = await hostPane(holder, proc, io);
   if (found && onSocket(found.socketPath, io.deckSocket)) {
@@ -467,8 +482,16 @@ async function deckSessionsOf(io) {
   }
 }
 
-function deckTarget(io, s) {
-  return { kind: "A", socket: io.deckSocket, pane: s.pane, name: s.name };
+/** Case A on a deck session. A session whose `@ccdeck-session` is empty was
+ *  found by its process, and the id it was found by is handed on as
+ *  `learnedId`; a label already there is never offered a replacement, because
+ *  a Claude that ran /clear holds a newer id than its pane's label and the
+ *  label is the one the deck launched it under. */
+function deckTarget(io, s, sessionId) {
+  return {
+    kind: "A", socket: io.deckSocket, pane: s.pane, name: s.name,
+    ...(!s.sessionId && sessionId ? { learnedId: sessionId } : {}),
+  };
 }
 
 function resumable(q, io) {
