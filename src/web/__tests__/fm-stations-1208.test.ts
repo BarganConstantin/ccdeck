@@ -123,6 +123,7 @@ describe("custom FM stations (#1208)", () => {
     expect(player).toContain("const playRequestRef = useRef(playRequest);");
     expect(player).toContain("const asked = playRequestRef.current !== playRequest;");
     expect(player).toContain("setArmed(asked);");
+    expect(player).not.toContain("setPlaying(asked);");
     // A direct stream is started from the pick, as the embed is armed by it.
     expect(player).toContain("if (asked) startDirect(custom.url, isHls, source);");
     expect(player).toContain("startDirect(probe.audio, probe.hls === true, source);");

@@ -1,0 +1,5 @@
+
+> ccdeck@3.40.2 themes:check
+> node scripts/build-themes.mjs --check
+
+Checked 9 JSON themes.

@@ -664,10 +664,9 @@ async function readProfile(profile, { sinceChromeTime, copyDir, deps, quietMs, o
  * Everything the panel draws, in one object.
  *
  * `deckOrigins` are the addresses this deck is listening on. They are excluded
- * by default and it is not an optimisation: ccdeck opens its own tab through
- * `open` on every start, which Chrome records with the same FROM_API bit as any
- * other program, so a watch without them reports the deck as the intruder every
- * time it launches.
+ * by default and it is not an optimisation: the deck's own origin collects
+ * FROM_API visits like any other program's page (see defaultExclusions), so a
+ * watch without them reports the deck as the intruder.
  */
 export async function browserWatchSnapshot({
   deckOrigins = [],

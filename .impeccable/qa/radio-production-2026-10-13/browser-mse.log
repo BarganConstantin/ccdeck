@@ -1,0 +1,32 @@
+PASS list playback + one logical audio session
+PASS pause/resume controls
+PASS next / previous / surprise
+PASS volume / mute / current favorite
+PASS close/reopen keeps identical active media
+PASS rapid switch / stale callbacks ignored
+HLS media path hls.js MSE
+PASS extensionless HLS actual AAC decode
+PASS buffering and interrupted media recovery
+PASS 503 stream cannot claim playing; recover from next selection
+PASS camera presets never filter; wheel/double-click/pan/keyboard
+PASS cluster inspection does not interrupt playback + keyboard dismiss
+PASS cluster selection returns focus after its chooser disappears
+PASS single marker plays from map
+PASS reload restores station without autoplay
+PASS YouTube request awaits confirmation; buffering distinct from playing
+PASS YouTube autoplay blocked is idle and next press starts session
+PASS YouTube error 153 releases session and allows retry
+AXE 1440 []
+PASS viewport 1440x900: bounds controls and filters
+AXE 1280 []
+PASS viewport 1280x800: bounds controls and filters
+AXE 1024 []
+PASS viewport 1024x768: bounds controls and filters
+AXE 800 []
+PASS viewport 800x600: bounds controls and filters
+AXE 390 []
+PASS viewport 390x844: bounds controls and filters
+AXE 320 []
+PASS viewport 320x568: bounds controls and filters
+PASS keyboard Tab trap and no search autofocus
+PASS no unhandled browser errors

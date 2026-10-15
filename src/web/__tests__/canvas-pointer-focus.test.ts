@@ -237,9 +237,12 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
       .filter(([, , body]) => /outline\s*:\s*(none|0)\b/.test(body))
       .map(([, selector]) => selector.trim());
     expect(removers).toEqual([
+      ".radio-pin",
+      ".radio-search:focus-within",
       ".radio-search input:focus",
       ".radio-panel .radio-search input:focus-visible",
       ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
+      ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
     ]);
     expect(bareCss).toContain(".radio-map-canvas:focus-visible");
   });

@@ -32,7 +32,8 @@ export default function RadioExperience({ fm, characterEnabled, character, open,
   const autoNext = enabled && selected && player.dead && fm.fmPlayRequest > 0
     ? nextAvailableRadioStation(queue ?? library.catalogue, selected.id, failedStations.current) : null;
   const { remember } = library;
-  useEffect(() => { if (selected && player.playing) remember(selected.id); }, [selected?.id, player.playing, remember]);
+  const listeningId = customStation?.id ?? fm.fmSource;
+  useEffect(() => { if (player.playing) remember(listeningId); }, [listeningId, player.playing, remember]);
   const close = onClose;
   const scrimPress = useScrimDismiss(onClose);
   const pick = useCallback((station: RadioStation, automatic = false) => {

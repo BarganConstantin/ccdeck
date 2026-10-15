@@ -233,7 +233,7 @@ export function useFmPlayer({
     setDead(false);
     setBuffering(false);
     setArmed(asked);
-    setPlaying(asked);
+    setPlaying(false);
     stopDirect();
 
     if (!enabled) { setArmed(false); setPlaying(false); return; }
@@ -261,12 +261,18 @@ export function useFmPlayer({
             onAvailabilityChange?.(source, false);
           } else {
             setDead(true);
+            setArmed(false);
+            setPlaying(false);
+            setBuffering(false);
             onAvailabilityChange?.(source, true);
           }
         })
         .catch(() => {
           if (!alive) return;
           setDead(true);
+          setArmed(false);
+          setPlaying(false);
+          setBuffering(false);
           onAvailabilityChange?.(source, true);
         });
       return () => { alive = false; };
@@ -323,7 +329,19 @@ export function useFmPlayer({
   // `message` fires for anything on the page that posts one, and this reads
   // JSON out of it.
   useEffect(() => {
-    if (!armed) return;
+    if (!armed || probe?.audio) return;
+    // A silent embed or repeated buffering reports must not leave an optimistic
+    // session alive forever. The deadline is cancelled on playback, stop,
+    // station switch and unmount; repeated state 3 does not extend it.
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const fail = () => {
+      clearTimeout(timeout);
+      timeout = undefined;
+      setArmed(false); setPlaying(false); setBuffering(false); setDead(true);
+      onAvailabilityChange?.(source, true);
+    };
+    const wait = () => { timeout ??= setTimeout(fail, 15_000); };
+    wait();
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== PLAYER_ORIGIN) return;
       if (e.source !== frame.current?.contentWindow) return;
@@ -341,23 +359,31 @@ export function useFmPlayer({
         // level the menu says, not at whatever the player remembers from its
         // own store — there is no window at the wrong loudness to notice.
         say(command("setVolume", [volumeRef.current]));
-        say(command(muted ? "mute" : "unMute"));
+        say(command(mutedRef.current ? "mute" : "unMute"));
         say(command("playVideo"));
         return;
       }
-      if (signal.kind === "playing") { setPlaying(signal.playing); return; }
+      if (signal.kind === "blocked") {
+        clearTimeout(timeout); timeout = undefined;
+        setArmed(false); setPlaying(false); setBuffering(false);
+        return;
+      }
+      if (signal.kind === "buffering") { setPlaying(false); setBuffering(true); wait(); return; }
+      if (signal.kind === "playing") {
+        clearTimeout(timeout); timeout = undefined;
+        setPlaying(signal.playing); setBuffering(false);
+        if (!signal.playing) setArmed(false);
+        return;
+      }
       if (FATAL_ERRORS.includes(signal.code)) {
         // The stream is gone, or this channel does not allow embedding. There
         // is nothing to offer and nothing to say about it.
-        setArmed(false);
-        setPlaying(false);
-        setDead(true);
-        onAvailabilityChange?.(source, true);
+        fail();
       }
     };
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [armed, muted, onAvailabilityChange, say, source]);
+    return () => { clearTimeout(timeout); window.removeEventListener("message", onMessage); };
+  }, [armed, probe?.audio, playRequest, onAvailabilityChange, say, source]);
 
   const press = useCallback(() => {
     // Only drawn, and so only pressed, while there is a probe; this tells the types.
@@ -374,14 +400,10 @@ export function useFmPlayer({
       return;
     }
 
-    if (!armed) { setArmed(true); setPlaying(true); return; }
-    // Optimistic: the player confirms with onStateChange a moment later, and
-    // a control that waits for a round trip before it looks pressed feels
-    // broken on a stream that takes a second to buffer.
-    const next = !playing;
-    setPlaying(next);
-    say(command(next ? "playVideo" : "pauseVideo"));
-    if (!next) setArmed(false);
+    if (!armed) { setArmed(true); setPlaying(false); setBuffering(false); return; }
+    // The pause action cancels a connecting/buffering session as well.
+    say(command("pauseVideo"));
+    setArmed(false); setPlaying(false); setBuffering(false);
   }, [probe, armed, playing, source, say, startDirect, stopDirect]);
 
   return useMemo(() => ({ probe, dead, armed, playing, buffering, frame, say, press }), [probe, dead, armed, playing, buffering, say, press]);

@@ -298,7 +298,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
         <div className="up-header-right">
 
           {(providers.claude || providers.codex) && <button type="button"
-            className="glyph-btn up-history-btn" aria-label="Open quota history"
+            className="glyph-btn" aria-label="Open quota history"
             title="Quota history" onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

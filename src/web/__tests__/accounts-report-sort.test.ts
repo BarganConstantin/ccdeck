@@ -158,7 +158,7 @@ describe("dedicated reset columns", () => {
     expect(sortReportRows(rows, { key: "seven_day_reset", dir: "desc" }).map(r => r.num)).toEqual([1, 2, 3]);
     expect(rows[0].status).toBe("ready");
     expect(rows[1].status).toBe("stale");
-    expect(rows[2].cells.five_hour).toMatchObject({ counted: false, why: "reset", estimate: 0 });
+    expect(rows[2].cells.five_hour).toMatchObject({ counted: false, why: "reset", estimate: rows[2].cells.five_hour.last });
   });
 
   it("renders reset headers as accessible sort buttons and separates usage from reset cells", () => {
@@ -170,7 +170,7 @@ describe("dedicated reset columns", () => {
         const label = key === "five_hour_reset" ? "5h reset" : "7d reset";
         expect(out).toContain(`<th scope="col" aria-sort="${dir === "asc" ? "ascending" : "descending"}"><button type="button" class="sd-sort" title="Sort by ${label}">${label}`);
         expect(out.match(/aria-sort="none"/g)).toHaveLength(6);
-        const used = [...out.matchAll(/<td class="ap-report-cell"[^>]*>(.*?)<\/td>/g)].map(m => m[1]);
+        const used = [...out.matchAll(/<td class="ap-report-cell"[^>]*>(.*?)<\/td>/g)].map(m => m[1].replace(/<span class="ap-report-mobile-label"[^>]*>[^<]*<\/span>/g, ""));
         expect(used).toEqual(['<span class="ap-report-pct">20%</span>', '<span class="ap-report-pct">30%</span>']);
         expect(out.match(/class="ap-report-reset-cell"/g)).toHaveLength(2);
         expect(out).toContain('class="ap-report-current">Current');
@@ -184,7 +184,7 @@ describe("dedicated reset columns", () => {
       accounts: [withResets(1, null, NOW - 60)], nowSec: NOW, held: null,
     }));
     expect(out).toContain('<span aria-hidden="true">—</span><span class="vis-hidden">No reset time</span>');
-    expect(out).toContain('<span class="vis-hidden">reset already </span>passed</time>');
+    expect(out).toContain('<span class="vis-hidden">reported reset </span>due</time>');
     expect(out).toContain(`dateTime="${new Date((NOW - 60) * 1000).toISOString()}"`);
   });
 });

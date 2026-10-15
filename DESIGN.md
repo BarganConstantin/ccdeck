@@ -356,6 +356,11 @@ one-off hero sizes and using them as steps will look wrong:
 
 ## Layout
 
+Owner preference (2026-10-13): do not use colored left-edge stripes to mark
+selected or active rows, cards, or panels. Use a quiet surface fill, the relevant
+control state, and readable status text instead. Structural separators remain
+part of the layout.
+
 A CSS grid shell, `.app`, with `:has()` deciding the columns rather than a body
 class:
 

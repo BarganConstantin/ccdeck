@@ -67,6 +67,8 @@
 @import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
 @import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
 @import "./styles/radio.css";                    /* radio explorer */
+@import "./styles/gruvbox.css";                  /* Gruvbox's quiet session hues and reading hierarchy */
+@import "./styles/theme-transition.css";         /* deliberate palette changes, including the canvas */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */
 
 @import "./styles/tool-audit.css";

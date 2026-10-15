@@ -324,6 +324,8 @@ function rootTokens(theme: Theme): Record<string, string> {
     out[name] = value.trim();
   }
   for (const [, name, value] of bodyOf(".modal.tr-modal").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
+  // The reset navigator inherits its selection fill from the calendar body.
+  for (const [, name, value] of bodyOf(".ap-reset-body").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
   return out;
 }
 
@@ -500,18 +502,21 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
+  { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".qh-window select", beds: ["--panel"] },
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
-  { at: ".radio-filters input", states: [".radio-filters :is(input, select):focus-visible", ".radio-filters :is(input, select):hover:not(:focus-visible)"], beds: ["--panel", "--bg-soft"] },
-  { at: ".radio-filters select", states: [".radio-filters :is(input, select):focus-visible", ".radio-filters :is(input, select):hover:not(:focus-visible)"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filter-search input", states: [".radio-filter-search input:focus-visible"], beds: ["--panel"] },
+  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:focus-visible", ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
   { at: '.character-choice', beds: ["--panel"] },
   { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
   { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
-  { at: ".ap-reset-day-button:hover", fillFrom: ".ap-reset-day-button:hover", beds: ["--panel"] },
+  { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
   { at: ".su-pricing select", beds: ["--panel"] },
@@ -851,8 +856,18 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
+      ".radio-collection:focus-visible",
+      ".radio-filter-back:focus-visible",
+      ".radio-filter-chip:focus-visible",
+      ".radio-filter-field:focus-visible",
+      ".radio-filter-search input:focus-visible",
+      ".radio-filter-toggle:focus-visible",
+      ".radio-filter-trigger:focus-visible",
+      ".radio-list:focus-visible",
       ".radio-loading > .icon-btn:focus-visible",
       ".radio-map-canvas:focus-visible",
+      ".radio-reset:focus-visible",
+      ".radio-workspace-toggle:focus-visible",
       ".react-flow__node:focus-visible .agent-node",
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
@@ -897,8 +912,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    // Radio, session pricing and reset-calendar controls extend the inventory.
-    expect(EDGED_CONTROLS.length).toBeLessThan(139);
+    // Radio discovery, session pricing and reset-calendar controls extend the inventory.
+    // Gruvbox adds one resting cluster-label rim; its visible name identifies it.
+    expect(EDGED_CONTROLS.length).toBeLessThan(147);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -1198,6 +1214,8 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // name at 4.5:1, which is the identification. (It read "draggable" here
       // until #546; it is a fit-view button and never was one.)
       ".cluster-label",
+      // Gruvbox retunes the same decorative rim, preserving hover and alarm states.
+      ':root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not(.dragging):not([data-alarm]))',
       // The same label for a session stopped until a human answers. It only
       // RECOLOURS the rim above to --warn — the aria-busy argument: nothing
       // appears or moves, the label is still identified by the name written in

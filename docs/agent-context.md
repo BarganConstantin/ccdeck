@@ -34,6 +34,27 @@ branches still have the same state. Verify them at the start of a new session.
   `.impeccable/review/tool-activity-education/`.
   PR #2125 remains draft; owner preview review pending, no merge/deployment.
 
+## Account Capacity reliability and UI skill integration — 2026-10-13
+
+- Owner authorized merging the completed reliability audit and `product-ui-craft`
+  skill into development. Integration checkout:
+  `/Users/constantin/Desktop/ccdeck-capacity-integration`, branch
+  `integrate/capacity-reliability`, based on development `a07b7202`.
+- Subsequently synchronized development `f0641fcb`, including its shared
+  quality-gate corrections and 3.41.0 version preparation. Delivery and final CI:
+  https://github.com/BarganConstantin/ccdeck/pull/2124.
+- Preview Vite port 5193; API forwarding remains on the existing 4388 backend.
+  Browser verification intercepted account APIs and used only synthetic data.
+- Typecheck/build, 1,205 tests in 94 files, Chromium capacity regressions and
+  official skill validation passed on the integrated tree. A stale shared Radio
+  selector inventory was updated without weakening contrast checks.
+- Audit results and known live-provider/timezone limitations:
+  `docs/features/account-capacity-reliability-audit.md`. Portable skill package:
+  `.agents/skills/product-ui-craft/`; usage and validation report:
+  `docs/features/product-ui-craft-skill.md`.
+- The earlier audit preview on 5192 and skill checkout remain separate. Preserve
+  unrelated Git View, Codex-account and other worktrees.
+
 ## Usage insights preview on Mac — 2026-10-13
 
 - Issue #2121: quota history and session cached input reuse.

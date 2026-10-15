@@ -9,11 +9,11 @@
 // `data-theme`, then re-read the palette on the next line (#613) — and that is
 // one function, moved whole, so it could not have been disturbed by the move.
 //
-// setTheme and setCharacterEnabled are handed out as they are, because the
-// invariants they need are effects on the values they set: whoever changes the
-// theme, the attribute, the stored choice and the palette follow. setPalette is
-// private — only the theme effect ever replaces the palette.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// Theme requests share one transition, from Settings or the keyboard. The
+// layout effect applies the DOM and canvas palette before the new snapshot.
+// setPalette is private — only that effect ever replaces the palette.
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { flushSync } from "react-dom";
 
 import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
 import { CHARACTER_KEY, storedCharacter, type Character } from "./character";
@@ -21,6 +21,7 @@ import { type MinimapNode, minimapNodeColor } from "./minimap";
 import { type Palette, paletteReader, readPalette, samePalette } from "./palette";
 import { writeStored } from "./storage";
 import { THEME_KEY, THEME_DEFINITIONS, type Theme, storedTheme } from "./theme";
+import { createThemeTransition } from "./theme-transition";
 
 /**
  * One custom property, resolved off the document.
@@ -41,7 +42,18 @@ export function useAppearance() {
   // so React starts out agreeing with what is on screen. Guarded the way the
   // panel loaders are: an initialiser is the one place a store the browser
   // won't hand over blanks the deck instead of costing a preference.
-  const [theme, setTheme] = useState<Theme>(storedTheme);
+  const [theme, setThemeState] = useState<Theme>(storedTheme);
+  const requestedTheme = useRef(theme);
+  const [themeTransition] = useState(() => createThemeTransition(document, () => {
+    try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; }
+  }));
+  const setTheme = useCallback<Dispatch<SetStateAction<Theme>>>(value => {
+    const next = typeof value === "function" ? value(requestedTheme.current) : value;
+    if (next === requestedTheme.current) return;
+    requestedTheme.current = next;
+    themeTransition.run(() => flushSync(() => setThemeState(next)));
+  }, [themeTransition]);
+  useEffect(() => () => themeTransition.cancel(), [themeTransition]);
   const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
   const [character, setCharacter] = useState<Character>(storedCharacter);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
@@ -70,7 +82,7 @@ export function useAppearance() {
   // answer to a question the DOM already holds, and one that goes wrong the day
   // someone reorders the effects. Re-asserting an identical attribute is free.
   // Every later run is the T toggle, which is the reason the effect exists.
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.colorScheme = THEME_DEFINITIONS[theme].colorScheme;
     writeStored(THEME_KEY, theme);

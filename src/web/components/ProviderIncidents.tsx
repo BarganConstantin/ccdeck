@@ -11,6 +11,7 @@
 // another site, which the ↗ says before the press. `noopener noreferrer`, so
 // the page opened learns nothing about the deck, not even its port.
 import type { Incident } from "../provider-status";
+import { ExternalLinkGlyph } from "./action-glyphs";
 
 /**
  * The chips, one per provider in an incident, for the topbar's readout.
@@ -41,7 +42,7 @@ export function IncidentChips({ incidents }: { incidents: Incident[] }) {
           <span className="pi-words">· {i.chipWords}</span>
           <span className="pi-short">· {i.shortWords}</span>
           {i.asOf && <span className="pi-asof">· as of {i.asOf}</span>}
-          <span className="pi-go" aria-hidden>↗</span>
+          <span className="pi-go" aria-hidden><ExternalLinkGlyph /></span>
           <span className="vis-hidden">, on {i.host}, opens in a new tab</span>
         </a>
       ))}
@@ -69,7 +70,7 @@ export function QuotaIncident({ incident }: { incident: Incident | null | undefi
         {/* "Partial outage": it opens the line, where the chip's words follow a name. */}
         {incident.words[0].toUpperCase() + incident.words.slice(1)}{incident.asOf ? ` · as of ${incident.asOf}` : ""}
       </span>
-      <span className="up-incident-go" aria-hidden>↗</span>
+      <span className="up-incident-go" aria-hidden><ExternalLinkGlyph /></span>
       {/* Its own row, under the state: the panel is a 280px column, and on one
           line with the state and the page's host the title was cut to four
           letters. The host is said to a screen reader and in the title. */}

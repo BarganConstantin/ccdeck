@@ -114,3 +114,8 @@ export const ToolActivityGlyph = () => (
     <path d="M8.7 1.8a3 3 0 0 0-3.5 3.8L1.8 9a1.8 1.8 0 0 0 2.5 2.5l3.4-3.4a3 3 0 0 0 3.8-3.5L9.6 6.5 7.7 4.6z" />
   </Glyph>
 );
+
+/** Reported reset timing uses the same control-glyph geometry. */
+export const ClockGlyph = () => (
+  <Glyph><circle cx="7" cy="7" r="5" /><path d="M7 3.8V7l2.2 1.4" /></Glyph>
+);

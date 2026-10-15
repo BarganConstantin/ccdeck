@@ -728,7 +728,7 @@ button.qb-pace::after {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.up-incident-go { color: var(--text-dim); }
+.up-incident-go { display: inline-flex; color: var(--text-dim); }
 .up-incident-what {
   grid-column: 2 / 4;
   display: -webkit-box;

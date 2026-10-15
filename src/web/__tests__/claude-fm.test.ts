@@ -269,9 +269,9 @@ describe("talking to the player", () => {
   });
 
   it("reads the states that mean sound is coming", () => {
-    expect(PLAYING_STATES).toEqual([1, 3]);           // playing, buffering
+    expect(PLAYING_STATES).toEqual([1]);             // confirmed playback only
     expect(readSignal('{"event":"onStateChange","info":1}')).toEqual({ kind: "playing", playing: true });
-    expect(readSignal('{"event":"onStateChange","info":3}')).toEqual({ kind: "playing", playing: true });
+    expect(readSignal('{"event":"onStateChange","info":3}')).toEqual({ kind: "buffering" });
     // ENDED AND PAUSED ARE STOPPED. Those two, and only those two.
     for (const stopped of STOPPED_STATES) {
       expect(readSignal({ event: "onStateChange", info: stopped })).toEqual({ kind: "playing", playing: false });
@@ -288,6 +288,12 @@ describe("talking to the player", () => {
     }
     expect(STOPPED_STATES).not.toContain(-1);
     expect(PLAYING_STATES).not.toContain(-1);
+  });
+
+  it("distinguishes buffering, blocked autoplay and identification failures", () => {
+    expect(readSignal({ event: "infoDelivery", info: { playerState: 3 } })).toEqual({ kind: "buffering" });
+    expect(readSignal({ event: "onAutoplayBlocked" })).toEqual({ kind: "blocked" });
+    expect(readSignal({ event: "onError", info: 153 })).toEqual({ kind: "error", code: 153 });
   });
 
   it("reads the spelling the player actually uses, not the documented one", () => {
@@ -323,7 +329,7 @@ describe("talking to the player", () => {
     // 100 is gone, 101 and 150 are "the owner does not allow embedding", 2 is a
     // bad parameter and 5 an HTML5 failure. A music toy has nothing useful to
     // say about any of them and no second thing to try.
-    expect(FATAL_ERRORS).toEqual([2, 5, 100, 101, 150]);
+    expect(FATAL_ERRORS).toEqual([2, 5, 100, 101, 150, 153]);
     expect(component).toContain("setDead(true)");
     expect(component).toMatch(/if \(!probe \|\| dead\) return null;/);
   });
@@ -343,7 +349,7 @@ describe("talking to the player", () => {
     // volume rather than the player's own remembered one.
     const ready = component.slice(component.indexOf('signal.kind === "ready"'));
     const setVolume = ready.indexOf('say(command("setVolume", [volumeRef.current]))');
-    const mute = ready.indexOf('say(command(muted ? "mute" : "unMute"))');
+    const mute = ready.indexOf('say(command(mutedRef.current ? "mute" : "unMute"))');
     const play = ready.indexOf('say(command("playVideo"))');
     expect(setVolume).toBeGreaterThanOrEqual(0);
     expect(mute).toBeGreaterThan(setVolume);
@@ -406,7 +412,7 @@ describe("absent, not broken", () => {
     // A page that starts making noise on load is a bug, and an iframe that
     // exists has already called Google whether or not anybody asked.
     expect(component).toContain("{armed && !probe.audio && (probe.channel || probe.video) && (");
-    expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(true\); return; \}/);
+    expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(false\); setBuffering\(false\); return; \}/);
     expect(component).not.toMatch(/useEffect\([^)]*setArmed\(true\)/);
   });
 
@@ -417,7 +423,7 @@ describe("absent, not broken", () => {
 
   it("releases the player on explicit stop and rejects messages from old frames", () => {
     expect(component).toContain('if (e.source !== frame.current?.contentWindow) return;');
-    expect(component).toMatch(/if \(!next\) setArmed\(false\);/);
+    expect(component).toMatch(/say\(command\("pauseVideo"\)\);\s*setArmed\(false\); setPlaying\(false\); setBuffering\(false\);/);
   });
 
   it("caches pixel geometry outside the memoized components", () => {
