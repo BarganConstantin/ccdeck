@@ -101,3 +101,30 @@
     .left-column > :only-child { opacity: 0; }
   }
 }
+
+/* ── the phone: a drawer over the canvas ─────────────────────────────────── */
+/* Under 641px the column used to stand beside the canvas, 288px of a 390px
+   screen, and leave it 102: too narrow for one card, with the minimap pushed
+   under the column and onto the canvas controls. It lies over the canvas
+   instead, between the topbar and the dock, with the same width and the same
+   slide; the canvas keeps the whole screen, and App closes the list once a
+   session is picked so the reader sees the session it went to. */
+@media (max-width: 640px) {
+  .app:has(.left-column),
+  .app:has(.left-column):not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
+  .app:has(.session-list) .canvas-wrap,
+  .app:has(.accounts-panel) .canvas-wrap,
+  .app:has(.session-list) .conn-banner,
+  .app:has(.accounts-panel) .conn-banner,
+  .app:has(.session-list) .ver-banner,
+  .app:has(.accounts-panel) .ver-banner { grid-column: 1; }
+  .left-column {
+    position: fixed;
+    top: var(--topbar-h);
+    bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
+    left: 0;
+    z-index: 21;
+    max-width: 100vw;
+    box-shadow: var(--shadow-2);
+  }
+}

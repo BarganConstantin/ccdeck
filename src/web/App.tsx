@@ -124,7 +124,7 @@ function Inner() {
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          closeSessionList, closeAccountsPanel } = useLeftColumn();
+          closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
   /** Both panels outlive their own `false` by the length of their exit: a
    *  close slides the panel out with the column's edge, and a switch fades the
    *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
@@ -576,6 +576,12 @@ function Inner() {
   /** The waiting queue's "+N more": the session list, whose top rows are the
    *  same sessions in the same order, opened if it is shut, and focus on its
    *  first row once it is drawn. */
+  /** On a phone the list is a drawer over the canvas it would otherwise hide,
+   *  so picking a session there also closes it, and the session is on screen. */
+  const pickSession = useCallback((sessionId: string) => {
+    openSession(sessionId);
+    if (phone) closeSessionListToCanvas();
+  }, [openSession, phone, closeSessionListToCanvas]);
   const showWaitingList = useCallback(() => {
     if (!sessionListOpen) toggleSessionList();
     requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
@@ -686,7 +692,7 @@ function Inner() {
               state={stateRef.current}
               now={now}
               selectedIds={selectedIds}
-              onSelect={openSession}
+              onSelect={pickSession}
               onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
               removedIds={removedAgentIds}
               onBringBackAll={bringBackAll}

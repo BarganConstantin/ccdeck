@@ -47,3 +47,27 @@ describe("the session list evicts the accounts panel, and gives it back (#824)",
     expect(toggle).toMatch(/accountsEvictedRef\.current = false;/);
   });
 });
+
+describe("a phone's session list is a drawer, and picking a session closes it", () => {
+  it("closes the list on a pick only on a phone, through the path that keeps the panel away", () => {
+    // On a phone the column lies over the canvas (left-column.css), so a pick
+    // that left it open would focus a session nobody can see.
+    expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*openSession\(sessionId\);\s*if \(phone\) closeSessionListToCanvas\(\);\s*\}/);
+    expect(app).toMatch(/onSelect=\{pickSession\}/);
+  });
+
+  it("ends the eviction before closing, so the accounts panel does not slide back over the session", () => {
+    const close = between("const closeSessionListToCanvas", "const closeAccountsPanel");
+    expect(close).toMatch(/accountsEvictedRef\.current = false;\s*setSessionListOpen\(false\);/);
+    // And it does not write the reader's stored choice: only the panel's own
+    // state change does, and this one leaves that state alone.
+    expect(close).not.toMatch(/writeStored|setAccountsPanelOpen/);
+  });
+
+  it("lays the column over the canvas under 641px instead of beside it", () => {
+    const sheet = readFileSync(fileURLToPath(new URL("../styles/left-column.css", import.meta.url)), "utf8");
+    const phone = sheet.slice(sheet.indexOf("@media (max-width: 640px)"));
+    expect(phone).toMatch(/\.app:has\(\.left-column\):not\(:has\(\.detail\)\) \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+    expect(phone).toMatch(/\.left-column \{[^}]*position: fixed;/);
+  });
+});
