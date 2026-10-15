@@ -271,6 +271,22 @@ describe("what was migrated to the secondary tier", () => {
       ".sm-custom-card-copy > span",
       // The Radar redesign adds explanatory text and neutral utility labels.
       ".empty-hero .film-action",
+      // Tool activity: the summary sentence, the findings' one-line reasons,
+      // the explanations under "How this is counted", the empty and error
+      // sentences and the notes in the details panel are prose. A row's
+      // description and its unsorted values are here by bed: a row is raised
+      // on --ctl-fill under the pointer and while open, where --muted is
+      // 4.05:1 in dark (#1789), and the search placeholder sits on the same fill.
+      ".ta-cell",
+      ".ta-cell small",
+      ".ta-desc",
+      ".ta-empty p",
+      ".ta-explain",
+      ".ta-highlight-text small",
+      ".ta-message",
+      ".ta-note",
+      ".ta-search input::placeholder",
+      ".ta-summary",
       ".tr-active-destinations > span",
       ".tr-event-top time",
       ".tr-history",

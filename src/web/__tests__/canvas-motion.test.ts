@@ -389,6 +389,12 @@ const PRESSES: Press[] = [
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
+  // Tool activity: a tool's row and a finding are full-width rows that open
+  // details, Back is a labelled control, and How this is counted a disclosure.
+  [".ta-row:active", "0.97", "transform"],
+  [".ta-highlight:active", "0.97", "transform"],
+  [".ta-back:active", "0.97", "transform"],
+  [".ta-explain summary:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   [".appearance-source-trigger:active", "0.97", "transform"],
   [".appearance-source-option:active", "0.97", "transform"],

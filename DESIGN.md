@@ -530,6 +530,45 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
   dashes never stop re-rasterises under the dialog for as long as it is open.
 
+### Tool activity
+
+A full page, opened from the rail below Usage history (More → Tools on phones),
+that a person reads top to bottom in under a minute. Owner direction
+(2026-10-15): simple and useful for the people using it, nothing complicated.
+Plain words carry it; the earlier P95 / interval vocabulary is gone.
+
+- **Order of the page:** period and agent pills (the `uh-range` strip Usage
+  history uses), one summary sentence with the numbers in `--text` weight 600
+  and failures in `--err`, then *Worth a look* — at most three findings in one
+  bordered list, each a button that opens its tool — then *Tools and commands*,
+  then *How this is counted* folded at the bottom. No tiles, no charts on the
+  page itself; the summary is a sentence on purpose.
+- **The list** is one set of rows with four orders (Most used, Most time,
+  Slowest, Failures) in a `uh-range` strip, and a search field. Columns: Calls,
+  Total time, Usually, Failed. The sorted column is the bright one (`--text`,
+  600) and draws the 3px bar under the name — `--accent`, or `--err` when sorting
+  by failures. Unsorted values and the description are `--text-secondary` by
+  bed (a row is raised on `--ctl-fill`); a zero failure is `--muted`. Selection
+  is the quiet fill, never a stripe. Twelve rows, then Show all.
+- **Details** sit in a column beside the list, 380px until the reader drags the
+  line between them (`ToolAuditSplitter`, an ARIA window splitter: arrows move
+  it, Enter or a double click restores 380px, the width is remembered per
+  browser, and the list always keeps 420px). Stacked under the list from
+  701–959px, a bottom sheet under 701px. The panel holds: name and description, a 2×2 facts grid
+  on hairlines, who used it and the longest call, calls per day as plain bars
+  (`--muted`, the described day in `--accent`), and the latest or slowest calls
+  with time, agent, duration and a drawn result glyph.
+- **Narrow report:** a container query on the report body, not the viewport,
+  turns rows into a name over one wrapped line of values that carry their own
+  words ("258 calls · 12.3 s total · usually 43 ms · 1 failed"), so a laptop
+  with details open gets the same treatment as a phone. Under 400px the sort
+  strip becomes a 2×2 grid.
+- **Honesty stays, in small print:** approval waits inside times, overlapping
+  total time, the median, compound command lines, different Claude/Codex clocks
+  and what is saved are each one plain line under *How this is counted*.
+  Findings appear only above their sample floors, so a handful of calls never
+  becomes a headline.
+
 ### Canvas objects
 
 - **Agent node** — the canvas's primary object. `--node-grad` fill, `--r-node` radius,

@@ -109,6 +109,11 @@ export const RadioGlyph = () => (
   <Glyph><path d="M2 5h10v7H2z M4 5l6-3 M4 8h3 M9 8h1 M4 10h1 M8 10h2" /></Glyph>
 );
 
+/** Tool activity: a pulse line, the tools your agents ran over time. */
+export const ToolActivityGlyph = () => (
+  <Glyph><path d="M1.4 7.4h2.5l1.7-4 2.8 7.2 1.6-3.2h2.6" /></Glyph>
+);
+
 /** Reported reset timing uses the same control-glyph geometry. */
 export const ClockGlyph = () => (
   <Glyph><circle cx="7" cy="7" r="5" /><path d="M7 3.8V7l2.2 1.4" /></Glyph>

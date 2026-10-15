@@ -32,6 +32,7 @@ import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
+import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
 import CharacterSection from "./CharacterSection";
 import { nextTheme } from "../theme";
@@ -156,6 +157,7 @@ export default function SettingsModal({
               onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
             />
             <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
+            <ToolAuditSettings />
           </>
         );
     }

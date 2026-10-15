@@ -374,7 +374,9 @@ describe("nothing else in the deck invents a focus stop", () => {
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))
       .map(p => p.slice(web.length).replaceAll("\\", "/"));
     // Radio results is a focusable tabpanel, allowing keyboard scrolling.
-    expect(offenders).toEqual(["components/RadioMap.tsx", "components/RadioPanel.tsx"]);
+    // Tool activity's details splitter is the ARIA window splitter: a focusable
+    // separator whose value is the panel's width, moved with the arrow keys.
+    expect(offenders).toEqual(["components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx"]);
     expect(code(readFileSync(`${web}components/RadioPanel.tsx`, "utf8"))).toMatch(/role="tabpanel"[^>]*tabIndex=\{0\}/);
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
     expect(map).toContain("tabIndex={0}");
@@ -391,7 +393,9 @@ describe("nothing else in the deck invents a focus stop", () => {
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
         .map(() => p.slice(web.length).replaceAll("\\", "/")));
     // Combobox options use aria-activedescendant; focus stays on the input.
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/RadioFilter.tsx", "components/TelemetryCapture.tsx"]);
+    // Tool activity's details heading takes focus when a tool is opened from
+    // the keyboard, so the panel that appeared is announced by its name.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/RadioFilter.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx"]);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
