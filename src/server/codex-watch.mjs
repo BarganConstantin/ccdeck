@@ -245,8 +245,8 @@ async function readCodexHeader(path) {
 // write it to the log they share. The event is still buffered and broadcast —
 // every deck watching the session draws it — it is only the second copy on disk
 // that is dropped. See writesCodexLog in log-election.mjs.
-function emitCodexEvent(payload, persist) {
-  pushEvent(payload, "codex", { persist });
+function emitCodexEvent(payload, persist, toolAuditAt) {
+  pushEvent(payload, "codex", { persist, toolAuditAt });
 }
 
 /**
@@ -419,7 +419,7 @@ function emitCodexLines(state, consume, persist) {
     }
     if (payload) {
       ensureCodexRoot(state, persist);
-      emitCodexEvent(payload, persist);
+      emitCodexEvent(payload, persist, typeof obj.timestamp === "string" ? Date.parse(obj.timestamp) : undefined);
     }
     if (subagentPayload) {
       // A parent-side SubAgentActivity may be the first new record read for a

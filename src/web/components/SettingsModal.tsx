@@ -33,6 +33,7 @@ import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
+import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
 import CharacterSection from "./CharacterSection";
 import { nextTheme } from "../theme";
@@ -99,8 +100,8 @@ export default function SettingsModal({
     if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
-    const next = nextTheme(theme);
-    setTheme(next);
+    const next = nextTheme((target.dataset.themeChoice as typeof theme | undefined) ?? theme);
+    setTheme(nextTheme);
     if (target.getAttribute("role") === "radio") {
       event.currentTarget.querySelector<HTMLButtonElement>(`[role="radio"][data-theme-choice="${next}"]`)?.focus();
     }
@@ -183,6 +184,7 @@ export default function SettingsModal({
                 </label>
               </div>
             </section>
+            <ToolAuditSettings />
           </>
         );
     }

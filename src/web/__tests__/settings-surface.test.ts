@@ -117,6 +117,8 @@ describe("a door into Settings opens it at the section it names", () => {
     expect(enabled).toContain("Scans now and on startup for threads with a recorded unfinished turn.");
     expect(enabled).toContain("Turning this off stops additional history reads; cards already shown stay.");
     expect(enabled).toContain("A crash can leave a turn recorded as unfinished.");
+    expect(enabled).toContain('id="tool-history-settings-title"');
+    expect(enabled.indexOf('id="tool-history-settings-title"')).toBeGreaterThan(enabled.indexOf('id="settings-codex-startup-caption"'));
 
     const disabled = drawSettings({
       codexStartupDiscovery: {

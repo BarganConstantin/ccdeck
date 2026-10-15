@@ -585,6 +585,201 @@
   color-scheme: dark;
 }
 
+:root[data-theme="gruvbox-dark"] {
+  --bg: #282828;
+  --bg-soft: #2c2a29;
+  --panel: #32302f;
+  --line: #504945;
+  --line-soft: #3c3836;
+  --text: #ebdbb2;
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
+  --text-secondary: #d5c4a1;
+  --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --ctl-edge: #a89984;
+  --chrome-bg: #32302f;
+  --chrome-edge: #504945;
+  --sm-edge: #a89984;
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --muted: #bdae93;
+  --muted-dim: #7c6f64;
+  --text-dim: #bdae93;
+  --accent: #fabd2f;
+  --accent-dim: #fabd2f40;
+  --ok: #b8bb26;
+  --warn: #e0a15b;
+  --err: #ff7865;
+  --inflight: #d3869b;
+  --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
+  --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
+  --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --node-grad: var(--panel);
+  --topbar-grad: var(--panel);
+  --conn-wash: #ff786518;
+  --burst-live-wash: #d3869b12;
+  --hero-core: #fabd2f;
+  --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
+  --glint: var(--text);
+  --grid-line: #3c3836;
+  --minimap-mask: rgba(40, 40, 40, .85);
+  --session-label-l: 78%;
+  --session-accent-l: 74%;
+  --session-rim-l: 55%;
+  --session-edge-l: 72%;
+  --session-edge-idle-l: 65%;
+  --mcp-dot-l: 65%;
+  --cat-file: #83a598;
+  --cat-shell: #fe8019;
+  --cat-web: #a3c7bd;
+  --cat-agent: #ebdbb2;
+  --cat-task: #b8bb26;
+  --cat-plan: #b4a5c7;
+  --cat-mcp: #8ec07c;
+  --cat-other: #bdae93;
+  --usage-purple: #d3869b;
+  --usage-blue: #83a598;
+  --usage-teal: #8ec07c;
+  --usage-lime: #b8bb26;
+  --usage-pink: #e9a4b0;
+  --usage-indigo: #b4a5c7;
+  --usage-orange: #fe8019;
+  --usage-zinc: #bdae93;
+  --usage-cyan: #a3c7bd;
+  color-scheme: dark;
+}
+
+:root[data-theme="gruvbox-light"] {
+  --bg: #f5efdc;
+  --bg-soft: #eee4cc;
+  --panel: #faf7e8;
+  --line: #c4b698;
+  --line-soft: #ded2af;
+  --text: #3c3836;
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
+  --text-secondary: #504945;
+  --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --ctl-edge: #7c6f64;
+  --chrome-bg: #faf7e8;
+  --chrome-edge: #bdae93;
+  --sm-edge: #7c6f64;
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --muted: #665c54;
+  --muted-dim: #a89984;
+  --text-dim: #665c54;
+  --accent: #875a12;
+  --accent-dim: #875a1238;
+  --ok: #626015;
+  --warn: #85551a;
+  --err: #9d0006;
+  --inflight: #8f3f71;
+  --shadow-1: 0 4px 14px rgba(60,56,54,0.10);
+  --shadow-2: 0 10px 24px rgba(60,56,54,0.16);
+  --shadow-contact: 0 1px 2px rgba(60,56,54,0.12);
+  --node-grad: var(--panel);
+  --topbar-grad: var(--panel);
+  --conn-wash: #9d000614;
+  --burst-live-wash: #8f3f710c;
+  --hero-core: #875a12;
+  --live-bloom: color-mix(in srgb, var(--ok) 12%, transparent);
+  --glint: var(--accent);
+  --grid-line: #e1d8bf;
+  --minimap-mask: rgba(245, 239, 220, .85);
+  --session-label-l: 24%;
+  --session-accent-l: 24%;
+  --session-rim-l: 38%;
+  --session-edge-l: 28%;
+  --session-edge-idle-l: 32%;
+  --mcp-dot-l: 32%;
+  --cat-file: #076678;
+  --cat-shell: #af3a03;
+  --cat-web: #315e60;
+  --cat-agent: #3c3836;
+  --cat-task: #626015;
+  --cat-plan: #6f5775;
+  --cat-mcp: #366747;
+  --cat-other: #665c54;
+  --usage-purple: #8f3f71;
+  --usage-blue: #076678;
+  --usage-teal: #366747;
+  --usage-lime: #626015;
+  --usage-pink: #934653;
+  --usage-indigo: #6f5775;
+  --usage-orange: #af3a03;
+  --usage-zinc: #665c54;
+  --usage-cyan: #315e60;
+  color-scheme: light;
+}
+
+:root[data-theme="gruvbox-material"] {
+  --bg: #32302f;
+  --bg-soft: #3c3836;
+  --panel: #45403d;
+  --line: #655b54;
+  --line-soft: #534b45;
+  --text: #ddc7a1;
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
+  --text-secondary: #d4be98;
+  --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --ctl-edge: #b9a68e;
+  --chrome-bg: #45403d;
+  --chrome-edge: #75695f;
+  --sm-edge: #b9a68e;
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --muted: #cdbb9f;
+  --muted-dim: #928374;
+  --text-dim: #cdbb9f;
+  --accent: #e7bd7b;
+  --accent-dim: #e7bd7b40;
+  --ok: #bbc783;
+  --warn: #efb581;
+  --err: #f5a69e;
+  --inflight: #e9b1c1;
+  --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
+  --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
+  --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --node-grad: var(--panel);
+  --topbar-grad: var(--panel);
+  --conn-wash: #f5a69e18;
+  --burst-live-wash: #e9b1c112;
+  --hero-core: #e7bd7b;
+  --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
+  --glint: var(--text);
+  --grid-line: #48423d;
+  --minimap-mask: rgba(50, 48, 47, .85);
+  --session-label-l: 78%;
+  --session-accent-l: 74%;
+  --session-rim-l: 55%;
+  --session-edge-l: 72%;
+  --session-edge-idle-l: 65%;
+  --mcp-dot-l: 65%;
+  --cat-file: #a3c5b9;
+  --cat-shell: #efb581;
+  --cat-web: #abc9c1;
+  --cat-agent: #ddc7a1;
+  --cat-task: #bbc783;
+  --cat-plan: #b8bfd0;
+  --cat-mcp: #a6c49d;
+  --cat-other: #cdbb9f;
+  --usage-purple: #c4bbdf;
+  --usage-blue: #a3c5b9;
+  --usage-teal: #a6c49d;
+  --usage-lime: #bbc783;
+  --usage-pink: #e4b8bf;
+  --usage-indigo: #b8bfd0;
+  --usage-orange: #efb581;
+  --usage-zinc: #cdbb9f;
+  --usage-cyan: #abc9c1;
+  color-scheme: dark;
+}
+
 .appearance-preview[data-swatch="light"] {
   --tp-canvas: #eef1f6;
   --tp-surface: #ffffff;
@@ -683,4 +878,40 @@
 :root[data-theme="catppuccin-mocha"] ::selection {
   background: #45475a;
   color: #cdd6f4;
+}
+
+.appearance-preview[data-swatch="gruvbox-dark"] {
+  --tp-canvas: #282828;
+  --tp-surface: #32302f;
+  --tp-rule: #504945;
+  --tp-mark: #7c6f64;
+  --tp-accent: #fabd2f;
+}
+:root[data-theme="gruvbox-dark"] ::selection {
+  background: #504945;
+  color: #fbf1c7;
+}
+
+.appearance-preview[data-swatch="gruvbox-light"] {
+  --tp-canvas: #f5efdc;
+  --tp-surface: #faf7e8;
+  --tp-rule: #c4b698;
+  --tp-mark: #a89984;
+  --tp-accent: #875a12;
+}
+:root[data-theme="gruvbox-light"] ::selection {
+  background: #d5c4a1;
+  color: #3c3836;
+}
+
+.appearance-preview[data-swatch="gruvbox-material"] {
+  --tp-canvas: #32302f;
+  --tp-surface: #45403d;
+  --tp-rule: #655b54;
+  --tp-mark: #928374;
+  --tp-accent: #e7bd7b;
+}
+:root[data-theme="gruvbox-material"] ::selection {
+  background: #5a524c;
+  color: #ebdbb2;
 }

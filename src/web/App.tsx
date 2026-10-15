@@ -6,6 +6,7 @@ import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList from "./components/SessionList";
+import ToolAuditModal from "./components/ToolAuditModal";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
@@ -124,7 +125,7 @@ function Inner() {
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          closeSessionList, closeAccountsPanel } = useLeftColumn();
+          closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
   /** Both panels outlive their own `false` by the length of their exit: a
    *  close slides the panel out with the column's edge, and a switch fades the
    *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
@@ -565,12 +566,15 @@ function Inner() {
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
   const [radioOpen, setRadioOpen] = useState(false);
+  const [toolAuditOpen, setToolAuditOpen] = useState(false);
+  const closeToolAudit = useCallback(() => setToolAuditOpen(false), []);
   const closeRadio = useCallback(() => setRadioOpen(false), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
+    openToolActivity: () => setToolAuditOpen(true),
     toggles: panelReturn.toggles,
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
@@ -579,6 +583,12 @@ function Inner() {
   /** The waiting queue's "+N more": the session list, whose top rows are the
    *  same sessions in the same order, opened if it is shut, and focus on its
    *  first row once it is drawn. */
+  /** On a phone the list is a drawer over the canvas it would otherwise hide,
+   *  so picking a session there also closes it, and the session is on screen. */
+  const pickSession = useCallback((sessionId: string) => {
+    openSession(sessionId);
+    if (phone) closeSessionListToCanvas();
+  }, [openSession, phone, closeSessionListToCanvas]);
   const showWaitingList = useCallback(() => {
     if (!sessionListOpen) toggleSessionList();
     requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
@@ -689,7 +699,7 @@ function Inner() {
               state={stateRef.current}
               now={now}
               selectedIds={selectedIds}
-              onSelect={openSession}
+              onSelect={pickSession}
               onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
               removedIds={removedAgentIds}
               onBringBackAll={bringBackAll}
@@ -736,6 +746,8 @@ function Inner() {
       {/* The right stripe, ahead of the two panels it opens so Tab reaches the
           control before the region it discloses. */}
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
+
+      {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} />}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only
