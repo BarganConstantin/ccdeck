@@ -227,10 +227,7 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
-      // Gruvbox also uses secondary reading ink for neutral spend and the
-      // waiting explanation; these are intentional theme overrides.
-      ':root[data-theme^="gruvbox-"] .uh-detail-cost',
-      ':root[data-theme="gruvbox-material"] .session-list .sl-waiting-tool',
+      // The Text & density pane's opening sentence, read once.
       ".reading-intro",
       ".radio-art",
       ".radio-cluster-preview button span",
@@ -262,6 +259,13 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-tuning > span",
       ".radio-tuning-tower",
       ".sa-why",
+      // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
+      // success green the other themes give them nor the totals' --text. Read
+      // down a column to compare sessions, which --muted is too quiet for.
+      ":root[data-theme^=\"gruvbox-\"] .uh-detail-cost",
+      // Material's waiting tool, by bed: --warn mixed toward its panel falls
+      // under AA there, and the name is what decides whether to get up.
+      ":root[data-theme=\"gruvbox-material\"] .session-list .sl-waiting-tool",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).
@@ -276,6 +280,22 @@ describe("what was migrated to the secondary tier", () => {
       ".sm-custom-card-copy > span",
       // The Radar redesign adds explanatory text and neutral utility labels.
       ".empty-hero .film-action",
+      // Tool activity: the summary sentence, the findings' one-line reasons,
+      // the explanations under "How this is counted", the empty and error
+      // sentences and the notes in the details panel are prose. A row's
+      // description and its unsorted values are here by bed: a row is raised
+      // on --ctl-fill under the pointer and while open, where --muted is
+      // 4.05:1 in dark (#1789), and the search placeholder sits on the same fill.
+      ".ta-cell",
+      ".ta-cell small",
+      ".ta-desc",
+      ".ta-empty p",
+      ".ta-explain",
+      ".ta-highlight-text small",
+      ".ta-message",
+      ".ta-note",
+      ".ta-search input::placeholder",
+      ".ta-summary",
       ".tr-active-destinations > span",
       ".tr-event-top time",
       ".tr-history",

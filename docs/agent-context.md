@@ -1,7 +1,26 @@
 # Owner's ccdeck work — continuation context
 
-Updated: 2026-10-13. This is a handoff, not a claim that processes or remote
+Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
+
+## Tool activity redesign on Linux — 2026-10-15
+
+- Issue #2122, PR #2125, branch `feat/2122-tool-audit`, worktree
+  `/home/constantin/Desktop/personal/ccdeck-wt/tool-audit`, merged with
+  development `87137340`.
+- The owner asked for a much simpler, more useful page, allowing a full UI
+  redo. The report was rebuilt: one summary sentence, up to three "Worth a look"
+  findings, one tool list with four orders and search, a details panel, and the
+  measurement caveats folded under "How this is counted". P95, custom dates, the
+  four comparison charts, the operations table, help popovers and the glossary
+  qualifications were removed. Collector, API and Settings behaviour unchanged.
+- The shared `useHint` and `AnchoredPopover` options the old page added were
+  reverted to development, since nothing uses them now.
+- Contract: `docs/features/tool-audit.md`, `DESIGN.md` → Tool activity,
+  `.impeccable/surfaces/tool-audit.md`. The nine iteration documents and the
+  old Playwright QA scripts were deleted with the design they described.
+- Preview used an isolated backend on 4555 with a seeded journal
+  (`CCDECK_HOME` in the session scratchpad); the installed app on 4317 was untouched.
 
 ## Account Capacity reliability and UI skill integration — 2026-10-13
 

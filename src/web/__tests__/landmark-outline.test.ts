@@ -394,6 +394,11 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       "components/ShareAccountsDialog.tsx",
       "components/TelemetryCapture.tsx",
       "components/TelemetryFile.tsx",
+      // Tool activity's details: an <h3> naming the tool, divided into calls
+      // per day and its calls. A dialog on phones, a side panel beside the
+      // report's own <h3> sections elsewhere.
+      "components/ToolAuditHistory.tsx",
+      "components/ToolAuditInspector.tsx",
       "components/ToolModal.tsx",
       "components/TrafficRadar.tsx",
     ]);

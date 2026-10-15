@@ -634,6 +634,10 @@ async function shutdown(code = 0) {
       const { drainAppends } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
       await drainAppends();
     } catch { /* nothing queued, or the module never loaded */ }
+    try {
+      const { drainToolAudit } = await import(pathToFileURL(join(PKG_ROOT, "src/server/tool-audit.mjs")).href);
+      await drainToolAudit();
+    } catch { /* tool history was unavailable */ }
     // No server yet means nothing to drain and nothing to hand the port over to,
     // so the exit is the whole of the shutdown.
     if (!server) return process.exit(code);
