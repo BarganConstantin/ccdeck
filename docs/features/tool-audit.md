@@ -1,13 +1,52 @@
-# Tool activity audit
+# Tool activity
 
 Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122).
 
 Open **Tool activity** from the rail button below Usage history (on narrow screens,
-**More → Tool activity**). This is a device-wide report
-across Claude and Codex, independent of retained sessions on the canvas.
-Collection starts with new events after this build starts; no old session import.
+**More → Tools**). It is a device-wide page across Claude and Codex, independent
+of the sessions on the canvas. Collection starts with new events after this build
+starts; old sessions are not imported.
 
-## What the report measures
+## What the page shows
+
+One page that answers four questions in order, in plain words:
+
+1. **How much.** One sentence for the chosen period (24 hours, 7, 30 or 90 days)
+   and agents (all, Claude, Codex): how many tool calls, how much time was spent
+   running them, and how many failed.
+2. **Worth a look.** Up to three findings, each a fact read straight off the
+   rows and each opening that tool's details:
+   - *takes the most time*: the tool with the largest total time, shown only
+     when it holds at least 20% of all tool time and was timed at least twice;
+   - *fails often*: the highest failure share among tools with at least five
+     finished calls, two failures and a 10% failure share;
+   - *is the slowest*: the highest typical time ("usually", the median) among
+     tools timed at least three times and usually taking 10 s or more, other
+     than the time finding's tool.
+   With too few calls a finding is left out rather than made up.
+3. **Tools and commands.** One list with four orders — Most used, Most time,
+   Slowest, Failures — and a search over names and descriptions. Each row shows
+   calls, total time, the usual time and failures with their share of finished
+   calls; the sorted column is the bright one and draws the row's bar. Twelve
+   rows first, then all. A row carries a short description when the tool is
+   known (`src/web/operation-glossary.ts`: exact names, plus `<pm> run <script>`
+   and `mcp__<server>__<tool>` read off the name); unknown tools get none rather
+   than a guess.
+4. **One tool.** Selecting a row or a finding opens its details beside the list
+   (a sheet on phones): the four numbers, who used it, the longest call, calls
+   per day, and its latest 30 or slowest 20 calls with time, agent, duration and
+   result.
+
+"How this is counted", folded at the bottom, says in six lines what the numbers
+mean and where they stop: times include waiting for approval; total time adds
+overlapping calls; "usually" is the median; a compound command line counts once
+per command and shares its time and result; Claude and Codex time tools
+differently; nothing but grouped names is saved.
+
+P95, custom dates and per-chart views from the first iterations were removed on
+2026-10-15: they answered the same questions as the list in harder words.
+
+## What is recorded
 
 Operations such as `git status`, `git commit`, `git push`, `npm run build`, and
 `dotnet test` have separate rows. Variable arguments, messages, paths, and output
@@ -18,43 +57,18 @@ calls/commands can be classified; dynamic commands remain unclassified.
 Calls count observed containing tool calls. Compound commands and orchestration
 wrappers can contain several operations, but do not prove every conditional
 branch executed. Each identified operation is counted once per containing call;
-its duration/outcome belongs to that call. The shared-interval marker and measurement
-notes disclose this. Repeated inner executions cannot be counted independently.
+its duration/outcome belongs to that call. "How this is counted" says so in plain
+words. Repeated inner executions cannot be counted independently.
 
-Completed success/failure calls contribute to total, median, maximum and P95
-elapsed intervals; P95 requires 20 valid samples. Error percentages use completed
+Completed success/failure calls contribute to total, median and maximum elapsed
+intervals (the API also returns P95 from 20 valid samples; the page does not show
+it). Error percentages use completed
 observed outcomes. Claude uses hook receipt intervals; Codex passes rollout
 source timestamps through the watcher to the collector without changing canvas
 receipt-time semantics. Invalid, missing or negative intervals are unavailable,
 not zero. Calls with no outcome stay unmatched rather than being settled by the
 canvas's stale sweep. Parallel calls overlap, so total tool time is not elapsed
 session time. Wrapper intervals include orchestration/delivery/approval waits.
-
-The current full-page Direction A report is documented in
-[tool-activity-report.md](tool-activity-report.md). Provider/period/custom UTC date
-filters and search scope the report. Four simultaneous sections compare
-frequency, cumulative associated intervals, eligible median/P95 endpoints, and
-reported failed-call counts with completed denominators. Failure rates use at
-least20 completed outcomes, a descriptive sample floor rather than a confidence
-guarantee. No operation percentages imply additive time shares.
-Search filters charts and the complete sortable operations table; overview totals
-remain provider/period-wide. Selecting any operation opens the same focus-protected
-side drawer without changing report scroll. Selection survives search, sorting
-and refresh while the operation exists. The table exposes all operations in
-50-row increments; narrow layouts retain exact values and detail access.
-The header snapshot timestamp is the aggregation cut-off, separate from the
-latest observed call start in the selected provider/period. Refresh can advance
-the snapshot without new starts; neither endpoint gaps nor sparse observations
-prove collector health or failure. Hour durations retain rounded whole minutes.
-Requested period, earliest/latest observed starts and retained recording boundary
-are distinct. Period filtering uses call starts; an entire completed interval is
-included even when its outcome arrives after the range. The overview cumulative
-interval sums each measured call once, not operation totals; it still overlaps
-parallel/nested calls and is not wall-clock execution time. Selecting an operation reads its 20 slowest measured calls or latest 30
-recorded calls. Activity/outcomes and measured intervals are separate detail
-groups; definitions and source/coverage qualifications are progressively disclosed.
-No full arguments/output drill-down is stored. Each request is a fresh snapshot;
-details may include calls captured since the main ranking loaded.
 
 ## Local storage and boundaries
 
@@ -96,54 +110,11 @@ and clears are not coordinated across those processes. Use separate
 accounting and coordinated multi-process clear are future work before remote
 sync.
 
-## Interaction and verification
+## Checks
 
-Radio's `radioOpen`200ms entry is reused; keyboard entry and reduced motion are
-instant. While actual aggregation runs, an indeterminate indicator and skeleton
-show work without invented percentages. The report updates on open/filter/change
-or Refresh, not a background polling loop. Escape restores focus to its rail entry (or More on narrow screens).
-
-Preview: `http://127.0.0.1:4545/`, backend4546,
-`CCDECK_HOME=/tmp/ccdeck-tool-audit-preview`. Owner's installed deck is untouched.
-Browser QA uses isolated contexts and intercepted fixtures; those fixture records
-are never saved to the live preview. Unit tests cover normalization, paired
-outcomes, zero/missing timing, duplicates, restarts, replay exclusion, retention,
-clear, corruption and validation. A real watcher integration asserts the4500ms
-rollout interval for call/output records consumed in one batch. Existing modal,
-settings, guarded-read, self-update and Codex translation checks also pass.
-Brave covers all nine themes at1280/390/320px, table/details, ranking/search,
-loading/empty/error/storage states, keyboard/reduced-motion, refresh dedup and
-retention/clear confirmations. Typecheck and production build are required.
-
-
-Browser execution was on macOS Brave; Windows/Linux native execution is not
-claimed. SVG icons inherit theme colors without depending on emoji rendering.
-The second-iteration finish reviewer inspected14 required captures and returned
-`disposition: ship`, with no material fixes. It confirmed nine complete desktop
-ranking rows versus six before, despite a smaller modal. This covers the scoped
-interface, not accessibility certification or permission to merge.
-
-
-The verified measurement audit is recorded in `tool-explorer-design.md`.
-Earlier visual iterations are historical; the selected full report and premium
-refinement, current screenshot evidence and actual validation are recorded in
-`tool-activity-report.md`. Current checks:265 tests across thirteen suites,
-TypeScript and production build, six requested Brave viewport sizes and all
-nine themes. Separate live Codex integration was exercised; live Claude,
-native Windows/Linux, Safari/Firefox and screen-reader certification remain
-unverified. No new visualization dependency or collector change was introduced.
-Current verified operation glossary, metric help and accessible interaction
-verification are recorded in `tool-activity-education.md`.
-
-Manual browser runners: `scripts/qa-tool-explorer.cjs` uses intercepted,
-deterministic fixtures; `scripts/qa-tool-explorer-a11y.cjs` reads the live preview.
-Both require Playwright in the test environment and accept `CCDECK_QA_URL` and
-optional `CCDECK_QA_BROWSER`. Set `CCDECK_QA_OUTPUT` to preserve a separate
-screenshot directory for each review; `QA_PASS` names the capture batch.
-No browser test dependency is added to production.
-The live runner requires recorded `git status` calls. After the last local CSS
-corrections, placeholder contrast exceeds 4.5:1 and ranking fill/track contrast
-exceeds 3:1 in every theme. Resize preserves the selected inspector.
-The final production build passed after those corrections; the existing large
-bundle warning remains. Screenshots are local review artifacts, not collected
-telemetry or repository fixtures.
+`tool-audit.test.ts` and `tool-audit-history.test.ts` cover the collector,
+retention, report aggregation and daily history; `tool-audit-report.test.ts`
+covers the list orders, the findings' thresholds, the summary sentence and
+failure shares; `operation-glossary.test.ts` the descriptions. The style
+guards (`text-tiers`, `control-edges`, `type-ladder`, `dead-css`) hold the
+page to the shared tokens.

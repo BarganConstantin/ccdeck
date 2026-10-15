@@ -1,38 +1,26 @@
 # Owner's ccdeck work — continuation context
 
-Updated: 2026-10-14. This is a handoff, not a claim that processes or remote
+Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
-## Tool activity audit preview on Mac — 2026-10-14
+## Tool activity redesign on Linux — 2026-10-15
 
-- Issue #2122, branch `feat/2122-tool-audit`, worktree
-  `/Users/constantin/Desktop/ccdeck-tool-audit`, based on development `d2ca5ba6`.
-- Built UI and same-origin API `http://127.0.0.1:4545/`, isolated data
-  `CCDECK_HOME=/tmp/ccdeck-tool-audit-preview`. Installed app is untouched.
-- Tool activity rail button below Usage history opens the device-wide operation explorer
-  (More on phone); the Usage header entry was removed. General
-  Settings has retention/actual size/clear. New calls only; no historical import.
-- Concrete shell operations are grouped without arguments. Shared wrapper and
-  compound timing describes the containing call, not independent inner work.
-- Implementation and verification: `docs/features/tool-audit.md`.
-  Current visual direction: `docs/features/tool-activity-report.md`.
-  Full-page Direction A report with simultaneous usage/time comparisons,
-  median-to-P95 endpoints and failed-call count/denominator/rate context.
-  One report scroll, on-demand focus-protected evidence drawer, sortable
-  operations table (50-row increments), no scatter plot or new dependency.
-  Collector semantics unchanged; search scopes charts/table, not call summary.
-  265 tests across thirteen suites, typecheck/build, six-size/nine-theme Brave
-  regression checks passed. Read-only live Codex data was checked separately.
-  Current UX education: `docs/features/tool-activity-education.md`.
-  Fourteen exact verified local glossary entries; mouse/focus hints and persistent
-  inspector purposes; same Median/P95 help in chart/inspector; metric reading
-  guide on request. Unknown tools remain explicitly unverified. Pointer-only
-  inspector fade160ms; keyboard/reduced-motion entry stays immediate.
-  Snapshot/start distinctions, minute precision and measurement contract remain.
-  Independent education finish: ship after one resolved accessible-content
-  qualification fix. Evidence and limits in
-  `.impeccable/review/tool-activity-education/`.
-  PR #2125 remains draft; owner preview review pending, no merge/deployment.
+- Issue #2122, PR #2125, branch `feat/2122-tool-audit`, worktree
+  `/home/constantin/Desktop/personal/ccdeck-wt/tool-audit`, merged with
+  development `87137340`.
+- The owner asked for a much simpler, more useful page, allowing a full UI
+  redo. The report was rebuilt: one summary sentence, up to three "Worth a look"
+  findings, one tool list with four orders and search, a details panel, and the
+  measurement caveats folded under "How this is counted". P95, custom dates, the
+  four comparison charts, the operations table, help popovers and the glossary
+  qualifications were removed. Collector, API and Settings behaviour unchanged.
+- The shared `useHint` and `AnchoredPopover` options the old page added were
+  reverted to development, since nothing uses them now.
+- Contract: `docs/features/tool-audit.md`, `DESIGN.md` → Tool activity,
+  `.impeccable/surfaces/tool-audit.md`. The nine iteration documents and the
+  old Playwright QA scripts were deleted with the design they described.
+- Preview used an isolated backend on 4555 with a seeded journal
+  (`CCDECK_HOME` in the session scratchpad); the installed app on 4317 was untouched.
 
 ## Account Capacity reliability and UI skill integration — 2026-10-13
 

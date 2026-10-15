@@ -530,189 +530,41 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
   dashes never stop re-rasterises under the dialog for as long as it is open.
 
-### Tool activity report
+### Tool activity
 
-Direction A is a full-page, on-demand analytical report in the established ccdeck
-instrument-panel world. The rail entry sits below Usage history (More on phones),
-separate from Usage. The [direction contract](docs/features/tool-activity-report.md)
-and [surface record](.impeccable/surfaces/tool-audit.md) supersede the centered
-single-mode ranking for this surface; they do not redefine the global design.
+A full page, opened from the rail below Usage history (More → Tools on phones),
+that a person reads top to bottom in under a minute. Owner direction
+(2026-10-15): simple and useful for the people using it, nothing complicated.
+Plain words carry it; the earlier P95 / interval vocabulary is gone.
 
-- **Shell and hierarchy:** viewport overlay with persistent Back to workspace and
-  Refresh header, one scrolling report body, and centered content capped at
-  1360px including 40px desktop side padding. Compact
-  provider/period/search controls and optional UTC dates precede unique call,
-  cumulative interval, reported failure and timing-coverage summaries. Coverage &
-  definitions is collapsed, with exact timed denominator and Observed starts
-  visible. Theme surfaces and fine rules carry structure; no empty drawer space
-  is reserved.
-- **Simultaneous comparisons:** Most used and Most measured time each show five
-  leaders as ordered linear zero-origin bars. Slowest P95 shows three eligible
-  leaders with hollow median and solid P95 endpoints on one shared linear
-  zero-origin axis, rounded to a readable ceiling, with exact values and measured
-  sample counts. These are median/P95, not min/max or a full distribution.
-  Reported failures shows up to three count-ranked lollipops, exact failed count
-  and completed-outcome denominator; a separate rate appears only with ≥20
-  completed outcomes. Smaller samples say “Small sample · rate not compared.”
-  Length and ordering always encode failure count, not rate. One pure description
-  in `src/web/tool-audit-report.ts` supplies accessible chart names and fallback
-  native titles for unknown operations: verified general purpose plus its
-  recorded-arguments/output qualification, precise recorded milliseconds
-  (including fractions/zero), measured sample count, P95 definition/≥20 floor,
-  median/P95 rather than min/max endpoints, and exact failed/completed proportion
-  with qualified rate. Verified names use the shared contextual purpose hint;
-  visible values and qualifications remain primary. Native SVG geometry is
-  hidden from assistive technology.
-  No visualization dependency or new data-visualization skill is installed;
-  Key Findings remains omitted because it would duplicate visible leaders.
-- **Theme and responsive behavior:** existing blue usage, amber intervals, violet
-  P95 and red outcomes inherit `--usage-blue`, `--warn`, `--usage-purple` and
-  `--err`. Titles, exact values and endpoint shapes carry meaning beyond hue.
-  Desktop pairs usage/time above subordinate tail/failure evidence; at ≤700px
-  analyses stack, filters occupy two columns with full-width search, and summaries
-  retain three compact columns with timing coverage in the disclosure. Long
-  identities wrap. At ≤360px side padding is 16px and timed sample labels remain
-  under operation identity.
-- **Complete explorer:** searchable, sortable exact operations table begins at
-  50 rows and adds 50 per action. Desktop sortable headers stay sticky within the
-  report body. Phone rows retain identity/provider, calls, associated intervals
-  and failures. `ToolAuditOperations.tsx` exposes the active metric as table
-  `data-sort`; at ≤700px only sorting by median or P95 reveals that timing column,
-  grouping calls, intervals, active timing and failures in a two-by-two grid.
-  Other phone sorts retain three values; both timings remain available in detail.
-  Phone sorting has native metric and direction controls. Explore focuses and
-  scrolls to the complete table with the corresponding descending sort; unknowns
-  stay last both ways.
-- **Scope and lifecycle:** search filters charts/table, while summaries keep
-  provider/period scope, explicitly stated beside searched results. Provider or
-  period replaces the dataset; same-query Refresh retains the previous snapshot
-  with status/error feedback and coalesces repeated requests. Selection survives
-  search, sort and refresh while its identity exists. Reset restores all
-  providers, seven days, empty search, descending calls and 50 rows; it appears
-  only for changed filters/search. Header Snapshot denotes report `capturedAt`,
-  the backend cutoff passed into aggregation, not the last tool event or completed
-  generation. Coverage names Observed starts and latest observed call start:
-  `observedUntil` is the maximum start in the selected provider/period; outcomes
-  may be later. Refresh can advance snapshot time without new starts. Timestamp
-  gaps imply neither collector health/failure nor continuous recording; no health
-  heartbeat exists. Incomplete-history notices use persisted-record quality flags.
-- **Contextual evidence and focus:** every chart/table selection opens the same
-  portal drawer, at most 440px wide and full-width on phones, with its own scroll
-  and protected focus, preserving report scroll. Keyboard selection focuses the
-  operation heading. Escape closes evidence first; closing restores its origin,
-  matching operation button or report Back fallback. Returning to the workspace
-  restores a visible rail/More entry after resize. The existing inspector keeps
-  exact activity, median/P95/maximum, raw failure rate with an immediate
-  small-sample qualification, provider counts and up to 20 slowest/30 recent
-  sanitized calls. Inspector P95 uses the existing eligibility helper, keeping
-  fewer than 20 valid timings unavailable.
-- **Verified operation purposes:** fourteen exact glossary entries cover `rg`,
-  `cat`, `sed`, `head`, `tail`, `git diff`, `git status`, `git commit`, `sleep`,
-  `write_stdin`, `view_image`, `apply_patch`, `multi_agent_v1__wait_agent` and
-  `shell (unclassified)`. Manual, callable-tool-contract or classifier evidence
-  supports each general purpose. Lookup uses own properties; no suffix guesses,
-  argument interpretation, network lookup or AI inference. Unknown identities
-  remain neutral; the persistent inspector explicitly says their purpose is
-  unverified. General purpose never proves a recorded effect, and recorded
-  arguments/outputs remain unavailable.
-- **Progressive education:** `ToolAuditOperationButton` reuses the chrome hint for
-  pointer rest and keyboard focus, including exact raw Median/P95 milliseconds
-  and measured count in P95 hints. Chart and table accessible names carry the
-  same verified purpose and `operationPurposeNote` qualification; unknown table
-  names retain exact identity. Both expose selected expanded state and the common
-  `tool-operation-inspector` target. Touch opens the same persistent purpose and
-  evidence. One Help trigger beside Slowest P95 and the same component beside
-  inspector Measured intervals explain Median as half of measured intervals this
-  long or shorter, P95 as approximately 95% this long or shorter, and whole-call
-  waits. The 20-measurement display floor is separate from percentile meaning
-  and is not a confidence guarantee. Initial focus goes to the help h4; Escape
-  or Got it returns to its anchor. Shared `AnchoredPopover` bounds the help to
-  the viewport with internal scroll and an optional dismissal layer. The nine-entry
-  plain-language metric guide opens only on explicit request inside Coverage &
-  definitions. Optional `useHint.followFocusedAnchor` keeps keyboard education
-  visible while scrolling, with flip/clamp placement; shared consumer defaults
-  and the existing focus hook remain unchanged.
-- **Honest measurement:** null is unavailable, never zero; measured zero and equal
-  endpoints remain visible. Operation memberships/counts, associated intervals
-  and reported outcomes are nonadditive containing-call evidence. Even unique
-  call cumulative intervals overlap and are not wall-clock time. Mixed Claude
-  receipt/Codex rollout clocks do not benchmark provider speed. P95 requires ≥20
-  valid timings. Requested/retained/observed dates distinguish partial history;
-  sparse endpoints do not prove continuous coverage. Arguments, outputs, error
-  text and full traces are not retained; no trends, cost or execution proof is
-  inferred.
-- **Duration precision:** `auditDuration` values ≥1 hour round total minutes to
-  the nearest minute, then show integer hours plus remaining minutes with correct
-  hour carry: 3,720,000ms is `1 h 2 min`; exact hours remain `1 h`. Sub-hour,
-  unavailable and measured-zero formatting is unchanged. At ≤700px only the
-  hour-duration summary uses 18px, keeping its compound value together at 320px
-  after the first rendered batch exposed an orphaned minute unit.
-- **Scoped typography and access:** retain system sans, mono identities/exact
-  values and tabular numbers. Local header is 17px/600 (16px phone, 15px at
-  ≤360px); chart titles 15px/600, explorer title 16px/600; summary values 26px/500,
-  primary 32px/600, coverage 20px (phone 22px/500 and primary 28px/600).
-  Supporting context, qualifiers, sample counts, axes and table labels use 12px;
-  desktop operation identities and chart values use 13px (phone values/identities
-  use 12px at ≤360px). Inspector heading and measurements use 16px; educational
-  popovers use 13px with 12px hints. These are Tool Activity role exceptions, not
-  global scale additions. The latest source scan reported 11 type-ramp findings
-  for intentional report heading/summary roles; its exit 2 is not a pass. The
-  18px phone hour-summary role remains intentional. Preserve 44px coarse-pointer main actions, visible
-  focus and forced-color marks. Table rows use the existing hover background on
-  `:focus-within`, preserving the focus-visible outline. Global typography is unchanged.
-  Report keyboard/reduced-motion entry is immediate; its inherited pointer
-  entrance remains 200ms. Pointer drawer entry fades from 0.6 opacity over 160ms
-  with the house curve `cubic-bezier(0.23, 1, 0.32, 1)`; keyboard/reduced entry
-  and closing are immediate. Help retains the shared 120ms pointer entrance,
-  with immediate keyboard/reduced entry. Reduced motion disables refresh/loading
-  rotation. No chart or filter choreography is added.
-- **Integrated inspector and history:** closed composition is retained. Inspection
-  uses a flexible report plus a 360px complementary pane at ≥960px, independently
-  scrolling rows at 701–959px, and a modal phone dialog at ≤700px. A report container
-  stacks charts below 760px and adapts table controls below 600px. Selection restores
-  its visual scroll anchor; only phone inspection traps focus. Sticky operation/close
-  controls, 18px identity and 20px interval values define the pane. Average, Median,
-  P95 and Maximum precede daily Average/Median lines and a separate call-count plot.
-  Exact day evidence supports pointer, keyboard and touch; nulls break lines and P95
-  eligibility is per day. Provider clocks, shared intervals, partial dates and history
-  boundaries remain qualified. Details/history share one worker snapshot. The rail
-  uses a house-style wrench, replacing its terminal symbol. See
-  [layout/data policy and executed evidence](docs/features/tool-activity-history.md).
-- **2026-10-14 refinement:** dotted summary labels and snapshot open concise
-  anchored help; unknown operations use neutral pointer/focus hints with equivalent
-  accessible names. `git add` has a verified purpose. P95 has a plain caption,
-  direct value label and hypothetical 3-second example, separate from eligibility.
-  Inspector exposes containing-call failure attribution and missing timing.
-  Hover/selection background feedback uses 100ms; keyboard focus and reduced
-  motion remain immediate. Hidden narrow snapshot controls leave the focus order.
-  See [refinement evidence](docs/features/tool-activity-principal-refinement.md).
-- **Verified education finish:** parent bounded critique and confirmation are
-  complete. The independent [finish review](.impeccable/review/tool-activity-education/finish-review.md)
-  requested one table accessible-name qualification fix. The same reviewer's
-  [final verdict](.impeccable/review/tool-activity-education/finish-verdict.md)
-  scores fix 1 **RESOLVED**, **disposition: ship**, with no further material fix
-  or regression; no further polish is owed. `operationPurposeNote` now supplies
-  table parity; retained browser known-purpose/qualification and neutral unknown
-  checks pass in `/tmp/ccdeck-education-parity.log`. This is scoped sign-off,
-  not formal screen-reader certification or publication authorization.
-  Retained evidence records **265 tests across 13 suites**, successful
-  typecheck/build, six Brave sizes and nine themes including help text ≥4.5:1
-  and original chart marks ≥3:1. Mouse/focus/touch, help focus/Escape/return,
-  common selection state, scope/search/sort/refresh, dense 210-operation paging,
-  P95 eligibility, unknown/null/zero, sticky headers, native point-click scroll
-  preservation and 125% zoom passed. Keyboard help/inspector animation-none
-  checks and reduced pointer Help/Inspector/Inspector Help at 320px passed.
-  Read-only retained Codex snapshot: **1,796 observed/measured calls, 105
-  operations and 14 reported failures**; this supports retained integration,
-  not continuous collection. Current captures live in
-  `.impeccable/review/tool-activity-education/`; individual viewport images
-  establish layout and scrolling, the complete report stitch only content
-  continuity. The single detector record remains 20 scoped typography advisories
-  and zero nonadvisory findings. Native Windows/Linux, Firefox/Safari, live Claude,
-  formal screen-reader usability and participant studies remain unverified.
-  The inherited large-chunk warning remains. Architecture, palette, type ramp,
-  collector and measurement semantics are preserved. This documentation handoff
-  inspects retained evidence without source edits or context/QA/detector reruns.
+- **Order of the page:** period and agent pills (the `uh-range` strip Usage
+  history uses), one summary sentence with the numbers in `--text` weight 600
+  and failures in `--err`, then *Worth a look* — at most three findings in one
+  bordered list, each a button that opens its tool — then *Tools and commands*,
+  then *How this is counted* folded at the bottom. No tiles, no charts on the
+  page itself; the summary is a sentence on purpose.
+- **The list** is one set of rows with four orders (Most used, Most time,
+  Slowest, Failures) in a `uh-range` strip, and a search field. Columns: Calls,
+  Total time, Usually, Failed. The sorted column is the bright one (`--text`,
+  600) and draws the 3px bar under the name — `--accent`, or `--err` when sorting
+  by failures. Unsorted values and the description are `--text-secondary` by
+  bed (a row is raised on `--ctl-fill`); a zero failure is `--muted`. Selection
+  is the quiet fill, never a stripe. Twelve rows, then Show all.
+- **Details** sit in a 380px column beside the list (stacked under it from
+  701–959px, a bottom sheet under 701px): name and description, a 2×2 facts grid
+  on hairlines, who used it and the longest call, calls per day as plain bars
+  (`--muted`, the described day in `--accent`), and the latest or slowest calls
+  with time, agent, duration and a drawn result glyph.
+- **Narrow report:** a container query on the report body, not the viewport,
+  turns rows into a name over one wrapped line of values that carry their own
+  words ("258 calls · 12.3 s total · usually 43 ms · 1 failed"), so a laptop
+  with details open gets the same treatment as a phone. Under 400px the sort
+  strip becomes a 2×2 grid.
+- **Honesty stays, in small print:** approval waits inside times, overlapping
+  total time, the median, compound command lines, different Claude/Codex clocks
+  and what is saved are each one plain line under *How this is counted*.
+  Findings appear only above their sample floors, so a handful of calls never
+  becomes a headline.
 
 ### Canvas objects
 
