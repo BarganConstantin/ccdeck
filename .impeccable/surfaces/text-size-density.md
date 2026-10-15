@@ -16,7 +16,8 @@ colors, control edges, radii and focus tokens. No new visual identity, gradients
 brand artwork or dependencies. Default keeps the established type and spacing.
 
 Task: choose independently between Smallest (11 px body), Smaller (12 px), Default (13 px),
-Larger (15 px) and Largest (17 px) text, and Compact, Default and Comfortable density. Native radios in labeled
+Larger (15 px) and Largest (17 px) text, and Tightest (30% spacing), Tighter (50%), Compact (70%),
+Default and Comfortable (140%) density. Native radios in labeled
 fieldsets retain platform keyboard behavior. Changes apply immediately; the
 two illustrative session rows preview text and spacing. Reset to defaults
 restores both choices and is disabled when both are already Default.
@@ -28,7 +29,8 @@ text choice, inheriting its cursor, with a selected checkmark and visible focus
 on the parent label.
 At 640px and below the scale becomes vertical with whole-word text labels.
 Density uses the same ordered control as text size (2026-10-15), with
-three-stroke illustrations at 2/4/8px gaps for Compact/Default/Comfortable,
+three-stroke illustrations at 1/2/3/4/8px gaps from Tightest to Comfortable,
+and acts as a factor (--ui-space) on the vertical rhythm of lists and panels,
 using a stable sample class and data-density attribute. On a phone both scales
 are vertical lists. Reset to defaults sits beside the intro.
 Panels widen with text: --ui-panel-increase is 24px at Larger and 48px at
