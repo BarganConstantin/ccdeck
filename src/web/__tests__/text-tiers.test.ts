@@ -257,6 +257,13 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-tuning > span",
       ".radio-tuning-tower",
       ".sa-why",
+      // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
+      // success green the other themes give them nor the totals' --text. Read
+      // down a column to compare sessions, which --muted is too quiet for.
+      ":root[data-theme^=\"gruvbox-\"] .uh-detail-cost",
+      // Material's waiting tool, by bed: --warn mixed toward its panel falls
+      // under AA there, and the name is what decides whether to get up.
+      ":root[data-theme=\"gruvbox-material\"] .session-list .sl-waiting-tool",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).

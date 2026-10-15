@@ -18,7 +18,7 @@
   color: color-mix(in srgb, hsl(var(--session-hue, 200) 28% var(--session-label-l)) 75%, var(--text));
 }
 /* The resting rim yields to the shared hover, dragging and waiting states. */
-:root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not(.dragging):not([data-alarm])) {
+:root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not([data-alarm])) {
   border-color: hsl(var(--session-hue, 200) 28% var(--session-rim-l) / 0.5);
 }
 :root[data-theme^="gruvbox-"] .react-flow__edge.sess-edge.sess-live .react-flow__edge-path {
@@ -38,6 +38,7 @@
 :root[data-theme^="gruvbox-"] .detail-hero .hero-cost-value {
   color: var(--text);
 }
+:root[data-theme^="gruvbox-"] .topbar .selected-cost,
 :root[data-theme^="gruvbox-"] .up-cost-val:not(.up-unpriced),
 :root[data-theme^="gruvbox-"] .up-session-cost:not(.up-unpriced),
 :root[data-theme^="gruvbox-"] .session-list .sl-cost b,
@@ -45,6 +46,41 @@
 :root[data-theme^="gruvbox-"] .uh-detail-cost {
   color: var(--text-secondary);
 }
+
+/* The shared sheets write the default palette's state hues as literals —
+   mint for done, rose for failed, orchid for running — so on Gruvbox a card,
+   a tool line and its bubble wore those beside the theme's own olive tick,
+   red cross and purple pill. Mixed from the tokens at the shared sheets'
+   alphas instead. Light's and Material's own state rules below still win
+   where they set one. */
+:root[data-theme^="gruvbox-"] .agent-node.state-done { border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+:root[data-theme^="gruvbox-"] .agent-node.state-err { border-color: color-mix(in srgb, var(--err) 60%, transparent); }
+:root[data-theme^="gruvbox-"] .agent-node.state-done > .lod-face { --lod-edge: color-mix(in srgb, var(--ok) 50%, transparent); }
+:root[data-theme^="gruvbox-"] .agent-node.state-err > .lod-face { --lod-edge: color-mix(in srgb, var(--err) 60%, transparent); }
+:root[data-theme^="gruvbox-"] .state-pill.state-active {
+  border-color: color-mix(in srgb, var(--inflight) 40%, transparent);
+  background: color-mix(in srgb, var(--inflight) 8%, transparent);
+}
+:root[data-theme^="gruvbox-"] .state-pill.state-done {
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+  background: color-mix(in srgb, var(--ok) 8%, transparent);
+}
+:root[data-theme^="gruvbox-"] .state-pill.state-err {
+  border-color: color-mix(in srgb, var(--err) 40%, transparent);
+  background: color-mix(in srgb, var(--err) 8%, transparent);
+}
+:root[data-theme^="gruvbox-"] .tool-conn.status-inflight { stroke: var(--inflight); }
+:root[data-theme^="gruvbox-"] .tool-conn.status-done { stroke: color-mix(in srgb, var(--ok) 60%, transparent); }
+:root[data-theme^="gruvbox-"] .tool-conn.status-err { stroke: color-mix(in srgb, var(--err) 85%, transparent); }
+:root[data-theme^="gruvbox-"] .tool-burst.status-inflight { border-color: color-mix(in srgb, var(--inflight) 55%, transparent); }
+:root[data-theme^="gruvbox-"] .tool-burst.status-err {
+  border-color: color-mix(in srgb, var(--err) 60%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--err) 10%, transparent), transparent), var(--panel);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--err) 35%, transparent), 0 4px 12px color-mix(in srgb, var(--err) 18%, transparent);
+}
+:root[data-theme^="gruvbox-"] .tool-burst .tb-mark.err { text-shadow: 0 0 6px color-mix(in srgb, var(--err) 55%, transparent); }
+/* Paper takes the lines at the light sheet's weight. */
+:root[data-theme="gruvbox-light"] .tool-conn.status-done { stroke: color-mix(in srgb, var(--ok) 85%, transparent); }
 
 /* A little more hue in the light session frames separates neighbouring trees
    on pale paper. The label and the stable session hue remain their identity. */
