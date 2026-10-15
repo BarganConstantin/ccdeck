@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 // @ts-expect-error — plain .mjs server module, no types
 import { isLoopbackHost, originMatchesHost } from "./src/server/request-gates.mjs";
 import { generateThemes } from "./scripts/theme-compiler.mjs";
+import { BUILD_TARGET } from "./scripts/build-target.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const devBackend = `http://127.0.0.1:${process.env.CCDECK_DEV_SERVER_PORT ?? "4317"}`;
@@ -75,6 +76,9 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
+    // ES2021, not Vite's es2020: lowering `||=` miscompiled xterm — see
+    // scripts/build-target.mjs.
+    target: BUILD_TARGET,
     outDir: resolve(root, "dist/web"),
     emptyOutDir: true,
     sourcemap: false,
