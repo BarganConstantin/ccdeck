@@ -550,8 +550,11 @@ Plain words carry it; the earlier P95 / interval vocabulary is gone.
   by failures. Unsorted values and the description are `--text-secondary` by
   bed (a row is raised on `--ctl-fill`); a zero failure is `--muted`. Selection
   is the quiet fill, never a stripe. Twelve rows, then Show all.
-- **Details** sit in a 380px column beside the list (stacked under it from
-  701–959px, a bottom sheet under 701px): name and description, a 2×2 facts grid
+- **Details** sit in a column beside the list, 380px until the reader drags the
+  line between them (`ToolAuditSplitter`, an ARIA window splitter: arrows move
+  it, Enter or a double click restores 380px, the width is remembered per
+  browser, and the list always keeps 420px). Stacked under the list from
+  701–959px, a bottom sheet under 701px. The panel holds: name and description, a 2×2 facts grid
   on hairlines, who used it and the longest call, calls per day as plain bars
   (`--muted`, the described day in `--accent`), and the latest or slowest calls
   with time, agent, duration and a drawn result glyph.

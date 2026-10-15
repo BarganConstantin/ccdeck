@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { callTime, failureShare, findHighlights, percent, sortTools, summaryParts, toolSortValue } from '../tool-audit-report';
 import type { AuditRow } from '../tool-audit';
+import { clampDetails, DETAILS_WIDTH, readDetailsWidth, REPORT_MIN, writeDetailsWidth } from '../tool-audit-layout';
 
 const row = (operation: string, extra: Partial<AuditRow> = {}): AuditRow => ({
   operation, calls: 20, completed: 20, failed: 0, errorRate: 0, measured: 20,
@@ -68,5 +69,32 @@ describe('plain numbers', () => {
     expect(callTime(new Date(2026, 9, 15, 9, 5).getTime(), now)).toMatch(/^Today /);
     expect(callTime(new Date(2026, 9, 14, 23, 59).getTime(), now)).toMatch(/^Yesterday /);
     expect(callTime(new Date(2026, 9, 12, 8, 0).getTime(), now)).toMatch(/12, /);
+  });
+});
+
+describe('the details width', () => {
+  it('keeps the panel between its floor and what leaves the list 420px beside it', () => {
+    expect(clampDetails(380, 1440)).toBe(380);
+    expect(clampDetails(5000, 1440)).toBe(1440 - REPORT_MIN - 8);
+    expect(clampDetails(100, 1440)).toBe(DETAILS_WIDTH.min);
+    expect(clampDetails(600, 700)).toBe(DETAILS_WIDTH.min);
+    expect(clampDetails(Number.NaN, 1440)).toBe(DETAILS_WIDTH.standard);
+  });
+  it('reads back only a width it could have written', () => {
+    const store = new Map<string, string>();
+    const local = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+    const before = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    Object.defineProperty(globalThis, 'window', { value: { localStorage: local }, configurable: true });
+    try {
+      expect(readDetailsWidth()).toBe(DETAILS_WIDTH.standard);
+      writeDetailsWidth(612.4);
+      expect(readDetailsWidth()).toBe(612);
+      store.set('agent-dag.tool-activity.details-width', 'wide');
+      expect(readDetailsWidth()).toBe(DETAILS_WIDTH.standard);
+      store.set('agent-dag.tool-activity.details-width', '99999');
+      expect(readDetailsWidth()).toBe(DETAILS_WIDTH.standard);
+    } finally {
+      if (before) Object.defineProperty(globalThis, 'window', before); else delete (globalThis as { window?: unknown }).window;
+    }
   });
 });

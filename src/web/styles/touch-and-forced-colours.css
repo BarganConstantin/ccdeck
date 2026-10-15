@@ -288,4 +288,6 @@
   .ta-bar, .ta-history-bars i { forced-color-adjust: none; background: CanvasText; }
   .ta-history-bars > span[data-shown] i, .ta-list[data-sort=failed] .ta-bar { background: Highlight; }
   .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
+  .ta-splitter::before { forced-color-adjust: none; background: CanvasText; }
+  .ta-splitter:hover::before, .ta-splitter:focus-visible::before { background: Highlight; }
 }

@@ -36,6 +36,9 @@ Read the page top to bottom and stop when the question is answered:
   own name with the server as the description.
 - Honesty lives in "How this is counted", six plain lines, folded.
 - Selection is a quiet fill; no coloured edge stripes (owner, 2026-10-13).
+- The details width is the reader's: a draggable, focusable splitter (owner
+  request, 2026-10-15), remembered per browser, never squeezing the list under
+  420px.
 - Shared controls only: `uh-range` strips, `btn`, `sm-select`, the global focus
   ring.
 

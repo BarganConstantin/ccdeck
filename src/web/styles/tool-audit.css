@@ -20,6 +20,17 @@
 /* The report and the details panel each own their scroll. */
 .ta-workspace { flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .ta-workspace[data-inspecting] { grid-template-columns: minmax(0, 1fr) 380px; }
+/* From 960px the details sit beside the list at the width the reader dragged
+   them to, and never take so much that the list goes under 420px. */
+@media (min-width: 960px) {
+  .ta-workspace[data-inspecting] { grid-template-columns: minmax(0, 1fr) 8px min(var(--ta-details-w), calc(100% - 428px)); }
+  .ta-workspace[data-inspecting] .ta-integrated-inspector { border-left: 0; }
+}
+.ta-workspace[data-resizing] { cursor: col-resize; user-select: none; }
+.ta-splitter { position: relative; cursor: col-resize; touch-action: none; }
+.ta-splitter::before { content: ""; position: absolute; inset-block: 0; left: 3px; width: 1px; background: var(--line); transition: background 120ms; }
+.ta-splitter:hover::before, .ta-splitter:focus-visible::before, .ta-workspace[data-resizing] .ta-splitter::before { left: 2px; width: 3px; background: var(--accent); }
+.ta-splitter:focus-visible { outline-offset: -2px; }
 .ta-body { min-height: 0; min-width: 0; overflow-y: auto; scrollbar-gutter: stable; container: tool-report / inline-size; }
 .ta-body, .ta-drawer { scrollbar-color: var(--ctl-edge) transparent; }
 .ta-report-content { max-width: 1040px; margin: 0 auto; padding: 24px 40px 40px; }
@@ -129,8 +140,8 @@
 .ta-history-bars > span[data-outside] { background: repeating-linear-gradient(135deg, transparent 0 3px, var(--line-soft) 3px 4px); }
 .ta-history-axis { display: flex; justify-content: space-between; margin-top: 4px; font: 11px var(--font-mono); color: var(--muted); }
 .ta-history-day { margin-top: 6px; font-variant-numeric: tabular-nums; }
-.ta-calls-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.ta-calls { list-style: none; margin: 8px 0 0; padding: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ta-calls-head { max-width: 720px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.ta-calls { list-style: none; max-width: 720px; margin: 8px 0 0; padding: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
 .ta-calls li { display: grid; grid-template-columns: minmax(0, 1fr) auto 64px 82px; gap: 10px; align-items: center; min-height: 36px; border-bottom: 1px solid var(--line-soft); }
 .ta-call-when { min-width: 0; overflow-wrap: anywhere; }
 .ta-call-who { color: var(--muted); font-size: 11px; }

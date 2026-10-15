@@ -35,7 +35,10 @@ One page that answers four questions in order, in plain words:
 4. **One tool.** Selecting a row or a finding opens its details beside the list
    (a sheet on phones): the four numbers, who used it, the longest call, calls
    per day, and its latest 30 or slowest 20 calls with time, agent, duration and
-   result.
+   result. From 960px the line between the list and the details can be dragged
+   (or moved with the arrow keys once focused) to make the details wider or
+   narrower; a double click or Enter restores the standard 380px, the width is
+   remembered in this browser, and the list always keeps at least 420px.
 
 "How this is counted", folded at the bottom, says in six lines what the numbers
 mean and where they stop: times include waiting for approval; total time adds

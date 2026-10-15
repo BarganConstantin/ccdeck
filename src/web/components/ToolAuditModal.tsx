@@ -4,6 +4,9 @@ import { auditDuration, readAuditReport, type AuditProvider, type AuditReport, t
 import { auditDay, count, failureShare, findHighlights, periodLabels, sortTools, summaryParts, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
 import { operationDescription, operationName } from '../operation-glossary';
 import ToolAuditDrawer from './ToolAuditDrawer';
+import ToolAuditSplitter from './ToolAuditSplitter';
+import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
+import { useMediaQuery } from '../use-media-query';
 import { useModalDismiss } from './use-modal-dismiss';
 
 const FIRST_ROWS = 12;
@@ -42,6 +45,11 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState(''); const [detailError, setDetailError] = useState('');
   const [refresh, setRefresh] = useState(0); const busy = useRef(false); const loadedQuery = useRef<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  // Beside the list from 960px; narrower, the details stack under it or become a sheet.
+  const sideBySide = useMediaQuery('(min-width: 960px)');
+  const [detailsWidth, setDetailsWidth] = useState(readDetailsWidth);
+  const resizeDetails = (width: number) => { setDetailsWidth(width); writeDetailsWidth(width); };
   // Read once, on the first render, while focus is still on the rail button that opened this.
   const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const closeReport = () => {
@@ -123,7 +131,7 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
           <button type="button" className="glyph-btn" aria-label="Refresh tool activity" title="Refresh" data-loading={loading || undefined} aria-busy={loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
         </div>
       </header>
-      <div className="ta-workspace" data-inspecting={!!selection || undefined}>
+      <div className="ta-workspace" ref={workspaceRef} data-inspecting={!!selection || undefined} style={{ "--ta-details-w": `${detailsWidth}px` } as CSSProperties}>
         <div className="ta-body"><div className="ta-report-content">
           <div className="ta-filters">
             <div className="uh-range" role="group" aria-label="Period">{Object.entries(periodLabels).map(([days, label]) => <button key={days} type="button" className="uh-range-btn" aria-pressed={period === days} onClick={() => setPeriod(days)}>{label}</button>)}</div>
@@ -188,6 +196,7 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
             </details>
           </>)}
         </div></div>
+        {selection && sideBySide && <ToolAuditSplitter width={detailsWidth} workspace={workspaceRef} onCommit={resizeDetails} />}
         {selection && <ToolAuditDrawer keyboard={keyboardSelection} row={details?.operation === selected && details.measurements ? details.measurements : selection} details={details?.operation === selected ? details : null} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector} />}
       </div>
     </div>
