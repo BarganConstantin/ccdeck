@@ -17,7 +17,7 @@ const translate = await import("../../server/codex-translate.mjs");
 const { readCodexRollout } = await import("../../server/codex-enrichment.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { readTokenSeriesForTest } = await import("../../server/codex-usage.mjs");
-const { sessionMeta, tokenCountInfo, taskStartedWindow, responseItemModel, codexObjToPayload } = translate;
+const { sessionMeta, tokenCountInfo, taskStartedWindow, responseItemModel, codexObjToPayload, codexSubagentToPayload } = translate;
 
 const TOTAL = { input_tokens: 120, cached_input_tokens: 100, output_tokens: 7, reasoning_output_tokens: 0, total_tokens: 127 };
 const META = { type: "session_meta", payload: { id: "s", cwd: "/srv/proj", model: "gpt-5.1-codex" } };
@@ -50,6 +50,64 @@ describe("the record shapes", () => {
       if (obj !== STARTED) expect(taskStartedWindow(obj), JSON.stringify(obj)).toBeNull();
       if (obj !== ITEM) expect(responseItemModel(obj), JSON.stringify(obj)).toBeNull();
     }
+  });
+
+  it("translates only explicit Codex subagent IDs and rejects ambiguous or self relations", () => {
+    const child = {
+      type: "session_meta",
+      timestamp: "2026-10-13T10:00:00Z",
+      payload: {
+        id: "child",
+        session_id: "root",
+        parent_thread_id: "root",
+        thread_source: "subagent",
+        agent_nickname: "Scout",
+        agent_role: "researcher",
+        model: "gpt-5.6",
+        source: { subagent: { thread_spawn: { parent_thread_id: "root" } } },
+      },
+    };
+    expect(codexSubagentToPayload(child, "child", "/srv/proj")).toEqual({
+      session_id: "child",
+      parent_session_id: "root",
+      cwd: "/srv/proj",
+      provider: "codex",
+      runtime: "codex",
+      hook_event_name: "CodexSubagentStart",
+      timestamp: child.timestamp,
+      agent_nickname: "Scout",
+      agent_role: "researcher",
+      model: "gpt-5.6",
+    });
+    expect(codexSubagentToPayload({
+      type: "event_msg",
+      payload: { item: { type: "SubAgentActivity", kind: "started", agent_thread_id: "grandchild" } },
+    }, "child", "/srv/proj")).toMatchObject({
+      session_id: "grandchild", parent_session_id: "child", hook_event_name: "CodexSubagentStart",
+    });
+    expect(codexSubagentToPayload({
+      type: "event_msg",
+      payload: { type: "sub_agent_activity", kind: "started", agent_thread_id: "legacy-child", agent_nickname: "Scout" },
+    }, "child", "/srv/proj")).toMatchObject({
+      session_id: "legacy-child", parent_session_id: "child", hook_event_name: "CodexSubagentStart", agent_nickname: "Scout",
+    });
+    expect(codexSubagentToPayload({ type: "session_meta", payload: { id: "child", parent_thread_id: "child" } }, "child", "/srv/proj")).toBeNull();
+    expect(codexSubagentToPayload({
+      type: "session_meta",
+      payload: { id: "child", parent_thread_id: "root-a", source: { subagent: { thread_spawn: { parent_thread_id: "root-b" } } } },
+    }, "child", "/srv/proj")).toBeNull();
+    expect(codexSubagentToPayload({ type: "event_msg", payload: { item: { type: "SubAgentActivity" } } }, "root", "/srv/proj")).toBeNull();
+    for (const kind of ["completed", "interacted", "unknown", undefined]) {
+      expect(codexSubagentToPayload({
+        type: "event_msg",
+        payload: { item: { type: "SubAgentActivity", ...(kind ? { kind } : {}), agent_thread_id: `child-${kind ?? "missing"}` } },
+      }, "root", "/srv/proj")).toBeNull();
+      expect(codexSubagentToPayload({
+        type: "event_msg",
+        payload: { type: "sub_agent_activity", ...(kind ? { kind } : {}), agent_thread_id: `legacy-child-${kind ?? "missing"}` },
+      }, "root", "/srv/proj")).toBeNull();
+    }
+    expect(codexSubagentToPayload({ type: "session_meta", payload: { id: "ordinary", session_id: "root" } }, "ordinary", "/srv/proj")).toBeNull();
   });
 });
 

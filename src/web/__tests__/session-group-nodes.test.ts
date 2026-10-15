@@ -23,7 +23,7 @@ describe("sessionGroupNodes", () => {
     // Sized in explicit pixels, because a 100% child collapses under React
     // Flow's content sizing; the node component reads w and h from its data.
     expect(h.style).toEqual({ width: h.width, height: h.height });
-    expect(h.data).toEqual({ sessionId: "s1", w: h.width, h: h.height });
+    expect(h.data).toEqual({ sessionId: "s1", familyKey: "session:s1", rootId: "s1", w: h.width, h: h.height });
   });
 
   it("sits behind the cards and is only ever dragged", () => {

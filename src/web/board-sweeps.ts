@@ -191,45 +191,71 @@ export function pruneDoneSessions(
     else s.live = true;
   }
 
-  // Kept as [id, session] pairs rather than values alone: the id is what a
-  // session that leaves the board has to be reported by. See `ForgetSession`.
-  const finished = [...sessions]
-    .filter(([, s]) => !s.live && s.endedAt > 0 && now - s.endedAt > graceMs)
-    // Genuinely-closed sessions first, and oldest-finished first within each
-    // group — so the old ordering is exactly what remains when nothing on the
-    // board is known to be closed, which is every board a Codex-only or a
-    // kill-the-terminal user ever sees.
-    .sort(([, x], [, y]) => (x.closed === y.closed ? x.endedAt - y.endedAt : x.closed ? -1 : 1));
-
   // Sessions still inside the grace period already count against the cap, so
   // the board settles at `cap` rather than briefly overshooting it.
   const finishedTotal = [...sessions.values()].filter(s => !s.live).length;
   let over = finishedTotal - cap;
   if (over <= 0) return false;
 
+  // Codex subagents have their own session ids. Parent-linked components are
+  // evicted atomically, and any live or recent member keeps the family visible.
+  const neighbors = new Map<string, string[]>();
+  const firstAgentBySession = new Map<string, string>();
+  for (const [id, a] of state.agents) {
+    const first = firstAgentBySession.get(a.sessionId);
+    if (first == null) firstAgentBySession.set(a.sessionId, id);
+    else {
+      neighbors.set(id, [...(neighbors.get(id) ?? []), first]);
+      neighbors.set(first, [...(neighbors.get(first) ?? []), id]);
+    }
+    if (a.parentId != null && state.agents.has(a.parentId)) {
+      neighbors.set(id, [...(neighbors.get(id) ?? []), a.parentId]);
+      neighbors.set(a.parentId, [...(neighbors.get(a.parentId) ?? []), id]);
+    }
+  }
+  const components: Array<{ sids: string[]; endedAt: number; closed: boolean }> = [];
+  const visited = new Set<string>();
+  for (const id of state.agents.keys()) {
+    if (visited.has(id)) continue;
+    const stack = [id], sids = new Set<string>();
+    visited.add(id);
+    while (stack.length) {
+      const current = stack.pop()!;
+      sids.add(state.agents.get(current)!.sessionId);
+      for (const n of neighbors.get(current) ?? []) if (!visited.has(n)) { visited.add(n); stack.push(n); }
+    }
+    const members = [...sids].map(sid => sessions.get(sid)!);
+    if (members.some(s => s.live || s.endedAt <= 0 || now - s.endedAt <= graceMs)) continue;
+    components.push({ sids: [...sids], endedAt: Math.min(...members.map(s => s.endedAt)), closed: members.every(s => s.closed) });
+  }
+  components.sort((a, b) => a.closed === b.closed ? a.endedAt - b.endedAt : a.closed ? -1 : 1);
+
   let removed = false;
-  for (const [sid, s] of finished) {
+  for (const family of components) {
     if (over <= 0) break;
-    for (const id of s.ids) {
-      // #443: the session is evicted whole, so every agent in it releases the
-      // tool ids it still holds open. See `releaseToolIds`.
-      const a = state.agents.get(id);
-      if (a) releaseToolIds(state, a);
-      state.agents.delete(id);
+    for (const sid of family.sids) {
+      const s = sessions.get(sid)!;
+      for (const id of s.ids) {
+        // #443: the session is evicted whole, so every agent in it releases the
+        // tool ids it still holds open. See `releaseToolIds`.
+        const a = state.agents.get(id);
+        if (a) releaseToolIds(state, a);
+        state.agents.delete(id);
+      }
+      // Enrichment still waiting for this session's card goes with it.
+      forgetParkedEnrichment(state, sid);
+      // A model still waiting for its subagent's Start goes with the session: it
+      // is filed under that subagent's id, and every one of those starts with
+      // the session's own prefix.
+      const subPrefix = subagentIdFor(sid, "");
+      for (const id of state.pendingSubagentModels.keys()) {
+        if (id.startsWith(subPrefix)) state.pendingSubagentModels.delete(id);
+      }
+      // Whole, so there is nothing left to check: the page has forgotten this
+      // session and the server has to be told. See `ForgetSession`.
+      onForget?.(sid);
     }
-    // Enrichment still waiting for this session's card goes with it.
-    forgetParkedEnrichment(state, sid);
-    // A model still waiting for its subagent's Start goes with the session: it
-    // is filed under that subagent's id, and every one of those starts with
-    // the session's own prefix.
-    const subPrefix = subagentIdFor(sid, "");
-    for (const id of state.pendingSubagentModels.keys()) {
-      if (id.startsWith(subPrefix)) state.pendingSubagentModels.delete(id);
-    }
-    // Whole, so there is nothing left to check: the page has forgotten this
-    // session and the server has to be told. See `ForgetSession`.
-    onForget?.(sid);
-    over--;
+    over -= family.sids.length;
     removed = true;
   }
   return bump(state, removed);

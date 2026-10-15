@@ -229,8 +229,8 @@ export interface ContextBreakdown {
 }
 
 export interface AgentNodeData {
-  id: string;                 // session_id or `${session}::${parent_tool_use_id}`
-  sessionId: string;          // root session id (same as id for root agents)
+  id: string;                 // session/thread id or `${session}::${parent_tool_use_id}`
+  sessionId: string;          // telemetry/tool session id; Claude children use their root session id
   label: string;              // human label (workspace basename, subagent_type, etc.)
   kind: "root" | "subagent";
   parentId?: string;
@@ -359,6 +359,10 @@ export interface AgentNodeData {
    *  see `usageByModel` above for why the two are different questions and why
    *  no cost surface may answer the second with this. */
   model?: string;
+  /** Codex subagent metadata from its rollout spawn record. */
+  agentType?: string;
+  agentNickname?: string;
+  agentRole?: string;
   /** Which CLI ecosystem this agent belongs to. Set from the hook payload's
    *  `provider` field on first event; defaults to "claude" for back-compat
    *  with replay events written before multi-provider support. */
@@ -614,6 +618,12 @@ export interface HookPayload {
   /** Real CC SubagentStart/Stop payloads. */
   agent_id?: string;
   agent_type?: string;
+  agent_nickname?: string;
+  agent_role?: string;
+  /** CodexSubagentStart: immediate parent thread id. */
+  parent_session_id?: string;
+  /** CodexSubagentStart discriminator; kept separate from provider stamping. */
+  runtime?: string;
   /** Synthetic / older alias used by some test fixtures. */
   parent_tool_use_id?: string;
   subagent_type?: string;

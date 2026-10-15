@@ -15,7 +15,7 @@ import { STOP, sidFromRolloutName, walkRolloutDays } from "./codex-dir.mjs";
 // What one rollout line means as a hook payload, and the shape of the header
 // record that says whose rollout it is — see codex-translate.mjs. The watcher
 // below still decides which lines are read and where each one goes.
-import { codexObjToPayload, codexSessionModel, sessionMeta } from "./codex-translate.mjs";
+import { codexObjToPayload, codexSessionModel, codexSubagentToPayload, sessionMeta } from "./codex-translate.mjs";
 import { codexCwdInWorkspace, writesCodexLog } from "./log-election.mjs";
 // The one spelling of a rollout's cwd — see canonical-path.mjs.
 import { canonicalCwd } from "./canonical-path.mjs";
@@ -397,6 +397,7 @@ function emitCodexLines(state, consume, persist) {
     try { obj = JSON.parse(line); } catch { continue; }
     const prevModel = codexSessionModel.get(state.sid);
     const payload = codexObjToPayload(obj, state.sid, state.cwd);
+    const subagentPayload = codexSubagentToPayload(obj, state.sid, state.cwd);
     // If the model changed (turn_context/response_item), surface it.
     const nowModel = codexSessionModel.get(state.sid);
     if (nowModel && nowModel !== prevModel) {
@@ -406,6 +407,13 @@ function emitCodexLines(state, consume, persist) {
     if (payload) {
       ensureCodexRoot(state, persist);
       emitCodexEvent(payload, persist, typeof obj.timestamp === "string" ? Date.parse(obj.timestamp) : undefined);
+    }
+    if (subagentPayload) {
+      // A parent-side SubAgentActivity may be the first new record read for a
+      // rollout. Open the already-existing parent root before emitting its
+      // child relation; this event describes a relationship, not running state.
+      if (subagentPayload.session_id !== state.sid) ensureCodexRoot(state, persist);
+      emitCodexEvent(subagentPayload, persist);
     }
   }
 }
