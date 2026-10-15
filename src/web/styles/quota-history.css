@@ -38,7 +38,7 @@
 .qh-readings th, .qh-readings td { padding-block: 6px; text-align: left; border-bottom: 1px solid var(--line); font-weight: 400; }
 .qh-readings th { color: var(--text-dim); }
 .qh-readings th:last-child, .qh-readings td:last-child { text-align: right; }
-.up-source { margin: -4px var(--panel-inset) 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); line-height: 1.6; }
+.up-source { margin: calc(-4px * var(--ui-space, 1)) var(--panel-inset) calc(12px * var(--ui-space, 1)); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); line-height: 1.6; }
 @media (max-width: 420px) {
   .qh-controls { display: grid; gap: 12px; }
   .qh-window { width: 100%; }

@@ -184,3 +184,34 @@ The live "now" note keeps its two reserved lines at every density, on purpose:
 that is what stops rows jumping while a turn runs. `--ui-row-increase` is gone.
 Full suite 1,068 files / 13,345 tests and both browser scripts passed again;
 captures regenerated.
+
+### Every combination — 2026-10-15
+
+Rendered and audited all 25 text-size × density combinations over the live
+deck: desktop 1440×900 with Accounts + Usage + This machine, and with the
+session list + Usage + This machine; the Settings pane at 1280×900 and 390×844,
+top and scrolled to the bottom; and at 390×844 each panel alone (sizes
+Smallest/Default/Largest × Tightest/Default/Comfortable). The audit flags
+visible truncated text, overlapping text boxes, wrapped panel titles, targets
+under 24px and horizontal overflow, against Default/Default as the baseline.
+Found and fixed:
+
+- Tightest, every size: Usage's total ran into "Local estimate" under it —
+  `.up-source` tucked under with a fixed −4px; it scales with the density now.
+- Default + Comfortable: the 18px inset broke "Claude accounts" onto two lines.
+  Comfortable adds 8px to the panels (`--ui-panel-room`).
+- Phone, Larger/Largest or Comfortable: the left column did not widen at all,
+  so the same title wrapped. It now widens up to 8px short of the screen
+  (`min(…, 100vw − 296px)`), which fits at 360 and 390px.
+- Phone, Larger/Largest: the dock's six words grew until they met; the dock
+  takes at most +1px.
+- Canvas, zoomed out, Larger/Largest: session labels grew with the text while
+  their room did not and ran into each other; zoomed out they keep their
+  designed size, like the faces under them.
+
+Second run: desktop 0 findings in all 50 renders; Settings 0 in 25 at both
+widths. Left as they are: This machine's section heads are 21px tall at
+Smallest, but at least 31px apart, so they meet the WCAG 2.5.8 spacing
+exception; at 320px and Largest "Claude accounts" takes two lines, as browser
+zoom would. Full suite 1,068 files / 13,345 tests and both browser scripts
+passed after the fixes.

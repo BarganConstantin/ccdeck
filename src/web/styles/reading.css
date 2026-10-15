@@ -6,15 +6,21 @@
 :root[data-text-size="largest"] { --ui-text-increase: 4px; }
 /* Panels widen with their text, as browser zoom would widen them: 12px for
    each pixel of text, so at +4 the 288px column is 336px and "Claude accounts"
-   keeps its header on one line. Smaller text keeps the designed widths. */
-:root[data-text-size="larger"] { --ui-panel-increase: 24px; }
-:root[data-text-size="largest"] { --ui-panel-increase: 48px; }
-/* A phone has no width to give: the left column is most of a 320px screen
-   already, and the right-hand panels span the window there anyway. */
+   keeps its header on one line. Smaller text keeps the designed widths.
+   Comfortable adds 8px, which is what its wider inset takes from the header. */
+:root { --ui-panel-increase: calc(var(--ui-panel-text, 0px) + var(--ui-panel-room, 0px)); }
+:root[data-text-size="larger"] { --ui-panel-text: 24px; }
+:root[data-text-size="largest"] { --ui-panel-text: 48px; }
+:root[data-density="comfortable"] { --ui-panel-room: 8px; }
+/* A phone gives what width it has: the right-hand panels span the window
+   there anyway, and the left column may grow until it leaves 8px of a 320px
+   screen, so "Claude accounts" still fits on one line at 390px. */
 @media (max-width: 640px) {
-  :root[data-text-size="larger"],
-  :root[data-text-size="largest"] { --ui-panel-increase: 0px; }
+  :root { --ui-panel-increase: min(calc(var(--ui-panel-text, 0px) + var(--ui-panel-room, 0px)), calc(100vw - 296px)); }
 }
+/* The phone's dock is six words in a fixed 48px strip; past +1px they meet. */
+:root[data-text-size="larger"] .edge-dock,
+:root[data-text-size="largest"] .edge-dock { --ui-text-increase: 1px; }
 /* The account rows' key, percentage and reset columns are fixed widths sized
    for 11px words; they take their share of the wider panel so "Fable" and
    "1d 23h" are not cut. */
@@ -24,6 +30,11 @@
    cutoffs. Keep those tiny summaries at their designed scale; full agent cards
    and their detail panels enlarge normally and retain measured layout. */
 .lod-face { --ui-text-increase: 0px; }
+/* So do the session labels over them. Zoomed out, a label may only be as wide
+   as its session is on screen, and at +4px neighbouring labels ran into each
+   other; zoomed in to the cards they follow the text size again. */
+.canvas-wrap[data-lod="compact"] .cluster-label,
+.canvas-wrap[data-lod="overview"] .cluster-label { --ui-text-increase: 0px; }
 /* Density is a factor on the vertical rhythm of the lists and panels people
    scan — session rows, account rows, usage and machine sections, detail rows,
    agent cards — plus the shared inset and control height. 1 at Default, so
