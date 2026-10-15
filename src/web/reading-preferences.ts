@@ -7,6 +7,17 @@ export const DENSITIES = ["tightest", "tighter", "compact", "default", "comforta
 export type TextSize = (typeof TEXT_SIZES)[number];
 export type Density = (typeof DENSITIES)[number];
 
+/** What each text size adds to every size in the sheet — the
+ *  `--ui-text-increase` styles/reading.css sets for it, which a test holds to
+ *  this table. Script that reasons about type on screen reads it here. */
+export const TEXT_SIZE_INCREASE: Record<TextSize, number> = { smallest: -2, smaller: -1, default: 0, larger: 2, largest: 4 };
+
+/** The text size the page is drawn at now, from the attribute the boot script
+ *  and useAppearance keep on the root. */
+export function currentTextSize(): TextSize {
+  return resolveTextSize(typeof document === "undefined" ? null : document.documentElement?.dataset?.textSize);
+}
+
 export function resolveTextSize(value: string | null | undefined): TextSize {
   return value === "smallest" || value === "smaller" || value === "larger" || value === "largest" ? value : "default";
 }

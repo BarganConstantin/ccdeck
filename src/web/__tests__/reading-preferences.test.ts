@@ -4,10 +4,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   DENSITY_KEY,
+  TEXT_SIZE_INCREASE,
+  TEXT_SIZES,
   TEXT_SIZE_KEY,
   resolveDensity,
   resolveTextSize,
 } from "../reading-preferences";
+import { CARD_BODY_PX, cardBodyPx, fitZoomForDrawnLanes, nextLod } from "../semantic-zoom";
 import ReadingSection from "../components/ReadingSection";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -82,5 +85,31 @@ describe("reading preferences before first paint", () => {
     expect(draw("default").match(/name="density"/g)).toHaveLength(5);
     expect(draw("default")).toMatch(/disabled="">Reset to defaults/);
     expect(draw("largest")).not.toMatch(/disabled="">Reset to defaults/);
+  });
+});
+
+describe("the canvas reads the text size the sheet draws", () => {
+  const reading = readFileSync(new URL("../styles/reading.css", import.meta.url), "utf8");
+  it.each(TEXT_SIZES.filter((size) => size !== "default"))(
+    "holds TEXT_SIZE_INCREASE.%s to reading.css",
+    (size) => {
+      const m = new RegExp(`:root\\[data-text-size="${size}"\\] \\{ --ui-text-increase: (-?\\d+)px; \\}`).exec(reading);
+      expect(m, `${size} in reading.css`).not.toBeNull();
+      expect(Number(m![1])).toBe(TEXT_SIZE_INCREASE[size]);
+    },
+  );
+  it("judges the full card at smaller text's body, and at the designed body for larger text", () => {
+    expect(cardBodyPx(TEXT_SIZE_INCREASE.smallest)).toBe(9);
+    expect(cardBodyPx(TEXT_SIZE_INCREASE.smaller)).toBe(10);
+    expect(cardBodyPx(TEXT_SIZE_INCREASE.default)).toBe(CARD_BODY_PX);
+    expect(cardBodyPx(TEXT_SIZE_INCREASE.largest)).toBe(CARD_BODY_PX);
+  });
+  it("gives 9px of body over to the faces at a zoom where 11px still reads", () => {
+    // 11 × 0.7 = 7.7px reads; 9 × 0.7 = 6.3px is under the 7.2px floor.
+    expect(nextLod(null, 0.7)).toBe("detail");
+    expect(nextLod(null, 0.7, undefined, cardBodyPx(-2))).not.toBe("detail");
+    // And the fit keeps the bubbles' lane only where the full card is drawn.
+    expect(fitZoomForDrawnLanes(0.7, 0.9)).toBe(0.7);
+    expect(fitZoomForDrawnLanes(0.7, 0.9, cardBodyPx(-2))).toBeGreaterThan(0.7);
   });
 });

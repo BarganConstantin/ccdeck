@@ -9,9 +9,9 @@
 .agent-node {
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
-  width: 260px;
-  min-width: 220px;
-  max-width: 260px;
+  width: calc(260px + var(--ui-card-increase, 0px));
+  min-width: calc(220px + var(--ui-card-increase, 0px));
+  max-width: calc(260px + var(--ui-card-increase, 0px));
   padding: calc(10px * var(--ui-space, 1)) 12px calc(10px * var(--ui-space, 1)) 16px;
   background: var(--node-grad);
   border: 1px solid var(--line);

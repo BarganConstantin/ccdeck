@@ -215,3 +215,24 @@ Smallest, but at least 31px apart, so they meet the WCAG 2.5.8 spacing
 exception; at 320px and Largest "Claude accounts" takes two lines, as browser
 zoom would. Full suite 1,068 files / 13,345 tests and both browser scripts
 passed after the fixes.
+
+### The canvas — 2026-10-15
+
+Cards kept their 260px at every text size, so at Largest a title such as
+"Loroloop GitHub organisation" was cut to "…organisa…". Agent cards and their
+notes now widen with the text, 15px per pixel (`--ui-card-increase`: −30, −15,
+0, +30, +60px; 230 → 320px for a card). The canvas measures every card, so
+the layout follows; across Smallest/Default/Largest × Tightest/Default/
+Comfortable no two cards overlapped and the fit zoom stayed within 0.49–0.51.
+
+The full card's threshold now reads the text size, one way only:
+`cardBodyPx` lowers the judged body to 10px or 9px at Smaller/Smallest, so the
+11px faces take over before the card's words fall under 7.2px on screen. Larger
+text keeps the designed thresholds — judging 15px at the floor would draw full
+cards at 7.2px from further out, smaller than the faces they replace.
+`TEXT_SIZE_INCREASE` (reading-preferences.ts) is held to reading.css by a test.
+
+The tool bubbles keep the designed size: burst-layout.ts places them from a
+per-character estimate under a fixed max-width (#978), and grown with the text
+the sub pills clipped their own ellipsis at Larger. Pinned, no pill clips at
+any size. Full suite 1,068 files / 13,351 tests and both browser scripts passed.

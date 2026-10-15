@@ -26,6 +26,19 @@
    "1d 23h" are not cut. */
 :root[data-text-size="larger"] .ap-lane { grid-template-columns: 40px minmax(0, 1fr) 36px 52px; }
 :root[data-text-size="largest"] .ap-lane { grid-template-columns: 46px minmax(0, 1fr) 40px 60px; }
+/* Cards and their notes on the canvas widen and narrow with their text, the
+   15px per pixel of text that keeps a title as long as it was: the canvas
+   measures every card, so the layout follows. */
+:root[data-text-size="smallest"] { --ui-card-increase: -30px; }
+:root[data-text-size="smaller"] { --ui-card-increase: -15px; }
+:root[data-text-size="larger"] { --ui-card-increase: 30px; }
+:root[data-text-size="largest"] { --ui-card-increase: 60px; }
+/* The tool bubbles are not measured: burst-layout.ts places them from a
+   per-character estimate, and the pills cut their words to fit a fixed
+   max-width (tool-bursts.css, #978). Grown with the text, the subs clipped
+   their own ellipsis at Larger, so their words keep the designed size and the
+   canvas zoom enlarges them, as it does at Default. */
+.tool-bursts-world { --ui-text-increase: 0px; }
 /* Zoomed-out faces have fixed, screen-space line budgets and container-query
    cutoffs. Keep those tiny summaries at their designed scale; full agent cards
    and their detail panels enlarge normally and retain measured layout. */

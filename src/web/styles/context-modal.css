@@ -286,7 +286,7 @@
 .recap-note {
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
-  width: 300px;
+  width: calc(300px + var(--ui-card-increase, 0px));
   padding: 10px 12px 12px;
   background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
