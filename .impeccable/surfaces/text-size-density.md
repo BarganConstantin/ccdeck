@@ -15,8 +15,8 @@ identity. Preserve system typography, monospaced values, theme and semantic
 colors, control edges, radii and focus tokens. No new visual identity, gradients,
 brand artwork or dependencies. Default keeps the established type and spacing.
 
-Task: choose independently between Smallest (−2 px), Smaller (−1 px), Default, Larger (+2 px)
-and Largest (+4 px) text, and Compact, Default and Comfortable density. Native radios in labeled
+Task: choose independently between Smallest (11 px body), Smaller (12 px), Default (13 px),
+Larger (15 px) and Largest (17 px) text, and Compact, Default and Comfortable density. Native radios in labeled
 fieldsets retain platform keyboard behavior. Changes apply immediately; the
 two illustrative session rows preview text and spacing. Reset to defaults
 restores both choices and is disabled when both are already Default.
@@ -27,10 +27,12 @@ offsets; choice labels retain readable size floors. Native radios overlay each
 text choice, inheriting its cursor, with a selected checkmark and visible focus
 on the parent label.
 At 640px and below the scale becomes vertical with whole-word text labels.
-Density keeps visible native radios and three-stroke illustrations with
-2/4/8px gaps for Compact/Default/Comfortable, using a stable sample class and
-data-density attribute. Mobile text layout targets only
-the last text span, preserving the illustrations' vertical strokes. Keep help,
+Density uses the same ordered control as text size (2026-10-15), with
+three-stroke illustrations at 2/4/8px gaps for Compact/Default/Comfortable,
+using a stable sample class and data-density attribute. On a phone both scales
+are vertical lists. Reset to defaults sits beside the intro.
+Panels widen with text: --ui-panel-increase is 24px at Larger and 48px at
+Largest (0 on phones), and Smaller/Smallest stop 9px and 10px text at 9px. Keep help,
 preview and reset reachable in narrow and short windows at Largest/Comfortable.
 Selection uses neutral fill and existing control/focus tokens. Enlarged text raises control height
 floors; compact spacing must not reduce interactive rows below 24px. Density
