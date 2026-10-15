@@ -78,7 +78,6 @@
    untouched. */
 @media (max-width: 640px) {
   .app, .app:not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
-  .app:has(.left-column) { grid-template-columns: auto minmax(0, 1fr); }
   .detail {
     position: fixed;
     top: var(--topbar-h);
