@@ -47,7 +47,7 @@ const OPENING_FIT_MS = 400;
 
 export default function BoardFlow({
   graph, layout, viewport, clicks, drag, appearance, fm, autoFit, pause,
-  stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen,
+  stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen, onTerminal,
 }: {
   /** What is drawn: the nodes with a drag patched over them, the edges, and
    *  the visibility and spotlight sets the bubbles gate on. */
@@ -70,6 +70,9 @@ export default function BoardFlow({
   focusAgent: (id: string) => void;
   requestClear: (source: ClearSource) => void;
   setKeyHelpOpen: Dispatch<SetStateAction<boolean>>;
+  /** The control stack's Terminal button, handed the button it was pressed
+   *  on; absent with the terminal flag off, and so is the button. */
+  onTerminal?: (button: Element | null) => void;
 }) {
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
   const { positionsRef, pinnedRef, handleRelayout } = layout;
@@ -195,6 +198,7 @@ export default function BoardFlow({
         autoFitDisabled={autoFitDisabled} enableAutoFitAndRefit={enableAutoFitAndRefit}
         paused={paused} pauseGate={pauseGate} togglePause={togglePause}
         handleRelayout={handleRelayout} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
+        onTerminal={onTerminal}
       />
       <MiniMap
         zoomable

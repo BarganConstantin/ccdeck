@@ -393,6 +393,54 @@ export function findDeckSession(list, sessionId, { kinds = null } = {}) {
 }
 
 /**
+ * The names of every DEAD deck session that held `sessionId`, of any kind,
+ * oldest first. Pure.
+ *
+ * remain-on-exit keeps each one for its last frame, and that frame is worth
+ * keeping only while it is the latest word on the conversation. Once the
+ * conversation is reopened, nothing can show a dead pane for it again —
+ * terminal-target answers a live pane or none — so every reopen would leave
+ * one more corpse on the deck's server for good. The adopt route clears these
+ * before it starts the resume. A live session is never in this list, whatever
+ * its id.
+ */
+export function deadDeckSessions(list, sessionId) {
+  const want = String(sessionId ?? "").toLowerCase();
+  if (!want) return [];
+  return (list ?? [])
+    .filter(s => s?.dead === true && isDeckSessionName(s.name) && String(s.sessionId ?? "").toLowerCase() === want)
+    .sort((a, b) => (a.created ?? 0) - (b.created ?? 0))
+    .map(s => s.name);
+}
+
+/**
+ * Write a session id the deck has just learned into a deck session's
+ * `@ccdeck-session`: one set-option, true when it landed, false when the
+ * session has gone meanwhile.
+ *
+ * A launched Codex starts with that option empty, because Codex chooses its
+ * id only once it writes its first rollout. Until the option says it, every
+ * lookup of that session walks every process on the machine for the rollout
+ * it holds open (terminal-target.mjs, codexHolder); written once, the next
+ * lookup is the listing alone. The id comes from that walk, never from a page,
+ * and both values are checked here anyway: the id is later handed to
+ * `codex resume`, and the name decides which session is touched.
+ */
+export async function labelDeckSession({
+  tmux, name, sessionId, socket = DECK_SOCKET, env = process.env, run = runTmux,
+} = {}) {
+  if (!isDeckSessionName(name)) {
+    throw new TerminalSessionError("bad-name", "The deck only labels sessions it started.");
+  }
+  checkSessionId(sessionId);
+  const bin = tmux ?? await requireTmux(env);
+  const r = await run(bin, socket, ["set-option", "-t", `=${name}:`, SESSION_OPTIONS.session, String(sessionId).toLowerCase()], { env });
+  if (r.ok) return true;
+  if (tmuxHasNoServer(r.stderr) || /can't find session|no such session/i.test(r.stderr)) return false;
+  throw new TerminalSessionError("tmux-failed", "tmux could not label the session.", r.stderr.trim());
+}
+
+/**
  * Close one deck session, agent and all. True when it was there to close,
  * false when it was already gone.
  *

@@ -16,7 +16,11 @@
 //   deck  → reset {cols, rows}, then ONE binary frame: the seed
 //   deck  → binary frames: the pane's output, from the byte after the seed
 //   deck  → size {cols, rows}        only when the pane owns the size (case B)
-//   deck  → exit {reason, message?}, then close 1000
+//   deck  → exit {reason, message?, atOpen?}, then close 1000
+//
+// (`atOpen` on an `ended`: the pane had already ended when this socket
+// attached — a dead deck pane opened for its last frame — so the panel does
+// not say it ended "just now".)
 //
 // and, from the panel, input as binary frames, `size` whenever its box changes
 // and `paste` for a paste. A `reset` may come again at any moment — tmux paused
@@ -92,6 +96,8 @@ export interface TerminalReset extends TerminalSize {
 export interface TerminalExit {
   reason: ExitReason;
   message?: string;
+  /** The pane had already ended when this socket attached. */
+  atOpen?: boolean;
 }
 
 /**
@@ -211,9 +217,12 @@ export function parseServerMessage(text: string): ServerMessage | null {
       // A reason this bundle does not know is still an ending, so it is one
       // the panel already knows how to draw.
       const reason = EXIT_REASONS.includes(msg.reason as ExitReason) ? (msg.reason as ExitReason) : "error";
-      return typeof msg.message === "string" && msg.message
-        ? { t: "exit", reason, message: msg.message }
-        : { t: "exit", reason };
+      return {
+        t: "exit",
+        reason,
+        ...(typeof msg.message === "string" && msg.message ? { message: msg.message } : {}),
+        ...(msg.atOpen === true ? { atOpen: true } : {}),
+      };
     }
     default:
       return null;
@@ -292,7 +301,11 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
         case "exit":
           finished = true;
           pendingReset = null;
-          onExit?.(msg.message === undefined ? { reason: msg.reason } : { reason: msg.reason, message: msg.message });
+          onExit?.({
+            reason: msg.reason,
+            ...(msg.message === undefined ? {} : { message: msg.message }),
+            ...(msg.atOpen ? { atOpen: true } : {}),
+          });
           // The deck closes next. Closing from this side too means a deck that
           // never gets round to it cannot leave the socket open behind a panel
           // that has already drawn the ending.

@@ -1,0 +1,139 @@
+/* ---------------- the terminal stage in the deck's layout ----------------
+
+   Where the stage and the navigator sit, and what the canvas does under them
+   (use-stage.ts, components/terminal/StageShell.tsx). What they draw inside
+   their boxes is terminal-stage.css's and board-navigator.css's.
+
+   THE STAGE SHARES THE CANVAS'S CELL rather than adding a column of its own.
+   The canvas keeps its size, so the hidden board is never re-packed for a
+   narrower frame and the close lands its tiles on the clusters they left;
+   the six .app templates stay the six drift-pane-615 measures. The stage is
+   the cell's right-hand side at a whole number of columns (--stage-w, from
+   stage-geometry.ts), the navigator its left (--nav-w), and React Flow stays
+   mounted under both, faded and inert.
+
+   Nothing here applies while the flag is off: no element carries a .stage-*
+   class, and <main> never carries data-stage. */
+
+.stage-dock {
+  grid-column: 1;
+  grid-row: 3;
+  justify-self: end;
+  position: relative;
+  z-index: 15;
+  width: var(--stage-w);
+  min-width: 0;
+  min-height: 0;
+}
+/* Beside a left panel the canvas is the second track, and so is the stage. */
+.app:has(.session-list) .stage-dock,
+.app:has(.accounts-panel) .stage-dock { grid-column: 2; }
+
+/* While it grows out of a card or back into one, the stage covers the whole
+   cell and a clip-path is the window onto it (stage-morph.ts): the terminal
+   inside stays at its final size and place, uncovered rather than scaled. */
+.stage-dock[data-morph] { justify-self: stretch; width: auto; }
+.stage-in {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--stage-w);
+}
+.stage-ground { display: none; }
+.stage-dock[data-morph] .stage-ground {
+  display: block;
+  position: absolute;
+  inset: 0;
+  background: var(--panel);
+}
+/* Mounted unseen while its pane attaches, at its real size, so xterm can
+   measure and draw the seed before the first frame of the morph. */
+.stage-dock[data-phase="waiting"],
+.stage-nav[data-phase="waiting"] { visibility: hidden; }
+
+/* The window's 1px edge in the card's state colour, and the card's name
+   riding into the header — the morph's two drawn parts, placed by script. */
+.stage-edge {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  pointer-events: none;
+}
+.stage-dock[data-morph] .stage-edge { display: block; }
+.stage-rider {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  transform-origin: 0 0;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--text);
+  pointer-events: none;
+}
+.stage-dock[data-rider] .stage-rider { display: block; }
+/* The header's own name waits for the rider, so the two never print over
+   each other. */
+.stage-dock[data-rider] .ts-name { opacity: 0; }
+/* What sits under and beside the rider's landing arrives after it, and leaves
+   before it flies home (stage-morph.ts `late` and `chip`). */
+.stage-dock[data-rider] .ts-l2,
+.stage-dock[data-rider] .ts-ctl { opacity: var(--stage-late, 1); }
+.stage-dock[data-rider] .ts-chip { opacity: var(--stage-chip, 1); }
+
+/* The board's compact form, in the canvas's place. */
+.stage-nav {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 14;
+  width: var(--nav-w);
+}
+/* While the fold runs the board is still fading out under the tiles (or back
+   in, closing), so the navigator lends it its ground until the fold is done. */
+.stage-nav .board-nav[data-folding] { background: none; }
+/* And "+ New session" over its count is the navigator's, not a cluster's: it
+   has no rect on the board to fly from, so it is there once the fold is done
+   and gone as soon as a close begins, never printed over the board's cards. */
+.stage-nav[data-phase="opening"] .nav-head,
+.stage-nav[data-phase="closing"] .nav-head { visibility: hidden; }
+
+/* The double-click window after an open from a click (stage-shell.ts): the
+   second press of a double-click goes through to the card it was aimed at. */
+.stage-dock[data-grace],
+.stage-nav[data-grace] { pointer-events: none; }
+
+/* THE RIGHT-HAND RAILS STAND ASIDE while the stage is on screen. Usage and
+   Machine float at the right edge (machine-panel.css's --rail-r), which is
+   exactly where the stage's header and its ✕ are; left there they would cover
+   the controls that close the stage, and moved left of it they would cover
+   the navigator, which is the board itself now — on a deck that opens with
+   both rails out, that is every first open. So they are hidden for as long as
+   the stage is seen, their open flags untouched, and back when it closes.
+   Hidden, not unmounted: their size still counts in the board's frame
+   (use-layout-frame.ts's railCover reads their boxes), so the board under the
+   stage is never re-packed for a rail it cannot see. Not while the stage waits
+   unseen for its pane: nothing has changed on screen yet. */
+.app:has(.stage-dock:not([data-phase="waiting"])) :is(.usage-panel, .sysdetail) { visibility: hidden; }
+
+/* The board under the stage, at rest: gone from sight, and inert in the DOM
+   (use-stage.ts). During the morph its opacity is the fold's, per frame. */
+.canvas-wrap[data-stage="open"] > .react-flow { opacity: 0; }
+/* What floats over the board goes with it: the category filter and the
+   empty board's hero. The zoom stack and the minimap are inside React Flow
+   and fade with it. */
+.canvas-wrap[data-stage="opening"] > .cat-filter-bar,
+.canvas-wrap[data-stage="open"] > .cat-filter-bar,
+.canvas-wrap[data-stage="closing"] > .cat-filter-bar,
+.canvas-wrap[data-stage="opening"] > .empty-hero,
+.canvas-wrap[data-stage="open"] > .empty-hero,
+.canvas-wrap[data-stage="closing"] > .empty-hero { visibility: hidden; }

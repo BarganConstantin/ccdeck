@@ -21,11 +21,14 @@ import { fileURLToPath } from "node:url";
 
 import {
   ANSI_SLOTS,
+  EXTENDED_SLOTS,
   MINIMUM_CONTRAST_RATIO,
   TERMINAL_TOKENS,
   ansiToken,
+  extendedSlot,
   paperOf,
   terminalTheme,
+  washOver,
   type TerminalToken,
 } from "../terminal-palette";
 import { withoutComments } from "./tsx-scan";
@@ -172,9 +175,12 @@ describe("where the colours come from", () => {
   });
 
   it("invents no colour: every value is some token's value in that theme", () => {
+    // The 256 map's bands are the one stated exception — a wash of a token
+    // over --panel — and have their own sweep below.
     for (const theme of THEMES) {
       const values = new Set(TERMINAL_TOKENS.map(token => resolved(token, theme)));
       for (const [slot, value] of Object.entries(themeOf(theme))) {
+        if (slot === "extendedAnsi") continue;
         expect(values.has(value as string), `${slot} = ${value} is not a token in ${theme}`).toBe(true);
       }
     }
@@ -185,7 +191,8 @@ describe("where the colours come from", () => {
     for (const theme of THEMES) {
       const inflight = resolved("--inflight", theme).toLowerCase();
       for (const [slot, value] of Object.entries(themeOf(theme))) {
-        expect((value as string).toLowerCase(), `${slot} wears --inflight in ${theme}`).not.toBe(inflight);
+        const colours = Array.isArray(value) ? value.filter(Boolean) : [value as string];
+        for (const c of colours) expect(c.toLowerCase(), `${slot} wears --inflight in ${theme}`).not.toBe(inflight);
       }
     }
   });
@@ -248,9 +255,97 @@ describe("a snapshot that does not carry the tokens yet", () => {
     // string would be a colour it has to parse.
     expect(terminalTheme(() => "")).toEqual({});
     // With only --text answered, on a background that reads as nothing (so
-    // dark): the foreground and dark's bright white, which is --text too.
+    // dark): the foreground and dark's bright white, which is --text too —
+    // and the 256 slots that are --text, but no band, which needs the panel.
     const partial = terminalTheme(t => (t === "--text" ? " #ffffff " : ""));
-    expect(partial).toEqual({ foreground: "#ffffff", brightWhite: "#ffffff" });
+    const { extendedAnsi, ...rest } = partial;
+    expect(rest).toEqual({ foreground: "#ffffff", brightWhite: "#ffffff" });
+    const set = (extendedAnsi ?? []).map((v, i) => (v ? i + 16 : null)).filter(n => n !== null);
+    expect(set).toEqual([231, 254, 255]);
+  });
+});
+
+describe("the 256-colour slots Claude Code paints with", () => {
+  /** Slot `n`'s colour as the theme hands it to xterm. */
+  const slotIn = (theme: Theme, n: number) => themeOf(theme).extendedAnsi?.[n - 16];
+
+  it("re-points every slot the recorded session and the v3 fixtures use", () => {
+    // Counted off design/v3/data/claude-live.json (a real Claude Code session,
+    // byte for byte) and the SGR v3's other sessions are written in: the
+    // foregrounds, then the user's band, the permission box and the diff bands.
+    const used = [231, 246, 174, 186, 148, 197, 81, 242, 180, 141, 244, 216, 208, 153, 114, 211, 220, 237, 147, 22, 52];
+    expect(used.filter(n => !EXTENDED_SLOTS.includes(n)), "left at xterm's neon").toEqual([]);
+  });
+
+  for (const theme of THEMES) {
+    it(`draws every ink slot at ${MINIMUM_CONTRAST_RATIO}:1 or better on --panel in ${theme}`, () => {
+      const bg = resolved("--panel", theme);
+      const failures: string[] = [];
+      for (const n of EXTENDED_SLOTS) {
+        const slot = extendedSlot(n)!;
+        if (slot.kind !== "ink") continue;
+        const colour = slotIn(theme, n);
+        expect(colour, `slot ${n} is unset in ${theme}`).toBeTruthy();
+        const r = ratio(colour!, bg);
+        if (r < MINIMUM_CONTRAST_RATIO) failures.push(`${n} (${slot.token[theme]} ${colour}) ${r.toFixed(2)}:1`);
+      }
+      expect(failures, `ink under ${MINIMUM_CONTRAST_RATIO}:1 on ${bg}`).toEqual([]);
+    });
+
+    it(`keeps --text readable on every band, and every band visible against the panel, in ${theme}`, () => {
+      const bg = resolved("--panel", theme);
+      const text = resolved("--text", theme);
+      for (const n of EXTENDED_SLOTS) {
+        const slot = extendedSlot(n)!;
+        if (slot.kind !== "band") continue;
+        const colour = slotIn(theme, n)!;
+        expect(colour, `band ${n}`).toBe(washOver(resolved(slot.token, theme), bg, slot.wash));
+        expect(ratio(text, colour), `--text on band ${n} (${colour})`).toBeGreaterThanOrEqual(MINIMUM_CONTRAST_RATIO);
+        expect(colour.toLowerCase(), `band ${n} is the panel itself`).not.toBe(bg.toLowerCase());
+      }
+    });
+
+    it(`takes each ink slot's colour from its token, never a new value, in ${theme}`, () => {
+      for (const n of EXTENDED_SLOTS) {
+        const slot = extendedSlot(n)!;
+        if (slot.kind === "ink") expect(slotIn(theme, n), `slot ${n}`).toBe(resolved(slot.token[theme], theme));
+      }
+    });
+  }
+
+  it("draws 231 — xterm's pure white, Claude Code's prose — as --text, so it is never white on white", () => {
+    expect(slotIn("light", 231)).toBe(resolved("--text", "light"));
+    expect(slotIn("dark", 231)).toBe(resolved("--text", "dark"));
+    expect(ratio(slotIn("light", 231)!, resolved("--panel", "light"))).toBeGreaterThan(15);
+  });
+
+  it("steps the grey ramp by role: ink from strongest down to the floor, bands deepening as the number rises", () => {
+    for (const theme of THEMES) {
+      const bg = resolved("--panel", theme);
+      const contrast = (n: number) => ratio(slotIn(theme, n)!, bg);
+      for (let n = 255; n > 240; n--) {
+        expect(contrast(n), `${theme}: ${n} reads at least as strongly as ${n - 1}`).toBeGreaterThanOrEqual(contrast(n - 1));
+      }
+      for (let n = 233; n <= 239; n++) {
+        expect(contrast(n), `${theme}: band ${n} stands off the panel more than ${n - 1}`).toBeGreaterThan(contrast(n - 1));
+      }
+    }
+  });
+
+  it("leaves every slot it does not name to xterm, which keeps its own value for an empty entry", () => {
+    const ext = themeOf("dark").extendedAnsi!;
+    expect(ext).toHaveLength(240);
+    expect(ext[196 - 16], "196 is not in the map").toBeUndefined();
+    expect(ext[16 - 16]).toBeUndefined();
+    expect(EXTENDED_SLOTS.every(n => n >= 16 && n <= 255)).toBe(true);
+  });
+
+  it("composites a wash the way the renderer layers it, and refuses colours it cannot read", () => {
+    expect(washOver("#ffffff", "#000000", 0.5)).toBe("#808080");
+    expect(washOver("#000", "#fff", 0.1)).toBe("#e6e6e6");
+    expect(washOver("rgb(255, 0, 0)", "#ffffff", 1)).toBe("#ff0000");
+    expect(washOver("not a colour", "#fff", 0.5)).toBeNull();
+    expect(washOver("#fff", "", 0.5)).toBeNull();
   });
 });
 

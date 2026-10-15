@@ -316,6 +316,17 @@ describe("how it ends — exactly once", () => {
     expect(b.told).toEqual([["exit", { reason: "error" }]]);
   });
 
+  it("says when the session had already ended before the socket attached, and only when the deck says so plainly", () => {
+    const a = connect();
+    a.ws.open();
+    a.ws.text({ t: "exit", reason: "ended", atOpen: true });
+    expect(a.told).toEqual([["exit", { reason: "ended", atOpen: true }]]);
+    const b = connect();
+    b.ws.open();
+    b.ws.text({ t: "exit", reason: "ended", atOpen: "yes" });
+    expect(b.told).toEqual([["exit", { reason: "ended" }]]);
+  });
+
   it("drops a reset still waiting for its seed when the session exits", () => {
     const { ws, told } = connect();
     ws.open();

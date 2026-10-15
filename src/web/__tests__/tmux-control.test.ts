@@ -17,6 +17,8 @@ import { PassThrough, Writable } from "node:stream";
 import * as tc from "../../server/tmux-control.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { liveChildPids } from "../../server/exec-children.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import { tmuxArg, tmuxCommand, tmuxEnv } from "../../server/tmux.mjs";
 
 const bytes = (s: string) => Buffer.from(s, "latin1");
 const tick = () => new Promise(r => setImmediate(r));
@@ -305,7 +307,7 @@ describe("the control client, against a fake tmux", () => {
     expect(await early, "a command sent before tmux had attached still gets its own reply, not attach's")
       .toEqual({ ok: true, lines: ["status on"] });
     expect(fake.argv(), "attach carries the client flags and an exact-match session name")
-      .toEqual(["-L", "ccdeck-test-fake", "-u", "-C", "attach-session", "-f", "pause-after=2", "-t", "=s"]);
+      .toEqual(["-u", "-L", "ccdeck-test-fake", "-C", "attach-session", "-f", "pause-after=2", "-t", "=s"]);
     expect(fake.written[1], "the pane's death is watched through the %* subscription")
       .toBe("refresh-client -B \"ccdeck-dead:%*:#{pane_dead}\"");
     await c.close();
@@ -598,7 +600,7 @@ describe("the control client, against a fake tmux", () => {
     };
     const c = tc.openControl({ tmux: { path: "/fake/tmux" }, socket: { path: "/tmp/user-sock" }, target: "%5", ignoreSize: true, spawn: fake.spawn, execFile });
     await c.ready;
-    expect(asked[0], "the session is looked up first, on the user's socket").toEqual(["-S", "/tmp/user-sock", "display-message", "-p", "-t", "%5", "#{session_id}"]);
+    expect(asked[0], "the session is looked up first, on the user's socket").toEqual(["-u", "-S", "/tmp/user-sock", "display-message", "-p", "-t", "%5", "#{session_id}"]);
     expect(fake.argv().slice(-2), "and attached by id").toEqual(["-t", "$3"]);
     expect(fake.written[0], "the pane named is the pane streamed").toMatch(/^display-message -p -t %5 /);
     await c.close();
@@ -622,7 +624,7 @@ describe("the control client, against a fake tmux", () => {
       await tick();
       expect(exits, `pane_dead ${JSON.stringify(answer)} → ${reason}`).toEqual([{ reason }]);
       expect(asked[0], "the session first — a killed session's pane can still look alive for a moment")
-        .toEqual(["-L", "ccdeck-test-fake", "has-session", "-t", "$0", ";", "display-message", "-p", "-t", "%0", "#{pane_dead}"]);
+        .toEqual(["-u", "-L", "ccdeck-test-fake", "has-session", "-t", "$0", ";", "display-message", "-p", "-t", "%0", "#{pane_dead}"]);
       expect(c.closed).toBe(true);
     }
   });
@@ -661,5 +663,41 @@ describe("the control client, against a fake tmux", () => {
     const fake = fakeTmux();
     expect(() => tc.openControl({ tmux: "/fake/tmux", target: "s", spawn: fake.spawn }), "no socket").toThrow(TypeError);
     expect(() => tc.openControl({ tmux: "/fake/tmux", socket: {}, target: "s", spawn: fake.spawn }), "an empty one").toThrow(TypeError);
+    expect(() => tc.openControl({ tmux: "/fake/tmux", socket: { name: "../elsewhere" }, target: "s", spawn: fake.spawn }),
+      "a -L name that would point outside tmux's socket directory, refused before anything runs").toThrow(TypeError);
+  });
+
+  it("spells every tmux it runs the way tmux.mjs does, and starts it with tmux.mjs's client environment", async () => {
+    // One spelling across the deck: the binary, -u, the socket, then the
+    // command — and a trailing ';' escaped the one way tmux reads it.
+    const fake = fakeTmux({ respond: answers() });
+    let spawned: { file: string; env: Record<string, string> } | null = null;
+    const spawn = (file: string, a: string[], o: { env: Record<string, string> }) => {
+      spawned = { file, env: o.env };
+      return fake.spawn(file, a);
+    };
+    const asked: string[][] = [];
+    const execFile = (_f: string, a: string[], _o: unknown, cb: (e: Error | null, out: string) => void) => {
+      asked.push(a);
+      cb(null, "0\n");
+    };
+    const env = {
+      PATH: "/usr/bin", LANG: "C", TMUX_TMPDIR: "/tmp/sandbox",
+      TMUX: "/tmp/tmux-1000/default,1,0", TMUX_PANE: "%1", CCDECK_TMUX: "/x/tmux", CLAUDECODE: "1",
+    };
+    const socket = { name: "ccdeck-test-fake" };
+    const c = tc.openControl({ tmux: "/fake/tmux", socket, target: "notes;", spawn, execFile, env });
+    await c.ready;
+    expect([spawned!.file, ...fake.argv()])
+      .toEqual(tmuxCommand("/fake/tmux", socket, ["-C", "attach-session", "-f", "pause-after=2", "-t", tmuxArg("=notes;")]));
+    expect(fake.argv().at(-1), "a trailing ';' is tmux's escape for it, not the end of the command").toBe("=notes\\;");
+    expect(spawned!.env, "nested-tmux markers, the deck's own and a parent agent's variables stay behind").toEqual(tmuxEnv(env));
+    expect(spawned!.env).toEqual({ PATH: "/usr/bin", LANG: "C", TMUX_TMPDIR: "/tmp/sandbox" });
+    fake.send("%exit\n");
+    fake.end(0);
+    await until(() => asked.length > 0, "the one-shot that classifies the exit");
+    expect(["/fake/tmux", ...asked[0]], "the one-shot tmux is spelled the same way")
+      .toEqual(tmuxCommand("/fake/tmux", socket, ["has-session", "-t", "$0", ";", "display-message", "-p", "-t", "%0", "#{pane_dead}"]));
+    await c.close();
   });
 });

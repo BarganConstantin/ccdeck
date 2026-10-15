@@ -43,6 +43,30 @@ export const CANVAS_TOKENS = [
   // white, and the disc arrived in light as an empty circle. Read here so the
   // canvas never has to ask the stylesheet on its render path.
   "--bg",
+  // The terminal stage's colours (terminal-palette.ts TERMINAL_TOKENS), less
+  // the five already above — --panel, --accent, --err, --ok and --text-dim.
+  // xterm takes its theme as an object and paints it onto a canvas, so the
+  // stage is one more reader that cannot be handed a `var()`; it reads this
+  // same snapshot through paletteReader rather than a getComputedStyle of its
+  // own on every theme flip. Read whether or not the terminal flag is on: two
+  // dozen property reads once per theme is cheaper than a second snapshot
+  // keyed on a flag the palette has no business knowing about.
+  "--text",
+  "--text-secondary",
+  "--muted",
+  "--accent-dim",
+  "--cat-shell",
+  "--cat-agent",
+  "--cat-web",
+  "--usage-indigo",
+  "--usage-pink",
+  "--usage-cyan",
+  "--usage-lime",
+  "--usage-orange",
+  "--usage-purple",
+  // Not a colour: the deck's mono stack, which xterm also takes as a string
+  // (use-terminal-session.ts TERMINAL_FONT_TOKEN).
+  "--font-mono",
 ] as const;
 
 export type CanvasToken = (typeof CANVAS_TOKENS)[number];

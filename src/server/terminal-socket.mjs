@@ -455,10 +455,21 @@ export function terminalBridge({
       if (ended) return;
       // A pane that died under remain-on-exit still has its last frame, and
       // the client stays attached so it can be read: a panel that never got a
-      // frame is shown that one, frozen, rather than an empty box.
-      if (said === "ended" && !seeded) await deliverSeed();
-      end(said, said === "error" ? ERROR_SENTENCE : undefined);
+      // frame is shown that one, frozen, rather than an empty box — and told
+      // the ending came before it was looking (`atOpen`).
+      const first = said === "ended" && !seeded;
+      if (first) await deliverSeed();
+      end(said, said === "error" ? ERROR_SENTENCE : undefined, first ? { atOpen: true } : undefined);
     });
+  }
+
+  /** Whether tmux said the pane was already dead when this client attached. */
+  async function paneWasDead() {
+    try {
+      return (await control.ready)?.dead === true;
+    } catch {
+      return false;
+    }
   }
 
   function message({ type, data } = {}) {
@@ -487,6 +498,12 @@ export function terminalBridge({
         // at the panel's size, and the first frame is drawn once, not twice.
         if (!paneOwned) await control.resize(size.cols, size.rows);
         await deliverSeed();
+        // A pane that was already dead when this client attached — an ended
+        // session's deck pane, opened for its last frame — is said to have
+        // ended now, with that frame on screen, rather than whenever tmux's
+        // once-a-second dead-pane subscription gets to it: by then the panel
+        // has drawn it as live, and would say it ended "just now".
+        if (seeded && !ended && await paneWasDead()) end("ended", undefined, { atOpen: true });
       });
       return;
     }
@@ -503,11 +520,13 @@ export function terminalBridge({
   // Say why, close, and let the tmux client go. The session it was attached to
   // keeps running whatever the reason — closing a panel is never stopping an
   // agent.
-  function end(reason, text) {
+  // `atOpen`: the session had ended before this panel first saw it, so the
+  // panel does not say it ended "just now".
+  function end(reason, text, { atOpen = false } = {}) {
     if (ended) return;
     ended = true;
     clearTimeout(resizeTimer);
-    conn.sendText(JSON.stringify(text ? { t: "exit", reason, message: text } : { t: "exit", reason }));
+    conn.sendText(JSON.stringify({ t: "exit", reason, ...(text ? { message: text } : {}), ...(atOpen ? { atOpen: true } : {}) }));
     try {
       conn.close(reason === "server-shutdown" ? 1001 : 1000, reason);
     } catch { /* already closing */ }

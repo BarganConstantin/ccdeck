@@ -4,9 +4,41 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { readFileSync } from "node:fs";
+// The deck's own two questions about a request's address, asked of the
+// terminal socket's upgrade below in the same words the deck asks them.
+// @ts-expect-error — plain .mjs server module, no types
+import { isLoopbackHost, originMatchesHost } from "./src/server/request-gates.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+
+/** The deck this dev server forwards to. */
+const DECK = "http://127.0.0.1:4317";
+
+/**
+ * The Origin to forward with the terminal socket's upgrade: the deck's own
+ * when the request comes from a page this dev server served, and otherwise
+ * null, which forwards the browser's Origin untouched for the deck to refuse.
+ *
+ * The page is served by the dev server and its socket goes to the deck, so the
+ * deck's Origin-equals-Host check (terminal-socket.mjs, upgradeVerdict) can
+ * only pass if the Origin is rewritten — the same reason the /api hook below
+ * rewrites every POST's. But a WebSocket is not a POST: browsers apply no
+ * same-origin policy to it, and the Origin check is the ONE thing between a
+ * page on another site and a typeable terminal. A blanket rewrite would hand
+ * every page the browser has open a way in through this proxy. So it is
+ * rewritten only when it names this very dev server — the Origin equals the
+ * Host the request was sent to — and that Host is a loopback name, which is
+ * the deck's own defence against DNS rebinding, here as well.
+ *
+ * `headers` is the incoming request's; `deck` is the origin to forward.
+ */
+export function terminalSocketOrigin(headers: { origin?: unknown; host?: unknown }, deck: string = DECK): string | null {
+  const origin = typeof headers?.origin === "string" ? headers.origin.trim() : "";
+  const host = typeof headers?.host === "string" ? headers.host : "";
+  if (!origin || !isLoopbackHost(host) || !originMatchesHost(origin, host)) return null;
+  return deck;
+}
 
 export default defineConfig({
   root: resolve(root, "src/web"),
@@ -24,6 +56,23 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
+      // THE TERMINAL'S SOCKET, and the only path a WebSocket is forwarded on.
+      // First, so it is the entry that matches this path whichever way the
+      // proxy walks its list; a plain request on it goes to the deck as any
+      // /api request would, and the deck answers it with its 404. The Origin
+      // is rewritten only on the upgrade, and only for a page this dev server
+      // served — see terminalSocketOrigin.
+      "/api/terminal/attach": {
+        target: DECK,
+        changeOrigin: true,
+        ws: true,
+        configure: (proxy) => {
+          proxy.on("proxyReqWs", (proxyReq, req) => {
+            const origin = terminalSocketOrigin(req.headers);
+            if (origin) proxyReq.setHeader("origin", origin);
+          });
+        },
+      },
       // READS WORKED HERE AND WRITES DID NOT, which is the worst shape a dev
       // server can have: the panel polls, fills with real accounts and looks
       // alive, and every press comes back refused.

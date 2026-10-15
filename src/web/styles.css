@@ -35,6 +35,9 @@
 @import "./styles/agent-node.css";               /* the agent card */
 @import "./styles/context-modal.css";            /* the context breakdown modal */
 @import "./styles/session-clusters.css";         /* session clusters */
+@import "./styles/board-navigator.css";          /* the board's compact form beside the terminal stage */
+@import "./styles/terminal-stage.css";           /* the terminal stage: header, terminal, keys bar, divider, New session */
+@import "./styles/stage-shell.css";              /* where the stage and the navigator sit in the canvas's cell */
 @import "./styles/tool-bursts.css";              /* floating tool bursts */
 @import "./styles/session-list.css";             /* the session list */
 @import "./styles/detail-sections.css";          /* the detail panel's hero and sections, prompt history, tool rows */

@@ -61,7 +61,7 @@ arrives with its own licence beside it. They are named for completeness, so that
 "what ccdeck ships" and "what ccdeck can run" are not confused. Every one of them
 is off under `AGENTS_DECK_NO_INSTALL=1`.
 
-## Bundled packages (26)
+## Bundled packages (29)
 
 | Package | Version | Licence | Copyright |
 | --- | --- | --- | --- |
@@ -70,6 +70,9 @@ is off under `AGENTS_DECK_NO_INSTALL=1`.
 | `@reactflow/core` | 11.11.4 | MIT | Copyright (c) 2019-2023 webkid GmbH |
 | `@reactflow/minimap` | 11.7.14 | MIT | Copyright (c) 2019-2023 webkid GmbH |
 | `@reactflow/node-resizer` | 2.2.14 | MIT | Copyright (c) 2019-2023 webkid GmbH |
+| `@xterm/addon-unicode11` | 0.9.0 | MIT | Copyright (c) 2019, The xterm.js authors (https://github.com/xtermjs/xterm.js) |
+| `@xterm/addon-webgl` | 0.19.0 | MIT | Copyright (c) 2018, The xterm.js authors (https://github.com/xtermjs/xterm.js) |
+| `@xterm/xterm` | 6.0.0 | MIT | Copyright (c) 2017-2019, The xterm.js authors (https://github.com/xtermjs/xterm.js) |
 | `classcat` | 5.0.5 | MIT | Copyright © Jorge Bucaran <<https://jorgebucaran.com>> |
 | `d3-color` | 3.1.0 | ISC | Copyright 2010-2022 Mike Bostock |
 | `d3-dispatch` | 3.0.1 | ISC | Copyright 2010-2021 Mike Bostock |
@@ -100,16 +103,21 @@ for more than a notice — a copy of the licence itself travels with the work �
 and it is compatible with version 3 of the GNU licences, which is the version
 ccdeck is under.
 
-`hls.js` is the one entry that is not in the page every visit loads. It is its
-own chunk, `dist/web/assets/hls-*.js`, fetched only when somebody plays an HLS
+`hls.js` is one of four entries that are not in the page every visit loads. It is
+its own chunk, `dist/web/assets/hls-*.js`, fetched only when somebody plays an HLS
 custom station in a browser without native HLS (#1208) — but that chunk is in
-`dist/web` like every other, and so in the tarball. None of these licences is
-changed by ccdeck's relicensing, and no copyleft obligation flows back to
-their authors.
+`dist/web` like every other, and so in the tarball. The three `@xterm/*` rows are
+the terminal panel's, which sits behind a hidden flag: `@xterm/xterm` and its
+Unicode 11 addon are fetched in chunks of their own the first time the panel
+draws a terminal, and the WebGL addon after them, and never while the flag is
+off — `notices-bundle.test.ts` holds them out of the entry chunk and its
+stylesheet — but they too are in `dist/web`, and so in the tarball. None of
+these licences is changed by ccdeck's relicensing, and no copyleft obligation
+flows back to their authors.
 
-### Declared but not emitted (7)
+### Declared but not emitted (4)
 
-Seven packages resolve into `node_modules` and do **not** survive the build.
+Four packages resolve into `node_modules` and do **not** survive the build.
 The first three were in the table above until #962, which is over-attribution
 rather than under-attribution and so harmless legally — but the paragraph at the
 top of this file says everything in the table is *physically present in the
@@ -122,22 +130,15 @@ chunks and not found.
 | `js-tokens` | 4.0.0 | MIT | `[gmiyus]{1,6}` — a fragment of its one exported regex, which a minifier cannot rename | A browserify transform's dependency, reached only through `loose-envify`. Rollup never invokes it. |
 | `loose-envify` | 1.4.0 | MIT | `[_$a-zA-Z][$\w]+` — the body of its `process.env.` matcher, likewise a regex literal | Same: it is a browserify transform, declared by `react` and never part of a Rollup graph. |
 | `@reactflow/node-toolbar` | 1.3.14 | MIT | `react-flow__node-toolbar` | Tree-shaken. The deck renders no node toolbar, and unlike its siblings this one contributes no stylesheet either. |
-| `@xterm/addon-fit` | 0.11.0 | MIT | `proposeDimensions` — the method it adds to the terminal, a property name the minifier leaves alone | Declared for the terminal panel, which nothing in the page reaches yet, so Rollup never reaches it either. |
-| `@xterm/addon-unicode11` | 0.9.0 | MIT | `[129648,129651]` — one range out of its Unicode 11 width table, which minifies to exactly that | Same: the terminal panel's, and not yet reachable. |
-| `@xterm/addon-webgl` | 0.19.0 | MIT | `a_cellpos` — an attribute name inside its shader source | Same. |
-| `@xterm/xterm` | 6.0.0 | MIT | `xterm-char-measure-element` — a class name its script creates and its stylesheet styles | Same. `src/web/terminal-palette.ts` imports a type from it and nothing else, and a type is erased at compile time. |
+| `@xterm/addon-fit` | 0.11.0 | MIT | `proposeDimensions` — the method it adds to the terminal, a property name the minifier leaves alone | Declared for the terminal panel, which sizes its terminal itself — a whole number of cells, from the cell it measures (`src/web/stage-geometry.ts`) — and so never loads the fit addon. Rollup never reaches it. |
 
 Their licence texts are still reproduced below — §3, §6 and §7 for the first
-three, §15 to §17 for the four `@xterm/*` packages — because dropping a notice is
-the expensive mistake and keeping one is free.
+three, §16 for the fit addon — because dropping a notice is the expensive
+mistake and keeping one is free.
 
-The `@xterm/*` packages are the terminal panel's. The panel sits behind a hidden
-flag and loads them with a dynamic `import()` the first time it opens, so once it
-is wired into the page they will be in a chunk of their own, the way `hls.js` is:
-never in what every visit loads, but in `dist/web` all the same, and so in the
-tarball. On that day their four rows move to the bundled table above — the build
-check in `notices-bundle.test.ts` fails until they do — and the same test holds
-them out of the entry chunk and its stylesheet.
+The other three `@xterm/*` packages were on this list until the terminal panel
+was wired into the page; they moved to the bundled table above when the build
+started to emit them, which is the move `notices-bundle.test.ts` asks for.
 
 `@reactflow/node-resizer` is deliberately **not** in this list, and it is the one
 entry #962 got wrong. Its JavaScript is tree-shaken exactly as the toolbar's is —

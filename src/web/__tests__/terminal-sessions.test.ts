@@ -13,8 +13,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  AGENTS, KINDS, SESSION_OPTIONS, TerminalSessionError, agentArgv, checkCwd, clampSize, deckSessionName,
-  findDeckSession, isDeckSessionName, killDeckSession, launchCommand, launchSession, listDeckSessions,
+  AGENTS, KINDS, SESSION_OPTIONS, TerminalSessionError, agentArgv, checkCwd, clampSize, deadDeckSessions, deckSessionName,
+  findDeckSession, isDeckSessionName, killDeckSession, labelDeckSession, launchCommand, launchSession, listDeckSessions,
   parseDeckPanes, resolveAgentBin,
 } from "../../server/terminal-sessions.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -363,6 +363,69 @@ describe("finding a session's deck pane", () => {
     expect(findDeckSession(list, ID2)).toBeNull();
     expect(findDeckSession(list, "")).toBeNull();
     expect(findDeckSession([], ID)).toBeNull();
+  });
+});
+
+describe("the dead panes an ended session left behind", () => {
+  const s = (name: string, sessionId: string, kind: string, dead: boolean, created: number) =>
+    ({ name, sessionId, kind, dead, created, agent: "claude", cwd: "/p", pane: "%1", panePid: 1, exitStatus: null, cols: 80, rows: 24 });
+
+  it("are every dead deck session for the id, of any kind, oldest first", () => {
+    const list = [
+      s("ccdeck-claude-00000002", ID, "resume", true, 2_000),
+      s("ccdeck-att-5f0c2a9e", ID.toUpperCase(), "attach", true, 3_000),
+      s("ccdeck-claude-00000001", ID, "launch", true, 1_000),
+    ];
+    expect(deadDeckSessions(list, ID)).toEqual(["ccdeck-claude-00000001", "ccdeck-claude-00000002", "ccdeck-att-5f0c2a9e"]);
+  });
+
+  it("never include a live one, another session's, or a name the deck would not close", () => {
+    const list = [
+      s("ccdeck-claude-00000003", ID, "resume", false, 1),
+      s("ccdeck-claude-00000004", ID2, "launch", true, 1),
+      s("made-by-hand", ID, "launch", true, 1),
+      s("ccdeck-codex-00000005", "", "launch", true, 1),
+    ];
+    expect(deadDeckSessions(list, ID)).toEqual([]);
+    expect(deadDeckSessions(list, ""), "the empty id a new Codex carries matches nothing").toEqual([]);
+    expect(deadDeckSessions(undefined, ID)).toEqual([]);
+  });
+});
+
+describe("labelling a session with the id the deck learned", () => {
+  it("is one set-option of @ccdeck-session on the exact session, in lower case", async () => {
+    const tmux = fakeTmux({ ok: true });
+    expect(await labelDeckSession({ tmux: "t", run: tmux.run, name: "ccdeck-codex-0123abcd", sessionId: ID.toUpperCase() })).toBe(true);
+    expect(tmux.calls).toHaveLength(1);
+    expect(tmux.calls[0].socket, "the deck's own server unless told otherwise").toEqual(DECK_SOCKET);
+    expect(tmux.calls[0].args).toEqual(["set-option", "-t", "=ccdeck-codex-0123abcd:", SESSION_OPTIONS.session, ID]);
+  });
+
+  it("refuses a name the deck did not give and an id that is not one, before tmux is asked anything", async () => {
+    const tmux = fakeTmux();
+    for (const name of ["main", "=ccdeck-codex-0123abcd", undefined]) {
+      expect((await failure(labelDeckSession({ tmux: "t", run: tmux.run, name, sessionId: ID }))).code, String(name)).toBe("bad-name");
+    }
+    for (const sessionId of ["", "--resume", "not-a-uuid", undefined]) {
+      expect((await failure(labelDeckSession({ tmux: "t", run: tmux.run, name: "ccdeck-codex-0123abcd", sessionId }))).code, String(sessionId))
+        .toBe("bad-session-id");
+    }
+    expect(tmux.calls).toEqual([]);
+  });
+
+  it("says false when the session has gone meanwhile, and keeps tmux's own words out of the sentence otherwise", async () => {
+    const tmux = fakeTmux(
+      { ok: false, stderr: "can't find session: ccdeck-codex-0123abcd\n" },
+      { ok: false, stderr: "no server running on /tmp/tmux-1000/ccdeck\n" },
+      { ok: false, stderr: "lost server /tmp/tmux-1000/ccdeck\n" },
+    );
+    const opts = { tmux: "t", run: tmux.run, name: "ccdeck-codex-0123abcd", sessionId: ID };
+    expect(await labelDeckSession(opts)).toBe(false);
+    expect(await labelDeckSession(opts)).toBe(false);
+    const err = await failure(labelDeckSession(opts));
+    expect(err.code).toBe("tmux-failed");
+    expect(err.message).not.toContain("/tmp");
+    expect(err.detail).toContain("/tmp/tmux-1000/ccdeck");
   });
 });
 
