@@ -9,7 +9,7 @@
 // THE SPACE LADDER keeps every pixel below 6, because in a UI set in 10 and
 // 11px type a one-pixel pad on a pill or a two-pixel hairline gap is an
 // optical decision rather than drift — and 5px is load-bearing: a tool
-// bubble's vertical padding is what ToolBursts' BUBBLE_HALF_H measures by.
+// bubble keeps its vertical padding within a shared, fixed-height box.
 // From 6px up it is even pixels to 20, then 24, 32 and 40.
 //
 // THE RADIUS LADDER keeps the fine steps a small chip needs, the 10px every
@@ -80,11 +80,13 @@ describe("spacing is a closed ladder (#887)", () => {
     expect(space.length).toBeGreaterThan(300);
   });
 
-  it("keeps the tool bubble's 5px, which the canvas measures by", () => {
+  it("keeps tool padding and connector height in agreement", () => {
     const bubble = DECLS.find(d => d.sel === ".tool-burst" && d.prop === "padding")!;
     expect(atoms(bubble.value)[0]).toBe("5px");
-    // The layout's constant, which left components/ToolBursts.tsx with the layout.
-    expect(read("../burst-layout.ts")).toMatch(/const BUBBLE_HALF_H = 16;/);
+    // The same height drives CSS and the connector midpoint.
+    expect(read("../components/ToolBursts.tsx")).toContain("2 * BUBBLE_HALF_H");
+    expect(read("../styles/tool-bursts.css")).toContain("height: var(--tool-burst-height, 28px)");
+    expect(read("../burst-layout.ts")).toMatch(/const BUBBLE_HALF_H = 14;/);
   });
 });
 
@@ -102,9 +104,11 @@ describe("radius is a closed ladder (#887)", () => {
     expect(radii.length).toBeGreaterThan(150);
   });
 
-  it("draws the two 14px pills as pills, and the controls' 6px where 5px was", () => {
+  it("draws the small pills as pills, and the controls' 6px where 5px was", () => {
     expect(DECLS.find(d => d.sel === ".cost-bar.cost-bar-lg" && d.prop === "border-radius")?.value).toBe("999px");
-    expect(DECLS.find(d => d.sel === ".bw-badge" && d.prop === "border-radius")?.value).toBe("999px");
+    // Browser watch's unread badge, 14px on the topbar's button when #887 was
+    // cut and 16px on its stripe since (2026-10-08): a pill still, not 7px.
+    expect(DECLS.find(d => d.sel === ".rail-badge" && d.prop === "border-radius")?.value).toBe("999px");
     expect(DECLS.find(d => d.sel === ".ap-field select" && d.prop === "border-radius")?.value).toBe("6px");
   });
 });

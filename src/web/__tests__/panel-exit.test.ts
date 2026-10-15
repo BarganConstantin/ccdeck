@@ -108,7 +108,7 @@ const hooks = vi.hoisted(() => {
 
 vi.mock("react", () => hooks.react);
 
-import { isMounted, nextPhase, usePanelPresence, type PanelPhase } from "../panel-exit";
+import { isDrawn, isLeaving, isMounted, nextPhase, usePanelPresence, type PanelPhase } from "../panel-exit";
 import { sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -135,6 +135,33 @@ describe("nextPhase — where a panel goes from where it is", () => {
   it("keeps the panel in the DOM in every phase but gone", () => {
     expect(isMounted("gone")).toBe(false);
     for (const phase of ["entering", "here", "leaving"] as const) expect(isMounted(phase), phase).toBe(true);
+  });
+});
+
+// The phase follows the flag a render late, from an effect, and that render is
+// not always painted with the one before it. The left column's width follows
+// the flag at once, so under reduced motion the panel being replaced was drawn
+// for a frame cut off at the new panel's width (2026-10-08). Read from the
+// flag as well, a left panel is drawn and leaving from the flag's own render.
+describe("isDrawn and isLeaving — a panel's state from the render that flips its flag", () => {
+  it("draws a panel in the render that opens it, before its phase has caught up", () => {
+    expect(isDrawn(true, "gone")).toBe(true);
+    expect(isLeaving(true, "gone")).toBe(false);
+  });
+
+  it("has a panel leaving in the render that closes it, while its phase still says here", () => {
+    expect(isDrawn(false, "here")).toBe(true);
+    expect(isLeaving(false, "here")).toBe(true);
+  });
+
+  it("takes a panel reopened mid-exit straight back, in that render", () => {
+    expect(isDrawn(true, "leaving")).toBe(true);
+    expect(isLeaving(true, "leaving")).toBe(false);
+  });
+
+  it("draws nothing once the exit is over", () => {
+    expect(isDrawn(false, "gone")).toBe(false);
+    expect(isLeaving(false, "gone")).toBe(false);
   });
 });
 
@@ -231,11 +258,17 @@ describe("each panel is held for as long as its exit animation runs", () => {
     [...css.matchAll(new RegExp(`${selector.replace(/[.]/g, "\\.")}\\.leaving\\b[^{]*\\{([^}]*)\\}`, "g"))]
       .map(m => /animation:\s*([^;]+)/.exec(m[1])?.[1] ?? "");
 
-  it("holds the accounts panel for --side-exit", () => {
-    const rules = leaving(".accounts-panel");
-    expect(rules.length).toBeGreaterThan(0);
-    for (const animation of rules) expect(animation).toContain("var(--side-exit)");
+  it("holds both left panels for --side-exit, the length of the column's close", () => {
+    // The two left panels leave by transitions inside the left column since
+    // 2026-10-08 (styles/left-column.css), not by an animation of their own:
+    // what has to last exactly --side-exit is the close — the column's width
+    // going to nothing and the panel sliding out with its edge. A switch is
+    // shorter than that (a 120ms fade), so the hold covers it too.
     expect(held("accountsPanelOpen")).toBe(cssMs("--side-exit"));
+    expect(held("sessionListOpen")).toBe(cssMs("--side-exit"));
+    const closing = [...css.matchAll(/\.left-column\.closing\b[^{]*\{([^}]*)\}/g)].map(m => m[1]).join(" ");
+    expect(closing).toMatch(/transition-duration:\s*var\(--side-exit\)/);
+    expect(closing).toMatch(/transform var\(--side-exit\)/);
   });
 
   it("holds the usage and machine panels for --rail-exit", () => {

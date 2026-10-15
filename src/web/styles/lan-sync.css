@@ -36,6 +36,9 @@
   cursor: pointer;
 }
 .ap-nav:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+/* Keep the two summary lines, with less empty space around the footer. */
+.ap-foot:has(> .ap-nav) { padding-top: 6px; padding-bottom: 8px; }
+.ap-foot > .ap-nav { margin-top: 0; }
 .ap-nav:active { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .ap-nav-glyph { flex: none; color: var(--muted); }
 .ap-nav-text {

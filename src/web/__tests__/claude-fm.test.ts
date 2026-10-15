@@ -269,9 +269,9 @@ describe("talking to the player", () => {
   });
 
   it("reads the states that mean sound is coming", () => {
-    expect(PLAYING_STATES).toEqual([1, 3]);           // playing, buffering
+    expect(PLAYING_STATES).toEqual([1]);             // confirmed playback only
     expect(readSignal('{"event":"onStateChange","info":1}')).toEqual({ kind: "playing", playing: true });
-    expect(readSignal('{"event":"onStateChange","info":3}')).toEqual({ kind: "playing", playing: true });
+    expect(readSignal('{"event":"onStateChange","info":3}')).toEqual({ kind: "buffering" });
     // ENDED AND PAUSED ARE STOPPED. Those two, and only those two.
     for (const stopped of STOPPED_STATES) {
       expect(readSignal({ event: "onStateChange", info: stopped })).toEqual({ kind: "playing", playing: false });
@@ -288,6 +288,12 @@ describe("talking to the player", () => {
     }
     expect(STOPPED_STATES).not.toContain(-1);
     expect(PLAYING_STATES).not.toContain(-1);
+  });
+
+  it("distinguishes buffering, blocked autoplay and identification failures", () => {
+    expect(readSignal({ event: "infoDelivery", info: { playerState: 3 } })).toEqual({ kind: "buffering" });
+    expect(readSignal({ event: "onAutoplayBlocked" })).toEqual({ kind: "blocked" });
+    expect(readSignal({ event: "onError", info: 153 })).toEqual({ kind: "error", code: 153 });
   });
 
   it("reads the spelling the player actually uses, not the documented one", () => {
@@ -323,7 +329,7 @@ describe("talking to the player", () => {
     // 100 is gone, 101 and 150 are "the owner does not allow embedding", 2 is a
     // bad parameter and 5 an HTML5 failure. A music toy has nothing useful to
     // say about any of them and no second thing to try.
-    expect(FATAL_ERRORS).toEqual([2, 5, 100, 101, 150]);
+    expect(FATAL_ERRORS).toEqual([2, 5, 100, 101, 150, 153]);
     expect(component).toContain("setDead(true)");
     expect(component).toMatch(/if \(!probe \|\| dead\) return null;/);
   });
@@ -343,7 +349,7 @@ describe("talking to the player", () => {
     // volume rather than the player's own remembered one.
     const ready = component.slice(component.indexOf('signal.kind === "ready"'));
     const setVolume = ready.indexOf('say(command("setVolume", [volumeRef.current]))');
-    const mute = ready.indexOf('say(command(muted ? "mute" : "unMute"))');
+    const mute = ready.indexOf('say(command(mutedRef.current ? "mute" : "unMute"))');
     const play = ready.indexOf('say(command("playVideo"))');
     expect(setVolume).toBeGreaterThanOrEqual(0);
     expect(mute).toBeGreaterThan(setVolume);
@@ -382,10 +388,11 @@ describe("the deck's own sound plays over the music", () => {
     expect(clientText()).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
     // App.tsx hands BoardFlow the settings whole, and BoardFlow mounts the player.
     expect(app).toMatch(/<BoardFlow\b[^>]*\bfm=\{fm\}/);
-    expect(board).toContain("<ClaudeFm");
-    expect(board).toContain("volume={fmVolume}");
-    expect(board).toContain("muted={fmMuted}");
-    expect(board).toContain("source={fmSource}");
+    expect(board).toContain("<RadioExperience");
+    const radio = sourceOf("components/RadioExperience.tsx");
+    expect(radio).toContain("volume: fm.fmVolume");
+    expect(radio).toContain("muted: fm.fmMuted");
+    expect(radio).toContain("source: fm.fmSource");
     expect(app + "\n" + board).not.toMatch(/duck/i);
     // …and not in the hook that now plays the audition either. Named rather than
     // widened to the whole client, because claude-fm.ts may say "duck" legitimately.
@@ -405,7 +412,7 @@ describe("absent, not broken", () => {
     // A page that starts making noise on load is a bug, and an iframe that
     // exists has already called Google whether or not anybody asked.
     expect(component).toContain("{armed && !probe.audio && (probe.channel || probe.video) && (");
-    expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(true\); return; \}/);
+    expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(false\); setBuffering\(false\); return; \}/);
     expect(component).not.toMatch(/useEffect\([^)]*setArmed\(true\)/);
   });
 
@@ -416,7 +423,7 @@ describe("absent, not broken", () => {
 
   it("releases the player on explicit stop and rejects messages from old frames", () => {
     expect(component).toContain('if (e.source !== frame.current?.contentWindow) return;');
-    expect(component).toMatch(/if \(!next\) setArmed\(false\);/);
+    expect(component).toMatch(/say\(command\("pauseVideo"\)\);\s*setArmed\(false\); setPlaying\(false\); setBuffering\(false\);/);
   });
 
   it("caches pixel geometry outside the memoized components", () => {
@@ -429,7 +436,7 @@ describe("absent, not broken", () => {
       ["../components/FmSprite.tsx", "const TORSO_RECTS"],
     ] as const) {
       const src = code(file);
-      const start = src.indexOf('export default memo(');
+      const start = src.search(/(?:export default memo\(|export const ClaudeFmCharacter = memo\()/);
       expect(start, file).toBeGreaterThan(0);
       expect(src.indexOf(cached), `${file} has no ${cached}`).toBeGreaterThan(-1);
       expect(src.indexOf(cached), `${file}: ${cached} is inside the component`).toBeLessThan(start);
@@ -524,7 +531,7 @@ describe("the character", () => {
     // character with soft edges is the one thing it cannot be.
     expect(decl(".fm-sprite", "width")).toBe("54px");
     expect(54 % SPRITE_W).toBe(0);
-    expect(decl(".fm", "--minimap-h")).toBe("152px");
+    expect(decl(".fm", "--minimap-h")).toBe("107px");
   });
 
   it("does not eat a press meant for the canvas", () => {
@@ -534,7 +541,7 @@ describe("the character", () => {
     // renders a panel's children as siblings of `.react-flow__pane`, so a press
     // on this character never reaches the pan handler to be opted out of.
     expect(component).toContain('className="fm"');
-    expect(component).not.toContain("nopan");
+    expect(sourceOf("components/ClaudeFm.tsx")).not.toContain("nopan");
   });
 
   it("wears a hat when there is nothing to listen to", () => {
@@ -818,7 +825,7 @@ describe("the character", () => {
 
   it("stays fully visible with music off in either theme", () => {
     expect(decl(".fm-sprite", "opacity")).toBe("1");
-    expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBeNull();
+    expect(decl(':root[data-color-scheme="light"] .fm-sprite', "opacity")).toBeNull();
     // Both themes drive the same three tokens, so nothing is hard-coded to one
     // of them: the canvas shows through the eyes on either.
     expect(decl(".fm-body, .fm-leg", "fill")).toBe("var(--accent)");
@@ -846,11 +853,11 @@ describe("the character", () => {
     // band are the two marks on this character that both have to be darker than
     // everything around them, and two copies of that fact would drift.
     expect(decl(".fm-sprite", "--fm-ink")).toBe("var(--bg)");
-    expect(decl(':root[data-theme="light"] .fm-sprite', "--fm-ink")).toBe("var(--text)");
+    expect(decl(':root[data-color-scheme="light"] .fm-sprite', "--fm-ink")).toBe("var(--text)");
     // The light theme's sky-blue body is set on the drawing, not the button
     // that draws the focus ring (#1793), so the ring keeps the theme's accent.
-    expect(decl(':root[data-theme="light"] .fm-sprite svg', "--accent")).toBe("var(--pixel-character-body)");
-    expect(decl(':root[data-theme="light"] .fm-sprite', "--accent")).toBeNull();
+    expect(decl(':root[data-color-scheme="light"] .fm-sprite svg', "--accent")).toBe("var(--pixel-character-body)");
+    expect(decl(':root[data-color-scheme="light"] .fm-sprite', "--accent")).toBeNull();
     // Blinking leaves a dark eyelid instead of erasing the face.
     const blink = /@keyframes fm-blink \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(blink).toContain("scaleY(0.35)");
@@ -961,7 +968,7 @@ describe("the character", () => {
     // the ledge moved with the character — which is one way to find out that a
     // floor is not a vehicle.
     expect(decl(".fm", "width")).toBe("var(--minimap-w)");
-    expect(decl(".fm", "--minimap-w")).toBe("202px");
+    expect(decl(".fm", "--minimap-w")).toBe("142px");
     expect(decl(".fm", "transform")).toBeNull();
     expect(decl(".fm-walker, .fm-prop", "position")).toBe("absolute");
     // 21px is what centres a 12px object under a 54px one when both are

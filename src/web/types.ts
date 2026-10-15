@@ -105,6 +105,9 @@ export interface TokenUsage {
    *  transcript ran at such a speed; pricing.ts prices each share at its own
    *  speed's rates (#754). */
   bySpeed?: Record<string, TokenUsage>;
+  /** Haiku 5.5 tokens from individual requests whose full prompt exceeded
+   *  100K tokens. A subset of these totals, never the cumulative session size. */
+  longContext?: TokenUsage;
 }
 
 export interface PromptEntry {

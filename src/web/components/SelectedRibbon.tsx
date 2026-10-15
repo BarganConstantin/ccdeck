@@ -11,6 +11,8 @@ import type { AgentNodeData } from "../types";
 // session's cumulative tokens by the one model it was last seen on. See
 // usage-models.ts (#686).
 import { agentCost } from "../usage-models";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
 export default function SelectedRibbon({ selected, now, selectedIds, focusAgent, clearSelection }: {
   /** The primary selection, which is the one the ribbon names. */
@@ -21,6 +23,7 @@ export default function SelectedRibbon({ selected, now, selectedIds, focusAgent,
   focusAgent: (id: string) => void;
   clearSelection: () => void;
 }) {
+  const singleKeys = useSingleKeyShortcuts();
   const c = agentCost(selected);
   const elapsedSec = Math.max(0, ((selected.endedAt ?? now) - selected.startedAt) / 1000);
   // Not for a session the deck joined late, the rule the card has kept since
@@ -36,7 +39,7 @@ export default function SelectedRibbon({ selected, now, selectedIds, focusAgent,
       /* The cost rides in the title as well as in the chip, because the
          chip drops it where the bar is short (see WHERE THE MONTH GIVES
          WAY in styles.css) and a hover should still find it there. */
-      title={`Zoom to ${selected.label} and its session (Z)${
+      title={`${withKey(`Zoom to ${selected.label} and its session`, "Z", singleKeys)}${
         c.total > 0 ? `\n${fmtCost(c.total)} spent${rate ? ` · ${rate}` : ""}` : ""}`}
       onClick={() => { try { focusAgent(selected.id); } catch {} }}
     >

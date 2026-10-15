@@ -1,0 +1,10 @@
+ZOOMBASE {
+  width: 720,
+  height: 450,
+  radio: '<button type="button" data-rail-item="radio" class="rail-btn rail-btn-stripe" tabindex="-1" aria-label="Radio" aria-expanded="false"><svg class="glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5h10v7H2z M4 5l6-3 M4 8h3 M9 8h1 M4 10h1 M8 10h2"></path></svg></button>',
+  more: undefined
+}
+PASS actual chrome.tabs.setZoom 1 {"width":1440,"height":900,"dpr":1,"panel":{"x":120,"y":50,"width":1200,"height":800,"top":50,"right":1320,"bottom":850,"left":120},"overflow":false}
+PASS actual chrome.tabs.setZoom 1.25 {"width":1152,"height":720,"dpr":1.25,"panel":{"x":24,"y":24,"width":1104,"height":672,"top":24,"right":1128,"bottom":696,"left":24},"overflow":false}
+PASS actual chrome.tabs.setZoom 1.5 {"width":960,"height":600,"dpr":1.5,"panel":{"x":24,"y":24,"width":912,"height":552,"top":24,"right":936,"bottom":576,"left":24},"overflow":false}
+PASS actual chrome.tabs.setZoom 2 {"width":720,"height":450,"dpr":2,"panel":{"x":16,"y":16,"width":688,"height":418,"top":16,"right":704,"bottom":434,"left":16},"overflow":false}

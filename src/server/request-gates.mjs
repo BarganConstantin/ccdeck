@@ -435,6 +435,11 @@ export function isAuthorizedDataRead(req) {
  *  costs nothing: every fetch of both is in src/web, and a page's own GET
  *  carries Sec-Fetch-Site: same-origin. */
 export const GUARDED_READS = new Set([
+  "/api/tool-audit",
+  "/api/tool-audit/storage",
+  "/api/system/traffic-radar",
+  "/api/system/traffic-radar/capture",
+  "/api/system/traffic-radar/capture/event",
   "/events",
   "/api/events",
   "/api/claude-accounts",
@@ -449,6 +454,7 @@ export const GUARDED_READS = new Set([
   // this answer (codex-quota.mjs), which is the account identity the roster
   // route above is guarded for.
   "/api/codex-quota",
+  "/api/quota/history",
   // And the rest of the usage panel, by the rule /api/account-projects is here
   // under: the active account's quota windows, Claude's spend by day and by
   // session, Codex's token spend, and the auto-switch settings with the last
@@ -457,6 +463,7 @@ export const GUARDED_READS = new Set([
   // the desktop app, bin/ and the hook never read them.
   "/api/quota",
   "/api/ccusage",
+  "/api/ccusage/session",
   "/api/codex-usage",
   "/api/cswap-auto",
   // Not a secret, and here for the other reason a read can be dangerous: it is
@@ -475,6 +482,8 @@ export const GUARDED_READS = new Set([
   // about route by route.
   "/api/terminal/status",
   "/api/terminal/target",
+  "/api/radio-stations",
+  "/api/radio-click",
 ]);
 
 export function isAuthorizedMutation(req) {

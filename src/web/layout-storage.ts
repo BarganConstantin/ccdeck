@@ -65,6 +65,31 @@ export function saveViewport(vp: { x: number; y: number; zoom: number }): void {
   writeStored(VIEWPORT_STORAGE_KEY, JSON.stringify(vp));
 }
 
+/** The three keys R empties, as the store holds them: null where a key is
+ *  absent, which is a state to put back as much as a value is. */
+export interface StoredArrangement {
+  layout: string | null;
+  frame: string | null;
+  viewport: string | null;
+}
+
+/** Read before R clears them, for Re-arrange's Undo (rearrange-undo.ts). */
+export function readStoredArrangement(): StoredArrangement {
+  return {
+    layout: readStored(LAYOUT_STORAGE_KEY),
+    frame: readStored(LAYOUT_FRAME_KEY),
+    viewport: readStored(VIEWPORT_STORAGE_KEY),
+  };
+}
+
+/** Puts the three keys back exactly: a value rewritten, an absence removed. */
+export function restoreStoredArrangement(stored: StoredArrangement): void {
+  const put = (key: string, value: string | null) => (value === null ? removeStored(key) : writeStored(key, value));
+  put(LAYOUT_STORAGE_KEY, stored.layout);
+  put(LAYOUT_FRAME_KEY, stored.frame);
+  put(VIEWPORT_STORAGE_KEY, stored.viewport);
+}
+
 export function clearStoredLayout(): void {
   // One removeStored per key, each with its own try, so a failure removing one
   // (quota / locked store) doesn't strand the other.

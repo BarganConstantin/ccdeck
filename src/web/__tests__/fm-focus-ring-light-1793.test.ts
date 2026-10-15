@@ -20,7 +20,7 @@ import { cascade, el, selects, splitTop, type El } from "./sheet-cascade";
 const NON_TEXT = 3;
 const WIDTH = 1280;
 
-const html = (theme: "light" | "dark") => el("html", [], { states: ["root"], attrs: { "data-theme": theme } });
+const html = (theme: "light" | "dark") => el("html", [], { states: ["root"], attrs: { "data-theme": theme, "data-color-scheme": theme } });
 
 /** The character's button and its ancestors, standing on the ledge or the floor. */
 function sprite(theme: "light" | "dark", place: "ledge" | "floor"): El[] {

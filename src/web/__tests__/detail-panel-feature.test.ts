@@ -9,7 +9,8 @@
 // loaded, an unattended desktop start included.
 //
 // The hooks are run on a React of two — state and an effect — against a
-// stubbed store and beacon.
+// stubbed store and beacon, plus the external-store read a component makes of
+// the single-key switch.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ComponentProps } from "react";
 
@@ -24,6 +25,11 @@ const hooks = vi.hoisted(() => {
       const i = inst.cursor++;
       if (!(i in inst.slots)) inst.slots[i] = typeof init === "function" ? (init as () => T)() : init;
       return [inst.slots[i] as T, (v: T) => { inst.slots[i] = v; }] as const;
+    },
+    // DetailAside reads Settings › General's single-key switch through one,
+    // for the tooltip it hands Detail; a store read once is all this needs.
+    useSyncExternalStore<T>(_subscribe: unknown, getSnapshot: () => T) {
+      return getSnapshot();
     },
     useEffect(run: () => void | (() => void), deps?: Deps) {
       const inst = current!;

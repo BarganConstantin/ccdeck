@@ -31,6 +31,10 @@ vi.mock("reactflow", async importOriginal => {
   };
 });
 
+// The single-key switch is read through a hook as well; called directly, the
+// component gets it the way it gets React Flow's store — as a plain function.
+vi.mock("../use-single-key-shortcuts", () => ({ useSingleKeyShortcuts: () => true }));
+
 import CanvasControls from "../components/CanvasControls";
 
 const props = {

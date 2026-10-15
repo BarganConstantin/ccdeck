@@ -25,7 +25,9 @@ describe("the keyboard sheet's note (#852)", () => {
 
   it("comes after the keys and before the end of the body", () => {
     const grid = sheet.indexOf('<div className="shortcuts">');
-    const note = sheet.indexOf("<p className=\"kh-foot\">{KEY_HELP_NOTE}</p>");
+    // The footnote's second sentence says where the single-key shortcuts are
+    // turned off (WCAG 2.1.4); KEY_HELP_NOTE still opens it, once.
+    const note = sheet.indexOf("<p className=\"kh-foot\">{KEY_HELP_NOTE} {KEY_HELP_SWITCH_NOTE}</p>");
     const end = sheet.indexOf("</section>");
     expect(grid).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(grid);

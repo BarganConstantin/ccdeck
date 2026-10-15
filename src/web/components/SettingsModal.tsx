@@ -22,16 +22,20 @@ import { focusedTabToFollow, sectionIndex, SETTINGS_SECTIONS, type SettingsSecti
 import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
-import type { useClaudeFm } from "../use-claude-fm";
 import type { useCustomTones } from "../use-custom-tones";
 import type { useOsNotifications } from "../use-os-notifications";
 import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
-import MusicSection from "./MusicSection";
+import { characterKeyMuted, setSingleKeyShortcuts } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
+import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
+import CharacterSection from "./CharacterSection";
+import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 export interface SettingsModalProps {
@@ -45,11 +49,10 @@ export interface SettingsModalProps {
   customTones: ReturnType<typeof useCustomTones>;
   notify: ReturnType<typeof useOsNotifications>;
   appearance: ReturnType<typeof useAppearance>;
-  fm: ReturnType<typeof useClaudeFm>;
 }
 
 export default function SettingsModal({
-  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance, fm,
+  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
 }: SettingsModalProps) {
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
@@ -64,7 +67,8 @@ export default function SettingsModal({
     if (focusedTabToFollow(document.activeElement?.id, section)) selectedTabRef.current?.focus();
   }, [section]);
 
-  const { theme, setTheme, characterEnabled, setCharacterEnabled } = appearance;
+  const { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter } = appearance;
+  const singleKeys = useSingleKeyShortcuts();
 
   const moveSection = (event: KeyboardEvent<HTMLDivElement>) => {
     const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");
@@ -82,18 +86,21 @@ export default function SettingsModal({
   // T is the key General's caption advertises. App answers it anywhere on the
   // deck, but not past an open dialog, so the hint would have named a dead key
   // in the one place it is shown. A field somebody is typing into keeps every
-  // letter, and so does a <select>, whose letters pick an option.
+  // letter, and so does a <select>, whose letters pick an option. And T is a
+  // single-key shortcut like the deck's others, so the switch in General
+  // silences it here too (WCAG 2.1.4).
   const onDialogKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === " ") { event.stopPropagation(); return; }
+    if (characterKeyMuted(event.key, singleKeys)) return;
     const target = event.target as HTMLElement;
     if (isTypingTarget(target) || target.tagName === "SELECT") return;
     if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
+    const next = nextTheme((target.dataset.themeChoice as typeof theme | undefined) ?? theme);
+    setTheme(nextTheme);
     if (target.getAttribute("role") === "radio") {
-      event.currentTarget.querySelector<HTMLButtonElement>(`[role="radio"][aria-checked="false"]`)?.focus();
+      event.currentTarget.querySelector<HTMLButtonElement>(`[role="radio"][data-theme-choice="${next}"]`)?.focus();
     }
   };
 
@@ -103,8 +110,6 @@ export default function SettingsModal({
           createNotificationVoice, renameCustomAsset, deleteCustomAsset, previewCustomAsset } = customTones;
   const { notifyPermission, notifyOn, notifyVetoed, toggleNotify, notifySupported, askForNotifications,
           accountNotify, toggleAccountNotify } = notify;
-  const { fmVolume, setFmVolume, fmMuted, setFmMuted, fmSource, customFmStations, unavailableFmStations,
-          addFmStation, renameFmStation, removeFmStation, pickFmSource } = fm;
 
   const pane = (() => {
     switch (section) {
@@ -141,26 +146,20 @@ export default function SettingsModal({
             onDeleteCustom={deleteCustomAsset}
           />
         );
-      case "music":
-        return (
-          <MusicSection
-            characterEnabled={characterEnabled}
-            onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
-            fmVolume={fmVolume}
-            onFmVolume={setFmVolume}
-            fmMuted={fmMuted}
-            onFmMuted={() => setFmMuted(muted => !muted)}
-            fmSource={fmSource}
-            onFmSource={pickFmSource}
-            customFmStations={customFmStations}
-            unavailableFmStations={unavailableFmStations}
-            onAddFmStation={addFmStation}
-            onRenameFmStation={renameFmStation}
-            onRemoveFmStation={removeFmStation}
-          />
-        );
       default:
-        return <ThemeSection theme={theme} onTheme={setTheme} />;
+        return (
+          <>
+            <ThemeSection theme={theme} onTheme={setTheme} singleKeys={singleKeys} />
+            <CharacterSection
+              characterEnabled={characterEnabled}
+              character={character}
+              onCharacter={setCharacter}
+              onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
+            />
+            <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
+            <ToolAuditSettings />
+          </>
+        );
     }
   })();
 
@@ -224,7 +223,10 @@ export default function SettingsModal({
             ))}
           </div>
           {/* Keyed by the section, so a section opens at its top rather than
-              at the scroll the last one was left at. */}
+              at the scroll the last one was left at. Headed by its own name:
+              the dialog is one height now, and a short section under a title
+              reads as a page that ends rather than a box left half-filled. It
+              is also the rank the groups' h3 captions were missing. */}
           <div
             key={section}
             className="settings-pane"
@@ -232,6 +234,7 @@ export default function SettingsModal({
             id="settings-pane"
             aria-labelledby={`settings-tab-${section}`}
           >
+            <h2 className="settings-pane-title">{SETTINGS_SECTIONS[at].label}</h2>
             {pane}
           </div>
         </div>

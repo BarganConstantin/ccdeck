@@ -53,6 +53,7 @@ const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  */
 const PINNED_MODULES = [
   "self-update.mjs",
+  "tool-audit.mjs",
   "claude-accounts.mjs",
   "account-health.mjs",
   "cswap-admin.mjs",
@@ -65,6 +66,7 @@ const PINNED_MODULES = [
   "browser-watch-store.mjs",
   "claude-fm.mjs",
   "fm-station.mjs",
+  "radio-directory.mjs",
   "lofi-girl.mjs",
   "live-radio-mix.mjs",
   "best-of-nostalgia.mjs",

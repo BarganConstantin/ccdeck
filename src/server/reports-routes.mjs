@@ -7,7 +7,7 @@ import { reportsVetoed } from "./deck-prefs.mjs";
 import { MAX_REQUEST_BYTES, isMultipart, readFeedbackForm, upstreamForm } from "./feedback-form.mjs";
 import { readBody, readBytes, send } from "./http-io.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
-import { REPORTS_API, installFacts, reporter } from "./reports.mjs";
+import { REPORTS_API, deviceIdToken, installFacts, reporter, reportsOn } from "./reports.mjs";
 
 async function readJson(req, res, limit) {
   const raw = await readBody(req, res, limit).catch(() => null);
@@ -72,33 +72,52 @@ export async function handleClientError(req, res, { report = reporter } = {}) {
  * one message. AGENTS_DECK_NO_INSTALL=1 still wins, because the README promises
  * that it "turns off everything but the quota reads", and a launch script's
  * word about the machine outranks a button on the page.
+ *
+ * `device` is the fingerprint feedbackDeviceId picks; a test passes its own,
+ * or null for none.
  */
-export async function handleFeedback(req, res, { fetchImpl = globalThis.fetch, env = process.env } = {}) {
+export async function handleFeedback(req, res, { fetchImpl = globalThis.fetch, env = process.env, device = feedbackDeviceId({ env }) } = {}) {
   if (env.AGENTS_DECK_NO_INSTALL === "1") return send(res, 403, { ok: false, reason: "vetoed" });
+  // Left out of the post entirely when there is none: JSON drops an undefined.
+  const deviceId = device || undefined;
   const contentType = req.headers?.["content-type"];
-  if (isMultipart(contentType)) return forwardFeedbackForm(req, res, contentType, { fetchImpl, env });
+  if (isMultipart(contentType)) return forwardFeedbackForm(req, res, contentType, { fetchImpl, env, deviceId });
   const body = await readJson(req, res, 32_000);
   if (!body) return send(res, 400, { ok: false, reason: "bad_request" });
   const facts = feedbackFacts({ env });
   const contact = typeof body.contact === "string" && body.contact.trim() ? body.contact.trim() : undefined;
   return forwardFeedback(res, fetchImpl, {
     headers: { "content-type": "application/json", "user-agent": `ccdeck/${facts.appVersion}` },
-    body: JSON.stringify({ kind: body.kind, title: body.title, body: body.body, contact, ...facts }),
+    body: JSON.stringify({ kind: body.kind, title: body.title, body: body.body, contact, ...facts, deviceId }),
     timeoutMs: JSON_TIMEOUT_MS,
   });
 }
 
 /**
- * What this deck adds to a piece of feedback, and all it adds: the ccdeck
- * version, and the system as `os-arch` — `darwin-arm64`. installFacts knows
- * more than that (the channel, the runtime, a locale, a device fingerprint)
- * and none of it goes with feedback. One function for both posts and for the
- * line the dialog draws before Send, so what the page says is sent and what
- * the API is sent are one answer and cannot drift apart.
+ * What the dialog says, before Send, that this deck adds to a piece of
+ * feedback: the ccdeck version, and the system as `os-arch` — `darwin-arm64`.
+ * Both posts carry these two, from this one function, so what the line shows
+ * and what the API gets for them cannot drift apart.
+ *
+ * The posts also carry the device fingerprint (feedbackDeviceId), and the line
+ * does not show it: the owner's decision of 2026-10-14, so a report can be
+ * tied to the install that sent it. installFacts' other fields (the channel,
+ * the runtime, a locale) never go with feedback.
  */
 export function feedbackFacts({ env = process.env } = {}) {
   const facts = installFacts({ env });
   return { appVersion: facts.version, platform: `${facts.os}-${facts.arch}` };
+}
+
+/**
+ * The device fingerprint a piece of feedback carries: the same one-way hash
+ * every usage report sends (deviceIdToken), and under the same rule — only
+ * while reports are on. Switched off, or vetoed with AGENTS_DECK_NO_REPORTS=1,
+ * the fingerprint stays home here as it does everywhere else, and the feedback
+ * still goes. It is read here, never taken from the page.
+ */
+export function feedbackDeviceId({ env = process.env, prefs = heldPrefs.current() } = {}) {
+  return reportsOn(prefs, env) ? deviceIdToken() : undefined;
 }
 
 /** `GET /api/feedback`: what a report sent from here would carry besides its
@@ -113,7 +132,7 @@ const JSON_TIMEOUT_MS = 20_000;
  *  seconds of upload before the API has read a byte of it. */
 const FORM_TIMEOUT_MS = 120_000;
 
-async function forwardFeedbackForm(req, res, contentType, { fetchImpl, env }) {
+async function forwardFeedbackForm(req, res, contentType, { fetchImpl, env, deviceId }) {
   // Over the cap, readBytes has already answered 413 too_large and the 400
   // below is a no-op; this is the answer to a read that failed some other way.
   const bytes = await readBytes(req, res, MAX_REQUEST_BYTES, { ok: false, reason: "too_large" }).catch(() => null);
@@ -125,7 +144,7 @@ async function forwardFeedbackForm(req, res, contentType, { fetchImpl, env }) {
   return forwardFeedback(res, fetchImpl, {
     // No content type: fetch writes the form's own, boundary and all.
     headers: { "user-agent": `ccdeck/${facts.appVersion}` },
-    body: upstreamForm(form, facts),
+    body: upstreamForm(form, { ...facts, deviceId }),
     timeoutMs: FORM_TIMEOUT_MS,
   });
 }

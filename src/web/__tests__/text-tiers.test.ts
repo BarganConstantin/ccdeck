@@ -141,7 +141,7 @@ describe("the text ramp has three readable levels in both themes", () => {
 
 describe("what was migrated to the secondary tier", () => {
   /** The rules that read it, by selector, from the sheet itself. */
-  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?color:\s*var\(--text-secondary\)/g)]
+  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?(?<![-\w])color:\s*var\(--text-secondary\)/g)]
     .map(m => m[2].trim());
 
   it("is prose a reader reads, not metadata they glance at", () => {
@@ -154,6 +154,11 @@ describe("what was migrated to the secondary tier", () => {
       // The Local network card while the section is off: the one sentence
       // that says what the section is for, read once before deciding to turn
       // it on. Prose, in a card whose other line is a verb in the accent.
+      // Why a sign-in stage failed, under the row that says which: the one
+      // sentence the reader reads to decide whether to start over. The cross
+      // and the heading carry the failure; the reason is prose, so it reads and does not
+      // shout.
+      ".aa-reason",
       ".ap-issue-hint",
       ".ap-lan-intro-text",
       // The shared text field's placeholder, in dark only: an example, not a
@@ -222,7 +227,43 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
+      ".radio-art",
+      ".radio-cluster-preview button span",
+      ".radio-controls > .radio-player-button",
+      ".radio-daily-meta",
+      ".radio-directory-error p",
+      ".radio-empty",
+      ".radio-eyebrow",
+      ".radio-filter-options p",
+      ".radio-filter-search",
+      ".radio-filter-search input::placeholder",
+      ".radio-filter-back", ".radio-filter-field > span:nth-child(2)", ".radio-filter-heading .icon-btn", ".radio-filter-note",
+      ".radio-filter-trigger", ".radio-filter-toggle", ".radio-tab-count",
+      ".radio-source-heading > span", ".radio-source-heading > svg", ".radio-workspace-toggle > svg", ".radio-source-help",
+      ".radio-header h2 span",
+      ".radio-header-note",
+      ".radio-loading > .icon-btn",
+      ".radio-map-heading > span",
+      ".radio-map-help",
+      ".radio-now-details",
+      ".radio-own summary",
+      ".radio-panel .icon-btn",
+      ".radio-regions .radio-region, .radio-collections .radio-collection, .radio-mobile-view .radio-view",
+      ".radio-results-heading",
+      ".radio-search",
+      ".radio-search input::placeholder",
+      ".radio-station-code",
+      ".radio-station-pick > span > span",
+      ".radio-tuning > span",
+      ".radio-tuning-tower",
       ".sa-why",
+      // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
+      // success green the other themes give them nor the totals' --text. Read
+      // down a column to compare sessions, which --muted is too quiet for.
+      ":root[data-theme^=\"gruvbox-\"] .uh-detail-cost",
+      // Material's waiting tool, by bed: --warn mixed toward its panel falls
+      // under AA there, and the name is what decides whether to get up.
+      ":root[data-theme=\"gruvbox-material\"] .session-list .sl-waiting-tool",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).
@@ -235,6 +276,57 @@ describe("what was migrated to the secondary tier", () => {
       // The custom-sound cards' captions, by bed again: --muted on the card's
       // --sm-fill is 4.25:1 in dark (#1788).
       ".sm-custom-card-copy > span",
+      // The Radar redesign adds explanatory text and neutral utility labels.
+      ".empty-hero .film-action",
+      // Tool activity: the summary sentence, the findings' one-line reasons,
+      // the explanations under "How this is counted", the empty and error
+      // sentences and the notes in the details panel are prose. A row's
+      // description and its unsorted values are here by bed: a row is raised
+      // on --ctl-fill under the pointer and while open, where --muted is
+      // 4.05:1 in dark (#1789), and the search placeholder sits on the same fill.
+      ".ta-cell",
+      ".ta-cell small",
+      ".ta-desc",
+      ".ta-empty p",
+      ".ta-explain",
+      ".ta-highlight-text small",
+      ".ta-message",
+      ".ta-note",
+      ".ta-search input::placeholder",
+      ".ta-summary",
+      ".tr-active-destinations > span",
+      ".tr-event-top time",
+      ".tr-history",
+      ".tr-identity p",
+      ".tr-inline-copy",
+      ".tr-inspection-limit .tr-details > summary",
+      ".tr-inspection-limit > svg",
+      ".tr-inspector-head h3 svg",
+      ".tr-json-boolean, .tr-json-null",
+      ".tr-purpose",
+      ".tr-row-icon",
+      ".tr-select-wrap > svg",
+      ".tr-signal",
+      ".tr-source-error",
+      ".tr-source-ready",
+      ".tr-attributes dt > span",
+      ".tr-count",
+      ".tr-destination label, .tr-filter label",
+      ".tr-destinations li > span",
+      ".tr-empty",
+      ".tr-facts dt",
+      ".tr-input::placeholder",
+      ".tr-inspector-empty svg",
+      ".tr-live-connections span",
+      ".tr-message > span, .tr-message > code",
+      ".tr-monitor-footer",
+      ".tr-note",
+      ".tr-raw-flag",
+      ".tr-session-filter",
+      ".tr-sources li > span:last-child",
+      ".tr-tab",
+      ".tr-tone-unknown",
+      ".tr-variables dt > span, .tr-variables dt > code",
       // The terminal stage. Its keys bar says in a sentence who has the
       // keyboard — "Keys on the board", "Typing into paycore", the first-run
       // line, "The session ended 14m ago — this is its last frame" — on the
@@ -245,7 +337,7 @@ describe("what was migrated to the secondary tier", () => {
       // answers a refused Reopen here in place. Prose read once and acted on.
       ".ts-note",
       ".ts-text",
-    ]);
+    ].sort());
   });
 
   it("left the timestamps, counts, labels and system lines where they were", () => {

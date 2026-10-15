@@ -1,37 +1,6 @@
 /* ── Browser watch ────────────────────────────────────────────────────────
-   The topbar control is an outline like the seven beside it and gains nothing
-   at rest. #720 took a resting pill OUT of this bar for saying nothing all
-   day; a second control that reported "no findings" would be the same mistake
-   wearing an eye. The badge is the only thing that ever appears, and only when
-   an episode nobody has read exists.
-   It is a count, not an alarm, so it is --muted and not --warn. Amber in this
-   bar belongs to the blocked-session chip, the one thing the deck exists to
-   raise, and an eye that went amber with a filled amber bubble for unread
-   browser history was the loudest object in the bar while nothing needed
-   anyone. --bg on --muted is 5.08:1 in dark and 6.95:1 in light, and the
-   bubble stands 4.70:1 or better off either end of the bar in dark and 6.95:1
-   or better in light. The button's own glyph and word stay at
-   rest in every state: the pupil or the slash carries watching, see App.tsx. */
-.bw-btn { position: relative; }
-.bw-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  border-radius: 999px;
-  background: var(--muted);
-  color: var(--bg);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  /* A ring of the bar's own colour, so the badge sits cut out of the corner it
-     overlaps rather than on top of the button's edge. */
-  box-shadow: 0 0 0 2px var(--panel);
-}
+   Its control is on the right stripe (edge-rails.css), where its unread count
+   is `.rail-badge`: in the chrome's resting grey, never in amber. */
 
 .bw-modal { width: min(860px, 94vw); }
 /* `flex: none` on every child, and it is not cosmetic. `.modal-body` is a

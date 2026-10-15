@@ -470,53 +470,15 @@ describe("fetchCodexUsage fills the cache-write field its own shape declares", (
 
 // ── 4. the local number and the network call ────────────────────────────────
 
-describe("the 7-day token line does not wait on an authenticated round trip", () => {
-  it("renders outside all three branches of the Codex quota fetch", () => {
-    // /api/codex-usage: 2-4ms, zero outbound requests, reading files this
-    // machine already has. /api/codex-quota: 991-1299ms across two HTTPS GETs
-    // to chatgpt.com, and it fails outright on no_token, api_key_mode, an
-    // expired refresh or blocked egress. The local line used to render only
-    // inside the success case of the second one.
-    //
-    // The section is QuotaSections.tsx's now, so the positions are read there;
-    // the count reads the panel and everything lifted out of it.
-    const uses = [...panelSurface.matchAll(/codexUsage\?\.ok/g)];
-    expect(uses).toHaveLength(1);
-    const at = sections.indexOf("codexUsage?.ok");
-    // Scoped to the Codex section: the Claude quota above it has the same three
-    // branches, and an unanchored search for the loading one finds Claude's.
-    const section = sections.indexOf("Codex quota");
-    expect(section).toBeGreaterThan(-1);
-    const successBranch = sections.indexOf("codexQuota?.ok ? (", section);
-    const failureBranch = sections.indexOf("codexQuota?.ok === false", section);
-    const loadingBranch = sections.indexOf("up-quota-loading", failureBranch);
-    expect(successBranch).toBeGreaterThan(-1);
-    expect(failureBranch).toBeGreaterThan(successBranch);
-    expect(loadingBranch).toBeGreaterThan(failureBranch);
-    // After the last of the three: outside the ternary entirely.
-    expect(at).toBeGreaterThan(loadingBranch);
-    // And still inside the Codex section rather than adrift after it.
-    expect(at).toBeLessThan(sections.indexOf("</section>", loadingBranch));
-    // Which the panel hands the local reading, whatever the quota call did.
-    expect(panel).toMatch(/<CodexQuotaSection [^>]*codexUsage=\{codexUsage\}/);
+describe("Usage insights retires the local Codex token summary", () => {
+  it("does not mix local session tokens into provider quota", () => {
+    expect(panelSurface).not.toMatch(/codexUsage\?\.ok/);
+    expect(sections).not.toMatch(/codexUsage\.window(?:5h|7d)/);
+    expect(panel).not.toMatch(/<CodexQuotaSection [^>]*codexUsage=/);
   });
 
-  it("keeps polling it on its own timer, which is what makes that worth doing", () => {
-    // The argument is deliberately not pinned. #402 gates the hook on
-    // `providers.codex` so a Claude-only machine stops polling an endpoint that
-    // can only answer empty — that is a different question from this one, which
-    // is only that the line has a hook of its own rather than riding on the
-    // authenticated quota call.
-    expect(panel).toMatch(/const \{ data: codexUsage \} = useCodexUsage\([^)]*\);/);
-    // The hook itself is use-quota.ts's, with the other two quota reads.
+  it("removes the unused panel poll while preserving the independent local reader", () => {
+    expect(panel).not.toMatch(/useCodexUsage\(/);
     expect(strip(read("../use-quota.ts"))).toMatch(/fetch\("\/api\/codex-usage"\)/);
-  });
-
-  it("finally reads the 5-hour window the server has always computed", () => {
-    // Nothing consumed window5h. It goes in the title rather than on the line:
-    // the panel is 280px wide (#369) and a second visible figure costs more
-    // than it says.
-    expect(sections).toMatch(/codexUsage\.window5h/);
-    expect(sections).toMatch(/last 5h/);
   });
 });

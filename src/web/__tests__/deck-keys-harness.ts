@@ -14,6 +14,7 @@
 import { vi } from "vitest";
 import type { SetStateAction } from "react";
 import { initialState } from "../reducer";
+import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 import type { Theme } from "../theme";
 import { useDeckShortcuts, type DeckShortcuts, type StageShortcuts } from "../use-deck-shortcuts";
 
@@ -55,6 +56,12 @@ export interface DeckKeysOptions {
   /** The terminal stage the deck is handed, if any — see `stageKeys`. Left
    *  out, the deck is mounted exactly as it was before the stage existed. */
   stage?: StageShortcuts | null;
+  /** Settings › General's single-key switch; on, as a deck starts, unless a
+   *  test says not. Set on every mount, so no test inherits another's. */
+  singleKeys?: boolean;
+  /** Re-arrange's Undo: true when its window was open and it restored the
+   *  board, false once the notice has gone. Absent, there is nothing to undo. */
+  undoRearrange?: () => boolean;
 }
 
 /** A terminal stage whose every callback is a spy, open on `s1` with three
@@ -73,12 +80,13 @@ export function stageKeys(over: Partial<StageShortcuts> = {}): StageShortcuts {
   };
 }
 
-export function mountDeckKeys({ claude = true, stage }: DeckKeysOptions = {}) {
+export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false, stage }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   vi.stubGlobal("window", {
     addEventListener: (type: string, fn: (e: KeyboardEvent) => void) => { if (type === "keydown") onKey = fn; },
     removeEventListener: () => {},
   });
+  setSingleKeyShortcuts(singleKeys);
   const keyHelp = flag(false);
   const theme = flag<Theme>("dark");
   const detail = flag(false);
@@ -106,6 +114,7 @@ export function mountDeckKeys({ claude = true, stage }: DeckKeysOptions = {}) {
     focusSession: vi.fn(),
     requestClear: vi.fn(),
     handleRelayout: vi.fn(),
+    undoRearrange: vi.fn(undoRearrange),
     handleFit: vi.fn(),
     togglePause: vi.fn(),
     toggleSessionList: vi.fn(),

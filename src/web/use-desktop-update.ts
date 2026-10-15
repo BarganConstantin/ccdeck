@@ -25,6 +25,10 @@ export interface DesktopUpdateControls {
   desktopUpdateFailure: { failure: UpdateRestartFailure; version: string } | null;
   /** The update the app has staged and is ready to install, or null. */
   readyAppUpdate: ReturnType<typeof readyDesktopUpdate>;
+  /** What the app's updater last reported — checking, downloading, current —
+   *  or null outside the app and until it has said anything. What's new reads
+   *  it to say where the app's own check stands. */
+  appUpdate: DesktopUpdateState | null;
   askDesktopUpdateRestart: (updateVersion: string) => Promise<void>;
   /** Hand the `desktop-update` stream event's raw data straight to this. */
   onDesktopUpdateEvent: (data: string) => void;
@@ -138,6 +142,6 @@ export function useDesktopUpdate(live: boolean): DesktopUpdateControls {
     } catch { /* ignore */ }
   }, []);
 
-  return { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate,
+  return { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate, appUpdate: desktopUpdate,
            askDesktopUpdateRestart, onDesktopUpdateEvent };
 }

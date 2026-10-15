@@ -52,6 +52,7 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (name: string) => readFileSync(join(web, name), "utf8");
 
 const rawCss = sheetText();
+const rawSessionCss = readFileSync(join(web, "styles/session-clusters.css"), "utf8");
 const rawTsx = read("components/SessionClusters.tsx");
 /** Where the box's and the label's inline styles are built since they left the
  *  component's render. */
@@ -485,7 +486,7 @@ describe("sees the sheet it is reading, so a passing run means something", () =>
     // the one string that proves a stripper ran without pinning a wording.
     expect(rawTsx).toMatch(/#353/);
     expect(tsx).not.toMatch(/#353/);
-    expect(rawCss).toMatch(/#353/);
-    expect(css).not.toMatch(/#353/);
+    expect(rawSessionCss).toMatch(/#353/);
+    expect(rawSessionCss.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/#353/);
   });
 });

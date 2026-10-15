@@ -337,9 +337,13 @@ describe("a second press is refused by the handler, not by the browser", () => {
     // request without a re-added guard is the regression this now watches for.
     // The switch moved to use-sound-switch.ts, so this asks App.tsx and the
     // hooks it imports — the negatives included, which now have more to hold for
-    // — and the settings run the button itself moved to, with its own.
+    // — and the chrome's controls, where the button went before it left for
+    // Settings › Sounds: their definitions (rail-items.tsx) and the stripes,
+    // dock and utilities that draw them (components/EdgeRails.tsx), each with
+    // the hooks it imports.
     const app = surfaceOf("App.tsx", codeOf("App.tsx"))
-      + "\n" + surfaceOf("components/TopbarRuns.tsx", codeOf("components/TopbarRuns.tsx"));
+      + "\n" + surfaceOf("rail-items.tsx", codeOf("rail-items.tsx"))
+      + "\n" + surfaceOf("components/EdgeRails.tsx", codeOf("components/EdgeRails.tsx"));
     expect(app).not.toMatch(/soundBusyRef/);
     expect(app).not.toMatch(/setSoundBusy/);
     expect(app, "the toggle must stay synchronous").toMatch(/const toggleSound = useCallback\(\(\) => \{/);
@@ -397,7 +401,12 @@ describe("a second press is refused by the handler, not by the browser", () => {
     // idle while refusing every press. Each journey draws its own request
     // since #1795 — the sign-in's two and the import's two — under one lock.
     expect([...dialog.matchAll(/if \(!selfPressAccepted\(busyRef\.current\)\) return;/g)].length).toBe(4);
-    expect([...dialog.matchAll(/busyRef\.current = false;\s*\n\s*setLoginBusy\(false\);/g)].length).toBe(2);
+    // Three releases on the sign-in side: start's and submitCode's own, and
+    // Cancel's. Cancel abandons whichever of the two is out — its answer is
+    // dropped by attempt rather than applied — so the lock it held is released
+    // there, or the primer's button would refuse every press until a start
+    // the server had been told to drop timed out.
+    expect([...dialog.matchAll(/busyRef\.current = false;\s*\n\s*setLoginBusy\(false\);/g)].length).toBe(3);
     expect([...dialog.matchAll(/busyRef\.current = false;\s*\n\s*setPasteBusy\(false\);/g)].length).toBe(2);
   });
 });

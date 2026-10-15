@@ -10,4 +10,8 @@ import "./styles.css";
 try { pruneStaleState(window.localStorage); } catch { /* private mode */ }
 
 const root = createRoot(document.getElementById("root")!);
+if (window.ccdeckWindow) {
+  document.documentElement.dataset.desktopChrome = "true";
+  document.documentElement.dataset.desktopPlatform = window.ccdeckWindow.platform;
+}
 root.render(<App />);

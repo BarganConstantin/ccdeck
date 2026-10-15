@@ -17,10 +17,14 @@
    `.sl-row-meta`) is what actually holds the width — measured flat at a
    2000-character session label, the same check #369 put on the two panels
    beside this one. This is the shape `.accounts-panel` and `.usage-panel`
-   already had; the session list was the one panel with a nested scroller. */
+   already had; the session list was the one panel with a nested scroller.
+   ITS OWN WIDTH, which it never had: the grid's track gave it 240px, so in a
+   switch, with Accounts' `auto` template in force, it was as wide as its
+   longest row. It is drawn inside the left column now, out of flow, at this
+   width from its first frame to its last (styles/left-column.css). */
 .session-list {
-  grid-column: 1;
-  grid-row: 2 / -1;
+  /* Same width as Accounts, so switching panels keeps the canvas in place. */
+  width: 288px;
   background: var(--panel);
   border-right: 1px solid var(--line);
   display: flex;
@@ -321,7 +325,7 @@
   font-weight: 500;
   color: color-mix(in srgb, var(--warn) 75%, var(--panel));
 }
-:root[data-theme="light"] .session-list .sl-waiting-tool { color: var(--warn); }
+:root[data-color-scheme="light"] .session-list .sl-waiting-tool { color: var(--warn); }
 
 /* The recap as the row's last line. Three lines where the card has two: this is
    the column a person reads down to choose which session to go back to, and it
@@ -387,9 +391,9 @@
 .session-list .sl-status.status-needs .sl-status-tag { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
 .session-list .sl-status.status-failed .sl-status-tag { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
 .session-list .sl-status.status-done .sl-status-tag { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
-:root[data-theme="light"] .session-list .sl-status.status-needs .sl-status-tag { color: var(--warn); }
-:root[data-theme="light"] .session-list .sl-status.status-failed .sl-status-tag { color: var(--err); }
-:root[data-theme="light"] .session-list .sl-status.status-done .sl-status-tag { color: var(--ok); }
+:root[data-color-scheme="light"] .session-list .sl-status.status-needs .sl-status-tag { color: var(--warn); }
+:root[data-color-scheme="light"] .session-list .sl-status.status-failed .sl-status-tag { color: var(--err); }
+:root[data-color-scheme="light"] .session-list .sl-status.status-done .sl-status-tag { color: var(--ok); }
 /* Claude Code's guess at the answer, shown as a guess: metadata tier, one line
    under the question it answers. */
 .session-list .sl-status-reply {

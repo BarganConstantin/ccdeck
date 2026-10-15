@@ -26,7 +26,8 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
       // blur OFF.
       .filter(([, b]) => /backdrop-filter:\s*(?!none)\S/.test(b))
       .map(([sel]) => sel);
-    expect(blurring).toEqual([]);
+    expect(blurring).toEqual([".radio-backdrop"]);
+    expect(decl(bodyOf(".radio-backdrop"), "backdrop-filter")).toBe("blur(3px)");
   });
 
   it("puts no filter on a path that animates forever", () => {
@@ -34,7 +35,7 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
       .filter(([, b]) => /animation:[^;]*\binfinite\b/.test(b) && /(?:^|[;\s])filter:\s*drop-shadow/.test(b))
       .map(([sel]) => sel);
     expect(glowing).toEqual([]);
-    for (const sel of [".tool-conn.status-inflight", ':root[data-theme="light"] .tool-conn.status-inflight',
+    for (const sel of [".tool-conn.status-inflight", ':root[data-color-scheme="light"] .tool-conn.status-inflight',
                        ".react-flow__edge.rf-edge-selected .react-flow__edge-path"]) {
       expect(decl(bodyOf(sel), "filter"), sel).toBeNull();
     }
@@ -56,7 +57,8 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
 
   it("dims the page under a dialog with its fill alone", () => {
     const scrim = bodyOf(".modal-backdrop");
-    expect(decl(scrim, "background")).toBe("rgba(5,6,9,0.55)");
+    expect(decl(scrim, "--modal-scrim")).toBe("rgba(5,6,9,0.55)");
+    expect(decl(scrim, "background")).toBe("var(--modal-scrim)");
     expect(decl(scrim, "backdrop-filter")).toBeNull();
   });
 });

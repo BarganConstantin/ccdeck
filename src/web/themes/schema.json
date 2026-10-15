@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ccdeck theme v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "colorScheme",
+    "order",
+    "tokens"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "colorScheme": {
+      "enum": [
+        "dark",
+        "light"
+      ]
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "extends": {
+      "type": "string"
+    },
+    "tokens": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "bg",
+          "bg-soft",
+          "panel",
+          "line",
+          "line-soft",
+          "text",
+          "pixel-metal-light",
+          "pixel-metal-shadow",
+          "pixel-metal-edge",
+          "pixel-character-body",
+          "text-secondary",
+          "ctl-fill",
+          "ctl-edge",
+          "chrome-bg",
+          "chrome-edge",
+          "sm-edge",
+          "sm-fill",
+          "muted",
+          "muted-dim",
+          "text-dim",
+          "accent",
+          "accent-dim",
+          "ok",
+          "warn",
+          "err",
+          "inflight",
+          "shadow-1",
+          "shadow-2",
+          "shadow-contact",
+          "node-grad",
+          "topbar-grad",
+          "conn-wash",
+          "burst-live-wash",
+          "hero-core",
+          "live-bloom",
+          "glint",
+          "grid-line",
+          "minimap-mask",
+          "session-label-l",
+          "session-accent-l",
+          "session-rim-l",
+          "session-edge-l",
+          "session-edge-idle-l",
+          "mcp-dot-l",
+          "cat-file",
+          "cat-shell",
+          "cat-web",
+          "cat-agent",
+          "cat-task",
+          "cat-plan",
+          "cat-mcp",
+          "cat-other",
+          "usage-purple",
+          "usage-blue",
+          "usage-teal",
+          "usage-lime",
+          "usage-pink",
+          "usage-indigo",
+          "usage-orange",
+          "usage-zinc",
+          "usage-cyan"
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "background",
+        "foreground"
+      ],
+      "properties": {
+        "background": {
+          "type": "string"
+        },
+        "foreground": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

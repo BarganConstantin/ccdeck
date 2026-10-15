@@ -116,8 +116,16 @@ const FILES = components(web);
 /** [name, comment-stripped text] for the whole client. The separator is
  *  normalised because the names below name files inside components/, and
  *  join() spells that with a backslash on Windows. */
-const BUNDLE: Array<[string, string]> = FILES.map(p =>
+const SOURCES: Array<[string, string]> = FILES.map(p =>
   [p.slice(web.length).replace(/\\/g, "/"), code(readFileSync(p, "utf8"))]);
+
+// Radio composes its toolbar and controlled results panel across two modules.
+// Verify their complete contract together, including the actual import.
+const radio = SOURCES.find(([name]) => name === "components/RadioPanel.tsx")!;
+const toolbar = SOURCES.find(([name]) => name === "components/RadioDiscoveryToolbar.tsx")!;
+const BUNDLE: Array<[string, string]> = SOURCES
+  .filter(([name]) => name !== toolbar[0])
+  .map(([name, src]) => [name, name === radio[0] ? `${src}\n${toolbar[1]}` : src]);
 
 /** `role="tab"` and not `role="tablist"` or `role="tabpanel"` — the closing
  *  quote is what separates the three. */
@@ -160,6 +168,7 @@ describe("a role=\"tab\" in this client comes with the keyboard model it promise
     // half-removal simply emptied STRIPS, and five cases here plus the delegate
     // in landmark-outline.test.ts went green having run nothing.
     expect(HALF_WIDGETS).toEqual([]);
+    expect(radio[1]).toContain('from "./RadioDiscoveryToolbar"');
 
     // What the sweep found is still allowed to change — a strip added, a strip
     // dropped — without anything below needing to name a file.
@@ -178,21 +187,30 @@ describe("a role=\"tab\" in this client comes with the keyboard model it promise
     for (const { name, src, tabs } of STRIPS) {
       for (const tab of tabs) expect(`${name} ${tab}`).toMatch(/aria-controls=/);
       expect(`${name}: ${src}`).toMatch(IS_TABPANEL);
-      const panel = openingTags(src).find(t => IS_TABPANEL.test(t))!;
-      expect(`${name} ${panel}`).toMatch(/aria-labelledby=/);
-      // Both halves of the pairing name the same thing. Textual, so it holds
-      // for a literal id and for the shared constant this dialog uses, and
-      // fails the moment a tab is pointed at a panel that is not there.
-      const panelId = /\bid=(\{[^}]*\}|"[^"]*")/.exec(panel)?.[1];
-      // Same hazard as the empty sweep above, one level down (#627): both
-      // sides of the pairing come from a regex that answers undefined when it
-      // cannot read the attribute, and undefined equals undefined — so a panel
-      // with no id, matched against a tab whose aria-controls is spelled in a
-      // form this pattern cannot parse, would agree with itself about nothing.
-      expect(panelId, `${name}: role="tabpanel" with no id= this test can read`).toBeDefined();
+      const panels = openingTags(src).filter(t => IS_TABPANEL.test(t));
+      const pairs = panels.map(panel => {
+        expect(`${name} ${panel}`).toMatch(/aria-labelledby=/);
+        return {
+          id: /\bid=(\{[^}]*\}|"[^"]*")/.exec(panel)?.[1],
+          labelledBy: /aria-labelledby=(\{[^}]*\}|"[^"]*")/.exec(panel)?.[1],
+        };
+      });
+      for (const { id, labelledBy } of pairs) {
+        expect(id, `${name}: tabpanel without a readable id`).toBeDefined();
+        expect(labelledBy, `${name}: tabpanel without a readable aria-labelledby`).toBeDefined();
+        const namesTab = tabs.some(tab => /\bid=(\{[^}]*\}|"[^"]*")/.exec(tab)?.[1] === labelledBy)
+          || (name.endsWith("AddAccountDialog.tsx") && labelledBy === "{tabDomId(tab)}" && tabs.some(tab => /id=\{tabDomId\(t\.id\)\}/.test(tab)))
+          || (name.endsWith("SettingsModal.tsx") && /aria-labelledby=\{`settings-tab-\$\{section\}`\}/.test(src) && tabs.some(tab => /id=\{`settings-tab-\$\{choice\.id\}`\}/.test(tab)))
+          || (name.endsWith("TrafficRadar.tsx") && /aria-labelledby="tr-tab-monitor"/.test(src) && /id=\{`tr-tab-\$\{id\}`\}/.test(src));
+        const radioPair = name.endsWith("RadioPanel.tsx")
+          && /aria-labelledby=\{`radio-tab-\$\{collection\}`\}/.test(src)
+          && tabs.some(tab => /id=\{`radio-tab-\$\{tab.value\}`\}/.test(tab));
+        expect(namesTab || radioPair, `${name}: panel label must name a tab`).toBe(true);
+      }
       for (const tab of tabs) {
         const controls = /aria-controls=(\{[^}]*\}|"[^"]*")/.exec(tab)?.[1];
-        expect([name, controls]).toEqual([name, panelId]);
+        const dynamicRadarPair = name.endsWith("TrafficRadar.tsx") && /aria-controls=\{`tr-panel-\$\{id\}`\}/.test(tab) && /id="tr-panel-monitor"/.test(src) && /id="tr-panel-configuration"/.test(src) && /id="tr-panel-file"/.test(src);
+        expect(pairs.some(pair => pair.id === controls) || dynamicRadarPair, `${name}: each tab must point to a real panel`).toBe(true);
       }
     }
   });

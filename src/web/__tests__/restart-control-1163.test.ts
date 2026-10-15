@@ -12,6 +12,8 @@ import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const MODAL = read("../components/ReleaseNotesModal.tsx");
+/** The dialog's action strip, where its Restart is drawn. */
+const STRIP = read("../components/ReleaseActions.tsx");
 const APP = read("../App.tsx");
 /** The dialogs App.tsx mounts, the release notes among them. */
 const DIALOGS = read("../components/DeckDialogs.tsx");
@@ -22,8 +24,17 @@ const TRAY_MENU = read("../../../desktop/tray-menu.mjs");
 describe("restart in the page", () => {
   it("is a door in the dialog the version chip opens, drawn only when it is offered", () => {
     expect(MODAL).toMatch(/onRestart\?: \(\) => void;/);
-    expect(MODAL).toMatch(/\{onRestart && \(\s*<div className="guide-door">/);
-    expect(MODAL).toMatch(/<button type="button" className="btn" onClick=\{onRestart\}>Restart<\/button>/);
+    // The last button of the dialog's action strip, which the owner asked for
+    // in place of three stacked rows: set apart at the end, its sentence in its
+    // hint and its description, and still drawn only when it is offered.
+    expect(MODAL).toMatch(/<ReleaseActions [^>]*onRestart=\{onRestart\}/);
+    // Standing down only while the line under the strip offers an update,
+    // which restarts too: two restarts side by side, one of which updates, is
+    // the guess #1187 already took off this dialog for the app's update.
+    expect(STRIP).toContain("const restartDoor = updates ? undefined : onRestart;");
+    expect(STRIP).toMatch(/\{restartDoor && \(\s*<button type="button" className="btn rn-act rn-act-restart" onClick=\{restartDoor\}/);
+    expect(STRIP).toMatch(/<RestartGlyph \/>Restart\s*<\/button>/);
+    expect(STRIP).toContain('RESTART_WHY = "Restart the deck. Sessions, settings and pairings come back as they were."');
   });
 
   it("is offered only where the server would do it, and goes through the page's own restart", () => {

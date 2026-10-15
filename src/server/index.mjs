@@ -20,6 +20,9 @@ export { challengeDeck, challengeProof, isProcessAlive };
 // The gates in front of the route table — see src/server/request-gates.mjs,
 // which also holds the per-process token the strictest of them checks.
 import { GUARDED_READS, OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
+import { trafficCapture } from "./traffic-radar-capture.mjs";
+import { trafficRadar } from "./traffic-radar.mjs";
+import { handleTrafficCapture, isAuthorizedTrafficIngest } from "./traffic-radar-routes.mjs";
 // How much the event ring may hold and what one event is charged against it —
 // see ring-bounds.mjs. The four it exported from this file, it still exports.
 export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./ring-bounds.mjs";
@@ -69,7 +72,7 @@ import { handleFeature, noteRouteFeature } from "./feature-use.mjs";
 export { HARD_TRACKED_SESSIONS } from "./session-tracking.mjs";
 // The desktop app's update as its window sees it — the state the app reports
 // and the window's answers relayed back to it. See desktop-update-routes.mjs.
-import { handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest } from "./desktop-update-routes.mjs";
+import { handleDesktopUpdateCheck, handleDesktopUpdateRead, handleDesktopUpdateReport, handleDesktopUpdateRequest } from "./desktop-update-routes.mjs";
 // The one spelling of `--workspace`, and of a rollout's cwd — see
 // canonical-path.mjs. Both were exported from this file before they moved,
 // and still are.
@@ -159,9 +162,12 @@ import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccou
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
-import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl } from "./music-routes.mjs";
+import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl, handleRadioStations, handleRadioClick, handleMusicConfig } from "./music-routes.mjs";
 // The usage panel's quota and history reads — see usage-routes.mjs.
-import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota } from "./usage-routes.mjs";
+import { startToolAudit } from "./tool-audit.mjs";
+import { handleToolAudit } from "./tool-audit-routes.mjs";
+import { startQuotaHistory } from "./quota-history.mjs";
+import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaHistory } from "./usage-routes.mjs";
 // The terminal panel's five routes, every one absent while the panel is
 // switched off — see terminal-routes.mjs — and the WebSocket upgrade that
 // carries a pane, which runs its own gates because the route table never sees
@@ -199,6 +205,8 @@ export function requestUrl(rawUrl) {
 // stand-ins (see terminalDeps in terminal-routes.mjs): the suite runs them on
 // a tmux server of its own through it. The product passes nothing.
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null, terminal = {} } = {}) {
+  startQuotaHistory();
+  await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
@@ -292,7 +300,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // added later is protected until someone deliberately lists it as open,
     // which is the direction this has to fail in. See isAuthorizedMutation.
     if (req.method !== "GET" && req.method !== "HEAD"
-      && !OPEN_MUTATIONS.has(url.pathname) && !isAuthorizedMutation(req)) {
+      && !OPEN_MUTATIONS.has(url.pathname) && !isAuthorizedMutation(req) && !isAuthorizedTrafficIngest(req, url)) {
       return send(res, 401, { error: "unauthenticated" });
     }
 
@@ -318,12 +326,15 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/version")     return guard(handleVersion(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/desktop-update") return handleDesktopUpdateRead(req, res);
     if (req.method === "POST" && url.pathname === "/api/desktop-update") return guard(handleDesktopUpdateReport(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/desktop-update/check") return guard(handleDesktopUpdateCheck(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/desktop-update/restart") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-restart"), res);
     if (req.method === "POST" && url.pathname === "/api/desktop-update/seen") return guard(handleDesktopUpdateRequest(req, res, "desktop-update-seen"), res);
     if (req.method === "POST" && url.pathname === "/api/upgrade")     return guard(handleUpgrade(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/restart")     return guard(handleRestart(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
+    if (["GET", "POST"].includes(req.method) && ["/api/tool-audit", "/api/tool-audit/storage"].includes(url.pathname)) return guard(handleToolAudit(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
@@ -342,6 +353,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/rating")       return handleRatingRead(req, res);
     if (req.method === "POST" && url.pathname === "/api/rating")       return guard(handleRatingWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());
+    if (req.method === "GET" && url.pathname === "/api/system/traffic-radar") {
+      return guard(trafficRadar.read().then(snapshot => send(res, 200, snapshot)), res);
+    }
+    if (url.pathname.startsWith("/api/system/traffic-radar/")) return guard(handleTrafficCapture(req, res, url), res);
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.
     if (req.method === "GET"  && url.pathname === "/api/system/processes") {
@@ -375,6 +390,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
     if (req.method === "GET"  && url.pathname === "/api/codex-quota") return guard(handleCodexQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/ccusage/session") return guard(handleCcusageSession(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/provider-status") return guard(handleProviderStatus(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
@@ -387,6 +403,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/music-config") return handleMusicConfig(req, res);
+    if (req.method === "GET" && url.pathname === "/api/radio-stations") return guard(handleRadioStations(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/radio-click") return guard(handleRadioClick(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/fm-station") return guard(handleFmStation(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
@@ -521,6 +540,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // and that will differ on the next boot. Every test in this suite boots
       // that way. Comparing the candidate would hand those decks a manifest.
       boundPort = server.address()?.port ?? candidate;
+      void trafficCapture.resume(boundPort).catch(() => {});
+      server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
       if (codex) startCodexWatcher(workspace);
       // What a session is producing between its tool calls. Claude only — it

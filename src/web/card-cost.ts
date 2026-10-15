@@ -7,7 +7,7 @@
 // pricing it reads.
 import {
   STANDARD_SPEED, billedInputTokens, cacheWriteBreakdown, costAtSpeed, costForUsage, fmtCost,
-  fmtCostRate, ratesForModel, speedShares,
+  fmtCostRate, ratesForModel, speedShares, contextShares, contextRates,
 } from "./pricing";
 // Tokens are priced at the model that produced them. See usage-models.ts for
 // what the last-wins multiplication this replaces was measured to cost (#686).
@@ -42,8 +42,21 @@ function hasTokens(u: TokenUsage): boolean {
 
 /** One rate card's multiplication: `usage` at `speed`'s rates. */
 function rateCardTooltip(usage: TokenUsage, modelId: string | undefined, speed: string): string {
-  const rates = ratesForModel(modelId, Date.now(), speed);
-  const heading = speed === STANDARD_SPEED ? `model: ${modelId}` : `model: ${modelId} · ${speed}`;
+  const shares = contextShares(usage, modelId).filter(s => hasTokens(s.usage));
+  if (usage.longContext && shares.some(s => s.long)) {
+    return [
+      ...shares.map(s => singleRateTooltip(s.usage, modelId, speed, s.long)),
+      `all context tiers                     = ${fmtCost(costAtSpeed(usage, modelId, speed).total)}`,
+    ].join("\n");
+  }
+  return singleRateTooltip(usage, modelId, speed, false);
+}
+
+function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed: string, long: boolean): string {
+  const base = ratesForModel(modelId, Date.now(), speed);
+  const rates = base ? contextRates(base, long) : null;
+  const tier = long ? " · prompt >100K" : "";
+  const heading = (speed === STANDARD_SPEED ? `model: ${modelId}` : `model: ${modelId} · ${speed}`) + tier;
   // This branch was unreachable until #400: the only element carrying this
   // tooltip was gated on the same ratesForModel call that returns null here, so
   // the graceful answer existed and could never be read. It names the model now
@@ -55,7 +68,7 @@ function rateCardTooltip(usage: TokenUsage, modelId: string | undefined, speed: 
   }
   const fmtN = (n: number) => n.toLocaleString();
   const fmtR = (r: number) => `$${r}/MTok`;
-  const c = costAtSpeed(usage, modelId, speed);
+  const c = costAtSpeed(long ? { ...usage, longContext: usage } : { ...usage, longContext: undefined }, modelId, speed);
   const cw = cacheWriteBreakdown(usage, rates);
   // Cache writes are billed per TTL — 2× input for a 1-hour entry, 1.25× for a
   // 5-minute one — so once a transcript reports both, one multiplication can't

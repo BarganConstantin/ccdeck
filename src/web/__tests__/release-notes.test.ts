@@ -632,14 +632,15 @@ describe("what the first line says about the release you are actually on", () =>
     expect(line).toContain("this is what it changed");
   });
 
-  it("says the running release had nothing, rather than letting an older one stand in", () => {
+  it("names the maintenance release and explains the older notes below", () => {
     // The case that made this function need `running` at all. 1.47.0 is not in
     // NOTES, so the list opens with 1.45.0. "Everything this build has to say"
     // is true here and still misleads, because the number on the chip that
     // opened it says 1.47.0.
     const line = browse("1.47.0", notesBetween(NOTES, null, "1.47.0"));
     expect(line).toContain("v1.47.0");
-    expect(line).toContain("changed nothing you would notice");
+    expect(line).toContain("🐛 Bug fixes and performance improvements.");
+    expect(line).toContain("Earlier release notes are shown below.");
     // And it must not read as an upgrade: nothing is new, nobody was caught up
     // anywhere, and this is the reader asking rather than the deck announcing.
     expect(line).not.toMatch(/caught up/);
@@ -867,7 +868,7 @@ describe("how App.tsx wires it up", () => {
     // A click on the dialog's prose drops focus to <body>, and from there a
     // stray "c" would reach Clear behind it. The gate is use-modal-gate.ts's;
     // use-dialogs.ts hands it the notes, which App.tsx hands use-dialogs.ts.
-    expect(src("../use-modal-gate.ts")).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null\s*\|\| feedbackOpen;/);
+    expect(src("../use-modal-gate.ts")).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null\s*\|\| feedbackOpen \|\| trafficRadarOpen;/);
     expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\breleaseNotes\b/);
     expect(src("../App.tsx")).toMatch(/useDialogs\(\{[^}]*\breleaseNotes\b/);
   });

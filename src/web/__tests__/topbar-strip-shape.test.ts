@@ -13,15 +13,16 @@
 // render and counted lines.
 //
 // That file is gone because its subject is. The two BOARD readouts it counted
-// were dropped. #737 later added one month-to-date phrase backed by ccusage;
-// tokens and cost stay inside that one phrase so the period label cannot drift
-// away from either number. The machine meter remains out of the strip.
+// were dropped. #737 later added one month-to-date phrase backed by ccusage,
+// and that left the bar too (2026-10-08): a month's total is not a fact about
+// right now, and the Usage panel says it beside today and all time. The machine
+// meter remains out of the strip.
 //
 // WHY A TEST STILL. The removal is only durable if the strip cannot quietly
 // grow a second member and a divider to go with it. The next such addition is
 // the one that has to redo the geometry, and this file is where it finds out.
-// So the invariant is now the SHAPE rather than the run: status pill plus one
-// monthly usage phrase, and no divider rules under `.topbar .status` at all.
+// So the invariant is now the SHAPE rather than the run: the status pill alone,
+// and no divider rules under `.topbar .status` at all.
 //
 // No DOM, same as before: the rules come out of styles.css and the row out of
 // App.tsx's markup, the way dead-css and session-hue read the same two files.
@@ -58,18 +59,12 @@ describe("the topbar's readout strip", () => {
     expect(app, "App.tsx stopped mounting the readout group").toContain("<ReadoutGroup");
   });
 
-  it("holds the status pill and one month-to-date usage phrase", () => {
+  it("holds the status pill and nothing else", () => {
     expect(strip, "the strip lost the pill").toContain("`pill ${pill.tone}`");
     expect(strip, "the machine meter is back in the strip").not.toContain("<MachinePanel");
-    expect(strip).toContain('className="month-usage"');
-    expect(strip).toContain('className="month-usage-label">this month</span>');
-    expect(strip).toContain("fmtTokens(monthlyUsage.tokens)");
-    expect(strip).toContain("fmtMonthlyCost(monthlyUsage.cost)");
+    expect(strip, "the month's usage is back in the strip").not.toMatch(/month-usage|fmtTokens|fmtCost|fmtMonthlyCost/);
     const classes = new Set([...strip.matchAll(/className="([\w- ]+)"/g)].map(m => m[1]));
-    expect([...classes].sort()).toEqual([
-      "month-usage", "month-usage-label", "month-usage-pending", "month-usage-sep",
-      "month-usage-unit", "pill-box", "pill-label", "pill-widest", "status",
-    ]);
+    expect([...classes].sort()).toEqual(["pill-box", "pill-label", "pill-widest", "status"]);
   });
 
   it("draws no divider at all — the 14px gap is the whole separation", () => {

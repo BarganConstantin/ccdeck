@@ -6,7 +6,7 @@
 // header for why no iframe_api script), and an <audio> element for a direct
 // stream (#1208). The component draws the character and hands the iframe the
 // `frame` ref and `say`; everything that decides what is playing lives here.
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 // Type only: the library itself is imported on demand, in startDirect.
 import type Hls from "hls.js";
 import { command, FATAL_ERRORS, PLAYER_ORIGIN, readSignal } from "./claude-fm-player";
@@ -33,6 +33,7 @@ const LIVE_ENDPOINT: Record<FmSource, string | null> = {
 
 export interface FmPlayerOptions {
   fetchImpl?: typeof fetch;
+  enabled?: boolean;
   volume: number;
   muted: boolean;
   source: FmSelection;
@@ -50,6 +51,7 @@ export interface FmPlayer {
   /** The embed is wanted: the iframe is mounted while this is on. */
   armed: boolean;
   playing: boolean;
+  buffering: boolean;
   /** The embed's frame, which the component renders and this talks to. */
   frame: MutableRefObject<HTMLIFrameElement | null>;
   /** Post one command to the player, at its origin. */
@@ -59,7 +61,7 @@ export interface FmPlayer {
 }
 
 export function useFmPlayer({
-  fetchImpl, volume, muted, source, playRequest, customStation, onAvailabilityChange,
+  fetchImpl, enabled = true, volume, muted, source, playRequest, customStation, onAvailabilityChange,
 }: FmPlayerOptions): FmPlayer {
   const [probe, setProbe] = useState<Probe | null>(null);
   /** Set once and never unset: the player told us it cannot play here. */
@@ -67,15 +69,18 @@ export function useFmPlayer({
   /** Buffering keeps the iframe mounted; an explicit stop releases it. */
   const [armed, setArmed] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [buffering, setBuffering] = useState(false);
   // Playing is one of the features the usage reports name (feature-use.ts).
   useFeatureUse("claude-fm", playing);
   const playRequestRef = useRef(playRequest);
   const audio = useRef<HTMLAudioElement | null>(null);
   const hls = useRef<Hls | null>(null);
+  const connectionTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const frame = useRef<HTMLIFrameElement | null>(null);
 
   const stopDirect = useCallback(() => {
+    clearTimeout(connectionTimeout.current);
     hls.current?.destroy();
     hls.current = null;
     const player = audio.current;
@@ -122,13 +127,17 @@ export function useFmPlayer({
     player.muted = mutedRef.current;
     audio.current = player;
     setArmed(true);
-    setPlaying(true);
+    setPlaying(false);
+    setBuffering(false);
 
+    let hasStarted = false;
     const current = () => audio.current === player;
     const released = () => {
+      clearTimeout(connectionTimeout.current);
       stopDirect();
       setArmed(false);
       setPlaying(false);
+      setBuffering(false);
     };
     const failed = () => {
       if (!current()) return;
@@ -143,11 +152,23 @@ export function useFmPlayer({
       if (error instanceof DOMException && error.name === "NotAllowedError") { released(); return; }
       failed();
     };
+    connectionTimeout.current = setTimeout(() => { if (current() && !hasStarted) failed(); }, 15_000);
     player.addEventListener("playing", () => {
       if (!current()) return;
+      clearTimeout(connectionTimeout.current);
+      hasStarted = true;
       setPlaying(true);
+      setBuffering(false);
       onAvailabilityChange?.(selection, false);
     });
+    const waiting = () => {
+      if (!current()) return;
+      setPlaying(false); setBuffering(hasStarted);
+      clearTimeout(connectionTimeout.current);
+      connectionTimeout.current = setTimeout(() => { if (current()) failed(); }, 15_000);
+    };
+    player.addEventListener("waiting", waiting);
+    player.addEventListener("stalled", waiting);
     player.addEventListener("ended", () => { if (current()) released(); });
     player.addEventListener("error", failed, { once: true });
 
@@ -210,18 +231,22 @@ export function useFmPlayer({
     playRequestRef.current = playRequest;
     setProbe(null);
     setDead(false);
+    setBuffering(false);
     setArmed(asked);
-    setPlaying(asked);
+    setPlaying(false);
     stopDirect();
+
+    if (!enabled) { setArmed(false); setPlaying(false); return; }
 
     const custom = customStation && customFmSelection(customStation.id) === source
       ? parseFmStationUrl(customStation.url)
       : null;
     if (custom) {
       if (custom.kind === "direct-audio") {
-        setProbe({ live: true, channel: "", audio: custom.url, hls: custom.format === "hls" });
+        const isHls = custom.format === "hls" || customStation?.radio?.hls === true;
+        setProbe({ live: true, channel: "", audio: custom.url, hls: isHls });
         onAvailabilityChange?.(source, false);
-        if (asked) startDirect(custom.url, custom.format === "hls", source);
+        if (asked) startDirect(custom.url, isHls, source);
         return () => { alive = false; };
       }
       // Every YouTube link goes by the server, a channel link included:
@@ -236,12 +261,18 @@ export function useFmPlayer({
             onAvailabilityChange?.(source, false);
           } else {
             setDead(true);
+            setArmed(false);
+            setPlaying(false);
+            setBuffering(false);
             onAvailabilityChange?.(source, true);
           }
         })
         .catch(() => {
           if (!alive) return;
           setDead(true);
+          setArmed(false);
+          setPlaying(false);
+          setBuffering(false);
           onAvailabilityChange?.(source, true);
         });
       return () => { alive = false; };
@@ -261,9 +292,10 @@ export function useFmPlayer({
         .then(a => {
           if (!alive) return;
           if (a?.video) setProbe({ live: true, channel: "", video: a.video });
+          if (!a?.video) { setDead(true); setArmed(false); setPlaying(false); }
           onAvailabilityChange?.(source, !a?.video);
         })
-        .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
+        .catch(() => { if (alive) { setDead(true); setArmed(false); setPlaying(false); onAvailabilityChange?.(source, true); } });
     } else if (builtIn !== "claude-fm") {
       const station = builtIn.replace("lofi-", "");
       get(`/api/lofi-girl?station=${encodeURIComponent(station)}`)
@@ -271,9 +303,10 @@ export function useFmPlayer({
         .then(a => {
           if (!alive) return;
           if (a?.video) setProbe({ live: true, channel: "", video: a.video });
+          if (!a?.video) { setDead(true); setArmed(false); setPlaying(false); }
           onAvailabilityChange?.(source, !a?.video);
         })
-        .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
+        .catch(() => { if (alive) { setDead(true); setArmed(false); setPlaying(false); onAvailabilityChange?.(source, true); } });
     } else {
       get("/api/claude-fm")
         .then(r => r.ok ? r.json() : null)
@@ -281,12 +314,13 @@ export function useFmPlayer({
           if (!alive) return;
           const live = !!(a?.live && a?.channel);
           if (live) setProbe({ live: true, channel: a.channel });
+          if (!live) { setDead(true); setArmed(false); setPlaying(false); }
           onAvailabilityChange?.(source, !live);
         })
-        .catch(() => { if (alive) onAvailabilityChange?.(source, true); });
+        .catch(() => { if (alive) { setDead(true); setArmed(false); setPlaying(false); onAvailabilityChange?.(source, true); } });
     }
     return () => { alive = false; };
-  }, [customStation?.id, customStation?.url, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);
+  }, [customStation?.id, customStation?.url, customStation?.radio?.hls, enabled, fetchImpl, onAvailabilityChange, playRequest, source, startDirect, stopDirect]);
 
   useEffect(() => () => stopDirect(), [stopDirect]);
 
@@ -295,7 +329,19 @@ export function useFmPlayer({
   // `message` fires for anything on the page that posts one, and this reads
   // JSON out of it.
   useEffect(() => {
-    if (!armed) return;
+    if (!armed || probe?.audio) return;
+    // A silent embed or repeated buffering reports must not leave an optimistic
+    // session alive forever. The deadline is cancelled on playback, stop,
+    // station switch and unmount; repeated state 3 does not extend it.
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const fail = () => {
+      clearTimeout(timeout);
+      timeout = undefined;
+      setArmed(false); setPlaying(false); setBuffering(false); setDead(true);
+      onAvailabilityChange?.(source, true);
+    };
+    const wait = () => { timeout ??= setTimeout(fail, 15_000); };
+    wait();
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== PLAYER_ORIGIN) return;
       if (e.source !== frame.current?.contentWindow) return;
@@ -313,25 +359,33 @@ export function useFmPlayer({
         // level the menu says, not at whatever the player remembers from its
         // own store — there is no window at the wrong loudness to notice.
         say(command("setVolume", [volumeRef.current]));
-        say(command(muted ? "mute" : "unMute"));
+        say(command(mutedRef.current ? "mute" : "unMute"));
         say(command("playVideo"));
         return;
       }
-      if (signal.kind === "playing") { setPlaying(signal.playing); return; }
+      if (signal.kind === "blocked") {
+        clearTimeout(timeout); timeout = undefined;
+        setArmed(false); setPlaying(false); setBuffering(false);
+        return;
+      }
+      if (signal.kind === "buffering") { setPlaying(false); setBuffering(true); wait(); return; }
+      if (signal.kind === "playing") {
+        clearTimeout(timeout); timeout = undefined;
+        setPlaying(signal.playing); setBuffering(false);
+        if (!signal.playing) setArmed(false);
+        return;
+      }
       if (FATAL_ERRORS.includes(signal.code)) {
         // The stream is gone, or this channel does not allow embedding. There
         // is nothing to offer and nothing to say about it.
-        setArmed(false);
-        setPlaying(false);
-        setDead(true);
-        onAvailabilityChange?.(source, true);
+        fail();
       }
     };
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [armed, muted, onAvailabilityChange, say, source]);
+    return () => { clearTimeout(timeout); window.removeEventListener("message", onMessage); };
+  }, [armed, probe?.audio, playRequest, onAvailabilityChange, say, source]);
 
-  const press = () => {
+  const press = useCallback(() => {
     // Only drawn, and so only pressed, while there is a probe; this tells the types.
     if (!probe) return;
     if (probe.audio) {
@@ -339,21 +393,18 @@ export function useFmPlayer({
         stopDirect();
         setArmed(false);
         setPlaying(false);
+        setBuffering(false);
         return;
       }
       startDirect(probe.audio, probe.hls === true, source);
       return;
     }
 
-    if (!armed) { setArmed(true); setPlaying(true); return; }
-    // Optimistic: the player confirms with onStateChange a moment later, and
-    // a control that waits for a round trip before it looks pressed feels
-    // broken on a stream that takes a second to buffer.
-    const next = !playing;
-    setPlaying(next);
-    say(command(next ? "playVideo" : "pauseVideo"));
-    if (!next) setArmed(false);
-  };
+    if (!armed) { setArmed(true); setPlaying(false); setBuffering(false); return; }
+    // The pause action cancels a connecting/buffering session as well.
+    say(command("pauseVideo"));
+    setArmed(false); setPlaying(false); setBuffering(false);
+  }, [probe, armed, playing, source, say, startDirect, stopDirect]);
 
-  return { probe, dead, armed, playing, frame, say, press };
+  return useMemo(() => ({ probe, dead, armed, playing, buffering, frame, say, press }), [probe, dead, armed, playing, buffering, say, press]);
 }

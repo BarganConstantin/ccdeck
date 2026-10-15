@@ -9,17 +9,19 @@
 // `data-theme`, then re-read the palette on the next line (#613) — and that is
 // one function, moved whole, so it could not have been disturbed by the move.
 //
-// setTheme and setCharacterEnabled are handed out as they are, because the
-// invariants they need are effects on the values they set: whoever changes the
-// theme, the attribute, the stored choice and the palette follow. setPalette is
-// private — only the theme effect ever replaces the palette.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// Theme requests share one transition, from Settings or the keyboard. The
+// layout effect applies the DOM and canvas palette before the new snapshot.
+// setPalette is private — only that effect ever replaces the palette.
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { flushSync } from "react-dom";
 
 import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
+import { CHARACTER_KEY, storedCharacter, type Character } from "./character";
 import { type MinimapNode, minimapNodeColor } from "./minimap";
 import { type Palette, paletteReader, readPalette, samePalette } from "./palette";
 import { writeStored } from "./storage";
-import { THEME_KEY, type Theme, storedTheme } from "./theme";
+import { THEME_KEY, THEME_DEFINITIONS, type Theme, storedTheme } from "./theme";
+import { createThemeTransition } from "./theme-transition";
 
 /**
  * One custom property, resolved off the document.
@@ -40,8 +42,20 @@ export function useAppearance() {
   // so React starts out agreeing with what is on screen. Guarded the way the
   // panel loaders are: an initialiser is the one place a store the browser
   // won't hand over blanks the deck instead of costing a preference.
-  const [theme, setTheme] = useState<Theme>(storedTheme);
+  const [theme, setThemeState] = useState<Theme>(storedTheme);
+  const requestedTheme = useRef(theme);
+  const [themeTransition] = useState(() => createThemeTransition(document, () => {
+    try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; }
+  }));
+  const setTheme = useCallback<Dispatch<SetStateAction<Theme>>>(value => {
+    const next = typeof value === "function" ? value(requestedTheme.current) : value;
+    if (next === requestedTheme.current) return;
+    requestedTheme.current = next;
+    themeTransition.run(() => flushSync(() => setThemeState(next)));
+  }, [themeTransition]);
+  useEffect(() => () => themeTransition.cancel(), [themeTransition]);
   const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
+  const [character, setCharacter] = useState<Character>(storedCharacter);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -62,14 +76,15 @@ export function useAppearance() {
   // On the FIRST run this is redundant and known to be: the bootstrap wrote the
   // same attribute from the same stored value before anything painted, and the
   // write-back stores the value it just read. With nothing stored yet, what it
-  // stores is what the OS asked for (#885), so the deck someone first sees is
+  // stores is Rider Black, so the deck someone first sees is
   // the one they keep until T changes it. It is left unguarded anyway,
   // because the only way to skip it is a "have we mounted yet" ref — a second
   // answer to a question the DOM already holds, and one that goes wrong the day
   // someone reorders the effects. Re-asserting an identical attribute is free.
   // Every later run is the T toggle, which is the reason the effect exists.
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.colorScheme = THEME_DEFINITIONS[theme].colorScheme;
     writeStored(THEME_KEY, theme);
     // Re-read the canvas tokens HERE, in the same effect and on the line after
     // the attribute, rather than in a `useMemo` keyed on `theme` (#613). A memo
@@ -88,6 +103,10 @@ export function useAppearance() {
   useEffect(() => {
     writeStored(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0");
   }, [characterEnabled]);
+
+  useEffect(() => {
+    writeStored(CHARACTER_KEY, character);
+  }, [character]);
 
   /**
    * The window's own title bar, which only an INSTALLED deck has.
@@ -117,5 +136,5 @@ export function useAppearance() {
     if (bar && panel) bar.setAttribute("content", panel);
   }, [palette]);
 
-  return { theme, setTheme, characterEnabled, setCharacterEnabled, palette, minimapNodeFill };
+  return { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter, palette, minimapNodeFill };
 }

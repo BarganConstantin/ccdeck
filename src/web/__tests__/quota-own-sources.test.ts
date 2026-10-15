@@ -241,9 +241,9 @@ describe("the OAuth usage body, by value", () => {
     return r;
   };
 
-  it("fills the five-hour bar from the seven-day window when there is no five-hour one", async () => {
+  it("keeps a missing five-hour reading unknown when only weekly usage is measured", async () => {
     expect(await read({ five_hour: null, seven_day: { utilization: 62.6 } }))
-      .toMatchObject({ session5hPct: 63, week7dPct: 63 });
+      .toMatchObject({ session5hPct: null, week7dPct: 63 });
   });
 
   it("reads a missing seven-day window as unknown rather than as 0% (#1627)", async () => {

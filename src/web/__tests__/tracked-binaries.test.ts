@@ -151,6 +151,12 @@ describe("the one sentence in .gitattributes a reader can check", () => {
     // desktop/brand that the table does not name fails here.
     expect(binaries(), "the set of tracked binaries has changed, and .gitattributes still names the old one")
       .toEqual([
+        ".impeccable/qa/radio-production-2026-10-13/browser-zoom-2.png",
+        ".impeccable/qa/radio-production-2026-10-13/discover-1440-900.png",
+        ".impeccable/qa/radio-production-2026-10-13/discover-390-844.png",
+        ".impeccable/qa/radio-production-2026-10-13/filters-320-568.png",
+        ".impeccable/qa/radio-production-2026-10-13/light-workspace.png",
+        ".impeccable/qa/radio-production-2026-10-13/touch-pinch.png",
         "assets/canvas.png",
         "assets/social-preview.png",
         ...desktopBrandImages(),

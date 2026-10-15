@@ -45,7 +45,7 @@ interface ToneSectionProps extends SharedToneProps {
   /** What this tone is set to. */
   tone: ToneSettings;
   /** Only what the preview says changes with it: nothing here is disabled
-   *  while Sounds is off. */
+   *  while Play sounds is off. */
   soundOn: boolean;
   customAssets: CustomAssetSummary[];
 }
@@ -72,7 +72,7 @@ export default function ToneSection({
           className="btn sm-hear"
           onClick={() => onPreview(chime)}
           aria-label={`Hear the ${TONE_LABEL[chime].toLowerCase()} tone`}
-          /* Nothing below is dimmed or disabled while Sounds is off, and
+          /* Nothing below is dimmed or disabled while Play sounds is off, and
              that is the decision rather than an oversight: the person
              most likely to open this menu is somebody who silenced the
              deck because it was too loud, and turning the volume down is
@@ -92,7 +92,7 @@ export default function ToneSection({
              the switch above, and carries why the exception is useful. */
           title={soundOn
             ? "Play this tone now, at what it is set to"
-            : "Plays even when Sounds is off"}
+            : "Plays even when sounds are off"}
           aria-describedby={soundOn ? undefined : "sm-preview-note"}
         >
           <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden>

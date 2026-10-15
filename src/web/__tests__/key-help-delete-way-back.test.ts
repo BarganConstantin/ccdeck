@@ -17,7 +17,10 @@ describe("what the sheet says Delete's way back is", () => {
     expect(row?.action).toBe("take the selected card off the board — the session list (L) brings it back");
   });
 
-  it("promises an Undo nowhere", () => {
-    expect(rows.filter(r => /\bundo\b/i.test(r.action)).map(r => r.cap)).toEqual([]);
+  it("promises an Undo only where there is one: Re-arrange's, on its chord", () => {
+    // Delete's row, or any other, naming an Undo still fails here. The one the
+    // sheet may name is Re-arrange's, which the canvas really offers for a few
+    // seconds after R — on its strip, and on ⌘Z / Ctrl+Z (rearrange-undo.ts).
+    expect(rows.filter(r => /\bundo\b/i.test(r.action)).map(r => r.cap)).toEqual(["Ctrl + Z"]);
   });
 });

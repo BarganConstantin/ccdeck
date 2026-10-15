@@ -61,7 +61,7 @@ describe("the deck's elevations are tokens, in both themes (#1287)", () => {
   });
 
   it("re-tunes no reader of a named shadow per theme — the token already did", () => {
-    const LIGHT = ':root[data-theme="light"] ';
+    const LIGHT = ':root[data-color-scheme="light"] ';
     const readers = new Set(DECLS.filter(d => /var\(--shadow-/.test(d.value)).flatMap(d => d.sel.split(",").map(s => s.trim())));
     const overrides = DECLS.filter(d => d.sel.startsWith(LIGHT) && readers.has(d.sel.slice(LIGHT.length)) && /var\(--shadow-/.test(d.value) === false);
     expect(overrides.map(d => d.sel)).toEqual([]);
@@ -109,7 +109,7 @@ describe("a gradient two rules share, or a theme retunes, is a token (#1287)", (
   });
 
   it("retunes no rule's gradient in a light rule — the theme block does that", () => {
-    const LIGHT = ':root[data-theme="light"] ';
+    const LIGHT = ':root[data-color-scheme="light"] ';
     const drawn = new Set(GRADIENTS.filter(g => !g.sel.startsWith(LIGHT)).map(g => g.sel));
     const retuned = GRADIENTS.filter(g => g.sel.startsWith(LIGHT) && drawn.has(g.sel.slice(LIGHT.length)));
     expect(retuned.map(g => g.sel)).toEqual([]);

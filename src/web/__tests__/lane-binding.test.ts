@@ -199,8 +199,9 @@ describe("the row renders the windows, and the panel reads the same function", (
   });
 
   it("opens every window as a bar, in the order the server sent them", () => {
-    // `sortedBy` marks the bar the list behind the fold is ordered by (#1579).
-    expect(clientText()).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} frozen=\{frozen\} sortedBy=\{l\.id === keyLane\?\.id\} \/>\)/);
+    // `sortedBy` marks the bar the list behind the fold is ordered by (#1579),
+    // and `readAt` dates a window that has reset since (accounts-open-row-reset).
+    expect(clientText()).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} readAt=\{a\.fetchedAt\} frozen=\{frozen\} sortedBy=\{l\.id === keyLane\?\.id\} \/>\)/);
   });
 
   it("opens the live row, and every other row only when the reader opens it", () => {

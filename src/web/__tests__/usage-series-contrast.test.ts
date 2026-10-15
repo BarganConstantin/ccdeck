@@ -600,7 +600,7 @@ function exactRule(selector: string): string | null {
   return new RegExp(`(?:^|})\\s*${esc}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? null;
 }
 const TINTED = Object.keys(CHIP_IDS).map(f => `[data-family="${f}"]`).join(", ");
-const CHIP_DRAW = { dark: exactRule(`.model-chip:is(${TINTED})`), light: exactRule(`:root[data-theme="light"] .model-chip:is(${TINTED})`) };
+const CHIP_DRAW = { dark: exactRule(`.model-chip:is(${TINTED})`), light: exactRule(`:root[data-color-scheme="light"] .model-chip:is(${TINTED})`) };
 
 /** `color-mix(in srgb, A p%, B)` of two already-resolved colours, as the
  *  browser does it: premultiplied, so mixing toward `transparent` is A at p%. */

@@ -8,8 +8,10 @@ import { readFileSync } from "node:fs";
 // terminal socket's upgrade below in the same words the deck asks them.
 // @ts-expect-error — plain .mjs server module, no types
 import { isLoopbackHost, originMatchesHost } from "./src/server/request-gates.mjs";
+import { generateThemes } from "./scripts/theme-compiler.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
+const devBackend = `http://127.0.0.1:${process.env.CCDECK_DEV_SERVER_PORT ?? "4317"}`;
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
 /** The deck this dev server forwards to. */
@@ -42,7 +44,31 @@ export function terminalSocketOrigin(headers: { origin?: unknown; host?: unknown
 
 export default defineConfig({
   root: resolve(root, "src/web"),
-  plugins: [react()],
+  plugins: [{
+    name: "ccdeck-json-themes",
+    buildStart() { generateThemes(root); },
+    configureServer(server) {
+      const themeDir = resolve(root, "src/web/themes");
+      server.watcher.add(themeDir);
+      const update = (file: string) => {
+        if (dirname(file) !== themeDir || !file.endsWith(".json")) return;
+        try {
+          generateThemes(root);
+          // Re-read the canvas palette too; CSS HMR alone leaves its JS cache
+          // on the previous values until the user switches themes.
+          server.ws.send({ type: "full-reload", path: "*" });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          server.config.logger.error(message);
+          server.ws.send({ type: "error", err: { message, stack: "", plugin: "ccdeck-json-themes" } });
+        }
+      };
+      for (const event of ["add", "change", "unlink"] as const) server.watcher.on(event, update);
+      server.httpServer?.once("close", () => {
+        for (const event of ["add", "change", "unlink"] as const) server.watcher.off(event, update);
+      });
+    },
+  }, react()],
   define: {
     // Injected at build time so the topbar can show the real version without
     // a hardcoded string. JSON.stringify wraps it as a valid JS literal.
@@ -89,10 +115,10 @@ export default defineConfig({
       // not in the build, it binds loopback, and it already forwards reads of
       // everything the writes would change.
       ...Object.fromEntries(["/api", "/events"].map(path => [path, {
-        target: "http://127.0.0.1:4317",
+        target: devBackend,
         changeOrigin: true,
         configure: (proxy: { on: (e: string, fn: (req: { setHeader: (k: string, v: string) => void }) => void) => void }) => {
-          proxy.on("proxyReq", req => req.setHeader("origin", "http://127.0.0.1:4317"));
+          proxy.on("proxyReq", req => req.setHeader("origin", devBackend));
         },
       }])),
     },

@@ -29,6 +29,12 @@ export function isBrowserChord(e: ChordModifiers): boolean {
   return e.ctrlKey || e.metaKey || e.altKey;
 }
 
+/** A floating surface owns its control keys; dismissal and focus navigation
+ * belong to the deck's shared handlers. Never prevent native input. */
+export function containPopoverKeys(event: { key: string; stopPropagation: () => void }) {
+  if (event.key !== "Escape" && event.key !== "Tab") event.stopPropagation();
+}
+
 // The other half of the rule is where the keystroke landed. The guard used to
 // be tagName === "INPUT" and nothing else, which left every other control in
 // the app defenceless: with a toolbar button focused, Space ran preventDefault

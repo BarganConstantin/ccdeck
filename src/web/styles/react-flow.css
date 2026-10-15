@@ -151,6 +151,8 @@
    --line under the pointer, the one moment it is being looked for, and
    `overflow: hidden` clips the drawing's square corners to the radius. */
 .react-flow__minimap {
+  /* Keep the SVG dimensions inside the border, matching the character ledge. */
+  box-sizing: content-box;
   background: var(--chrome-bg);
   border: 1px solid var(--chrome-edge);
   border-radius: var(--r-ctl);

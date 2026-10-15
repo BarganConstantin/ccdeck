@@ -49,6 +49,13 @@ const html = (theme: Theme) => el("html", [], { states: ["root"], attrs: { "data
 /** Every select the deck renders, by the file that renders it, as the sheet
  *  sees it: its ancestors' classes, then its own. */
 const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
+  "components/QuotaHistoryModal.tsx": [{ name: "quota history window",
+    chain: [el("body"), el("div", ["modal", "qh-modal"]), el("div", ["modal-body", "qh-body"]), el("div", ["qh-controls"]), el("label", ["qh-window"]), el("select")],
+  }],
+  "components/SessionUsageModal.tsx": [{ name: "session pricing",
+    chain: [el("body"), el("div", ["modal", "su-modal"]), el("div", ["modal-body", "su-body"]), el("label", ["su-pricing"]), el("select")],
+  }],
+  "components/RadarSelect.tsx": [{ name: "Radar filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] }],
   "components/ToneSection.tsx": [{
     name: "a tone's figure",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("div", ["sm-tones"]), el("section", ["sm-tone"]), el("div", ["sm-row"]), el("select", ["sm-select"])],
@@ -56,6 +63,10 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/SpokenVoiceForm.tsx": [{
     name: "a spoken voice",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("section", ["sm-custom"]), el("details", ["sm-voice"]), el("div", ["sm-voice-fields"]), el("label"), el("select", ["sm-select"])],
+  }],
+  "components/ToolAuditSettings.tsx": [{
+    name: "how long tool history is kept",
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group", "ta-settings"]), el("div", ["ta-storage-row"]), el("label"), el("select", ["sm-select"])],
   }],
   "components/BrowserWatchSettings.tsx": [
     { name: "Browser Watch's quiet time", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },

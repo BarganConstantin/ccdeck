@@ -13,6 +13,12 @@ import type { NetRoute, Snapshot, Throttle } from "./machine-snapshot";
  *  of its own, which is what keeps the memory rows drawing exactly as before. */
 export type Tone = "calm" | "warn" | "hot";
 
+/** Explain load above logical-core capacity without treating it as an alarm. */
+export function loadQueueNote(load: number | null | undefined, cores: number): string | null {
+  if (load == null || !Number.isFinite(load) || !Number.isFinite(cores) || cores <= 0 || load <= cores) return null;
+  return `${(load / cores).toFixed(1)}× more work queued than cores to run it`;
+}
+
 /**
  * Which band a temperature falls in.
  *

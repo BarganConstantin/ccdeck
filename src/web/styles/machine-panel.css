@@ -9,11 +9,11 @@
    opened this for. */
 .sysdetail {
   position: fixed;
-  top: 60px;
+  top: calc(var(--topbar-h) + 8px);
   right: var(--rail-r);  /* the usage panel's slot, when usage is not using it */
   z-index: 20;
   width: 280px;          /* the usage panel's width, so the rail reads as one system */
-  max-height: calc(100vh - 76px);
+  max-height: calc(100vh - var(--topbar-h) - 24px);
   overflow-y: auto;
   /* Named so the one thing inside that has to bleed PAST it can be derived
      from it rather than from a 14 somebody retypes. See .sd-open. */
@@ -43,9 +43,11 @@
    sheet, so the promise on this line held for the machine panel alone and the
    pair could still drift — by 40px, in the direction the very next edit to the
    detail panel's width would take it. The two rules that said the number twice
-   are gone; this is the only place it is written. */
-.app { --rail-r: 368px; }
-.app:not(:has(.detail)) { --rail-r: 8px; }
+   are gone; this is the only place it is written.
+   Both offsets are measured from the window's edge, so both carry the right
+   stripe's width (edge-rails.css): the rail starts inside it. */
+.app { --rail-r: calc(368px + var(--edge-w)); }
+.app:not(:has(.detail)) { --rail-r: calc(8px + var(--edge-w)); }
 
 /* One panel further left: the rail's own offset, plus usage's width, plus the
    gap. Eight was too tight to read as two things; twenty separates them

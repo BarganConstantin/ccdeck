@@ -287,8 +287,8 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     const h1s = BUNDLE.flatMap(([name, src]) => [...src.matchAll(/<h1[\s>]/g)].map(() => name));
     expect(h1s).toEqual(["components/TopbarReadouts.tsx"]);
     expect(code(readouts)).toMatch(/<h1>\{PRODUCT\}<\/h1>/);
-    // `{}` is what is left of the pointer comment between the two.
-    expect(code(app)).toMatch(/<header className="topbar">[\s{}]*<ReadoutGroup\b/);
+    // The desktop menu precedes the readout; the wordmark stays the sole h1.
+    expect(code(app)).toMatch(/<header className="topbar">[\s{}]*(?:<DesktopTitlebar\s*\/>[\s{}]*)?<ReadoutGroup\b/);
   });
 
   it("did not hide it, because the name it carries is already visible", () => {
@@ -363,7 +363,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     expect(code(usageAll)).not.toMatch(/<h4/);
   });
 
-  it("keeps <h4> to the dialogs, plus the one panel section that really has subsections", () => {
+  it("keeps <h4> to dialogs and panel sections with subsections", () => {
     // aria-modal="true" prunes everything outside the dialog from the tree, and
     // all of these dialogs name themselves with aria-label or aria-labelledby
     // rather than with a heading — so their internal levels are a separate
@@ -379,6 +379,8 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // assertions above are what enforce that, and they still run.
     const withH4 = BUNDLE.filter(([, src]) => /<h4[\s>]/.test(src)).map(([name]) => name).sort();
     expect(withH4).toEqual([
+      // Weekly resets is an h3 within Account capacity; its day groups are h4.
+      "components/AccountResetCalendar.tsx",
       "components/AddAccountDialog.tsx",
       // Browser Watch's sections, lifted out of BrowserWatchModal.tsx and still
       // rendered inside its dialog: their <h4>s are the dialog's, and the
@@ -390,7 +392,15 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       "components/RemoteControl.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
+      "components/TelemetryCapture.tsx",
+      "components/TelemetryFile.tsx",
+      // Tool activity's details: an <h3> naming the tool, divided into calls
+      // per day and its calls. A dialog on phones, a side panel beside the
+      // report's own <h3> sections elsewhere.
+      "components/ToolAuditHistory.tsx",
+      "components/ToolAuditInspector.tsx",
       "components/ToolModal.tsx",
+      "components/TrafficRadar.tsx",
     ]);
   });
 });

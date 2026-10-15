@@ -294,13 +294,14 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
   });
 
   it("still sees the collision that made them dead, so the sweep is not vacuous", () => {
-    // The two shared rules are still there and still outrank a bare class.
+    // The shared rule is still there and still outranks a bare class. Its
+    // icon twin, `button.btn.icon-btn` at 14px, left the sheet with the
+    // topbar's panel buttons (2026-10-08); `button.btn` is the collision that
+    // remains, and the one the sweep above has to keep seeing.
     expect(decl("button.btn", "font-size")).toBe("12px");
-    expect(decl("button.btn.icon-btn", "font-size")).toBe("14px");
     expect(higher(specificity("button.btn"), specificity(".ap-refresh"))).toBe(true);
-    expect(higher(specificity("button.btn.icon-btn"), specificity(".session-list .sl-close"))).toBe(true);
     // And the class sets really were read out of the components.
-    expect(CLASS_SETS.some(s => s.includes("btn") && s.includes("icon-btn"))).toBe(true);
+    expect(CLASS_SETS.some(s => s.includes("btn"))).toBe(true);
     expect(CLASS_SETS.length).toBeGreaterThan(50);
   });
 

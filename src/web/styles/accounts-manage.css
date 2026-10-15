@@ -303,7 +303,7 @@
    would read as a typed value, so light takes --text-dim, the grey .aa-field's
    placeholder already wears there. */
 .ap-manage-input::placeholder { color: var(--text-secondary); opacity: 1; }
-:root[data-theme="light"] .ap-manage-input::placeholder { color: var(--text-dim); }
+:root[data-color-scheme="light"] .ap-manage-input::placeholder { color: var(--text-dim); }
 /* --muted here was the labels' own colour — identical to --text-dim in dark, to
    a rounding error — so nothing in the block told a clickable pill from a
    decorative word. The buttons rise to --text rather than the labels sinking

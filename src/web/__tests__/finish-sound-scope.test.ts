@@ -139,7 +139,10 @@ describe("what the switch says it is", () => {
 describe("the tooltip that said it first", () => {
   it("is gone with the topbar speaker, and nothing else reads its words", () => {
     expect(stripComments(src("provider-copy.ts"))).not.toMatch(/finishSoundTitle|FinishSoundState/);
-    const run = stripComments(src("components/TopbarRuns.tsx"));
+    // The chrome's controls: their definitions, the stripes, dock and topbar
+    // utilities that draw them, and their one hint (2026-10-08).
+    const run = ["rail-items.tsx", "components/EdgeRails.tsx", "components/use-hint.tsx"]
+      .map(rel => stripComments(src(rel))).join("\n");
     expect(run).not.toMatch(/finishSoundTitle|Sound settings/);
   });
 });

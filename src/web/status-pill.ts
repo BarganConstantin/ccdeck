@@ -36,6 +36,8 @@
 // overflow gets the label, outranks the count in both titles, and takes the
 // tone's reserved width with it.
 
+import { withKey } from "./single-key-shortcuts";
+
 export interface StatusPill {
   /** Modifier class on `.pill`, and the word it shows. */
   tone: "live" | "paused" | "dead";
@@ -46,11 +48,13 @@ export interface StatusPill {
    * Per tone rather than one string for all three, and the difference is the
    * whole of what is being bought. What moves on its own is the count: while
    * the deck is paused it climbs unbidden, up to once a second, and every digit
-   * it gains would walk the machine meter, the tokens and the cost along with
-   * it — the pill leads the readout run, so everything after it is downstream
-   * of its width. That is #504 one bar over. What does NOT move on its own is
-   * the tone: `live` becomes `paused` because somebody pressed Space, and
-   * `dead` arrives with a banner that redraws the top of the page anyway.
+   * it gains would walk what follows it along with it — the incident chips and
+   * the blocked count now, the machine meter, the tokens and the cost when this
+   * was written: the pill leads the readout run, so everything after it is
+   * downstream of its width. That is #504 one bar over. What does NOT move on
+   * its own is the tone: `live` becomes `paused` because somebody pressed
+   * Space, and `dead` arrives with a banner that redraws the top of the page
+   * anyway.
    * Pinning all three to the paused tone's worst case would spend it
    * permanently — measured, a resting `live` pill goes from 49.89px to 102.64px
    * and holds the extra 52.75px for as long as the deck is running — to still
@@ -88,8 +92,9 @@ export interface StatusPill {
    * The layout consequence is the one `widest` already argues about: what moves
    * on its own is the count, and the count is inside a tone. A tone changes
    * because somebody pressed Space, or because the stream died and redrew the
-   * top of the page anyway. `.topbar .status` is a flex row with `gap: 14px`,
-   * so rendering nothing takes the gap with it and leaves no hole.
+   * top of the page anyway. The pill is the strip's one member, so rendering
+   * nothing leaves `.topbar .status` empty, and `:empty` takes the strip and
+   * the readout's 24px gap before it out of the row: no hole.
    */
   resting: boolean;
 }
@@ -147,8 +152,11 @@ export const PAUSE_LABEL = "Pause the canvas";
  *  These are the three sentences the topbar button carried, unchanged, for the
  *  reason #527 gave when it moved Re-arrange and Clear: the strings a user
  *  already knows survive the move, and only the box around them changes. */
-export function pauseTitle(s: { paused: boolean; held: number; dropped?: number }): string {
-  if (!s.paused) return "Pause live updates — events keep arriving and are applied when you resume (Space)";
+export function pauseTitle(s: { paused: boolean; held: number; dropped?: number; singleKeys?: boolean }): string {
+  // Space is named only while the single-key shortcuts answer it (Settings ›
+  // General); a caller that does not say is on the default, which is on.
+  const keys = s.singleKeys ?? true;
+  if (!s.paused) return withKey("Pause live updates — events keep arriving and are applied when you resume", "Space", keys);
   // The overflow outranks the count, because it is the sentence that changes
   // what the user should do about it: a pause holding 42 events will be applied
   // whole, and a pause that has started dropping will not. Said in full here
@@ -156,11 +164,11 @@ export function pauseTitle(s: { paused: boolean; held: number; dropped?: number 
   // box has to fit does not.
   const dropped = Math.max(0, Math.floor(s.dropped ?? 0));
   if (dropped > 0) {
-    return `The pause is full — ${heldEvents(s.held)} held and ${dropped} older `
-      + `${dropped === 1 ? "one" : "ones"} already dropped. Resume to follow the canvas again (Space)`;
+    return withKey(`The pause is full — ${heldEvents(s.held)} held and ${dropped} older `
+      + `${dropped === 1 ? "one" : "ones"} already dropped. Resume to follow the canvas again`, "Space", keys);
   }
-  if (s.held <= 0) return "Nothing has arrived since you paused. Resume to follow the canvas again (Space)";
-  return `${heldEvents(s.held)} arrived while paused and will be applied in order when you resume (Space)`;
+  if (s.held <= 0) return withKey("Nothing has arrived since you paused. Resume to follow the canvas again", "Space", keys);
+  return withKey(`${heldEvents(s.held)} arrived while paused and will be applied in order when you resume`, "Space", keys);
 }
 
 /**
@@ -233,8 +241,9 @@ const pausedLabel = (held: number, dropped: number) => {
   return held > 0 ? `paused · ${heldShort(held)}` : "paused";
 };
 
-export function statusPill(s: { connected: boolean; paused: boolean; held: number; dropped?: number }): StatusPill {
+export function statusPill(s: { connected: boolean; paused: boolean; held: number; dropped?: number; singleKeys?: boolean }): StatusPill {
   const dropped = Math.max(0, Math.floor(s.dropped ?? 0));
+  const keys = s.singleKeys ?? true;
   if (!s.connected) {
     return {
       tone: "dead",
@@ -260,12 +269,12 @@ export function statusPill(s: { connected: boolean; paused: boolean; held: numbe
       // from construction rather than from a measurement, which is what a
       // string shipped to three font stacks needs.
       widest: PAUSED_FULL,
-      title: dropped > 0
+      title: withKey(dropped > 0
         ? `Connected — the pause is full at ${heldEvents(s.held)}; the oldest are being dropped `
-          + `as new ones arrive. Resume to catch up (Space)`
+          + `as new ones arrive. Resume to catch up`
         : s.held > 0
-          ? `Connected — ${heldEvents(s.held)} held until you resume (Space)`
-          : "Connected — updates held until you resume (Space)",
+          ? `Connected — ${heldEvents(s.held)} held until you resume`
+          : "Connected — updates held until you resume", "Space", keys),
     };
   }
   // `label`, `widest` and `title` are still filled in, and that is not dead

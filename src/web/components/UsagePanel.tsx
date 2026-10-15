@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtCost, UNPRICED_LABEL } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import {
-  boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL,
+  boardScopeTitle, boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SPEND_LABEL,
   type BoardSessionRow,
 } from "../board-usage";
 import {
@@ -24,14 +24,19 @@ import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
 import UsageModelTable from "./UsageModelTable";
 import UsagePeriodStrip from "./UsagePeriodStrip";
 import UsageSessionBreakdown from "./UsageSessionBreakdown";
+import SessionUsageModal from "./SessionUsageModal";
+import QuotaHistoryModal from "./QuotaHistoryModal";
+import type { SessionSelection } from "../session-usage";
 import { selfPressProps } from "../panel-press";
-import { useCodexQuota, useCodexUsage, useQuota } from "../use-quota";
+import { useCodexQuota, useQuota } from "../use-quota";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
 import { usePanelClock } from "../use-panel-clock";
 import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
 // with the folds that build them (#1175). The tables that draw them, and
@@ -75,15 +80,21 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
    *  The $/min counts only from here (#821). */
   liveSince?: number | null;
 }) {
+  const singleKeys = useSingleKeyShortcuts();
+  const [inspectedSession, setInspectedSession] = useState<SessionSelection | null>(null);
+  const [quotaHistoryOpen, setQuotaHistoryOpen] = useState<"pointer" | "keyboard" | null>(null);
+  const boardProviders = useMemo(() => new Map(
+    [...state.agents.values()].filter(agent => agent.kind === "root")
+      .map(agent => [agent.sessionId, agent.provider ?? "claude"]),
+  ), [state, state.revision]);
   const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
-  const { data: codexUsage } = useCodexUsage(providers.codex);
 
   // Tick every 30s so countdowns + pace stay live without parent re-render
   const nowSec = usePanelClock();
   // The By model rows, the board's own headline figures and the header's
   // $/min, with the samples that rate is measured from — use-board-spend.ts.
-  const { byModel, totalCost, totalTokens, burnRate } = useBoardSpend(state, now, liveSince);
+  const { byModel, totalCost, totalTokens } = useBoardSpend(state, now, liveSince);
 
   // Keyed on `state.revision` for the reason use-board-spend.ts gives.
   //
@@ -284,14 +295,15 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             titles, and the four `up-section-title`s below stepped from h4 to h3
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
         <h2>Usage</h2>
-        {/* Says what it measured (#821): a rate with no span beside it read as a
-            fact about the account rather than about the last few minutes. */}
-        {burnRate && (
-          <span className="up-rate" title={`Spend on this board over the last ${burnRate.spanMin} min`}>
-            {burnRate.label}<span className="up-rate-span"> · {burnRate.spanMin} min</span>
-          </span>
-        )}
         <div className="up-header-right">
+          {(providers.claude || providers.codex) && <button type="button"
+            className="glyph-btn" aria-label="Open quota history"
+            title="Quota history" onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M4 4v16h16M8 8l4 4 4-3 4 7" />
+            </svg>
+          </button>}
           {/* Named after what is actually below it, and gone when neither
               section is. On a Codex-only deck "Refresh Claude + Codex quota"
               promises a section that is not there, which is the same lie in
@@ -312,15 +324,19 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             {...selfPressProps(anyLoading)}
             aria-label={refreshLabel}
             title={refreshLabel}
-          >{anyLoading ? "…" : "↻"}</button>
+          >{anyLoading ? "…" : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" />
+            </svg>}</button>
           )}
           <button
             type="button"
             className="glyph-btn up-close"
             onClick={onClose}
             aria-label="Close usage panel"
-            title="Close (U)"
-          >×</button>
+            title={withKey("Close", "U", singleKeys)}
+          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="m6 6 12 12M18 6 6 18" /></svg></button>
         </div>
       </div>
 
@@ -336,7 +352,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           unavailable. / Run codex login to authenticate." permanently, for a
           CLI it has no reason to install. */}
       {providers.codex && (
-        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} codexUsage={codexUsage} nowSec={nowSec}
+        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec}
           incident={incidents.find(i => i.provider === "codex")} />
       )}
 
@@ -371,10 +387,11 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               "what has today cost me" from the logs on disk. */}
           {hasCost && (
             <>
-              <div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+              <div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
                 <span className="up-total-value">{fmtCost(shownCost)}</span>
                 <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
               </div>
+              <p className="up-source">Local estimate · {fromRange ? "ccusage" : "live sessions"}</p>
               {/* NO BAR OVER A ccusage HEADLINE, and it is not an omission.
                   The bar splits a total across input / output / cache, and
                   ccusage publishes one cost per model rather than that split —
@@ -389,7 +406,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             </>
           )}
 
-          <div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+          <div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
             <span className="up-tok"><span className="up-k">in</span>{fmtTokens(shownIn)}</span>
             <span className="up-tok"><span className="up-k">out</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that
@@ -456,6 +473,8 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               setSessionsOpen={setSessionsOpen}
               periodNoun={periodNoun}
               sessionScale={sessionScale}
+              onOpenSession={setInspectedSession}
+              boardProviders={boardProviders}
             />
           )}
 
@@ -485,6 +504,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       {/* The panel's last line, whatever is above it: the header's row is
           already the title, the burn rate and two acts. */}
       <div className="film-foot"><FilmLink film="usage" /></div>
+      {inspectedSession && <SessionUsageModal key={`${inspectedSession.agent}:${inspectedSession.sessionId}`}
+        session={inspectedSession} onClose={() => setInspectedSession(null)} />}
+      {quotaHistoryOpen && <QuotaHistoryModal providers={providers} instant={quotaHistoryOpen === "keyboard"}
+        accounts={{ claude: quota?.historyAccount, codex: codexQuota?.historyAccount }} onClose={() => setQuotaHistoryOpen(null)} />}
     </aside>
   );
 }

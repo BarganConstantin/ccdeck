@@ -19,6 +19,8 @@ import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../sess
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
 import { isAgentVisible } from "../visibility";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
 export interface Row {
   sessionId: string;
@@ -119,7 +121,10 @@ function statusTooltip(s: SessionNote): string {
   return [s.text, s.reply ? `Suggested reply: ${s.reply}` : "", noteSource(s)].filter(Boolean).join("\n");
 }
 
-function elapsedShort(start: number, end: number | undefined, now: number): string {
+/** "<1s" / "42s" / "3m" / "1h 15m": the compact clock a row prints, which the
+ *  topbar's waiting queue prints too, so a name there and its row here say
+ *  the same wait. */
+export function elapsedShort(start: number, end: number | undefined, now: number): string {
   const ms = (end ?? now) - start;
   if (ms < 1000) return "<1s";
   const s = Math.floor(ms / 1000);
@@ -143,9 +148,13 @@ interface Props {
   /** Brings back everything removed, subagent cards included, which have no
    *  row of their own to be brought back from. */
   onBringBackAll?: () => void;
+  /** On its way out of the left column: still drawn, fading or sliding with
+   *  the column's edge, for the length of its exit (LeftColumn.tsx). */
+  leaving?: boolean;
 }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false }: Props) {
+  const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
   // list is the whole of what decides whether this rebuilds. `lastSeq` moves
@@ -174,7 +183,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
     // aria-label that makes the rotor's complementary entries tellable apart —
     // and that is now this panel's only announcement, since nothing reports its
     // open state any more.
-    <aside className="session-list" id="session-list" aria-label="Sessions">
+    <aside className={`session-list${leaving ? " leaving" : ""}`} id="session-list" aria-label="Sessions">
       <div className="sl-header">
         {/* h2, under the topbar's h1 — the level every panel title sits at
             (#381). This <aside> was already the shape the other two panels
@@ -187,7 +196,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
             signal rather than a claim that none of them is blocked. */}
         {waitingCount > 0 && <span className="sl-waiting-count">{waitingCount} waiting</span>}
         {liveCount > 0 && <span className="sl-live-count">{liveCount} live</span>}
-        <button className="glyph-btn sl-close" onClick={onClose} title="Hide sidebar (L)" aria-label="Hide session list">‹</button>
+        <button className="glyph-btn sl-close" onClick={onClose} title={withKey("Hide sidebar", "L", singleKeys)} aria-label="Hide session list">‹</button>
       </div>
       <ul className="sl-rows">
         {rows.length === 0 && <li className="sl-empty">No sessions yet.</li>}

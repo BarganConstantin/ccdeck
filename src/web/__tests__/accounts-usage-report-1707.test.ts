@@ -75,7 +75,7 @@ describe("adding it up", () => {
 describe("what is left out, and why — never as 0%", () => {
   it("leaves out a window the account has no reading for", () => {
     expect(readingOf(acct(1, null, 10), "five_hour", NOW))
-      .toEqual({ counted: false, why: "none", say: "No 5h reading", last: null, estimate: null, resetAt: null });
+      .toEqual({ counted: false, why: "none", say: "No 5h reading", last: null, estimate: null, resetAt: null, reset: null });
   });
 
   it("leaves out a reading nothing has refreshed in a quarter of an hour, by the server's flag or this page's clock", () => {
@@ -94,7 +94,8 @@ describe("what is left out, and why — never as 0%", () => {
   it("leaves out a window whose reset has passed since it was read, and says when", () => {
     const c = readingOf(acct(1, 90, 10, {}, [NOW - 18 * 60]), "five_hour", NOW);
     expect(c).toMatchObject({ counted: false, why: "reset", last: 90 });
-    expect(c.counted === false && c.say).toMatch(/^Reset 18m ago, not updated$/);
+    // When it reset, and what it read before (accounts-report-reset-row).
+    expect(c.counted === false && c.say).toBe("Reported reset time passed 18m ago, 90% when read 4m ago");
   });
 
   it("leaves out an account whose login no switch can get past", () => {
@@ -122,7 +123,7 @@ describe("what is left out, and why — never as 0%", () => {
       acct(4, null, null),
     ], NOW);
     expect(r.windows.map(w => [w.reporting, w.included, w.total])).toEqual([[1, 3, 4], [1, 3, 4]]);
-    for (const w of r.windows) expect(w.used).toBeCloseTo((20 + 80 + 0) / 3, 10);
+    for (const w of r.windows) expect(w.used).toBeCloseTo((20 + 80 + 60) / 3, 10);
     // Only the account never read is out; it is never a 0% it was not given.
     expect(r.rows[3].cells.five_hour).toMatchObject({ counted: false, estimate: null });
     // And the rows are judged on the same numbers the total takes; only the
@@ -165,7 +166,7 @@ describe("what each account can do now (#1713)", () => {
     expect(stateOf(acct(1, 100, 40, { stale: true }))).toBe("limited");
     expect(stateOf(acct(1, 100, 100, { stale: true }))).toBe("exhausted");
     // A window that has reset since it was read is taken as unused.
-    expect(stateOf(acct(1, 100, 10, {}, [NOW - 60]))).toBe("ready");
+    expect(stateOf(acct(1, 100, 10, {}, [NOW - 60]))).toBe("limited");
   });
 
   it("is Stale only where the numbers cannot speak: never read, or behind a login", () => {
@@ -201,7 +202,7 @@ describe("what each account can do now (#1713)", () => {
     const out = renderToStaticMarkup(createElement(UsageReportBody, { accounts: [acct(1, 99.6, 99.6)], nowSec: NOW, held: null }));
     expect(out).toContain('<span class="ap-report-pct" data-level="hi">99%</span>');
     expect(out).not.toContain(">100%<");
-    expect(out).toContain('<p class="ap-report-left"><b>1%</b> remaining</p>');
+    expect(out).toContain('<p class="ap-report-left"><b>1%</b> average remaining</p>');
     expect(out).toContain("<b>1</b> of 1 Claude account ready");
     expect(usedAndAvailable(99.6)).toEqual({ used: 99, available: 1 });
     expect(usedAndAvailable(100)).toEqual({ used: 100, available: 0 });
@@ -244,22 +245,23 @@ describe("the resets", () => {
     const html = renderToStaticMarkup(createElement(UsageReportBody, {
       accounts: [acct(1, 10, 10, {}, [NOW + 2 * HOUR + 1800]), acct(2, 10, 10, {}, [NOW + 45 * 60])], nowSec: NOW, held: null,
     }));
-    expect(html).toContain('<span class="ap-report-in"><span class="vis-hidden">resets in </span>2h 30m</span>');
-    expect(html).toContain('<span class="ap-report-in"><span class="vis-hidden">resets in </span>45m</span>');
+    expect(html).toContain('<span class="vis-hidden">reported reset in </span>2h 30m</time>');
+    expect(html).toContain('<span class="vis-hidden">reported reset in </span>45m</time>');
+    expect(html.match(/class="ap-report-reset-cell"/g)).toHaveLength(4);
   });
 });
 
 describe("the report, drawn", () => {
   const html = (accounts: Account[], held: string | null = null) =>
-    renderToStaticMarkup(createElement(UsageReportBody, { accounts, nowSec: NOW, held }));
+    renderToStaticMarkup(createElement(UsageReportBody, { accounts, nowSec: NOW, held })).replace(/<span class="ap-report-mobile-label"[^>]*>[^<]*<\/span>/g, "");
 
   it("leads with how many accounts are ready, then what each window has remaining", () => {
     const out = html([acct(1, 20, 40, { active: true }), acct(2, 40, null)]);
     expect(out).toContain("<b>1</b> of 2 Claude accounts ready");
     // One line: what "ready" means is in the disclosure, not under the count.
     expect(out).not.toContain("ap-report-lead-sub");
-    expect(out).toContain('<p class="ap-report-left"><b>70%</b> remaining</p>');
-    expect(out).toContain('<p class="ap-report-left"><b>60%</b> remaining</p>');
+    expect(out).toContain('<p class="ap-report-left"><b>70%</b> average remaining</p>');
+    expect(out).toContain('<p class="ap-report-left"><b>60%</b> average remaining</p>');
     expect(out.indexOf("accounts ready")).toBeLessThan(out.indexOf("remaining"));
     // One figure a card, never the same fact twice the other way round.
     expect(out).not.toMatch(/available<|% used</);
@@ -286,7 +288,7 @@ describe("the report, drawn", () => {
   it("names whose reset comes next on the line, since each account keeps its own window", () => {
     // "Resets in 25m" under 88% remaining read as the whole window coming back.
     const out = html([acct(1, 12, 10, { alias: "work" }, [NOW + HOUR]), acct(2, 10, 10, {}, [NOW + 3 * HOUR])]);
-    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span>Next reset in <span class="ap-report-num">1h 0m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
+    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span>Next reported reset in <span class="ap-report-num">1h 0m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
     expect(out).not.toMatch(/>Resets in /);
     const two = html([acct(1, 12, 10, { alias: "a" }, [NOW + HOUR]), acct(2, 10, 10, { alias: "b" }, [NOW + HOUR + 20])]);
     expect(two).toContain('<span class="ap-report-who">a</span><span class="ap-report-more">+1</span>');
@@ -304,7 +306,8 @@ describe("the report, drawn", () => {
 
   it("dims a left-out reading's last number, and says once, in its state, why", () => {
     const out = html([acct(1, 33, 40, { stale: true, fetchedAt: (NOW - HOUR) * 1000 })]);
-    expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, not counted</span>');
+    // Counted at that number since #1713, and said so (accounts-report-cell-said).
+    expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, last reading, counted as is</span>');
     // Judged on its last numbers — one word, one line — and how old they are
     // said once, in the Updated column (#1713).
     expect(out).toContain('<td class="ap-report-state" data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"></i>Ready</span></td><td class="ap-report-upd" data-old="">1h ago</td>');
@@ -445,7 +448,9 @@ describe("the sheet", () => {
     expect(css).toMatch(/\.ap-report-table thead th \{\s*position: sticky;/);
   });
 
-  it("puts the two totals one under the other at a phone's width", () => {
-    expect(css).toMatch(/@media \(max-width: 480px\) \{\s*\.ap-report-sums \{ grid-template-columns: 1fr; \}/);
+  it("adapts account rows structurally instead of adding a horizontal phone scroller", () => {
+    expect(css).toMatch(/\.ap-report-table \{ display: block; min-width: 0;/);
+    expect(css).toMatch(/\.ap-report-table tbody tr \{ display: grid;/);
+    expect(css).toMatch(/\.ap-report-table-scroll \{ overflow: visible;/);
   });
 });

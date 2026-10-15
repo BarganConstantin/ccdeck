@@ -9,13 +9,23 @@
 // (use-reframe.ts), the drag handlers pin (use-node-drag.ts).
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Frame } from "./layout";
-import { clearStoredLayout, loadLayout, loadLayoutFrame, saveLayout, saveLayoutFrame } from "./layout-storage";
+import {
+  clearStoredLayout, loadLayout, loadLayoutFrame, readStoredArrangement, restoreStoredArrangement, saveLayout,
+  saveLayoutFrame,
+} from "./layout-storage";
 import type { Provisional } from "./placement";
+import {
+  createUndoWindow, REARRANGE_RESTORED_SAID, REARRANGE_UNDO_SAID, restoreArrangement, snapshotArrangement,
+  type Arrangement, type RearrangeSnapshot, type UndoHold,
+} from "./rearrange-undo";
 import { restoreLayout } from "./stored-layout";
 import type { useCamera } from "./use-camera";
 
-/** `fitLeft` is the camera's: R frames the board it has just drawn. */
-export function useBoardLayout(fitLeft: ReturnType<typeof useCamera>["fitLeft"]) {
+type Camera = ReturnType<typeof useCamera>;
+
+/** The camera's three that R and its Undo reach: R frames the board it has just
+ *  drawn and keeps the view it replaced, and Undo moves back to that view. */
+export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Camera, "fitLeft" | "moveCamera" | "currentViewport">) {
   // Restore pinned positions synchronously on first render so they're
   // applied before snapshotToFlow runs autoLayout. Sessions outlast a
   // browser refresh (their session_id is stable), so dragged positions
@@ -74,9 +84,43 @@ export function useBoardLayout(fitLeft: ReturnType<typeof useCamera>["fitLeft"])
   const restoredLayoutFrame = useState(loadLayoutFrame)[0];
   const lastLayoutFrameRef = useRef<Frame | null>(restoredLayoutFrame);
 
+  // RE-ARRANGE'S WAY BACK (rearrange-undo.ts). What R throws away is kept for
+  // a few seconds, and the canvas offers it back: the strip on the board, ⌘Z
+  // or Ctrl+Z, until the clock runs out, Escape, or a drag moves on from the
+  // board R drew. `said` is the polite live region's, mounted with the strip.
+  const [undoOffered, setUndoOffered] = useState(false);
+  const [undoSaid, setUndoSaid] = useState("");
+  const undoWindow = useState(() => createUndoWindow<RearrangeSnapshot>(open => {
+    setUndoOffered(open);
+    if (!open) setUndoSaid(said => (said === REARRANGE_RESTORED_SAID ? said : ""));
+  }))[0];
+  useEffect(() => () => undoWindow.close(), [undoWindow]);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibility = () => (document.hidden ? undoWindow.hold("hidden") : undoWindow.release("hidden"));
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [undoWindow]);
+  /** R's store-and-fit, while it is still 80ms away: Undo cancels it. */
+  const relayoutTimerRef = useRef<number | null>(null);
+  /** The live maps, read when asked: R and the reframe replace what is in them,
+   *  never the maps themselves. */
+  const arrangement = (): Arrangement => ({
+    positions: positionsRef.current, pinned: pinnedRef.current, provisional: provisionalRef.current, layoutSig: lastLayoutSigRef,
+  });
+
   // R: throw the arrangement away, pins included, and draw it again from the
   // board as it is.
   const handleRelayout = useCallback(() => {
+    // The copy first — unless one is already offered. A drag ends the offer,
+    // so a second R while it is up has had nothing built on the board the
+    // first drew: its own copy would be that board, an Undo that changes
+    // nothing, and the hand-built one gone after all, which is the stray
+    // double press this exists for. It keeps the first copy and starts the
+    // clock again. (Inside the first press's 80ms there would be nothing
+    // whole to copy anyway: the maps half rebuilt, storage empty.)
+    undoWindow.open(undoWindow.snapshot ?? snapshotArrangement(arrangement(), readStoredArrangement(), currentViewport()));
+    setUndoSaid(REARRANGE_UNDO_SAID);
     pinnedRef.current.clear();
     positionsRef.current.clear();
     lastLayoutSigRef.current = "";
@@ -84,7 +128,9 @@ export function useBoardLayout(fitLeft: ReturnType<typeof useCamera>["fitLeft"])
     setLayoutEpoch(e => e + 1);
     // After dagre runs on the next render, fit-view so the user sees the
     // result. 80ms gives React + RF one paint to settle the new positions.
-    window.setTimeout(() => {
+    if (relayoutTimerRef.current != null) window.clearTimeout(relayoutTimerRef.current);
+    relayoutTimerRef.current = window.setTimeout(() => {
+      relayoutTimerRef.current = null;
       // And store it, for the reason the reframe (use-reframe.ts) does: the
       // debounced save is keyed on layoutSig, which R does not move, so the
       // board R drew was never written — the storage it had just emptied stayed
@@ -95,10 +141,35 @@ export function useBoardLayout(fitLeft: ReturnType<typeof useCamera>["fitLeft"])
       if (lastLayoutFrameRef.current) saveLayoutFrame(lastLayoutFrameRef.current);
       fitLeft(500);
     }, 80);
-  }, [fitLeft]);
+  }, [fitLeft, currentViewport, undoWindow]);
+
+  /** Puts back the board R replaced — the maps, the stored keys and the view —
+   *  and says whether there was one to put back. False once the offer has gone,
+   *  which is how ⌘Z knows to leave the chord to the browser. */
+  const undoRearrange = useCallback((): boolean => {
+    const kept = undoWindow.take();
+    if (!kept) return false;
+    if (relayoutTimerRef.current != null) window.clearTimeout(relayoutTimerRef.current);
+    relayoutTimerRef.current = null;
+    restoreArrangement(kept, arrangement());
+    restoreStoredArrangement(kept.stored);
+    setLayoutEpoch(e => e + 1);
+    // The cards snap back as R snapped them away; the camera travels back over
+    // the 500ms R's fit took, through the door that keeps auto-fit as it was.
+    if (kept.viewport) moveCamera(kept.viewport, 500);
+    setUndoSaid(REARRANGE_RESTORED_SAID);
+    return true;
+  }, [moveCamera, undoWindow]);
+  const dismissRearrangeUndo = useCallback(() => undoWindow.close(), [undoWindow]);
+  const holdRearrangeUndo = useCallback((why: UndoHold) => undoWindow.hold(why), [undoWindow]);
+  const releaseRearrangeUndo = useCallback((why: UndoHold) => undoWindow.release(why), [undoWindow]);
+  const rearrangeUndo = {
+    open: undoOffered, said: undoSaid, undo: undoRearrange,
+    dismiss: dismissRearrangeUndo, hold: holdRearrangeUndo, release: releaseRearrangeUndo,
+  };
 
   return { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef,
-           handleRelayout };
+           handleRelayout, rearrangeUndo };
 }
 
 /** Keeps the stored layout in step with the board: moved out of App.tsx

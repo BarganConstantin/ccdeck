@@ -54,8 +54,11 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
       "LanPeerModal",
       "LanSetupModal",
       "ProcessListModal",
+      "QuotaHistoryModal",
       "SectionHistoryModal",
+      "SessionUsageModal",
       "ShareAccountsDialog",
+      "ToolAuditDrawer",
     ]);
   });
 

@@ -48,6 +48,9 @@ export function useNodeDrag({
   const groupDragRef = useRef<{ start: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null);
 
   const onNodeDragStart: NodeDragHandler = (_, n) => {
+    // React Flow resolves the dragged ID against its current controlled nodes.
+    // That lookup can miss after a live graph update, despite the handler type.
+    if (!n) return;
     hidePeek();
     // A drag must never inherit the push animation. The node under the
     // cursor is excluded by CSS, but a session drag moves its members
@@ -78,6 +81,7 @@ export function useNodeDrag({
     pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
   };
   const onNodeDrag: NodeDragHandler = (event, n) => {
+    if (!n) return;
     markInteract();
     if (n.type === "agent") trackTrashDrag(event);
     if (n.type === "sessionGroup") {
@@ -113,11 +117,18 @@ export function useNodeDrag({
   };
   const onNodeDragStop: NodeDragHandler = (event, n) => {
     markInteract();
-    const droppedOnTrash = endTrashDrag(event, n.type === "agent");
+    const droppedOnTrash = endTrashDrag(event, n?.type === "agent");
     draggingRef.current = false;
     dragPatchRef.current = null;
     setDragging(false);
     setDragTick(t => t + 1);   // one rebuild, from the refs, at the end
+    if (!n) {
+      // Still finish an interrupted gesture. Returning before cleanup would
+      // leave measurements paused, the trash raised and a group snapshot live.
+      groupDragRef.current = null;
+      saveLayout(positionsRef.current, pinnedRef.current);
+      return;
+    }
     if (n.type === "sessionGroup") {
       const g = groupDragRef.current;
       if (g) {

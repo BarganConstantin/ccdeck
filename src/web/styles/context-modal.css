@@ -137,6 +137,7 @@
   flex-shrink: 0;
 }
 .agent-node .title {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -147,16 +148,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  flex: 1;
+  min-width: 0;
 }
-/* One line at every card width, and one width while it counts. Past a hundred
-   minutes the clock read "104m 54s", the header of a card at its widest had no
-   room for it beside the context donut, and it broke onto a second line that
-   made the card taller. It is never wrapped and never shrunk now: the label
-   beside it, which has its tooltip, gives way instead. Seven characters hold
-   every reading under a hundred hours (duration.ts), so the box keeps one width
-   from "2s" to "99h 59m" and a card does not change size as the minutes turn
-   over; the figures are tabular in a monospaced face, so 1ch is one digit. */
+/* The clock shares the metadata row, leaving the header for the session name.
+   Its stable width keeps the card from resizing as elapsed time changes. */
 .agent-node .time {
   flex: none;
   min-width: 7ch;
@@ -281,7 +277,12 @@
    out by the same pass, moved by the same drags, fitted by the same fit — so it
    takes a card's depth and radius, with the panel's plate and a hairline of the
    session's colour. It is not inside the card, so it rebuilds the card's
-   --accent from the hue it is handed. */
+   --accent from the hue it is handed.
+   NO CURSOR OF ITS OWN. It said `cursor: grab`, which the node's wrapper
+   already says (React Flow's sheet), and an element's own cursor beats the one
+   it inherits: React Flow's `.dragging { cursor: grabbing }` landed on the
+   wrapper under a box that kept the open hand, so a dragged note never closed
+   it and a dragged card did. */
 .recap-note {
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
@@ -293,7 +294,6 @@
   box-shadow: var(--shadow-1);
   color: var(--text);
   font-size: 12px;
-  cursor: grab;
 }
 /* The tie to the card (RecapTieEdge): a thread with beads on it. A hairline in
    the session's colour, at the lightness the live session edges are held to on
@@ -313,9 +313,9 @@
 .recap-tie-beads {
   fill: none;
   stroke: var(--tie);
-  stroke-width: 2.5;
+  stroke-width: 1.5;
   stroke-linecap: round;
-  stroke-dasharray: 0 7;
+  stroke-dasharray: 0 10;
 }
 .recap-tie-end {
   fill: var(--tie);
@@ -344,6 +344,33 @@
   padding: 5px 8px;
   background: var(--panel);
   --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+/* A POINTER ON THE NOTE, answered as one on its card is: the card's lift at
+   the full size, and at every distance the card face's hover tint on the
+   note's plate and the note's edge — the session's hue, which is the mark a
+   note has where a card has a stripe — drawn firmer. The tint is what carries
+   it at the full size on the dark canvas, where a shadow is next to invisible
+   and the edge alone read as no change. The face's tint was always meant for
+   it, and never reached it: `.react-flow__node:hover .lod-face` weighs less
+   than the plate above, which names the face by both its classes. None of it
+   is a ring, which is selection's and the keyboard's, and nothing moves: a
+   shadow and three colours, no travel, so reduced motion has nothing to take
+   back. The fade is the sheet's colour hover, 120ms: a note is passed over
+   tens of times a day, the card's 200ms is long for that, and no fade at all
+   reads as a flicker. Everything here, the fades included, is behind
+   `(hover: hover)`, so a tap on a touch screen does not leave a note lit. */
+@media (hover: hover) {
+  .recap-note { transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+  .lod-face.recap-face { transition: background-color 120ms ease, border-color 120ms ease; }
+  .canvas-wrap[data-lod="detail"] .recap-note:hover {
+    background: color-mix(in srgb, var(--text) 6%, var(--panel));
+    border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+    box-shadow: var(--shadow-2);
+  }
+  .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face {
+    background: color-mix(in srgb, var(--text) 6%, var(--panel));
+    --lod-edge: color-mix(in srgb, var(--accent) 70%, var(--line));
+  }
 }
 /* A note has no stripe: its hue is its edge, as it is at the full size. */
 .lod-face.recap-face::before { display: none; }
@@ -445,9 +472,9 @@
 .recap-note.status-needs .recap-note-mark { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
 .recap-note.status-failed .recap-note-mark { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
 .recap-note.status-done .recap-note-mark { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
-:root[data-theme="light"] .recap-note.status-needs .recap-note-mark { color: var(--warn); }
-:root[data-theme="light"] .recap-note.status-failed .recap-note-mark { color: var(--err); }
-:root[data-theme="light"] .recap-note.status-done .recap-note-mark { color: var(--ok); }
+:root[data-color-scheme="light"] .recap-note.status-needs .recap-note-mark { color: var(--warn); }
+:root[data-color-scheme="light"] .recap-note.status-failed .recap-note-mark { color: var(--err); }
+:root[data-color-scheme="light"] .recap-note.status-done .recap-note-mark { color: var(--ok); }
 /* The dot in front of a status note's word: a little smaller than the ※, which
    is drawn to the same box with nothing at its centre. */
 .note-glyph { transform: scale(0.85); }
@@ -499,10 +526,17 @@
 }
 
 .agent-node .sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--muted);
   font-size: 11px;
   margin-top: 3px;
   font-family: var(--font-mono);
+}
+.agent-node .sub-details {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -604,9 +638,9 @@
 /* Keeps the idle tier where it measured fine — see the note on .tool-spark-bar.
    The two rules below carry an extra class each, so they out-specify this one
    whatever the order: the active and latest bars stay theirs in light. */
-:root[data-theme="light"] .tool-spark-bar { fill: var(--muted-dim); }
-:root[data-theme="light"] .tool-spark-bar.active { fill: var(--accent); opacity: 0.85; }
-:root[data-theme="light"] .tool-spark-bar.latest {
+:root[data-color-scheme="light"] .tool-spark-bar { fill: var(--muted-dim); }
+:root[data-color-scheme="light"] .tool-spark-bar.active { fill: var(--accent); opacity: 0.85; }
+:root[data-color-scheme="light"] .tool-spark-bar.latest {
   fill: var(--inflight);
   filter: drop-shadow(0 0 3px rgba(126, 34, 206, 0.45));
 }
@@ -787,7 +821,7 @@
    band's #7e22ce, #075985 against #0369a1): a band colour dark enough for a
    3:1 bar is not dark enough for 10px words on its own wash. The sweep in
    usage-series-contrast.test.ts measures the word on every bed. */
-:root[data-theme="light"] .model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
+:root[data-color-scheme="light"] .model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
   color: color-mix(in srgb, var(--chip-hue) 80%, var(--text));
   border-color: color-mix(in srgb, var(--chip-hue) 55%, transparent);
   background: color-mix(in srgb, var(--chip-hue) 14%, transparent);

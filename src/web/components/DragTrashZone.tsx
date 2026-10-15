@@ -5,6 +5,8 @@
 // over the zone are use-drag-trash's; CanvasMain.tsx mounts this for as long
 // as that hook's phase says the zone is on screen, leaving included.
 import type { useDragTrash } from "../use-drag-trash";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
 type DragTrash = ReturnType<typeof useDragTrash>;
 
@@ -15,6 +17,7 @@ export default function DragTrashZone({ trashZoneRef, trashState, trashPhase, tr
   /** The dragged card's name, said while it is over the zone. */
   trashLabel: DragTrash["trashLabel"];
 }) {
+  const singleKeys = useSingleKeyShortcuts();
   return (
     <div
       ref={trashZoneRef}
@@ -31,7 +34,7 @@ export default function DragTrashZone({ trashZoneRef, trashState, trashPhase, tr
             : "Drop here to remove from the board"}
         </span>
         <span className="drag-trash-hint">
-          {trashState === "over" ? "The session list (L) brings it back" : "The session keeps running"}
+          {trashState === "over" ? `${withKey("The session list", "L", singleKeys)} brings it back` : "The session keeps running"}
         </span>
       </span>
     </div>

@@ -24,6 +24,7 @@ import {
   nextFailure,
 } from "./accounts-reload";
 import { type AccountsData, type AutoStatus } from "./claude-accounts";
+import { isAccountsData } from "./accounts-contract";
 
 export const POLL_MS = 15_000;
 // Past this, a reload is called dead rather than slow. Both routes can spawn
@@ -42,45 +43,67 @@ export function useAccountRoster(onRoster: (fresh: AccountsData) => void) {
   const [reloading, setReloading] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const timerRef = useRef<number | null>(null);
+  const versionRef = useRef(0);
+  const activeRef = useRef(false);
+  const requestsRef = useRef(new Set<AbortController>());
 
   // A reload the user asked for, and the same one on a timer. Only the forced
   // half touches `reloading`: a poll blinking the ↻ every 15 seconds would read
   // as the panel doing something to itself.
   const load = useCallback(async (force = false) => {
+    if (!activeRef.current || !force && requestsRef.current.size > 0) return;
+    const version = ++versionRef.current;
     if (force) setReloading(true);
     // A deck that accepts the connection and then wedges never rejects these
     // fetches. Unbounded, the first load would sit on "Checking…" behind a ↻
     // disabled forever — the dead button this busy state exists to rule out,
     // made permanent.
     const ctl = new AbortController();
+    requestsRef.current.add(ctl);
     const bell = window.setTimeout(() => ctl.abort(), RELOAD_TIMEOUT_MS);
     try {
       const [accts, autoRes] = await Promise.all([
         fetch(`/api/claude-accounts${force ? "?refresh=1" : ""}`, { signal: ctl.signal }),
         fetch("/api/cswap-auto", { signal: ctl.signal }),
       ]);
-      if (accts.ok) {
-        const fresh: AccountsData = await accts.json();
-        setData(fresh);
-        onRoster(fresh);
-      }
-      if (autoRes.ok)  setAuto(await autoRes.json());
+      // Read both bodies before publishing. Another reload can start while
+      // JSON is arriving; only the latest request may commit this snapshot.
+      const [fresh, policy] = await Promise.all([
+        accts.ok ? accts.json() as Promise<AccountsData> : null,
+        autoRes.ok ? autoRes.json() as Promise<AutoStatus> : null,
+      ]);
       const verdict = explainReload([await answered(accts), await answered(autoRes)]);
+      if (!activeRef.current || version !== versionRef.current) return;
+      if (fresh && !isAccountsData(fresh)) {
+        setFailure(prev => nextFailure(prev, { text: "the deck server returned unreadable account data", reload: true }));
+        return;
+      }
+      if (fresh) { setData(fresh); onRoster(fresh); }
+      if (policy) setAuto(policy);
       setFailure(prev => nextFailure(prev, verdict));
     } catch {
       // Our own abort is a deck that answered the connection and then took
       // too long, not one that is gone (#829) — see RELOAD_SLOW.
-      setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));
+      if (activeRef.current && version === versionRef.current) {
+        setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));
+      }
     } finally {
       window.clearTimeout(bell);
-      if (force) setReloading(false);
+      requestsRef.current.delete(ctl);
+      if (activeRef.current && version === versionRef.current) setReloading(false);
     }
   }, [onRoster]);
 
   useEffect(() => {
+    activeRef.current = true;
     load(true);
     timerRef.current = window.setInterval(() => load(false), POLL_MS);
-    return () => { if (timerRef.current != null) window.clearInterval(timerRef.current); };
+    return () => {
+      activeRef.current = false;
+      versionRef.current++;
+      if (timerRef.current != null) window.clearInterval(timerRef.current);
+      for (const ctl of requestsRef.current) ctl.abort();
+    };
   }, [load]);
 
   /** Say why a press did not work — at the foot of the panel, or on the row it

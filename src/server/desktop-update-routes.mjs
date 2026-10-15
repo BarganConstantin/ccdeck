@@ -22,7 +22,7 @@ function cleanDesktopUpdate(value) {
     ? value.version.trim().slice(0, 80)
     : null;
   if (value.status === "ready" && !version) return null;
-  return { status: value.status, version };
+  return { status: value.status, version, ...(value.canCheck === true ? { canCheck: true } : {}) };
 }
 
 function broadcastDesktopUpdate() {
@@ -67,6 +67,19 @@ async function handleDesktopUpdateRequest(req, res, event) {
   if (trayClients.size === 0) return send(res, 409, { ok: false, reason: "app_disconnected" });
   const frame = `event: ${event}\ndata: ${JSON.stringify({ version })}\n\n`;
   for (const client of trayClients) writeSse(client, frame);
+  send(res, 202, { ok: true });
+}
+
+// Checking is routed to the same native updater as the tray menu. The existing
+// mutation gate protects the request; only authenticated tray subscribers receive it.
+let lastCheckAt = 0;
+export function handleDesktopUpdateCheck(_req, res) {
+  if (trayClients.size === 0) return send(res, 409, { ok: false, reason: 'app_disconnected' });
+  if (!desktopUpdateState.canCheck) return send(res, 409, { ok: false, reason: 'app_update_required' });
+  if (Date.now() - lastCheckAt >= 1000) {
+    lastCheckAt = Date.now();
+    for (const client of trayClients) writeSse(client, 'event: desktop-update-check\ndata: {}\n\n');
+  }
   send(res, 202, { ok: true });
 }
 

@@ -289,7 +289,8 @@ describe("the deck's ten overlays", () => {
     // The twenty-fourth is Settings, behind the gear and Cmd/Ctrl+,. The
     // Appearance modal it replaced was never counted here: its backdrop wore
     // two classes, which the sweep's one-class pattern does not match.
-    expect(MODALS.length).toBe(24);
+    // Quota history (#2121) shares the same trap and named close focus.
+    expect(MODALS.length).toBe(29);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -362,15 +363,16 @@ describe("the deck's ten overlays", () => {
       // A dialog whose chunk did not arrive names Reload, the one press that
       // brings the dialog back; Close is beside it and Escape still closes.
       "LazyDialog.tsx",
+      "QuotaHistoryModal.tsx",
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.
-      "SessionSummary.tsx",
+      "SessionSummary.tsx", "SessionUsageModal.tsx",
       // Settings names the tab of the section it opened at: the nav is what it
       // is walked by, and a door that opened it at Sounds lands the reader on
       // "Sounds", which says where they are. Its × is a Shift+Tab away.
       "SettingsModal.tsx",
-      "ShareAccountsDialog.tsx", "UsageHistoryModal.tsx",
+      "ShareAccountsDialog.tsx", "ToolAuditDrawer.tsx", "ToolAuditModal.tsx", "UsageHistoryModal.tsx",
     ]);
     expect(hook).toMatch(/\(focusRef\?\.current \?\? tabbablesIn\(dialogRef\.current\)\[0\]\)\?\.focus\(\)/);
   });

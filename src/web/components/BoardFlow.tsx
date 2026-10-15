@@ -11,7 +11,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import ReactFlow, { Background, MiniMap } from "reactflow";
 import type { ClearSource } from "../clear-confirm";
-import { customFmSelection } from "../fm-stations";
 import type { GraphState } from "../reducer";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "../stored-viewport";
 import type { useAppearance } from "../use-appearance";
@@ -29,12 +28,16 @@ import { shouldAnimateViewport } from "../viewport-motion";
 import AgentNode from "./AgentNode";
 import AutoFitChip from "./AutoFitChip";
 import CanvasControls from "./CanvasControls";
-import ClaudeFm from "./ClaudeFm";
+import RadioExperience from "./RadioExperience";
 import RecapNoteNode from "./RecapNoteNode";
+import RearrangeUndo from "./RearrangeUndo";
 import RecapTieEdge from "./RecapTieEdge";
 import SessionClusters from "./SessionClusters";
 import SessionGroupNode from "./SessionGroupNode";
 import ToolBursts from "./ToolBursts";
+
+// Stable geometry keeps MiniMap memoised; surfaces stay in CSS.
+const MINIMAP_SIZE = { width: 140, height: 105 };
 
 const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
@@ -46,7 +49,7 @@ const edgeTypes = { recapTie: RecapTieEdge };
 const OPENING_FIT_MS = 400;
 
 export default function BoardFlow({
-  graph, layout, viewport, clicks, drag, appearance, fm, autoFit, pause,
+  graph, layout, viewport, clicks, drag, appearance, fm, radioOpen, onRadioClose, autoFit, pause,
   stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen, onTerminal,
 }: {
   /** What is drawn: the nodes with a drag patched over them, the edges, and
@@ -59,6 +62,8 @@ export default function BoardFlow({
   drag: ReturnType<typeof useNodeDrag>;
   appearance: ReturnType<typeof useAppearance>;
   fm: ReturnType<typeof useClaudeFm>;
+  radioOpen: boolean;
+  onRadioClose: () => void;
   autoFit: ReturnType<typeof useAutoFitSwitch>;
   pause: PauseControls;
   /** Read during render, as App.tsx read it: this renders only when App does. */
@@ -75,12 +80,11 @@ export default function BoardFlow({
   onTerminal?: (button: Element | null) => void;
 }) {
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
-  const { positionsRef, pinnedRef, handleRelayout } = layout;
+  const { positionsRef, pinnedRef, handleRelayout, rearrangeUndo } = layout;
   const { restoredViewport, onMoveStart, onMove } = viewport;
   const { onNodeClick, onPaneClick, onNodeDoubleClick, onNodeMouseEnter, onNodeMouseLeave } = clicks;
   const { onNodeDragStart, onNodeDrag, onNodeDragStop } = drag;
   const { palette, minimapNodeFill, characterEnabled } = appearance;
-  const { fmVolume, fmMuted, fmSource, fmPlayRequest, customFmStations, markFmStationAvailability } = fm;
   const { autoFitDisabled, enableAutoFitAndRefit } = autoFit;
   const { paused, pauseGate, togglePause } = pause;
   return (
@@ -161,7 +165,9 @@ export default function BoardFlow({
       onNodeMouseLeave={onNodeMouseLeave}
       onMoveStart={onMoveStart}
       onMove={onMove}
-      onNodeDragStart={onNodeDragStart}
+      // A drag moves on from the board R drew: its Undo would now throw the
+      // drag away as well, so the offer ends where the gesture starts.
+      onNodeDragStart={(event, node, nodes) => { rearrangeUndo.dismiss(); onNodeDragStart(event, node, nodes); }}
       onNodeDrag={onNodeDrag}
       onNodeDragStop={onNodeDragStop}
     >
@@ -189,7 +195,13 @@ export default function BoardFlow({
       {/* A status and an action, not one big button. The words say what
           the state is and are not a control; Resume is the one thing here
           that can be pressed, and it does what the whole chip used to. */}
-      {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
+      <div className="canvas-notices">
+        {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
+        {/* Re-arrange's way back, for a few seconds after R — beside the
+            chip when both are up, since a board built by hand is one
+            auto-fit has usually stood down on. */}
+        <RearrangeUndo undo={rearrangeUndo} />
+      </div>
       {/* No React Flow fit-view button (#840). Recenter below does the same
           fit and also turns autofit back on, so two near-identical buttons
           sat side by side and the reader had to guess the difference. F
@@ -201,6 +213,7 @@ export default function BoardFlow({
         onTerminal={onTerminal}
       />
       <MiniMap
+        style={MINIMAP_SIZE}
         zoomable
         pannable
         nodeColor={minimapNodeFill}
@@ -215,16 +228,7 @@ export default function BoardFlow({
       {/* Above the minimap, and absent unless there is something to play —
           ClaudeFm renders null until the server says the channel is on air,
           so on a deck with no network this is nothing at all. */}
-      {characterEnabled && (
-        <ClaudeFm
-          volume={fmVolume}
-          muted={fmMuted}
-          source={fmSource}
-          playRequest={fmPlayRequest}
-          customStation={customFmStations.find(station => customFmSelection(station.id) === fmSource)}
-          onAvailabilityChange={markFmStationAvailability}
-        />
-      )}
+      <RadioExperience fm={fm} character={appearance.character} characterEnabled={characterEnabled} open={radioOpen} onClose={onRadioClose} />
     </ReactFlow>
   );
 }

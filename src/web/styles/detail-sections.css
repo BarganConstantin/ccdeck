@@ -118,7 +118,7 @@
    label. It puts the hovered band at 4.02-5.44:1 on the track and 6.42-8.67:1
    on the paper. */
 .cost-bar .cb-seg:hover { filter: brightness(1.3); }
-:root[data-theme="light"] .cost-bar .cb-seg:hover { filter: brightness(0.85); }
+:root[data-color-scheme="light"] .cost-bar .cb-seg:hover { filter: brightness(0.85); }
 /* The four bands. Until #619 these were four fixed-lightness hsl() literals —
    the only ones in the sheet that did not read a theme-scoped lightness token —
    and they were picked for the dark canvas. Resolved, they are #5e9fed, #c679ec,

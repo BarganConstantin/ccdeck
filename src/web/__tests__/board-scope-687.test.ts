@@ -54,6 +54,7 @@ import {
   boardTotals,
   BOARD_SCOPE_LABEL,
   BOARD_SCOPE_TITLE,
+  boardScopeTitle,
   BOARD_SPEND_LABEL,
   SESSION_SPEND_LABEL,
   type Billable,
@@ -330,6 +331,7 @@ describe("the label lives in the same module as the sum", () => {
     ]) {
       expect(declared, `${name} is not declared beside the sum`).toContain(`export const ${name}`);
     }
+    expect(declared).toContain("export function boardScopeTitle(");
   });
 
   it("says board of the board figures and session of the session ones", () => {
@@ -371,6 +373,7 @@ describe("the label lives in the same module as the sum", () => {
     // may name neither — the same rule codex-copy.test.ts holds the tooltips to.
     for (const product of ["Claude Code", "Codex", "Claude ", "OpenAI"]) {
       expect(BOARD_SCOPE_TITLE, `the scope sentence names ${product}`).not.toContain(product);
+      expect(boardScopeTitle(false), `the scope sentence names ${product} with the single keys off`).not.toContain(product);
     }
   });
 });
@@ -399,8 +402,11 @@ describe("every surface that prints one of these figures prints the shared label
     // The title is what this issue is about — asserted as the whole attribute
     // so the board branch cannot quietly lose its sentence. (The class carried
     // a stale dim as a template literal until #1289 took the dim off words.)
-    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
-    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    // Through boardScopeTitle since Settings › General's single-key switch: the
+    // same sentence, pointing at Usage history by name rather than by H while
+    // the letters are off (WCAG 2.1.4).
+    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
+    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
     // The unpriced deck: no headline renders there, so the strip says it itself.
     expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}`);
   });
@@ -429,9 +435,10 @@ describe("every surface that prints one of these figures prints the shared label
     // constants and BOTH carried the sentence — the tokens figure falls by the
     // same 40% the dollars do, and the report named only the dollars.
     //
-    // #737 puts an aggregate back, but its source is ccusage and its period is
-    // explicit. This case still guards the original failure: a board total must
-    // never reappear in the bar and shrink when cards are pruned.
+    // #737 put an aggregate back, from ccusage with its period explicit, and it
+    // has left the bar since (2026-10-08). This case still guards the original
+    // failure: a board total must never reappear in the bar and shrink when
+    // cards are pruned — and no figure of any scope is in the strip now.
     // The strip is components/TopbarReadouts.tsx's; it ends where the next
     // component there starts.
     const readouts = code(read("components/TopbarReadouts.tsx"));
@@ -441,9 +448,7 @@ describe("every surface that prints one of these figures prints the shared label
     const strip = readouts.slice(opens, next === -1 ? undefined : next);
     expect(strip, "the .status strip is gone from components/TopbarReadouts.tsx").toBeTruthy();
     expect(strip).not.toContain("boardTotals");
-    expect(strip).toContain("this month");
-    expect(strip).toContain("fmtTokens(monthlyUsage.tokens)");
-    expect(strip).toContain("fmtMonthlyCost(monthlyUsage.cost)");
+    expect(strip).not.toMatch(/fmtTokens|fmtCost|fmtMonthlyCost/);
   });
 
   it("labels the sidebar row and the end-of-session recap", () => {

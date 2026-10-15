@@ -131,12 +131,8 @@
      goes. Their exit is opacity only already, so it needs no answer here. */
   .sysdetail,
   .usage-panel { animation: fadeIn 140ms ease both; }
-  /* The panel arrives and leaves without travelling. Its width is a layout
-     property and the whole point of the animation is the 288px the canvas
-     moves, so reduced motion takes the movement and keeps the arrival: the
-     panel is simply there, and simply gone. */
-  .accounts-panel { animation: fadeIn 140ms ease both; }
-  .accounts-panel.leaving { animation: canvas-fade-out var(--side-exit) linear both; }
+  /* The left column's two panels: answered with the column itself, at the
+     end of styles/left-column.css. */
   /* The bar is the feedback and it stays; only the rise goes. Reduced motion
      means gentler, not blind. */
   .tool-spark-bar.latest { animation: none; }
@@ -146,14 +142,6 @@
   .state-pill.state-active::before { animation: none; }
   .tool-burst.clickable { transition: box-shadow 120ms ease, opacity 180ms ease, filter 180ms ease; }
   .tool-burst.clickable:hover { translate: none; }
-
-  /* Three rings turning under a pulsing core is the largest continuous motion
-     in the app and the only one with no state to report. Same diagram, still. */
-  .empty-hero .orbit.r1,
-  .empty-hero .orbit.r2,
-  .empty-hero .orbit.r3,
-  .empty-hero .core,
-  .empty-hero .core::after { animation: none; }
 
   @keyframes canvas-fade-out { to { opacity: 0; } }
 }

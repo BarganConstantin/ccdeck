@@ -58,6 +58,8 @@ interface Props {
   /** The control this hangs off, by id. Looked up at each placement rather
    *  than held, so a row re-rendered under it is followed rather than lost. */
   anchorId: string;
+  /** Keep modal-owned controls inside its accessibility boundary. */
+  portalRootId?: string;
   /** The element the anchor scrolls inside. Once the anchor has left it, the
    *  popover closes. Named rather than discovered: finding it would mean
    *  asking the style engine about every ancestor on every scroll. */
@@ -98,7 +100,7 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, boundaryId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, align = "end", children,
+  anchorId, boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, align = "end", children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -121,10 +123,10 @@ export default function AnchoredPopover({
     const anchor = document.getElementById(anchorId);
     // The row it hung off is gone — removed from another terminal, or moved.
     if (!anchor) { closeRef.current(); return; }
-    // Or it is still there and no longer drawn: the topbar's ⋯, which the
-    // sheet hides once the window is wider than a phone (TopbarMore.tsx). Its
-    // box is all zeros then, and placed against that the popover went to the
-    // window's top-left corner, still open and holding focus.
+    // Or it is still there and no longer drawn, the way the phone topbar's ⋯
+    // was once the window grew past a phone's width. Its box is all zeros
+    // then, and placed against that the popover went to the window's top-left
+    // corner, still open and holding focus.
     if (anchor.getClientRects().length === 0) {
       if (el.contains(document.activeElement)) fallbackRef.current?.()?.focus();
       closeRef.current();
@@ -247,6 +249,6 @@ export default function AnchoredPopover({
     >
       {children}
     </div>,
-    document.body,
+    (portalRootId ? document.getElementById(portalRootId) : null) ?? document.body,
   );
 }

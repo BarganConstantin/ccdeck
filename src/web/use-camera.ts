@@ -150,8 +150,10 @@ export function useCamera() {
    *  for a caller that checks later whether its move is still the latest. */
   const moveCamera = useCallback((want: { x: number; y: number; zoom: number }, duration: number): number => {
     const epoch = ++cameraEpochRef.current;
-    applyViewport(want, duration);
+    // Immediate moves emit onMove synchronously. Stamp first, so a press of
+    // Recenter is recognised as a deck fit instead of disabling auto-fit again.
     lastFitTimeRef.current = Date.now();
+    applyViewport(want, duration);
     // Remembered only while an animation is actually running: a move that went
     // straight to the pane is already there, and nothing about it is pending.
     pendingFitRef.current = shouldAnimateViewport({ durationMs: duration, documentHidden: document.hidden })
@@ -184,16 +186,26 @@ export function useCamera() {
       const vp = rf.getViewport();
       if (!Number.isFinite(vp.zoom) || vp.zoom <= 0) return;
 
-      // Screen rects back through the current viewport into flow space, so
-      // this works from any starting zoom and never consults the node store —
-      // which also holds the invisible per-session drag handles.
-      const fx = (sx: number) => (sx - paneRect.left - vp.x) / vp.zoom;
-      const fy = (sy: number) => (sy - paneRect.top - vp.y) / vp.zoom;
-      const rects = drawn.map(el => el.getBoundingClientRect());
-      const minX = Math.min(...rects.map(r => fx(r.left)));
-      const maxX = Math.max(...rects.map(r => fx(r.right)));
-      const minY = Math.min(...rects.map(r => fy(r.top)));
-      const maxY = Math.max(...rects.map(r => fy(r.bottom)));
+      // Fit where the nodes are GOING, not a frame of their CSS transition.
+      // R fits after 80ms, while node transforms ease for 320ms; measuring
+      // screen rectangles then frames the old/intermediate arrangement and
+      // leaves the final nodes under a side panel. Keep the DOM visibility
+      // filter, but pair its unscaled dimensions with the store's targets.
+      const targets = new Map(rf.getNodes().map(n => [n.id, n]));
+      const rects = drawn.flatMap(el => {
+        const node = targets.get((el as HTMLElement).dataset.id ?? "");
+        if (!node) return [];
+        const pos = node.positionAbsolute ?? node.position;
+        const width = node.width ?? (el as HTMLElement).offsetWidth;
+        const height = node.height ?? (el as HTMLElement).offsetHeight;
+        if (!(width > 0 && height > 0)) return [];
+        return [{ left: pos.x, right: pos.x + width, top: pos.y, bottom: pos.y + height }];
+      });
+      if (rects.length === 0) return;
+      const minX = Math.min(...rects.map(r => r.left));
+      const maxX = Math.max(...rects.map(r => r.right));
+      const minY = Math.min(...rects.map(r => r.top));
+      const maxY = Math.max(...rects.map(r => r.bottom));
       const w = maxX - minX, h = maxY - minY;
       if (!(w > 0 && h > 0)) return;
 
@@ -218,7 +230,11 @@ export function useCamera() {
       // about where the graph was supposed to go.
       const want = {
         x: MARGIN - minX * zoom,
-        y: Math.max(MARGIN, (paneRect.height - h * zoom) / 2) - minY * zoom,
+        // Tall canvases read down from the top. Centring a width-bound board
+        // there left hundreds of empty pixels above and below its sessions.
+        // Keep the familiar vertical centring on landscape/square canvases.
+        y: (paneRect.height > paneRect.width - railWidth
+          ? MARGIN : Math.max(MARGIN, (paneRect.height - h * zoom) / 2)) - minY * zoom,
         zoom,
       };
       const epoch = moveCamera(want, duration);
@@ -234,7 +250,7 @@ export function useCamera() {
           if (pendingFitRef.current?.target === want) pendingFitRef.current = null;
           if (cameraEpochRef.current !== epoch) return;
           const vpNow = rf.getViewport();
-          if (Math.abs(vpNow.zoom - zoom) > 0.01 || Math.abs(vpNow.x - want.x) > 2) {
+          if (Math.abs(vpNow.zoom - zoom) > 0.01 || Math.abs(vpNow.x - want.x) > 2 || Math.abs(vpNow.y - want.y) > 2) {
             applyViewport(want, 0);
           }
         } catch { /* ignore */ }
@@ -268,5 +284,9 @@ export function useCamera() {
     return () => document.removeEventListener("visibilitychange", land);
   }, [applyViewport]);
 
-  return { applyViewport, moveCamera, fitLeft, cameraEpochRef, lastFitTimeRef };
+  /** Where the pane is right now, for a move that has to come back to it —
+   *  Re-arrange keeps it so its Undo can return the view it replaced. */
+  const currentViewport = useCallback(() => rf.getViewport(), [rf]);
+
+  return { applyViewport, moveCamera, fitLeft, currentViewport, cameraEpochRef, lastFitTimeRef };
 }

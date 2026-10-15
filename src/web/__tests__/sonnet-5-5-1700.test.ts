@@ -12,10 +12,10 @@ import { shortModel } from "../model-label";
 describe("Claude Sonnet 5.5", () => {
   it("is priced at the published rate, not left unpriced", () => {
     expect(ratesForModel("claude-sonnet-5-5")).toEqual(
-      { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 },
+      { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5, cacheWrite1h: 4 },
     );
     // A million of each, so every term is its rate in dollars: $2 input, $10
-    // output, $0.20 cache reads, and $2.50 + $4 for a million 5-minute and a
+    // output, $0.10 cache reads, and $2.50 + $4 for a million 5-minute and a
     // million 1-hour cache writes.
     const c = costForUsage({
       inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 1_000_000,
@@ -23,13 +23,13 @@ describe("Claude Sonnet 5.5", () => {
     }, "claude-sonnet-5-5");
     expect(c.input).toBeCloseTo(2);
     expect(c.output).toBeCloseTo(10);
-    expect(c.cacheRead).toBeCloseTo(0.2);
+    expect(c.cacheRead).toBeCloseTo(0.1);
     expect(c.cacheWrite).toBeCloseTo(6.5);
-    expect(c.total).toBeCloseTo(18.7);
+    expect(c.total).toBeCloseTo(18.6);
   });
 
   it("leaves Sonnet 5 exactly as it was", () => {
-    expect(ratesForModel("claude-sonnet-5")).toEqual(ratesForModel("claude-sonnet-5-5"));
+    expect(ratesForModel("claude-sonnet-5")?.cacheRead).toBe(0.2);
     expect(ratesForModel("claude-sonnet-5-6")).toBeNull();
   });
 

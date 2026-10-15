@@ -77,7 +77,7 @@ describe("the one-button window wiring", () => {
   it("publishes updater state and routes the window request through the native gate", () => {
     const main = read("../../../desktop/main.mjs");
     const config = read("../../../desktop/electron-builder.config.cjs");
-    expect(main).toContain('deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version } })');
+    expect(main).toContain('deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version, canCheck: true } })');
     expect(main).toContain("restartReadyUpdate(updater, version)");
     // The window having shown the offer counts as this version's one notice,
     // so the native sheet does not ask again on top of it (#1182).
@@ -112,11 +112,12 @@ describe("the one-button window wiring", () => {
     const body = modal.slice(modal.indexOf('<section className="modal-body">'));
     const update = body.indexOf("onClick={onUpdateRestart}");
     expect(update).toBeGreaterThan(-1);
-    // Ahead of the intro, the tour and the deck's own Restart.
+    // Ahead of the intro and of the action strip that holds the tour and the
+    // deck's own Restart (ReleaseActions.tsx, since the owner asked for one
+    // strip in place of three stacked rows).
     expect(update).toBeLessThan(body.indexOf('<p className="modal-note">'));
-    expect(update).toBeLessThan(body.indexOf("onClick={onTour}"));
-    expect(update).toBeLessThan(body.indexOf("onClick={onRestart}"));
-    expect(body).toMatch(/\{onTour && !updateVersion && \(/);
+    expect(update).toBeLessThan(body.indexOf("<ReleaseActions"));
+    expect(body).toMatch(/<ReleaseActions onTour=\{updateVersion \? undefined : onTour\} onRestart=\{onRestart\}/);
   });
 
   it("wears its own chip, not the stale chip's warning", () => {

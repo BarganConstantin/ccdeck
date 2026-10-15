@@ -1,0 +1,23 @@
+// Keep native caption buttons; only their surrounding chrome belongs to ccdeck.
+export const TITLEBAR_HEIGHT = 38;
+// The renderer owns the bottom separator. Native controls must stop above it,
+// both at creation and when theme colours are refreshed.
+const CAPTION_OVERLAY_HEIGHT = TITLEBAR_HEIGHT - 1;
+export function windowChrome(platform) {
+  return {
+    titleBarStyle: "hidden",
+    ...(platform === "darwin"
+      ? { trafficLightPosition: { x: 12, y: 12 } }
+      : { titleBarOverlay: { color: "#191a1c", symbolColor: "#d4d4d4", height: CAPTION_OVERLAY_HEIGHT }, autoHideMenuBar: true }),
+  };
+}
+
+// Only opaque CSS colours cross the bridge, never arbitrary native options.
+export function titlebarColors(value) {
+  if (!value || typeof value !== "object") return null;
+  const color = /^#[0-9a-f]{6}$/i;
+  return typeof value.color === "string" && typeof value.symbolColor === "string"
+    && color.test(value.color) && color.test(value.symbolColor)
+    ? { color: value.color, symbolColor: value.symbolColor, height: CAPTION_OVERLAY_HEIGHT }
+    : null;
+}

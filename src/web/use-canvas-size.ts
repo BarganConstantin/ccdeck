@@ -6,11 +6,51 @@
 // `canvasSize`, quantised to 40px so a nudge of the window cannot reflow the
 // layout, and `paneSizeRef`, whole, because an intersection test must not
 // inherit that tolerance (#615). Both are written here and nowhere else.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
 import type { PaneSize } from "./drift";
 
-export function useCanvasSize() {
+/**
+ * The board's reading of the canvas, held while the left column moves.
+ *
+ * `read` is handed every size the observer reports. Outside a move it is
+ * passed to `take` at once; during one only the latest is kept, and taken when
+ * the move ends — once, however many frames the move lasted. `settleAt` is when
+ * that is, in the clock `now` reads.
+ */
+export function heldReading({ settleAt, now, take, schedule, cancel }: {
+  settleAt: () => number;
+  now: () => number;
+  take: (width: number, height: number) => void;
+  schedule: (run: () => void, ms: number) => number;
+  cancel: (id: number) => void;
+}) {
+  let held: number | null = null;
+  const drop = () => { if (held != null) cancel(held); held = null; };
+  return {
+    read(width: number, height: number) {
+      drop();
+      const wait = settleAt() - now();
+      if (wait > 0) { held = schedule(() => { held = null; take(width, height); }, wait); return; }
+      take(width, height);
+    },
+    dispose: drop,
+  };
+}
+
+/**
+ * @param settleRef When the left column's move ends, in `performance.now()`
+ *   time (useColumnSettle in use-left-column.ts). The canvas is the grid's 1fr
+ *   beside the column, so it is resized on every frame of the column's width,
+ *   and `canvasSize` is what re-packs and re-frames the board (use-reframe.ts).
+ *   Taken on those frames, a 288px open would cross the 40px quantum up to
+ *   seven times and could re-column the board mid-move. Until the column
+ *   settles the reading is held, and the last one is taken when it has: the
+ *   board rides the canvas's left edge for the move and is re-packed once, at
+ *   the end. `paneSizeRef` is not held — the drift watchdog wants the pane as
+ *   it is.
+ */
+export function useCanvasSize(settleRef?: MutableRefObject<number>) {
   /** The pane the watchdog measures nodes against, in CSS pixels.
    *
    *  Written by the ResizeObserver below, which is the one thing in the deck
@@ -38,6 +78,16 @@ export function useCanvasSize() {
   useEffect(() => {
     const el = canvasRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
+    // Quantised so a one-pixel resize doesn't reflow the canvas.
+    const reading = heldReading({
+      settleAt: () => settleRef?.current ?? 0,
+      now: () => performance.now(),
+      take: (width, height) => setCanvasSize(prev =>
+        (Math.abs(prev.w - width) > 40 || Math.abs(prev.h - height) > 40)
+          ? { w: width, h: height } : prev),
+      schedule: (run, ms) => window.setTimeout(run, ms),
+      cancel: id => window.clearTimeout(id),
+    });
     const ro = new ResizeObserver(entries => {
       const r = entries[0]?.contentRect;
       if (!r) return;
@@ -48,15 +98,12 @@ export function useCanvasSize() {
       // side panel opens or closes, which is precisely when the pane changes
       // width by 240-360px and the watchdog is most likely to be wrong (#615).
       paneSizeRef.current = { width: r.width, height: r.height };
-      // Quantised so a one-pixel resize doesn't reflow the canvas.
-      setCanvasSize(prev =>
-        (Math.abs(prev.w - r.width) > 40 || Math.abs(prev.h - r.height) > 40)
-          ? { w: r.width, h: r.height } : prev);
+      reading.read(r.width, r.height);
     });
     ro.observe(el);
     paneSizeRef.current = { width: el.clientWidth, height: el.clientHeight };
     setCanvasSize({ w: el.clientWidth, h: el.clientHeight });
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); reading.dispose(); };
   }, []);
 
   return { canvasRef, canvasSize, paneSizeRef };

@@ -348,7 +348,7 @@ describe("4. the sparkline that prints its counts nowhere (#368.4)", () => {
   /** Base rule plus the light override, merged the way the cascade merges them. */
   function spark(cls: string, theme: Theme): { fill: Rgba; opacity: number } {
     const base = rule(`.tool-spark-bar${cls}`);
-    const light = rule(`:root[data-theme="light"] .tool-spark-bar${cls}`);
+    const light = rule(`:root[data-color-scheme="light"] .tool-spark-bar${cls}`);
     const pick = (p: string) => (theme === "light" ? decl(light, p) ?? decl(base, p) : decl(base, p));
     return { fill: resolve(pick("fill")!, theme), opacity: +(pick("opacity") ?? 1) };
   }
@@ -387,11 +387,11 @@ describe("4. the sparkline that prints its counts nowhere (#368.4)", () => {
 
   it("lifts the dark bar only, and leaves --muted-dim its decorative jobs", () => {
     expect(declOf(".tool-spark-bar", "fill")).toBe("var(--muted)");
-    expect(declOf(':root[data-theme="light"] .tool-spark-bar', "fill")).toBe("var(--muted-dim)");
+    expect(declOf(':root[data-color-scheme="light"] .tool-spark-bar', "fill")).toBe("var(--muted-dim)");
     // The two louder tiers each carry an extra class, so they out-specify the
     // light idle override whatever the source order.
     for (const cls of [".active", ".latest"]) {
-      expect(decl(rule(`:root[data-theme="light"] .tool-spark-bar${cls}`), "fill"), cls).not.toBeNull();
+      expect(decl(rule(`:root[data-color-scheme="light"] .tool-spark-bar${cls}`), "fill"), cls).not.toBeNull();
     }
   });
 });
@@ -408,8 +408,20 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
       .map(([, selector]) => selector.trim());
     // Nothing does today. The loop is what matters: the next rule that opts out
     // has to opt back in for the keyboard.
-    expect(killers).toEqual([]);
-    for (const sel of killers) {
+    // Search focuses its entire labelled wrapper; map suppresses only pointer focus.
+    expect(declOf(".radio-panel[data-keyboard-interaction] .radio-search:focus-within", "outline")).toBe("2px solid var(--accent)");
+    expect(declOf(".radio-map-canvas:focus-visible", "outline")).toBe("2px solid var(--accent)");
+    expect(declOf(".radio-search:focus-within", "outline")).toBe("none");
+    expect(declOf(".radio-pin:focus-visible .radio-pin-dot", "stroke")).toBe("var(--accent)");
+    expect(killers).toEqual([
+      ".radio-pin",
+      ".radio-search:focus-within",
+      ".radio-search input:focus",
+      ".radio-panel .radio-search input:focus-visible",
+      ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
+      ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
+    ]);
+    for (const sel of killers.filter(sel => !sel.startsWith(".radio"))) {
       expect(declOf(`${sel}:focus-visible`, "outline"), sel).not.toBeNull();
     }
   });

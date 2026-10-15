@@ -138,7 +138,7 @@ function reader(table: Record<string, string>): { cssVar: (n: string) => string;
  *  that a theme flip leaves alone. */
 const MONO = "ui-monospace, SFMono-Regular, Menlo, \"Cascadia Mono\", Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace";
 const DARK: Record<string, string> = {
-  "--err": "#f87171", "--inflight": "#f0abfc", "--ok": "#86efac",
+  "--err": "#f87171", "--inflight": "#f0abfc", "--ok": "#86efac", "--warn": "#fcd34d", "--muted": "#7e828c",
   "--grid-line": "#1a1d24", "--minimap-mask": "rgba(11,12,16,.85)",
   "--panel": "#14161b", "--line": "#1f2229",
   "--accent": "#7dd3fc", "--text-dim": "#7e828c", "--bg": "#0b0c10",
@@ -149,7 +149,7 @@ const DARK: Record<string, string> = {
   "--font-mono": MONO,
 };
 const LIGHT: Record<string, string> = {
-  "--err": "#b91c1c", "--inflight": "#7e22ce", "--ok": "#157a3a",
+  "--err": "#b91c1c", "--inflight": "#7e22ce", "--ok": "#157a3a", "--warn": "#ad4e08", "--muted": "#4a5260",
   "--grid-line": "#d0d5dd", "--minimap-mask": "rgba(238,241,246,.85)",
   "--panel": "#ffffff", "--line": "#c8cdd6",
   "--accent": "#0369a1", "--text-dim": "#5b5f68", "--bg": "#eef1f6",
@@ -177,7 +177,7 @@ describe("the canvas palette is read once per theme", () => {
     // WatchRadar paints its sweep, blips and labels from the last two — the
     // reason they joined the list rather than being read off the sheet per
     // frame, which is what this whole file is about.
-    for (const token of ["--err", "--inflight", "--ok", "--grid-line", "--minimap-mask", "--panel", "--line",
+    for (const token of ["--err", "--inflight", "--ok", "--warn", "--muted", "--grid-line", "--minimap-mask", "--panel", "--line",
                          // `--bg` is the GROUND, and the radar needs it because
                          // alpha is contrast against the ground: the same 26%
                          // accent wash is a beam over #0b0c10 and almost
@@ -218,6 +218,14 @@ describe("the canvas palette is read once per theme", () => {
     expect(minimapNodeColor({ type: "agent", data: { state: "active" } }, token)).toBe(LIGHT["--inflight"]);
     expect(minimapNodeColor({ type: "agent", data: { state: "done" } }, token)).toBe(LIGHT["--ok"]);
     expect(minimapNodeColor({ type: SESSION_GROUP_TYPE }, token)).toBe("transparent");
+  });
+
+  it("paints the blocked session and the recap note from the palette, never from nothing", () => {
+    // An empty fill is not "no colour": SVG paints it black. Both used to read
+    // tokens the palette did not carry.
+    const token = paletteReader(readPalette(reader(LIGHT).cssVar));
+    expect(minimapNodeColor({ type: "agent", data: { state: "active", waiting: { kind: "permission" } } as never }, token)).toBe(LIGHT["--warn"]);
+    expect(minimapNodeColor({ type: "recapNote" }, token)).toBe(LIGHT["--muted"]);
   });
 
   it("answers a token nobody declared with the empty string, like cssVar does", () => {
@@ -385,7 +393,9 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // App.tsx is off this list now: the one getComputedStyle it held was cssVar,
     // which moved to use-appearance.ts. The render-heavy component no longer
     // touches it at all, which is the confinement this case exists for.
-    expect(callers).toEqual(["components/use-modal-dismiss.ts", "use-appearance.ts"]);
+    // Desktop caption colours are resolved in an effect on mount/theme changes,
+    // never during a canvas render or animation frame.
+    expect(callers).toEqual(["components/DesktopTitlebar.tsx", "components/use-modal-dismiss.ts", "use-appearance.ts"]);
   });
 
   it("never calls cssVar — it only ever hands it to readPalette", () => {
@@ -410,17 +420,15 @@ describe("nothing on the render path reads a CSS custom property", () => {
     expect(boardFlow).toMatch(/maskColor=\{palette\["--minimap-mask"\]\}/);
   });
 
-  it("hands MiniMap a memoised nodeColor and no style object at all", () => {
-    // The props that defeated `memo(MiniMap)` and `memo(MiniMapNodes)`. The
-    // node colour must be an identifier — an inline arrow here is a new
-    // identity on every render, which is the whole of #613. The style object
-    // that used to be the second such prop is gone: the minimap's surface,
-    // edge and radius are the stylesheet's now (.react-flow__minimap), on the
-    // same tokens as the control stack, so there is no object to memoise.
+  it("hands MiniMap memoised colors and stable geometry", () => {
+    // Inline colors or geometry would defeat React Flow memoisation.
+    // Width and height must reach MiniMap itself so pan and zoom use the
+    // actual SVG dimensions; surface colors stay in the stylesheet.
     const minimap = /<MiniMap\b[\s\S]*?\/>/.exec(boardFlow);
     expect(minimap, "no <MiniMap> in components/BoardFlow.tsx").not.toBeNull();
     expect(minimap![0]).toMatch(/nodeColor=\{[A-Za-z_$][\w$]*\}/);
-    expect(minimap![0]).not.toMatch(/\bstyle=/);
+    expect(minimap![0]).toMatch(/style=\{MINIMAP_SIZE\}/);
+    expect(boardFlow).toMatch(/const MINIMAP_SIZE = \{ width: 140, height: 105 \}/);
     expect(minimap![0]).not.toMatch(/=>/);
     expect(minimap![0]).not.toMatch(/cssVar/);
   });
@@ -438,7 +446,7 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // The ordering that keeps a flip from going stale. Both statements must
     // live in the same effect, with the attribute first — a palette read before
     // `data-theme` is written answers with the theme being replaced.
-    const effect = /useEffect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(appearance);
+    const effect = /use(?:Layout)?Effect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(appearance);
     expect(effect, "the data-theme effect is no longer recognisable").not.toBeNull();
     expect(effect![0]).toMatch(/setPalette\(/);
     expect(effect![0].indexOf("dataset.theme")).toBeLessThan(effect![0].indexOf("setPalette"));

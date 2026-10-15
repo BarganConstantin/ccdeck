@@ -1,0 +1,22 @@
+/* The old palette stays opaque while the new deck appears over it. Layout,
+   canvas coordinates and keyboard focus never move during a theme change. */
+:root[data-theme-transition]::view-transition {
+  pointer-events: none;
+}
+:root[data-theme-transition]::view-transition-group(root),
+:root[data-theme-transition]::view-transition-old(root) {
+  animation: none;
+}
+:root[data-theme-transition]::view-transition-new(root) {
+  animation: theme-palette-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  mix-blend-mode: normal;
+}
+@keyframes theme-palette-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme-transition]::view-transition-new(root) {
+    animation: none;
+  }
+}

@@ -1,101 +1,58 @@
-/* ---------------- empty-state hero ---------------- */
-
+/* The waiting scene sits in the canvas left free by floating panels. */
+.empty-stage { position: absolute; inset: 0; z-index: 1; pointer-events: none; container-type: inline-size; }
 .empty-hero {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
+  width: min(480px, calc(100% - 48px));
   text-align: center;
   pointer-events: none;
   color: var(--muted);
   user-select: none;
-  max-width: 520px;
 }
-.empty-hero .orbit-stack {
-  position: relative;
-  width: 260px;
-  height: 260px;
-  margin: 0 auto 28px;
+.empty-hero .empty-symbol {
+  display: grid;
+  place-items: center;
+  width: 40px; height: 40px;
+  margin: 0 auto 20px;
+  color: var(--muted);
 }
-.empty-hero .orbit {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px dashed rgba(125,211,252,0.18);
+.empty-hero .empty-cursor { animation: empty-cursor-blink 1.4s steps(1, end) infinite; }
+.empty-hero .empty-symbol[data-active="false"] .empty-cursor { animation: none; }
+@keyframes empty-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
-/* Sky, violet and green. The middle orbit was --inflight, and so were the
-   core's highlight and glow, on the one screen that shows only when nothing is
-   running (#1649). Violet is --usage-purple, 18.9 ΔE from the dark --inflight
-   and 26.4 from the light one; the dashes and the glow write its literal, as
-   they write the other two orbits'. --hero-core's highlight is that violet
-   in dark, and violet-400 on white, where violet-900 would not read as light. */
-.empty-hero .orbit.r1 { inset: 0;   animation: spin 22s linear infinite; }
-.empty-hero .orbit.r2 { inset: 30px; animation: spin 14s linear infinite reverse; border-color: rgba(196,181,253,0.20); }
-.empty-hero .orbit.r3 { inset: 60px; animation: spin 9s  linear infinite;          border-color: rgba(134,239,172,0.22); }
-.empty-hero .orbit .dot {
-  position: absolute;
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  top: -7px; left: 50%; margin-left: -7px;
+@media (prefers-reduced-motion: reduce) {
+  .empty-hero .empty-cursor { animation: none; }
 }
-.empty-hero .orbit.r1 .dot { background: var(--accent);   box-shadow: 0 0 22px var(--accent); }
-.empty-hero .orbit.r2 .dot { background: var(--usage-purple); box-shadow: 0 0 22px var(--usage-purple); width: 12px; height: 12px; margin-left: -6px; top: -6px; }
-.empty-hero .orbit.r3 .dot { background: var(--ok);       box-shadow: 0 0 22px var(--ok);       width: 10px; height: 10px; margin-left: -5px; top: -5px; }
-.empty-hero .orbit .dot.b   { top: auto; bottom: -7px; }
-.empty-hero .orbit.r2 .dot.b { bottom: -6px; }
-.empty-hero .orbit.r3 .dot.b { bottom: -5px; }
-
-.empty-hero .core {
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 56px; height: 56px;
-  margin: -28px 0 0 -28px;
-  border-radius: 50%;
-  background: var(--hero-core);
-  box-shadow:
-    0 0 28px rgba(196,181,253,0.55),
-    0 0 64px rgba(125,211,252,0.35);
-  animation: corepulse 2.6s ease-in-out infinite;
-}
-.empty-hero .core::after {
-  content: "";
-  position: absolute;
-  inset: -14px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.06);
-  animation: corewave 2.6s ease-out infinite;
-}
-@keyframes corepulse {
-  0%, 100% { transform: scale(1);    filter: brightness(1); }
-  50%      { transform: scale(1.08); filter: brightness(1.15); }
-}
-@keyframes corewave {
-  0%   { transform: scale(0.85); opacity: 0.6; }
-  100% { transform: scale(1.6);  opacity: 0; }
-}
-
 .empty-hero h2 {
   color: var(--text);
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 18px; font-weight: 600;
   margin: 0 0 8px;
   letter-spacing: 0.01em;
+  text-wrap: balance;
 }
-.empty-hero p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.65;
-}
+.empty-hero p { margin: 0; font-size: 13px; line-height: 1.65; }
 .empty-hero code {
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  padding: 2px 8px;
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 12px;
+  background: var(--bg-soft); border: 1px solid var(--line);
+  padding: 2px 6px; border-radius: 4px;
+  color: var(--text); font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.empty-hero .empty-help { margin-top: 16px; pointer-events: auto; }
+.empty-hero .empty-help summary { cursor: pointer; font-size: 12px; color: var(--muted); transition: transform 120ms ease; }
+.empty-hero .empty-help summary:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .empty-hero .empty-help summary { transition: none; }
+  .empty-hero .empty-help summary:active { transform: none; }
+}
+.empty-hero .empty-help[open] { text-align: left; }
+.empty-hero .empty-help[open] summary { text-align: center; }
+@container (max-width: 260px) {
+  .empty-hero { display: none; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-
 /* ---------------- the crash pane (#1853) ---------------- */
 /* Shown by components/ErrorBoundary.tsx when a render throws and there is no
    deck left to draw. It stands in for the whole app, so it fills the pane the

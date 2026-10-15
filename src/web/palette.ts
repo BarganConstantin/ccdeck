@@ -24,10 +24,15 @@
  *  so a token added here without a reader is a type error rather than a colour
  *  that silently comes back empty. */
 export const CANVAS_TOKENS = [
-  // minimapNodeColor: the three agent states it paints a rect for.
+  // minimapNodeColor: the three agent states it paints a rect for, the
+  // session blocked on a human, and the recap note's quiet tone. The last two
+  // were missing, so both came back empty and SVG painted them black — the
+  // blocked session, the one rect the minimap exists to point at, included.
   "--err",
   "--inflight",
   "--ok",
+  "--warn",
+  "--muted",
   // <Background color>.
   "--grid-line",
   // <MiniMap maskColor> and the container style beside it.
@@ -53,7 +58,6 @@ export const CANVAS_TOKENS = [
   // keyed on a flag the palette has no business knowing about.
   "--text",
   "--text-secondary",
-  "--muted",
   "--accent-dim",
   "--cat-shell",
   "--cat-agent",

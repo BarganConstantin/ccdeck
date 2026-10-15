@@ -12,6 +12,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckProviders } from "./deck-scope.mjs";
 import { send } from "./http-io.mjs";
+import { quotaHistoryReport } from "./quota-history.mjs";
+import { validSessionLookup } from "./ccusage-session.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -105,4 +107,27 @@ export async function handleCcusage(req, res) {
   );
   const data = await fetchCcusageDaily({ since, until, force });
   send(res, 200, data);
+}
+
+export async function handleCcusageSession(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  const agent = url.searchParams.get("agent");
+  const sessionId = url.searchParams.get("id");
+  const speed = url.searchParams.get("speed") ?? "auto";
+  if (!validSessionLookup(agent, sessionId, speed)) {
+    return send(res, 400, { ok: false, reason: "bad_session", error: "Invalid session lookup." });
+  }
+  const { fetchCcusageSession } = await import(pathToFileURL(join(PKG_ROOT, "src/server/ccusage.mjs")).href);
+  send(res, 200, await fetchCcusageSession({ agent, sessionId, speed, force: url.searchParams.get("refresh") === "1" }));
+}
+
+/** A local history read; never fetches provider quota. */
+export async function handleQuotaHistory(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  const provider = url.searchParams.get("provider");
+  const account = url.searchParams.get("account");
+  if (!["claude", "codex"].includes(provider) || !/^[a-f0-9]{64}$/.test(account ?? "")) {
+    return send(res, 400, { ok: false, reason: "bad_history_scope" });
+  }
+  send(res, 200, await quotaHistoryReport(provider, account));
 }

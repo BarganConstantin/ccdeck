@@ -9,6 +9,8 @@
 // display rather than a caveat to hide.
 import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
 import AccountProjectsModal from "./AccountProjectsModal";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import type { FeedbackPrefill } from "../feedback";
 import AccountRow from "./AccountRow";
@@ -60,6 +62,7 @@ interface Props {
 export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel");
+  const singleKeys = useSingleKeyShortcuts();
   // The one request the panel has out, and the attributes it puts on every
   // control that request makes inert — see use-request-slot.ts (#518).
   const { busy, claim, release, pressProps } = useRequestSlot();
@@ -382,7 +385,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
   // The one close, drawn in whichever header is up: the accounts' own, or Local
   // network's while that view has the column.
   const closeBtn = (
-    <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close accounts panel" title="Close (A)">
+    <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close accounts panel" title={withKey("Close", "A", singleKeys)}>
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
         strokeWidth="1.3" strokeLinecap="round" aria-hidden>
         {/* A diagonal cross reads about a seventh larger than an

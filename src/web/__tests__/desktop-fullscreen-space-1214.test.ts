@@ -75,7 +75,7 @@ describe("whether the window stands over another app's full-screen Space", () =>
 describe("the window a person opens from the menu bar", () => {
   /** The body of openWindow, up to the function after it. */
   function openWindowBody(): string {
-    const at = main.indexOf("function openWindow(steal = true) {");
+    const at = main.search(/function openWindow\(/);
     expect(at).toBeGreaterThan(-1);
     return main.slice(at, main.indexOf("\n}\n", at));
   }

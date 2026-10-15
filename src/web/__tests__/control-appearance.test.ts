@@ -221,7 +221,6 @@ const EXEMPT = new Map<string, string>([
   // and the column is the hit area — a press on the empty space above a short
   // day still selects that day, which is why the target is the column and not
   // the bar. UsageHistoryModal.tsx.
-  ["uh-bar-col", "a hit area around .uh-bar, which is what is drawn"],
   // The context donut, whose appearance is the SVG it wraps. Its `border-radius`
   // is there to round the focus ring, the same reason `.glyph-btn` carries one.
   ["ctx-donut", "a hit area around an SVG donut, which is what is drawn"],
@@ -382,7 +381,7 @@ describe("the questions this sweep asks, asked of themselves", () => {
     expect(restingMatch(".glyph-btn:hover", ["glyph-btn", "sd-close"])).toBe(false);
     expect(restingMatch('button.btn.icon-btn[aria-pressed="true"]', ["btn", "icon-btn"])).toBe(false);
     expect(restingMatch(".ap-header .glyph-btn", ["glyph-btn"])).toBe(true);
-    expect(restingMatch(':root[data-theme="light"] .glyph-btn', ["glyph-btn"])).toBe(true);
+    expect(restingMatch(':root[data-color-scheme="light"] .glyph-btn', ["glyph-btn"])).toBe(true);
     expect(restingMatch(".detail-panel:hover .glyph-btn", ["glyph-btn"])).toBe(false);
     // A rule for a class the set does not carry is not this control's.
     expect(restingMatch(".btn.primary", ["btn"])).toBe(false);

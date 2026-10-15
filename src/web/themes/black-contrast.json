@@ -1,0 +1,41 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "black-contrast",
+  "name": "Black Contrast",
+  "colorScheme": "dark",
+  "order": 70,
+  "extends": "dark",
+  "tokens": {
+    "node-grad": "var(--panel)",
+    "topbar-grad": "var(--panel)",
+    "bg": "#000000",
+    "bg-soft": "#080808",
+    "panel": "#101010",
+    "line": "#858585",
+    "line-soft": "#666666",
+    "text": "#ffffff",
+    "text-secondary": "#e2e2e2",
+    "muted": "#c2c2c2",
+    "text-dim": "#c2c2c2",
+    "muted-dim": "#919191",
+    "accent": "#76cfff",
+    "accent-dim": "#76cfff35",
+    "ctl-edge": "#a3a3a3",
+    "sm-edge": "#919191",
+    "chrome-bg": "#101010",
+    "chrome-edge": "#858585",
+    "conn-wash": "#fca5a518",
+    "burst-live-wash": "#f0abfc12",
+    "hero-core": "#76cfff",
+    "grid-line": "#242424",
+    "minimap-mask": "rgba(0, 0, 0, .85)",
+    "session-label-l": "85%",
+    "session-accent-l": "80%",
+    "session-edge-idle-l": "74%"
+  },
+  "selection": {
+    "background": "#ffffff",
+    "foreground": "#000000"
+  }
+}

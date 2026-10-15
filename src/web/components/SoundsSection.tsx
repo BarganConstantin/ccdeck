@@ -46,7 +46,7 @@ export default function SoundsSection({
            in the document is a dangling reference, which is the rule #800 put
            on the four topbar toggles. */
         <span id="sm-preview-note" className="vis-hidden">
-          Plays even when Sounds is off, so you can set a tone before turning sounds back on.
+          Plays even when sounds are off, so you can set a tone before turning sounds back on.
         </span>
       )}
 

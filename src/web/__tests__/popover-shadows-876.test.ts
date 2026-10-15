@@ -23,7 +23,7 @@ function decl(selector: string, prop: string): string | null {
   return m ? m[1].trim() : null;
 }
 
-const LIGHT = ':root[data-theme="light"] ';
+const LIGHT = ':root[data-color-scheme="light"] ';
 const history = readFileSync(fileURLToPath(new URL("../components/UsageHistoryModal.tsx", import.meta.url)), "utf8");
 
 function lightToken(name: string): string {

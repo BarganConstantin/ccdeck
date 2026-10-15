@@ -37,6 +37,7 @@ import { restartApp } from "./relaunch-linux.mjs";
 import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
 import { createOwnDeck, discoverPlan, startOwnDeck, stopChild } from "./own-deck.mjs";
 import { trayIconFile } from "./tray-icon.mjs";
+import { windowChrome, titlebarColors, TITLEBAR_HEIGHT } from "./window-chrome.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -336,6 +337,7 @@ function attach(found) {
     // this the native sheet still owed its own, and arrived on top of the
     // window's offer, or after the person had already closed it, to ask the
     // same question a second time.
+    checkUpdate: () => { void updater?.check().then(() => publishUpdateState()).catch(() => publishUpdateState()); },
     updateSeen: request => {
       if (matchesReadyUpdate(updater, request?.version)) rememberUpdateNotice(updater.state.version);
     },
@@ -346,7 +348,7 @@ function attach(found) {
 function publishUpdateState() {
   if (!deck || !updater) return;
   const { status, version = null } = updater.state;
-  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version } })
+  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version, canCheck: true } })
     .catch(err => trace(`could not publish update state: ${err?.message ?? err}`));
 }
 
@@ -569,7 +571,7 @@ function trace(line) {
  *  itself after a quiet auto-update, or restored at login, opens with nobody
  *  having asked for it, and had no business pulling a person out of a
  *  fullscreen browser Space to do it (#1214). */
-function openWindow(steal = true) {
+function openWindow(steal = true, customChrome = true) {
   if (!deck) {
     ensureDeck().then(found => { if (found) openWindow(steal); }).catch(err => trace(`start failed: ${err?.message ?? err}`));
     return;
@@ -590,6 +592,7 @@ function openWindow(steal = true) {
     minWidth: 720,
     minHeight: 480,
     title: "ccdeck",
+    ...(customChrome ? windowChrome(process.platform) : {}),
     backgroundColor: "#1f1f1f",
     show: false,
     webPreferences: {
@@ -597,11 +600,13 @@ function openWindow(steal = true) {
       nodeIntegration: false,
       sandbox: true,
       preload: join(here, "preload.cjs"),
+      additionalArguments: customChrome ? [] : ["--ccdeck-native-chrome"],
       // The page's chimes: in a browser they wait for the first click to
       // unlock audio. An app the person opened on purpose need not.
       autoplayPolicy: "no-user-gesture-required",
     },
   });
+  if (customChrome && process.platform !== "darwin") win.setMenuBarVisibility(false);
   // Anything that leaves the deck opens in the person's own browser — a
   // login flow, a docs link — never inside this window, and anything that is
   // not a web page is not opened at all (nav.mjs).
@@ -615,7 +620,25 @@ function openWindow(steal = true) {
     event.preventDefault();
     if (where === "external") shell.openExternal(url);
   });
-  win.once("ready-to-show", () => {
+  const created = win;
+  win.once("ready-to-show", async () => {
+    // The app can attach to an older npm deck. Keep its native frame when that
+    // page has no caption strip, so its toolbar remains clear and draggable.
+    if (customChrome) {
+      if (created.webContents.isLoading()) {
+        await new Promise(resolve => created.webContents.once("did-finish-load", resolve));
+      }
+      if (created.isDestroyed() || created !== win) return;
+      const supported = await created.webContents.executeJavaScript(
+        'document.documentElement.dataset.desktopChrome === "true"',
+      ).catch(() => false);
+      if (created.isDestroyed() || created !== win) return;
+      if (!supported) {
+        created.once("closed", () => openWindow(steal, false));
+        created.close();
+        return;
+      }
+    }
     win?.show();
     if (steal) app.focus({ steal: true });
     offerReadyUpdate();
@@ -680,6 +703,18 @@ function fromDeckPage(event) {
   if (!deck || !win || win.isDestroyed() || event.sender.id !== win.webContents.id) return false;
   const url = event.senderFrame?.url;
   return typeof url === "string" && navigationFor(url, `http://127.0.0.1:${deck.port}`) === "stay";
+}
+
+function installWindowChromeIpc() {
+  ipcMain.handle("ccdeck:window:colors", (event, value) => {
+    if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return;
+    const colors = titlebarColors(value);
+    if (colors && process.platform !== "darwin") win.setTitleBarOverlay(colors);
+  });
+  ipcMain.handle("ccdeck:window:menu", event => {
+    if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return;
+    Menu.getApplicationMenu()?.popup({ window: win, x: 10, y: TITLEBAR_HEIGHT });
+  });
 }
 
 function installNotificationAudioIpc() {
@@ -886,6 +921,15 @@ async function offerToReplaceLoginItem() {
 app.whenReady().then(async () => {
   if (!primary) return;
   installNotificationAudioIpc();
+  installWindowChromeIpc();
+  if (process.platform !== "darwin") {
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      { label: "File", submenu: [{ role: "close" }, { role: "quit" }] },
+      { label: "Edit", submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }] },
+      { label: "View", submenu: [{ role: "reload" }, { role: "toggleDevTools" }, { type: "separator" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { role: "togglefullscreen" }] },
+      { label: "Window", submenu: [{ role: "minimize" }, { role: "zoom" }] },
+    ]));
+  }
   setRegular(false);
   updateNoticeVersion = desktopState.read().readyUpdateNoticeVersion ?? null;
   await loadModel();

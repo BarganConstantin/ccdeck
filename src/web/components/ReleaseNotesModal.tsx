@@ -30,6 +30,7 @@ import { releaseNotesIntro, splitNoteTitle, versionRangeLabel, type VersionNotes
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
 import { RESTART_TO_UPDATE } from "../desktop-update";
+import ReleaseActions, { type UpdateCheckWiring } from "./ReleaseActions";
 
 interface Props {
   /** The releases to show, newest first — decideReleaseNotes' answer, or every
@@ -64,9 +65,13 @@ interface Props {
    *  restarted from the page — see `canRestart` — so no button offers what the
    *  server would refuse. */
   onRestart?: () => void;
+  /** What Check for updates needs from the deck (ReleaseActions.tsx). Absent
+   *  while the app's own update is ready: the door at the top is then the
+   *  update, and a check beside it has nothing to add. */
+  updateCheck?: UpdateCheckWiring;
 }
 
-export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, updateVersion, updateBusy, onUpdateRestart, updateFailure, onRestart }: Props) {
+export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, updateVersion, updateBusy, onUpdateRestart, updateFailure, onRestart, updateCheck }: Props) {
   // No focusRef: the × is the first control in the dialog, so the hook's own
   // default — the dialog's first tabbable — already lands there, and the body
   // below holds no control that would be a better first stop.
@@ -144,33 +149,19 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
               unread, which would make it worthless on the release it exists
               for. */}
           <p className="modal-note">{releaseNotesIntro({ since, running, firstRun, entries })}</p>
-          {/* THE WAY BACK TO THE TOUR. It opened once, by itself, and the only
-              other door was the empty canvas — which a deck with agents on it
-              never shows. The version chip is always there, and "what is this
-              thing" is a question somebody opening release notes is asking.
-              Not while an update is ready: that chip opens this dialog for the
-              update, and a second door here competes with the one it came for. */}
-          {onTour && !updateVersion && (
-            <div className="guide-door">
-              <span>Eight pictures of what the deck shows.</span>
-              <button type="button" className="btn" onClick={onTour}>Take the tour</button>
-            </div>
-          )}
-          {/* AND THE WAY TO RESTART IT (#1163). The only restart the page had
-              was inside the update notice, so a deck that needed one for any
-              other reason — a network it missed, a port another program took —
-              needed a terminal. The version chip is where the deck's own
-              lifecycle already lives. Nothing is lost: the canvas replays from
-              the event log, and settings and pairings are on disk. App
-              leaves it out while the app's update is ready: that door above
-              restarts too, and two restarts side by side, only one of which
-              updates, is a guess nobody should have to make. */}
-          {onRestart && (
-            <div className="guide-door">
-              <span>Restart the deck. Sessions, settings and pairings come back as they were.</span>
-              <button type="button" className="btn" onClick={onRestart}>Restart</button>
-            </div>
-          )}
+          {/* THE ACTIONS: the way back to the tour, a check for updates and a
+              restart, as one strip of small buttons — ReleaseActions.tsx.
+              The tour opened once, by itself, and the only other door was the
+              empty canvas, which a deck with agents on it never shows; the
+              chip is always there, and "what is this thing" is a question
+              somebody opening release notes is asking. Not while an update is
+              ready: the chip opens this dialog for that update, and a second
+              door competes with the one it came for. Restart (#1163) is
+              where the deck's own lifecycle lives, and App leaves it out
+              while the app's update is ready for the same reason: the door
+              above restarts too, and two restarts side by side, only one of
+              which updates, is a guess nobody should have to make. */}
+          <ReleaseActions onTour={updateVersion ? undefined : onTour} onRestart={onRestart} updateCheck={updateCheck} />
           {entries.map(entry => (
             <section className="modal-section" key={entry.version}>
               {/* h3, not h4: the level a dialog that names itself with

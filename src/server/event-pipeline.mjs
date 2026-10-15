@@ -9,6 +9,7 @@
 // imports reach pushEvent through event-sink.mjs, connected below as this
 // module loads; index.mjs's routes import it from here. The bodies are
 // unchanged.
+import { noteToolAudit } from "./tool-audit.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
@@ -122,6 +123,7 @@ export function pushEvent(raw, source, opts = {}) {
   // Numbered, charged, held, and the ring evicted behind it — see admitEvent.
   const evt = admitEvent(raw, source, opts.receivedAt ?? Date.now());
   const seq = evt.seq;
+  noteToolAudit(raw, source, opts);
 
   // Does this event reach the log at all? Not on a replay (it came from
   // there), not when the hook told us another deck owns this session's log,

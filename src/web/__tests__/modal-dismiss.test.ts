@@ -207,11 +207,13 @@ describe("the modals themselves", () => {
       // #738's whole-candidate process list, named here for the same reason as
       // the four above.
       "ProcessListModal.tsx",
+      "QuotaHistoryModal.tsx",
       "ReleaseNotesModal.tsx",
       // #738's section history, named here for the same reason as the four
       // above: this is how it joins the loop below.
       "SectionHistoryModal.tsx",
       "SessionSummary.tsx",
+      "SessionUsageModal.tsx",
       // Settings, behind the gear and Cmd/Ctrl+, — the one home of the deck's
       // preferences, which replaced the Appearance modal (whose two-class
       // backdrop this sweep never matched) and most of the sound popover.
@@ -219,7 +221,9 @@ describe("the modals themselves", () => {
       // #723's share picker, named here for the same reason as the three
       // above: this is how it joins the loop below, not how it leaves it.
       "ShareAccountsDialog.tsx",
-      "ToolModal.tsx", "UsageHistoryModal.tsx",
+      // Tool activity: the page, and its details as a sheet on phones.
+      "ToolAuditDrawer.tsx", "ToolAuditModal.tsx",
+      "ToolModal.tsx", "TrafficRadar.tsx", "UsageHistoryModal.tsx",
     ]);
     for (const [name, src] of withBackdrop) {
       expect(`${name}: ${src.includes("useModalDismiss(")}`).toBe(`${name}: true`);

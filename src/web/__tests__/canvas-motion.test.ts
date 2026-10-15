@@ -175,7 +175,7 @@ describe("reduced motion reaches the canvas, not just the panels", () => {
   it("sees the motion it is sweeping for, so a passing run means something", () => {
     // If a rename ever slips the canvas out of CANVAS, this collapses first.
     expect(moving.length).toBeGreaterThan(20);
-    for (const sel of [".tool-burst", ".tool-burst.sub.status-err", ".empty-hero .core",
+    for (const sel of [".tool-burst", ".tool-burst.sub.status-err",
                        ".react-flow__node", ".tool-conn.status-inflight", ".cluster-card"]) {
       expect(moving.some(m => m.sel === sel), sel).toBe(true);
     }
@@ -262,6 +262,18 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  it is the spec for what a pressable control does rather than a record of
  *  which ones had been got to. */
 const PRESSES: Press[] = [
+  [".up-session-open:active", "0.97", "transform"],
+  [".su-id summary:active", "0.97", "transform"],
+  [".empty-hero .empty-help summary:active", "0.97", "transform"],
+  [".tr-details > summary:active", "0.97", "transform"],
+  [".tr-activation > summary:active", "0.97", "transform"],
+  [".tr-monitor-footer summary:active", "0.97", "transform"],
+  [".tr-tab:active", "0.97", "transform"],
+  [".tr-message:active", "0.97", "transform"],
+  [".tr-help summary:active", "0.97", "transform"],
+  [".tr-inline-copy:active", "0.97", "transform"],
+  [".tr-json-tree summary:active", "0.97", "transform"],
+  [".tr-file-picker:active", "0.97", "transform"],
   ["button.btn:active:not(:disabled)", "0.97", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —
   // `.sd-close` at 0.97 and `.detail-close`, `.ctx-modal-close` and `.uh-close`
@@ -303,6 +315,15 @@ const PRESSES: Press[] = [
   // which had its own entry here. The rows are gone and the section is the
   // button above, so the two entries went with them.
   [".topbar .waiting-stat:active", "0.97", "transform"],
+  // The names the queue beside it gives each waiting session, and its "+N
+  // more" — labelled controls, so 0.97 like the count they continue.
+  [".topbar .wait-entry:active", "0.97", "transform"],
+  [".topbar .wait-more:active", "0.97", "transform"],
+  // The chrome's eight panel and dialog controls, wherever they stand: the
+  // edge stripes, the phone's dock, the topbar's corner (EdgeRails.tsx). One
+  // rule for all three placements, because they are one control; 0.97 because
+  // each carries its word.
+  [".rail-btn:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.
   [".topbar .brand button.v:active", "0.97", "transform"],
@@ -357,6 +378,9 @@ const PRESSES: Press[] = [
   [".ap-notice-fix:active", "0.97", "transform"],
   [".ap-proj-copy:active", "0.97", "transform"],
   [".aa-tab:active", "0.97", "transform"],
+  // The sign-in's "Paste a code, if the page shows one" disclosure: a
+  // sentence that opens the code field. A labelled control, so 0.97.
+  [".aa-code > summary:active", "0.97", "transform"],
   [".cat-filter:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
@@ -365,6 +389,12 @@ const PRESSES: Press[] = [
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
+  // Tool activity: a tool's row and a finding are full-width rows that open
+  // details, Back is a labelled control, and How this is counted a disclosure.
+  [".ta-row:active", "0.97", "transform"],
+  [".ta-highlight:active", "0.97", "transform"],
+  [".ta-back:active", "0.97", "transform"],
+  [".ta-explain summary:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   [".appearance-source-trigger:active", "0.97", "transform"],
   [".appearance-source-option:active", "0.97", "transform"],
@@ -387,6 +417,9 @@ const PRESSES: Press[] = [
   // #820's Resume, the one pressable part of the auto-fit strip. A labelled
   // control, so 0.97 like every other one.
   [".autofit-resume:active", "0.97", "transform"],
+  // Re-arrange's Undo, the one pressable part of its strip, and Resume's twin
+  // beside it. A labelled control, so 0.97.
+  [".rearrange-undo-act:active", "0.97", "transform"],
   // The spoken-voice disclosure under the custom-sound cards: a full-width
   // row, like `.up-disclose`. A labelled control, so 0.97.
   [".sm-voice summary:active", "0.97", "transform"],
@@ -439,6 +472,21 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // Radio uses pointer-only feedback on the control or its child glyph.
+  // Range thumbs and map markers must retain fixed interaction geometry.
+  ".radio-cluster-preview > div > .radio-cluster-station",
+  ".radio-collections .radio-collection", ".radio-controls .sm-row input",
+  '.radio-controls input[type="range"]::-moz-range-thumb',
+  '.radio-controls input[type="range"]::-webkit-slider-thumb',
+  ".radio-filter-back", ".radio-filter-field", ".radio-filter-heading .icon-btn", ".radio-workspace-toggle",
+  ".radio-filter-chip", ".radio-filter-toggle",
+  ".radio-daily", ".radio-filter-option", ".radio-filter-trigger", ".radio-loading > .icon-btn",
+  ".radio-mobile-view .radio-view", ".radio-own summary", ".radio-own-station",
+  ".radio-panel .icon-btn", ".radio-pin", ".radio-play",
+  ".radio-regions .radio-region", ".radio-reset", ".radio-station-pick",
+
+  // Companion selection answers through its radio check and chosen preview.
+  ".character-choice",
   // A day column in the Projects report's chart, clickable to reveal that day's
   // breakdown. It stays out of the transform convention for the reason a thin
   // bar always does: a 3-to-26px column scaled on press moves out from under
@@ -480,6 +528,27 @@ const EXEMPT: string[] = [
   // LAN dialog's above. It discloses two paragraphs and changes nothing else,
   // and it answers the press by its text lifting to --text while it is open.
   ".ap-report-how > summary",
+  // Text view switches, chart-day selection and native disclosures answer
+  // through selection/expansion; scaling would move labels or chart data.
+  // Usage-history provider selection and native disclosure keep labels still.
+  ".qh-provider",
+  ".qh-readings summary",
+  ".ap-report-view",
+  ".ap-reset-day-button",
+  ".ap-reset-disclosure > summary",
+  ".ap-reset-about summary",
+  // Account detail disclosure uses its native expanded state; names stay still.
+  ".ap-reset-account > summary",
+  // Full identity is revealed through native details, without moving labels.
+  ".ap-reset-next-account > summary",
+  // Coverage links open and focus native disclosures without moving text.
+  ".ap-reset-coverage-link",
+  // Companion selection answers through its radio check and chosen preview.
+  ".character-choice",
+  // The file input is an invisible hit target stretched over its visible label.
+  // The label owns the press feedback; transforming this overlay would only
+  // move the hit target and is not visible to the user.
+  ".tr-file-picker input",
   // A machine's row in the LAN list. The whole row is the door to that deck's
   // dialog, and a dense list of machines answers a press the way a desktop list
   // does: its tone deepens and nothing moves. A row that scaled slid the name
@@ -515,6 +584,12 @@ const EXEMPT: string[] = [
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {
+  it("keeps Radio hit targets stationary while providing pointer feedback", () => {
+    expect(css).toContain('.radio-panel :is(.icon-btn, .radio-play):not(:disabled):active:not(:focus-visible)');
+    expect(css).toContain('.radio-panel[data-keyboard-interaction] button');
+    expect(css).toContain('.radio-cluster-preview > div > .radio-cluster-station:hover');
+    expect(css).toContain('.radio-station:hover');
+  });
   it("gives every one of these controls something to give back on press", () => {
     const missing = PRESSES.filter(p =>
       !all.some(r => !r.reduced && selectors(r).includes(p[0]) && decl(r.body, p[2]) === pressed(p)));

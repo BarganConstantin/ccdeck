@@ -13,7 +13,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { focusedTabToFollow, openedAt, sectionIndex, SETTINGS_CLOSED, SETTINGS_SECTIONS, type SettingsSection } from "../settings";
 import { tabStripMove } from "../tablist-keys";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
-import { SettingsRun } from "../components/TopbarRuns";
+import { EdgeDock, UtilityRun } from "../components/EdgeRails";
+import { draw, items } from "./edge-keys-rails";
 import SettingsSectionGlyph from "../components/SettingsSectionGlyph";
 import { CODEX_ONLY_SOUNDS_NOTE } from "../components/SoundsSection";
 import { DEFAULT_PREFS, FIGURE_KEYS, LEVEL_KEYS } from "../sound";
@@ -49,11 +50,6 @@ function settingsProps(over: Partial<SettingsModalProps> = {}): SettingsModalPro
       toggleAccountNotify: noop,
     },
     appearance: { theme: "dark", setTheme: noop, characterEnabled: true, setCharacterEnabled: noop },
-    fm: {
-      fmVolume: 50, setFmVolume: noop, fmMuted: false, setFmMuted: noop, fmSource: "claude-fm", customFmStations: [],
-      unavailableFmStations: new Set(), fmPlayRequest: 0, addFmStation: noop, renameFmStation: noop,
-      removeFmStation: noop, pickFmSource: noop, markFmStationAvailability: noop,
-    },
     ...over,
   } as unknown as SettingsModalProps;
 }
@@ -74,8 +70,8 @@ describe("a door into Settings opens it at the section it names", () => {
   });
 
   it("reopens where the reader left it when the door names nothing", () => {
-    expect(openedAt({ open: false, section: "music" })).toEqual({ open: true, section: "music" });
-    expect(openedAt({ open: false, section: "music" }, "notifications")).toEqual({ open: true, section: "notifications" });
+    expect(openedAt({ open: false, section: "sounds" })).toEqual({ open: true, section: "sounds" });
+    expect(openedAt({ open: false, section: "sounds" }, "notifications")).toEqual({ open: true, section: "notifications" });
   });
 
   it("draws the section it was opened at, with that tab on show and the rest one Tab stop away", () => {
@@ -83,7 +79,6 @@ describe("a door into Settings opens it at the section it names", () => {
       ["general", /Color theme/],
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
-      ["music", />Show character on minimap</],
     ];
     for (const [section, shows] of cases) {
       const html = drawSettings({ section });
@@ -95,15 +90,39 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the four sections in the nav, in order", () => {
-    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds", "Music & character"]);
+  it("draws General's Keyboard group under the color theme, its switch on as every deck starts", () => {
+    const html = drawSettings({ section: "general" });
+    expect(html.indexOf("Color theme")).toBeGreaterThan(-1);
+    expect(html.indexOf(">Keyboard</h3>")).toBeGreaterThan(html.indexOf("Color theme"));
+    expect(html).toMatch(/role="switch" aria-checked="true" aria-labelledby="settings-single-keys-label"/);
+    expect(html.match(/role="switch"/g)).toHaveLength(2);
+  });
+
+
+  it("places character controls beneath themes in General, without music controls", () => {
+    const general = drawSettings({ section: "general" });
+    expect(general.indexOf('>Character</h3>')).toBeGreaterThan(general.indexOf("Color theme"));
+    expect(general.indexOf('>Character</h3>')).toBeLessThan(general.indexOf('>Keyboard</h3>'));
+    expect(general).toContain('role="radiogroup" aria-label="Choose character"');
+    expect(general).toContain('aria-labelledby="appearance-character-caption"');
+    expect(general).not.toContain("Show character on minimap");
+    for (const { id } of SETTINGS_SECTIONS) {
+      const html = drawSettings({ section: id });
+      expect(html).not.toContain('settings-tab-music');
+      expect(html).not.toContain('Claude FM');
+      expect(html).not.toContain('appearance-fm-volume');
+    }
+  });
+
+  it("names the three sections in the nav, in order", () => {
+    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds"]);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all
     // of the text a tab holds.
     const html = drawSettings();
     const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([\s\S]*?)<\/button>/g)]
       .map(m => m[1].replace(/<[^>]+>/g, "").replace("&amp;", "&"));
-    expect(tabs).toEqual(["General", "Notifications", "Sounds", "Music & character"]);
+    expect(tabs).toEqual(["General", "Notifications", "Sounds"]);
   });
 
   it("is a dialog named Settings, holding the focus it hands the section's own tab", () => {
@@ -120,8 +139,10 @@ describe("a door into Settings opens it at the section it names", () => {
     const keys = sourceOf("use-deck-shortcuts.ts");
     expect(keys).toContain('if (e.key === "v" || e.key === "V") openSettings("sounds");');
     expect(keys).toContain("if (!e.repeat) openSettings();");
-    expect(sourceOf("components/TopbarRuns.tsx")).toContain("onClick={() => openSettings()}");
-    expect(sourceOf("components/TopbarRuns.tsx")).not.toContain("onAllSettings");
+    // The gear is defined once for the topbar and the phone's dock
+    // (rail-items.tsx), and opens Settings at no section.
+    expect(sourceOf("rail-items.tsx")).toContain("onPress: () => openSettings()");
+    expect(sourceOf("rail-items.tsx") + sourceOf("components/EdgeRails.tsx")).not.toContain("onAllSettings");
   });
 });
 
@@ -173,7 +194,7 @@ describe("each section in the nav carries its glyph", () => {
     expect(sounds).toContain('d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2"');
     expect(sounds).toContain('d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2"');
     expect(sounds.match(/<path\b/g)).toHaveLength(3);
-    expect(sourceOf("components/TopbarRuns.tsx")).not.toMatch(/SpeakerGlyph|M3\.2 5\.2h2/);
+    expect(sourceOf("components/rail-glyphs.tsx") + sourceOf("rail-items.tsx")).not.toMatch(/SpeakerGlyph|M3\.2 5\.2h2/);
     const general = glyphOf("general");
     expect(general).toContain('d="M1.5 3h4.3M9.2 3h3.3M1.5 7h1.3M6.2 7h6.3M1.5 11h6.3M11.2 11h1.3"');
     expect(general.match(/<circle\b/g)).toHaveLength(3);
@@ -235,7 +256,7 @@ describe("the arrow keys walk the nav", () => {
   });
 
   it("moves focus to the selected tab when focus sits on another tab, and leaves focus elsewhere alone", () => {
-    expect(focusedTabToFollow("settings-tab-music", "sounds")).toBe("sounds");
+    expect(focusedTabToFollow("settings-tab-notifications", "sounds")).toBe("sounds");
     expect(focusedTabToFollow("settings-tab-sounds", "sounds")).toBeNull();
     expect(focusedTabToFollow("settings-pane-field", "sounds")).toBeNull();
     expect(focusedTabToFollow(undefined, "sounds")).toBeNull();
@@ -303,14 +324,18 @@ describe("a Codex-only machine reaches every setting", () => {
   const codexOnly = { kind: "reported" as const, claude: false, codex: true };
 
   it("draws the gear, and no speaker, whatever the machine runs", () => {
-    // The run takes no providers since the speaker left it: the gear is the
-    // way to every setting on every machine.
-    const html = renderToStaticMarkup(createElement(SettingsRun, {
-      openSettings: noop, onFeedback: noop, watchUnseen: 0, setUsageHistoryOpen: noop, setBrowserWatchOpen: noop,
-    }));
-    expect(html).toMatch(/aria-label="Settings"/);
-    expect(html).not.toMatch(/aria-label="Sound settings/);
-    expect(html).not.toMatch(/M3\.2 5\.2h2/);
+    // The gear takes no providers since the speaker left the bar: it is the
+    // way to every setting on every machine — on the topbar beside Feedback,
+    // and in the phone's dock — and only Accounts leaves with Claude Code.
+    const chrome = items({ claude: false });
+    for (const html of [
+      draw(createElement(UtilityRun, { items: chrome.utilities })),
+      draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] })),
+    ]) {
+      expect(html).toMatch(/aria-label="Settings"/);
+      expect(html).not.toMatch(/aria-label="Sound settings/);
+      expect(html).not.toMatch(/M3\.2 5\.2h2/);
+    }
   });
 
   it("reaches the notification switches through Settings", () => {
@@ -365,7 +390,7 @@ describe("moving every control into Settings resets no setting", () => {
     for (const rel of [
       "settings.ts", "use-settings-menus.ts", "components/SettingsModal.tsx", "components/ThemeSection.tsx",
       "components/NotificationsSection.tsx", "components/SoundsSection.tsx", "components/SoundSwitch.tsx",
-      "components/MusicSection.tsx",
+      "components/KeyboardSection.tsx",
     ]) {
       const src = sourceOf(rel);
       expect(src, rel).not.toMatch(/localStorage|writeStored|readStored|sessionStorage|\/api\/prefs/);

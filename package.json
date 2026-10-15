@@ -1,6 +1,6 @@
 {
   "name": "ccdeck",
-  "version": "3.38.6",
+  "version": "3.41.3",
   "description": "Local dashboard for Claude Code and Codex CLI sessions: which Claude Code session needs input, every tool call and Claude Code subagent live, token cost and quota, several Claude accounts. Run npx ccdeck.",
   "type": "module",
   "bin": {
@@ -18,13 +18,15 @@
     "LICENSING.md"
   ],
   "scripts": {
+    "themes:generate": "node scripts/build-themes.mjs",
+    "themes:check": "node scripts/build-themes.mjs --check",
     "dev:web": "vite",
     "dev:server": "node src/server/index.mjs",
     "start": "node bin/agent-dag.js",
-    "build": "vite build",
+    "build": "node scripts/build-radar-codec.mjs && vite build",
     "test": "vitest run",
-    "prepublishOnly": "vite build",
-    "prepack": "vite build",
+    "prepublishOnly": "npm run build",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.build.json"
   },
   "engines": {
@@ -81,7 +83,11 @@
     "@xterm/addon-webgl": "0.19.0",
     "@xterm/xterm": "6.0.0",
     "dagre": "^0.8.5",
+    "esbuild": "0.25.12",
     "hls.js": "^1.7.3",
+    "hpack.js": "2.1.6",
+    "long": "5.3.2",
+    "protobufjs": "8.8.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "reactflow": "^11.11.4",

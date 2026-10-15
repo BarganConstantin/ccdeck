@@ -29,8 +29,9 @@
 // stray "c" from truncating the event log. The sheet says so in one line under
 // its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
-import { KEY_HELP, KEY_HELP_NOTE } from "../key-help";
+import { KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor, SINGLE_KEYS_PLACE } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
@@ -38,12 +39,16 @@ interface Props {
   /** Close this and open the tour — `?` is the help key, and the tour is the
    *  other half of help. */
   onTour?: () => void;
+  /** Close this and open Settings at General, where the single-key switch is. */
+  onSettings?: () => void;
 }
 
-export default function KeyboardHelp({ onClose, onTour }: Props) {
+export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const apple = isApplePlatform(platformName());
+  const singleKeys = useSingleKeyShortcuts();
+  const groups = keyHelpFor(singleKeys);
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
@@ -54,6 +59,7 @@ export default function KeyboardHelp({ onClose, onTour }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="key-help-title"
+        aria-describedby={singleKeys ? undefined : "key-help-off"}
       >
         <header className="modal-head">
           <div className="modal-title">
@@ -78,6 +84,24 @@ export default function KeyboardHelp({ onClose, onTour }: Props) {
         </header>
 
         <section className="modal-body">
+          {/* THE SHORTCUTS ARE OFF (WCAG 2.1.4), said first and calmly: a
+              state the reader chose, not a fault. `?` cannot have opened the
+              sheet like this — the button in the canvas stack did — so it
+              says where the switch is and opens Settings there. The grid
+              under it lists only what still works. On the tour door's row
+              and the sheet's one left edge, with a hairline under it rather
+              than a box, so the sheet keeps the single edge it is built on;
+              the dialog's description, so a screen reader says it with the
+              title. */}
+          {!singleKeys && (
+            <div className="kh-off">
+              <p className="kh-off-text" id="key-help-off">
+                <strong>{KEY_HELP_OFF_TITLE}</strong> Turn them back on in{" "}
+                <span className="kh-place">{SINGLE_KEYS_PLACE}</span>. Everything below still works.
+              </p>
+              {onSettings && <button type="button" className="btn" onClick={onSettings}>Open Settings</button>}
+            </div>
+          )}
           {/* The tour's permanent door, beside the other kind of help. Above
               the grid, so it is found before the reader starts scanning keys;
               after the ×, so the × stays the first stop. */}
@@ -93,7 +117,7 @@ export default function KeyboardHelp({ onClose, onTour }: Props) {
               wider than the four around it and the eye would have five left
               edges to follow down a list whose whole job is to be scanned. */}
           <div className="shortcuts">
-            {KEY_HELP.map(group => (
+            {groups.map(group => (
               <Fragment key={group.title}>
                 <h3 className="kh-group">{group.title}</h3>
                 {group.rows.map(row => (
@@ -105,8 +129,12 @@ export default function KeyboardHelp({ onClose, onTour }: Props) {
             ))}
           </div>
           {/* Under the keys, not over them (#852): the reference comes first,
-              and what to do when a key does nothing is a footnote to it. */}
-          <p className="kh-foot">{KEY_HELP_NOTE}</p>
+              and what to do when a key does nothing is a footnote to it, with
+              where to turn the letters off for whoever opened the sheet
+              because they fire when they should not. Not while they are off,
+              when Esc is no answer to a letter doing nothing and the note
+              above has said why. */}
+          {singleKeys && <p className="kh-foot">{KEY_HELP_NOTE} {KEY_HELP_SWITCH_NOTE}</p>}
         </section>
       </div>
     </div>

@@ -31,7 +31,7 @@ describe("a held shortcut acts once", () => {
   it("switches the theme once for a held T", () => {
     const deck = mountDeckKeys();
     hold(deck, "t");
-    expect(deck.theme.value).toBe("light");
+    expect(deck.theme.value).toBe("rider-black");
     expect(deck.theme.set).toHaveBeenCalledTimes(1);
   });
 

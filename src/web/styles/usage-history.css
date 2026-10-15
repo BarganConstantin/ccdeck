@@ -17,6 +17,15 @@
 .uh-titlewrap { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
 .uh-title { font-size: 14px; font-weight: 600; }
 .uh-sub { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); }
+/* Keep the close and refresh actions reachable when the range strip no longer
+   fits beside the title. The range moves onto its own row on narrow windows. */
+@media (max-width: 520px) {
+  .uh-head { display: grid; grid-template-columns: minmax(0, 1fr) 24px 24px; gap: 8px; }
+  .uh-titlewrap { min-width: 0; margin-right: 0; }
+  .uh-head > .uh-range { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+  .uh-head > .uh-reload { grid-column: 2; grid-row: 1; }
+  .uh-head > .uh-close { grid-column: 3; grid-row: 1; }
+}
 .uh-range { display: inline-flex; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
 .uh-range-btn {
   font: inherit; font-size: 11px;
@@ -239,7 +248,7 @@
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
   height: 100%; position: relative;
   background: none; border: none; padding: 0; cursor: pointer;
-  min-width: 24px;
+  min-width: 24px; font: inherit; color: inherit;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 /* The ring goes inside, because the box it would otherwise be drawn outside of
@@ -304,14 +313,14 @@
    declaration in the file below the smallest size anything else is set in, and
    an 8px monospace date under a chart is the label that says which bar you are
    reading — so the exception was being spent on the one place a floor is for.
-   Nothing else moves: the label is absolutely positioned under the column and
-   already ellipsises, so a 1px lift changes what it can say, not where it sits. */
+   Centred under its column and never cut: past two weeks only every second or
+   seventh column carries one (dayLabelStep), so a whole date has the room of
+   the unlabelled columns beside it instead of ellipsising inside its own 24px. */
 .uh-bar-label {
-  position: absolute; bottom: -15px;
+  position: absolute; bottom: -15px; left: 50%;
   font-size: 9px; color: var(--text-dim);
   font-family: var(--font-mono);
-  white-space: nowrap; transform: rotate(0deg);
-  overflow: hidden; max-width: 100%; text-overflow: ellipsis;
+  white-space: nowrap; transform: translateX(-50%);
 }
 
 .uh-legend {

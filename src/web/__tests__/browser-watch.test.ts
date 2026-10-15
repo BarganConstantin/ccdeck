@@ -106,7 +106,8 @@ beforeEach(() => invalidateBrowserWatchCache());
 describe("which tabs are the deck's own", () => {
   it("covers both ports the real profile caught it opening", () => {
     // Measured, not hypothetical: 41 visits to 127.0.0.1:4317 and 34 to
-    // 127.0.0.1:4399 carried FROM_API, because `open` is an API call and the
+    // 127.0.0.1:4399 carried FROM_API (not because of `open`, which left no
+    // FROM_API when tested — see FROM_API in agent-activity.mjs), and the
     // deck takes a random port in 4318-4400 when 4317 is held. Excluding only
     // this process's port would have left the other one reporting as an
     // intruder on a machine that has been running decks for a month.
@@ -232,8 +233,10 @@ describe("what the badge counts", () => {
 });
 
 describe("how App.tsx wires it up", () => {
-  // Two of the topbar's action runs moved to components/TopbarRuns.tsx; App.tsx and they are read as one.
-  const app = src("../App.tsx") + "\n" + src("../components/TopbarRuns.tsx");
+  // The control left the topbar for the right stripe (2026-10-08): it is defined
+  // in rail-items.tsx, its eye drawn in components/rail-glyphs.tsx, and App.tsx
+  // hands it the poll's state. The three are read as one.
+  const app = src("../App.tsx") + "\n" + src("../rail-items.tsx") + "\n" + src("../components/rail-glyphs.tsx");
 
   it("feeds the badge from its own poll, not from opening the dialog", () => {
     // The badge — its poll, its count and the seen stamp — moved to
@@ -253,12 +256,12 @@ describe("how App.tsx wires it up", () => {
   });
 
   it("says whether the watch is armed, in the shape and not only the hue", () => {
-    // The topbar is where a person finds out without opening anything, and at
+    // The stripe is where a person finds out without opening anything, and at
     // 13px a hue change does not carry it — ambient.ts measured the same amber
     // and grey at 1.01:1 under protanopia. So the two states are a pupil and a
     // slash, which differ as silhouettes at any size, and the colour only
     // agrees with them.
-    expect(app).toMatch(/watchOn \|\| watchUnseen > 0/);
+    expect(app).toMatch(/watching=\{watchOn === true \|\| watchUnseen > 0\}/);
     expect(app, "the armed icon needs its filled pupil").toMatch(/<circle cx="7" cy="7" r="1\.8" fill="currentColor"/);
     expect(app, "the resting icon needs its slash").toMatch(/<line x1="2\.4" y1="11\.6" x2="11\.6" y2="2\.4"/);
     // And in words, for anyone who reads the button rather than sees it.

@@ -105,13 +105,27 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const RULES = topLevel(bare);
+// Hover-gated controls still owe the same contrast in their pointer state.
+const POINTER_RULES = [...bare.matchAll(/@media \(hover: hover\) and \(pointer: fine\)\s*\{/g)]
+  .flatMap(m => topLevel(block(bare, m.index! + m[0].length - 1)[0]));
 
-const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
+function splitTop(list: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i] === "(") depth++;
+    else if (list[i] === ")") depth--;
+    else if (list[i] === "," && depth === 0) { parts.push(list.slice(start, i)); start = i + 1; }
+  }
+  parts.push(list.slice(start));
+  return parts.map(s => s.trim()).filter(Boolean);
+}
+const selectors = (list: string) => splitTop(list).map(s => s.replace(/\s+/g, " ").trim());
 
 /** Every top-level rule naming this exact selector, concatenated in source
  *  order — one element's cascade may be written in more than one place. */
 function bodyOf(selector: string): string {
-  const hit = RULES.filter(r => selectors(r.selector).includes(selector));
+  const hit = [...RULES, ...POINTER_RULES].filter(r => selectors(r.selector).includes(selector));
   if (!hit.length) throw new Error(`no rule for ${selector}`);
   return hit.map(r => r.body).join(";");
 }
@@ -309,6 +323,9 @@ function rootTokens(theme: Theme): Record<string, string> {
   for (const [, name, value] of body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
     out[name] = value.trim();
   }
+  for (const [, name, value] of bodyOf(".modal.tr-modal").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
+  // The reset navigator inherits its selection fill from the calendar body.
+  for (const [, name, value] of bodyOf(".ap-reset-body").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
   return out;
 }
 
@@ -322,6 +339,12 @@ function resolve(value: string, theme: Theme): Rgba {
   if (mix) {
     const base = resolve(mix[1], theme);
     return [base[0], base[1], base[2], base[3] * (+mix[2] / 100)];
+  }
+  const blend = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*(.+)\)$/.exec(v);
+  if (blend) {
+    const a = resolve(blend[1], theme), b = resolve(blend[3], theme);
+    const p = +blend[2] / 100, alpha = a[3] * p + b[3] * (1 - p);
+    return [0, 1, 2].map(i => alpha ? (a[i] * a[3] * p + b[i] * b[3] * (1 - p)) / alpha : 0).concat(alpha) as Rgba;
   }
   const ref = /^var\(\s*(--[\w-]+)\s*(?:,\s*([\s\S]+))?\)$/.exec(v);
   if (ref) {
@@ -479,6 +502,31 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
+  { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".qh-window select", beds: ["--panel"] },
+  { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
+  { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
+  { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filter-search input", states: [".radio-filter-search input:focus-visible"], beds: ["--panel"] },
+  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:focus-visible", ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
+  { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
+  { at: '.character-choice', beds: ["--panel"] },
+  { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
+  { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".ta-search input", states: [".ta-search input:hover"], beds: ["--bg"] },
+  { at: ".tr-input", beds: ["--panel"] },
+  { at: ".tr-select", beds: ["--panel"] },
+  { at: ".su-pricing select", beds: ["--panel"] },
+  { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
+  { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
+  { at: ".tr-input:hover", beds: ["--panel"] },
+  { at: ".tr-select:hover", beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -490,14 +538,13 @@ const CONTROLS: Control[] = [
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
-  // The on state of an icon toggle (#370). Its own state delta — this fill
-  // against the bare bar, which is a different question from this edge against
-  // this fill — is toggle-state.test.ts'.
-  { at: 'button.btn.icon-btn[aria-pressed="true"]', beds: [...TOPBAR, "--panel"] },
-  // A toolbar button that is open: the resting edge every other .btn wears,
-  // on the control fill. A closed one draws no edge at all, so this edge is
-  // the state, and it has to be seen against both ends of the bar.
-  { at: '.topbar button.btn.icon-btn[aria-expanded="true"]', beds: TOPBAR },
+  // The on state of an icon toggle (#370) and a toolbar button that was open,
+  // the resting edge on the control fill, were swept here until the topbar's
+  // panel toggles left for the window's edges (2026-10-08) and `.icon-btn` left
+  // the sheet with them. An open panel is a line on its stripe's inner edge
+  // now, a fill rather than an edge, so its 3:1 is measured where the line is
+  // drawn: edge-rails-geometry.test.ts, against the stripe and the open fill
+  // in both themes.
   // `button.btn.warn` was swept here until the topbar Pause button, its only
   // wearer, moved to the canvas control stack. The rule is gone from the sheet
   // rather than kept unworn, so there is nothing left to measure — and the
@@ -705,13 +752,9 @@ function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme): number 
  * whose resting edge the sweep above already measures, is not — it is a lift.
  */
 const EXEMPT_RINGS = new Set([
-  // An --accent-dim glow ADDED on hover to a button whose own border does not
-  // move. 1.91:1 dark / 1.39:1 light, and the file already refuses to let
-  // --accent-dim be a border-color anywhere for exactly that reason; as a glow
-  // over an edge that is still there it takes nothing away.
-  // The open-panel state lost its fill and so its halo (#836): it is a line
-  // under its content now, and hover repaints nothing it needs.
-  'button.btn.icon-btn[aria-pressed="true"]:hover',
+  // An --accent-dim glow added on hover to a pressed icon toggle was excused
+  // here, over an edge that stayed; the toggle left the sheet with the topbar's
+  // panel buttons (2026-10-08), and so did its glow.
   // A currentColor hairline on a canvas label that is lifting under the
   // pointer. .cluster-label is exempt at rest for the reason below — it reads
   // its own name at 4.5:1 — and session-hue.test.ts owns its rim as decoration.
@@ -720,18 +763,9 @@ const EXEMPT_RINGS = new Set([
   // check at the bottom of this describe is the one that would have said so
   // the moment the exemption outlived what it excused.
   ".cluster-label:hover",
-  // The same shape on a tool burst: a hover lift in the burst's own category
-  // hue, over a chip identified by the tool name written across it.
-  ".tool-burst.clickable:hover",
-  // And the light twins of those two, which #1025 added because neither hover
-  // reached this theme at all: `:root[data-theme="light"] .cluster-label` and
-  // `… .tool-burst` are (0,3,0) and outranked the (0,2,0) and (0,3,0)-earlier
-  // hovers, so the light sheet kept the RESTING shadow under the pointer. They
-  // are the same hairline over the same still-present edge, so they are the
-  // same lift and carry the same exemption — and the same unmeasurable ring
-  // colours, `currentColor` and `var(--cat-accent, …)`.
-  ':root[data-theme="light"] .cluster-label:hover',
-  ':root[data-theme="light"] .tool-burst.clickable:hover',
+  // The light cluster label keeps the same decorative hairline. Tool bursts
+  // now lift with a diffuse shadow, so they no longer need ring exemptions.
+  ':root[data-color-scheme="light"] .cluster-label:hover',
 ]);
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:
@@ -818,10 +852,23 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       '.appearance-source-option[data-highlighted="true"]',
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
+      ".character-choice:focus-visible",
       ".ctx-donut:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
+      ".radio-collection:focus-visible",
+      ".radio-filter-back:focus-visible",
+      ".radio-filter-chip:focus-visible",
+      ".radio-filter-field:focus-visible",
+      ".radio-filter-search input:focus-visible",
+      ".radio-filter-toggle:focus-visible",
+      ".radio-filter-trigger:focus-visible",
+      ".radio-list:focus-visible",
+      ".radio-loading > .icon-btn:focus-visible",
+      ".radio-map-canvas:focus-visible",
+      ".radio-reset:focus-visible",
+      ".radio-workspace-toggle:focus-visible",
       ".react-flow__node:focus-visible .agent-node",
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
@@ -829,6 +876,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
       ".switch:focus-visible",
+      '.tr-body :is(button, input, select, summary):focus-visible',
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",
     ]);
@@ -865,7 +913,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
-    expect(EDGED_CONTROLS.length).toBeLessThan(115);
+    // Radio discovery, session pricing and reset-calendar controls extend the inventory.
+    // Gruvbox adds one resting cluster-label rim; its visible name identifies it.
+    // Tool activity's search field adds two: framed at rest, louder under the pointer.
+    expect(EDGED_CONTROLS.length).toBeLessThan(149);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -896,9 +947,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // narrow list produced.
     expect(borderColourIn(bodyOf(".ver-banner.done")))
       .toBe("color-mix(in srgb, var(--ok) 30%, transparent)");
-    expect(borderColourIn(bodyOf(':root[data-theme="light"] .conn-banner')))
+    expect(borderColourIn(bodyOf(':root[data-color-scheme="light"] .conn-banner')))
       .toBe("rgba(185,28,28,0.45)");
-    for (const s of [".ver-banner.done", ':root[data-theme="light"] .conn-banner']) {
+    for (const s of [".ver-banner.done", ':root[data-color-scheme="light"] .conn-banner']) {
       expect(isControlRule(s), `${s} became a control rule — the sets above move`).toBe(false);
     }
   });
@@ -1165,6 +1216,8 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // name at 4.5:1, which is the identification. (It read "draggable" here
       // until #546; it is a fit-view button and never was one.)
       ".cluster-label",
+      // Gruvbox retunes the same decorative rim, preserving hover and alarm states.
+      ':root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not([data-alarm]))',
       // The same label for a session stopped until a human answers. It only
       // RECOLOURS the rim above to --warn — the aria-busy argument: nothing
       // appears or moves, the label is still identified by the name written in
@@ -1172,6 +1225,8 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // reader, in words. A state indicator on a decorative rim, not a boundary.
       ".cluster-label[data-alarm]",
       ".appearance-source-option",
+      // A labelled region button: its rim conveys selection, not identity.
+      '.radio-regions .radio-region[aria-pressed="true"]',
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {
@@ -1423,7 +1478,7 @@ describe("the two status hues, on the canvas as well as on the panels", () => {
       bedFloor(beds, theme);
       for (const [state, token] of [["live", "--ok"], ["paused", "--warn"], ["dead", "--err"]] as const) {
         const light = RULES.find(r =>
-          selectors(r.selector).includes(`:root[data-theme="light"] .topbar .status .pill.${state}`));
+          selectors(r.selector).includes(`:root[data-color-scheme="light"] .topbar .status .pill.${state}`));
         const fillRaw = (theme === "light" ? declIn(light!.body, "background") : null)
           ?? decl(".topbar .status .pill", "background")!;
         if (theme === "light") expect(fillRaw, state).not.toMatch(/rgba\(/);

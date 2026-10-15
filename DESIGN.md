@@ -146,10 +146,11 @@ Three consequences that decide everything else:
 - **Calm by default, loud only for a real event.** Colour carries state, not
   decoration. A screen with nothing wrong on it is almost monochrome, and no
   resting colour may wear a state's hue — see *State hues are exclusive* below.
-- **Dark is the default, light is a full peer.** `:root` is the dark ramp;
-  `:root[data-theme="light"]` re-tunes every hue rather than inverting. Light is
+- **Rider Black is the default, light is a full peer.** `:root` is the dark CSS fallback;
+  `:root[data-color-scheme="light"]` shares light-mode component rules across palettes. Light is
   where contrast bugs live, because every terminal-adjacent colour assumes dark.
-  There are exactly two themes — `Theme = "dark" | "light"` in `theme.ts`.
+  Light and Dark are joined by IDE, Omarchy, Matrix, contrast and Catppuccin palettes;
+  the supported choices come from `themes/*.json`; `theme.ts` owns their cycle.
 - **Density serves the glance.** The target is concrete so a screenshot can pass
   or fail it: **at 1440×900 with the detail rail open, eight sessions in the list
   and twenty nodes on the canvas fit without scrolling.** 13px base, 30px
@@ -306,7 +307,7 @@ by adding light values. Claude FM's props alias them (`--fm-prop-light` /
 `--fm-prop-shadow` on `.fm-held[data-prop="scope"]`).
 
 **Its ink is not exempt.** `--fm-ink` is `var(--bg)` on `.fm-sprite` and
-`var(--text)` under `:root[data-theme="light"] .fm-sprite`, which also swaps the
+`var(--text)` under `:root[data-color-scheme="light"] .fm-sprite`, which also swaps the
 sprite's `--accent` to `--pixel-character-body`. That light rule is deliberate —
 without it the sprite's eyes and hat band go wrong in light. Keep it.
 
@@ -355,11 +356,16 @@ one-off hero sizes and using them as steps will look wrong:
 
 ## Layout
 
+Owner preference (2026-10-13): do not use colored left-edge stripes to mark
+selected or active rows, cards, or panels. Use a quiet surface fill, the relevant
+control state, and readable status text instead. Structural separators remain
+part of the layout.
+
 A CSS grid shell, `.app`, with `:has()` deciding the columns rather than a body
 class:
 
 ```
-rows:     52px  topbar
+rows:     44px  topbar (--topbar-h)
           auto  banner
           1fr   body
 
@@ -371,6 +377,18 @@ columns:  1fr 360px                   default (canvas + detail rail)
 
 Sessions and Accounts share the left slot and are mutually exclusive; accounts
 takes `auto` because it has to fit bars and email addresses.
+
+**The panel buttons live on the window's edges** (`edge-rails.css`): a stripe
+`--edge-w` wide (one control height), with upright icon buttons on the left for the session list and the
+accounts panel, and one on the right for Usage, the machine panel, Usage history
+and Browser Watch; `.app` keeps their width free with its inline padding. They
+are show/hide toggles, not tabs — several panels can be open at once and the
+canvas never leaves — so an open one is a `--text` line on the stripe's inner
+edge, never a tab joined to a page. The topbar keeps the identity, the stream's
+state, the waiting count with the names of who is waiting, and Settings and
+Feedback. Under 641px the stripes and those two become one dock along the
+bottom, `--dock-h` tall. Desktop names and shortcuts appear in hints, including
+when single-key shortcuts are disabled; mobile dock labels remain visible.
 
 **The detail rail is the 360px column.** `--rail-r` is *not* its width — it is the
 right offset the floating panels position against: `368px` (the rail plus an 8px
@@ -490,7 +508,9 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 - `.btn.danger` — `--err` text with an `--err` 65% edge, and an `.armed` second
   step so a destructive action is never one click.
 - `.btn.warn` was removed on purpose. Do not bring it back.
-- `.icon-btn` is the square variant for a glyph alone.
+- `.rail-btn` is the chrome's control — a stripe button, a dock button, a topbar
+  utility: edgeless at rest, `--ctl-fill` and `--text` under the pointer, a
+  deeper fill and a `--text` line when its panel is open.
 - **Edgeless at rest, in a dense column.** A few controls identified by their
   own word or name draw no boundary until they are pointed at or focused, and
   then take `--ctl-edge` and `--ctl-fill` — the verbs on a Local network row
@@ -509,6 +529,45 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   `--shadow-2` plus a faint accent ring. The backdrop is `rgba(5,6,9,0.55)` with
   **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
   dashes never stop re-rasterises under the dialog for as long as it is open.
+
+### Tool activity
+
+A full page, opened from the rail below Usage history (More → Tools on phones),
+that a person reads top to bottom in under a minute. Owner direction
+(2026-10-15): simple and useful for the people using it, nothing complicated.
+Plain words carry it; the earlier P95 / interval vocabulary is gone.
+
+- **Order of the page:** period and agent pills (the `uh-range` strip Usage
+  history uses), one summary sentence with the numbers in `--text` weight 600
+  and failures in `--err`, then *Worth a look* — at most three findings in one
+  bordered list, each a button that opens its tool — then *Tools and commands*,
+  then *How this is counted* folded at the bottom. No tiles, no charts on the
+  page itself; the summary is a sentence on purpose.
+- **The list** is one set of rows with four orders (Most used, Most time,
+  Slowest, Failures) in a `uh-range` strip, and a search field. Columns: Calls,
+  Total time, Usually, Failed. The sorted column is the bright one (`--text`,
+  600) and draws the 3px bar under the name — `--accent`, or `--err` when sorting
+  by failures. Unsorted values and the description are `--text-secondary` by
+  bed (a row is raised on `--ctl-fill`); a zero failure is `--muted`. Selection
+  is the quiet fill, never a stripe. Twelve rows, then Show all.
+- **Details** sit in a column beside the list, 380px until the reader drags the
+  line between them (`ToolAuditSplitter`, an ARIA window splitter: arrows move
+  it, Enter or a double click restores 380px, the width is remembered per
+  browser, and the list always keeps 420px). Stacked under the list from
+  701–959px, a bottom sheet under 701px. The panel holds: name and description, a 2×2 facts grid
+  on hairlines, who used it and the longest call, calls per day as plain bars
+  (`--muted`, the described day in `--accent`), and the latest or slowest calls
+  with time, agent, duration and a drawn result glyph.
+- **Narrow report:** a container query on the report body, not the viewport,
+  turns rows into a name over one wrapped line of values that carry their own
+  words ("258 calls · 12.3 s total · usually 43 ms · 1 failed"), so a laptop
+  with details open gets the same treatment as a phone. Under 400px the sort
+  strip becomes a 2×2 grid.
+- **Honesty stays, in small print:** approval waits inside times, overlapping
+  total time, the median, compound command lines, different Claude/Codex clocks
+  and what is saved are each one plain line under *How this is counted*.
+  Findings appear only above their sample floors, so a handful of calls never
+  becomes a headline.
 
 ### Canvas objects
 
@@ -539,7 +598,8 @@ reinvented. Three rules:
 
 1. **`--warn` is reserved for it.** The topbar `.waiting-stat` chip is a transparent
    pill with an `--warn` 85% edge and `--warn` text; `.notify-said-blocked` is
-   `--warn`. Nothing else competes at that colour.
+   `--warn`. Nothing else competes at that colour — not even the names of who is
+   waiting beside the count, which are neutral (`.wait-entry`).
 2. **The pulse is the only ambient motion a resting card may have.** `.waiting-dot`
    is a 5px `currentColor` dot borrowing `.ap-pulse`'s motion, so the app keeps one
    idiom for *still asking* and one reduced-motion answer for it.
@@ -616,7 +676,7 @@ are literals today.
 **Do**
 
 - Take colour from a token. If a value needs a new tier, add the tier to
-  `styles/tokens.css` in both theme blocks and let the contrast tests judge it.
+  the matching `themes/*.json` palettes and let the contrast tests judge it.
 - Monospace every value and give every live number `tabular-nums`; leave sentences
   in the sans stack.
 - Give every state a mark **and** a word.
@@ -647,3 +707,120 @@ are literals today.
 - Don't add a hue that only works in dark. Light is a peer, and it is where the bugs
   are.
 - Don't use `--line` to identify a control. That is `--ctl-edge`'s job.
+
+### Session usage inspector
+
+Usage's By session rows open a focused whole-session report. A small chevron
+marks supported Claude/Codex rows as controls; they retain the usage table's
+spacing and global focus ring. The inspector composes the shared modal shell,
+portals to the document body and returns keyboard focus to its opener.
+
+Use the existing 14px dialog title and 12px body/data. The two 22px headline
+measurements make estimated cost and token volume readable before the model
+table. A labeled composition bar uses existing usage-series colours; token
+counters use two columns on desktop and aligned rows below 420px. Pricing and
+activity dates wrap at narrow widths. Keep the brief estimate caveat visible
+and disclose the full methodology under “Estimate details”. Settings-derived estimates and explicit pricing scenarios
+are named separately. Missing costs remain missing rather than being rebuilt
+from a rate with no tier evidence. See
+`.impeccable/surfaces/session-usage.md` for the surface contract.
+
+### Usage insights
+
+Quota history opens from a chart glyph beside Refresh and Close; quota bars
+remain display-only. Header glyphs have equal targets and consistent SVG weight.
+Entry reuses Radio’s fade/scale for 200ms, skipped for keyboard/reduced motion.
+Quota history shares the report shell and existing measurement hierarchy. Keep
+percentage/time labels in HTML outside the SVG so narrow plots retain readable
+11px annotations; stack provider/window controls at widths up to 420px. Observed
+remaining, capture age, the non-forecast guide caveat and recorded-readings
+disclosure stay distinct. “Recorded” does not promise disk persistence; expose
+storage failure separately. Quota Refresh remains focusable with aria-busy and
+a synchronous repeat-press guard. Session cached input reuse retains measured
+coverage and distinguishes 0% from unavailable or zero-input measurements.
+See `.impeccable/surfaces/usage-insights.md` for the scoped contract.
+
+### Telemetry Radar
+
+A focused inspector in ccdeck’s existing visual world, with a 1060 × 740px
+preferred window capped by the viewport. Identity and purpose share the header;
+Monitor / Configuration / File use a compact segmented strip alongside the session
+selector and About Radar. On phones, About retains its accessible name behind
+an information icon. Configuration and File stay mounted to preserve inspection
+and imported content.
+
+The monitoring toolbar groups listener state, traffic evidence and destination
+with Start/Stop and Clear history. A subdued activity feed occupies 34% of the
+workspace (at least 300px), beside the plain reading surface of the inspector.
+`--tr-toolbar`, `--tr-feed-surface` and `--tr-divider` derive surfaces from the
+existing theme. High-contrast themes retain their stronger separators. At 640px
+and below the feed precedes inspection in a single scrolling column.
+
+RadarIcon uses one authored 1.5px stroke family to distinguish connections,
+events, metrics and traces. Selected rows have an accent outline and subtle wash;
+metadata and timestamps remain secondary. Inspector headers pair the event type
+with the selected name; facts align across fine rules. Unreadable content has one
+neutral diagnostic group, a useful next step and disclosed complete technical
+limits. It must never look like a capture failure merely because JSON is absent.
+
+Listener readiness, observed traffic, decoded contents and collector receipts
+remain separate facts. Full readiness uses `--ok`, actionable partial readiness
+`--warn`, genuine failures `--err`. Initial and explicit selection stay pinned
+while arrivals continue. Pause list freezes visible entries and counts arrivals;
+Stop monitoring stops capture. Arrow/Home/End keep focus on rows, including on
+mobile; explicit activation reveals the inspector. History renders in batches of
+100. JSON offers lazy branches, batched children, complete raw data and exact
+copy of decoded fields. File retains original local JSON/JSONL separately.
+
+Controls share 32px geometry (40px on phones) and 6px corners. Native selects keep
+platform keyboard behavior with authored chevrons. Hover and selection use short
+color transitions; presses shift utility controls by one pixel, with reduced
+motion disabling movement. Destination copy resets on selection and expires its
+success indication after two seconds. Clear history requires a deliberate second
+press, disarms on blur or after five seconds, and also removes observations.
+Pause list and Clear history use neutral control edges; pausing exposes its pressed
+state. Monitoring limits has neutral hover/open feedback in the footer. Surface direction, checks and
+limitations live in `.impeccable/surfaces/telemetry-radar.md`.
+
+### Rider Black
+
+The default theme for a new or invalid preference, inspired by the JetBrains dark UI palette: a charcoal
+canvas (#1e1f22), separate gray tool surfaces (#2b2d30), flat nodes and blue focus
+accents. Readable secondary text stays above 4.5:1; status and category colors
+keep their meanings. Light and Dark retain their palettes. The choice persists
+before first paint and keyboard theme switching cycles through all available themes.
+
+Radar shows socket evidence independently of settings-file evidence. Missing
+configuration never means telemetry is off, and stopped capture refers only to
+Radar. Observed addresses can be selected explicitly without being labeled as
+configured collectors or confirmed telemetry.
+
+### VS Code Black
+
+A separate theme based on VS Code Dark Modern: #1f1f1f working canvas, #181818
+tool panels, #2b2b2b separators and #4daafc accents. Selection uses #264f78 with
+white text. Both IDE palettes keep flat surfaces and ccdeck’s semantic color
+mapping. Settings lays out three previews per row on desktop and two per row on phones.
+
+### JSON theme definitions
+
+`src/web/themes/*.json` owns each theme's ID, name, order, color scheme and
+semantic tokens. The versioned format supports inheritance and selection colors.
+`scripts/theme-compiler.mjs` validates and generates palettes, theme previews,
+typed catalog metadata and the first-paint ID list. Vite regenerates on build and
+reloads after JSON changes so CSS and the cached canvas palette stay in step.
+Shared geometry, motion and model mappings remain in `styles/tokens.css`.
+See `src/web/themes/README.md` for adding a palette and checking generated output.
+
+### Contrast and Catppuccin palettes
+
+Black Contrast pairs near-black flat surfaces with white reading text and sky
+blue actions. White Contrast pairs white surfaces with dark ink and deep blue
+actions. Reading text, including secondary labels, clears 7:1 on all main
+surfaces; control edges and focus accents clear 3:1. Shared light-mode rules
+follow `data-color-scheme` so custom light palettes receive the correct brand
+variant and status treatments before paint.
+
+Catppuccin Mocha uses violet neutrals, a mauve accent and pastel semantic colors
+from the official palette, with secondary text lifted for monitoring density.
+All three remain versioned JSON definitions; references are in the themes README.

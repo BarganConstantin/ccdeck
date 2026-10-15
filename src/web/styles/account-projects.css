@@ -216,17 +216,180 @@
    one quiet surface rather than by rules, so the only line left is the one
    under the column names. */
 .ap-report-modal {
-  width: min(600px, calc(100vw - 32px));
+  width: min(900px, calc(100vw - 32px));
+  max-height: min(820px, calc(100dvh - 40px));
   /* One step above --muted, for the labels a reader has to find — the column
      names, a card's window, a stale reading's age — and still short of the
      prose tier. Mixed from tokens, so both themes re-tune it with them. */
   --report-meta: color-mix(in srgb, var(--muted) 78%, var(--text));
 }
-.ap-report-modal .ap-proj-head { padding: 18px 24px 0; border-bottom: 0; background: none; }
+.ap-report-modal .ap-proj-head { flex-wrap: wrap; flex-shrink: 0; padding: 16px 24px; background: none; }
 .ap-report-modal h2.ap-proj-title { margin: 0; font-size: 16px; }
-.ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; }
+.ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; min-height: 0; }
+.ap-report-views { display: flex; align-items: center; gap: 4px; }
+.ap-report-view { padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; font: inherit; font-size: 12px; color: var(--report-meta); white-space: nowrap; cursor: pointer; }
+.ap-report-view[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.ap-report-view:hover { color: var(--text); background: var(--ctl-fill); }
+
+/* One planning instrument: next event, data coverage and day navigation. */
+.ap-report-overview { display: flex; flex-direction: column; gap: 6px; }
+.ap-reset-body { --reset-selection: color-mix(in srgb, var(--accent) 12%, var(--panel)); --reset-attention: var(--warn); padding: 0; gap: 0; overflow: hidden; }
+.ap-reset-body > .ap-report-held { padding: 12px 24px 0; }
+.ap-reset-overview { flex: none; padding: 20px 24px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.ap-reset-command { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 24px; align-items: start; }
+.ap-reset-next { display: flex; align-items: start; gap: 16px; min-width: 0; padding: 12px 16px; background: var(--bg-soft); border-radius: var(--r-ctl); }
+.ap-reset-next-identity { min-width: 0; flex: 1; }
+.ap-reset-next h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--text); }
+.ap-reset-next h3 .glyph { color: var(--accent); flex: none; }
+.ap-reset-global { font-size: 11px; font-weight: 400; color: var(--report-meta); }
+.ap-reset-next .ap-reset-name { font-size: 14px; font-weight: 600; }
+.ap-reset-next-identity p { overflow-wrap: anywhere; margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--text); }
+.ap-reset-next-identity .ap-reset-next-note { font-size: 11px; color: var(--report-meta); }
+.ap-reset-countdown { display: flex; flex-direction: column; gap: 4px; flex: none; margin: 24px 0 0; text-align: right; }
+.ap-reset-countdown strong { font: 600 22px/1.3 var(--font-mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+.ap-reset-countdown > span { max-width: 88px; font-size: 11px; color: var(--report-meta); }
+.ap-reset-coverage { display: flex; flex-direction: column; gap: 2px; }
+.ap-reset-coverage-link { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); font: inherit; text-align: left; cursor: pointer; transition: background 140ms ease, color 140ms ease; }
+.ap-reset-coverage-link { --reset-category-ink: var(--text-secondary); border-left: 2px solid transparent; }
+.ap-reset-coverage-link[data-scope="upcoming"] { --reset-category-ink: var(--accent); }
+.ap-reset-coverage-link[data-attention] { --reset-category-ink: var(--reset-attention); }
+.ap-reset-coverage-link b { min-width: 20px; font: 600 16px var(--font-mono); color: var(--reset-category-ink); }
+.ap-reset-coverage-link > span { font-size: 12px; line-height: 1.4; }
+.ap-reset-coverage-link > span > span { display: block; font-size: 11px; color: var(--report-meta); }
+.ap-reset-coverage-link:hover { background: var(--ctl-fill); color: var(--text); }
+.ap-reset-coverage-link[aria-pressed="true"] { background: var(--ctl-fill); border-left-color: var(--accent); color: var(--text); }
+.ap-reset-coverage-link:active { background: var(--reset-selection); }
+.ap-reset-navigation { min-width: 0; margin-top: 16px; }
+.ap-reset-intro { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.ap-reset-intro h3,
+.ap-reset-list-head h3,
+.ap-reset-disclosure h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+.ap-reset-intro h3 span,
+.ap-reset-list-head h3 span,
+.ap-reset-disclosure h3 span { margin-left: 8px; font-size: 11px; font-weight: 400; color: var(--report-meta); }
+.ap-reset-intro p { margin: 0; font-size: 11px; color: var(--report-meta); overflow-wrap: anywhere; }
+.ap-reset-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 0; list-style: none; }
+.ap-reset-week li { min-width: 0; }
+.ap-reset-day-button { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; min-height: 64px; padding: 8px 4px; border: 0; border-bottom: 2px solid transparent; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); cursor: pointer; text-align: center; transition: background 140ms ease, color 140ms ease; }
+.ap-reset-day-button[data-active] { background: color-mix(in srgb, var(--accent) 5%, var(--panel)); }
+.ap-reset-day-button:hover { background: var(--ctl-fill); }
+.ap-reset-day-button[aria-pressed="true"] { background: var(--reset-selection); border-bottom-color: var(--accent); color: var(--text); }
+.ap-reset-day-button:active { background: var(--reset-selection); }
+.ap-reset-day-button[data-active][aria-pressed="true"] .ap-reset-date { color: var(--accent); }
+.ap-reset-day-button:focus-visible { outline-offset: 2px; }
+.ap-reset-week time { display: flex; flex-direction: column; gap: 3px; }
+.ap-reset-weekday { font-size: 11px; }
+.ap-reset-week li[data-today] .ap-reset-weekday { text-decoration: underline; text-underline-offset: 3px; color: var(--text); }
+.ap-reset-date { font-family: var(--font-mono); font-size: 16px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.ap-reset-day-button[data-active] .ap-reset-date { font-weight: 600; color: var(--text); }
+.ap-reset-count { font-size: 11px; color: var(--report-meta); }
+.ap-reset-count b { font-weight: 400; font-variant-numeric: tabular-nums; }
+.ap-reset-day-button[data-active] .ap-reset-count b { color: var(--accent); font-weight: 600; }
+.ap-reset-day-button[data-active] .ap-reset-count b::before { content: ""; display: inline-block; width: 4px; height: 4px; margin: 0 4px 2px 0; border-radius: 50%; background: currentColor; }
+.ap-reset-count > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ap-reset-results { scrollbar-gutter: stable; min-height: 0; flex: 1; overflow-y: auto; padding: 16px 24px; }
+.ap-reset-results:focus-visible { outline-offset: -2px; }
+.ap-reset-time { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-reset-hint { margin: 0 0 12px; font-size: 11px; color: var(--report-meta); }
+.ap-reset-explain,
+.ap-reset-empty { margin: 0; max-width: 70ch; font-size: 12px; line-height: 1.5; color: var(--report-meta); }
+.ap-reset-list-head { max-width: 760px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.ap-reset-list-head .btn { color: var(--text); }
+.ap-reset-scheduled { min-width: 0; }
+.ap-reset-agenda { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.ap-reset-day { min-width: 0; }
+.ap-reset-day ul,
+.ap-reset-unplaced ul { margin: 0; padding: 0; list-style: none; }
+.ap-reset-event { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: start; border-top: 1px solid var(--line-soft); }
+.ap-reset-entry { padding: 0; }
+.ap-reset-entry + .ap-reset-entry { border-top: 1px solid var(--line-soft); }
+.ap-reset-when { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; line-height: 14px; }
+.ap-reset-day-label { font-size: 11px; font-weight: 600; color: var(--text); }
+.ap-reset-when > span { font-size: 11px; color: var(--report-meta); font-variant-numeric: tabular-nums; }
+.ap-reset-when[data-outdated] .ap-reset-time,
+.ap-reset-when[data-outdated] .ap-reset-day-label { color: var(--report-meta); }
+.ap-reset-when .ap-reset-last-reported { color: var(--report-meta); }
+.ap-reset-name { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; min-width: 0; font-size: 13px; color: var(--text); }
+.ap-reset-name .ap-report-current { color: color-mix(in srgb, var(--accent) 60%, var(--text)); }
+.ap-reset-name > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.ap-reset-account { min-width: 0; }
+.ap-reset-account > summary { transition: background 140ms ease, color 140ms ease; padding: 10px 8px; min-height: 48px; border-radius: var(--r-ctl); font-size: 13px; cursor: pointer; color: var(--report-meta); }
+.ap-reset-account > summary .ap-reset-name { display: inline; }
+.ap-reset-account > summary .ap-report-current,
+.ap-reset-account > summary .ap-report-tag { margin-left: 6px; }
+.ap-reset-account > summary:hover { color: var(--text); background: var(--ctl-fill); }
+.ap-reset-summary-content { display: inline-grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 12px; align-items: center; width: calc(100% - 16px); vertical-align: middle; }
+.ap-reset-summary-content .ap-reset-reading { padding-top: 0; }
+.ap-reset-entry[data-outdated] .ap-reset-summary-content { grid-template-columns: minmax(0, 1fr) 160px; }
+.ap-reset-account[open] > summary { background: var(--ctl-fill); color: var(--accent); }
+.ap-reset-account > summary:active { background: var(--reset-selection); }
+.ap-reset-account[open] .ap-reset-account-body { margin: 4px 8px 8px; padding: 8px 12px; background: var(--bg-soft); border-radius: var(--r-ctl); }
+.ap-reset-account-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; font-size: 11px; line-height: 1.5; color: var(--report-meta); }
+.ap-reset-account-body p { display: flex; flex-direction: column; gap: 2px; margin: 0; overflow-wrap: anywhere; }
+.ap-reset-account-body p > span { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.ap-reset-account-body strong { color: var(--text); font-weight: 600; }
+.ap-reset-reading { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; text-align: right; padding-top: 10px; }
+.ap-reset-usage { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-reset-reading[data-level="limited"] .ap-reset-usage { color: var(--reset-attention); }
+.ap-reset-reading[data-level="older"] .ap-reset-usage { color: var(--report-meta); }
+.ap-reset-meter { display: block; width: 64px; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.ap-reset-meter > span { display: block; height: 100%; background: var(--accent); transform: scaleX(var(--reset-used)); transform-origin: left center; }
+.ap-reset-meter[data-level="mid"] > span,
+.ap-reset-meter[data-level="hi"] > span { background: var(--warn); }
+.ap-reset-old { font-size: 11px; line-height: 1.45; color: var(--report-meta); }
+.ap-reset-entry[data-outdated] .ap-reset-name > span:first-child { color: var(--text); }
+.ap-reset-disclosure > .ap-reset-explain { margin: 8px 0 16px; }
+.ap-reset-unplaced ul { margin-top: 12px; }
+.ap-reset-unplaced-row { padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.ap-reset-summary-other { display: inline-grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 180px; gap: 12px; align-items: start; width: calc(100% - 16px); vertical-align: middle; }
+.ap-reset-summary-other .ap-reset-reading { padding-top: 0; }
+.ap-reset-unplaced-detail { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--report-meta); }
+.ap-reset-about { margin-top: 16px; font-size: 11px; color: var(--report-meta); }
+.ap-reset-about summary { cursor: pointer; padding-block: 4px; }
+.ap-reset-about p { margin-top: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  .ap-reset-day-button,
+  .ap-reset-coverage-link,
+  .ap-reset-account > summary { transition: none; }
+}
+@media (max-width: 680px) {
+  .ap-reset-overview { padding: 16px; }
+  .ap-reset-results { padding: 12px 16px; }
+  .ap-reset-command { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .ap-reset-coverage { flex-direction: row; gap: 4px; }
+  .ap-reset-coverage-link { flex: 1; min-width: 0; min-height: 44px; gap: 6px; padding: 6px; }
+  .ap-reset-coverage-link b { min-width: 12px; font-size: 14px; }
+  .ap-reset-coverage-link > span { font-size: 11px; overflow-wrap: anywhere; }
+  .ap-reset-coverage-link > span > span { display: none; }
+  .ap-reset-navigation { margin-top: 12px; }
+  .ap-reset-event { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .ap-reset-when { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 8px 0 4px; }
+  .ap-reset-day-label { flex-basis: 100%; }
+  .ap-reset-summary-content { grid-template-columns: minmax(0, 1fr) 68px; gap: 8px; }
+  .ap-reset-entry[data-outdated] .ap-reset-summary-content { grid-template-columns: minmax(0, 1fr) 100px; }
+  .ap-reset-account > summary { min-height: 48px; }
+  .ap-reset-summary-other { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .ap-reset-unplaced-row .ap-reset-reading { align-items: flex-start; text-align: left; padding: 0; }
+  .ap-reset-list-head .btn { min-height: 44px; }
+}
+@media (max-width: 360px) {
+  .ap-reset-week { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ap-reset-coverage-link { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .ap-reset-next { padding: 10px 12px; gap: 8px; }
+  .ap-reset-day-button { min-height: 44px; flex-direction: row; justify-content: center; gap: 6px; }
+  .ap-reset-next .ap-reset-name { font-size: 14px; }
+  .ap-reset-countdown strong { font-size: 16px; }
+}
+@media (max-height: 620px) {
+  .ap-reset-overview { padding-block: 10px; }
+  .ap-reset-navigation { margin-top: 8px; }
+  .ap-reset-next h3 { margin-bottom: 4px; }
+  .ap-reset-results { padding-block: 8px; }
+  .ap-reset-next-identity .ap-reset-next-note { margin-top: 3px; }
+}
 /* The stuck names' own 8px above them is part of the gap in flow. */
-.ap-report-table { margin-top: -8px; }
+.ap-report-table-scroll { margin-top: -8px; overflow-x: auto; flex-shrink: 0; }
+.ap-report-table-scroll:focus-visible { outline-offset: -2px; }
 /* The body scrolls with enough accounts, and a scroller is a Tab stop in the
    browsers that make it one: the ring goes inside, where the dialog's own
    clipping cannot cut it off. */
@@ -254,17 +417,16 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  padding: 14px 16px;
-  border-radius: var(--r-panel);
-  background: var(--bg-soft);
+  padding: 0;
+  background: transparent;
 }
-:root[data-theme="light"] .ap-report-sum { background: var(--bg); }
-.ap-report-win { margin: 0; font-size: 11px; font-weight: 600; color: var(--report-meta); }
+:root[data-color-scheme="light"] .ap-report-sum { background: transparent; }
+.ap-report-win { margin: 0; font-size: 12px; font-weight: 600; color: var(--report-meta); }
 .ap-report-left { margin: 0; font-size: 12px; color: var(--report-meta); }
 .ap-report-left b {
   margin-right: 2px;
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -303,19 +465,19 @@
 .ap-report-basis { margin: 0; font-size: 11px; color: var(--report-meta); }
 .ap-report-num { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
 
-/* The rows: a name, each window's use with its own reset beside it, and the
-   state. Fixed layout so a long address is cut rather than widening the
-   dialog; the column names stay at the top while the rows scroll. */
-.ap-report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
-.ap-report-col-win { width: 96px; }
-.ap-report-col-state { width: 88px; }
-.ap-report-col-upd { width: 88px; }
+/* Keep every column on phones: only the table scrolls horizontally, while
+   the summary keeps the dialog's width. Long account names still truncate. */
+.ap-report-table { width: 100%; min-width: 740px; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.ap-report-col-win { width: 80px; }
+.ap-report-col-reset { width: 96px; }
+.ap-report-col-state { width: 96px; }
+.ap-report-col-upd { width: 104px; }
 .ap-report-table th,
 .ap-report-table td { padding: 6px 0 6px 12px; text-align: left; vertical-align: baseline; }
 .ap-report-table :is(th, td):first-child { padding-left: 0; }
 .ap-report-table thead th {
   position: sticky;
-  top: -20px;
+  top: 0;
   z-index: 1;
   /* Room above the names once they are stuck under the dialog's title, which
      has no rule of its own to stand them off — four and four, with the sort
@@ -336,6 +498,7 @@
    is wider than the ink. The arrow's slot is held open on every column. */
 .ap-report-table .sd-sort {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: 4px;
   min-height: 24px;
@@ -382,8 +545,8 @@
 .ap-report-pct { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
 .ap-report-pct[data-level="mid"] { color: var(--warn); }
 .ap-report-pct[data-level="hi"] { color: var(--err); font-weight: 600; }
-.ap-report-in {
-  margin-left: 6px;
+.ap-report-reset-cell {
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--report-meta);
@@ -464,40 +627,92 @@
   .ap-report-table .sd-sort:active { transform: none; }
   .ap-report-table tbody tr { animation: ap-report-row-fade 160ms ease both; animation-delay: 0ms; }
 }
-/* One total a row at a phone's width, so each keeps its number whole. */
-@media (max-width: 480px) {
-  .ap-report-sums { grid-template-columns: 1fr; }
-}
-/* Narrow: a tighter frame, and each row's reset under its number rather than
-   beside it, so the names keep the room. */
+
+/* Narrow: tighten the frame, preserving all columns in the table scroller. */
 @media (max-width: 520px) {
-  .ap-report-modal .ap-proj-head { padding: 16px 16px 0; }
+  .ap-report-modal .ap-proj-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 12px 16px; }
+  .ap-report-views { grid-row: 2; grid-column: 1 / -1; }
+  .ap-report-view { min-height: 36px; }
+  .ap-report-sums { gap: 16px; }
+  .ap-report-reset { flex-wrap: wrap; white-space: normal; }
+  .ap-report-reset > span:first-child { min-width: 0; flex-shrink: 1; white-space: normal; }
   .ap-report-body { gap: 20px; padding: 16px; }
-  .ap-report-table thead th { top: -16px; }
-  .ap-report-col-win { width: 64px; }
-  .ap-report-col-state { width: 96px; }
-  /* No room for a fifth column: the age goes, and the rows keep their state. */
-  .ap-report-col-upd { width: 0; }
-  .ap-report-upd,
-  .ap-report-upd-h { display: none; }
-  .ap-report-in { display: block; margin-left: 0; }
-  .ap-report-acct-in { flex-wrap: wrap; row-gap: 2px; }
-  /* A 64px column has room for "5h used" and nothing beside it: the button
-     gives up its inset, and the arrow hangs in the gutter before the next
-     column rather than breaking the name onto two lines. */
-  .ap-report-table .sd-sort { position: relative; margin-left: 0; padding: 0; white-space: nowrap; }
-  .ap-report-table .sd-sort-dir { position: absolute; left: 100%; }
-  /* Every header cell is stuck with a background of its own, so the next one
-     paints over whatever hangs past this one's edge — the sorted one stands
-     above its neighbours. */
-  .ap-report-table thead th:not([aria-sort="none"]) { z-index: 2; }
 }
-/* A phone's narrowest: the percent columns take only what "100%" needs and the
-   rows drop their own reset, which the cards above still give, so the names
-   keep a column wide enough to read. */
-@media (max-width: 360px) {
-  .ap-report-table .sd-sort { white-space: normal; }
-  .ap-report-col-win { width: 48px; }
-  .ap-report-col-state { width: 88px; }
-  .ap-report-in { display: none; }
+
+/* The same sortable table becomes grouped rows on a narrow window. There is
+   one vertical scroll region; no hidden columns or second horizontal scroller. */
+.ap-report-mobile-label { display: none; }
+@media (max-width: 680px) {
+  .ap-report-table-scroll { overflow: visible; flex-shrink: 0; }
+  .ap-report-table { display: block; min-width: 0; }
+  .ap-report-table colgroup { display: none; }
+  .ap-report-table thead,
+  .ap-report-table tbody { display: block; }
+  .ap-report-table thead tr { display: flex; flex-wrap: wrap; gap: 4px 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .ap-report-table thead th { position: static; padding: 0; border: 0; }
+  .ap-report-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 16px; padding: 16px 0; border-bottom: 1px solid var(--line); animation: none; }
+  .ap-report-table tbody th { grid-column: 1 / -1; }
+  .ap-report-table tbody td,
+  .ap-report-table tbody th { padding: 0; min-width: 0; }
+  .ap-report-acct-in { flex-wrap: wrap; }
+  .ap-report-name { white-space: normal; overflow-wrap: anywhere; }
+  .ap-report-mobile-label { display: block; margin-bottom: 4px; font: 11px var(--font-mono); color: var(--report-meta); }
+  .ap-report-upd { white-space: normal; }
+}
+
+.ap-report-estimate { display: block; font-size: 11px; line-height: 1.4; white-space: normal; color: var(--report-meta); }
+.ap-report-state-note { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--report-meta); }
+.ap-report-confidence { margin: 0; font-size: 11px; line-height: 1.5; color: var(--report-meta); }
+@media (max-width: 520px) { .ap-report-body.ap-reset-body { padding: 0; gap: 0; } }
+
+/* Keep scope navigation in place while the agenda changes beneath it. */
+.ap-report-modal[data-view="calendar"] { height: min(740px, calc(100dvh - 40px)); }
+@media (max-width: 680px) {
+  .ap-reset-coverage-link { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; }
+  .ap-reset-next { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; }
+  .ap-reset-next-identity { display: contents; }
+  .ap-reset-next h3 { grid-column: 1; margin: 0; }
+  .ap-reset-next .ap-reset-name { grid-column: 1; font-size: 14px; }
+  .ap-reset-next-identity p { grid-column: 1 / -1; margin: 0; }
+  .ap-reset-countdown { grid-column: 2; grid-row: 1 / 3; margin: 0; }
+  .ap-reset-global { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (max-width: 520px) and (max-height: 620px) {
+  .ap-report-modal .ap-proj-head { gap: 4px; padding: 8px 12px; }
+  .ap-report-view { min-height: 28px; padding-block: 4px; }
+  .ap-reset-overview { padding-block: 8px; }
+  .ap-reset-next { padding-block: 6px; }
+  .ap-reset-command { gap: 8px; }
+  .ap-reset-navigation { margin-top: 8px; }
+  .ap-reset-day-button { min-height: 44px; padding-block: 4px; }
+  .ap-reset-next h3 { font-size: 12px; }
+  .ap-reset-intro { margin-bottom: 4px; }
+  .ap-reset-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (max-width: 520px) and (max-height: 620px) {
+  .ap-reset-countdown > span,
+  .ap-reset-intro h3 > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ap-reset-coverage-link { flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 6px; }
+  .ap-reset-intro { flex-wrap: nowrap; }
+}
+.ap-reset-next-account > summary { overflow-wrap: anywhere; }
+
+/* Complete identity is a native disclosure, not a hover-only tooltip. */
+.ap-reset-next-account { min-width: 0; }
+.ap-reset-next-account > summary { min-height: 44px; padding-block: 8px; cursor: pointer; border-radius: var(--r-ctl); color: var(--report-meta); }
+.ap-reset-next-account > summary .ap-reset-name { display: inline-block; width: calc(100% - 16px); vertical-align: middle; }
+.ap-reset-next-account > summary .ap-reset-name > span:first-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ap-reset-next-account > summary:hover { background: var(--ctl-fill); }
+.ap-reset-next-account .ap-reset-full-name { overflow-wrap: anywhere; font-family: var(--font-mono); }
+.ap-reset-body:has(.ap-reset-next-account[open]) { display: block; overflow-y: auto; }
+.ap-reset-body:has(.ap-reset-next-account[open]) .ap-reset-results { overflow: visible; }
+/* At very short heights, one body scroller keeps all navigation reachable. */
+@media (max-height: 420px) {
+  .ap-reset-body { display: block; overflow-y: auto; }
+  .ap-reset-results { overflow: visible; }
+}
+
+@media (max-width: 680px) {
+  .ap-report-views .ap-report-view { min-height: 44px; }
+  .ap-reset-about > summary { min-height: 44px; padding-block: 12px; }
 }

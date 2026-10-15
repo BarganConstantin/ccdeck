@@ -19,13 +19,16 @@
    The suite reads the sheet as this list resolved in order, through
    sheet-source.ts, so a test that pins a rule does not have to know which part
    holds it. */
-@import "./styles/tokens.css";                   /* the theme tokens: colours, model hues, the mono stack, the shared gradients */
+@import "./styles/themes.css";                   /* generated JSON palettes and previews */
+@import "./styles/tokens.css";                   /* shared model mappings, geometry and motion */
 @import "./styles/utilities.css";                /* shared utilities */
+@import "./styles/desktop-titlebar.css";
 @import "./styles/topbar.css";                   /* the topbar, the update-ready notice, the worded buttons */
 @import "./styles/menus.css";                    /* the sound and appearance menus, and the switch */
 @import "./styles/selection-ribbon.css";         /* the selected-agent ribbon */
-@import "./styles/topbar-status.css";            /* the topbar's status strip and the month's usage */
+@import "./styles/topbar-status.css";            /* the topbar's status strip and the ribbon's caps */
 @import "./styles/machine-panel.css";            /* the machine panel */
+@import "./styles/traffic-radar.css";
 @import "./styles/topbar-controls.css";          /* the live pill, the waiting count and the toolbar buttons */
 @import "./styles/panel-glyph.css";              /* the glyph a panel header closes with */
 @import "./styles/search-and-banners.css";       /* search, and the connection and version banners */
@@ -46,7 +49,11 @@
 @import "./styles/light-contrast.css";           /* light-mode contrast tuning */
 @import "./styles/usage-panel.css";              /* the usage panel and its quota bars */
 @import "./styles/usage-history.css";            /* the usage history modal */
+@import "./styles/tool-audit.css";               /* the tool activity page */
+@import "./styles/session-usage.css";
+@import "./styles/quota-history.css";
 @import "./styles/accounts-panel.css";           /* the accounts panel */
+@import "./styles/left-column.css";              /* the left column both of those are drawn in, and its motion */
 @import "./styles/lan-sync.css";                 /* local network sync */
 @import "./styles/canvas-motion.css";            /* a card displaced by a growing session, and the canvas's reduced motion */
 @import "./styles/accounts-manage.css";          /* adding, managing and sharing accounts */
@@ -61,4 +68,9 @@
 @import "./styles/lan-setup.css";                /* local network setup */
 @import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */
+@import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
+@import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
+@import "./styles/radio.css";                    /* radio explorer */
+@import "./styles/gruvbox.css";                  /* Gruvbox's quiet session hues and reading hierarchy */
+@import "./styles/theme-transition.css";         /* deliberate palette changes, including the canvas */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

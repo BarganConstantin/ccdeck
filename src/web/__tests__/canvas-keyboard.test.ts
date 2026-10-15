@@ -382,22 +382,35 @@ describe("nothing else in the deck invents a focus stop", () => {
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))
       .map(p => p.slice(web.length).replaceAll("\\", "/"))
       .filter(p => p !== SPLITTER);
-    expect(offenders).toEqual([]);
+    // Radio results is a focusable tabpanel, allowing keyboard scrolling.
+    // Tool activity's details splitter is the ARIA window splitter: a focusable
+    // separator whose value is the panel's width, moved with the arrow keys.
+    expect(offenders).toEqual(["components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx"]);
+    expect(code(readFileSync(`${web}components/RadioPanel.tsx`, "utf8"))).toMatch(/role="tabpanel"[^>]*tabIndex=\{0\}/);
+    const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
+    expect(map).toContain("tabIndex={0}");
+    expect(map).not.toMatch(/tabIndex=\{[1-9]/);
     const splitter = code(readFileSync(join(web, SPLITTER), "utf8"));
     expect([...splitter.matchAll(/tabIndex=/g)], "one stop, on the separator").toHaveLength(1);
     expect(splitter).toMatch(/role="separator"[^>]*?tabIndex=\{0\}/);
   });
 
-  it("keeps its one negative tabIndex on the skip link's target and nowhere else", () => {
+  it("keeps negative tabIndex only on deliberate programmatic focus targets", () => {
     // A tabindex="-1" is cheap to add and easy to leave behind, and the shape
     // it leaves behind is a mouse-focusable div nobody can reach by keyboard.
-    // One in the app, on <main>, is the whole allowance. <main> is
-    // components/CanvasMain.tsx's since it left App.tsx's markup.
+    // The skip link's <main> and Radar's mobile inspector are deliberate
+    // destinations, not extra tab stops. Selecting an export on a phone
+    // moves focus to its contents, so the newly revealed details are announced.
     const negatives = components(web)
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
         .map(() => p.slice(web.length).replaceAll("\\", "/")));
-    expect(negatives).toEqual(["components/CanvasMain.tsx"]);
+    // Combobox options use aria-activedescendant; focus stays on the input.
+    // Tool activity's details heading takes focus when a tool is opened from
+    // the keyboard, so the panel that appeared is announced by its name.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/RadioFilter.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx"]);
+    expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
   });
 
   it("has no role=\"button\" left that a keyboard cannot operate", () => {

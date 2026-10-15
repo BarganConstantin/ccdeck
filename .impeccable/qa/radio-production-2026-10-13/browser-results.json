@@ -1,0 +1,102 @@
+[
+  {
+    "name": "list playback + one logical audio session",
+    "passed": true
+  },
+  {
+    "name": "pause/resume controls",
+    "passed": true
+  },
+  {
+    "name": "next / previous / surprise",
+    "passed": true
+  },
+  {
+    "name": "volume / mute / current favorite",
+    "passed": true
+  },
+  {
+    "name": "close/reopen keeps identical active media",
+    "passed": true
+  },
+  {
+    "name": "rapid switch / stale callbacks ignored",
+    "passed": true
+  },
+  {
+    "name": "extensionless HLS actual AAC decode",
+    "passed": true
+  },
+  {
+    "name": "buffering and interrupted media recovery",
+    "passed": true
+  },
+  {
+    "name": "503 stream cannot claim playing; recover from next selection",
+    "passed": true
+  },
+  {
+    "name": "camera presets never filter; wheel/double-click/pan/keyboard",
+    "passed": true
+  },
+  {
+    "name": "cluster inspection does not interrupt playback + keyboard dismiss",
+    "passed": true
+  },
+  {
+    "name": "cluster selection returns focus after its chooser disappears",
+    "passed": true
+  },
+  {
+    "name": "single marker plays from map",
+    "passed": true
+  },
+  {
+    "name": "reload restores station without autoplay",
+    "passed": true
+  },
+  {
+    "name": "YouTube request awaits confirmation; buffering distinct from playing",
+    "passed": true
+  },
+  {
+    "name": "YouTube autoplay blocked is idle and next press starts session",
+    "passed": true
+  },
+  {
+    "name": "YouTube error 153 releases session and allows retry",
+    "passed": true
+  },
+  {
+    "name": "viewport 1440x900: bounds controls and filters",
+    "passed": true
+  },
+  {
+    "name": "viewport 1280x800: bounds controls and filters",
+    "passed": true
+  },
+  {
+    "name": "viewport 1024x768: bounds controls and filters",
+    "passed": true
+  },
+  {
+    "name": "viewport 800x600: bounds controls and filters",
+    "passed": true
+  },
+  {
+    "name": "viewport 390x844: bounds controls and filters",
+    "passed": true
+  },
+  {
+    "name": "viewport 320x568: bounds controls and filters",
+    "passed": true
+  },
+  {
+    "name": "keyboard Tab trap and no search autofocus",
+    "passed": true
+  },
+  {
+    "name": "no unhandled browser errors",
+    "passed": true
+  }
+]
