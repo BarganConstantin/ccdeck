@@ -15,8 +15,9 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 import {
-  inTerminalPanel, isReleaseChord, RELEASE_CHORD, RELEASE_CHORD_SPOKEN, releaseChordLabel, SHIFT_ENTER_INPUT, STAGE_FLIP_REST_MS,
-  stageKeyIntent, stepSession, TERMINAL_PANEL_SELECTOR, terminalKeyHandler, terminalKeyOutcome, type TerminalKey,
+  inTerminalPanel, isCopyChord, isReleaseChord, MAC_META_KEYS, macMetaLetter, RELEASE_CHORD, RELEASE_CHORD_SPOKEN, releaseChordLabel,
+  SHIFT_ENTER_INPUT, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, TERMINAL_PANEL_SELECTOR, terminalKeyHandler, terminalKeyInput,
+  terminalKeyOutcome, type TerminalKey,
 } from "../terminal-keys";
 import { isSettingsChord } from "../settings";
 import { isBrowserChord } from "../shortcuts";
@@ -207,6 +208,53 @@ describe("inside xterm, two keys are rewritten and Escape never is", () => {
     for (const k of [key("c", { ctrlKey: true }), key("1"), key("x", { ctrlKey: true }), key("]", { ctrlKey: true }), key("Tab", { shiftKey: true })]) {
       expect(terminalKeyOutcome(k), k.key).toBe("pass");
     }
+  });
+});
+
+describe("copy, and Option on a Mac", () => {
+  const event = (k: TerminalKey) => ({ ...k, preventDefault: vi.fn(), stopPropagation: vi.fn() });
+
+  it("copies on Ctrl+Shift+C, by letter or by position, and keeps it from the browser's element picker", () => {
+    expect(isCopyChord(key("C", { ctrlKey: true, shiftKey: true }))).toBe(true);
+    expect(isCopyChord(key("С", { code: "KeyC", ctrlKey: true, shiftKey: true })), "a Cyrillic layout's C key").toBe(true);
+    for (const m of MODIFIERS.filter(m => !(m.ctrlKey && m.shiftKey && !m.altKey && !m.metaKey))) {
+      expect(isCopyChord(key("c", { code: "KeyC", ...m })), JSON.stringify(m)).toBe(false);
+    }
+    const sendInput = vi.fn();
+    const down = event(key("C", { code: "KeyC", ctrlKey: true, shiftKey: true }));
+    expect(terminalKeyOutcome(down, false)).toBe("copy");
+    expect(terminalKeyHandler({ sendInput, apple: false })(down as unknown as KeyboardEvent)).toBe(false);
+    expect(down.preventDefault, "Chrome opens DevTools on it otherwise").toHaveBeenCalled();
+    expect(sendInput, "copying types nothing into the session").not.toHaveBeenCalled();
+  });
+
+  it("leaves Ctrl+C to the session and Ctrl+Shift+V to the browser's paste", () => {
+    expect(terminalKeyOutcome(key("c", { code: "KeyC", ctrlKey: true }), false)).toBe("pass");
+    expect(terminalKeyOutcome(key("V", { code: "KeyV", ctrlKey: true, shiftKey: true }), false)).toBe("pass");
+    expect(terminalKeyOutcome(key("c", { code: "KeyC", metaKey: true }), true), "Cmd+C copies through xterm").toBe("pass");
+  });
+
+  it("sends ESC + the letter for Option with Claude Code's Meta letters on a Mac, by the glyph the US layout types", () => {
+    for (const [letter, k] of Object.entries(MAC_META_KEYS)) {
+      const down = key(k.glyph, { code: k.code, altKey: true });
+      expect(terminalKeyOutcome(down, true), letter).toBe("meta");
+      expect(terminalKeyInput(down, "meta")).toBe(`\x1b${letter}`);
+      expect(terminalKeyOutcome(down, false), "only on a Mac: elsewhere xterm already sends ESC + letter").toBe("pass");
+    }
+    expect(Object.keys(MAC_META_KEYS).sort(), "the letters Claude Code documents for Meta/Alt").toEqual(["b", "d", "f", "o", "p", "t", "y"]);
+    const sendInput = vi.fn();
+    const down = event(key("π", { code: "KeyP", altKey: true }));
+    expect(terminalKeyHandler({ sendInput, apple: true })(down as unknown as KeyboardEvent)).toBe(false);
+    expect(down.preventDefault, "no π typed after it").toHaveBeenCalled();
+    expect(sendInput.mock.calls).toEqual([["\x1bp"]]);
+  });
+
+  it("types the letter a layout puts on Option, and leaves Option+Enter and other Option keys to xterm", () => {
+    expect(macMetaLetter(key("ó", { code: "KeyO", altKey: true })), "Polish Option+O is a letter").toBeNull();
+    expect(macMetaLetter(key("∏", { code: "KeyP", altKey: true, shiftKey: true }))).toBeNull();
+    expect(macMetaLetter(key("@", { code: "KeyL", altKey: true })), "German Option+L").toBeNull();
+    expect(macMetaLetter(key("π", { code: "KeyP", altKey: true, ctrlKey: true }))).toBeNull();
+    expect(terminalKeyOutcome(key("Enter", { code: "Enter", altKey: true }), true), "xterm sends ESC CR itself").toBe("pass");
   });
 });
 

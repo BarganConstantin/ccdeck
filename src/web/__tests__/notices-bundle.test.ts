@@ -120,9 +120,9 @@ const FINGERPRINTS: { pkg: string; needle: string; note: string }[] = [
   },
   // The terminal panel's four. Each needle was checked against a Vite 6.4.3
   // production build of a page that reaches them only through import(), the
-  // way the panel will: present in the lazy chunks at the count beside it,
-  // absent from the entry chunk, and absent from every chunk the deck builds
-  // today — none of the four occurs in the other three packages either.
+  // way the panel does: present in the lazy chunks at the count beside it,
+  // absent from the entry chunk, and absent from every other chunk the deck
+  // builds — none of the four occurs in the other three packages either.
   {
     pkg: "@xterm/xterm",
     // An internal element it measures glyphs with: 5 in the script, 1 in
@@ -133,18 +133,17 @@ const FINGERPRINTS: { pkg: string; needle: string; note: string }[] = [
     note: "the class of the element it measures glyphs with",
   },
   {
-    pkg: "@xterm/addon-fit",
-    // 2: the method's definition and fit()'s call to it. A property name, so
-    // the minifier leaves it alone.
-    needle: "proposeDimensions",
-    note: "the fit addon's proposeDimensions method",
+    pkg: "@xterm/addon-unicode-graphemes",
+    // 1: the opening of its Unicode property trie, a base64 string literal the
+    // minifier carries as it is, and in neither xterm nor any other addon.
+    needle: "AAARAAAAAABwxwAAAb4LQfTt",
+    note: "the opening of its Unicode property table",
   },
   {
-    pkg: "@xterm/addon-unicode11",
-    // 1: a range out of its Unicode 11 width table, which is plain numbers in
-    // an array literal and minifies to exactly this.
-    needle: "[129648,129651]",
-    note: "a range out of its Unicode 11 width table",
+    pkg: "@xterm/addon-web-links",
+    // 1: the start of its URL regex literal, which survives minification.
+    needle: "(https?|HTTPS?):[/]{2}",
+    note: "the start of its URL pattern",
   },
   {
     pkg: "@xterm/addon-webgl",
@@ -332,7 +331,7 @@ describe.skipIf(!existsSync(dist))("what the build actually emitted", () => {
       .toHaveLength(1);
     const xterm = FINGERPRINTS.filter(({ pkg }) => pkg.startsWith("@xterm/"));
     expect(xterm.map(({ pkg }) => pkg).sort(), "a terminal package has no fingerprint to look for")
-      .toEqual(["@xterm/addon-fit", "@xterm/addon-unicode11", "@xterm/addon-webgl", "@xterm/xterm"]);
+      .toEqual(["@xterm/addon-unicode-graphemes", "@xterm/addon-web-links", "@xterm/addon-webgl", "@xterm/xterm"]);
     for (const file of firstLoad) {
       const text = readFileSync(join(repo, "dist", "web", file), "utf8");
       for (const { pkg, needle, note } of xterm) {

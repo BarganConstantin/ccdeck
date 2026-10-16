@@ -70,7 +70,7 @@ arrives with its own licence beside it. They are named for completeness, so that
 "what ccdeck ships" and "what ccdeck can run" are not confused. Every one of them
 is off under `AGENTS_DECK_NO_INSTALL=1`.
 
-## Bundled packages (29)
+## Bundled packages (30)
 
 | Package | Version | Licence | Copyright |
 | --- | --- | --- | --- |
@@ -79,7 +79,8 @@ is off under `AGENTS_DECK_NO_INSTALL=1`.
 | `@reactflow/core` | 11.11.4 | MIT | Copyright (c) 2019-2023 webkid GmbH |
 | `@reactflow/minimap` | 11.7.14 | MIT | Copyright (c) 2019-2023 webkid GmbH |
 | `@reactflow/node-resizer` | 2.2.14 | MIT | Copyright (c) 2019-2023 webkid GmbH |
-| `@xterm/addon-unicode11` | 0.9.0 | MIT | Copyright (c) 2019, The xterm.js authors (https://github.com/xtermjs/xterm.js) |
+| `@xterm/addon-unicode-graphemes` | 0.4.0 | MIT | Copyright (c) 2023, The xterm.js authors (https://github.com/xtermjs/xterm.js) |
+| `@xterm/addon-web-links` | 0.12.0 | MIT | Copyright (c) 2017, The xterm.js authors (https://github.com/xtermjs/xterm.js) |
 | `@xterm/addon-webgl` | 0.19.0 | MIT | Copyright (c) 2018, The xterm.js authors (https://github.com/xtermjs/xterm.js) |
 | `@xterm/xterm` | 6.0.0 | MIT | Copyright (c) 2017-2019, The xterm.js authors (https://github.com/xtermjs/xterm.js) |
 | `classcat` | 5.0.5 | MIT | Copyright © Jorge Bucaran <<https://jorgebucaran.com>> |
@@ -115,19 +116,20 @@ ccdeck is under.
 `hls.js` is one of four entries that are not in the page every visit loads. It is
 its own chunk, `dist/web/assets/hls-*.js`, fetched only when somebody plays an HLS
 custom station in a browser without native HLS (#1208) — but that chunk is in
-`dist/web` like every other, and so in the tarball. The three `@xterm/*` rows are
-the terminal panel's, which sits behind a hidden flag: `@xterm/xterm` and its
-Unicode 11 addon are fetched in chunks of their own the first time the panel
-draws a terminal, and the WebGL addon after them, and never while the flag is
-off — `notices-bundle.test.ts` holds them out of the entry chunk and its
-stylesheet — but they too are in `dist/web`, and so in the tarball. None of
+`dist/web` like every other, and so in the tarball. The four `@xterm/*` rows are
+the terminal panel's, which is off unless it is turned on: `@xterm/xterm`, its
+graphemes addon and its web-links addon are fetched in chunks of their own the
+first time the panel draws a terminal, and the WebGL addon after them, and never
+while the panel is off — `notices-bundle.test.ts` holds them out of the entry
+chunk and its stylesheet — but they too are in `dist/web`, and so in the
+tarball. None of
 these licences is changed by ccdeck's relicensing, and no copyleft obligation
 flows back to their authors.
 
-### Declared but not emitted (4)
+### Declared but not emitted (3)
 
-Four packages resolve into `node_modules` and do **not** survive the build.
-The first three were in the table above until #962, which is over-attribution
+Three packages resolve into `node_modules` and do **not** survive the build.
+They were in the table above until #962, which is over-attribution
 rather than under-attribution and so harmless legally — but the paragraph at the
 top of this file says everything in the table is *physically present in the
 published tarball*, and that is a factual claim a redistributor is entitled to
@@ -139,15 +141,15 @@ chunks and not found.
 | `js-tokens` | 4.0.0 | MIT | `[gmiyus]{1,6}` — a fragment of its one exported regex, which a minifier cannot rename | A browserify transform's dependency, reached only through `loose-envify`. Rollup never invokes it. |
 | `loose-envify` | 1.4.0 | MIT | `[_$a-zA-Z][$\w]+` — the body of its `process.env.` matcher, likewise a regex literal | Same: it is a browserify transform, declared by `react` and never part of a Rollup graph. |
 | `@reactflow/node-toolbar` | 1.3.14 | MIT | `react-flow__node-toolbar` | Tree-shaken. The deck renders no node toolbar, and unlike its siblings this one contributes no stylesheet either. |
-| `@xterm/addon-fit` | 0.11.0 | MIT | `proposeDimensions` — the method it adds to the terminal, a property name the minifier leaves alone | Declared for the terminal panel, which sizes its terminal itself — a whole number of cells, from the cell it measures (`src/web/stage-geometry.ts`) — and so never loads the fit addon. Rollup never reaches it. |
 
-Their licence texts are still reproduced below — §3, §6 and §7 for the first
-three, §16 for the fit addon — because dropping a notice is the expensive
-mistake and keeping one is free.
+Their licence texts are still reproduced below — §3, §6 and §7 — because
+dropping a notice is the expensive mistake and keeping one is free.
 
-The other three `@xterm/*` packages were on this list until the terminal panel
+`@xterm/xterm` and the WebGL addon were on this list until the terminal panel
 was wired into the page; they moved to the bundled table above when the build
-started to emit them, which is the move `notices-bundle.test.ts` asks for.
+started to emit them, which is the move `notices-bundle.test.ts` asks for. The
+fit and Unicode 11 addons were declared for the panel and left the dependencies
+once it was clear it would load neither.
 
 `@reactflow/node-resizer` is deliberately **not** in this list, and it is the one
 entry #962 got wrong. Its JavaScript is tree-shaken exactly as the toolbar's is —
@@ -722,13 +724,12 @@ second does not, which is why it is written out here.
  *--------------------------------------------------------------------------------------------*/
 ```
 
-### 16. `@xterm/addon-fit` 0.11.0, `@xterm/addon-unicode11` 0.9.0
+### 16. `@xterm/addon-webgl` 0.19.0
 
-Reproduced verbatim from `node_modules/@xterm/addon-fit/LICENSE`, which is
-byte-identical to `node_modules/@xterm/addon-unicode11/LICENSE`:
+Reproduced verbatim from `node_modules/@xterm/addon-webgl/LICENSE`:
 
 ```text
-Copyright (c) 2019, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+Copyright (c) 2018, The xterm.js authors (https://github.com/xtermjs/xterm.js)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -749,12 +750,46 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 17. `@xterm/addon-webgl` 0.19.0
+### 17. `@xterm/addon-unicode-graphemes` 0.4.0
 
-Reproduced verbatim from `node_modules/@xterm/addon-webgl/LICENSE`:
+Reproduced verbatim from `node_modules/@xterm/addon-unicode-graphemes/LICENSE`:
 
 ```text
-Copyright (c) 2018, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+Copyright (c) 2023, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+The addon carries, in `src/third-party/`, TypeScript ports of `tiny-inflate`
+and `unicode-trie`, both by Devon Govett and published under the MIT licence
+(github.com/devongovett/tiny-inflate, github.com/devongovett/unicode-trie), and
+a Unicode property table generated with Per Bothner's `unicode-properties`
+(github.com/PerBothner/unicode-properties). The ports carry no notice of their
+own in the package; they are named here so that the attribution travels with
+the code.
+
+### 18. `@xterm/addon-web-links` 0.12.0
+
+Reproduced verbatim from `node_modules/@xterm/addon-web-links/LICENSE`:
+
+```text
+Copyright (c) 2017, The xterm.js authors (https://github.com/xtermjs/xterm.js)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

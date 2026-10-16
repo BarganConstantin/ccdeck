@@ -528,6 +528,36 @@ describe("keys, paste and the pane's size", () => {
     expect(s.sentBytes()).toEqual(["\x1b\r"]);
   });
 
+  it("keeps Ctrl+Shift+C from the session (the pane copies it), and sends ESC + letter for a Mac's Option chords", async () => {
+    const { r, s } = await liveRig();
+    expect(r.events().onKey(key({ key: "C", code: "KeyC", ctrlKey: true, shiftKey: true }))).toBe(false);
+    expect(s.sentBytes(), "copying types nothing").toEqual([]);
+    vi.stubGlobal("navigator", { platform: "MacIntel" });
+    try {
+      expect(r.events().onKey(key({ key: "π", code: "KeyP", altKey: true }))).toBe(false);
+      expect(r.events().onKey(key({ type: "keypress", key: "π", code: "KeyP", altKey: true })), "once, on the keydown").toBe(false);
+      expect(s.sentBytes()).toEqual(["\x1bp"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("wires xterm the way the pane needs: tmux's widths and replies, Ctrl/Cmd links, Option-drag, a paste brings the view down", () => {
+    // mountXterm runs only in a browser; what it sets up is pinned here as
+    // source, and was measured in headless Chrome against tmux 3.8 (see the
+    // header comments it carries and terminal-replies.ts).
+    const src = readFileSync(fileURLToPath(new URL("../use-terminal-session.ts", import.meta.url)), "utf8");
+    const mount = src.slice(src.indexOf("export const mountXterm"), src.indexOf("// The controller."));
+    expect(mount).toContain("new UnicodeGraphemesAddon()");
+    expect(mount, "Unicode 11 widths split 👍🏽 and 👨‍👩‍👧 where tmux and Claude Code do not").not.toMatch(/Unicode11Addon|activeVersion = "11"/);
+    expect(mount).toMatch(/leaveRepliesToTmux\(term\.parser\)/);
+    expect(mount).toMatch(/linkHandler: \{ activate: follow, allowNonHttpProtocols: false \}/);
+    expect(mount).toContain("new WebLinksAddon(follow)");
+    expect(mount).toContain("macOptionClickForcesSelection: true");
+    expect(mount).toMatch(/term\.scrollToBottom\(\);\s*events\.onPaste\(text\)/);
+    expect(mount).toMatch(/replies\.dispose\(\)/);
+  });
+
   it("keeps the release chord from the pane without acting on it, and lets Escape through to the TUI", async () => {
     // The release itself is the deck's window listener's (terminal-keys.ts):
     // answering it here too would release twice.
