@@ -78,6 +78,28 @@
     "3.40.1",
     "3.41.3"
   ],
+  "3.42.0": [
+    {
+      "title": "🔠 Text size and density",
+      "body": "Settings › Text & density has five text sizes and five spacing levels, from Tightest to Comfortable. Panels, lists and canvas cards follow your choice; browser zoom and canvas zoom stay as you set them."
+    },
+    {
+      "title": "🛠️ Tool activity",
+      "body": "A new page on the stripe on the right shows which tools and commands your agents use most, how long they take and which fail. It stays on this device, grouped by operation and never with arguments or outputs, for 90 days by default; change that or clear it in Settings › General › Tool history."
+    },
+    {
+      "title": "🎨 Gruvbox themes",
+      "body": "Gruvbox Dark, Gruvbox Light and Gruvbox Material join the themes, and switching themes now fades instead of snapping."
+    },
+    {
+      "title": "✨ Smaller improvements",
+      "body": "On a phone the session list opens as a drawer over the canvas. Usage history prints whole dates under its chart, and the minimap shows the session waiting on you."
+    },
+    {
+      "title": "🔒 Feedback includes the device fingerprint",
+      "body": "Feedback now carries the same one-way device fingerprint usage reports send, so a report can be matched to the install it came from. It is not sent when AGENTS_DECK_NO_REPORTS=1 is set."
+    }
+  ],
   "3.41.1": [
     {
       "title": "🪟 More reliable Windows updates",
