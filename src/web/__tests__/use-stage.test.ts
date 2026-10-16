@@ -12,7 +12,7 @@ import type { BlockedSession } from "../ambient-counts";
 import { DOUBLE_CLICK_MS } from "../focus-hold";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
-import { useStage, useStageAsks, SHELL_UNAVAILABLE, type StageDeps } from "../use-stage";
+import { useStage, useStageAsks, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, type StageDeps } from "../use-stage";
 import { mount } from "./fake-react";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
@@ -356,6 +356,55 @@ describe("the keys", () => {
     }
     expect(landed, "⌨ while the pane takes keys, ✕ once it does not").toEqual(["keys", "close"]);
     expect(blur, "with neither drawn, the pane's textarea still lets go").toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a reload of the same tab", () => {
+  const saved = (id: string, at = Date.now()) => session.set(STAGE_RESTORE_KEY, JSON.stringify({ id, at }));
+
+  it("keeps the session on the stage, stamped again as the page goes, and forgets it once the stage closes", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    expect(JSON.parse(session.get(STAGE_RESTORE_KEY)!)).toMatchObject({ id: "s1" });
+    vi.advanceTimersByTime(RESTORE_FRESH_MS * 2);
+    for (const f of pagehide) f();
+    expect(JSON.parse(session.get(STAGE_RESTORE_KEY)!).at, "fresh at the reload").toBe(Date.now());
+    now().stage.close();
+    now().stage.closed("");
+    expect(session.has(STAGE_RESTORE_KEY)).toBe(false);
+  });
+
+  it("comes back on the same session once the board knows it, keys left on the board (S3)", () => {
+    saved("s2");
+    const { now, turnOn, deps, view, props } = setup({ agents: [root("s1")] });
+    turnOn();
+    expect(now().stage.shell.phase, "the board has not heard of s2 yet").toBe("closed");
+    (deps.stateRef.current.agents as Map<string, AgentNodeData>).set("s2", root("s2"));
+    view.rerender(props);
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "s2" });
+    expect(now().stage.shell.focusRequest, "a reload never types for anyone").toBeNull();
+  });
+
+  it("does not open on a stale tab, a session the board never hears of, or with the flag off", () => {
+    saved("s1", Date.now() - RESTORE_FRESH_MS);
+    const stale = setup();
+    stale.turnOn();
+    expect(stale.now().stage.shell.phase).toBe("closed");
+
+    saved("gone");
+    const gone = setup();
+    gone.turnOn();
+    vi.advanceTimersByTime(RESTORE_WAIT_MS + 1);
+    (gone.deps.stateRef.current.agents as Map<string, AgentNodeData>).set("gone", root("gone"));
+    gone.view.rerender(gone.props);
+    expect(gone.now().stage.shell.phase, "too late: the reader has moved on").toBe("closed");
+
+    saved("s1");
+    const off = setup();
+    off.view.rerender(off.props);
+    expect(off.now().stage.shell.phase).toBe("closed");
+    expect(session.has(STAGE_RESTORE_KEY), "the flag off touches nothing").toBe(true);
   });
 });
 
