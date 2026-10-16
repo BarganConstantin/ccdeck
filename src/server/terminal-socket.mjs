@@ -79,6 +79,13 @@ export const HIGH_WATER_BYTES = 4 << 20;
  *  each one, so they are settled for this long and only the last is applied. */
 export const RESIZE_DEBOUNCE_MS = 50;
 
+/** The least time between two colour reports to tmux. A theme switch is one
+ *  message; a page that sends a stream of them gets the latest, this often. */
+export const COLOURS_INTERVAL_MS = 250;
+
+/** A colour as the panel may send it: six lowercase hex digits after a #. */
+const HEX_COLOUR = /^#[0-9a-f]{6}$/;
+
 /** Lines of scrollback a seed carries above the screen. */
 export const SEED_HISTORY = 2000;
 
@@ -364,6 +371,7 @@ export function openTerminalCount() {
 export function terminalBridge({
   conn, socket, binding,
   open = openControl, history = SEED_HISTORY, debounceMs = RESIZE_DEBOUNCE_MS, highWater = HIGH_WATER_BYTES,
+  coloursMs = COLOURS_INTERVAL_MS,
 }) {
   const paneOwned = binding?.ignoreSize === true;
   const readOnly = binding?.readOnly === true;
@@ -395,6 +403,14 @@ export function terminalBridge({
   let asked = null;
   let shown = null;
   let lost = false;
+  // The panel's theme colours, for a pane the deck owns (case A, D): tmux
+  // answers a program's OSC 10/11 question itself, from what its control
+  // client said, and says black when nobody did — which Claude Code's auto
+  // theme reads as a dark terminal on every deck theme. `told` is what tmux
+  // has, `wanted` the latest the panel sent, `coloursTimer` the cooldown.
+  let told = "";
+  let wanted = "";
+  let coloursTimer = null;
   // Every seed and the exit go through this one chain, so two seeds never
   // cross on the wire and an exit is never said ahead of the seed before it.
   let chain = Promise.resolve();
@@ -543,9 +559,30 @@ export function terminalBridge({
     else if (msg.t === "paste" && typeof msg.text === "string" && !readOnly) {
       reclaim();
       control.paste(msg.text);
-    }
+    } else if (msg.t === "colours") onColours(msg.fg, msg.bg);
     // Anything else is a newer page saying something this deck has not heard
     // of. Ignored, like the page ignores what it does not know.
+  }
+
+  /** The panel's colours, told to tmux at most once per `coloursMs`, the
+   *  latest winning. Never for the user's own tmux (case B): tmux keeps them
+   *  per pane, so they would change what the user's own terminal programs are
+   *  told about the user's own terminal. Never for a read-only view. */
+  function onColours(fg, bg) {
+    if (paneOwned || readOnly) return;
+    if (typeof fg !== "string" || typeof bg !== "string" || !HEX_COLOUR.test(fg) || !HEX_COLOUR.test(bg)) return;
+    wanted = `${fg} ${bg}`;
+    if (!coloursTimer) tellColours();
+  }
+
+  function tellColours() {
+    coloursTimer = null;
+    if (ended || !wanted || wanted === told) return;
+    told = wanted;
+    const [fg, bg] = told.split(" ");
+    control.colours?.(fg, bg);
+    coloursTimer = setTimeout(tellColours, coloursMs);
+    coloursTimer.unref?.();
   }
 
   function onPanelSize(cols, rows) {
@@ -597,6 +634,7 @@ export function terminalBridge({
     if (ended) return;
     ended = true;
     clearTimeout(resizeTimer);
+    clearTimeout(coloursTimer);
     conn.sendText(JSON.stringify({ t: "exit", reason, ...(text ? { message: text } : {}), ...(atOpen ? { atOpen: true } : {}) }));
     try {
       conn.close(reason === "server-shutdown" ? 1001 : 1000, reason);
@@ -612,6 +650,7 @@ export function terminalBridge({
   function closed() {
     ended = true;
     clearTimeout(resizeTimer);
+    clearTimeout(coloursTimer);
     release();
   }
 

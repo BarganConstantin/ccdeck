@@ -52,7 +52,7 @@ import { randomBytes } from "node:crypto";
 import { killTree, watchChild } from "./exec-children.mjs";
 // The one spelling of a tmux invocation (binary, -u, socket, then arguments),
 // of an argument tmux could split, and of the environment a tmux client gets.
-import { tmuxArg, tmuxCommand, tmuxEnv } from "./tmux.mjs";
+import { parseTmuxVersion, tmuxArg, tmuxCommand, tmuxEnv } from "./tmux.mjs";
 
 /**
  * The most bytes one `send-keys -H` carries. Each byte is three characters on
@@ -482,6 +482,23 @@ const toBuffer = (bytes) =>
 
 const failed = (why) => ({ ok: false, lines: [why] });
 
+/** The first tmux whose control clients can tell it their colours. */
+export const COLOURS_TMUX = Object.freeze([3, 5]);
+
+/** A colour the panel may hand tmux: six lowercase hex digits after a #. */
+const HEX_COLOUR = /^#[0-9a-f]{6}$/;
+
+/**
+ * The OSC 10 (foreground) or 11 (background) reply a terminal would give for
+ * `hex`, as `refresh-client -r` takes it: 16 bits a channel, each byte
+ * doubled ("#1e1e2e" → rgb:1e1e/1e1e/2e2e), ended by ST. Pure.
+ */
+export function oscColourReport(which, hex) {
+  const h = String(hex).slice(1);
+  const channel = (i) => h.slice(i, i + 2).repeat(2);
+  return `\x1b]${which};rgb:${channel(0)}/${channel(2)}/${channel(4)}\x1b\\`;
+}
+
 /** Several replies as one: ok when every command was, lines concatenated. */
 async function allOf(promises) {
   const replies = await Promise.all(promises);
@@ -518,6 +535,8 @@ class ControlClient extends EventEmitter {
   #env;
   #target;
   #ignoreSize;
+  /** The server's [major, minor] once asked (colours), or null. */
+  #serverVersion = null;
   #readOnly;
   #pauseAfter;
   #spawn;
@@ -1072,6 +1091,39 @@ class ControlClient extends EventEmitter {
     return this.#whenReady(() => {
       const cmds = pasteCommands(this.#pane, text ?? "", this.#pasteBuffer);
       return cmds.length ? allOf(this.#send(cmds)) : { ok: true, lines: [] };
+    });
+  }
+
+  /**
+   * Tell tmux the colours this client draws the pane with — the panel's own
+   * foreground and background, six-digit hex — so a program in the pane that
+   * asks for them (OSC 10/11; Claude Code's auto theme does) is answered with
+   * the deck's theme instead of the black tmux answers when no client has
+   * said. tmux keeps them per pane and flags a theme change when the
+   * background moves, which reaches programs that subscribed to it (mode
+   * 2031, tmux 3.6+).
+   *
+   * Refused on a read-only client and on an ignoreSize one: that pane is in
+   * the user's own tmux, where these colours would change what the user's own
+   * terminal programs are told. A no-op answering `{ ok: false }` below tmux
+   * 3.5, which has no `refresh-client -r` — asked of the server itself, once,
+   * since it is the server's version that decides and it may be older than
+   * the binary that started this client.
+   */
+  colours(fg, bg) {
+    if (this.#readOnly) return Promise.resolve(failed("read-only"));
+    if (this.#ignoreSize) return Promise.resolve(failed("the pane's colours belong to the user's own terminal"));
+    if (!HEX_COLOUR.test(String(fg)) || !HEX_COLOUR.test(String(bg))) return Promise.resolve(failed("a colour is #rrggbb"));
+    return this.#whenReady(async () => {
+      this.#serverVersion ??= this.cmd('display-message -p "#{version}"')
+        .then(r => (r.ok ? parseTmuxVersion(`tmux ${r.lines[0] ?? ""}`) : null));
+      const v = await this.#serverVersion;
+      const [major, minor] = COLOURS_TMUX;
+      if (!v || v[0] < major || (v[0] === major && v[1] < minor)) return failed("this tmux cannot be told colours");
+      return allOf(this.#send([
+        `refresh-client -r ${quoteTmuxArg(`${this.#pane}:${oscColourReport(10, fg)}`)}`,
+        `refresh-client -r ${quoteTmuxArg(`${this.#pane}:${oscColourReport(11, bg)}`)}`,
+      ]));
     });
   }
 

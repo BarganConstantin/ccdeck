@@ -22,8 +22,11 @@
 // attached — a dead deck pane opened for its last frame — so the panel does
 // not say it ended "just now".)
 //
-// and, from the panel, input as binary frames, `size` whenever its box changes
-// and `paste` for a paste. A `reset` may come again at any moment — tmux paused
+// and, from the panel, input as binary frames, `size` whenever its box changes,
+// `paste` for a paste, and `colours {fg, bg}` — its theme's foreground and
+// background as #rrggbb — once at the start and again whenever the theme
+// changes, so tmux can answer a program that asks what colours its terminal is
+// (OSC 10/11) with the deck's rather than with black. A `reset` may come again at any moment — tmux paused
 // the client and it has to redraw, or the socket fell behind and the deck
 // stopped forwarding — and it means exactly what the first one did.
 //
@@ -159,6 +162,11 @@ export interface TerminalConnection {
   /** A paste, sent whole so the pane sees one bracketed paste and not several.
    *  False when it is over the deck's message cap, read-only, or ended. */
   sendPaste(text: string): boolean;
+  /** The panel's theme foreground and background, in any colour xterm's
+   *  theme takes that hexColour reads. Sent only when it differs from the
+   *  last pair this connection sent; false when either cannot be read, the
+   *  pane is read-only, or the connection has ended. */
+  sendColours(fg: string | undefined, bg: string | undefined): boolean;
   /** Leave. The tmux session keeps running; only this view of it ends. */
   close(): void;
 }
@@ -239,6 +247,26 @@ function bytesOf(data: unknown): Uint8Array | null {
 
 const encoder = new TextEncoder();
 
+/**
+ * A colour as the deck tells tmux one: `#rrggbb`, lowercase. Takes #rgb,
+ * #rgba, #rrggbb and #rrggbbaa (alpha dropped: a terminal's colours are
+ * opaque) and rgb()/rgba(); null for anything else, which is then not sent.
+ */
+export function hexColour(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const s = value.trim().toLowerCase();
+  const hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(s);
+  if (hex) {
+    const h = hex[1].length <= 4 ? hex[1].slice(0, 3).replace(/./g, c => c + c) : hex[1].slice(0, 6);
+    return `#${h}`;
+  }
+  const fn = /^rgba?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)\s*[,\s]\s*([\d.]+)\s*(?:[,/]\s*[\d.]+%?\s*)?\)$/.exec(s);
+  if (!fn) return null;
+  const channels = [fn[1], fn[2], fn[3]].map(Number);
+  if (channels.some(n => !Number.isFinite(n) || n > 255)) return null;
+  return `#${channels.map(n => Math.round(n).toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Whether a paste is over what one message may carry — refused here, where
  *  the panel can say so, rather than by the deck's parser with a close. */
 export const pasteTooLarge = (text: string) =>
@@ -270,6 +298,8 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
   let readOnly = false;
   /** The size half of a reset whose seed has not landed yet. */
   let pendingReset: TerminalSize | null = null;
+  /** The last colours sent, so a theme that did not change sends nothing. */
+  let colours = "";
   const queued: Array<string | Uint8Array> = [];
 
   const send = (frame: string | Uint8Array): boolean => {
@@ -364,6 +394,15 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
       if (readOnly || finished) return false;
       if (pasteTooLarge(text)) return false;
       return send(JSON.stringify({ t: "paste", text }));
+    },
+    sendColours(fg, bg) {
+      if (readOnly || finished) return false;
+      const f = hexColour(fg);
+      const b = hexColour(bg);
+      if (!f || !b) return false;
+      if (`${f} ${b}` === colours) return true;
+      colours = `${f} ${b}`;
+      return send(JSON.stringify({ t: "colours", fg: f, bg: b }));
     },
     close() {
       if (finished) return;

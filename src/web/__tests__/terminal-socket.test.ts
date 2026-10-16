@@ -452,6 +452,8 @@ class FakeControl extends EventEmitter {
   async resize(cols: number, rows: number) { this.resizes.push([cols, rows]); this.size = { cols, rows }; return { ok: true, lines: [] }; }
   async input(bytes: Buffer) { this.inputs.push(Buffer.from(bytes)); return { ok: true, lines: [] }; }
   async paste(text: string) { this.pastes.push(text); return { ok: true, lines: [] }; }
+  colourReports: string[][] = [];
+  async colours(fg: string, bg: string) { this.colourReports.push([fg, bg]); return { ok: true, lines: [] }; }
   async close() { this.closes++; }
 }
 
@@ -590,6 +592,34 @@ describe("the bridge, in the order the panel expects", () => {
     expect(conn.texts().filter(m => m.t === "size"), "the panel is never told its own size").toEqual([]);
     handle.message({ type: "binary", data: Buffer.from("y") });
     expect(control().resizes, "and nothing is taken back").toHaveLength(2);
+  });
+
+  it("passes the panel's colours to tmux for the deck's own pane: valid, once per change, the latest after a cooldown", async () => {
+    const { control, text } = bridge({}, { coloursMs: 30 });
+    text({ t: "colours", fg: "#e6e6e6", bg: "#14161b" });
+    expect(control().colourReports).toEqual([["#e6e6e6", "#14161b"]]);
+    text({ t: "colours", fg: "#e6e6e6", bg: "#14161b" });
+    text({ t: "colours", fg: "#111111", bg: "#ffffff" });
+    text({ t: "colours", fg: "#1f2328", bg: "#fafaf8" });
+    expect(control().colourReports, "inside the cooldown nothing more goes out").toHaveLength(1);
+    await new Promise(r => setTimeout(r, 50));
+    expect(control().colourReports.at(-1), "then the latest, and only it").toEqual(["#1f2328", "#fafaf8"]);
+    expect(control().colourReports).toHaveLength(2);
+    for (const [fg, bg] of [["#FFFFFF", "#000000"], ["#fff", "#000000"], ["red", "#000000"], [1, 2], ["#ffffff", "#000000; kill-server"]]) {
+      text({ t: "colours", fg, bg });
+    }
+    await new Promise(r => setTimeout(r, 50));
+    expect(control().colourReports, "anything but #rrggbb in lowercase is dropped").toHaveLength(2);
+  });
+
+  it("never tells the user's own tmux, or a read-only view, any colours", async () => {
+    const b = bridge({ kind: "B", ignoreSize: true, target: "%9", pane: "%9" });
+    b.text({ t: "colours", fg: "#e6e6e6", bg: "#14161b" });
+    const ro = bridge({ readOnly: true });
+    ro.text({ t: "colours", fg: "#e6e6e6", bg: "#14161b" });
+    await settle();
+    expect(b.control().colourReports).toEqual([]);
+    expect(ro.control().colourReports).toEqual([]);
   });
 
   it("re-seeds on 'reseed': reset and seed again, and the stream after", async () => {

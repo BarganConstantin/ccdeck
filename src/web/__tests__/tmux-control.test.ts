@@ -507,6 +507,45 @@ describe("the control client, against a fake tmux", () => {
     await c.close();
   });
 
+  it("tells tmux 3.5+ the pane's colours as OSC 10/11 replies, asking the server's version once", async () => {
+    const version = (v: string) => (l: string) => (l === 'display-message -p "#{version}"' ? { lines: [v] } : undefined as unknown as Reply);
+    const fake = fakeTmux({ respond: answers(version("3.8")) });
+    const c = open(fake);
+    await c.ready;
+    expect(await c.colours("#e6e6e6", "#14161b")).toEqual({ ok: true, lines: [] });
+    expect(await c.colours("#1f2328", "#fafaf8")).toEqual({ ok: true, lines: [] });
+    expect(fake.written.filter(l => l.startsWith("display-message -p \"#{version}\"")), "asked once").toHaveLength(1);
+    expect(fake.written.filter(l => l.startsWith("refresh-client -r"))).toEqual([
+      'refresh-client -r "%0:\\033]10;rgb:e6e6/e6e6/e6e6\\033\\\\"',
+      'refresh-client -r "%0:\\033]11;rgb:1414/1616/1b1b\\033\\\\"',
+      'refresh-client -r "%0:\\033]10;rgb:1f1f/2323/2828\\033\\\\"',
+      'refresh-client -r "%0:\\033]11;rgb:fafa/fafa/f8f8\\033\\\\"',
+    ]);
+    await c.close();
+
+    for (const old of ["3.4", "openbsd-7.4", ""]) {
+      const f = fakeTmux({ respond: answers(version(old)) });
+      const o = open(f);
+      await o.ready;
+      expect(await o.colours("#e6e6e6", "#14161b"), old).toMatchObject({ ok: false });
+      expect(f.written.some(l => l.startsWith("refresh-client -r")), `${old}: no -r`).toBe(false);
+      await o.close();
+    }
+  });
+
+  it("tells no colours from a read-only client, for the user's own tmux, or that are not #rrggbb", async () => {
+    for (const opts of [{ readOnly: true }, { ignoreSize: true }, {}]) {
+      const fake = fakeTmux({ respond: answers() });
+      const c = open(fake, opts);
+      await c.ready;
+      const fg = Object.keys(opts).length ? "#e6e6e6" : "#E6E6E6";
+      expect(await c.colours(fg, "#14161b"), JSON.stringify(opts)).toMatchObject({ ok: false });
+      expect(fake.written.some(l => l.startsWith("refresh-client -r") || l.includes("#{version}"))).toBe(false);
+      await c.close();
+    }
+    expect(tc.oscColourReport(11, "#0a0b0c")).toBe("\x1b]11;rgb:0a0a/0b0b/0c0c\x1b\\");
+  });
+
   it("claims the window once attached: select-window from this client makes its size the one tmux uses", async () => {
     // window-size latest sizes a window shared by two clients for the latest
     // one, and only attaching or select-window make a control client that.

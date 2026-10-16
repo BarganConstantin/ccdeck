@@ -426,6 +426,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   let term: StageTerminal | null = null;
   let mounting = false;
   let pendingTheme: ITheme | null = null;
+  /** The theme the pane is drawn in now, whose foreground and background the
+   *  deck passes on to tmux (terminal-protocol's `colours`). */
+  let colours: ITheme | null = null;
   /** Terminal work asked for before xterm had loaded, replayed in order. */
   let held: Array<(t: StageTerminal) => void> = [];
 
@@ -528,7 +531,11 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         withTerminal(t => t.write(bytes));
       },
       onSize: ({ cols, rows }) => {
-        // Case B: the pane lives in someone's own tmux and keeps its size.
+        // The pane's real size, when it is not the one this panel asked for:
+        // in case B it lives in someone's own tmux and keeps its own size, and
+        // on a deck pane another view of the same session (a second tab,
+        // `tmux attach` by hand) sized it last. The deck takes a shared pane
+        // back for this panel when it is typed in, and says so the same way.
         if (my !== gen) return;
         withTerminal(t => t.write("", () => { if (my === gen) t.resize(cols, rows); }));
       },
@@ -554,8 +561,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       },
     });
     // The first size is what starts the stream; it is queued until the socket
-    // opens, so it can be sent straight away.
+    // opens, so it can be sent straight away. The colours with it, so a
+    // program asking its terminal's colours in its first frame is answered.
     conn.sendSize(want.cols, want.rows);
+    if (colours) conn.sendColours(colours.foreground, colours.background);
   };
 
   // -- asking the deck -------------------------------------------------------
@@ -738,6 +747,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       if (term || mounting || disposed) return;
       mounting = true;
       const theme = pendingTheme ?? init.theme;
+      if (!colours) colours = theme;
       deps.mount(host, { ...init, theme, cols: want.cols, rows: want.rows }, events).then(t => {
         mounting = false;
         if (disposed) { t.dispose(); return; }
@@ -786,6 +796,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     setTheme(theme) {
       if (term) term.setTheme(theme);
       else pendingTheme = theme;
+      colours = theme;
+      conn?.sendColours(theme.foreground, theme.background);
     },
 
     adopt() {

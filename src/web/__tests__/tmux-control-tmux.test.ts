@@ -34,7 +34,7 @@
 import { describe, it, expect, afterAll, afterEach } from "vitest";
 import { execFileSync, spawn, spawnSync, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -434,6 +434,43 @@ describe("against a real tmux", () => {
     expect(sessionEnv(), "attaching did not strip or replace them").toEqual(before);
     await c.close();
     expect(sessionEnv(), "nor did leaving").toEqual(before);
+  }, 30_000);
+
+  it("answers a pane that asks its terminal's colours with the panel's, once told them (tmux 3.5+)", async () => {
+    if (!TMUX) return;
+    const v = /^tmux (?:next-)?(\d+)\.(\d+)/.exec(spawnSync(TMUX, ["-V"], { encoding: "utf8" }).stdout ?? "");
+    if (!v || Number(v[1]) < 3 || (Number(v[1]) === 3 && Number(v[2]) < 5)) return;
+    // A program that, on Enter, asks OSC 11 and OSC 10 the way Claude Code's
+    // auto theme does and writes down whatever its terminal answered.
+    const asker = join(DIR, "asker.cjs");
+    writeFileSync(asker, [
+      "const out = process.argv[2];",
+      "process.stdin.setRawMode(true);",
+      "let armed = false, got = '';",
+      "process.stdin.on('data', d => {",
+      "  if (!armed) { armed = true; process.stdout.write('\\x1b]11;?\\x07\\x1b]10;?\\x07'); setTimeout(() => { require('fs').writeFileSync(out, got); process.exit(0); }, 800); return; }",
+      "  got += d.toString('latin1');",
+      "});",
+    ].join("\n"));
+    const ask = async (session: string, colours: [string, string] | null) => {
+      const out = join(DIR, `${session}.reply`);
+      tm("new-session", "-d", "-s", session, "-x", "80", "-y", "24", NODE, asker, out);
+      const c = open({ target: session });
+      await c.ready;
+      await c.resize(80, 24);
+      await c.seed();
+      if (colours) expect(await c.colours(...colours)).toEqual({ ok: true, lines: [] });
+      await c.input("\r");
+      await waitFor(() => existsSync(out), `${session}'s reply`);
+      return readFileSync(out, "latin1");
+    };
+    const told = await ask("colours-told", ["#1f2328", "#fafaf8"]);
+    expect(told, "the background asked for is the panel's").toContain("\x1b]11;rgb:fafa/fafa/f8f8");
+    expect(told, "and the foreground").toContain("\x1b]10;rgb:1f1f/2323/2828");
+    // The control this is measured against: nobody told tmux, so it answers
+    // something else — black, on 3.8 — which an auto theme reads as dark.
+    const untold = await ask("colours-untold", null);
+    expect(untold).not.toContain("fafa/fafa/f8f8");
   }, 30_000);
 
   it("recovers from a %pause: tmux is told to continue, 'reseed' fires, and the new seed matches tmux's screen", async () => {
