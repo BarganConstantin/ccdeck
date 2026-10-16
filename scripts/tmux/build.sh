@@ -86,7 +86,7 @@ fetch() {
 
 if [ "$OS" = linux ]; then
   if command -v apk >/dev/null 2>&1; then
-    apk add --no-cache build-base curl linux-headers bison >/dev/null
+    apk add --no-cache build-base curl linux-headers bison pkgconf >/dev/null
   fi
   ARCH=$(uname -m)
   CC=${CC:-cc}
@@ -115,6 +115,11 @@ export CC CFLAGS
 
 DEPS=$WORK/deps
 export PKG_CONFIG_PATH="$DEPS/lib/pkgconfig"
+# Without pkg-config, tmux's configure finds tinfow by searching instead, then
+# links -lncurses as well because ncurses.h exists. There is no libncurses
+# here, so every later link test fails and tmux is configured as if libc had
+# none of forkpty, daemon or err.
+command -v pkg-config >/dev/null 2>&1 || { echo "pkg-config is needed (pkgconf)" >&2; exit 1; }
 
 fetch "https://github.com/libevent/libevent/releases/download/release-$LIBEVENT_VERSION/libevent-$LIBEVENT_VERSION.tar.gz" "$LIBEVENT_SHA256"
 fetch "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" "$TMUX_SHA256"
