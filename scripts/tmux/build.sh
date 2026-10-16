@@ -18,7 +18,8 @@
 #     Alpine's musl, so the binary runs on any distribution. ncurses is built
 #     here rather than taken from Alpine so its terminfo search covers every
 #     distribution's layout, Debian's /lib/terminfo included;
-#   - on macOS, the system's ncurses, which every Mac has, and libevent static.
+#   - on macOS, the system's ncurses, which every Mac has, with libevent and
+#     utf8proc (for character widths) linked statically.
 #
 # Usage: build.sh <output-dir>
 #   Linux: run inside alpine (the workflow uses alpine:3.22). Outside Alpine the
@@ -34,6 +35,11 @@ LIBEVENT_VERSION=2.1.12-stable
 LIBEVENT_SHA256=92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb
 NCURSES_VERSION=6.5
 NCURSES_SHA256=136d91bc269a9a5785e5f9e980bc76ab57428f604ce3e5a5a90cebc767971cc6
+# macOS only: the system's wcwidth is years behind Unicode, so emoji and other
+# wide characters would take the wrong number of cells; tmux requires one or
+# the other choice there, and utf8proc is the right one.
+UTF8PROC_VERSION=2.12.0
+UTF8PROC_SHA256=a393fbef160835fb315bc3e91ba8d86f7a73a7cec9e6198b6c60b848b498bfeb
 # Fetched only for its COPYRIGHT: musl itself comes from the Alpine image.
 MUSL_VERSION=1.2.5
 MUSL_SHA256=a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4
@@ -85,7 +91,12 @@ else
   # Big Sur is the oldest macOS Node 22 runs on, so the oldest the deck does.
   CFLAGS="-O2 -mmacosx-version-min=11.0"
   LINK_STATIC=""
-  HOST_FLAG="--host=$ARCH-apple-darwin"
+  # Native builds need no --host. A cross build names the target the way
+  # libevent 2.1.12's config.sub knows it, which predates `arm64`.
+  HOST_FLAG=""
+  if [ "$ARCH" != "$(uname -m)" ]; then
+    case "$ARCH" in arm64) HOST_FLAG="--host=aarch64-apple-darwin" ;; *) HOST_FLAG="--host=$ARCH-apple-darwin" ;; esac
+  fi
 fi
 case "$ARCH" in
   x86_64|amd64) ARCH_NAME=x64 ;;
@@ -102,6 +113,8 @@ fetch "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_V
 if [ "$OS" = linux ]; then
   fetch "https://invisible-island.net/archives/ncurses/ncurses-$NCURSES_VERSION.tar.gz" "$NCURSES_SHA256"
   fetch "https://musl.libc.org/releases/musl-$MUSL_VERSION.tar.gz" "$MUSL_SHA256"
+else
+  fetch "https://github.com/JuliaStrings/utf8proc/releases/download/v$UTF8PROC_VERSION/utf8proc-$UTF8PROC_VERSION.tar.gz" "$UTF8PROC_SHA256"
 fi
 
 echo "building libevent $LIBEVENT_VERSION"
@@ -128,14 +141,27 @@ if [ "$OS" = linux ]; then
   )
 fi
 
+if [ "$OS" = darwin ]; then
+  echo "building utf8proc $UTF8PROC_VERSION"
+  (
+    cd "$WORK/utf8proc-$UTF8PROC_VERSION"
+    make libutf8proc.a CC="$CC" CFLAGS="$CFLAGS" >/dev/null
+    mkdir -p "$DEPS/include" "$DEPS/lib"
+    cp utf8proc.h "$DEPS/include/"
+    cp libutf8proc.a "$DEPS/lib/"
+  )
+fi
+
 echo "building tmux $TMUX_VERSION"
 (
   cd "$WORK/tmux-$TMUX_VERSION"
-  STATIC_FLAG=""
-  [ "$OS" = linux ] && STATIC_FLAG="--enable-static"
+  if [ "$OS" = linux ]; then FEATURES="--enable-static"; else FEATURES="--enable-utf8proc"; fi
   # shellcheck disable=SC2086
-  ./configure $HOST_FLAG $STATIC_FLAG \
+  ./configure $HOST_FLAG $FEATURES \
     CPPFLAGS="-I$DEPS/include -I$DEPS/include/ncursesw" LDFLAGS="$LINK_STATIC -L$DEPS/lib" >/dev/null
+  # What configure decided about the functions a libc may or may not have, in
+  # the log, because that is where a static build goes wrong first.
+  grep -E '^(ac_cv_search_|ac_cv_func_)(forkpty|fdforkpty|utf8proc)' config.log || true
   make -j"$JOBS" >/dev/null
   strip tmux
 )
@@ -150,7 +176,8 @@ if [ "$OS" = linux ]; then
   cp "$WORK/musl-$MUSL_VERSION/COPYRIGHT" "$STAGE/LICENSES/musl.txt"
   LINKED="libevent $LIBEVENT_VERSION, ncurses $NCURSES_VERSION and musl, all statically"
 else
-  LINKED="libevent $LIBEVENT_VERSION statically, and the system's ncurses"
+  cp "$WORK/utf8proc-$UTF8PROC_VERSION/LICENSE.md" "$STAGE/LICENSES/utf8proc.txt"
+  LINKED="libevent $LIBEVENT_VERSION and utf8proc $UTF8PROC_VERSION statically, and the system's ncurses"
 fi
 cat > "$STAGE/README.txt" <<EOF
 tmux $TMUX_VERSION for $OS-$ARCH_NAME, built by ccdeck for its terminal panel
