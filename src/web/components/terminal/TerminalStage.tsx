@@ -51,6 +51,7 @@ import {
 import StageHeader from "./StageHeader";
 import StageBody, { type StageContext } from "./StageBody";
 import { useFocusRequest } from "./use-focus-request";
+import { tellDesktopKeys } from "../../desktop-keys";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import Divider from "./Divider";
 
@@ -170,6 +171,10 @@ export default function TerminalStage(p: TerminalStageProps) {
   const onKeysOwner = useRef(p.onKeysOwner);
   onKeysOwner.current = p.onKeysOwner;
   useEffect(() => { onKeysOwner.current?.(session.keysOwner); }, [session.keysOwner]);
+  // And to the desktop app, whose menu would otherwise take Ctrl+R, Ctrl+C and
+  // the rest from the pane; given back when the stage goes.
+  useEffect(() => { tellDesktopKeys(session.keysOwner === "pane"); }, [session.keysOwner]);
+  useEffect(() => () => tellDesktopKeys(false), []);
 
   // One sentence per change of what the stage shows — never per byte (#372).
   const onAnnounce = useRef(p.onAnnounce);

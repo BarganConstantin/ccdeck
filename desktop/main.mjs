@@ -614,6 +614,12 @@ function openWindow(steal = true, customChrome = true) {
     if (navigationFor(url, windowOrigin) !== "block") shell.openExternal(url);
     return { action: "deny" };
   });
+  // A reload or a navigation drops whatever the page had asked of the menu:
+  // a pane that had the keys when the page went cannot give them back.
+  const contents = win.webContents;
+  contents.on("did-start-navigation", (details) => {
+    if (details?.isMainFrame && !details.isSameDocument) contents.setIgnoreMenuShortcuts(false);
+  });
   win.webContents.on("will-navigate", (event, url) => {
     const where = navigationFor(url, windowOrigin);
     if (where === "stay") return;
@@ -714,6 +720,25 @@ function installWindowChromeIpc() {
   ipcMain.handle("ccdeck:window:menu", event => {
     if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return;
     Menu.getApplicationMenu()?.popup({ window: win, x: 10, y: TITLEBAR_HEIGHT });
+  });
+}
+
+/**
+ * The terminal pane's keys. On Windows and Linux the application menu binds
+ * Ctrl+R (reload), Ctrl+W, Ctrl+Q, and through Edit Ctrl+C, Ctrl+V, Ctrl+A and
+ * Ctrl+Z; a menu shortcut is taken before the page sees the key, so in the
+ * pane Ctrl+R reloaded the whole deck instead of reaching Claude Code's
+ * history search, and Ctrl+C copied instead of interrupting. While the pane
+ * has the keys the menu's shortcuts are ignored for this window
+ * (setIgnoreMenuShortcuts, which leaves the page's own keydown alone), and
+ * they come back the moment it gives them up, or the page goes. macOS menus
+ * use Cmd, which no terminal program reads, so there the menu keeps them.
+ */
+function installTerminalKeysIpc() {
+  ipcMain.handle("ccdeck:terminal:keys", (event, owned) => {
+    if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return;
+    if (process.platform === "darwin") return;
+    event.sender.setIgnoreMenuShortcuts(owned === true);
   });
 }
 
@@ -922,6 +947,7 @@ app.whenReady().then(async () => {
   if (!primary) return;
   installNotificationAudioIpc();
   installWindowChromeIpc();
+  installTerminalKeysIpc();
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: "File", submenu: [{ role: "close" }, { role: "quit" }] },
