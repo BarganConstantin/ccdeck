@@ -67,7 +67,12 @@ let tmux: any = null;
 beforeAll(async () => {
   expect(SOCKET.name, "never the product's own server").not.toBe("ccdeck");
   tmux = await findTmux();
-  server = await mod.startServer({ port: 0, persist: false, claude: false, codex: false, terminal: { deckSocket: SOCKET } });
+  // Everything as a person's deck has it, except fetching ccdeck's own tmux
+  // from GitHub on a machine without one: the suite never downloads.
+  server = await mod.startServer({
+    port: 0, persist: false, claude: false, codex: false,
+    terminal: { deckSocket: SOCKET, downloadBlocked: () => "download_disabled" },
+  });
   port = (server.address() as { port: number }).port;
 }, 30_000);
 afterAll(async () => {
