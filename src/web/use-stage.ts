@@ -345,6 +345,42 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (enabled) loadStageShell().catch(() => {});
   }, [enabled]);
 
+  // Back on the same session after a reload (ux.md S3). The deck reloads the
+  // page by itself after an upgrade, and tmux kept the session running through
+  // it, so a stage that came back closed would undo the one thing tmux is
+  // there for. Per tab, in sessionStorage: a reload keeps it, another tab does
+  // not open on it, and an hour-old tab reopened is not ambushed by a stage.
+  // Nothing is written or cleared until the restore has had its turn, or the
+  // closed stage of the first render would forget what it is about to restore.
+  const restoreRef = useRef<{ id: string; until: number } | "done" | null>(null);
+  useEffect(() => {
+    if (!enabled || restoreRef.current) return;
+    const saved = readOnStage(Date.now());
+    restoreRef.current = saved ? { id: saved, until: Date.now() + RESTORE_WAIT_MS } : "done";
+  }, [enabled]);
+  useEffect(() => {
+    const pending = restoreRef.current;
+    if (!enabled || !pending || pending === "done") return;
+    if (shellRef.current.phase !== "closed" || Date.now() > pending.until) { restoreRef.current = "done"; return; }
+    // The board has to know the session first: the page's state arrives a
+    // beat after the prefs that turned the flag on.
+    if (!stateRef.current.agents.has(pending.id)) return;
+    restoreRef.current = "done";
+    switchTo(pending.id, { focusPane: false });
+  });
+  const onStage = shell.phase === "closed" ? null : targetSession(shell.target);
+  const restored = restoreRef.current === "done";
+  useEffect(() => {
+    if (!enabled || restoreRef.current !== "done") return;
+    writeOnStage(onStage, Date.now());
+    if (!onStage) return;
+    // Stamped again as the page goes, so a stage open all afternoon is as
+    // fresh at its reload as one opened a minute before.
+    const stamp = () => writeOnStage(onStage, Date.now());
+    window.addEventListener("pagehide", stamp);
+    return () => window.removeEventListener("pagehide", stamp);
+  }, [enabled, onStage, restored]);
+
   // The double-click window an open from a click keeps (stage-shell.ts).
   useEffect(() => {
     if (!shell.grace) return;
@@ -383,6 +419,34 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 }
 
 export type Stage = ReturnType<typeof useStage>;
+
+/** The session the stage showed, kept for a reload of the same tab. */
+export const STAGE_RESTORE_KEY = "agent-dag.terminal.onStage";
+/** A reload comes back in seconds; a tab reopened after this is a new visit. */
+export const RESTORE_FRESH_MS = 30 * 60_000;
+/** How long a restore waits for the board to hear of the session. */
+export const RESTORE_WAIT_MS = 15_000;
+
+/** The session to put back on the stage, or null. */
+export function readOnStage(now: number): string | null {
+  try {
+    const raw = window.sessionStorage.getItem(STAGE_RESTORE_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { id?: unknown; at?: unknown };
+    if (typeof v.id !== "string" || !v.id || typeof v.at !== "number") return null;
+    return now - v.at >= 0 && now - v.at < RESTORE_FRESH_MS ? v.id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps the session on the stage, or forgets it once the stage closes. */
+export function writeOnStage(id: string | null, now: number): void {
+  try {
+    if (id) window.sessionStorage.setItem(STAGE_RESTORE_KEY, JSON.stringify({ id, at: now }));
+    else window.sessionStorage.removeItem(STAGE_RESTORE_KEY);
+  } catch { /* blocked site data: the stage just comes back closed */ }
+}
 
 const NO_WAITING: readonly BlockedSession[] = [];
 
