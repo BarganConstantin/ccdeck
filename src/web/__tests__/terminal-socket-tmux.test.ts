@@ -113,8 +113,9 @@ function controlClients(): number[] {
 describe("the terminal socket on real tmux", () => {
   it("attaches to a deck session, streams it, types into it, and leaves it running when the panel closes", async () => {
     if (!tmux.ok) {
-      // No tmux 3.2+ on this machine: what the panel is told instead.
-      expect(["missing", "too-old"]).toContain(tmux.reason);
+      // No tmux 3.2+ on this machine: what the panel is told instead. Windows
+      // has no tmux to look for at all (findTmux answers before a probe).
+      expect(process.platform === "win32" ? ["unsupported-platform"] : ["missing", "too-old"]).toContain(tmux.reason);
       const status = await ask("GET", "/api/terminal/status");
       expect(status.body).toMatchObject({ ok: true, tmux: { ok: false, reason: tmux.reason } });
       return;

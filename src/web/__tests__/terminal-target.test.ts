@@ -623,9 +623,11 @@ describe("Claude's session records", () => {
     });
     expect((await ask(s.deps)).kind).toBe("D");
     const touched = s.opened.filter((p) => p.includes(`${s.deps.claudeDir}`));
-    expect(touched.some((p) => p.endsWith("/sessions")), "the folder was listed").toBe(true);
+    // Either separator: the folder is joined with the platform's own.
+    const isFolder = (p: string) => /[\\/]sessions$/.test(p);
+    expect(touched.some(isFolder), "the folder was listed").toBe(true);
     expect(touched.filter((p) => p.endsWith(".key")), "a .key file was opened").toEqual([]);
-    expect(touched.filter((p) => !p.endsWith("/sessions")).map((p) => basename(p)).sort()).toEqual(["4242.json", "7002.json"]);
+    expect(touched.filter((p) => !isFolder(p)).map((p) => basename(p)).sort()).toEqual(["4242.json", "7002.json"]);
   });
 
   it("names only digits-dot-json as a session file", () => {
