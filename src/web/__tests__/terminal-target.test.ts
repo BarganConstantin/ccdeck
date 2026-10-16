@@ -48,7 +48,7 @@ afterAll(() => rmTempDir(root));
 
 type Proc = {
   pid: number; ppid: number; cmd: string[]; start?: string; lstart?: string;
-  env?: Record<string, string>; tty?: string; fds?: string[];
+  env?: Record<string, string>; tty?: string; fds?: string[]; cwd?: string;
 };
 
 /** A /proc/<pid>/stat line with all 52 fields, starttime at field 22. The
@@ -79,6 +79,7 @@ function fakeMachine(procs: Proc[], { ns = NS, machine = MACHINE } = {}) {
     const fds = [p.tty ?? "/dev/null", p.tty ?? "/dev/null", p.tty ?? "/dev/null", ...(p.fds ?? [])];
     fdNames.set(p.pid, fds.map((_, i) => String(i)));
     fds.forEach((t, i) => links.set(`/proc/${p.pid}/fd/${i}`, t));
+    if (p.cwd) links.set(`/proc/${p.pid}/cwd`, p.cwd);
   }
   links.set("/proc/self/ns/pid", ns);
   files.set("/etc/machine-id", `${machine}\n`);
@@ -521,6 +522,41 @@ describe("a plain process in some other terminal (case C)", () => {
         { pid: 5101, ppid: 5000, cmd: ["node", "/home/u/.local/bin/codex", "resume", ID] }],
     });
     expect(await ask(s.deps, { provider: "codex" })).toEqual({ kind: "C", adoptable: true, pid: 5101 });
+  });
+});
+
+describe("a live Claude that has not written its record yet", () => {
+  // Measured with Claude 2.1.301: the `.key` was there, `<pid>.json` was not,
+  // and the board already showed the session. Reopening it then would have
+  // put a second writer on the conversation.
+  const FRESH: Proc = { ...PLAIN_CLAUDE, cwd: CWD };
+
+  it("is taken as holding the session started in its folder: case C, not gone, so nothing reopens beside it", async () => {
+    const s = setup({ procs: [SYSTEMD_USER, TERMINAL, SHELL, FRESH] });
+    expect(await ask(s.deps)).toEqual({ kind: "C", adoptable: true, pid: 5001 });
+  });
+
+  it("is found in the user's tmux like any other holder", async () => {
+    const s = setup({ procs: [SYSTEMD_USER, TMUX_SERVER, PANE_SHELL, { ...TMUX_CLAUDE, cwd: CWD }], panes: { [TMUX_VAR.split(",")[0]]: HOST_PANES } });
+    expect(await ask(s.deps)).toMatchObject({ kind: "B", pane: "%3" });
+  });
+
+  it("is not believed in another folder, as a one-shot print, or when a record already accounts for it", async () => {
+    for (const procs of [
+      [SYSTEMD_USER, TERMINAL, SHELL, { ...FRESH, cwd: "/home/u/other" }],
+      [SYSTEMD_USER, TERMINAL, SHELL, { ...FRESH, cmd: ["claude", "-p", "summarise"] }],
+      [SYSTEMD_USER, TERMINAL, SHELL, { ...FRESH, cmd: ["claude", "mcp", "serve"] }],
+    ]) {
+      const s = setup({ procs });
+      expect(await ask(s.deps), JSON.stringify(procs.at(-1)!.cmd)).toEqual({ kind: "gone", adoptable: true });
+    }
+    const other = setup({ procs: [SYSTEMD_USER, TERMINAL, SHELL, FRESH], records: [{ ...record(5001), sessionId: OTHER }] });
+    expect(await ask(other.deps), "that Claude is another session's").toEqual({ kind: "gone", adoptable: true });
+  });
+
+  it("cannot be seen on macOS, which has no folder to read off a process: still gone there", async () => {
+    const s = setup({ procs: [SYSTEMD_USER, TERMINAL, SHELL, FRESH], platform: "darwin" });
+    expect(await ask(s.deps)).toEqual({ kind: "gone", adoptable: true });
   });
 });
 
