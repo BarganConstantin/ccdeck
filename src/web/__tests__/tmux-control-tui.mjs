@@ -3,8 +3,8 @@
 //
 // They are .mjs and plain Node for the reason skip-gates.mjs is: they run under
 // `node` directly, in a pane, with no transpiler in the path. And they are Node
-// rather than the phase-0 spike's Python because the suite already has Node on
-// every leg, while python3 and the spikes/ folder are promised to nobody.
+// rather than the throwaway spike's Python, because the suite already has Node
+// on every leg and python3 is promised to nobody.
 //
 //   stress         A TUI that is harder on a terminal than Claude Code is, so
 //                  that "the panel drew what tmux drew" means something:

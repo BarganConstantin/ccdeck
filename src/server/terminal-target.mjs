@@ -4,8 +4,8 @@
 // The deck knows a session by its id and its working directory, because that
 // is all the hooks and the Codex rollouts carry. It does not know the process,
 // and without the process there is no telling a session the panel can attach
-// to from one it cannot. The spike for ccdeck-internal#10
-// (spikes/terminal/session-pid.mjs, FINDINGS.md) found the way; this is that
+// to from one it cannot. A throwaway spike, measured against real Claude and
+// Codex processes before any of this was written, found the way; this is that
 // spike made into something the server can ask on every click, with every
 // answer the panel has to tell apart:
 //
