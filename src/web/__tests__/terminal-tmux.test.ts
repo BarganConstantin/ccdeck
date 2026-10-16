@@ -18,9 +18,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  DECK_SOCKET, MIN_TMUX_VERSION, findTmux, paneArgv, parseTmuxVersion, resetTmuxCache, runTmux,
-  tmuxArg, tmuxCandidates, tmuxCommand, tmuxEnv, tmuxFormatLiteral, tmuxHasNoServer, tmuxInstallLine,
-  tmuxSequence,
+  DECK_SOCKET, MIN_TMUX_VERSION, SCOPE_ARGS, cgroupPath, findTmux, paneArgv, parseTmuxVersion, resetServerScope,
+  resetTmuxCache, runTmux, serverScope, tmuxArg, tmuxCandidates, tmuxCommand, tmuxEnv, tmuxFormatLiteral,
+  tmuxHasNoServer, tmuxInstallLine, tmuxSequence,
 } from "../../server/tmux.mjs";
 
 type Probe = { ok: boolean; path?: string; version?: number[] | null; raw?: string; reason?: string; install?: string; warning?: string };
@@ -333,6 +333,54 @@ describe("a tmux that has no server", () => {
     expect(tmuxHasNoServer("can't find session: ccdeck-claude-00000000\n")).toBe(false);
     expect(tmuxHasNoServer("unknown command: frobnicate\n")).toBe(false);
     expect(tmuxHasNoServer("")).toBe(false);
+  });
+});
+
+describe("a server that outlives the deck's systemd service", () => {
+  afterEach(() => resetServerScope());
+  const SERVICE = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/ccdeck.service\n";
+  const TERMINAL = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-ghostty-surface-transient-1713847.scope\n";
+  const onPath = (p: string) => p === "/usr/bin/systemd-run";
+
+  it("reads the cgroup from systemd's own hierarchy on a v1 or hybrid host, else from the unified line", () => {
+    expect(cgroupPath(SERVICE)).toBe("/user.slice/user-1000.slice/user@1000.service/app.slice/ccdeck.service");
+    expect(cgroupPath("12:cpu,cpuacct:/user.slice\n1:name=systemd:/user.slice/user-1000.slice/user@1000.service/ccdeck.service\n0::/\n"),
+      "a hybrid host's unified line says only /").toBe("/user.slice/user-1000.slice/user@1000.service/ccdeck.service");
+    expect(cgroupPath("12:cpu,cpuacct:/user.slice\n1:name=systemd:/user.slice/user@1000.service/ccdeck.service\n"))
+      .toBe("/user.slice/user@1000.service/ccdeck.service");
+    expect(cgroupPath("")).toBe("");
+  });
+
+  it("is systemd-run's scope prefix for a deck inside a service, once systemd-run has shown it can start one", async () => {
+    const probed: string[] = [];
+    const probe = async (bin: string) => { probed.push(bin); return true; };
+    const got = await serverScope({ platform: "linux", env: { PATH: "/usr/bin" }, readCgroup: () => SERVICE, exists: onPath, probe });
+    expect(got).toEqual(["/usr/bin/systemd-run", ...SCOPE_ARGS]);
+    expect(SCOPE_ARGS).toEqual(["--user", "--scope", "--collect", "--quiet", "--description=ccdeck terminal sessions", "--"]);
+    await serverScope({ platform: "linux", env: { PATH: "/usr/bin" }, readCgroup: () => SERVICE, exists: onPath, probe });
+    expect(probed, "asked once").toEqual(["/usr/bin/systemd-run"]);
+  });
+
+  it("finds systemd-run where distributions put it when a service's PATH is bare", async () => {
+    const got = await serverScope({ platform: "linux", env: { PATH: "" }, readCgroup: () => SERVICE, exists: onPath, probe: async () => true });
+    expect(got?.[0]).toBe("/usr/bin/systemd-run");
+  });
+
+  it("is null outside a service, off Linux, without systemd-run, or when systemd will not start a scope", async () => {
+    const probe = async () => true;
+    expect(await serverScope({ platform: "linux", env: {}, readCgroup: () => TERMINAL, exists: onPath, probe }), "a terminal's scope").toBeNull();
+    expect(await serverScope({ platform: "darwin", env: {}, readCgroup: () => SERVICE, exists: onPath, probe })).toBeNull();
+    expect(await serverScope({ platform: "linux", env: {}, readCgroup: () => { throw new Error("no /proc"); }, exists: onPath, probe })).toBeNull();
+    expect(await serverScope({ platform: "linux", env: {}, readCgroup: () => SERVICE, exists: () => false, probe })).toBeNull();
+    expect(await serverScope({ platform: "linux", env: {}, readCgroup: () => SERVICE, exists: onPath, probe: async () => false }), "no user bus").toBeNull();
+  });
+
+  it("runs the same tmux command after the prefix", async () => {
+    // A prefix that prints what it was handed, standing in for systemd-run.
+    const echo = [process.execPath, "-e", "process.stdout.write(JSON.stringify(process.argv.slice(1)))", "--"];
+    const r = await runTmux("/opt/tmux", { name: "ccdeck" }, ["new-session", "-d"], { scope: echo, timeoutMs: 10_000 });
+    expect(r.ok, r.stderr).toBe(true);
+    expect(JSON.parse(r.stdout)).toEqual(["/opt/tmux", "-u", "-L", "ccdeck", "new-session", "-d"]);
   });
 });
 

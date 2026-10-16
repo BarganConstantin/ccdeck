@@ -13,9 +13,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  AGENTS, KINDS, SESSION_OPTIONS, TerminalSessionError, agentArgv, checkCwd, clampSize, deadDeckSessions, deckSessionName,
-  findDeckSession, isDeckSessionName, killDeckSession, labelDeckSession, launchCommand, launchSession, listDeckSessions,
-  parseDeckPanes, resolveAgentBin,
+  AGENTS, DEAD_KEEP, KINDS, SESSION_OPTIONS, TerminalSessionError, agentArgv, checkCwd, clampSize, deadDeckSessions,
+  deckSessionName, findDeckSession, isDeckSessionName, killDeckSession, labelDeckSession, launchCommand, launchSession,
+  listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resolveAgentBin, staleDeadSessions,
 } from "../../server/terminal-sessions.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DECK_SOCKET } from "../../server/tmux.mjs";
@@ -28,7 +28,7 @@ const PROJECT = join(SANDBOX, "project");
 mkdirSync(PROJECT);
 afterAll(() => rmTempDir(SANDBOX));
 
-type Call = { bin: unknown; socket: unknown; args: string[]; opts: { env?: Record<string, string> } };
+type Call = { bin: unknown; socket: unknown; args: string[]; opts: { env?: Record<string, string>; scope?: string[] } };
 type Reply = { ok: boolean; code?: number | string; stdout?: string; stderr?: string };
 
 /** A tmux that answers each call with the next reply, and remembers the calls. */
@@ -280,6 +280,34 @@ describe("launching a session", () => {
     expect(tmux.calls[1].args).toEqual(["kill-session", "-t", `=${made}`]);
   });
 
+  it("starts the server outside the deck's systemd service when it runs in one, and plainly when systemd refuses", async () => {
+    const prefix = ["/usr/bin/systemd-run", "--user", "--scope", "--collect", "--quiet", "--"];
+    const scoped = fakeTmux({ ok: true, stdout: "%4\n" });
+    await launchSession({ tmux: "t", run: scoped.run, agent: "claude", cwd: PROJECT, argv: ["cat"], scope: async () => prefix });
+    expect(scoped.calls).toHaveLength(1);
+    expect(scoped.calls[0].opts.scope, "new-session, the call that can start the server, goes through the scope").toBe(prefix);
+
+    // systemd's own refusal: the scope never started, so tmux never ran.
+    const refused = fakeTmux({ ok: false, stderr: "Failed to connect to bus: No such file or directory\n" }, { ok: true, stdout: "%5\n" });
+    const out = await launchSession({ tmux: "t", run: refused.run, agent: "claude", cwd: PROJECT, argv: ["cat"], scope: async () => prefix });
+    expect(out.pane).toBe("%5");
+    expect(refused.calls).toHaveLength(2);
+    expect(refused.calls[1].opts.scope, "the same session, started plainly").toBeUndefined();
+    expect(refused.calls[1].args).toEqual(refused.calls[0].args);
+
+    // tmux's own answer through the scope is tmux's: a taken name is retried, still scoped.
+    const taken = fakeTmux({ ok: false, stderr: "duplicate session: ccdeck-claude-00000000\n" }, { ok: true, stdout: "%6\n" });
+    await launchSession({ tmux: "t", run: taken.run, agent: "claude", cwd: PROJECT, argv: ["cat"], scope: async () => prefix });
+    expect(taken.calls.map(c => c.opts.scope)).toEqual([prefix, prefix]);
+
+    // No service, or a scope that cannot be worked out: tmux as it is.
+    for (const scope of [async () => null, async () => { throw new Error("no /proc"); }]) {
+      const plain = fakeTmux({ ok: true, stdout: "%7\n" });
+      await launchSession({ tmux: "t", run: plain.run, agent: "claude", cwd: PROJECT, argv: ["cat"], scope });
+      expect(plain.calls[0].opts).toEqual({ env: process.env });
+    }
+  });
+
   it("keeps what tmux said out of the sentence and in the detail", async () => {
     const tmux = fakeTmux({ ok: false, stderr: "error connecting to /tmp/tmux-1000/ccdeck (Permission denied)\n" });
     const err = await failure(launchSession({ tmux: "t", run: tmux.run, agent: "codex", cwd: PROJECT, argv: ["cat"] }));
@@ -458,5 +486,60 @@ describe("terminal-sessions.mjs", () => {
     const from = [...src.matchAll(/^import [^;]*? from "([^"]+)";/gms)].map(m => m[1]);
     expect(from.length).toBeGreaterThan(0);
     for (const spec of from) expect(spec, "a runtime dependency").toMatch(/^(node:|\.\/)/);
+  });
+});
+
+describe("clearing old dead sessions", () => {
+  const DAY = 24 * 60 * 60_000;
+  const NOW = 1_800_000_000_000;
+  /** One prune listing line: name, dead, dead since, created — seconds. */
+  const row = (name: string, dead: 0 | 1, deadAgoMs: number | null, createdAgoMs = 30 * DAY) =>
+    [name, dead, deadAgoMs == null ? "" : String(Math.floor((NOW - deadAgoMs) / 1000)), String(Math.floor((NOW - createdAgoMs) / 1000))].join("\t");
+
+  it("keeps a week of dead sessions and the twenty most recent, and closes the rest", () => {
+    expect(DEAD_KEEP).toEqual({ maxAgeMs: 7 * DAY, count: 20 });
+    const listing = [
+      row("ccdeck-claude-00000001", 1, 1 * DAY),
+      row("ccdeck-codex-00000002", 1, 8 * DAY),
+      row("ccdeck-claude-00000003", 0, null),
+      row("ccdeck-att-5f0c2a9e", 1, 10 * DAY),
+    ].join("\n");
+    expect(staleDeadSessions(listing, { now: NOW })).toEqual(["ccdeck-codex-00000002", "ccdeck-att-5f0c2a9e"]);
+    const many = Array.from({ length: 23 }, (_, i) => row(`ccdeck-claude-${String(i).padStart(8, "0")}`, 1, i * 60_000)).join("\n");
+    expect(staleDeadSessions(many, { now: NOW }), "the three oldest past the twenty newest")
+      .toEqual(["ccdeck-claude-00000020", "ccdeck-claude-00000021", "ccdeck-claude-00000022"]);
+  });
+
+  it("never closes a live pane, a session with a live pane beside a dead one, or a name the deck did not give", () => {
+    const listing = [
+      row("ccdeck-claude-0000000a", 0, null, 90 * DAY),
+      row("ccdeck-claude-0000000b", 1, 30 * DAY),
+      row("ccdeck-claude-0000000b", 0, null),
+      row("my-own-session", 1, 30 * DAY),
+      "half a line",
+    ].join("\n");
+    expect(staleDeadSessions(listing, { now: NOW })).toEqual([]);
+  });
+
+  it("goes by when a session was created on a tmux that cannot say when its pane died", () => {
+    expect(staleDeadSessions(row("ccdeck-codex-0000000c", 1, null, 9 * DAY), { now: NOW })).toEqual(["ccdeck-codex-0000000c"]);
+    expect(staleDeadSessions(row("ccdeck-codex-0000000d", 1, null, 2 * DAY), { now: NOW })).toEqual([]);
+  });
+
+  it("lists once on the deck's server, closes each pick by its exact name, and answers what it closed", async () => {
+    const tmux = fakeTmux({ ok: true, stdout: [row("ccdeck-claude-00000001", 1, 9 * DAY), row("ccdeck-claude-00000002", 1, 10 * DAY)].join("\n") },
+      { ok: true }, { ok: false, stderr: "can't find session: ccdeck-claude-00000002\n" });
+    const closed = await pruneDeadDeckSessions({ tmux: "t", run: tmux.run, now: NOW });
+    expect(closed, "one was already gone").toEqual(["ccdeck-claude-00000001"]);
+    expect(tmux.calls[0].socket).toBe(DECK_SOCKET);
+    expect(tmux.calls[0].args.slice(0, 3)).toEqual(["list-panes", "-a", "-F"]);
+    expect(tmux.calls.slice(1).map(c => c.args)).toEqual([
+      ["kill-session", "-t", "=ccdeck-claude-00000001"], ["kill-session", "-t", "=ccdeck-claude-00000002"],
+    ]);
+  });
+
+  it("answers nothing closed, and never throws, with no server or a failing tmux", async () => {
+    expect(await pruneDeadDeckSessions({ tmux: "t", run: fakeTmux({ ok: false, stderr: "no server running on /tmp/tmux-1000/ccdeck\n" }).run })).toEqual([]);
+    expect(await pruneDeadDeckSessions({ tmux: "t", run: async () => { throw new Error("boom"); } })).toEqual([]);
   });
 });

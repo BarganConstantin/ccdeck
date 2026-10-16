@@ -404,10 +404,84 @@ export function tmuxHasNoServer(stderr) {
  * call that is depends on what ran before it, and a server started dirty stays
  * dirty for its whole life.
  */
-export function runTmux(tmux, socket, args, { timeoutMs = 3000, env = process.env } = {}) {
+export function runTmux(tmux, socket, args, { timeoutMs = 3000, env = process.env, scope = null } = {}) {
   const [file, ...argv] = tmuxCommand(tmux, socket, args);
+  // `scope` is serverScope's answer: the same tmux, started by systemd-run in
+  // a scope of its own.
+  if (Array.isArray(scope) && scope.length) return execTmux(scope[0], [...scope.slice(1), file, ...argv], { timeoutMs, env: tmuxEnv(env) });
   return execTmux(file, argv, { timeoutMs, env: tmuxEnv(env) });
 }
+
+// ── a server that outlives the deck's service ──────────────────────────────
+//
+// On Linux the login item is a systemd user service (login-service.mjs), and
+// systemd stops a service by killing everything in its cgroup — KillMode's
+// default, control-group. A tmux server forked by the deck worker daemonizes,
+// but daemonizing does not leave a cgroup: it stays in the service's, so
+// `ccdeck --stop`, `systemctl --user stop` or the crash ceiling would kill the
+// server and every agent running in it, mid-turn. (A restart or an upgrade is
+// safe: the supervisor stays up through those.) macOS is not affected — tmux's
+// setsid() is enough to escape launchd's process-group kill.
+//
+// So the call that may START the deck's server runs through
+// `systemd-run --user --scope`, which puts the client — and the server it
+// forks — in a transient scope of their own, outside the service. Only when
+// the deck is in a service at all: a deck started from a terminal is in that
+// terminal's scope, which nothing stops on the deck's behalf.
+
+/** The cgroup systemd tracks this process in, from a /proc/self/cgroup text:
+ *  its own named hierarchy where there is one (a v1 or hybrid host, whose
+ *  unified line may say only "/"), else the unified line. Pure. */
+export function cgroupPath(text) {
+  const lines = String(text ?? "").split("\n");
+  const named = lines.find(l => /^\d+:name=systemd:/.test(l));
+  if (named) return named.replace(/^\d+:name=systemd:/, "").trim();
+  const unified = lines.find(l => l.startsWith("0::"));
+  return unified ? unified.slice(3).trim() : "";
+}
+
+/** systemd-run's arguments before the command it starts in a new scope. */
+export const SCOPE_ARGS = Object.freeze(["--user", "--scope", "--collect", "--quiet", "--description=ccdeck terminal sessions", "--"]);
+
+const scopeProbes = new Map();
+
+/** Whether systemd-run can start a scope here at all — a service under the
+ *  SYSTEM manager has no user bus to ask, and a minimal container has no
+ *  systemd behind its systemd-run. Asked once per binary, with `true`. */
+function probeScope(bin, env) {
+  return new Promise((resolve) => {
+    try {
+      execFile(bin, [...SCOPE_ARGS, "true"], { env: tmuxEnv(env), timeout: 5000, windowsHide: true }, (err) => resolve(!err));
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * The prefix that starts a tmux server outside the deck's systemd service —
+ * `[systemd-run, ...SCOPE_ARGS]` — or null where none is needed or none
+ * works: not Linux, not in a `.service` cgroup, no systemd-run, or one that
+ * cannot start a scope. Never rejects; null means "run tmux as it is".
+ */
+export async function serverScope({
+  platform = process.platform, env = process.env,
+  readCgroup = () => readFileSync("/proc/self/cgroup", "utf8"),
+  exists = existsSync, probe = probeScope,
+} = {}) {
+  if (platform !== "linux") return null;
+  let path = "";
+  try { path = cgroupPath(readCgroup()); } catch { return null; }
+  if (!/\.service$/.test(path)) return null;
+  const bin = pathLookup("systemd-run", platform, { pathEnv: env.PATH ?? "", exists })
+    ?? ["/usr/bin/systemd-run", "/bin/systemd-run"].find(p => exists(p)) ?? null;
+  if (!bin) return null;
+  if (!scopeProbes.has(bin)) scopeProbes.set(bin, Promise.resolve(probe(bin, env)).catch(() => false));
+  return (await scopeProbes.get(bin)) ? [bin, ...SCOPE_ARGS] : null;
+}
+
+/** For tests: forget what systemd-run answered. */
+export function resetServerScope() { scopeProbes.clear(); }
 
 function execTmux(file, argv, { timeoutMs, env }) {
   return new Promise((resolve) => {

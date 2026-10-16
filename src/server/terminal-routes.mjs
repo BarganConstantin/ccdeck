@@ -36,7 +36,8 @@ import { terminalOn } from "./deck-prefs.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import {
-  AGENTS, checkCwd, findDeckSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions, resolveAgentBin,
+  AGENTS, checkCwd, findDeckSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions,
+  pruneDeadDeckSessions, resolveAgentBin,
 } from "./terminal-sessions.mjs";
 import { createTicketStore, terminalBridge } from "./terminal-socket.mjs";
 import { checkTargetQuery, describeTarget, resolveTarget } from "./terminal-target.mjs";
@@ -78,6 +79,26 @@ const TICKETS = createTicketStore();
 // until its tmux session exists.
 const adopting = new Set();
 
+/** How often the deck clears old dead sessions off its server, at most: on
+ *  the first status or launch after this long. Dead panes pile up over days,
+ *  not minutes, and the prune is a listing plus a kill per corpse. */
+export const PRUNE_EVERY_MS = 60 * 60_000;
+let lastPrune = -Infinity;
+
+/** For tests: let the next status or launch prune again. */
+export function resetPruneClock() { lastPrune = -Infinity; }
+
+/** Start a prune of dead deck sessions if none ran for PRUNE_EVERY_MS. Not
+ *  awaited: the answer the panel is waiting for never waits on cleanup. */
+function maybePrune(d, tmux) {
+  const now = d.now();
+  if (!tmux?.ok || now - lastPrune < PRUNE_EVERY_MS) return;
+  lastPrune = now;
+  void Promise.resolve()
+    .then(() => d.pruneDeadDeckSessions({ tmux, socket: d.deckSocket, env: d.env }))
+    .catch(() => {});
+}
+
 /**
  * Everything these routes reach outside themselves, with the real ones as
  * defaults: the flag, the platform and environment, the deck's tmux socket,
@@ -100,6 +121,8 @@ export function terminalDeps(overrides = {}) {
     listDeckSessions,
     killDeckSession,
     labelDeckSession,
+    pruneDeadDeckSessions,
+    now: Date.now,
     claudeBin: null,
     isDir,
     home: homedir,
@@ -173,6 +196,7 @@ export async function handleTerminalStatus(req, res, options) {
     void d.downloadTmux().then((r) => { if (r?.ok) d.forgetTmux(); });
     return send(res, 200, { ok: true, platform: d.platform, tmux: { ok: false, reason: "installing" } });
   }
+  maybePrune(d, found);
   return send(res, 200, { ok: true, platform: d.platform, tmux: tmuxStatus(found) });
 }
 
@@ -314,6 +338,7 @@ export async function handleTerminalLaunch(req, res, options) {
       tmux, agent: body.agent, cwd: body.cwd, socket: d.deckSocket, env: d.env, platform: d.platform,
     });
     const ticket = mint(d, req, tmux, { kind: "A", socket: d.deckSocket, target: started.name, pane: started.pane, ignoreSize: false });
+    maybePrune(d, tmux);
     return send(res, 200, { ok: true, sessionId: started.sessionId ?? "", name: started.name, ticket });
   } catch (err) {
     return sessionFailure(res, err);
