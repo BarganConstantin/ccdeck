@@ -189,11 +189,16 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [stateRef, selectRef]);
 
   /** use-canvas-clicks.ts's: a plain click on a card, true when the stage took
-   *  it. The card's session goes on the stage; the camera stays where it is. */
+   *  it. The card's session goes on the stage with the keys in its pane, once
+   *  there is one; the camera stays where it is. A pointer that picked a
+   *  session is about to type to it: left on the board, the first letters
+   *  meant for the agent fired the deck's shortcuts instead (u, s, e opened
+   *  and closed rail panels in the hands-on run). The keyboard's ways in — a
+   *  tile, j/k — still leave the keys on the board. */
   const onNodeClick = useCallback((id: string, el: Element | null): boolean => {
     if (!enabledRef.current) return false;
     const sessionId = stateRef.current.agents.get(id)?.sessionId ?? id;
-    openOn({ kind: "session", id: sessionId }, { el, grace: shellRef.current.phase === "closed" });
+    openOn({ kind: "session", id: sessionId }, { el, grace: shellRef.current.phase === "closed", focusPane: true });
     return true;
   }, [enabledRef, stateRef, shellRef, openOn]);
 
