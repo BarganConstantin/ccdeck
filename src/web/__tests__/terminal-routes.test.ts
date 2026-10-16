@@ -603,6 +603,44 @@ describe("POST /api/terminal/launch", () => {
   });
 });
 
+describe("what a launch is started with", () => {
+  it("starts the agent at the panel's size, so its first screen is not drawn twice", async () => {
+    await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT, cols: 132, rows: 41 });
+    expect(launches[0]).toMatchObject({ cols: 132, rows: 41 });
+  });
+
+  it("hands New session's options to the launcher, which is where they are checked", async () => {
+    await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT, options: { model: "haiku", permissionMode: "plan", worktree: true } });
+    expect(launches[0].options).toEqual({ model: "haiku", permissionMode: "plan", worktree: true });
+    launchImpl = async () => { throw new TerminalSessionError("bad-options", "That is not a model the deck can start Claude with."); };
+    const bad = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT, options: { model: "gpt" } });
+    expect(bad.status).toBe(400);
+    expect(bad.body.code).toBe("bad-options");
+  });
+
+  it("reopens at the panel's size too", async () => {
+    target = { kind: "gone", adoptable: true };
+    const got = await ask("POST", "/api/terminal/adopt", { ...session(), cols: 100, rows: 30 });
+    expect(got.status).toBe(200);
+    expect(launches.at(-1)).toMatchObject({ kind: "resume", cols: 100, rows: 30 });
+  });
+
+  it("names the tmux failures a person can fix, without a path", async () => {
+    const was = console.error;
+    console.error = () => {};
+    try {
+      launchImpl = async () => { throw new TerminalSessionError("tmux-failed", "tmux could not start the session.", "error creating /tmp/x/very/deep/ccdeck (File name too long)"); };
+      const got = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
+      expect(got.body.hint).toMatch(/TMUX_TMPDIR/);
+      expect(got.raw).not.toContain("/tmp/x");
+    } finally {
+      console.error = was;
+    }
+    expect(routes.tmuxFailureHint("server exited unexpectedly")).toBeNull();
+    expect(routes.tmuxFailureHint("protocol version mismatch (client 8, server 7)")).toMatch(/Another version of tmux/);
+  });
+});
+
 describe("clearing old dead sessions off the deck's server", () => {
   const settle = () => new Promise(r => setTimeout(r, 0));
 
