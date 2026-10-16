@@ -24,24 +24,55 @@
 // from the first frame (a scale from 0.97, no fade), because a translucent
 // form over a running terminal is two things read at once.
 //
+// CLAUDE'S OWN THREE CHOICES, for a new Claude only: the model, how it asks
+// for permission, and whether it works in a new git worktree — the choices
+// the Claude app's new chat offers, as Claude Code's own flags. Each starts at
+// "Default", which passes nothing and leaves the reader's settings in charge;
+// no choice here stops it asking (the launcher refuses those modes anyway).
+// Codex is started as it is.
+//
 // The form is its own component with no portal, so the suite can render it
 // whole and press its controls without a DOM.
 import { useState, type CSSProperties, type KeyboardEvent } from "react";
 import AnchoredPopover from "../AnchoredPopover";
-import type { TerminalProvider } from "../../terminal-api";
+import type { LaunchOptions, TerminalProvider } from "../../terminal-api";
 import { elidePath, folderName, isAbsolutePath, type ProjectChoice } from "./stage-model";
 import { ProviderGlyph } from "./stage-icons";
 
 export const NEW_SESSION_POPOVER_ID = "ns-pop";
 const TITLE_ID = "ns-title";
 const LIST_ID = "ns-projects";
+const WORKTREE_ID = "ns-worktree-label";
 const optionId = (i: number) => `ns-opt-${i}`;
 
 export interface NewSessionFormProps {
   projects: ProjectChoice[];
   initialAgent?: TerminalProvider;
-  onStart(agent: TerminalProvider, cwd: string): void;
+  onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
   onCancel(): void;
+}
+
+export const MODEL_CHOICES: Array<{ value: LaunchOptions["model"] | null; label: string }> = [
+  { value: null, label: "Default" },
+  { value: "opus", label: "Opus" },
+  { value: "sonnet", label: "Sonnet" },
+  { value: "haiku", label: "Haiku" },
+];
+
+export const MODE_CHOICES: Array<{ value: LaunchOptions["permissionMode"] | null; label: string; title: string }> = [
+  { value: null, label: "Default", title: "As your Claude Code settings say" },
+  { value: "auto", label: "Auto", title: "Claude approves what it judges safe, and asks about the rest" },
+  { value: "acceptEdits", label: "Edits", title: "File edits go ahead; everything else asks" },
+  { value: "plan", label: "Plan", title: "Plans first, changes nothing until you approve" },
+];
+
+/** The options a start passes: only what was chosen, so Default is nothing. */
+export function launchOptions(model: LaunchOptions["model"] | null, mode: LaunchOptions["permissionMode"] | null, worktree: boolean): LaunchOptions | undefined {
+  const o: LaunchOptions = {};
+  if (model) o.model = model;
+  if (mode) o.permissionMode = mode;
+  if (worktree) o.worktree = true;
+  return Object.keys(o).length ? o : undefined;
 }
 
 const AGENTS: Array<{ agent: TerminalProvider; label: string }> = [
@@ -68,9 +99,17 @@ export function NewSessionForm({ projects, initialAgent = "claude", onStart, onC
   const [agent, setAgent] = useState<TerminalProvider>(initialAgent);
   const [chosen, setChosen] = useState(0);
   const [typed, setTyped] = useState("");
+  const [model, setModel] = useState<LaunchOptions["model"] | null>(null);
+  const [mode, setMode] = useState<LaunchOptions["permissionMode"] | null>(null);
+  const [worktree, setWorktree] = useState(false);
   const target = startTarget(projects, chosen, typed);
   const listing = typed.trim() === "";
-  const start = () => { if (target) onStart(agent, target.cwd); };
+  const start = () => {
+    if (!target) return;
+    const options = agent === "claude" ? launchOptions(model, mode, worktree) : undefined;
+    if (options) onStart(agent, target.cwd, options);
+    else onStart(agent, target.cwd);
+  };
 
   // The field's keys: ↑/↓ walk the projects (and leave a half-typed path, the
   // way choosing from a list means not typing one), Enter starts.
@@ -143,6 +182,40 @@ export function NewSessionForm({ projects, initialAgent = "claude", onStart, onC
         onKeyDown={onFieldKey}
       />
       {!listing && !target && <p className="ns-note" role="status">A full path, starting with /.</p>}
+      {agent === "claude" && (
+        <>
+          <span className="ns-label ns-label-gap" id="ns-model-label">Model</span>
+          <div className="uh-range ns-choices" role="group" aria-labelledby="ns-model-label">
+            {MODEL_CHOICES.map(c => (
+              <button key={c.label} type="button" className="uh-range-btn" aria-pressed={model === c.value} onClick={() => setModel(c.value)}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <span className="ns-label" id="ns-mode-label">Permissions</span>
+          <div className="uh-range ns-choices" role="group" aria-labelledby="ns-mode-label">
+            {MODE_CHOICES.map(c => (
+              <button key={c.label} type="button" className="uh-range-btn" aria-pressed={mode === c.value} title={c.title} onClick={() => setMode(c.value)}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <label className="sm-switch ns-worktree">
+            <span className="sm-switch-label" id={WORKTREE_ID}>In a new git worktree</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={worktree}
+              aria-labelledby={WORKTREE_ID}
+              className="switch"
+              title="Claude works on a branch of its own, in a folder of its own, beside the project"
+              onClick={() => setWorktree(w => !w)}
+            >
+              <span className="switch-knob" />
+            </button>
+          </label>
+        </>
+      )}
       <p className="ns-note">It joins the board as its own cluster and opens here, inside the deck's tmux — closing the stage never stops it.</p>
       <div className="ns-acts">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
@@ -157,7 +230,7 @@ export interface NewSessionPopoverProps {
   anchorId: string;
   projects: ProjectChoice[];
   initialAgent?: TerminalProvider;
-  onStart(agent: TerminalProvider, cwd: string): void;
+  onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
   onClose(): void;
 }
 
@@ -179,7 +252,7 @@ export default function NewSessionPopover(p: NewSessionPopoverProps) {
       <NewSessionForm
         projects={p.projects}
         initialAgent={p.initialAgent}
-        onStart={(agent, cwd) => { p.onStart(agent, cwd); p.onClose(); }}
+        onStart={(agent, cwd, options) => { p.onStart(agent, cwd, options); p.onClose(); }}
         onCancel={p.onClose}
       />
     </AnchoredPopover>

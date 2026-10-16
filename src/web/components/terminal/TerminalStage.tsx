@@ -26,7 +26,7 @@
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { SessionRef, TerminalProvider } from "../../terminal-api";
+import type { LaunchOptions, SessionRef, TerminalProvider } from "../../terminal-api";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
 import { platformName } from "../../platform";
@@ -77,7 +77,7 @@ export interface StageSessionInfo {
 export type StageShow =
   | { kind: "empty" }
   | { kind: "session"; session: StageSessionInfo }
-  | { kind: "launch"; agent: TerminalProvider; cwd: string; name: string; hue: number; key: string };
+  | { kind: "launch"; agent: TerminalProvider; cwd: string; name: string; hue: number; key: string; options?: LaunchOptions };
 
 export interface TerminalStageProps {
   show: StageShow;
@@ -127,7 +127,7 @@ export function subjectOf(show: StageShow): StageSubject {
   switch (show.kind) {
     case "empty": return { kind: "empty" };
     case "session": return { kind: "session", ref: show.session.ref };
-    case "launch": return { kind: "launch", agent: show.agent, cwd: show.cwd, key: show.key };
+    case "launch": return { kind: "launch", agent: show.agent, cwd: show.cwd, key: show.key, ...(show.options ? { options: show.options } : {}) };
   }
 }
 

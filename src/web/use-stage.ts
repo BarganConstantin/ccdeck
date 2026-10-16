@@ -42,7 +42,7 @@ import {
   type ShellAction, type ShellRect, type StageTarget,
 } from "./stage-shell";
 import { readStored, removeStored, writeStored } from "./storage";
-import type { TerminalProvider } from "./terminal-api";
+import type { LaunchOptions, TerminalProvider } from "./terminal-api";
 import { useAsks, type Asks } from "./use-asks";
 import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
@@ -252,9 +252,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     follow(sessionId);
   }, [shellRef, openOn, follow]);
 
-  const launch = useCallback((agent: TerminalProvider, cwd: string) => {
+  const launch = useCallback((agent: TerminalProvider, cwd: string, options?: LaunchOptions) => {
     const key = `launch-${Date.now().toString(36)}-${++launchSeqRef.current}`;
-    openOn({ kind: "launch", agent, cwd, key }, { focusPane: true });
+    openOn({ kind: "launch", agent, cwd, key, ...(options ? { options } : {}) }, { focusPane: true });
   }, [openOn]);
 
   /** The stage reports what a launch became; once the board has heard from
