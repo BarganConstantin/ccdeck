@@ -26,16 +26,18 @@ import { execFile } from "node:child_process";
 import { deckDataDir } from "./deck-home.mjs";
 
 /** The build the deck fetches. A new build is a new tag and four new hashes,
- *  copied from the release's SHA256SUMS after reading the workflow run that
- *  made them; tmux-download.test.ts holds the shape. */
+ *  taken from the tag's own workflow run (builds are not byte-for-byte
+ *  reproducible, so a branch run's hashes never match a release) and checked
+ *  against the downloaded assets; tmux-download.test.ts holds the shape.
+ *  Never upload over a published tag: decks in the field pin these bytes. */
 export const TMUX_BUILD = Object.freeze({
   tag: "tmux-3.8-1",
   version: "3.8",
   sha256: Object.freeze({
-    "linux-x64": "",
-    "linux-arm64": "",
-    "darwin-x64": "",
-    "darwin-arm64": "",
+    "linux-x64": "9484cab5aab2ebe12ca830e54a0f9569d6261e178cf18f1ad1a22246295b54e1",
+    "linux-arm64": "29a92f47a95d4fc680bc623f10545b3b424dd6c88bf242e79954fda42a90045f",
+    "darwin-x64": "7a7774db99fe2a22015a737db6eeaa1c063b36e5e45c6965ed3ea7fa9e615888",
+    "darwin-arm64": "cd298aefcf669ae084e2d5361b7621f12c9a65d18983f47c5dfcd0740c44f9c5",
   }),
 });
 

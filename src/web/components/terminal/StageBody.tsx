@@ -147,8 +147,8 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
         <div className="ts-card">
           <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" />tmux · setting up</div>
           <p className="ts-text">
-            No tmux this stage can use is installed, so the deck is fetching its own: about a megabyte, once. It is
-            kept in the deck's folder; nothing is installed on the system.
+            This machine has no tmux the stage can use, so the deck is fetching its own: about a megabyte, once. It
+            stays in the deck's folder; nothing is installed on the system.
           </p>
           <div className="ts-acts">
             <button type="button" className="btn" onClick={p.onNotNow}>Not now</button>
