@@ -144,6 +144,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const tokenRef = useRef(0);
   const launchSeqRef = useRef(0);
   const launchedRef = useRef<{ key: string; sessionId: string } | null>(null);
+  /** Sessions this tab launched, which the Terminal button may go back to
+   *  before the board has heard of them. */
+  const launchedIdsRef = useRef(new Set<string>());
   const returnFocusRef = useRef<string | null>(null);
 
   // ── opening, switching ─────────────────────────────────────────────────────
@@ -224,7 +227,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const openFromButton = useCallback((button: Element | null) => {
     const selected = primarySelectedIdRef.current;
     const selectedSession = selected ? stateRef.current.agents.get(selected)?.sessionId ?? null : null;
-    const target = terminalButtonTarget(selectedSession, shellRef.current.last, id => stateRef.current.agents.has(id));
+    const target = terminalButtonTarget(selectedSession, shellRef.current.last,
+      id => stateRef.current.agents.has(id) || launchedIdsRef.current.has(id));
     // Out of the session's card when it is on screen, else out of the button.
     const card = target.kind === "session" ? nodeElement(canvasRef.current, target.id) : null;
     const pane = canvasRef.current ? pageRect(canvasRef.current.getBoundingClientRect()) : null;
@@ -261,7 +265,16 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  that session, the stage shows it as itself (the effect below). */
   const onLaunched = useCallback((l: { sessionId: string }) => {
     const t = shellRef.current.target;
-    if (t?.kind === "launch") launchedRef.current = { key: t.key, sessionId: l.sessionId };
+    if (t?.kind !== "launch") return;
+    launchedRef.current = { key: t.key, sessionId: l.sessionId };
+    // Reachable again from the Terminal button even before the board knows
+    // it: a new Claude in a folder it has not been trusted in asks first, and
+    // no hook fires until it is answered, so a stage closed meanwhile would
+    // leave the session running with no way back to it.
+    if (l.sessionId) {
+      launchedIdsRef.current.add(l.sessionId);
+      dispatch({ type: "remember", sessionId: l.sessionId });
+    }
   }, [shellRef]);
   useEffect(() => {
     const t = shell.target;

@@ -279,6 +279,21 @@ describe("the other ways in", () => {
     view.rerender(props);
     expect(now().stage.shell.target).toEqual({ kind: "session", id: "s-new" });
   });
+
+  it("goes back to a launch the board has not heard of yet, from the Terminal button", () => {
+    // A new Claude in an untrusted folder asks first, and no hook fires until
+    // it is answered: closing the stage then must not lose the session.
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.openFromButton(null);
+    now().stage.launch("claude", "/w/untrusted");
+    now().stage.onLaunched({ sessionId: "s-asks-trust" });
+    now().stage.close();
+    now().stage.closed("");
+    expect(now().stage.shell.phase).toBe("closed");
+    now().stage.openFromButton(null);
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "s-asks-trust" });
+  });
 });
 
 describe("the keys", () => {

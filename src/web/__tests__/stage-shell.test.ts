@@ -172,6 +172,14 @@ describe("a launch becoming its session", () => {
     expect(s.last).toBe("s-new");
   });
 
+  it("remembers a launched session for the Terminal button without moving the stage off the launch", () => {
+    const s = shellReducer(launching, { type: "remember", sessionId: "s-new" });
+    expect(s.target, "still the launch, on the connection it has").toEqual(launching.target);
+    expect(s.last).toBe("s-new");
+    expect(shellReducer(s, { type: "remember", sessionId: "s-new" })).toBe(s);
+    expect(shellReducer(launching, { type: "remember", sessionId: "" })).toBe(launching);
+  });
+
   it("ignores another launch's answer, and a Codex launch's empty id", () => {
     expect(shellReducer(launching, { type: "launched", key: "l0", sessionId: "s-old" })).toBe(launching);
     expect(shellReducer(launching, { type: "launched", key: "l1", sessionId: "" })).toBe(launching);

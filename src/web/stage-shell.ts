@@ -75,7 +75,8 @@ export type ShellAction =
   | { type: "closed" }
   | { type: "grace-over" }
   | { type: "popover"; anchor: string | null }
-  | { type: "launched"; key: string; sessionId: string };
+  | { type: "launched"; key: string; sessionId: string }
+  | { type: "remember"; sessionId: string };
 
 export function initialShell(): ShellState {
   return {
@@ -174,6 +175,11 @@ export function shellReducer(state: ShellState, action: ShellAction): ShellState
       if (t?.kind !== "launch" || t.key !== action.key || !action.sessionId) return state;
       return { ...state, target: { kind: "session", id: action.sessionId }, last: action.sessionId };
     }
+    case "remember":
+      // A launch the board has not heard of yet — Claude's trust question is
+      // still on its screen, and no hook has fired — is the session the
+      // Terminal button goes back to, without the stage moving off it now.
+      return action.sessionId && state.last !== action.sessionId ? { ...state, last: action.sessionId } : state;
   }
 }
 
