@@ -631,6 +631,38 @@ describe("keys, paste and the pane's size", () => {
   });
 });
 
+describe("the theme's colours, for tmux to answer a program's colour question with", () => {
+  const DARK = { background: "#14161b", foreground: "#e6e6e6" };
+  const LIGHT = { background: "rgb(250, 250, 248)", foreground: "#1F2328" };
+
+  it("go up with the first size, again when the theme changes, and never twice the same", async () => {
+    const { r, ctl } = rig();
+    ctl.resize(120, 40, false);
+    ctl.mount(HOST, { theme: DARK, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    expect(s.sentText().slice(0, 2)).toEqual([
+      { t: "size", cols: 120, rows: 40 },
+      { t: "colours", fg: "#e6e6e6", bg: "#14161b" },
+    ]);
+    ctl.setTheme(LIGHT);
+    expect(s.sentText().at(-1), "normalised to #rrggbb").toEqual({ t: "colours", fg: "#1f2328", bg: "#fafaf8" });
+    const sent = s.sentText().length;
+    ctl.setTheme({ ...LIGHT, cursor: "#ff0000" });
+    expect(s.sentText(), "the same two colours send nothing").toHaveLength(sent);
+  });
+
+  it("go up again on a new connection, with the theme as it is by then", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: DARK, fontFamily: "monospace" });
+    await flush();
+    ctl.setTheme(LIGHT);
+    await attach(r, ctl);
+    await attach(r, ctl, OTHER);
+    expect(r.sockets[1].sentText().filter(m => m.t === "colours")).toEqual([{ t: "colours", fg: "#1f2328", bg: "#fafaf8" }]);
+  });
+});
+
 describe("a new session started from the stage", () => {
   it("starts it at the stage's own size, with the options New session chose", async () => {
     const { r, ctl } = rig();

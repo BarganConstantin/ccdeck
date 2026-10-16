@@ -19,6 +19,7 @@ import {
   MAX_MESSAGE_BYTES,
   TERMINAL_ATTACH_PATH,
   connectTerminal,
+  hexColour,
   parseServerMessage,
   socketUrl,
   type TerminalExit,
@@ -220,6 +221,50 @@ describe("what the panel sends", () => {
     expect(conn.sendSize(100, 30)).toBe(true);
     expect(ws.sentBytes()).toEqual([]);
     expect(ws.sentText()).toEqual([{ t: "size", cols: 100, rows: 30 }]);
+  });
+
+  it("sends the theme's colours as #rrggbb, once per change, and nothing it cannot read", () => {
+    const { conn, ws } = connect();
+    ws.open();
+    expect(conn.sendColours("#E6E6E6", "rgb(20, 22, 27)")).toBe(true);
+    expect(conn.sendColours("#e6e6e6", "#14161b"), "the same pair, spelled otherwise").toBe(true);
+    expect(conn.sendColours("#1f2328", "#fafaf8")).toBe(true);
+    expect(conn.sendColours("var(--text)", "#fff")).toBe(false);
+    expect(conn.sendColours(undefined, "#fff")).toBe(false);
+    expect(ws.sentText()).toEqual([
+      { t: "colours", fg: "#e6e6e6", bg: "#14161b" },
+      { t: "colours", fg: "#1f2328", bg: "#fafaf8" },
+    ]);
+  });
+
+  it("sends no colours for a read-only pane, or once it has ended", () => {
+    const ro = connect();
+    ro.ws.open();
+    ro.ws.text({ t: "hello", kind: "B", sizeOwner: "pane", readOnly: true });
+    expect(ro.conn.sendColours("#ffffff", "#000000")).toBe(false);
+    const done = connect();
+    done.ws.open();
+    done.conn.close();
+    expect(done.conn.sendColours("#ffffff", "#000000")).toBe(false);
+    expect([...ro.ws.sentText(), ...done.ws.sentText()]).toEqual([]);
+  });
+});
+
+describe("hexColour", () => {
+  it("reads the colours a theme holds into six lowercase hex digits", () => {
+    expect(hexColour("#14161B")).toBe("#14161b");
+    expect(hexColour(" #abc ")).toBe("#aabbcc");
+    expect(hexColour("#abcd"), "alpha dropped").toBe("#aabbcc");
+    expect(hexColour("#11223344")).toBe("#112233");
+    expect(hexColour("rgb(250, 250, 248)")).toBe("#fafaf8");
+    expect(hexColour("rgba(0 128 255 / 50%)")).toBe("#0080ff");
+    expect(hexColour("rgb(12.6, 0, 255)")).toBe("#0d00ff");
+  });
+
+  it("is null for anything it cannot be sure of", () => {
+    for (const v of ["", "red", "var(--panel)", "#12", "#1234567", "rgb(256, 0, 0)", "rgb(1, 2)", "hsl(0 0% 0%)", null, undefined, 7]) {
+      expect(hexColour(v), String(v)).toBeNull();
+    }
   });
 });
 
