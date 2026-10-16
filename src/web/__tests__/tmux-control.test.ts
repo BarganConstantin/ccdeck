@@ -533,6 +533,22 @@ describe("the control client, against a fake tmux", () => {
     }
   });
 
+  it("asks the server its version once, from before attach, and shares the answer with colours", async () => {
+    const version = (v: string) => (l: string) => (l === 'display-message -p "#{version}"' ? { lines: [v] } : undefined as unknown as Reply);
+    const fake = fakeTmux({ respond: answers(version("3.6a")) });
+    const c = open(fake);
+    const early = c.serverVersion();
+    expect(await early, "3.6a is [3, 6]").toEqual([3, 6]);
+    expect(c.serverVersion(), "the same answer, not a second question").toBe(early);
+    await c.colours("#e6e6e6", "#14161b");
+    expect(fake.written.filter(l => l.includes("#{version}"))).toHaveLength(1);
+    await c.close();
+    const bsd = fakeTmux({ respond: answers(version("openbsd-7.4")) });
+    const o = open(bsd);
+    expect(await o.serverVersion(), "not a number tmux upstream would recognise").toBeNull();
+    await o.close();
+  });
+
   it("tells no colours from a read-only client, for the user's own tmux, or that are not #rrggbb", async () => {
     for (const opts of [{ readOnly: true }, { ignoreSize: true }, {}]) {
       const fake = fakeTmux({ respond: answers() });

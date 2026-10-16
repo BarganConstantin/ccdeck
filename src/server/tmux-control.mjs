@@ -1095,6 +1095,21 @@ class ControlClient extends EventEmitter {
   }
 
   /**
+   * The tmux SERVER's version as [major, minor], asked of the server once and
+   * shared: null when it will not say in numbers (an "openbsd-7.4", a server
+   * that has gone). The server's, not the binary's — a server started by an
+   * older tmux keeps running after an upgrade, and it is the one that answers
+   * the pane and takes this client's commands. Safe to call before attach:
+   * the question is queued behind attach-session and answered right after it,
+   * ahead of anything asked later.
+   */
+  serverVersion() {
+    this.#serverVersion ??= this.cmd('display-message -p "#{version}"')
+      .then(r => (r.ok ? parseTmuxVersion(`tmux ${r.lines[0] ?? ""}`) : null), () => null);
+    return this.#serverVersion;
+  }
+
+  /**
    * Tell tmux the colours this client draws the pane with — the panel's own
    * foreground and background, six-digit hex — so a program in the pane that
    * asks for them (OSC 10/11; Claude Code's auto theme does) is answered with
@@ -1115,9 +1130,7 @@ class ControlClient extends EventEmitter {
     if (this.#ignoreSize) return Promise.resolve(failed("the pane's colours belong to the user's own terminal"));
     if (!HEX_COLOUR.test(String(fg)) || !HEX_COLOUR.test(String(bg))) return Promise.resolve(failed("a colour is #rrggbb"));
     return this.#whenReady(async () => {
-      this.#serverVersion ??= this.cmd('display-message -p "#{version}"')
-        .then(r => (r.ok ? parseTmuxVersion(`tmux ${r.lines[0] ?? ""}`) : null));
-      const v = await this.#serverVersion;
+      const v = await this.serverVersion();
       const [major, minor] = COLOURS_TMUX;
       if (!v || v[0] < major || (v[0] === major && v[1] < minor)) return failed("this tmux cannot be told colours");
       return allOf(this.#send([

@@ -98,6 +98,7 @@ function connect(extra: { ticket?: string; url?: string; base?: string } = {}) {
     onReset: (r: TerminalReset) => told.push(["reset", { cols: r.cols, rows: r.rows, seed: [...r.seed] }]),
     onData: (b: Uint8Array) => told.push(["data", [...b]]),
     onSize: (s: TerminalSize) => told.push(["size", s]),
+    onTmux: (v: readonly [number, number]) => told.push(["tmux", v]),
     onExit: (e: TerminalExit) => told.push(["exit", e]),
     onError: (f: TerminalFailure) => told.push(["error", f]),
   });
@@ -426,6 +427,23 @@ describe("parseServerMessage", () => {
     expect(parseServerMessage('{"t":"exit","reason":"error","message":"tmux went away"}'))
       .toEqual({ t: "exit", reason: "error", message: "tmux went away" });
     expect(parseServerMessage('{"t":"paste","text":"x"}'), "paste only ever goes up, never down").toBeNull();
+  });
+
+  it("reads the tmux version as [major, minor], and nothing that is not two numbers", () => {
+    expect(parseServerMessage('{"t":"tmux","version":"3.8"}')).toEqual({ t: "tmux", version: [3, 8] });
+    expect(parseServerMessage('{"t":"tmux","version":"10.12"}')).toEqual({ t: "tmux", version: [10, 12] });
+    for (const v of ['"3.6a"', '"openbsd-7.4"', '"3"', '"3.8.1"', "3.8", '""', "null", '"1234.1"']) {
+      expect(parseServerMessage(`{"t":"tmux","version":${v}}`), v).toBeNull();
+    }
+  });
+
+  it("hands the version to the panel when the deck says it", () => {
+    const { ws, told } = connect();
+    ws.open();
+    ws.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    ws.text({ t: "tmux", version: "3.4" });
+    ws.text({ t: "tmux", version: "three" });
+    expect(told.filter(([k]) => k === "tmux")).toEqual([["tmux", [3, 4]]]);
   });
 
   it("takes a hello with fields missing as the dock owning a writable pane", () => {

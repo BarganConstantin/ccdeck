@@ -12,6 +12,10 @@
 // THE CONVERSATION, in the order it happens:
 //
 //   deck  → hello {kind, sizeOwner, readOnly}
+//   deck  → tmux {version: "3.8"}    the tmux SERVER's major.minor, once, before
+//                                    the first reset — what it answers for the
+//                                    pane (terminal-replies.ts); never sent
+//                                    when tmux would not say
 //   panel → size {cols, rows}        nothing streams until this arrives
 //   deck  → reset {cols, rows}, then ONE binary frame: the seed
 //   deck  → binary frames: the pane's output, from the byte after the seed
@@ -78,6 +82,9 @@ export type ExitReason = "ended" | "detached" | "server-shutdown" | "error";
 
 export const EXIT_REASONS: readonly ExitReason[] = ["ended", "detached", "server-shutdown", "error"];
 
+/** A tmux server's version as [major, minor]: 3.6a is [3, 6]. */
+export type TmuxVersion = readonly [number, number];
+
 export interface TerminalSize {
   cols: number;
   rows: number;
@@ -122,6 +129,7 @@ export type ServerMessage =
   | ({ t: "hello" } & TerminalHello)
   | ({ t: "reset" } & TerminalSize)
   | ({ t: "size" } & TerminalSize)
+  | { t: "tmux"; version: TmuxVersion }
   | ({ t: "exit" } & TerminalExit);
 
 /** The part of the browser's WebSocket this file uses, so a test can hand it
@@ -136,6 +144,8 @@ export interface TerminalHandlers {
   onReset?: (reset: TerminalReset) => void;
   onData?: (bytes: Uint8Array) => void;
   onSize?: (size: TerminalSize) => void;
+  /** The tmux server the pane lives in. */
+  onTmux?: (version: TmuxVersion) => void;
   onExit?: (exit: TerminalExit) => void;
   onError?: (failure: TerminalFailure) => void;
 }
@@ -221,6 +231,12 @@ export function parseServerMessage(text: string): ServerMessage | null {
       const rows = cells(msg.rows);
       return cols && rows ? { t: msg.t, cols, rows } : null;
     }
+    case "tmux": {
+      // major.minor and nothing else: a version this cannot read is one the
+      // panel does not act on, which is the same as never having been told.
+      const m = typeof msg.version === "string" ? /^(\d{1,3})\.(\d{1,3})$/.exec(msg.version) : null;
+      return m ? { t: "tmux", version: [Number(m[1]), Number(m[2])] } : null;
+    }
     case "exit": {
       // A reason this bundle does not know is still an ending, so it is one
       // the panel already knows how to draw.
@@ -285,7 +301,7 @@ const LOST = "The connection to the terminal was lost.";
  * away without waiting on an event it would otherwise have to track.
  */
 export function connectTerminal(options: ConnectOptions): TerminalConnection {
-  const { ticket, onHello, onReset, onData, onSize, onExit, onError } = options;
+  const { ticket, onHello, onReset, onData, onSize, onTmux, onExit, onError } = options;
   const base = options.base ?? (typeof location === "undefined" ? undefined : location.href);
   const create = options.createSocket ?? ((at: string) => new WebSocket(at));
   const ws = create(socketUrl(options.url ?? TERMINAL_ATTACH_PATH, ticket, base));
@@ -332,6 +348,9 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
           return;
         case "size":
           onSize?.({ cols: msg.cols, rows: msg.rows });
+          return;
+        case "tmux":
+          onTmux?.(msg.version);
           return;
         case "exit":
           finished = true;

@@ -429,6 +429,9 @@ class FakeConn {
   texts() { return this.sent.filter(s => s.type === "text").map(s => (s as any).msg); }
 }
 
+/** What the next FakeControl's serverVersion() answers. */
+let nextVersion: Promise<number[] | null> = Promise.resolve(null);
+
 class FakeControl extends EventEmitter {
   opts: any;
   seeds = 0;
@@ -453,6 +456,8 @@ class FakeControl extends EventEmitter {
   async input(bytes: Buffer) { this.inputs.push(Buffer.from(bytes)); return { ok: true, lines: [] }; }
   async paste(text: string) { this.pastes.push(text); return { ok: true, lines: [] }; }
   colourReports: string[][] = [];
+  versionAsked = 0;
+  serverVersion() { this.versionAsked++; return nextVersion; }
   async colours(fg: string, bg: string) { this.colourReports.push([fg, bg]); return { ok: true, lines: [] }; }
   async close() { this.closes++; }
 }
@@ -592,6 +597,44 @@ describe("the bridge, in the order the panel expects", () => {
     expect(conn.texts().filter(m => m.t === "size"), "the panel is never told its own size").toEqual([]);
     handle.message({ type: "binary", data: Buffer.from("y") });
     expect(control().resizes, "and nothing is taken back").toHaveLength(2);
+  });
+
+  it("tells the panel the tmux server's version once, before the first reset, asked as the bridge opens", async () => {
+    nextVersion = Promise.resolve([3, 4]);
+    try {
+      const { conn, control, text } = bridge();
+      expect(control().versionAsked, "asked before the panel's size is in").toBe(1);
+      text({ t: "size", cols: 80, rows: 24 });
+      await vi.waitFor(() => expect(control().seeds).toBe(1));
+      control().emit("reseed");
+      await vi.waitFor(() => expect(control().seeds).toBe(2));
+      await settle();
+      expect(conn.texts().map(m => m.t)).toEqual(["hello", "tmux", "reset", "reset"]);
+      expect(conn.texts()[1]).toEqual({ t: "tmux", version: "3.4" });
+    } finally {
+      nextVersion = Promise.resolve(null);
+    }
+  });
+
+  it("holds the first reset behind a version tmux answers late, and says nothing when it will not say", async () => {
+    let answer!: (v: number[] | null) => void;
+    nextVersion = new Promise(r => { answer = r; });
+    try {
+      const late = bridge();
+      late.text({ t: "size", cols: 80, rows: 24 });
+      await settle();
+      expect(late.control().seeds, "the seed waits for the one answer queued ahead of it").toBe(0);
+      answer([3, 8]);
+      await vi.waitFor(() => expect(late.control().seeds).toBe(1));
+      await settle();
+      expect(late.conn.texts().map(m => m.t)).toEqual(["hello", "tmux", "reset"]);
+    } finally {
+      nextVersion = Promise.resolve(null);
+    }
+    const quiet = bridge();
+    quiet.text({ t: "size", cols: 80, rows: 24 });
+    await vi.waitFor(() => expect(quiet.control().seeds).toBe(1));
+    expect(quiet.conn.texts().map(m => m.t)).toEqual(["hello", "reset"]);
   });
 
   it("passes the panel's colours to tmux for the deck's own pane: valid, once per change, the latest after a cooldown", async () => {
