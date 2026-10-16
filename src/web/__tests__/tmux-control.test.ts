@@ -306,8 +306,8 @@ describe("the control client, against a fake tmux", () => {
     expect(info, "ready is the pane the client streams").toEqual({ pane: "%0", window: "@0", session: "$0", cols: 120, rows: 40, dead: false });
     expect(await early, "a command sent before tmux had attached still gets its own reply, not attach's")
       .toEqual({ ok: true, lines: ["status on"] });
-    expect(fake.argv(), "attach carries the client flags and an exact-match session name")
-      .toEqual(["-u", "-L", "ccdeck-test-fake", "-C", "attach-session", "-f", "pause-after=2", "-t", "=s"]);
+    expect(fake.argv(), "attach carries -E, the client flags and an exact-match session name")
+      .toEqual(["-u", "-L", "ccdeck-test-fake", "-C", "attach-session", "-E", "-f", "pause-after=2", "-t", "=s"]);
     expect(fake.written[1], "the pane's death is watched through the %* subscription")
       .toBe("refresh-client -B \"ccdeck-dead:%*:#{pane_dead}\"");
     await c.close();
@@ -689,7 +689,7 @@ describe("the control client, against a fake tmux", () => {
     const c = tc.openControl({ tmux: "/fake/tmux", socket, target: "notes;", spawn, execFile, env });
     await c.ready;
     expect([spawned!.file, ...fake.argv()])
-      .toEqual(tmuxCommand("/fake/tmux", socket, ["-C", "attach-session", "-f", "pause-after=2", "-t", tmuxArg("=notes;")]));
+      .toEqual(tmuxCommand("/fake/tmux", socket, ["-C", "attach-session", "-E", "-f", "pause-after=2", "-t", tmuxArg("=notes;")]));
     expect(fake.argv().at(-1), "a trailing ';' is tmux's escape for it, not the end of the command").toBe("=notes\\;");
     expect(spawned!.env, "nested-tmux markers, the deck's own and a parent agent's variables stay behind").toEqual(tmuxEnv(env));
     expect(spawned!.env).toEqual({ PATH: "/usr/bin", LANG: "C", TMUX_TMPDIR: "/tmp/sandbox" });

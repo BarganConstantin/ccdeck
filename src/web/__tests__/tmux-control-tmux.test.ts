@@ -414,6 +414,26 @@ describe("against a real tmux", () => {
     await waitFor(() => tm("display-message", "-p", "-t", "wide:0", "#{window_width}").trim() === "120", "the shrink");
   }, 30_000);
 
+  it("leaves the user's session environment as it was: update-environment is not applied from the deck's", async () => {
+    if (!TMUX) return;
+    tm("new-session", "-d", "-s", "envs", NODE, FIXTURE, "record", join(DIR, "envs.bin"));
+    // What the user's own desktop terminal put there when it made the session.
+    tm("set-environment", "-t", "envs", "SSH_AUTH_SOCK", "/run/user/1000/agent.sock");
+    tm("set-environment", "-t", "envs", "DISPLAY", ":0");
+    const sessionEnv = () => tm("show-environment", "-t", "envs").split("\n").filter(l => /^-?(SSH_AUTH_SOCK|DISPLAY)\b/.test(l)).sort();
+    const before = sessionEnv();
+    expect(before).toEqual(["DISPLAY=:0", "SSH_AUTH_SOCK=/run/user/1000/agent.sock"]);
+    // A deck started by a login item: no agent socket, no display, both of
+    // which are on tmux's default update-environment list.
+    const deckEnv: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: process.env.HOME, LANG: "C.UTF-8" };
+    const c = open({ target: paneOf("envs"), pane: paneOf("envs"), ignoreSize: true, env: deckEnv });
+    await c.ready;
+    await c.seed();
+    expect(sessionEnv(), "attaching did not strip or replace them").toEqual(before);
+    await c.close();
+    expect(sessionEnv(), "nor did leaving").toEqual(before);
+  }, 30_000);
+
   it("recovers from a %pause: tmux is told to continue, 'reseed' fires, and the new seed matches tmux's screen", async () => {
     if (!TMUX) return;
     tm("new-session", "-d", "-s", "slow", "-x", "100", "-y", "30", NODE, FIXTURE, "stress");
