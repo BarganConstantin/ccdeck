@@ -26,6 +26,9 @@ import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, Provi
 
 /** ✕'s name and tooltip, word for word (DESIGN.md: never "stop"/"end"/"quit"). */
 export const CLOSE_LABEL = "Close — the session keeps running";
+/** ✕ and ‹ on a stage with no session on it, where there is nothing to keep. */
+export const CLOSE_EMPTY_LABEL = "Close the stage";
+export const BACK_EMPTY_LABEL = "Back to the board";
 export const BACK_LABEL = "Back to the board — the session keeps running";
 
 export interface StageHeaderProps {
@@ -45,6 +48,9 @@ export interface StageHeaderProps {
   canType: boolean;
   expanded: boolean;
   takeover: boolean;
+  /** No session behind the stage — the empty stage, a launch that never
+   *  started — so ✕ and ‹ promise nothing about one. */
+  nothingRunning?: boolean;
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -76,10 +82,12 @@ export default function StageHeader(p: StageHeaderProps) {
   const keysLabel = "Type into the session";
   const keysTip = pane ? `Give the keys back to the board (${p.chordLabel})` : `${keysLabel} (↵)`;
   const expandLabel = p.expanded ? "Give the board its room back" : "Give the stage the width";
+  const closeLabel = p.nothingRunning ? CLOSE_EMPTY_LABEL : CLOSE_LABEL;
+  const backLabel = p.nothingRunning ? BACK_EMPTY_LABEL : BACK_LABEL;
   return (
     <header className="ts-head">
       {p.takeover && (
-        <button type="button" className="glyph-btn" aria-label={BACK_LABEL} title={BACK_LABEL} onClick={p.onClose}>
+        <button type="button" className="glyph-btn" aria-label={backLabel} title={backLabel} onClick={p.onClose}>
           <BackGlyph />
         </button>
       )}
@@ -144,7 +152,7 @@ export default function StageHeader(p: StageHeaderProps) {
             {p.expanded ? <CollapseGlyph /> : <ExpandGlyph />}
           </button>
         )}
-        <button type="button" className="glyph-btn" data-stage-close aria-label={CLOSE_LABEL} title={CLOSE_LABEL} onClick={p.onClose}>
+        <button type="button" className="glyph-btn" data-stage-close aria-label={closeLabel} title={closeLabel} onClick={p.onClose}>
           <CloseGlyph />
         </button>
       </div>

@@ -38,6 +38,11 @@
   .autofit-resume,
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
+  /* The terminal stage's keys bar (terminal-stage.css) names keys the same
+     way: j k, n, Esc, the release chord. They go; "type here" stays, as the
+     button it is. */
+  .ts-keys .ts-hint:not(:has(button)) { display: none; }
+  .ts-keys .ts-kbd { display: none; }
   /* What's new's update line: its one button takes the floor, and the line
      keeps that height whether the button is there or not, so an answer that
      brings one still moves nothing. */

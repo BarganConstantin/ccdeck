@@ -18,7 +18,7 @@ import { all, one, textOf, type Drawn } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
-import StageHeader, { BACK_LABEL, CLOSE_LABEL, chipLabel, chipText, type StageHeaderProps } from "../components/terminal/StageHeader";
+import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LABEL, chipLabel, chipText, type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
@@ -112,6 +112,18 @@ describe("the header", () => {
     const down = { preventDefault: vi.fn() };
     (keys.props.onMouseDown as (e: unknown) => void)(down);
     expect(down.preventDefault).toHaveBeenCalled();
+  });
+
+  it("promises nothing about a session when there is none behind the stage", () => {
+    expect(button(StageHeader(headerProps({ nothingRunning: true })), CLOSE_EMPTY_LABEL)).not.toBeNull();
+    expect(button(StageHeader(headerProps({ nothingRunning: true, takeover: true })), BACK_EMPTY_LABEL)).not.toBeNull();
+    expect(CLOSE_EMPTY_LABEL + BACK_EMPTY_LABEL).not.toMatch(/keeps running/);
+    const empty = html(createElement(TerminalStage, {
+      show: { kind: "empty" }, geometry: stageGeometry({ appW: 1440, bodyH: 848, cellW: 8, cellH: 18, expanded: false, narrow: false, storedCols: null }),
+      cell: ASSUMED_CELL, readToken: () => "", expanded: false, firstRun: false, asksWaiting: false,
+      onClose: vi.fn(), onToggleExpand: vi.fn(), onFirstRunDone: vi.fn(), onNewSession: vi.fn(), onCols: vi.fn(), onColsReset: vi.fn(),
+    } as TerminalStageProps));
+    expect(empty).toContain(`aria-label="${CLOSE_EMPTY_LABEL}"`);
   });
 
   it("marks ✕ as the release chord's last landing, drawn in every state", () => {
@@ -380,6 +392,15 @@ describe("what the stage costs the page that never opens it", () => {
       "components/terminal/Divider.tsx", "components/terminal/NewSessionPopover.tsx", "stage-geometry.ts"]) {
       expect(web(f), f).not.toMatch(/@xterm\//);
     }
+  });
+});
+
+describe("the keys bar under a fingertip", () => {
+  it("drops the keys it names under a coarse pointer, and keeps type here as its button", () => {
+    const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+    const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map(m => m[1]).join("\n");
+    expect(coarse).toContain(".ts-keys .ts-hint:not(:has(button)) { display: none; }");
+    expect(coarse).toContain(".ts-keys .ts-kbd { display: none; }");
   });
 });
 
