@@ -253,6 +253,8 @@ export default function TerminalStage(p: TerminalStageProps) {
         canType={typing}
         expanded={p.expanded}
         takeover={p.geometry.takeover}
+        nothingRunning={p.show.kind === "empty"
+          || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
         onKeys={() => {
           if (session.keysOwner === "pane") { session.release(); p.onRelease?.(); }
           else session.focus();

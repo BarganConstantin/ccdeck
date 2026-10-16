@@ -151,7 +151,9 @@ export function StageDock(p: StageDockProps) {
   const agents = stateRef.current.agents;
   const show = stageShowFor(shell.target, agents, p.now);
   const name = stageName(show);
-  const nameRef = useMirroredRef(name);
+  // The empty stage's name is a description, not a session: closing it keeps
+  // nothing running, so the sentence says only that the stage closed.
+  const nameRef = useMirroredRef(show.kind === "empty" ? null : name);
   const waitingOnStage = show.kind === "session" && show.session.status.state === "waiting";
   const waitingRef = useMirroredRef(waitingOnStage);
   const shellRef = useMirroredRef(shell);
