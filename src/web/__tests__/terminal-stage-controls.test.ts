@@ -11,7 +11,7 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { all, mount, one, textOf, type Drawn } from "./fake-react";
 import Divider, { dividerKey, type DividerProps } from "../components/terminal/Divider";
-import { NewSessionForm, startLabel, startTarget, type NewSessionFormProps } from "../components/terminal/NewSessionPopover";
+import { MODE_CHOICES, NewSessionForm, launchOptions, startLabel, startTarget, type NewSessionFormProps } from "../components/terminal/NewSessionPopover";
 import { colsRange, NAV_MIN, stageWidthFor } from "../stage-geometry";
 import type { ProjectChoice } from "../components/terminal/stage-model";
 
@@ -94,7 +94,11 @@ describe("the New session form", () => {
   const props = (over: Partial<NewSessionFormProps> = {}): NewSessionFormProps =>
     ({ projects, onStart: vi.fn(), onCancel: vi.fn(), ...over });
   const startButton = (tree: unknown) => one(tree, el => el.type === "button" && /^Start /.test(textOf(el)))!;
-  const agents = (tree: unknown) => all(tree, el => el.props.className === "uh-range-btn");
+  const agents = (tree: unknown) => one(tree, el => el.props.className === "uh-range ns-agents")!.props.children as Drawn[];
+  const strip = (tree: unknown, label: string) =>
+    all(tree, el => el.props.className === "uh-range ns-choices" && el.props["aria-labelledby"] === label)[0];
+  const choice = (tree: unknown, label: string, name: string) =>
+    one(strip(tree, label), el => el.type === "button" && textOf(el).trim() === name)!;
   const options = (tree: unknown) => all(tree, el => el.props.role === "option");
   const field = (tree: unknown) => one(tree, el => el.type === "input")!;
   const click = (el: Drawn) => (el.props.onClick as (e?: unknown) => void)({});
@@ -108,6 +112,32 @@ describe("the New session form", () => {
     expect(field(m.tree).props["aria-activedescendant"], "the field is where the keyboard is").toBe("ns-opt-0");
     click(startButton(m.tree));
     expect(p.onStart).toHaveBeenCalledWith("claude", "/home/u/code/paycore");
+  });
+
+  it("offers a new Claude its model, how it asks, and a worktree, each Default until chosen", () => {
+    const p = props();
+    const m = mount(NewSessionForm, p);
+    expect(choice(m.tree, "ns-model-label", "Default").props["aria-pressed"]).toBe(true);
+    expect(choice(m.tree, "ns-mode-label", "Default").props["aria-pressed"]).toBe(true);
+    click(choice(m.tree, "ns-model-label", "Haiku"));
+    click(choice(m.tree, "ns-mode-label", "Plan"));
+    click(one(m.tree, el => el.props.role === "switch")!);
+    expect(choice(m.tree, "ns-model-label", "Haiku").props["aria-pressed"]).toBe(true);
+    click(startButton(m.tree));
+    expect(p.onStart).toHaveBeenCalledWith("claude", "/home/u/code/paycore", { model: "haiku", permissionMode: "plan", worktree: true });
+    expect(MODE_CHOICES.map(c => c.value), "never a mode that stops asking").not.toContain("bypassPermissions");
+  });
+
+  it("starts Codex as it is: none of Claude's choices are drawn or passed", () => {
+    const p = props();
+    const m = mount(NewSessionForm, p);
+    click(choice(m.tree, "ns-model-label", "Opus"));
+    click(agents(m.tree)[1]);
+    expect(strip(m.tree, "ns-model-label")).toBeUndefined();
+    expect(one(m.tree, el => el.props.role === "switch")).toBeNull();
+    click(startButton(m.tree));
+    expect(p.onStart).toHaveBeenCalledWith("codex", "/home/u/code/paycore");
+    expect(launchOptions(null, null, false), "Default passes nothing").toBeUndefined();
   });
 
   it("switches the agent and the project, and the button follows", () => {

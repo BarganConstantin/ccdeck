@@ -44,6 +44,7 @@ import {
   openTerminal,
   terminalStatus,
   STILL_RUNNING,
+  type LaunchOptions,
   type ApiFailure,
   type SessionRef,
   type TerminalProvider,
@@ -88,7 +89,7 @@ export const TMUX_SETUP_GIVE_UP_MS = 180_000;
 export type StageSubject =
   | { kind: "empty" }
   | { kind: "session"; ref: SessionRef }
-  | { kind: "launch"; agent: TerminalProvider; cwd: string; key: string };
+  | { kind: "launch"; agent: TerminalProvider; cwd: string; key: string; options?: LaunchOptions };
 
 /** One string per subject, so a re-render that hands the same subject again
  *  is not a switch. */
@@ -561,7 +562,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   /** Ask again for what tmux's absence refused: the launch, or the open. */
   const askAgain = (my: number) => {
     const ref = refOf();
-    if (subject.kind === "launch" && !launchedRef) void launchFlow(subject.agent, subject.cwd, my);
+    if (subject.kind === "launch" && !launchedRef) void launchFlow(subject.agent, subject.cwd, my, subject.options);
     else if (ref) void openFlow(ref, my, false);
     else setPhase({ kind: "empty" });
   };
@@ -582,8 +583,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     setPhase({ kind: "not-attachable", target: answer.target, stillRunning: false, busy: false });
   };
 
-  const launchFlow = async (agent: TerminalProvider, cwd: string, my: number) => {
-    const answer = await deps.api.launch({ agent, cwd });
+  const launchFlow = async (agent: TerminalProvider, cwd: string, my: number, options?: LaunchOptions) => {
+    // At the size the pane will be shown at, so the agent's first screen is
+    // drawn once (terminal-routes.mjs, the launch route).
+    const answer = await deps.api.launch({ agent, cwd, size: { ...want }, ...(options ? { launch: options } : {}) });
     if (my !== gen) return;
     if (!answer.ok) {
       if (answer.status === 409) await tmuxOr(my, { kind: "error", message: answer.error });
@@ -604,7 +607,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     if (subject.kind === "empty") { setPhase({ kind: "empty" }); return; }
     if (subject.kind === "launch" && !launchedRef) {
       setPhase({ kind: "starting", agent: subject.agent, cwd: subject.cwd });
-      void launchFlow(subject.agent, subject.cwd, my);
+      void launchFlow(subject.agent, subject.cwd, my, subject.options);
       return;
     }
     const ref = refOf();
@@ -749,7 +752,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       dropConnection();
       if (phase.kind === "not-attachable") setPhase({ ...phase, busy: true });
       else setPhase({ kind: "attaching", reconnect: true });
-      void deps.api.adopt(ref).then(answer => {
+      void deps.api.adopt(ref, {}, { ...want }).then(answer => {
         if (my !== gen) return;
         if (answer.ok) { connect(answer.ticket, my); return; }
         if (answer.error === STILL_RUNNING && phase.kind === "not-attachable") {

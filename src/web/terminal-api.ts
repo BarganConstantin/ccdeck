@@ -117,6 +117,21 @@ export interface ApiFailure {
   error: string;
 }
 
+/** What New session may ask of a new Claude: Claude Code's own flags, from
+ *  the lists the deck's launcher accepts (terminal-sessions.mjs). Absent is
+ *  the reader's own settings. */
+export interface LaunchOptions {
+  model?: "opus" | "sonnet" | "haiku";
+  permissionMode?: "auto" | "acceptEdits" | "plan";
+  worktree?: boolean;
+}
+
+/** The size the panel will show a session at, so it starts there. */
+export interface PaneSize {
+  cols: number;
+  rows: number;
+}
+
 /** Adopt's refusal when the session's original process is still alive: it
  *  must stop there before it can continue here, or two agents write one log. */
 export const STILL_RUNNING = "still-running";
@@ -159,7 +174,9 @@ function failureFrom(status: number, body: unknown): ApiFailure {
   // themselves never answer 401 or 403; only the gate in front of them does.
   if (status === 404 && (!said || said === UNMATCHED_API)) return { ok: false, status, error: SWITCHED_OFF };
   if (status === 401 || status === 403) return { ok: false, status, error: REFUSED };
-  if (said) return { ok: false, status, error: said };
+  // A launch the deck's tmux refused may say what to do about it.
+  const hint = isObject(body) && typeof body.hint === "string" ? body.hint : "";
+  if (said) return { ok: false, status, error: hint ? `${said} ${hint}` : said };
   return { ok: false, status, error: UNREADABLE };
 }
 
@@ -229,9 +246,9 @@ export function openTerminal(ref: SessionRef, options: ApiOptions = {}): Promise
 
 /** Reopen a session started outside the deck, in a deck-owned tmux session.
  *  Refused with STILL_RUNNING (HTTP 409) while its original process lives. */
-export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}): Promise<Ticketed | ApiFailure> {
+export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}, size?: PaneSize): Promise<Ticketed | ApiFailure> {
   const { sessionId, provider, cwd } = ref;
-  return ask<Ticketed>(TERMINAL_ROUTES.adopt, post({ sessionId, provider, cwd }), options, body => {
+  return ask<Ticketed>(TERMINAL_ROUTES.adopt, post({ sessionId, provider, cwd, ...(size ? { cols: size.cols, rows: size.rows } : {}) }), options, body => {
     if (!isObject(body) || body.ok !== true) return null;
     const ticket = ticketOf(body.ticket);
     const target = targetOf(body.target);
@@ -242,10 +259,14 @@ export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}): Promis
 /** Start a new agent in `cwd`, inside a deck-owned tmux session, and get a
  *  ticket to attach to it. */
 export function launchTerminal(
-  { agent, cwd }: { agent: TerminalProvider; cwd: string },
+  { agent, cwd, size, launch }: { agent: TerminalProvider; cwd: string; size?: PaneSize; launch?: LaunchOptions },
   options: ApiOptions = {},
 ): Promise<Launched | ApiFailure> {
-  return ask<Launched>(TERMINAL_ROUTES.launch, post({ agent, cwd }), options, body => {
+  const extra = {
+    ...(size ? { cols: size.cols, rows: size.rows } : {}),
+    ...(launch && Object.keys(launch).length ? { options: launch } : {}),
+  };
+  return ask<Launched>(TERMINAL_ROUTES.launch, post({ agent, cwd, ...extra }), options, body => {
     if (!isObject(body) || body.ok !== true) return null;
     const ticket = ticketOf(body.ticket);
     if (!ticket || typeof body.name !== "string" || !body.name) return null;

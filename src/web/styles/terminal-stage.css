@@ -478,6 +478,12 @@
 /* The station list holds its second span to its width; a path gives way. */
 .ns-option .ns-path { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ns-field { font-family: var(--font-mono); }
+/* Claude's three choices under the project: two strips and a switch, in the
+   rhythm of the agent strip above them. */
+.ns-label-gap { margin-top: 14px; }
+.ns-choices { display: flex; margin-bottom: 10px; }
+.ns-choices .uh-range-btn { flex: 1 1 0; }
+.sm-switch.ns-worktree { margin-top: 2px; }
 .ns-note { margin: 12px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .ns-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 

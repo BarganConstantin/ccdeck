@@ -95,7 +95,10 @@ export function stageShowFor(
 ): StageShow {
   if (!target || target.kind === "empty") return { kind: "empty" };
   if (target.kind === "launch") {
-    return { kind: "launch", agent: target.agent, cwd: target.cwd, name: folderName(target.cwd), hue: sessionHue(target.key), key: target.key };
+    return {
+      kind: "launch", agent: target.agent, cwd: target.cwd, name: folderName(target.cwd), hue: sessionHue(target.key), key: target.key,
+      ...(target.options ? { options: target.options } : {}),
+    };
   }
   const id = target.id;
   const root = agents.get(id);

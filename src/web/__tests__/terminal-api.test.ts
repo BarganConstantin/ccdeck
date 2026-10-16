@@ -99,6 +99,17 @@ describe("the requests themselves", () => {
     expect(asked[0]).toMatchObject({ url: "/api/terminal/launch", method: "POST", body: { agent: "codex", cwd: "/srv/app" } });
   });
 
+  it("starts a launch or a reopen at the panel's size, with New session's options when there are any", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, sessionId: "", name: "ccdeck-claude-1a2b3c4d", ticket: "tk" });
+    await launchTerminal({ agent: "claude", cwd: "/srv/app", size: { cols: 132, rows: 41 }, launch: { model: "haiku", worktree: true } }, { fetchFn });
+    expect(asked[0].body).toEqual({ agent: "claude", cwd: "/srv/app", cols: 132, rows: 41, options: { model: "haiku", worktree: true } });
+    await launchTerminal({ agent: "claude", cwd: "/srv/app", launch: {} }, { fetchFn });
+    expect(asked[1].body, "no options is no options key").toEqual({ agent: "claude", cwd: "/srv/app" });
+    const adopt = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+    await adoptTerminal(SESSION, { fetchFn: adopt.fetchFn }, { cols: 90, rows: 30 });
+    expect(adopt.asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd, cols: 90, rows: 30 });
+  });
+
   it("hands the panel's AbortSignal to fetch, so a switched-away panel can drop the request", async () => {
     const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
     const signal = new AbortController().signal;
@@ -184,6 +195,12 @@ describe("failures are values, never throws", () => {
     const { fetchFn } = answering(400, { ok: false, error: "That folder does not exist." });
     expect(await launchTerminal({ agent: "claude", cwd: "/nope" }, { fetchFn }))
       .toEqual({ ok: false, status: 400, error: "That folder does not exist." });
+  });
+
+  it("adds what to do about a tmux failure when the deck names it", async () => {
+    const { fetchFn } = answering(500, { ok: false, error: "tmux could not start the session.", code: "tmux-failed", hint: "The path to tmux's socket is too long here." });
+    expect(await launchTerminal({ agent: "claude", cwd: "/srv" }, { fetchFn }))
+      .toEqual({ ok: false, status: 500, error: "tmux could not start the session. The path to tmux's socket is too long here." });
   });
 
   it("says the deck did not answer when the fetch itself fails, on every route", async () => {
