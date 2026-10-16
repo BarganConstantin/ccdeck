@@ -63,6 +63,12 @@ let labelled: any[];
 let labelImpl: (o: any) => Promise<boolean>;
 let claudeBin: string | null;
 let controls: FakeControl[];
+// ccdeck's own tmux (tmux-download.mjs): never fetched here, only asked for.
+let downloadBlocked: string | null;
+let downloads: number;
+let downloadResult: Promise<any>;
+let recentFailure: { reason: string; at: number } | null;
+let forgot: number;
 const tickets = createTicketStore();
 
 class FakeControl extends EventEmitter {
@@ -88,6 +94,11 @@ beforeEach(() => {
   labelImpl = async () => true;
   claudeBin = "/opt/claude/bin/claude";
   controls = [];
+  downloadBlocked = "not_published";
+  downloads = 0;
+  downloadResult = Promise.resolve({ ok: true, path: "/secret/data/tools/tmux/tmux-3.8-1/tmux" });
+  recentFailure = null;
+  forgot = 0;
 });
 
 let server: Server;
@@ -107,6 +118,10 @@ beforeAll(async () => {
       labelDeckSession: (o: any) => { labelled.push(o); return labelImpl(o); },
       claudeBin: () => claudeBin,
       openControl: (o: any) => { const c = new FakeControl(o); controls.push(c); return c; },
+      downloadBlocked: () => downloadBlocked,
+      downloadTmux: () => { downloads += 1; return downloadResult; },
+      recentDownloadFailure: () => recentFailure,
+      forgetTmux: () => { forgot += 1; },
     },
   });
   port = (server.address() as { port: number }).port;
@@ -162,6 +177,47 @@ describe("GET /api/terminal/status", () => {
 
   it("is a guarded read", async () => {
     expect((await ask("GET", "/api/terminal/status", undefined, { host: `127.0.0.1:${port}` })).status).toBe(401);
+  });
+
+  it("starts fetching ccdeck's own tmux when there is none, says so at once, and forgets the miss when it lands", async () => {
+    downloadBlocked = null;
+    let land!: (r: unknown) => void;
+    downloadResult = new Promise(r => { land = r; });
+    for (const answer of [
+      { ok: false, reason: "missing", install: "sudo apt install tmux" },
+      { ok: false, reason: "too-old", path: "/secret/old/tmux", version: [3, 1], raw: "tmux 3.1c", install: "brew install tmux" },
+    ]) {
+      tmuxAnswer = answer;
+      const got = await ask("GET", "/api/terminal/status");
+      expect(got.body.tmux, "answered before the download finishes").toEqual({ ok: false, reason: "installing" });
+      expect(got.raw).not.toContain("/secret");
+    }
+    expect(downloads).toBe(2);
+    expect(forgot, "nothing landed yet").toBe(0);
+    land({ ok: true, path: "/secret/data/tools/tmux/tmux-3.8-1/tmux" });
+    await new Promise(r => setTimeout(r, 10));
+    expect(forgot, "the remembered miss goes, so the next ask finds the new tmux").toBe(2);
+  });
+
+  it("answers a recent failed download as the plain fact, with why, and does not try again yet", async () => {
+    downloadBlocked = null;
+    recentFailure = { reason: "download_failed", at: Date.now() };
+    tmuxAnswer = { ok: false, reason: "missing", install: "sudo apt install tmux" };
+    expect((await ask("GET", "/api/terminal/status")).body.tmux)
+      .toEqual({ ok: false, reason: "missing", install: "sudo apt install tmux", download: "download_failed" });
+    expect(downloads).toBe(0);
+  });
+
+  it("fetches nothing where the download is switched off, or for a tmux that works, or on Windows", async () => {
+    tmuxAnswer = { ok: false, reason: "missing", install: "sudo apt install tmux" };
+    downloadBlocked = "install_disabled";
+    expect((await ask("GET", "/api/terminal/status")).body.tmux.reason).toBe("missing");
+    downloadBlocked = null;
+    tmuxAnswer = TMUX_OK;
+    expect((await ask("GET", "/api/terminal/status")).body.tmux.ok).toBe(true);
+    tmuxAnswer = { ok: false, reason: "unsupported-platform" };
+    expect((await ask("GET", "/api/terminal/status")).body.tmux.reason).toBe("unsupported-platform");
+    expect(downloads).toBe(0);
   });
 });
 

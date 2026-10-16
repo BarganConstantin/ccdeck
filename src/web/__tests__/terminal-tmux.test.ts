@@ -111,6 +111,17 @@ describe("finding tmux", () => {
     expect(m.asked, "nothing else may be run in its place").toEqual([]);
   });
 
+  it("tries ccdeck's own tmux last, after every tmux the user installed", () => {
+    const managed = "/home/u/.local/share/ccdeck/tools/tmux/tmux-3.8-1/tmux";
+    const all = (p: string) => p === "/usr/bin/tmux" || p === "/opt/homebrew/bin/tmux" || p === managed;
+    expect(tmuxCandidates({ env: { PATH: "/usr/bin" }, platform: "darwin", exists: all, managed }))
+      .toEqual(["/usr/bin/tmux", "/opt/homebrew/bin/tmux", managed]);
+    expect(tmuxCandidates({ env: { PATH: "/usr/bin" }, platform: "linux", exists: (p: string) => p !== managed, managed }),
+      "not listed before it has been fetched").not.toContain(managed);
+    expect(tmuxCandidates({ env: { CCDECK_TMUX: "/usr/bin/tmux", PATH: "/usr/bin" }, platform: "linux", exists: all, managed }),
+      "CCDECK_TMUX is still the only one").toEqual(["/usr/bin/tmux"]);
+  });
+
   it("looks a bare CCDECK_TMUX up on PATH", () => {
     const exists = (p: string) => p === "/tools/tmux-3.6";
     expect(tmuxCandidates({ env: { CCDECK_TMUX: "tmux-3.6", PATH: "/usr/bin:/tools" }, platform: "linux", exists }))

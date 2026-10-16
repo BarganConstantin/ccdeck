@@ -49,7 +49,7 @@ export const REVEAL_WAIT_MS = 400;
 /** The body phases a session's stage can be uncovered on: the pane, or the
  *  card that says why there is none — anything but an attach in flight. */
 const SESSION_SHOWABLE: ReadonlySet<StagePhaseKind> = new Set<StagePhaseKind>([
-  "live", "not-attachable", "tmux-missing", "ended", "detached", "error",
+  "live", "not-attachable", "tmux-installing", "tmux-missing", "ended", "detached", "error",
 ]);
 
 /**

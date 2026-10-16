@@ -40,7 +40,9 @@ import {
 } from "./terminal-sessions.mjs";
 import { createTicketStore, terminalBridge } from "./terminal-socket.mjs";
 import { checkTargetQuery, describeTarget, resolveTarget } from "./terminal-target.mjs";
-import { DECK_SOCKET, findTmux } from "./tmux.mjs";
+import { DECK_SOCKET, findTmux, resetTmuxCache } from "./tmux.mjs";
+import { ensureManagedTmux, recentTmuxFailure, tmuxDownloadBlocked } from "./tmux-download.mjs";
+import { deckDataDir } from "./deck-home.mjs";
 
 /** Adopt's refusal while the session's own process still runs: two agents
  *  resuming one conversation would write one log from two places. The page
@@ -102,8 +104,16 @@ export function terminalDeps(overrides = {}) {
     isDir,
     home: homedir,
     openControl: null,
+    // ccdeck's own tmux, for a machine with none (tmux-download.mjs).
+    downloadBlocked: null,
+    downloadTmux: null,
+    recentDownloadFailure: recentTmuxFailure,
+    forgetTmux: resetTmuxCache,
     ...(overrides ?? {}),
   };
+  d.downloadBlocked ??= () => tmuxDownloadBlocked({ env: d.env, platform: d.platform });
+  // Into the folder tmuxCandidates looks in, which is decided by the same env.
+  d.downloadTmux ??= () => ensureManagedTmux({ env: d.env, platform: d.platform, dataDir: deckDataDir(d.platform, d.env) });
   d.findTmux ??= () => findTmux({ env: d.env, platform: d.platform });
   d.claudeBin ??= () => resolveAgentBin("claude", { env: d.env, platform: d.platform });
   return d;
@@ -140,11 +150,29 @@ export function tmuxStatus(found) {
   };
 }
 
-/** GET /api/terminal/status → `{ ok: true, platform, tmux }`. */
+/**
+ * GET /api/terminal/status → `{ ok: true, platform, tmux }`.
+ *
+ * With no usable tmux, the first ask starts fetching ccdeck's own build
+ * (tmux-download.mjs) and answers `reason: "installing"`; the panel asks again
+ * until it is `ok`. A download that failed is answered for RETRY_AFTER_MS as
+ * the plain missing or too-old state with `download: <why>`, so the panel can
+ * offer the install line instead, and is tried again after that.
+ */
 export async function handleTerminalStatus(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
   const found = await d.findTmux();
+  const fixable = !found?.ok && (found?.reason === "missing" || found?.reason === "too-old");
+  if (fixable && !d.downloadBlocked()) {
+    const failed = d.recentDownloadFailure();
+    if (failed) return send(res, 200, { ok: true, platform: d.platform, tmux: { ...tmuxStatus(found), download: failed.reason } });
+    // Not awaited: a download is seconds, a status is answered now. The
+    // answer it remembers is forgotten when the build lands, so the next ask
+    // finds it.
+    void d.downloadTmux().then((r) => { if (r?.ok) d.forgetTmux(); });
+    return send(res, 200, { ok: true, platform: d.platform, tmux: { ok: false, reason: "installing" } });
+  }
   return send(res, 200, { ok: true, platform: d.platform, tmux: tmuxStatus(found) });
 }
 

@@ -119,7 +119,7 @@ describe("the navigator in the canvas", () => {
 
 describe("when an unseen stage may be uncovered", () => {
   it("is when a session's pane is up, or the card that says why there is none", () => {
-    for (const kind of ["live", "not-attachable", "tmux-missing", "ended", "detached", "error"] as const) {
+    for (const kind of ["live", "not-attachable", "tmux-installing", "tmux-missing", "ended", "detached", "error"] as const) {
       expect(showable(kind, "session"), kind).toBe(true);
     }
   });

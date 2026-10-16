@@ -62,6 +62,17 @@ export function tmuxFact(reason: string): string {
   return "tmux · not available here";
 }
 
+/** Why the deck's own tmux is not there, when it tried to fetch it — said
+ *  before the install line, which is then the way forward. */
+export function downloadNote(reason: string): string {
+  if (reason === "download_failed") return "The deck could not download its own tmux. Check the connection, or install tmux yourself.";
+  if (reason === "checksum_mismatch" || reason === "too_large") {
+    return "The deck downloaded its own tmux, but it was not the build this deck trusts, so it was not used.";
+  }
+  if (reason === "extract_failed" || reason === "does_not_run") return "The deck's own tmux would not run on this machine.";
+  return "The deck could not set up its own tmux.";
+}
+
 function InstallPlate({ line }: { line: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -131,10 +142,24 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
         </div>
       );
     }
+    case "tmux-installing":
+      return (
+        <div className="ts-card">
+          <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" />tmux · setting up</div>
+          <p className="ts-text">
+            No tmux this stage can use is installed, so the deck is fetching its own: about a megabyte, once. It is
+            kept in the deck's folder; nothing is installed on the system.
+          </p>
+          <div className="ts-acts">
+            <button type="button" className="btn" onClick={p.onNotNow}>Not now</button>
+          </div>
+        </div>
+      );
     case "tmux-missing":
       return (
         <div className="ts-card">
           <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" />{tmuxFact(phase.reason)}</div>
+          {phase.download && <p className="ts-note">{downloadNote(phase.download)}</p>}
           <p className="ts-text">
             The stage runs each session inside the deck's own tmux, which is what lets it keep running when you close
             the stage or the deck restarts. {phase.reason === "too-old" ? "Update it" : "Install it"}, then check again.

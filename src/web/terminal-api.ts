@@ -42,9 +42,14 @@ export type TerminalProvider = "claude" | "codex";
 export interface TmuxStatus {
   ok: boolean;
   version?: string | number[];
-  /** "missing", "too-old" or "unsupported-platform" when `ok` is false. */
+  /** "missing", "too-old" or "unsupported-platform" when `ok` is false, or
+   *  "installing" while the deck fetches its own tmux — ask again. */
   reason?: string;
   install?: string;
+  /** Why the deck's own tmux could not be fetched, when it tried and failed:
+   *  download_failed, checksum_mismatch, too_large, extract_failed or
+   *  does_not_run. */
+  download?: string;
 }
 
 export interface TerminalStatus {

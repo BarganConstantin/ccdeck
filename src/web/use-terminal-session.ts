@@ -47,6 +47,7 @@ import {
   type ApiFailure,
   type SessionRef,
   type TerminalProvider,
+  type TmuxStatus,
 } from "./terminal-api";
 import { connectTerminal, type ConnectOptions, type SizeOwner, type TerminalConnection } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
@@ -74,6 +75,11 @@ export const STREAM_QUIET_MS = 1200;
 export const RECONNECT_DELAYS_MS = [400, 800, 1600, 3200, 5000] as const;
 /** When the stage stops asking a deck that has not come back. */
 export const RECONNECT_GIVE_UP_MS = 120_000;
+/** How often the stage asks again while the deck fetches its own tmux. */
+export const TMUX_SETUP_POLL_MS = 1500;
+/** When it stops waiting for that: a build is about a megabyte, so this is a
+ *  connection that is not working rather than a slow one. */
+export const TMUX_SETUP_GIVE_UP_MS = 180_000;
 
 // ---------------------------------------------------------------------------
 // What the stage is asked to show.
@@ -347,6 +353,7 @@ const transient = (f: ApiFailure) => f.status === null || f.status === 502 || f.
 const STOPPED = "The terminal stopped. The session may still be running.";
 const NO_RETURN = "The deck did not come back. The session is still running in tmux; try again once the deck is up.";
 const NOT_REOPENABLE = "This session started without a name the deck can find it by yet. Open it from the board.";
+const TMUX_SETUP_SLOW = "The deck is still setting up tmux. Try again in a minute.";
 
 /**
  * The stage's terminal and its one connection, as a state machine.
@@ -503,16 +510,55 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   const tmuxOr = async (my: number, otherwise: StagePhase) => {
     const status = await deps.api.status();
     if (my !== gen) return;
-    if (status.ok && !status.tmux.ok) {
+    if (status.ok && !status.tmux.ok) tmuxNotReady(my, status.tmux, deps.now());
+    else setPhase(otherwise);
+  };
+
+  /** tmux is not usable yet. Missing, it is a fact with its install line;
+   *  while the deck fetches its own, the stage says so and asks again until
+   *  it lands, then asks once more for what was refused. */
+  const tmuxNotReady = (my: number, tmux: TmuxStatus, since: number) => {
+    if (tmux.reason !== "installing") {
       setPhase({
         kind: "tmux-missing",
-        reason: status.tmux.reason ?? "missing",
-        ...(status.tmux.install ? { install: status.tmux.install } : {}),
+        reason: tmux.reason ?? "missing",
+        ...(tmux.install ? { install: tmux.install } : {}),
+        ...(tmux.download ? { download: tmux.download } : {}),
         busy: false,
       });
-    } else {
-      setPhase(otherwise);
+      return;
     }
+    if (deps.now() - since > TMUX_SETUP_GIVE_UP_MS) { setPhase({ kind: "error", message: TMUX_SETUP_SLOW }); return; }
+    if (snap.phase.kind !== "tmux-installing") setPhase({ kind: "tmux-installing" });
+    clearTimer(retryTimer);
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (my !== gen || disposed) return;
+      void deps.api.status().then((status) => {
+        if (my !== gen) return;
+        if (status.ok && status.tmux.ok) {
+          setPhase(subject.kind === "launch" && !launchedRef
+            ? { kind: "starting", agent: subject.agent, cwd: subject.cwd }
+            : { kind: "attaching", reconnect: false });
+          askAgain(my);
+        } else if (status.ok) {
+          tmuxNotReady(my, status.tmux, since);
+        } else if (transient(status)) {
+          // The deck blinked; the download it started goes on without it.
+          tmuxNotReady(my, { ok: false, reason: "installing" }, since);
+        } else {
+          setPhase({ kind: "error", message: status.error });
+        }
+      });
+    }, TMUX_SETUP_POLL_MS);
+  };
+
+  /** Ask again for what tmux's absence refused: the launch, or the open. */
+  const askAgain = (my: number) => {
+    const ref = refOf();
+    if (subject.kind === "launch" && !launchedRef) void launchFlow(subject.agent, subject.cwd, my);
+    else if (ref) void openFlow(ref, my, false);
+    else setPhase({ kind: "empty" });
   };
 
   const openFlow = async (ref: SessionRef, my: number, reconnecting: boolean) => {
@@ -724,10 +770,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       const my = gen;
       dropConnection();
       setPhase({ ...phase, busy: true });
-      const ref = refOf();
-      if (subject.kind === "launch" && !launchedRef) void launchFlow(subject.agent, subject.cwd, my);
-      else if (ref) void openFlow(ref, my, false);
-      else setPhase({ kind: "empty" });
+      askAgain(my);
     },
 
     focus() { term?.focus(); },

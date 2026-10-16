@@ -31,6 +31,8 @@ import { pathLookup } from "./exec-spec.mjs";
 // deck shut down mid-command reaps it. The tmux SERVER is not a child of
 // anything here — it daemonises — which is the whole point of using it.
 import { watchChild } from "./exec-children.mjs";
+import { deckDataDir } from "./deck-home.mjs";
+import { managedTmuxPath } from "./tmux-download.mjs";
 
 /** The deck's own tmux server. Every deck-launched session lives here. */
 export const DECK_SOCKET = Object.freeze({ name: "ccdeck" });
@@ -182,7 +184,10 @@ export function tmuxInstallLine(platform = process.platform, osRelease = "") {
  * passing run against a binary they did not choose — the opposite of why the
  * variable exists. Otherwise: `tmux` on PATH, then the known install places.
  */
-export function tmuxCandidates({ env = process.env, platform = process.platform, exists = existsSync } = {}) {
+export function tmuxCandidates({
+  env = process.env, platform = process.platform, exists = existsSync,
+  managed = managedTmuxPath(deckDataDir(platform, env)),
+} = {}) {
   const pathEnv = env.PATH ?? env.Path ?? "";
   const located = (bin) => {
     if (!/[\\/]/.test(bin)) return pathLookup(bin, platform, { pathEnv, exists });
@@ -194,7 +199,9 @@ export function tmuxCandidates({ env = process.env, platform = process.platform,
     return at ? [at] : [];
   }
   const out = [];
-  for (const bin of ["tmux", ...KNOWN_PLACES]) {
+  // ccdeck's own build last (tmux-download.mjs): a tmux the user installed
+  // is the one they chose, and theirs wins whenever it is new enough.
+  for (const bin of ["tmux", ...KNOWN_PLACES, ...(managed ? [managed] : [])]) {
     const at = located(bin);
     if (at && !out.includes(at)) out.push(at);
   }

@@ -27,6 +27,8 @@ import {
   RECONNECT_GIVE_UP_MS,
   RESIZE_SETTLE_MS,
   STREAM_QUIET_MS,
+  TMUX_SETUP_GIVE_UP_MS,
+  TMUX_SETUP_POLL_MS,
   createTerminalSession,
   showCursorFromTheStart,
   subjectKey,
@@ -618,6 +620,86 @@ describe("a new session started from the stage", () => {
     ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n2" });
     await flush();
     expect(r.last().phase).toEqual({ kind: "tmux-missing", reason: "missing", install: "brew install tmux", busy: false });
+  });
+});
+
+describe("while the deck sets up its own tmux", () => {
+  const INSTALLING = { ok: true, platform: "linux", tmux: { ok: false, reason: "installing" } } as TerminalStatus;
+  const READY = { ok: true, platform: "linux", tmux: { ok: true } } as TerminalStatus;
+  const refused = () => failure(409, "The terminal runs on tmux, which is not installed on this machine.");
+
+  it("says so, asks again until it lands, then starts the session it was asked for", async () => {
+    const { r, ctl } = rig();
+    r.launch.mockResolvedValueOnce(refused());
+    r.status.mockResolvedValueOnce(INSTALLING).mockResolvedValueOnce(INSTALLING).mockResolvedValueOnce(READY);
+    ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n3" });
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "tmux-installing" });
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.last().phase, "still setting up").toEqual({ kind: "tmux-installing" });
+    expect(r.launch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    await flush();
+    expect(r.status).toHaveBeenCalledTimes(3);
+    expect(r.launch, "asked once more, now that tmux is there").toHaveBeenCalledTimes(2);
+    expect(r.launch.mock.calls[1][0]).toEqual({ agent: "claude", cwd: "/w" });
+    expect(r.sockets).toHaveLength(1);
+  });
+
+  it("reopens a board session the same way", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "unsupported", label: "The terminal runs on tmux…", reason: "missing" } });
+    r.status.mockResolvedValueOnce(INSTALLING).mockResolvedValueOnce(READY);
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "tmux-installing" });
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    await flush();
+    expect(r.open).toHaveBeenCalledTimes(2);
+    expect(r.sockets).toHaveLength(1);
+  });
+
+  it("falls back to the install line, saying why, when the download fails", async () => {
+    const { r, ctl } = rig();
+    r.launch.mockResolvedValueOnce(refused());
+    r.status.mockResolvedValueOnce(INSTALLING).mockResolvedValueOnce({
+      ok: true, platform: "linux", tmux: { ok: false, reason: "missing", install: "sudo apt install tmux", download: "download_failed" },
+    });
+    ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n4" });
+    await flush();
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.last().phase).toEqual({
+      kind: "tmux-missing", reason: "missing", install: "sudo apt install tmux", download: "download_failed", busy: false,
+    });
+  });
+
+  it("keeps waiting through a deck that blinks, and gives up in a sentence after a few minutes", async () => {
+    const { r, ctl } = rig();
+    r.launch.mockResolvedValueOnce(refused());
+    r.status.mockResolvedValueOnce(INSTALLING).mockResolvedValueOnce(failure(null)).mockResolvedValue(INSTALLING);
+    ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n5" });
+    await flush();
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.last().phase, "no answer is not a verdict").toEqual({ kind: "tmux-installing" });
+    r.clock.now += TMUX_SETUP_GIVE_UP_MS + 1;
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.last().phase).toEqual({ kind: "error", message: "The deck is still setting up tmux. Try again in a minute." });
+    const asked = r.status.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS * 4);
+    expect(r.status.mock.calls.length, "and stops asking").toBe(asked);
+  });
+
+  it("stops asking once the stage shows something else", async () => {
+    const { r, ctl } = rig();
+    r.launch.mockResolvedValueOnce(refused());
+    r.status.mockResolvedValue(INSTALLING);
+    ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n6" });
+    await flush();
+    ctl.show({ kind: "empty" });
+    const asked = r.status.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS * 3);
+    expect(r.status.mock.calls.length).toBe(asked);
+    expect(r.last().phase).toEqual({ kind: "empty" });
   });
 });
 
