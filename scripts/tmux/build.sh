@@ -18,8 +18,8 @@
 #     Alpine's musl, so the binary runs on any distribution. ncurses is built
 #     here rather than taken from Alpine so its terminfo search covers every
 #     distribution's layout, Debian's /lib/terminfo included;
-#   - on macOS, the system's ncurses, which every Mac has, with libevent and
-#     utf8proc (for character widths) linked statically.
+#   - on macOS, the system's ncurses, which every Mac has, with libevent,
+#     utf8proc (for character widths) and jemalloc linked statically.
 #
 # Usage: build.sh <output-dir>
 #   Linux: run inside alpine (the workflow uses alpine:3.22). Outside Alpine the
@@ -40,6 +40,11 @@ NCURSES_SHA256=136d91bc269a9a5785e5f9e980bc76ab57428f604ce3e5a5a90cebc767971cc6
 # the other choice there, and utf8proc is the right one.
 UTF8PROC_VERSION=2.12.0
 UTF8PROC_SHA256=a393fbef160835fb315bc3e91ba8d86f7a73a7cec9e6198b6c60b848b498bfeb
+# macOS only: upstream builds tmux on macOS with jemalloc since 3.7c, "to avoid
+# what appears to be a bug in calloc" (tmux issue 5385), and its configure
+# refuses to choose silently. The build follows upstream.
+JEMALLOC_VERSION=5.3.0
+JEMALLOC_SHA256=2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa
 # Fetched only for its COPYRIGHT: musl itself comes from the Alpine image.
 MUSL_VERSION=1.2.5
 MUSL_SHA256=a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4
@@ -73,7 +78,10 @@ fetch() {
     echo "checksum mismatch for $url: got $got, want $want" >&2
     exit 1
   fi
-  tar -xzf "$file" -C "$WORK"
+  case "$file" in
+    *.tar.bz2) tar -xjf "$file" -C "$WORK" ;;
+    *) tar -xzf "$file" -C "$WORK" ;;
+  esac
 }
 
 if [ "$OS" = linux ]; then
@@ -115,6 +123,7 @@ if [ "$OS" = linux ]; then
   fetch "https://musl.libc.org/releases/musl-$MUSL_VERSION.tar.gz" "$MUSL_SHA256"
 else
   fetch "https://github.com/JuliaStrings/utf8proc/releases/download/v$UTF8PROC_VERSION/utf8proc-$UTF8PROC_VERSION.tar.gz" "$UTF8PROC_SHA256"
+  fetch "https://github.com/jemalloc/jemalloc/releases/download/$JEMALLOC_VERSION/jemalloc-$JEMALLOC_VERSION.tar.bz2" "$JEMALLOC_SHA256"
 fi
 
 echo "building libevent $LIBEVENT_VERSION"
@@ -150,18 +159,40 @@ if [ "$OS" = darwin ]; then
     cp utf8proc.h "$DEPS/include/"
     cp libutf8proc.a "$DEPS/lib/"
   )
+
+  echo "building jemalloc $JEMALLOC_VERSION"
+  (
+    cd "$WORK/jemalloc-$JEMALLOC_VERSION"
+    # shellcheck disable=SC2086
+    ./configure --prefix="$DEPS" $HOST_FLAG --disable-shared --enable-static \
+      --disable-cxx --disable-doc >/dev/null
+    make -j"$JOBS" build_lib_static >/dev/null
+    make install_include install_lib_static install_lib_pc >/dev/null
+  )
+  # jemalloc takes over malloc on macOS by registering itself as the default
+  # zone, from a constructor in zone.o. Nothing tmux calls lives in zone.o, so
+  # linking the archive the ordinary way leaves it out and jemalloc is linked
+  # but never used; force_load keeps every object.
+  LINK_STATIC="-Wl,-force_load,$DEPS/lib/libjemalloc.a"
 fi
 
 echo "building tmux $TMUX_VERSION"
 (
   cd "$WORK/tmux-$TMUX_VERSION"
-  if [ "$OS" = linux ]; then FEATURES="--enable-static"; else FEATURES="--enable-utf8proc"; fi
+  if [ "$OS" = linux ]; then FEATURES="--enable-static"; else FEATURES="--enable-utf8proc --enable-jemalloc"; fi
   # shellcheck disable=SC2086
   ./configure $HOST_FLAG $FEATURES \
     CPPFLAGS="-I$DEPS/include -I$DEPS/include/ncursesw" LDFLAGS="$LINK_STATIC -L$DEPS/lib" >/dev/null
   # What configure decided about the functions a libc may or may not have, in
   # the log, because that is where a static build goes wrong first.
-  grep -E '^(ac_cv_search_|ac_cv_func_)(forkpty|fdforkpty|utf8proc)' config.log || true
+  grep -E '^ac_cv_(search|func)_' config.log || true
+  if [ "$OS" = linux ] && grep -q "^ac_cv_search_forkpty='no'" config.log; then
+    # musl has forkpty; when configure misses it, compat.h's own declaration
+    # collides with musl's and the build fails far from the cause.
+    sed -n '/checking for library containing forkpty/,/result:/p' config.log >&2
+    echo "configure did not find forkpty" >&2
+    exit 1
+  fi
   make -j"$JOBS" >/dev/null
   strip tmux
 )
@@ -177,7 +208,8 @@ if [ "$OS" = linux ]; then
   LINKED="libevent $LIBEVENT_VERSION, ncurses $NCURSES_VERSION and musl, all statically"
 else
   cp "$WORK/utf8proc-$UTF8PROC_VERSION/LICENSE.md" "$STAGE/LICENSES/utf8proc.txt"
-  LINKED="libevent $LIBEVENT_VERSION and utf8proc $UTF8PROC_VERSION statically, and the system's ncurses"
+  cp "$WORK/jemalloc-$JEMALLOC_VERSION/COPYING" "$STAGE/LICENSES/jemalloc.txt"
+  LINKED="libevent $LIBEVENT_VERSION, utf8proc $UTF8PROC_VERSION and jemalloc $JEMALLOC_VERSION statically, and the system's ncurses"
 fi
 cat > "$STAGE/README.txt" <<EOF
 tmux $TMUX_VERSION for $OS-$ARCH_NAME, built by ccdeck for its terminal panel
@@ -191,6 +223,14 @@ EOF
 # version is not published.
 "$STAGE/tmux" -V | grep -q "^tmux $TMUX_VERSION" || { echo "the built tmux does not run" >&2; exit 1; }
 if command -v file >/dev/null 2>&1; then file "$STAGE/tmux"; fi
+if [ "$OS" = darwin ]; then
+  # And jemalloc really serves its allocations: it prints its statistics at
+  # exit only if it was the allocator. (Its prefix on macOS is je_, hence the
+  # variable's name.)
+  JE_MALLOC_CONF=stats_print:true "$STAGE/tmux" -V 2>&1 | grep -q 'Begin jemalloc statistics' \
+    || { echo "jemalloc is linked but not in use" >&2; exit 1; }
+  otool -L "$STAGE/tmux"
+fi
 
 NAME=tmux-$TMUX_VERSION-$OS-$ARCH_NAME
 tar -czf "$OUT/$NAME.tar.gz" -C "$STAGE" tmux README.txt LICENSES
