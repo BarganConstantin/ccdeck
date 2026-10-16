@@ -105,6 +105,22 @@ describe("the header", () => {
     expect(pane.props.title).toBe("Give the keys back to the board (Ctrl+Shift+X)");
   });
 
+  it("keeps focus where it is when ⌨ is pressed, so the click still reads who had the keys", () => {
+    // A mousedown that moved focus would blur the pane's textarea, hand the
+    // keys to the board, and the click would then put them straight back.
+    const keys = button(StageHeader(headerProps({ keysOwner: "pane" })), "Type into the session")!;
+    const down = { preventDefault: vi.fn() };
+    (keys.props.onMouseDown as (e: unknown) => void)(down);
+    expect(down.preventDefault).toHaveBeenCalled();
+  });
+
+  it("marks ✕ as the release chord's last landing, drawn in every state", () => {
+    for (const over of [{}, { canType: false }, { takeover: true }, { expanded: true }]) {
+      const close = one(StageHeader(headerProps(over)), el => el.type === "button" && el.props["data-stage-close"] === true);
+      expect(close, JSON.stringify(over)).not.toBeNull();
+    }
+  });
+
   it("leads with ‹ Board in the takeover, with the same promise as ✕, and drops ⤢", () => {
     const tree = StageHeader(headerProps({ takeover: true }));
     expect(button(tree, BACK_LABEL)).not.toBeNull();
@@ -230,6 +246,18 @@ describe("the keys bar", () => {
     expect(html(createElement(KeysBar, barProps({ canType: false, asksWaiting: false })))).not.toMatch(/type here|next ask/);
   });
 
+  it("leaves out j k in the takeover, where there is no navigator to step through", () => {
+    expect(html(createElement(KeysBar, barProps({ takeover: true })))).not.toMatch(/sessions<\/span>/);
+    expect(html(createElement(KeysBar, barProps({ takeover: true })))).toContain("Keys on the board");
+  });
+
+  it("says what the pane refused, in place of the hints, until it is cleared", () => {
+    const out = html(createElement(KeysBar, barProps({ owner: "pane", notice: "That paste is over 1 MB." })));
+    expect(out).toContain("That paste is over 1 MB.");
+    expect(out).not.toContain("Typing into");
+    expect(html(createElement(KeysBar, barProps({ owner: "pane", notice: null })))).toContain("Typing into");
+  });
+
   it("says who is being typed into, that Escape goes to the session, and how to give the keys back", () => {
     const out = html(createElement(KeysBar, barProps({ owner: "pane" })));
     expect(out).toContain('data-owner="pane"');
@@ -320,6 +348,11 @@ describe("the stage as a whole", () => {
     expect(out).not.toContain('role="separator"');
   });
 
+  it("draws no divider while expanded: the stage is as wide as it goes, and ⤢ is the way back", () => {
+    const out = html(createElement(TerminalStage, stageProps(session, { expanded: true })));
+    expect(out).not.toContain('role="separator"');
+  });
+
   it("hands the session hook a subject that names the session, or the launch, and nothing else", () => {
     expect(subjectOf(session)).toEqual({ kind: "session", ref: { sessionId: "s1", provider: "claude", cwd: "/w/paycore" } });
     expect(subjectOf({ kind: "launch", agent: "codex", cwd: "/w", name: "w", hue: 3, key: "n1" })).toEqual({ kind: "launch", agent: "codex", cwd: "/w", key: "n1" });
@@ -347,6 +380,18 @@ describe("what the stage costs the page that never opens it", () => {
       "components/terminal/Divider.tsx", "components/terminal/NewSessionPopover.tsx", "stage-geometry.ts"]) {
       expect(web(f), f).not.toMatch(/@xterm\//);
     }
+  });
+});
+
+describe("the stage's place in the phone's grid", () => {
+  it("stays in the one track a phone has, with a left panel open over the canvas", () => {
+    // Beside a left panel the stage moves to the canvas's second track; under
+    // 641px the panel lies over the canvas and the grid has one track, so a
+    // stage left in a second one would add it back and the canvas would fall
+    // to nothing on every other measure.
+    const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+    const phone = [...css.matchAll(/@media \(max-width: 640px\) \{([\s\S]*?)\n\}/g)].map(m => m[1]).join("\n");
+    expect(phone).toMatch(/\.app:has\(\.session-list\) \.stage-dock,\s*\.app:has\(\.accounts-panel\) \.stage-dock \{ grid-column: 1; \}/);
   });
 });
 

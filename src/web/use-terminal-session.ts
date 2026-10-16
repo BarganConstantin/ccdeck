@@ -49,7 +49,7 @@ import {
   type TerminalProvider,
   type TmuxStatus,
 } from "./terminal-api";
-import { connectTerminal, type ConnectOptions, type SizeOwner, type TerminalConnection } from "./terminal-protocol";
+import { connectTerminal, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
 import type { Cell } from "./stage-geometry";
 import { SHIFT_ENTER_INPUT, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
@@ -330,7 +330,12 @@ export interface SessionCallbacks {
   onChange(snapshot: SessionSnapshot): void;
   onCell?(cell: Cell): void;
   onLaunched?(launched: LaunchedSession): void;
+  /** Something the reader did that the pane would not take, said once. */
+  onNotice?(sentence: string): void;
 }
+
+/** A paste too big for one message: refused, and said, rather than lost. */
+export const PASTE_TOO_LARGE = "That paste is over 1 MB, too big to send to the session. Nothing was typed.";
 
 export interface TerminalSessionController {
   mount(host: HTMLElement, init: Omit<TerminalInit, "cols" | "rows">): void;
@@ -656,7 +661,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i) & 0xff;
       conn?.sendInput(bytes);
     },
-    onPaste: text => { if (snap.phase.kind === "live") conn?.sendPaste(text); },
+    onPaste: text => {
+      if (snap.phase.kind !== "live" || !conn) return;
+      if (!conn.sendPaste(text) && pasteTooLarge(text)) callbacks.onNotice?.(PASTE_TOO_LARGE);
+    },
     // terminal-keys.ts decides; this only carries the decision out. The
     // release chord is kept from the session and acted on by the deck's own
     // listener, so it is not answered here as well: one owner, one release.
@@ -804,6 +812,7 @@ export interface UseTerminalSessionOptions {
   fontFamily: string;
   onCell?: (cell: Cell) => void;
   onLaunched?: (launched: LaunchedSession) => void;
+  onNotice?: (sentence: string) => void;
   /** The suite's seam. The stage passes nothing. */
   deps?: Partial<SessionDeps>;
 }
@@ -837,6 +846,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
       onChange: setSnapshot,
       onCell: cell => latest.current.onCell?.(cell),
       onLaunched: launched => latest.current.onLaunched?.(launched),
+      onNotice: sentence => latest.current.onNotice?.(sentence),
     });
     controller.current = ctl;
     ctl.resize(o.cols, o.rows, !!o.holdResize);

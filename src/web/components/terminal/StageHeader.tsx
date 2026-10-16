@@ -128,6 +128,10 @@ export default function StageHeader(p: StageHeaderProps) {
               aria-label={keysLabel}
               aria-keyshortcuts={pane ? "Control+Shift+X" : undefined}
               title={keysTip}
+              // Pressing it must not move focus first: the textarea's blur
+              // would hand the keys to the board before the click lands, and
+              // the click would then read "board" and put them back.
+              onMouseDown={e => e.preventDefault()}
               onClick={p.onKeys}
             >
               <KeyboardGlyph />
@@ -140,7 +144,7 @@ export default function StageHeader(p: StageHeaderProps) {
             {p.expanded ? <CollapseGlyph /> : <ExpandGlyph />}
           </button>
         )}
-        <button type="button" className="glyph-btn" aria-label={CLOSE_LABEL} title={CLOSE_LABEL} onClick={p.onClose}>
+        <button type="button" className="glyph-btn" data-stage-close aria-label={CLOSE_LABEL} title={CLOSE_LABEL} onClick={p.onClose}>
           <CloseGlyph />
         </button>
       </div>

@@ -28,6 +28,14 @@
 /* Beside a left panel the canvas is the second track, and so is the stage. */
 .app:has(.session-list) .stage-dock,
 .app:has(.accounts-panel) .stage-dock { grid-column: 2; }
+/* On a phone the left panel lies over the canvas instead (left-column.css),
+   the grid has one track, and a stage left in a second one would add it back:
+   the canvas would fall to nothing, the takeover width with it, and the two
+   would trade places on every measure. */
+@media (max-width: 640px) {
+  .app:has(.session-list) .stage-dock,
+  .app:has(.accounts-panel) .stage-dock { grid-column: 1; }
+}
 
 /* While it grows out of a card or back into one, the stage covers the whole
    cell and a clip-path is the window onto it (stage-morph.ts): the terminal

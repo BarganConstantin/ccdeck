@@ -20,9 +20,10 @@ import { fileURLToPath } from "node:url";
 vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { mount as mountComponent, flush } from "./fake-react";
-import { connectTerminal } from "../terminal-protocol";
+import { MAX_MESSAGE_BYTES, connectTerminal } from "../terminal-protocol";
 import type { ApiFailure, NotAttachable, SessionRef, TerminalStatus, Ticketed, Launched } from "../terminal-api";
 import {
+  PASTE_TOO_LARGE,
   RECONNECT_DELAYS_MS,
   RECONNECT_GIVE_UP_MS,
   RESIZE_SETTLE_MS,
@@ -122,6 +123,7 @@ interface Rig {
   last: () => SessionSnapshot;
   cells: unknown[];
   launched: LaunchedSession[];
+  notices: string[];
   resolveMount: () => void;
 }
 
@@ -135,7 +137,7 @@ function rig({ lazyMount = false } = {}) {
   const clock = { now: 1_000_000 };
   const r = {
     sockets, clock, mounts: 0, snaps: [] as SessionSnapshot[], cells: [] as unknown[],
-    launched: [] as LaunchedSession[],
+    launched: [] as LaunchedSession[], notices: [] as string[],
     open: vi.fn(async (_ref: SessionRef) => ticketed(`t${sockets.length + 1}`) as Ticketed | NotAttachable | ApiFailure),
     adopt: vi.fn(async (_ref: SessionRef) => ticketed("adopted") as Ticketed | ApiFailure),
     launch: vi.fn(async (_a: { agent: string; cwd: string }) =>
@@ -166,6 +168,7 @@ function rig({ lazyMount = false } = {}) {
     onChange: s => r.snaps.push(s),
     onCell: c => r.cells.push(c),
     onLaunched: l => r.launched.push(l),
+    onNotice: n => r.notices.push(n),
   });
   return { r, ctl };
 }
@@ -506,6 +509,16 @@ describe("keys, paste and the pane's size", () => {
     r.events().onPaste("line one\nline two");
     expect(s.sentBytes()).toEqual(["ls -la\r"]);
     expect(s.sentText().at(-1)).toEqual({ t: "paste", text: "line one\nline two" });
+  });
+
+  it("says a paste is too big to send, rather than losing it without a word", async () => {
+    const { r, s } = await liveRig();
+    const before = s.sentText().length;
+    r.events().onPaste("x".repeat(MAX_MESSAGE_BYTES));
+    expect(s.sentText().length, "nothing went out").toBe(before);
+    expect(r.notices).toEqual([PASTE_TOO_LARGE]);
+    r.events().onPaste("small");
+    expect(r.notices, "an ordinary paste says nothing").toHaveLength(1);
   });
 
   it("sends Shift+Enter as ESC CR, once, and keeps it from the pane's own Enter", async () => {

@@ -63,6 +63,11 @@ export interface KeysBarProps {
   canType: boolean;
   /** At least one session is waiting: "n next ask" is a key worth showing. */
   asksWaiting: boolean;
+  /** The stage has the whole view: no navigator, so no j/k to step through. */
+  takeover?: boolean;
+  /** Something the pane just refused (a paste too big to send), for a few
+   *  seconds in place of the hints. */
+  notice?: string | null;
   firstRun: boolean;
   onFirstRunDone(): void;
   onTypeHere(): void;
@@ -140,6 +145,12 @@ export default function KeysBar(p: KeysBarProps) {
         <button type="button" className="btn" aria-busy={p.end.busy || undefined} onClick={p.end.onAction}>{p.end.action}</button>
       </div>
     );
+  } else if (p.notice) {
+    left = (
+      <div className="ts-keys" data-owner="none">
+        <span className="ts-end"><i className="ts-end-mark" aria-hidden="true" />{p.notice}</span>
+      </div>
+    );
   } else if (p.firstRun && p.canType) {
     // The first-run line lives here so it never costs the terminal a row.
     left = (
@@ -163,7 +174,7 @@ export default function KeysBar(p: KeysBarProps) {
       <div className="ts-keys" data-owner="board">
         <i className="ts-lamp" aria-hidden="true" />
         <span>Keys on the board</span>
-        <span className="ts-hint"><Kbd>j</Kbd><Kbd>k</Kbd> sessions</span>
+        {!p.takeover && <span className="ts-hint"><Kbd>j</Kbd><Kbd>k</Kbd> sessions</span>}
         {p.canType && (
           <span className="ts-hint">
             <Kbd label="Enter">↵</Kbd>

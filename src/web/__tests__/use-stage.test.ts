@@ -52,13 +52,26 @@ function root(id: string, extra: Partial<AgentNodeData> = {}): AgentNodeData {
 
 let page: ReturnType<typeof makeCanvas>;
 let focused: string | null;
+let session: Map<string, string>;
+let pagehide: (() => void)[];
 
 beforeEach(() => {
   vi.useFakeTimers();
   page = makeCanvas();
   focused = null;
   const g = globalThis as Record<string, unknown>;
-  g.window = { setTimeout, clearTimeout, innerWidth: 1440, addEventListener() {}, removeEventListener() {} };
+  session = new Map();
+  pagehide = [];
+  g.window = {
+    setTimeout, clearTimeout, innerWidth: 1440,
+    addEventListener(type: string, fn: () => void) { if (type === "pagehide") pagehide.push(fn); },
+    removeEventListener(type: string, fn: () => void) { if (type === "pagehide") pagehide = pagehide.filter(f => f !== fn); },
+    sessionStorage: {
+      getItem: (k: string) => session.get(k) ?? null,
+      setItem: (k: string, v: string) => { session.set(k, v); },
+      removeItem: (k: string) => { session.delete(k); },
+    },
+  };
   g.CSS = { escape: (s: string) => s };
   g.document = {
     body: {},
@@ -320,6 +333,29 @@ describe("the keys", () => {
     now().stage.navRef.current = { focusTile, tileRects: () => new Map(), fold: () => Promise.resolve(true) };
     now().stage.release();
     expect(focusTile).toHaveBeenCalledWith("s1");
+  });
+
+  it("always lands the release chord somewhere: ⌨, else ✕, else off the pane — never a keyboard trap", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: true });
+    // No navigator beside the stage (the takeover, or a launch with no tile).
+    const landed: string[] = [];
+    const head = (buttons: Record<string, boolean>) => ({
+      querySelector: (sel: string) => {
+        const name = sel === "button[aria-pressed]" ? "keys" : sel === "button[data-stage-close]" ? "close" : null;
+        return name && buttons[name] ? { focus: () => landed.push(name) } : null;
+      },
+    });
+    const blur = vi.fn();
+    const doc = globalThis.document as unknown as Record<string, unknown>;
+    doc.activeElement = { blur };
+    for (const buttons of [{ keys: true, close: true }, { keys: false, close: true }, { keys: false, close: false }]) {
+      doc.querySelector = (sel: string) => (sel === ".stage-dock .ts-head" ? head(buttons) : null);
+      now().stage.release();
+    }
+    expect(landed, "⌨ while the pane takes keys, ✕ once it does not").toEqual(["keys", "close"]);
+    expect(blur, "with neither drawn, the pane's textarea still lets go").toHaveBeenCalledTimes(1);
   });
 });
 
