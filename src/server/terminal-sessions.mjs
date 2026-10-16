@@ -132,14 +132,15 @@ export function deckSessionName({ agent, kind = "launch", sessionId = "", random
  * sessions, so it has no attach.
  */
 export function agentArgv({
-  agent, kind = "launch", sessionId = "", claudeBin = "claude", codexBin = "codex", uuid = randomUUID,
+  agent, kind = "launch", sessionId = "", claudeBin = "claude", codexBin = "codex", uuid = randomUUID, options = null,
 } = {}) {
   checkAgent(agent);
   checkKind(kind);
+  const extra = launchOptionArgs(agent, kind, options);
   if (agent === "claude") {
     if (kind === "launch") {
       if (sessionId) checkSessionId(sessionId);
-      return [claudeBin, "--session-id", sessionId || uuid()];
+      return [claudeBin, "--session-id", sessionId || uuid(), ...extra];
     }
     checkSessionId(sessionId);
     return kind === "resume" ? [claudeBin, "--resume", sessionId] : [claudeBin, "attach", sessionId];
@@ -151,6 +152,41 @@ export function agentArgv({
   }
   checkSessionId(sessionId);
   return [codexBin, "resume", sessionId];
+}
+
+/** What New session may ask of a new Claude, each a value Claude Code's own
+ *  CLI lists (2.1.301: `--model <alias>`, `--permission-mode <mode>`,
+ *  `--worktree`). Never a mode that stops asking — bypassPermissions, dontAsk:
+ *  a deck that never answers for the reader does not start an agent that
+ *  answers for itself. Anything else is refused, so nothing a page sends
+ *  becomes a flag the deck did not choose. */
+export const LAUNCH_MODELS = Object.freeze(["opus", "sonnet", "haiku"]);
+export const LAUNCH_PERMISSION_MODES = Object.freeze(["manual", "auto", "acceptEdits", "plan"]);
+
+/** The flags for a launch's options, after the session id. Pure; throws
+ *  `bad-options` for anything not on the lists above, or for options on
+ *  anything but a new Claude. `--worktree` goes last: its value is optional,
+ *  and last it can take nothing that was meant as another flag. */
+export function launchOptionArgs(agent, kind, options) {
+  if (options == null) return [];
+  if (typeof options !== "object" || Array.isArray(options)) throw new TerminalSessionError("bad-options", "Those session options are not ones the deck knows.");
+  const { model, permissionMode, worktree, ...rest } = options;
+  if (Object.keys(rest).length || (worktree != null && typeof worktree !== "boolean")) {
+    throw new TerminalSessionError("bad-options", "Those session options are not ones the deck knows.");
+  }
+  if (model == null && permissionMode == null && worktree !== true) return [];
+  if (agent !== "claude" || kind !== "launch") throw new TerminalSessionError("bad-options", "Only a new Claude session takes those options.");
+  const out = [];
+  if (model != null) {
+    if (!LAUNCH_MODELS.includes(model)) throw new TerminalSessionError("bad-options", "That is not a model the deck can start Claude with.");
+    out.push("--model", model);
+  }
+  if (permissionMode != null) {
+    if (!LAUNCH_PERMISSION_MODES.includes(permissionMode)) throw new TerminalSessionError("bad-options", "That is not a permission mode the deck can start Claude in.");
+    out.push("--permission-mode", permissionMode);
+  }
+  if (worktree === true) out.push("--worktree");
+  return out;
 }
 
 /**
@@ -232,6 +268,12 @@ export function clampSize(cols, rows) {
  * started from a login item — no COLORTERM in its environment — would launch
  * agents that pick a 256-colour palette for a screen that never needed one.
  *
+ * `-e CLAUDE_CODE_NONBLOCKING_STDOUT=1` for Claude: Claude Code documents it
+ * (2.1.261 and later) for exactly this pane — "a terminal that stops reading,
+ * such as a paused tmux control-mode pane … can't freeze Claude Code
+ * mid-session" — and the bridge pauses a pane whose panel falls behind. An
+ * older Claude ignores it.
+ *
  * Everything else rides in the same sequence as new-session; see tmuxSequence
  * for why that ordering is what keeps a pane that dies at once on the board.
  */
@@ -239,7 +281,9 @@ export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", age
   const at = `=${name}:`;
   return ["-f", "/dev/null", ...tmuxSequence([
     ["new-session", "-d", "-s", name, "-x", String(cols), "-y", String(rows),
-      "-c", tmuxFormatLiteral(cwd), "-e", "COLORTERM=truecolor", "-P", "-F", "#{pane_id}",
+      "-c", tmuxFormatLiteral(cwd), "-e", "COLORTERM=truecolor",
+      ...(agent === "claude" ? ["-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1"] : []),
+      "-P", "-F", "#{pane_id}",
       "--", ...paneArgv(argv)],
     ["set-option", "-t", at, SESSION_OPTIONS.session, sessionId],
     ["set-option", "-t", at, SESSION_OPTIONS.agent, agent],
@@ -288,6 +332,7 @@ async function requireTmux(env) {
 export async function launchSession({
   tmux, agent, cwd, cols = COLS.fallback, rows = ROWS.fallback, argv, sessionId = "", kind = "launch",
   socket = DECK_SOCKET, env = process.env, platform = process.platform, run = runTmux, scope = serverScope,
+  options = null,
 } = {}) {
   checkAgent(agent);
   checkKind(kind);
@@ -312,7 +357,7 @@ export async function launchSession({
         ? "Claude Code is not installed on this machine."
         : "Codex is not installed on this machine.");
     }
-    command = agentArgv({ agent, kind, sessionId: id, claudeBin: bin, codexBin: bin });
+    command = agentArgv({ agent, kind, sessionId: id, claudeBin: bin, codexBin: bin, options });
   }
   const bin = tmux ?? await requireTmux(env);
   let outside = null;

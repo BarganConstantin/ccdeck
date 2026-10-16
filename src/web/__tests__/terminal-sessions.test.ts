@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  AGENTS, DEAD_KEEP, KINDS, SESSION_OPTIONS, TerminalSessionError, agentArgv, checkCwd, clampSize, deadDeckSessions,
+  AGENTS, DEAD_KEEP, KINDS, LAUNCH_MODELS, LAUNCH_PERMISSION_MODES, SESSION_OPTIONS, TerminalSessionError, agentArgv, launchOptionArgs, checkCwd, clampSize, deadDeckSessions,
   deckSessionName, findDeckSession, isDeckSessionName, killDeckSession, labelDeckSession, launchCommand, launchSession,
   listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resolveAgentBin, staleDeadSessions,
 } from "../../server/terminal-sessions.mjs";
@@ -89,6 +89,24 @@ describe("what a deck session runs", () => {
     const [, flag, fresh] = agentArgv({ agent: "claude" });
     expect(flag).toBe("--session-id");
     expect(fresh, "a version 4 UUID").toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it("adds New session's options to a new Claude, from Claude Code's own lists and nothing else", () => {
+    expect(agentArgv({ agent: "claude", sessionId: ID, ...bins, options: { model: "haiku", permissionMode: "plan", worktree: true } }))
+      .toEqual([bins.claudeBin, "--session-id", ID, "--model", "haiku", "--permission-mode", "plan", "--worktree"]);
+    expect(agentArgv({ agent: "claude", sessionId: ID, ...bins, options: { worktree: false } })).toEqual([bins.claudeBin, "--session-id", ID]);
+    expect(launchOptionArgs("claude", "launch", null)).toEqual([]);
+    const code = (f: () => unknown) => { try { f(); } catch (err) { return (err as { code: string }).code; } return "accepted"; };
+    for (const options of [
+      { model: "--dangerously-skip-permissions" }, { model: "gpt-5" }, { permissionMode: "bypassPermissions" },
+      { permissionMode: "dontAsk" }, { worktree: "../escape" }, { extra: 1 }, ["--model", "opus"],
+    ]) {
+      expect(code(() => agentArgv({ agent: "claude", sessionId: ID, options: options as never })), JSON.stringify(options)).toBe("bad-options");
+    }
+    expect(code(() => agentArgv({ agent: "codex", options: { model: "opus" } })), "Codex takes none of them").toBe("bad-options");
+    expect(code(() => agentArgv({ agent: "claude", kind: "resume", sessionId: ID, options: { model: "opus" } })), "a reopen keeps what it had").toBe("bad-options");
+    expect(LAUNCH_PERMISSION_MODES).not.toContain("bypassPermissions");
+    expect(LAUNCH_MODELS).toEqual(["opus", "sonnet", "haiku"]);
   });
 
   it("refuses what the agents' CLIs do not have", () => {
@@ -182,7 +200,7 @@ describe("the tmux command that makes a deck session", () => {
     expect(args).toEqual([
       "-f", "/dev/null",
       "new-session", "-d", "-s", "ccdeck-claude-0123abcd", "-x", "100", "-y", "30",
-      "-c", "/w/a##{x} b\\;", "-e", "COLORTERM=truecolor", "-P", "-F", "#{pane_id}",
+      "-c", "/w/a##{x} b\\;", "-e", "COLORTERM=truecolor", "-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-P", "-F", "#{pane_id}",
       "--", "/bin/claude", "--session-id", ID,
       ";", "set-option", "-t", at, "@ccdeck-session", ID,
       ";", "set-option", "-t", at, "@ccdeck-agent", "claude",
@@ -191,6 +209,11 @@ describe("the tmux command that makes a deck session", () => {
       ";", "set-option", "-w", "-t", at, "remain-on-exit", "on",
       ";", "set-option", "-q", "-w", "-t", at, "remain-on-exit-format", "",
     ]);
+  });
+
+  it("gives Claude, and only Claude, the non-blocking stdout its docs name for a paused control-mode pane", () => {
+    const codex = launchCommand({ name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/bin/codex"], agent: "codex", kind: "launch" });
+    expect(codex).not.toContain("CLAUDE_CODE_NONBLOCKING_STDOUT=1");
   });
 
   it("labels with the four options the listing reads back", () => {

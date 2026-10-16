@@ -64,7 +64,7 @@ const ATTACH_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  *  400; the machine not having what it takes is a 409, a state the panel can
  *  say; tmux failing in a way it did not explain is the deck's 500. */
 const SESSION_STATUS = Object.freeze({
-  "bad-agent": 400, "bad-kind": 400, "bad-cwd": 400, "bad-session-id": 400, "bad-argv": 400, "bad-name": 400,
+  "bad-agent": 400, "bad-kind": 400, "bad-cwd": 400, "bad-session-id": 400, "bad-argv": 400, "bad-name": 400, "bad-options": 400,
   "agent-missing": 409, "tmux-unavailable": 409, "exists": 409,
   "tmux-failed": 500,
 });
@@ -299,6 +299,8 @@ export async function handleTerminalAdopt(req, res, options) {
     await clearDead(target, tmux, d);
     const started = await d.launchSession({
       tmux, agent: q.provider, kind: "resume", sessionId: q.sessionId, cwd: q.cwd,
+      // At the panel's size from its first frame (see the launch below).
+      cols: body.cols, rows: body.rows,
       socket: d.deckSocket, env: d.env, platform: d.platform,
     });
     const opened = { kind: "A", socket: d.deckSocket, pane: started.pane, name: started.name };
@@ -336,6 +338,13 @@ export async function handleTerminalLaunch(req, res, options) {
     }
     const started = await d.launchSession({
       tmux, agent: body.agent, cwd: body.cwd, socket: d.deckSocket, env: d.env, platform: d.platform,
+      // The panel's size, so the agent draws its first screen at the size it
+      // is shown at. Started at the fallback instead, Claude Code drew its
+      // banner, was resized the moment the panel attached, and drew it again:
+      // every launched session began with the header twice in its scrollback.
+      // clampSize holds whatever arrives to a sane terminal.
+      cols: body.cols, rows: body.rows,
+      options: body.options ?? null,
     });
     const ticket = mint(d, req, tmux, { kind: "A", socket: d.deckSocket, target: started.name, pane: started.pane, ignoreSize: false });
     maybePrune(d, tmux);
@@ -472,9 +481,25 @@ function isDir(path) {
 /** A TerminalSessionError answered as its sentence; anything else is not a
  *  state of the machine and goes on to `guard`'s 500. tmux's own words go to
  *  the deck's log, never to the page. */
+/** What tmux's stderr means for the person, for the failures with a fix they
+ *  can make; null for the rest. Never a path. */
+export function tmuxFailureHint(stderr) {
+  const t = String(stderr ?? "");
+  if (/File name too long|ENAMETOOLONG/i.test(t)) return "The path to tmux's socket is too long here. Point TMUX_TMPDIR at a shorter folder and restart the deck.";
+  if (/protocol version mismatch/i.test(t)) return "Another version of tmux is already running the deck's sessions. Restarting the deck after they end fixes it.";
+  if (/No space left on device/i.test(t)) return "The disk is full, so tmux could not write its socket.";
+  if (/Permission denied|EACCES/i.test(t)) return "tmux may not write its socket folder. Check the permissions of TMUX_TMPDIR, or /tmp.";
+  return null;
+}
+
 function sessionFailure(res, err) {
   const status = typeof err?.code === "string" ? SESSION_STATUS[err.code] : undefined;
   if (!status) throw err;
   if (err.detail) console.error(`${PRODUCT}: terminal: ${err.message} (${err.detail})`);
-  return send(res, status, { ok: false, error: err.message, code: err.code });
+  // tmux's own words stay in the deck's log — they carry paths, and nothing a
+  // route here answers does — but the reasons a person can act on are named:
+  // "tmux could not start the session" alone left "File name too long" (a
+  // socket folder past the limit) in a log the reader never opens.
+  const hint = typeof err.detail === "string" ? tmuxFailureHint(err.detail) : null;
+  return send(res, status, { ok: false, error: err.message, code: err.code, ...(hint ? { hint } : {}) });
 }
