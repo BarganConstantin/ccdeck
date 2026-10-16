@@ -193,6 +193,9 @@ export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
     const ago = facts.lastTurnEndAt != null ? shortAgo(now - facts.lastTurnEndAt) : null;
     return { state: "idle", phrase: "your turn", ...(ago ? { arg: ago === "just now" ? "last turn just now" : `last turn ${ago}` } : {}) };
   }
+  // A session that has been asked nothing waits for its first prompt, even
+  // while it still reads active from its start: it is not working.
+  if (facts.fresh && !facts.tool && !facts.subagentsLive) return { state: "ready", phrase: "ready", arg: "for a first prompt" };
   if (facts.active) {
     const out: StageStatus = { state: "working", phrase: "working" };
     if (facts.tool) {

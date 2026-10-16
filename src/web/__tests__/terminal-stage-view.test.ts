@@ -258,6 +258,12 @@ describe("the keys bar", () => {
     expect(html(createElement(KeysBar, barProps({ canType: false, asksWaiting: false })))).not.toMatch(/type here|next ask/);
   });
 
+  it("does not claim the keys reach the session while the pane reconnects", () => {
+    const out = html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })));
+    expect(out).toContain("nothing typed now is sent");
+    expect(out).not.toContain("Typing into");
+  });
+
   it("leaves out j k in the takeover, where there is no navigator to step through", () => {
     expect(html(createElement(KeysBar, barProps({ takeover: true })))).not.toMatch(/sessions<\/span>/);
     expect(html(createElement(KeysBar, barProps({ takeover: true })))).toContain("Keys on the board");

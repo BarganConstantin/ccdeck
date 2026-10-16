@@ -65,6 +65,8 @@ export interface KeysBarProps {
   asksWaiting: boolean;
   /** The stage has the whole view: no navigator, so no j/k to step through. */
   takeover?: boolean;
+  /** The pane's connection is being made again: keys typed now go nowhere. */
+  reconnecting?: boolean;
   /** Something the pane just refused (a paste too big to send), for a few
    *  seconds in place of the hints. */
   notice?: string | null;
@@ -158,6 +160,16 @@ export default function KeysBar(p: KeysBarProps) {
         <i className="ts-lamp" aria-hidden="true" />
         <span>Typing goes to the session — <Kbd>Esc</Kbd> included. <Kbd>✕</Kbd> closes the stage; the session keeps running.</span>
         <button type="button" className="btn" onClick={p.onFirstRunDone}>Got it</button>
+      </div>
+    );
+  } else if (p.owner === "pane" && p.reconnecting) {
+    // The pane still has the focus, but nothing typed reaches the session
+    // until the connection is back; "Typing into" would be a promise the
+    // stage cannot keep.
+    left = (
+      <div className="ts-keys" data-owner="none">
+        <i className="ts-lamp" aria-hidden="true" />
+        <span>Reconnecting to <span className="ts-who">{p.name}</span> — nothing typed now is sent</span>
       </div>
     );
   } else if (p.owner === "pane") {

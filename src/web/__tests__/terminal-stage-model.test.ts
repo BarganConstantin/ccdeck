@@ -69,6 +69,11 @@ describe("the header's sentence, from what the board knows", () => {
     expect(stageStatusFrom({ active: true, yourTurn: true, waiting: { since: NOW } }, NOW).phrase, "an alarm outranks it").toBe("waiting");
   });
 
+  it("calls a session that has been asked nothing ready, not working, while it still reads active from its start", () => {
+    expect(stageStatusFrom({ active: true, fresh: true }, NOW).phrase).toBe("ready");
+    expect(stageStatusFrom({ active: true, fresh: true, tool: { name: "Bash" } }, NOW).phrase, "an open call is work").toBe("working");
+  });
+
   it("invites a fresh session's first prompt, and says when an idle one last answered", () => {
     expect(stageStatusFrom({ active: false, fresh: true }, NOW)).toEqual({ state: "ready", phrase: "ready", arg: "for a first prompt" });
     expect(stageStatusFrom({ active: false, lastTurnEndAt: NOW - 3 * MIN }, NOW)).toEqual({ state: "idle", phrase: "idle", arg: "last turn 3m ago" });

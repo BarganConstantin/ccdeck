@@ -258,6 +258,9 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   programHasMouse = () => term.modes.mouseTrackingMode !== "none";
   const replies = leaveRepliesToTmux(term.parser);
   term.open(host);
+  // A form field with neither id nor name is flagged by the browser's issues
+  // panel on every open; the pane's input is named for what it is.
+  term.textarea?.setAttribute("name", "terminal-input");
   showCursorFromTheStart(term);
 
   if (!forcedColors()) {
