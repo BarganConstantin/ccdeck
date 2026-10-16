@@ -53,6 +53,13 @@ const KNOWN_OPCODES = new Set(Object.values(OP));
  *  legitimate and low enough that a page cannot make the deck hold much. */
 export const DEFAULT_MAX_MESSAGE_BYTES = 1 << 20;
 
+/** The most frames one message may arrive in. The byte cap alone does not
+ *  bound what assembling a message costs: an empty fragment adds no bytes, and
+ *  a one-byte fragment costs a buffer of its own, so a client could hold the
+ *  deck's memory far past the cap a byte or none at a time. A browser sends a
+ *  message in one frame; a thousand is room for any client that splits. */
+export const MAX_FRAGMENTS = 1024;
+
 /** How long a closing connection waits for the other side before the socket is
  *  destroyed. A browser echoes a close within a round trip; a peer that has not
  *  in two seconds is gone or not listening, and its socket is not worth more. */
@@ -300,6 +307,7 @@ export function createFrameParser({ maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES 
   let messageOpcode = 0;
   let fragments = [];
   let fragmentBytes = 0;
+  let fragmentCount = 0;
 
   /** Consume exactly `n` queued bytes: a view when one chunk holds them all,
    *  one copy when they span chunks.
@@ -344,6 +352,7 @@ export function createFrameParser({ maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES 
     queued = 0;
     fragments = [];
     fragmentBytes = 0;
+    fragmentCount = 0;
   }
 
   function fail(out, code, reason) {
@@ -387,6 +396,9 @@ export function createFrameParser({ maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES 
     if (opcode < 0x8 && fragmentBytes + length > maxMessageBytes) {
       return fail(out, 1009, `a message over ${maxMessageBytes} bytes`);
     }
+    if (opcode < 0x8 && fragmentCount >= MAX_FRAGMENTS) {
+      return fail(out, 1009, `a message in more than ${MAX_FRAGMENTS} frames`);
+    }
     step = "mask";
     need = 4;
   }
@@ -400,7 +412,9 @@ export function createFrameParser({ maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES 
     need = 2;
     if (opcode >= 0x8) return controlFrame(payload, out);
     if (opcode !== OP.CONTINUATION) messageOpcode = opcode;
-    fragments.push(payload);
+    fragmentCount += 1;
+    // An empty fragment is counted, never kept: it adds nothing to the message.
+    if (payload.length) fragments.push(payload);
     fragmentBytes += payload.length;
     if (!fin) return;
     const data = fragments.length === 1 ? fragments[0] : Buffer.concat(fragments, fragmentBytes);
@@ -408,6 +422,7 @@ export function createFrameParser({ maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES 
     messageOpcode = 0;
     fragments = [];
     fragmentBytes = 0;
+    fragmentCount = 0;
     // Checked once the message is whole, not per fragment: a character may be
     // split across two fragments, and only the joined bytes say whether it is.
     if (type === "text" && !isUtf8(data)) return fail(out, 1007, "a text message that is not UTF-8");
