@@ -61,6 +61,14 @@ describe("the header's sentence, from what the board knows", () => {
     expect(stageStatusFrom({ active: false, closedAt: NOW - 1000 }, NOW).phrase).toBe("ended just now");
   });
 
+  it("says your turn, as the card does, for a session waiting at its prompt, even while it still reads active", () => {
+    expect(stageStatusFrom({ active: true, yourTurn: true, lastTurnEndAt: NOW - 2 * MIN }, NOW))
+      .toEqual({ state: "idle", phrase: "your turn", arg: "last turn 2m ago" });
+    expect(stageStatusFrom({ active: true, yourTurn: true, fresh: true }, NOW).phrase, "a fresh one is still invited").toBe("ready");
+    expect(stageStatusFrom({ active: true, yourTurn: true, tool: { name: "Bash" } }, NOW).phrase, "an open call is newer").toBe("working");
+    expect(stageStatusFrom({ active: true, yourTurn: true, waiting: { since: NOW } }, NOW).phrase, "an alarm outranks it").toBe("waiting");
+  });
+
   it("invites a fresh session's first prompt, and says when an idle one last answered", () => {
     expect(stageStatusFrom({ active: false, fresh: true }, NOW)).toEqual({ state: "ready", phrase: "ready", arg: "for a first prompt" });
     expect(stageStatusFrom({ active: false, lastTurnEndAt: NOW - 3 * MIN }, NOW)).toEqual({ state: "idle", phrase: "idle", arg: "last turn 3m ago" });

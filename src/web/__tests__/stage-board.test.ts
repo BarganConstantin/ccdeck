@@ -35,6 +35,8 @@ describe("the facts the header's sentence is built from", () => {
     expect(asked.waiting).toEqual({ since: NOW - 6 * MIN, tool: "Bash", detail: "git push" });
     const idle = boardFactsFor(agent("s", { waiting: wait("idle", NOW - MIN) }), []);
     expect(idle.waiting, "an idle prompt is not on you").toBeNull();
+    expect(idle.yourTurn, "the card's Your turn, for the header to agree with").toBe(true);
+    expect(asked.yourTurn).toBe(false);
   });
 
   it("names the open call the way the card's bubbles do, and only while the turn runs", () => {
