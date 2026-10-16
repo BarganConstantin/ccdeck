@@ -22,7 +22,7 @@
 // control a press came from drops keyboard focus to <body>. It carries
 // aria-busy instead, and the session controller refuses the second press —
 // synchronously, off its own state, before any re-render could catch up.
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import { copyText } from "../../copy-text";
 import { agentName, frameRun, type FrameRun, type StagePhase } from "./stage-model";
 import { CopyGlyph, PlusGlyph, TerminalGlyph } from "./stage-icons";
@@ -199,6 +199,21 @@ export default function StageBody(p: StageBodyProps) {
   const { state, afterHold } = run;
   useEffect(() => { last.current = run; });
   const { hostRef, ...card } = p;
+  // Out of the accessibility tree whenever a card speaks or a held frame is
+  // only the last session's — but never over a focused textarea: Chrome
+  // refuses aria-hidden on an element whose descendant keeps focus, and says
+  // so in the console. A pane that stops showing a live session cannot take
+  // keys anyway (the controller drops them), so its focus goes back to the
+  // page first, and the keys bar then says the board has them. Set here
+  // rather than in the markup, so the blur is in place before the attribute.
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    if (state === "shown") { host.removeAttribute("aria-hidden"); return; }
+    const active = typeof document === "undefined" ? null : document.activeElement as { blur?: () => void } | null;
+    if (active && typeof active.blur === "function" && host.contains(active as Node)) active.blur();
+    host.setAttribute("aria-hidden", "true");
+  }, [state, hostRef]);
   return (
     <div className="ts-body">
       {/* The pane: every key pressed in here is the session's, Escape
@@ -210,7 +225,6 @@ export default function StageBody(p: StageBodyProps) {
         data-shown={state === "shown" || undefined}
         data-held={state === "held" || undefined}
         data-after-hold={afterHold || undefined}
-        aria-hidden={state === "shown" ? undefined : true}
       />
       <StateCard {...card} held={state === "held"} />
     </div>

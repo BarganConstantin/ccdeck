@@ -53,7 +53,11 @@ import {
 import { connectTerminal, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
 import type { Cell } from "./stage-geometry";
-import { SHIFT_ENTER_INPUT, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
+import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
+import { openLink } from "./terminal-links";
+import { copyText } from "./copy-text";
+import { leaveRepliesToTmux } from "./terminal-replies";
+import { isApplePlatform, platformName } from "./platform";
 import type { KeysOwner, StagePhase } from "./components/terminal/stage-model";
 
 /** The stage's font size. 13.3px is where the deck's mono stack advances a
@@ -180,19 +184,47 @@ export function showCursorFromTheStart(term: unknown): void {
   if (service && typeof service.isCursorInitialized === "boolean") service.isCursorInitialized = true;
 }
 
+/** Copy what is selected in the pane, if anything, through the deck's one
+ *  clipboard helper. Its fallback selects a textarea of its own, so the keys
+ *  are put back in the pane if that took them. */
+function copySelection(term: { hasSelection(): boolean; getSelection(): string; focus(): void; textarea?: HTMLTextAreaElement }): void {
+  if (!term.hasSelection()) return;
+  const typing = !!term.textarea && document.activeElement === term.textarea;
+  void copyText(term.getSelection()).then(() => {
+    if (typing && document.activeElement !== term.textarea) term.focus();
+  });
+}
+
 /**
- * xterm itself, loaded on first use: Unicode 11 widths (emoji and CJK take
- * the cells Claude Code thinks they take), WebGL with the DOM renderer as the
- * fallback when it cannot start or loses its context, and the options v3
- * settled on.
+ * xterm itself, loaded on first use: grapheme-cluster widths, WebGL with the
+ * DOM renderer as the fallback when it cannot start or loses its context, the
+ * options v3 settled on, and the few places the pane is not a page:
+ *
+ * WIDTHS ARE TMUX'S AND CLAUDE CODE'S. The seed is tmux's grid and Claude Code
+ * lays its prompt out by grapheme cluster, so 👍🏽, 🇲🇩, 👨‍👩‍👧 and ⚠️ are two
+ * cells each to both — measured on tmux 3.8 with `cursor_x` after each. The
+ * Unicode 11 table gave 4, 2, 6 and 1, which pushed the rest of the line
+ * right and broke Claude Code's box; the graphemes addon gives exactly tmux's.
+ *
+ * TMUX ANSWERS THE PANE'S QUESTIONS (terminal-replies.ts): xterm sees them in
+ * the raw output and would answer a second time into the program's input.
+ *
+ * LINKS NEED CTRL (Cmd on a Mac), and never a browser dialog
+ * (terminal-links.ts), for OSC 8 links and plain URLs alike.
  */
 export const mountXterm: MountTerminal = async (host, init, events) => {
-  const [{ Terminal }, { Unicode11Addon }] = await Promise.all([
+  const [{ Terminal }, { UnicodeGraphemesAddon }, { WebLinksAddon }] = await Promise.all([
     import("@xterm/xterm"),
-    import("@xterm/addon-unicode11"),
+    import("@xterm/addon-unicode-graphemes"),
+    import("@xterm/addon-web-links"),
     // Its stylesheet, with it rather than with the stage: see xterm-sheet.ts.
     import("./xterm-sheet"),
   ]);
+  const apple = isApplePlatform(platformName());
+  // Read when a link is pressed, so a program that turns the mouse on later
+  // keeps its clicks (terminal-links.ts).
+  let programHasMouse = () => false;
+  const follow = (e: MouseEvent, uri: string) => openLink(e, uri, { apple, programHasMouse: programHasMouse() });
   const term = new Terminal({
     cols: init.cols,
     rows: init.rows,
@@ -214,9 +246,17 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     // Off: streaming agent output into a live region is #372's anti-pattern.
     // The stage announces what changed, once, through the deck's own regions.
     screenReaderMode: false,
+    // OSC 8 links, without xterm's confirm() and only with Ctrl/Cmd held.
+    linkHandler: { activate: follow, allowNonHttpProtocols: false },
+    // Option-drag selects on a Mac while the program has the mouse, as Shift
+    // does elsewhere; without it a Mac has no way to select there at all.
+    macOptionClickForcesSelection: true,
   });
-  term.loadAddon(new Unicode11Addon());
-  term.unicode.activeVersion = "11";
+  // Activates "15-graphemes" itself.
+  term.loadAddon(new UnicodeGraphemesAddon());
+  term.loadAddon(new WebLinksAddon(follow));
+  programHasMouse = () => term.modes.mouseTrackingMode !== "none";
+  const replies = leaveRepliesToTmux(term.parser);
   term.open(host);
   showCursorFromTheStart(term);
 
@@ -237,11 +277,15 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     const pass = events.onKey(e);
     // A key kept from the pane is kept from the textarea and the browser too:
     // Shift+Enter would type a newline into it and fire a keypress xterm reads
-    // as Enter, and the release chord has a browser meaning (Firefox flips a
-    // field's text direction). It is not stopped, though: the release chord
-    // goes on to the deck's window listener, which is the one that acts on it
-    // (terminal-keys.ts and use-deck-shortcuts.ts).
-    if (!pass && e.type === "keydown") e.preventDefault();
+    // as Enter, the release chord has a browser meaning (Firefox flips a
+    // field's text direction), and Ctrl+Shift+C opens Chrome's element picker.
+    // It is not stopped, though: the release chord goes on to the deck's window
+    // listener, which is the one that acts on it (terminal-keys.ts and
+    // use-deck-shortcuts.ts).
+    if (!pass && e.type === "keydown") {
+      e.preventDefault();
+      if (terminalKeyOutcome(e, apple) === "copy") copySelection(term);
+    }
     return pass;
   });
   const disposables = [
@@ -255,7 +299,10 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     const text = e.clipboardData?.getData("text/plain") ?? "";
     e.preventDefault();
     e.stopPropagation();
-    if (text) events.onPaste(text);
+    if (!text) return;
+    // Back to where the paste lands, as typing already brings the view.
+    term.scrollToBottom();
+    events.onPaste(text);
   };
   host.addEventListener("paste", onPaste, true);
   const textarea = term.textarea;
@@ -288,6 +335,7 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
       textarea?.removeEventListener("focus", onFocus);
       textarea?.removeEventListener("blur", onBlur);
       for (const d of disposables) d.dispose();
+      replies.dispose();
       term.dispose();
     },
   };
@@ -674,7 +722,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     onKey: e => {
       const outcome = terminalKeyOutcome(e);
       if (outcome === "pass") return true;
-      if (outcome === "newline" && e.type === "keydown" && snap.phase.kind === "live") conn?.sendInput(SHIFT_ENTER_INPUT);
+      const input = e.type === "keydown" && snap.phase.kind === "live" ? terminalKeyInput(e, outcome) : null;
+      if (input) conn?.sendInput(input);
       return false;
     },
     onFocusChange: focused => {

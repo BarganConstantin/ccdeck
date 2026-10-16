@@ -15,10 +15,13 @@
 //     except one chord, the RELEASE CHORD, which hands the keys back to the
 //     board. use-deck-shortcuts.ts asks `inTerminalPanel` before anything else
 //     and returns on it.
-//  2. Inside xterm two keys are rewritten on their way to the session: the
-//     release chord never reaches it, and Shift+Enter becomes ESC CR, the
-//     newline Claude Code reads (a terminal sends plain CR for Shift+Enter, so
-//     without this the prompt would be submitted). See `terminalKeyHandler`.
+//  2. Inside xterm a few keys are rewritten on their way to the session: the
+//     release chord never reaches it; Shift+Enter becomes ESC CR, the newline
+//     Claude Code reads (a terminal sends plain CR for Shift+Enter, so without
+//     this the prompt would be submitted); Ctrl+Shift+C copies the selection
+//     instead of opening the browser's DevTools; and on a Mac, Option with the
+//     letters of Claude Code's Meta bindings sends ESC + the letter, as a
+//     terminal with "Option as Meta" would. See `terminalKeyOutcome`.
 //  3. With the stage open and the keys on the board, j/k walk the sessions the
 //     navigator shows (the stage follows once the key rests), Enter and i put
 //     the keys in the pane, n and w take the next ask. See `stageKeyIntent`.
@@ -94,7 +97,7 @@
 // KeyX) under a non-Latin one, where the key types Ч. Alt must be up, because
 // on Windows AltGr arrives as Ctrl+Alt and AltGr+Shift+X types a character on
 // some layouts.
-import { isApplePlatform } from "./platform";
+import { isApplePlatform, platformName } from "./platform";
 import { ownsKeystroke, type FocusTarget } from "./shortcuts";
 
 /** The keystroke fields the chord rules read. Structural, so a test can pass a
@@ -163,11 +166,65 @@ export interface TerminalKey extends ChordKey {
   keyCode?: number;
 }
 
-/** What becomes of a keystroke inside xterm: `release` and `newline` are kept
- *  from the session, everything else — Escape always — goes to it. */
-export type TerminalKeyOutcome = "release" | "newline" | "pass";
+/** What becomes of a keystroke inside xterm: `release`, `newline`, `copy` and
+ *  `meta` are kept from xterm (the last two send something of their own),
+ *  everything else — Escape always — goes to it. */
+export type TerminalKeyOutcome = "release" | "newline" | "copy" | "meta" | "pass";
 
-export function terminalKeyOutcome(e: TerminalKey): TerminalKeyOutcome {
+/**
+ * COPY IS CTRL+SHIFT+C, as in GNOME Terminal, Konsole and VS Code's terminal:
+ * Ctrl+C is the session's (it stops a turn), and Chrome opens its element
+ * picker on Ctrl+Shift+C unless the page takes the key. xterm.js sends no byte
+ * for a Ctrl+Shift letter (see THE RELEASE CHORD above), so the chord costs the
+ * session nothing — Claude Code's own ctrl+shift+c, its fullscreen copy, could
+ * never have arrived through this pane. With nothing selected it does nothing,
+ * and still never reaches the browser. Cmd+C on a Mac is left to xterm, which
+ * copies through the browser's own copy event. Ctrl+Shift+V needs nothing: it
+ * is the browser's plain-text paste, which arrives as a paste event and goes
+ * up whole like any other paste.
+ */
+export function isCopyChord(e: ChordKey): boolean {
+  if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return false;
+  const key = String(e.key ?? "");
+  return /^[a-z]$/i.test(key) ? key.toLowerCase() === "c" : e.code === "KeyC";
+}
+
+/**
+ * OPTION ON A MAC. Claude Code binds Meta+P (model picker), Meta+O (fast mode),
+ * Meta+T (thinking), and Alt+B / Alt+F / Alt+D / Alt+Y (word motion and paste
+ * history), and on a Mac those arrive only from a terminal set to send Option
+ * as Meta (code.claude.com/docs/en/terminal-config). xterm.js's own switch for
+ * that, macOptionIsMeta, would take Option away from every layout that types
+ * with it — ö, ł, @ — so it stays off, and only these letters are rewritten.
+ * Each is matched by the glyph Option types on it under the US layout as well
+ * as by its position: a Polish layout's Option+O types "ó", which is a letter
+ * the reader wants, so it goes through untouched. Option+Enter needs nothing,
+ * since xterm already sends ESC CR for it.
+ */
+export const MAC_META_KEYS: Readonly<Record<string, { code: string; glyph: string }>> = Object.freeze({
+  p: { code: "KeyP", glyph: "π" },
+  o: { code: "KeyO", glyph: "ø" },
+  t: { code: "KeyT", glyph: "†" },
+  b: { code: "KeyB", glyph: "∫" },
+  f: { code: "KeyF", glyph: "ƒ" },
+  d: { code: "KeyD", glyph: "∂" },
+  y: { code: "KeyY", glyph: "¥" },
+});
+
+/** The letter a Mac Option chord stands for, or null. */
+export function macMetaLetter(e: ChordKey): string | null {
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return null;
+  for (const [letter, k] of Object.entries(MAC_META_KEYS)) {
+    if (e.code === k.code && e.key === k.glyph) return letter;
+  }
+  return null;
+}
+
+/**
+ * The keystroke's fate. `apple` is whether the keyboard is a Mac's; it decides
+ * only the Option chords, read from the browser when not given.
+ */
+export function terminalKeyOutcome(e: TerminalKey, apple = isApplePlatform(platformName())): TerminalKeyOutcome {
   // Escape is the session's, whatever is held with it: it interrupts Claude
   // Code mid-turn, closes its dialogs and declines a permission prompt, and a
   // pane that kept it would leave a running agent with no brake.
@@ -179,7 +236,19 @@ export function terminalKeyOutcome(e: TerminalKey): TerminalKeyOutcome {
   // false.
   if (e.isComposing || e.keyCode === 229) return "pass";
   if (e.key === "Enter" && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) return "newline";
+  if (isCopyChord(e)) return "copy";
+  if (apple && macMetaLetter(e)) return "meta";
   return "pass";
+}
+
+/** What a kept keystroke sends to the session on its keydown, if anything. */
+export function terminalKeyInput(e: TerminalKey, outcome: TerminalKeyOutcome): string | null {
+  if (outcome === "newline") return SHIFT_ENTER_INPUT;
+  if (outcome === "meta") {
+    const letter = macMetaLetter(e);
+    return letter ? `\x1b${letter}` : null;
+  }
+  return null;
 }
 
 /**
@@ -203,13 +272,14 @@ export function terminalKeyOutcome(e: TerminalKey): TerminalKeyOutcome {
  * CR and is prevented (a prevented keydown has no keypress), and a keypress or
  * keyup of the same chord is refused as well, for a browser that sends one.
  */
-export function terminalKeyHandler({ sendInput }: { sendInput: (data: string) => void }): (e: KeyboardEvent) => boolean {
+export function terminalKeyHandler({ sendInput, apple }: { sendInput: (data: string) => void; apple?: boolean }): (e: KeyboardEvent) => boolean {
   return (e: KeyboardEvent) => {
-    const outcome = terminalKeyOutcome(e);
+    const outcome = terminalKeyOutcome(e, apple);
     if (outcome === "pass") return true;
     if (e.type === "keydown") {
       e.preventDefault();
-      if (outcome === "newline") sendInput(SHIFT_ENTER_INPUT);
+      const input = terminalKeyInput(e, outcome);
+      if (input) sendInput(input);
     }
     return false;
   };

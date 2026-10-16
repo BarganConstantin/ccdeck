@@ -18,9 +18,10 @@
 // skip-gates.mjs, and a skipped case CI would have to account for on every leg
 // (see codex-compressed-rollout.test.ts for the house reasoning). tmux comes
 // from CCDECK_TMUX or PATH and must be 3.2 or newer. The emulator is
-// @xterm/headless with the Unicode 11 addon, which the deck does not depend
-// on: it is resolved from CCDECK_TEST_XTERM (a directory whose node_modules
-// holds both) or from this checkout, and without it the screen comparisons
+// @xterm/headless with the graphemes addon the stage itself loads (headless is
+// not a dependency of the deck): it is resolved from CCDECK_TEST_XTERM (a
+// directory whose node_modules holds both) or from this checkout, and without
+// it the screen comparisons
 // fall back to checks that need no emulator. To run the whole of it:
 //
 //   CCDECK_TMUX=/path/to/tmux CCDECK_TEST_XTERM=/dir/with/node_modules \
@@ -56,15 +57,15 @@ function realTmux(): string | null {
   return null;
 }
 
-interface Xterm { Terminal: new (o: object) => any; Unicode11Addon: new () => object }
-/** @xterm/headless and the Unicode 11 addon, if this machine has them. */
+interface Xterm { Terminal: new (o: object) => any; Widths: new () => object }
+/** @xterm/headless and the graphemes addon, if this machine has them. */
 function headlessXterm(): Xterm | null {
   const roots = [process.env.CCDECK_TEST_XTERM, fileURLToPath(new URL("../../../", import.meta.url))];
   for (const root of roots) {
     if (!root) continue;
     try {
       const req = createRequire(join(root, "resolve-from-here.js"));
-      return { Terminal: req("@xterm/headless").Terminal, Unicode11Addon: req("@xterm/addon-unicode11").Unicode11Addon };
+      return { Terminal: req("@xterm/headless").Terminal, Widths: req("@xterm/addon-unicode-graphemes").UnicodeGraphemesAddon };
     } catch { /* not here */ }
   }
   return null;
@@ -124,8 +125,9 @@ const paneOf = (target: string) => tm("display-message", "-p", "-t", target, "#{
 
 function makeTerm(cols: number, rows: number, scrollback = 0) {
   const t = new X!.Terminal({ cols, rows, scrollback, allowProposedApi: true });
-  t.loadAddon(new X!.Unicode11Addon());
-  t.unicode.activeVersion = "11";
+  // The widths the stage draws with (use-terminal-session.ts): an emoji
+  // sequence is one cluster, as tmux and Claude Code count it.
+  t.loadAddon(new X!.Widths());
   return t;
 }
 const write = (t: any, data: string | Uint8Array) => new Promise<void>(r => t.write(data, r));

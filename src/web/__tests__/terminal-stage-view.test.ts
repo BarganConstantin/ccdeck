@@ -381,7 +381,8 @@ describe("what the stage costs the page that never opens it", () => {
     expect(statics, "a static xterm import would put it in whatever chunk imports the hook").toEqual([]);
     expect(hook).toMatch(/import\("@xterm\/xterm"\)/);
     expect(hook).toMatch(/import\("@xterm\/addon-webgl"\)/);
-    expect(hook).toMatch(/import\("@xterm\/addon-unicode11"\)/);
+    expect(hook).toMatch(/import\("@xterm\/addon-unicode-graphemes"\)/);
+    expect(hook).toMatch(/import\("@xterm\/addon-web-links"\)/);
     // The sheet rides xterm's own import (xterm-sheet.ts): imported by the
     // stage, it made the lazy chunk one with a CSS dependency, and the entry
     // chunk every visit loads had to carry Vite's dependency map for it.
