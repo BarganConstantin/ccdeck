@@ -15,7 +15,7 @@ import { NewSessionForm, startLabel, startTarget, type NewSessionFormProps } fro
 import { colsRange, NAV_MIN, stageWidthFor } from "../stage-geometry";
 import type { ProjectChoice } from "../components/terminal/stage-model";
 
-const keyEvent = (key: string) => ({ key, preventDefault: vi.fn() });
+const keyEvent = (key: string) => ({ key, preventDefault: vi.fn(), stopPropagation: vi.fn() });
 
 describe("the divider", () => {
   const appW = 1920;
@@ -44,8 +44,10 @@ describe("the divider", () => {
     press("Home");
     press("End");
     expect((p.onCols as ReturnType<typeof vi.fn>).mock.calls).toEqual([[160, true], [100, true], [range.max, true], [80, true]]);
-    press("Enter");
+    const enter = keyEvent("Enter");
+    (sep.props.onKeyDown as (e: unknown) => void)(enter);
     expect(p.onReset).toHaveBeenCalledTimes(1);
+    expect(enter.stopPropagation, "the deck's window listener must not also read Enter as type-in-the-pane").toHaveBeenCalled();
     press("a");
     expect(p.onCols).toHaveBeenCalledTimes(4);
     expect(dividerKey("ArrowUp")).toBeNull();

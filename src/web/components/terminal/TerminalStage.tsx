@@ -50,8 +50,12 @@ import {
 } from "./stage-model";
 import StageHeader from "./StageHeader";
 import StageBody, { type StageContext } from "./StageBody";
+import { useFocusRequest } from "./use-focus-request";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import Divider from "./Divider";
+
+/** How long the keys bar holds a refusal before its hints come back. */
+const NOTICE_MS = 6000;
 
 /** A session from the board, as the stage draws it. */
 export interface StageSessionInfo {
@@ -134,6 +138,8 @@ export function stageName(show: StageShow): string {
 
 export default function TerminalStage(p: TerminalStageProps) {
   const [held, setHeld] = useState(false);
+  /** What the pane refused, said in the keys bar for a few seconds. */
+  const [notice, setNotice] = useState<string | null>(null);
   const subject = subjectOf(p.show);
   const key = subjectKey(subject);
   const name = stageName(p.show);
@@ -150,6 +156,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     fontFamily,
     onCell: p.onCell,
     onLaunched: p.onLaunched,
+    onNotice: setNotice,
     deps: p.sessionDeps,
   });
   const { phase } = session;
@@ -175,22 +182,20 @@ export default function TerminalStage(p: TerminalStageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.kind, key]);
 
+  useEffect(() => {
+    if (!notice) return;
+    onAnnounce.current?.(notice);
+    const t = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(t);
+  }, [notice]);
+  useEffect(() => { setNotice(null); }, [key]);
+
   // The phase itself, for the integrator's morph, which waits for the pane.
   const onPhase = useRef(p.onPhase);
   onPhase.current = p.onPhase;
   useEffect(() => { onPhase.current?.(phase.kind); }, [phase.kind]);
 
-  // Keys into the pane when asked — now, or the moment there is a pane. A
-  // launch asks on its own: the welcome screen is waiting for a first prompt.
-  const wantFocus = useRef(false);
-  useEffect(() => { if (p.focusRequest != null) wantFocus.current = true; }, [p.focusRequest]);
-  useEffect(() => { if (subject.kind === "launch") wantFocus.current = true; }, [key]);
-  useEffect(() => {
-    if (wantFocus.current && typing) {
-      wantFocus.current = false;
-      session.focus();
-    }
-  });
+  useFocusRequest({ key, request: p.focusRequest, launch: subject.kind === "launch", typing, focus: session.focus });
 
   let end: EndView | null = null;
   if (phase.kind === "ended") {
@@ -222,7 +227,9 @@ export default function TerminalStage(p: TerminalStageProps) {
       data-held={held || undefined}
       style={style}
     >
-      {!p.geometry.takeover && (
+      {/* Expanded, the stage is as wide as it goes and the divider would
+          move nothing: ⤢ is the way back. */}
+      {!p.geometry.takeover && !p.expanded && (
         <Divider
           cols={p.geometry.cols}
           rows={p.geometry.rows}
@@ -269,6 +276,8 @@ export default function TerminalStage(p: TerminalStageProps) {
         chordLabel={chordLabel}
         canType={typing}
         asksWaiting={p.asksWaiting}
+        takeover={p.geometry.takeover}
+        notice={notice}
         firstRun={p.firstRun}
         onFirstRunDone={p.onFirstRunDone}
         onTypeHere={session.focus}

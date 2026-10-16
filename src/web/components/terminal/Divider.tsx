@@ -86,6 +86,9 @@ export default function Divider(p: DividerProps) {
     const step = dividerKey(e.key);
     if (!step) return;
     e.preventDefault();
+    // Kept from the deck's window listener, which reads Enter on the stage as
+    // "type in the pane": one key, one meaning.
+    e.stopPropagation();
     if (step === "reset") { p.onReset(); return; }
     const next = stepCols(p.cols, step, p.range);
     if (next !== p.cols) p.onCols(next, true);

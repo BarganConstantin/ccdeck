@@ -271,8 +271,12 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [shellRef]);
 
   /** The keys back to the board: onto the socket's tile, as v3 does — or,
-   *  with no navigator beside the stage, onto the stage's own ⌨. Moving focus
-   *  is the whole of it; the pane's owner follows its textarea's blur. */
+   *  with no navigator beside the stage, onto the stage's own ⌨, and with
+   *  no ⌨ either (the session ended, or another view took the pane) onto ✕,
+   *  which every stage draws. Moving focus is the whole of it; the pane's
+   *  owner follows its textarea's blur. The chord must always land somewhere:
+   *  xterm keeps Tab and Escape, so a pane it cannot leave is a keyboard trap
+   *  (WCAG 2.1.2). */
   const release = useCallback(() => {
     const id = targetSession(shellRef.current.target);
     const g = geometryRef.current;
@@ -285,7 +289,10 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       navRef.current.focusTile(id);
       return;
     }
-    document.querySelector<HTMLElement>(".stage-dock .ts-head button[aria-pressed]")?.focus();
+    const head = document.querySelector<HTMLElement>(".stage-dock .ts-head");
+    const landing = head?.querySelector<HTMLElement>("button[aria-pressed]") ?? head?.querySelector<HTMLElement>("button[data-stage-close]");
+    if (landing) landing.focus();
+    else (document.activeElement as HTMLElement | null)?.blur?.();
   }, [shellRef, geometryRef, canvasRef]);
 
   // ── closing ────────────────────────────────────────────────────────────────

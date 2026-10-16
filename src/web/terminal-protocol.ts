@@ -239,6 +239,11 @@ function bytesOf(data: unknown): Uint8Array | null {
 
 const encoder = new TextEncoder();
 
+/** Whether a paste is over what one message may carry — refused here, where
+ *  the panel can say so, rather than by the deck's parser with a close. */
+export const pasteTooLarge = (text: string) =>
+  encoder.encode(JSON.stringify({ t: "paste", text })).byteLength > MAX_MESSAGE_BYTES;
+
 /** What the panel is told when the socket ends without an `exit`. Plain
  *  sentences, because the panel may show them as they are. */
 const REFUSED = "The deck did not accept the terminal connection.";
@@ -357,9 +362,8 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
     },
     sendPaste(text) {
       if (readOnly || finished) return false;
-      const frame = JSON.stringify({ t: "paste", text });
-      if (encoder.encode(frame).byteLength > MAX_MESSAGE_BYTES) return false;
-      return send(frame);
+      if (pasteTooLarge(text)) return false;
+      return send(JSON.stringify({ t: "paste", text }));
     },
     close() {
       if (finished) return;
