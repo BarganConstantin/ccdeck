@@ -644,10 +644,16 @@ class ControlClient extends EventEmitter {
     // At attach, not by a later refresh-client: between the two, a client that
     // does not ignore size could already have resized the user's window.
     if (this.#ignoreSize) flags.push("ignore-size");
+    // -E: an attaching client copies every variable named in the session's
+    // update-environment from its own environment into the session's, and
+    // removes the ones it lacks. The deck's environment is a login item's or a
+    // service's, not the user's shell, so without -E opening the user's own
+    // session here would strip its SSH_AUTH_SOCK and DISPLAY for every window
+    // they open afterwards — long after the panel has closed.
     // tmux's command line ends a command at any argument that ENDS in ";", so a
     // session named "notes;" is passed as "notes\;" (tmuxArg), tmux's escape
     // for it.
-    const argv = this.#argv(["-C", "attach-session", ...(flags.length ? ["-f", flags.join(",")] : []), "-t", tmuxArg(attachTo)]);
+    const argv = this.#argv(["-C", "attach-session", "-E", ...(flags.length ? ["-f", flags.join(",")] : []), "-t", tmuxArg(attachTo)]);
     let child;
     try {
       child = this.#spawn(this.#tmux, argv, { stdio: ["pipe", "pipe", "pipe"], env: this.#env, windowsHide: true });
