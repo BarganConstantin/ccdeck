@@ -17,14 +17,14 @@
 .guide-line {
   margin: 4px 2px 0;
   min-height: 2.9em;
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   line-height: 1.45;
   color: var(--text);
 }
 .guide-tip {
   margin: -4px 2px 0;
   min-height: 1.5em;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -59,10 +59,10 @@
 .ga-line { stroke: color-mix(in srgb, var(--text) 12%, transparent); }
 .ga-track { fill: color-mix(in srgb, var(--text) 12%, transparent); }
 .ga-bed-warn { fill: color-mix(in srgb, var(--warn) 10%, transparent); }
-.ga-t { font-size: 11px; fill: var(--text); }
-.ga-s { font-size: 10px; fill: var(--muted); }
-.ga-cap { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
-.ga-big { font-size: 26px; font-weight: 600; fill: var(--text); }
+.ga-t { font-size: calc(11px + var(--ui-text-increase, 0px)); fill: var(--text); }
+.ga-s { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--muted); }
+.ga-cap { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
+.ga-big { font-size: calc(26px + var(--ui-text-increase, 0px)); font-weight: 600; fill: var(--text); }
 .ga-strong { font-weight: 600; }
 .ga-mono { font-family: var(--font-mono); }
 /* The four states, after the text rules so a coloured line wins the tie. */
@@ -174,8 +174,8 @@
 }
 .ap-lan-intro:hover:not(:disabled) { border-color: var(--accent); }
 .ap-lan-intro:active:not(:disabled) { transform: scale(0.97); }
-.ap-lan-intro-text { font-size: 11px; line-height: 1.45; color: var(--text-secondary); }
-.ap-lan-intro-go { font-size: 10px; color: var(--accent); }
+.ap-lan-intro-text { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-secondary); }
+.ap-lan-intro-go { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); }
 .ap-lan-how { color: var(--accent); }
 
 /* The tour's two permanent doors, in the shortcuts sheet and the release
@@ -185,7 +185,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 /* The button keeps its words on one line; the sentence beside it wraps. */
@@ -194,7 +194,7 @@
 /* The welcome's way back, on the empty canvas: the hero is pointer-transparent
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */
-.empty-hero .empty-tour { pointer-events: auto; min-height: 36px; padding: 0 16px; font-size: 12px; font-weight: 500; border-radius: 6px; }
+.empty-hero .empty-tour { pointer-events: auto; min-height: 36px; padding: 0 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; border-radius: 6px; }
 
 /* The way from a panel to its 30-second video on ccdeck.dev (FilmLink.tsx).
    Quiet: the accent's small words, the ink of the LAN card's `See how it
@@ -204,7 +204,7 @@
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--accent);
   text-decoration: none;
   white-space: nowrap;
@@ -219,14 +219,14 @@
 /* Beside the card's `See how it works`, on its line, at its size: the card is
    one button, so the link stands over its corner rather than inside it. */
 .ap-lan-intro-row { position: relative; }
-.ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: 10px; }
-.ap-lan-how + .film-link { margin-left: 12px; font-size: 10px; }
+.ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
+.ap-lan-how + .film-link { margin-left: 12px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
 /* Beside the hero's tour button, and given its pointer back like it. */
 .empty-hero .empty-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .empty-hero .film-link { pointer-events: auto; margin-left: 0; }
-.empty-hero .film-action { min-height: 36px; padding: 0 12px; gap: 8px; border-radius: 6px; font-size: 12px; color: var(--text-secondary); transition: background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.empty-hero .film-action { min-height: 36px; padding: 0 12px; gap: 8px; border-radius: 6px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); transition: background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .empty-hero .film-action:hover { background: var(--ctl-fill); color: var(--text); text-decoration: none; }
-.empty-hero .film-duration { font-size: 11px; color: var(--muted); }
+.empty-hero .film-duration { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .empty-hero .film-action svg { flex: none; }
 @container (max-width: 360px) {
   .empty-hero .empty-actions { flex-direction: column; gap: 4px; }

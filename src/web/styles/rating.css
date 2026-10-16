@@ -36,7 +36,7 @@
   background: var(--ctl-fill);
   color: var(--text);
   font: inherit;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -50,7 +50,7 @@
    the theme's own colour, so each number stays a separate target there too. */
 /* What the two ends mean, for the eye; each end's button says it to a screen
    reader in its own name. The first thing to go when the row is short of room. */
-.rating-banner .rating-ends { font-size: 11px; }
+.rating-banner .rating-ends { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 
 /* THE ROW SPANS THE WINDOW, AND EVERYTHING DOCKED STARTS UNDER IT. The usage
    and machine panels are fixed over the right end of the strip, 280px each

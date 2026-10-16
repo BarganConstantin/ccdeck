@@ -60,7 +60,7 @@
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -118,9 +118,9 @@
 .settings-pane-title {
   margin: 0 0 8px;
   color: var(--text);
-  font-size: 16px;
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  line-height: 22px;
+  line-height: calc(22px + var(--ui-text-increase, 0px));
 }
 /* ONE CADENCE FOR EVERY SECTION. A group is a caption over its controls, 10px
    apart; two subjects in one section are parted by a hairline with 16px either
@@ -148,23 +148,23 @@
 .sm-tone-name {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-caption-note {
   margin: 2px 0 0;
   color: var(--text-dim);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 /* A key cap in the caption's right-hand slot, where the panels put a
    caption's one piece of metadata — the shape .sm-key-note kbd draws inline. */
 .settings-key {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
-  line-height: 12px;
+  line-height: calc(12px + var(--ui-text-increase, 0px));
   color: var(--text-dim);
   background: var(--bg-soft);
   border: 1px solid var(--line);
@@ -261,7 +261,7 @@
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -293,7 +293,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 2px;
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .appearance-check {
   width: 12px;
@@ -341,7 +341,7 @@
 }
 .appearance-row-label {
   color: var(--text);
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 500;
 }
 .appearance-row-note {
@@ -350,8 +350,8 @@
      margin is reset here rather than left to the UA's paragraph default. */
   margin: 0;
   color: var(--text-dim);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 /* 48px and 10px: the label column every row in Settings shares (.sm-row), so
    the station's field and the volume's track start on one edge. */
@@ -369,9 +369,9 @@
 }
 .appearance-source-row > label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
-  line-height: 18px;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
 }
 /* A grid, so the trigger stretches to the column like a field rather than
    shrinking to a short name ("Mix") and reading as one more button. */
@@ -394,7 +394,7 @@
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   text-align: left;
   cursor: pointer;
   transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
@@ -441,7 +441,7 @@
 .appearance-source-group {
   padding: 6px 8px 3px;
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -457,7 +457,7 @@
   border: 0;
   border-radius: 4px;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   text-align: left;
   cursor: pointer;
   transition: transform 120ms ease-out;
@@ -499,7 +499,7 @@
 .appearance-fm-status {
   margin: -6px 0 0 60px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.5;
 }
 .appearance-fm-status:empty { display: none; }
@@ -516,7 +516,7 @@
   margin: -6px 0 0 58px;
 }
 .appearance-station-edit { display: inline-flex; gap: 6px; margin-left: auto; }
-button.btn.appearance-station-action { padding: 0 10px; font-size: 11px; }
+button.btn.appearance-station-action { padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* Remove's second press, in the error colour for the four seconds it waits —
    the custom sounds' Delete (.sm-custom-icon.armed), the same act. */
 button.btn.danger.appearance-station-action.armed { color: var(--bg); background: var(--err); }
@@ -539,9 +539,9 @@ button.btn.danger.appearance-station-action.armed { color: var(--bg); background
    have taken the label's weight with it. */
 .appearance-station-field > span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
-  line-height: 18px;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
 }
 .appearance-station-form .appearance-station-field:first-child { grid-column: 1 / -1; }
 .appearance-station-form.is-rename .appearance-station-field:first-child { grid-column: 1; }
@@ -550,8 +550,8 @@ button.btn.danger.appearance-station-action.armed { color: var(--bg); background
   grid-column: 1 / -1;
   margin: 0;
   color: var(--err);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 /* SETTINGS › NOTIFICATIONS. Two subjects at the section cadence: the switch
    for a deck nobody is looking at (and the browser channel it reaches you
@@ -683,7 +683,7 @@ button.btn.danger.appearance-station-action.armed { color: var(--bg); background
 }
 .sm-channel-name {
   margin: 0;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 500;
   color: var(--text-dim);
 }
@@ -694,7 +694,7 @@ button.btn.danger.appearance-station-action.armed { color: var(--bg); background
    a console return a button that plays nothing. */
 button.btn.sm-channel-action {
   padding: 0 10px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   border-color: var(--sm-edge);
   background: var(--sm-fill);
 }
@@ -735,7 +735,7 @@ button.btn.sm-channel-action {
 button.btn.sm-hear {
   padding: 0 8px;
   gap: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   border-color: var(--sm-edge);
   background: var(--sm-fill);
   /* The label a step off --text. The boundary is untouched — that is the
@@ -757,7 +757,7 @@ button.btn.sm-hear {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 /* Mixed toward the text rather than taken straight. --ok at full strength is
@@ -767,7 +767,7 @@ button.btn.sm-hear {
 .sm-channel-state[data-ok] { color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
 
 .sm-row { display: flex; align-items: center; gap: 10px; }
-.sm-row label { font-size: 12px; color: var(--muted); min-width: 48px; }
+.sm-row label { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); min-width: 48px; }
 /* Native, and left native on purpose. A custom track and thumb would have to
    re-earn the arrow keys, Home and End, the drag, the announced percentage and
    the focus ring — all of which the browser gives for nothing, and #620 is what
@@ -864,7 +864,7 @@ button.btn.sm-hear {
 
    ONE RULE, because two of them seven lines apart argued the opposite cases and
    only one of them shipped. A bare `.sm-read` sat under this and restated
-   `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
+   `font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text)` — (0,1,0) against this rule's (0,2,0),
    so both declarations were dead and its comment described a span that has
    never been drawn that way. Reading either rule alone gave the wrong answer
    about what ships. Descendant-scoped on purpose, to the surface that draws
@@ -876,7 +876,7 @@ button.btn.sm-hear {
   text-align: right;
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
 }
 /* The one control here the platform draws entirely: only the box it sits in is
@@ -902,7 +902,7 @@ button.btn.sm-hear {
   border: 1px solid var(--sm-edge);
   border-radius: 6px;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   accent-color: var(--accent);
 }
 .sm-select:hover { border-color: var(--text); }
@@ -922,7 +922,7 @@ button.btn.sm-hear {
   border-top: 1px solid var(--line);
 }
 .sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.sm-custom-head span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sm-custom-head span { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
 /* At the ceiling the controls that add a sound stay in the tab order and say
    aria-disabled, never `disabled` — two of them hold focus at the moment the
    library fills (#518). This is `button.btn:disabled`'s dimming, so the refusal
@@ -950,14 +950,14 @@ button.btn.sm-hear {
   border-radius: 8px;
 }
 .sm-custom-card-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sm-custom-card-copy strong { font-size: 12px; font-weight: 500; color: var(--text); }
+.sm-custom-card-copy strong { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; color: var(--text); }
 /* --text-secondary, not --muted: the card's --sm-fill lifts it off the panel,
    and --muted on that is 4.25:1 in dark (#1788). The 11px under the 12px name
    keeps the caption the quieter line. */
-.sm-custom-card-copy > span { font-size: 11px; line-height: 1.35; color: var(--text-secondary); }
+.sm-custom-card-copy > span { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.35; color: var(--text-secondary); }
 .sm-voice {
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -982,8 +982,8 @@ button.btn.sm-hear {
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .sm-voice[open] summary::after { transform: rotate(90deg); }
-.sm-voice summary > span:first-child { font-size: 12px; font-weight: 500; }
-.sm-voice summary > span:nth-child(2) { margin-left: auto; color: var(--muted); font-size: 11px; }
+.sm-voice summary > span:first-child { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; }
+.sm-voice summary > span:nth-child(2) { margin-left: auto; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .sm-voice-fields {
   display: flex;
   flex-direction: column;
@@ -1005,7 +1005,7 @@ button.btn.sm-hear {
 .sm-voice-pair label { grid-template-columns: auto minmax(0, 1fr); }
 /* Trimmed like `.sm-hear` and exactly as tall as every other button: the
    height is --ctl-h's, which panel-rhythm.test.ts keeps to one value. */
-button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: 11px; }
+button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 @media (prefers-reduced-motion: reduce) {
   .sm-voice summary:active { transform: none; }
   .sm-voice summary::after { transition: none; }
@@ -1017,18 +1017,18 @@ button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size
   align-items: center;
   gap: 6px;
 }
-.sm-custom-item > span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
-button.btn.sm-custom-icon { padding: 0 6px; font-size: 10px; }
+.sm-custom-item > span { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
+button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
 /* Armed is the second press of the one act here nothing can undo, and it
    takes the error colour for the four seconds it waits — the LAN unpair's. */
 button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
-.sm-custom-error { margin: 0; color: var(--err); font-size: 11px; line-height: 1.4; }
+.sm-custom-error { margin: 0; color: var(--err); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.4; }
 
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no
    Notification — said next to the control it applies to, which since the
    topbar speaker and its tooltip went (2026-10-07) is the only place it is
    said. */
-.sm-note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text-dim); }
+.sm-note { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-dim); }
 /* The key, kept visible under the switch it flips (SoundSwitch.tsx): M is the
    one-press route to silence from anywhere, and the sentence that says so
    belongs where the user is looking.
@@ -1038,7 +1038,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
    needs — inline in a sentence, a letter box that wide reads as a button. */
 .sm-key-note kbd {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   color: var(--text);
   background: var(--bg-soft);

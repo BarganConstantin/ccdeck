@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { nextFailure, type Failure } from "../accounts-reload";
 import { ACCOUNTS_FILES } from "./accounts-surface";
 import { clientText } from "./client-source";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");

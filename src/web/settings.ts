@@ -13,11 +13,12 @@
 import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
-export type SettingsSection = "general" | "notifications" | "sounds";
+export type SettingsSection = "general" | "reading" | "notifications" | "sounds";
 
 /** The nav, in the order it is drawn and walked. */
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: "general", label: "General" },
+  { id: "reading", label: "Text & density" },
   { id: "notifications", label: "Notifications" },
   { id: "sounds", label: "Sounds" },
 ];

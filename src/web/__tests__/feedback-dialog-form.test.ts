@@ -28,7 +28,7 @@ import {
   FACTS_UNKNOWN, ADD_DETAILS, CONTACT_LABEL, CONTACT_PLACEHOLDER, CONTACT_HINT, WHERE_IT_GOES, type EnterKey,
 } from "../feedback";
 import { openTags, withoutComments } from "./tsx-scan";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (rel: string) => withoutComments(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8"));
 /** JSX text flows across lines; the words are what is pinned, not the wrap. */

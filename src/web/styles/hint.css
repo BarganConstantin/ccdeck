@@ -18,8 +18,8 @@
   background: var(--panel);
   box-shadow: var(--shadow-contact), var(--shadow-2);
   color: var(--text);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
 }
 /* A hint for a control inside a dialog, one above .modal-backdrop like the
    add-account dialog's own overlay, or it would draw under the scrim. */
@@ -48,15 +48,15 @@
   border-radius: var(--r-tag);
   background: var(--sm-fill);
   color: var(--text);
-  font: 11px/16px var(--font-mono);
+  font: calc(11px + var(--ui-text-increase, 0px))/16px var(--font-mono);
   text-align: center;
 }
 /* What the name alone does not say: whose block it is and what it is on, or
    whether Browser watch is watching. Its lines are the caller's. */
 .hint-detail {
   color: var(--muted);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   white-space: pre-line;
 }
 .hint:has(.hint-key) .hint-detail { padding-right: 6px; }

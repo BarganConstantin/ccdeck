@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
-import { clampDetails, DETAILS_WIDTH } from '../tool-audit-layout';
+import { clampDetails, DETAILS_WIDTH, standardDetailsWidth } from '../tool-audit-layout';
 
 /** The line between the report and the details. Drag it, or focus it and use
  *  the arrow keys; a double click or Enter puts the standard width back.
@@ -44,7 +44,7 @@ export default function ToolAuditSplitter({ width, workspace, onCommit }: {
       : event.key === 'ArrowRight' ? shown - step
       : event.key === 'Home' ? DETAILS_WIDTH.min
       : event.key === 'End' ? DETAILS_WIDTH.max
-      : event.key === 'Enter' ? DETAILS_WIDTH.standard : null;
+      : event.key === 'Enter' ? standardDetailsWidth() : null;
     if (next === null) return;
     event.preventDefault();
     commit(clampDetails(next, room()));
@@ -54,5 +54,5 @@ export default function ToolAuditSplitter({ width, workspace, onCommit }: {
     aria-controls="tool-operation-inspector" aria-valuemin={DETAILS_WIDTH.min} aria-valuemax={clampDetails(DETAILS_WIDTH.max, room())} aria-valuenow={shown}
     tabIndex={0} title="Drag to resize · double-click for the standard width"
     onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
-    onDoubleClick={() => commit(clampDetails(DETAILS_WIDTH.standard, room()))} onKeyDown={key} />;
+    onDoubleClick={() => commit(clampDetails(standardDetailsWidth(), room()))} onKeyDown={key} />;
 }
