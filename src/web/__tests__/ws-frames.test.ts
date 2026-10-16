@@ -19,7 +19,7 @@ import http from "node:http";
 import net from "node:net";
 import {
   acceptKey, validateUpgrade, upgradeResponse, httpRefusal, encodeFrame, createFrameParser, wsConnection,
-  isValidUtf8, OP, CLOSE_TIMEOUT_MS, DEFAULT_MAX_MESSAGE_BYTES,
+  isValidUtf8, OP, CLOSE_TIMEOUT_MS, DEFAULT_MAX_MESSAGE_BYTES, MAX_FRAGMENTS,
 // @ts-expect-error — plain .mjs server module, no types
 } from "../../server/ws-frames.mjs";
 
@@ -466,6 +466,29 @@ describe("createFrameParser", () => {
       expect(fits.push(clientFrame(OP.CONTINUATION, "1234"))).toEqual([{ type: "text", data: Buffer.from("1234561234") }]);
       expect(fits.push(clientFrame(OP.TEXT, "0123456789")), "the count starts again with each message")
         .toMatchObject([{ type: "text" }]);
+    });
+
+    it("at MAX_FRAGMENTS frames, counting empty ones, which are never kept", () => {
+      expect(MAX_FRAGMENTS).toBe(1024);
+      const empty = clientFrame(OP.CONTINUATION, "", { fin: false });
+      const parser = createFrameParser();
+      expect(parser.push(clientFrame(OP.TEXT, "a", { fin: false }))).toEqual([]);
+      // A whole message in exactly the cap: the first frame, 1022 empty ones, the last.
+      expect(parser.push(Buffer.concat(Array.from({ length: MAX_FRAGMENTS - 2 }, () => empty)))).toEqual([]);
+      expect(parser.push(clientFrame(OP.CONTINUATION, "b")), "exactly the cap is allowed, and the empties added nothing")
+        .toEqual([{ type: "text", data: Buffer.from("ab") }]);
+
+      // A message that never ends, an empty frame at a time, is refused at the cap.
+      const endless = createFrameParser();
+      endless.push(clientFrame(OP.BINARY, Buffer.from([1]), { fin: false }));
+      const out = endless.push(Buffer.concat(Array.from({ length: MAX_FRAGMENTS + 10 }, () => empty)));
+      expect(out).toMatchObject([{ type: "error", code: 1009 }]);
+    });
+
+    it("of nothing but empty frames as one empty message", () => {
+      const parser = createFrameParser();
+      expect(parser.push(clientFrame(OP.BINARY, "", { fin: false }))).toEqual([]);
+      expect(parser.push(clientFrame(OP.CONTINUATION, ""))).toEqual([{ type: "binary", data: Buffer.alloc(0) }]);
     });
 
     it("refuses an announced length far past anything a Buffer could hold", () => {
