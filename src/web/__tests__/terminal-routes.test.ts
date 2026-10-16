@@ -69,6 +69,8 @@ let downloads: number;
 let downloadResult: Promise<any>;
 let recentFailure: { reason: string; at: number } | null;
 let forgot: number;
+let pruned: any[];
+let clock: number;
 const tickets = createTicketStore();
 
 class FakeControl extends EventEmitter {
@@ -99,6 +101,9 @@ beforeEach(() => {
   downloadResult = Promise.resolve({ ok: true, path: "/secret/data/tools/tmux/tmux-3.8-1/tmux" });
   recentFailure = null;
   forgot = 0;
+  pruned = [];
+  clock = 1_000_000_000;
+  routes.resetPruneClock();
 });
 
 let server: Server;
@@ -122,6 +127,8 @@ beforeAll(async () => {
       downloadTmux: () => { downloads += 1; return downloadResult; },
       recentDownloadFailure: () => recentFailure,
       forgetTmux: () => { forgot += 1; },
+      pruneDeadDeckSessions: async (o: any) => { pruned.push(o); return []; },
+      now: () => clock,
     },
   });
   port = (server.address() as { port: number }).port;
@@ -593,6 +600,33 @@ describe("POST /api/terminal/launch", () => {
       console.error = was;
     }
     expect(String(errors[0])).toContain("/tmp/tmux-1000/ccdeck");
+  });
+});
+
+describe("clearing old dead sessions off the deck's server", () => {
+  const settle = () => new Promise(r => setTimeout(r, 0));
+
+  it("starts a prune from a status or a launch, at most once an hour, on the deck's socket", async () => {
+    await ask("GET", "/api/terminal/status");
+    await settle();
+    expect(pruned).toHaveLength(1);
+    expect(pruned[0]).toMatchObject({ tmux: TMUX_OK, socket: DECK_SOCKET });
+    await ask("GET", "/api/terminal/status");
+    await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
+    await settle();
+    expect(pruned, "not again within the hour").toHaveLength(1);
+    clock += routes.PRUNE_EVERY_MS;
+    await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
+    await settle();
+    expect(pruned, "a launch an hour later prunes").toHaveLength(2);
+  });
+
+  it("never prunes without a working tmux, and a prune that fails changes no answer", async () => {
+    tmuxAnswer = { ok: false, reason: "missing", install: "sudo apt install tmux" };
+    downloadBlocked = "install_disabled";
+    await ask("GET", "/api/terminal/status");
+    await settle();
+    expect(pruned).toEqual([]);
   });
 });
 

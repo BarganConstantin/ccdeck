@@ -28,7 +28,7 @@ import { rmTempDir } from "./rm-temp-dir";
 // @ts-expect-error — plain .mjs server module, no types
 import { findTmux, resetTmuxCache, runTmux } from "../../server/tmux.mjs";
 import {
-  findDeckSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions,
+  findDeckSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions, pruneDeadDeckSessions,
 } from "../../server/terminal-sessions.mjs";
 
 type Found = { ok: boolean; path?: string; reason?: string; install?: string };
@@ -202,5 +202,26 @@ describe("a deck session on a real tmux", () => {
     const list = await listDeckSessions(opts());
     expect(list.some(x => x.name === "made-by-hand"), "not a deck session, so not listed as one").toBe(false);
     await expect(killDeckSession({ ...opts(), name: "made-by-hand" })).rejects.toMatchObject({ code: "bad-name" });
+  });
+
+  it("prunes dead deck sessions past the keep, and never a live one or one it did not make", async () => {
+    if (!found.ok) return expectNoTmux();
+    const dead = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ["true"] });
+    const live = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ["cat"] });
+    // One invocation, so remain-on-exit is set before tmux reaps the pane.
+    const byHand = await runTmux(found, socket, ["new-session", "-d", "-s", "dead-by-hand", "--", "true",
+      ";", "set-option", "-w", "-t", "=dead-by-hand:", "remain-on-exit", "on"], { env });
+    expect(byHand.ok, byHand.stderr).toBe(true);
+    await listUntil(list => list.find(x => x.name === dead.name)?.dead === true);
+    // Just dead, so inside the week: kept.
+    expect(await pruneDeadDeckSessions(opts())).toEqual([]);
+    // A week and a minute later, as far as the prune can tell.
+    const closed = await pruneDeadDeckSessions({ ...opts(), now: Date.now() + 7 * 24 * 60 * 60_000 + 60_000 });
+    expect(closed).toContain(dead.name);
+    expect(closed).not.toContain(live.name);
+    const names = (await runTmux(found, socket, ["list-sessions", "-F", "#{session_name}"], { env })).stdout.split("\n");
+    expect(names).not.toContain(dead.name);
+    expect(names, "alive").toContain(live.name);
+    expect(names, "not the deck's to close, dead or not").toContain("dead-by-hand");
   });
 });

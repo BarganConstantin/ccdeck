@@ -28,7 +28,7 @@ import { pathLookup } from "./exec-spec.mjs";
 // the places its installers put it (#553, #570). Not decided again here.
 import { adminClaudeBin } from "./claude-identity.mjs";
 import {
-  DECK_SOCKET, findTmux, paneArgv, runTmux, tmuxFormatLiteral, tmuxHasNoServer, tmuxSequence,
+  DECK_SOCKET, findTmux, paneArgv, runTmux, serverScope, tmuxFormatLiteral, tmuxHasNoServer, tmuxSequence,
 } from "./tmux.mjs";
 
 /** The agents the deck can launch. */
@@ -253,6 +253,10 @@ export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", age
   ])];
 }
 
+/** systemd-run's own failures, as opposed to tmux's: the scope was never
+ *  started, so tmux never ran and the plain call is safe to make instead. */
+const SYSTEMD_REFUSED = /^Failed to (?:connect|start|create|allocate|set up|find)\b/m;
+
 async function requireTmux(env) {
   const found = await findTmux({ env });
   if (!found.ok) throw new TerminalSessionError("tmux-unavailable", "tmux is not available on this machine.");
@@ -274,10 +278,16 @@ async function requireTmux(env) {
  * attach wrapper's name colliding means one already exists ("exists"), and
  * reusing it is the caller's call. A session created but not fully labelled is
  * killed before the error is thrown: unlabelled, nothing would ever find it.
+ *
+ * new-session is the one call that can start the deck's tmux server, so it is
+ * the one run through `scope` (tmux.mjs's serverScope): under the login item's
+ * systemd service, a server started plainly would die with the service on
+ * `ccdeck --stop`, taking every agent in it along. If systemd itself refuses
+ * the scope, the session is started plainly rather than not at all.
  */
 export async function launchSession({
   tmux, agent, cwd, cols = COLS.fallback, rows = ROWS.fallback, argv, sessionId = "", kind = "launch",
-  socket = DECK_SOCKET, env = process.env, platform = process.platform, run = runTmux,
+  socket = DECK_SOCKET, env = process.env, platform = process.platform, run = runTmux, scope = serverScope,
 } = {}) {
   checkAgent(agent);
   checkKind(kind);
@@ -305,10 +315,17 @@ export async function launchSession({
     command = agentArgv({ agent, kind, sessionId: id, claudeBin: bin, codexBin: bin });
   }
   const bin = tmux ?? await requireTmux(env);
+  let outside = null;
+  try { outside = await scope({ env, platform }); } catch { outside = null; }
 
   for (let attempt = 0; ; attempt++) {
     const name = deckSessionName({ agent, kind, sessionId: id });
-    const r = await run(bin, socket, launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind }), { env });
+    const args = launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind });
+    let r = await run(bin, socket, args, outside ? { env, scope: outside } : { env });
+    if (outside && !r.ok && SYSTEMD_REFUSED.test(r.stderr)) {
+      outside = null;
+      r = await run(bin, socket, args, { env });
+    }
     const pane = /^%\d+$/m.exec(r.stdout)?.[0] ?? "";
     if (r.ok && pane) return { name, sessionId: id, pane };
     if (pane) {
@@ -411,6 +428,73 @@ export function deadDeckSessions(list, sessionId) {
     .filter(s => s?.dead === true && isDeckSessionName(s.name) && String(s.sessionId ?? "").toLowerCase() === want)
     .sort((a, b) => (a.created ?? 0) - (b.created ?? 0))
     .map(s => s.name);
+}
+
+/** How long a dead deck session is kept for its last frame, and how many of
+ *  them at most. A week covers coming back after a weekend to see how
+ *  something ended; past that, or past the twenty most recent, the frame is
+ *  history the board no longer shows and the server only carries. */
+export const DEAD_KEEP = Object.freeze({ maxAgeMs: 7 * 24 * 60 * 60_000, count: 20 });
+
+/** The prune's columns: which session, whether its pane is dead and since
+ *  when. pane_dead_time is 3.3; on 3.2 it is empty and the session's creation
+ *  stands in, which only ever makes a session look older than it is dead. */
+const DEAD_FORMAT = ["#{session_name}", "#{pane_dead}", "#{pane_dead_time}", "#{session_created}"].join("\t");
+
+/**
+ * The deck sessions a prune closes, from a `list-panes -a -F DEAD_FORMAT`
+ * listing, oldest death last in the order they were found. Pure.
+ *
+ * Only deck names, and only a session whose every pane is dead — one split by
+ * hand with a live pane beside the dead agent is somebody's work. Of those,
+ * every one dead longer than `maxAgeMs`, and every one past the `count` most
+ * recently dead. A launched Codex that never learned its id is dead like any
+ * other: it carries no id, and needs none to be found here.
+ */
+export function staleDeadSessions(stdout, { now = Date.now(), maxAgeMs = DEAD_KEEP.maxAgeMs, count = DEAD_KEEP.count } = {}) {
+  const sessions = new Map();
+  for (const line of String(stdout ?? "").split("\n")) {
+    const [name, dead, deadTime, created] = line.split("\t");
+    if (created === undefined || !isDeckSessionName(name)) continue;
+    const s = sessions.get(name) ?? { dead: true, at: 0 };
+    if (dead !== "1") s.dead = false;
+    s.at = Math.max(s.at, (Number(deadTime) || Number(created) || 0) * 1000);
+    sessions.set(name, s);
+  }
+  return [...sessions]
+    .filter(([, s]) => s.dead)
+    .sort((a, b) => b[1].at - a[1].at)
+    .filter(([, s], i) => i >= count || now - s.at > maxAgeMs)
+    .map(([name]) => name);
+}
+
+/**
+ * Close the dead deck sessions staleDeadSessions picks: the names it closed.
+ *
+ * remain-on-exit keeps every agent that exits, for its last frame, and
+ * nothing else ever closes one unless that conversation is reopened — so
+ * without this, every session a person quits stays on the deck's server for
+ * good, and every listing walks all of them. Never a live pane, and only on
+ * the deck's own server: killDeckSession refuses any other name, and the
+ * user's own tmux is a different server this never lists. Never rejects.
+ */
+export async function pruneDeadDeckSessions({
+  tmux, socket = DECK_SOCKET, env = process.env, run = runTmux, now = Date.now(), maxAgeMs, count,
+} = {}) {
+  try {
+    const bin = tmux ?? await requireTmux(env);
+    const r = await run(bin, socket, ["list-panes", "-a", "-F", DEAD_FORMAT], { env });
+    if (!r.ok) return [];
+    const closed = [];
+    for (const name of staleDeadSessions(r.stdout, { now, ...(maxAgeMs ? { maxAgeMs } : {}), ...(count ? { count } : {}) })) {
+      try {
+        if (await killDeckSession({ tmux: bin, name, socket, env, run })) closed.push(name);
+      } catch { /* the next prune tries again */ }
+    }
+    return closed;
+  } catch {
+    return [];
+  }
 }
 
 /**
