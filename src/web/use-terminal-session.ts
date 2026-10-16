@@ -187,6 +187,21 @@ export function showCursorFromTheStart(term: unknown): void {
   if (service && typeof service.isCursorInitialized === "boolean") service.isCursorInitialized = true;
 }
 
+/** The byte Ctrl+V sends in a terminal: Claude Code and Codex read an image
+ *  from the clipboard on it. */
+export const CTRL_V = "\x16";
+
+/** Whether a paste carries an image (a screenshot, a copied picture). */
+export function pasteHoldsImage(data: Pick<DataTransfer, "items"> | null | undefined): boolean {
+  const items = data?.items;
+  if (!items) return false;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item && item.kind === "file" && item.type.startsWith("image/")) return true;
+  }
+  return false;
+}
+
 /** Copy what is selected in the pane, if anything, through the deck's one
  *  clipboard helper. Its fallback selects a textarea of its own, so the keys
  *  are put back in the pane if that took them. */
@@ -307,7 +322,19 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     const text = e.clipboardData?.getData("text/plain") ?? "";
     e.preventDefault();
     e.stopPropagation();
-    if (!text) return;
+    if (!text) {
+      // A screenshot, and no text: do what a terminal does with Ctrl+V and
+      // hand the program the key itself, so Claude Code (or Codex) reads the
+      // image off the clipboard as it does in any terminal. The browser took
+      // the key for its own paste and would otherwise drop the image without
+      // a word. The pane's socket is loopback only, so the clipboard this
+      // page sees is the machine's own, the one the program reads.
+      if (pasteHoldsImage(e.clipboardData)) {
+        term.scrollToBottom();
+        events.onInput(CTRL_V);
+      }
+      return;
+    }
     // Back to where the paste lands, as typing already brings the view.
     term.scrollToBottom();
     events.onPaste(text);
