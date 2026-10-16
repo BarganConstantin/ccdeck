@@ -36,7 +36,10 @@ import { elapsed } from "../../duration";
  *  - live: the pane is drawn and streaming.
  *  - not-attachable: case C (started outside the deck) or gone (ended), with
  *    the deck's one sentence. `stillRunning` is adopt's 409.
- *  - tmux-missing: a fact, with the line that installs it.
+ *  - tmux-installing: no usable tmux, and the deck is fetching its own
+ *    (src/server/tmux-download.mjs); the stage asks again until it lands.
+ *  - tmux-missing: a fact, with the line that installs it. `download` is why
+ *    the deck's own tmux could not be fetched, when it tried.
  *  - ended: the session finished; its last frame stays, frozen. `atOpen`
  *    when it had already finished before this stage first drew it — a dead
  *    deck pane opened for its last frame — so the stage never saw it end and
@@ -50,7 +53,8 @@ export type StagePhase =
   | { kind: "starting"; agent: TerminalProvider; cwd: string }
   | { kind: "live"; sizeOwner: SizeOwner; readOnly: boolean }
   | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean }
-  | { kind: "tmux-missing"; reason: string; install?: string; busy: boolean }
+  | { kind: "tmux-installing" }
+  | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
   | { kind: "ended"; atOpen?: boolean }
   | { kind: "detached" }
   | { kind: "error"; message: string };
@@ -211,6 +215,8 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
       return { state: "attaching", phrase: phase.reconnect ? "reconnecting…" : "attaching…" };
     case "starting":
       return { state: "starting", phrase: "starting…", arg: phase.cwd };
+    case "tmux-installing":
+      return { state: "starting", phrase: "setting up tmux…" };
     case "tmux-missing":
       return { state: "detached", phrase: "not attached" };
     case "not-attachable":
@@ -251,6 +257,7 @@ export function stageAnnouncement(name: string, phase: StagePhase): string | nul
     case "ended": return `${name} ended. The stage shows its last frame.`;
     case "detached": return `${name} was detached from the stage. It keeps running.`;
     case "not-attachable": return phase.stillRunning ? `${name} is still running in another terminal.` : `${name} has no pane to attach to.`;
+    case "tmux-installing": return "Setting up tmux for the stage.";
     case "tmux-missing": return "tmux is not installed, so the stage cannot attach.";
     case "error": return phase.message;
     default: return null;

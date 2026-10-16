@@ -19,7 +19,7 @@ import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader, { BACK_LABEL, CLOSE_LABEL, chipLabel, chipText, type StageHeaderProps } from "../components/terminal/StageHeader";
-import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
+import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import type { StagePhase, StageStatus } from "../components/terminal/stage-model";
@@ -172,6 +172,30 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(tmuxFact("too-old")).toMatch(/older than 3\.2/);
   });
 
+  it("says the deck is fetching its own tmux, what that means, and lets the stage be left meanwhile", () => {
+    const props = bodyProps({ kind: "tmux-installing" });
+    const out = html(createElement(StateCard, props));
+    expect(out).toContain("tmux · setting up");
+    expect(out).toContain("nothing is installed on the system");
+    const buttons = all(StateCard(props), el => el.type === "button");
+    expect(buttons.map(b => textOf(b))).toEqual(["Not now"]);
+    press(buttons[0]);
+    expect(props.onNotNow).toHaveBeenCalled();
+  });
+
+  it("says why the deck's own tmux is not there before the install line, when it tried", () => {
+    const out = html(createElement(StateCard, bodyProps({
+      kind: "tmux-missing", reason: "missing", install: "sudo apt install tmux", download: "download_failed", busy: false,
+    })));
+    expect(out).toContain(downloadNote("download_failed"));
+    expect(out.indexOf("could not download"), "the why comes first").toBeLessThan(out.indexOf("sudo apt install tmux"));
+    expect(html(createElement(StateCard, bodyProps({ kind: "tmux-missing", reason: "missing", busy: false }))))
+      .not.toContain('class="ts-note"');
+    expect(downloadNote("checksum_mismatch")).toMatch(/not the build this deck trusts/);
+    expect(downloadNote("does_not_run")).toMatch(/would not run/);
+    expect(downloadNote("something new")).toBe("The deck could not set up its own tmux.");
+  });
+
   it("gives the empty stage New session as its only action", () => {
     const props = bodyProps({ kind: "empty" });
     const tree = StateCard(props);
@@ -186,7 +210,8 @@ describe("the body's state cards, each at the terminal's origin", () => {
     const phases: StagePhase[] = [
       { kind: "empty" }, { kind: "attaching", reconnect: false }, { kind: "starting", agent: "codex", cwd: "/w" },
       { kind: "not-attachable", target: { kind: "gone", label: "This session has ended.", adoptable: true }, stillRunning: false, busy: false },
-      { kind: "tmux-missing", reason: "too-old", busy: false }, { kind: "error", message: "The deck did not answer." },
+      { kind: "tmux-installing" }, { kind: "tmux-missing", reason: "too-old", busy: false },
+      { kind: "error", message: "The deck did not answer." },
     ];
     for (const phase of phases) expect(textOf(StateCard(bodyProps(phase))).trim(), phase.kind).not.toBe("");
   });

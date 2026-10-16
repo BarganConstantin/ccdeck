@@ -94,6 +94,11 @@ describe("what the stage knows better than the board", () => {
     expect(headerStatus(boardEnded, { kind: "ended" })).toBe(boardEnded);
   });
 
+  it("says it is setting up tmux while the deck fetches its own", () => {
+    expect(headerStatus(working, { kind: "tmux-installing" })).toEqual({ state: "starting", phrase: "setting up tmux…" });
+    expect(stageAnnouncement("paycore", { kind: "tmux-installing" })).toBe("Setting up tmux for the stage.");
+  });
+
   it("does not say 'just now' for a pane that had already ended when the stage opened it", () => {
     expect(headerStatus(working, { kind: "ended", atOpen: true })).toEqual({ state: "ended", phrase: "ended" });
   });
