@@ -219,6 +219,41 @@ async function expectRefused(c: WsClient, status: number) {
   expect(c.frames, "nothing past the refusal").toEqual([]);
 }
 
+describe("the listener, which is there only while the panel is on", () => {
+  it("follows the switch: absent while off, armed by the next request after it turns on, gone after it turns off", async () => {
+    let on = false;
+    const srv = createServer((_req, res) => { res.end("routed"); });
+    const handle = ts.installTerminalUpgrade(srv, { enabled: () => on, tickets: ts.createTicketStore(), openBridge: () => ({ message() {}, closed() {}, shutdown() {} }) });
+    await new Promise<void>(r => srv.listen(0, "127.0.0.1", r));
+    const p = (srv.address() as { port: number }).port;
+    const get = () => fetch(`http://127.0.0.1:${p}/x`).then(r => r.text());
+    try {
+      expect(srv.listenerCount("upgrade"), "off at install: Node routes an offered upgrade like any request").toBe(0);
+      on = true;
+      expect(await get()).toBe("routed");
+      expect(srv.listenerCount("upgrade"), "the request after the switch armed it").toBe(1);
+      expect(await get()).toBe("routed");
+      expect(srv.listenerCount("upgrade"), "and never twice").toBe(1);
+      on = false;
+      handle.sync();
+      expect(srv.listenerCount("upgrade")).toBe(0);
+      on = true;
+      handle.sync();
+      on = false;
+      expect(await get()).toBe("routed");
+      expect(srv.listenerCount("upgrade"), "a request disarms it as well").toBe(0);
+    } finally {
+      await new Promise(r => srv.close(r));
+    }
+  });
+
+  it("treats a switch that throws as off", () => {
+    const srv = createServer();
+    ts.installTerminalUpgrade(srv, { enabled: () => { throw new Error("prefs unreadable"); } });
+    expect(srv.listenerCount("upgrade")).toBe(0);
+  });
+});
+
 describe("the upgrade on a real socket", () => {
   it("admits a minted ticket with the exact 101 and hands the bridge its binding", async () => {
     const ticket = tickets.mint({ kind: "A", pane: "%7", origin: `http://127.0.0.1:${port}` });
