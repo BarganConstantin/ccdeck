@@ -77,8 +77,9 @@ export function boardFactsFor(root: AgentNodeData, subagents: readonly AgentNode
     subagentsLive: subagents.filter(s => s.state === "active").length,
     lastTurnEndAt: root.lastTurnEndAt ?? null,
     // Nothing asked of it yet: a session the deck has just started, waiting
-    // for its first prompt.
-    fresh: root.prompts.length === 0 && !root.firstPrompt,
+    // for its first prompt. A finished turn is something asked, even one a
+    // `!` shell line started, which leaves no prompt behind.
+    fresh: root.prompts.length === 0 && !root.firstPrompt && root.lastTurnEndAt == null,
     yourTurn: w?.kind === "idle",
   };
 }

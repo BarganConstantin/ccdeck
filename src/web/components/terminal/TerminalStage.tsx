@@ -258,7 +258,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         canType={typing}
         expanded={p.expanded}
         takeover={p.geometry.takeover}
-        nothingRunning={p.show.kind === "empty"
+        nothingRunning={p.show.kind === "empty" || phase.kind === "ended"
           || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
         onKeys={() => {
           if (session.keysOwner === "pane") { session.release(); p.onRelease?.(); }
@@ -283,6 +283,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         chordLabel={chordLabel}
         canType={typing}
         asksWaiting={p.asksWaiting}
+        reconnecting={phase.kind === "attaching" && phase.reconnect}
         takeover={p.geometry.takeover}
         notice={notice}
         firstRun={p.firstRun}

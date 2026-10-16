@@ -57,6 +57,10 @@ describe("the facts the header's sentence is built from", () => {
     expect(boardFactsFor(agent("s"), []).fresh).toBe(true);
     expect(boardFactsFor(agent("s", { firstPrompt: "fix the tests" }), []).fresh).toBe(false);
   });
+
+  it("does not call a session fresh once a turn has ended, even one a ! shell line started", () => {
+    expect(boardFactsFor(agent("s", { lastTurnEndAt: NOW - MIN }), []).fresh).toBe(false);
+  });
 });
 
 describe("what the stage shows", () => {

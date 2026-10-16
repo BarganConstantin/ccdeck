@@ -209,6 +209,12 @@
   transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ts-host .xterm { padding: 0; }
+/* A frozen last frame keeps the width it was drawn at — a dead pane cannot be
+   resized, and reflowing a TUI's frame would garble the evidence — so where
+   the stage is narrower now (the takeover after a wide session), it scrolls
+   sideways instead of losing the right of every line. */
+.ts-stage[data-kind="ended"] .ts-body,
+.ts-stage[data-kind="detached"] .ts-body { overflow-x: auto; overflow-y: hidden; }
 
 /* Every card starts where the terminal's first line would. */
 .ts-card { position: absolute; left: 24px; right: 24px; top: var(--ts-term-top, 14px); max-width: 640px; }

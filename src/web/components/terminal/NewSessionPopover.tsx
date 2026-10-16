@@ -167,6 +167,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", onStart, onC
       <input
         className="ap-manage-input ns-field"
         type="text"
+        name="project-path"
         role="combobox"
         aria-expanded={projects.length > 0}
         aria-controls={projects.length ? LIST_ID : undefined}
