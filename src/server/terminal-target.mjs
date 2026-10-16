@@ -30,6 +30,17 @@
 // opened, and the name filter below is the whole of that guarantee, so it is
 // an anchored pattern rather than an extension check.
 //
+// A record is not written the moment a session starts, though: a live Claude
+// 2.1.301 measured in a fresh config dir had its `.key` and no `<pid>.json`
+// yet, while its hooks had already put it on the board. Reading no record as
+// "nothing holds it" offered to reopen a session that was running, which
+// would put two writers on one conversation. So when no record names the
+// session, a live Claude that no record accounts for, started in the
+// session's own folder, is taken as possibly holding it (`unrecordedClaude`):
+// case C or a pane, never `gone`. It can name a different session in the same
+// folder; that costs a reopen that waits for it to stop, and the other way
+// round costs a conversation.
+//
 // Codex keeps no such file. A Codex the deck launched is found by the session
 // option the deck set on its pane; one whose id the deck did not know yet, by
 // the rollout file its process holds open. Anything else is found the same way
@@ -353,7 +364,9 @@ export async function resolveTarget(query, deps = {}) {
   // somewhere else since, so it is looked for like any other.
 
   const proc = platform === "linux" ? procView(io) : await psView(io);
-  const holder = q.provider === "claude" ? claudeHolder(q.sessionId, io, proc) : codexHolder(q.sessionId, proc);
+  const holder = q.provider === "claude"
+    ? claudeHolder(q.sessionId, io, proc) ?? unrecordedClaude(q, io, proc)
+    : codexHolder(q.sessionId, proc);
   if (!holder) {
     const dead = deadDeckSessions(deck, q.sessionId);
     return { kind: "gone", adoptable: resumable(q, io), ...(dead.length ? { deadSessions: dead } : {}) };
@@ -669,6 +682,42 @@ function claudeHolder(sessionId, io, proc) {
     background: pick.background,
     attachId: pick.background ? attachIdOf(pick.rec, sessionId) : undefined,
   };
+}
+
+/** Words after the binary that make a Claude process something other than an
+ *  interactive session: a one-shot print, a background host or client, a
+ *  server, a maintenance command. */
+const NOT_A_SESSION = /^(-p|--print|attach|bg-pty-host|--bg-pty-host|bg-spare|--bg-spare|daemon|mcp|doctor|update|install|config|setup-token|migrate-installer|api-key)$/;
+
+/**
+ * A live Claude that no record accounts for, started in the session's folder,
+ * when no record names the session at all — see the header for why a record
+ * can be missing. Linux only: a process's folder is read off /proc/<pid>/cwd,
+ * and macOS has no cheap equivalent, so there a session without a record
+ * still reads as gone. The newest such process wins, as with records.
+ */
+function unrecordedClaude(q, io, proc) {
+  if (!q.cwd || io.platform !== "linux") return null;
+  const recorded = new Set(readClaudeSessions(io.claudeDir, io).map((r) => r.pid));
+  let best = null;
+  let looked = 0;
+  for (const pid of proc.pids()) {
+    if (recorded.has(pid)) continue;
+    const cmd = proc.command(pid);
+    if (!looksLikeClaude(cmd)) continue;
+    if (++looked > MAX_CODEX_PROCESSES) break;
+    const words = cmd.split(" ").slice(1);
+    if (words.some((w) => NOT_A_SESSION.test(w))) continue;
+    let cwd = "";
+    try { cwd = String(io.readlink(`/proc/${pid}/cwd`)); } catch { continue; }
+    if (cwd !== q.cwd) continue;
+    const info = proc.info(pid);
+    if (!info) continue;
+    if (!best || Number(info.start ?? 0) > Number(best.start ?? 0)) best = info;
+  }
+  if (!best) return null;
+  const chain = ancestry(proc, best.pid);
+  return chain.length ? { pid: best.pid, chain, background: false } : null;
 }
 
 /** Whether a command line is Codex: the native binary, or the npm launcher's
