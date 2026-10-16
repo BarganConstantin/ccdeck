@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { collectBursts } from "../burst-layout";
 import { mcpChipIdentity } from "../tool-skin";
 import type { AgentNodeData, ToolCall } from "../types";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 

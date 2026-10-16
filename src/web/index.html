@@ -53,8 +53,8 @@
     <script>
       (function () {
         // Generated from JSON alongside the CSS and Settings catalog.
-        var themes = /* theme-ids:start */ ["light","dark","rider-black","vscode-black","omarchy","matrix","black-contrast","white-contrast","catppuccin-mocha"] /* theme-ids:end */;
-        var lightThemes = /* theme-light-ids:start */ ["light","white-contrast"] /* theme-light-ids:end */;
+        var themes = /* theme-ids:start */ ["light","dark","rider-black","vscode-black","omarchy","matrix","black-contrast","white-contrast","catppuccin-mocha","gruvbox-dark","gruvbox-light","gruvbox-material"] /* theme-ids:end */;
+        var lightThemes = /* theme-light-ids:start */ ["light","white-contrast","gruvbox-light"] /* theme-light-ids:end */;
         var stored = null;
         // `window.localStorage` is a GETTER that throws where site data is
         // blocked, so the property read is inside the try, not just getItem.
@@ -64,6 +64,17 @@
         var theme = themes.indexOf(stored) >= 0 ? stored : "rider-black";
         document.documentElement.setAttribute("data-theme", theme);
         document.documentElement.setAttribute("data-color-scheme", lightThemes.indexOf(theme) >= 0 ? "light" : "dark");
+      })();
+    </script>
+    <script>
+      (function () {
+        var size = null, density = null;
+        try {
+          size = window.localStorage.getItem("agent-dag.text-size");
+          density = window.localStorage.getItem("agent-dag.density");
+        } catch (e) {}
+        document.documentElement.setAttribute("data-text-size", size === "smallest" || size === "smaller" || size === "larger" || size === "largest" ? size : "default");
+        document.documentElement.setAttribute("data-density", density === "tightest" || density === "tighter" || density === "compact" || density === "comfortable" ? density : "default");
       })();
     </script>
   </head>

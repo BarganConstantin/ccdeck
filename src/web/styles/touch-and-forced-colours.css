@@ -59,6 +59,14 @@
    length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
+
+  .modal.settings-modal,
+  .settings-nav { background: Canvas; color: CanvasText; }
+  .reading-segmented::before { border-color: Highlight; background: Canvas; }
+  .reading-density-sample i { forced-color-adjust: none; background: CanvasText; }
+  .reading-selected-mark { color: Highlight; }
+  .reading-choice:has(input:checked) { border-color: Highlight; }
+
   .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
   .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .tr-detail-tabs .btn[aria-pressed="true"],
@@ -282,4 +290,12 @@
 
   /* Radio geography retains marker and cluster distinctions. */
   .radio-pin-dot { fill: LinkText; stroke: Canvas; } .radio-pin.selected .radio-pin-dot { fill: Highlight; } .radio-pin-playing { stroke: Highlight; } .radio-pin.clustered .radio-pin-dot, .radio-land { fill: Canvas; stroke: GrayText; } .radio-pin text { fill: CanvasText; }
+
+  /* Tool activity: bars keep their length in system ink, the described day and
+     a failures sort take Highlight, and an open row or finding is outlined. */
+  .ta-bar, .ta-history-bars i { forced-color-adjust: none; background: CanvasText; }
+  .ta-history-bars > span[data-shown] i, .ta-list[data-sort=failed] .ta-bar { background: Highlight; }
+  .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
+  .ta-splitter::before { forced-color-adjust: none; background: CanvasText; }
+  .ta-splitter:hover::before, .ta-splitter:focus-visible::before { background: Highlight; }
 }

@@ -25,7 +25,7 @@
 .bw-day { display: flex; flex-direction: column; gap: 8px; }
 .bw-day h4 {
   margin: 0;
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   letter-spacing: .1em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -81,13 +81,13 @@
    only its right edge — beside the ×, which then looked like what had focus.
    An inset ring is the one the focus rule allows a component to move. */
 .bw-ep-head:focus-visible { outline-offset: -3px; }
-.bw-ep-host { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bw-ep-host { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Episodes reads like Activity: the same disclosure chevron, the same right-
    aligned tabular count, so the two views are two modes of one product rather
    than two screens that share a dialog. */
-.bw-ep-meta { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bw-ep-meta { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bw-ep-count {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -99,7 +99,7 @@
    locale renders and what wrapped "08:03 PM" onto two lines at 44px. The
    column is sized for the widest form rather than the current one, because the
    locale here belongs to whoever opened the deck. */
-.bw-urls li { display: grid; grid-template-columns: 62px 1fr; gap: 8px; font-size: 11px; align-items: baseline; }
+.bw-urls li { display: grid; grid-template-columns: 62px 1fr; gap: 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); align-items: baseline; }
 .bw-url-time { color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bw-url { color: var(--muted); word-break: break-all; }
 
@@ -125,7 +125,7 @@
 /* Shrinks first: it is the one part of this bar that is prose rather than a
    control or a state word, so it is the one that can give. */
 .bw-status-text {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
   min-width: 0;
   overflow: hidden;
@@ -149,11 +149,11 @@
   padding: 8px 0;
   cursor: pointer;
 }
-.bw-switch-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.bw-switch-label { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); white-space: nowrap; }
 .bw-switch:hover .bw-switch-label { color: var(--text); }
 
 .bw-prof-name { font-weight: 600; }
-.bw-note { margin: 0; font-size: 11px; color: var(--text-secondary); max-width: 72ch; line-height: 1.55; }
+.bw-note { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-secondary); max-width: 72ch; line-height: 1.55; }
 
 
 /* ── Browser watch: the two state rows ────────────────────────────────────
@@ -174,9 +174,9 @@
 .bw-row.err .bw-dot { background: var(--err); }
 .bw-row.ok  .bw-dot { background: var(--ok); }
 .bw-row.on  .bw-dot { background: var(--accent); }
-.bw-row-label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.bw-row-label { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; white-space: nowrap; }
 .bw-row.err .bw-row-label { color: var(--err); }
-.bw-row-detail { font-size: 12px; color: var(--text-secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bw-row-detail { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* THE FAILED WRITE (#803). Same row shape as the read error, a border that
    says it is not part of the flow it sits between, and its own dismiss —
    nothing else clears it, by design. */
@@ -192,7 +192,7 @@
   padding: 0 0 0 6px;
   color: var(--muted);
   font: inherit;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
@@ -236,7 +236,7 @@
    uppercase, so "4 ENTRIES" shouted a number nobody needs shouted. */
 .bw-feed-count {
   margin-left: auto;
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   letter-spacing: 0;
   text-transform: none;
   color: var(--text-dim);
@@ -257,7 +257,7 @@
      were what made the row wider than what held it. */
   grid-template-columns: 66px minmax(0, 96px) minmax(0, 1fr) max-content;
   gap: 8px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   align-items: baseline;
   /* Its own padding and no negative margin — see .bw-log. The hover has a body
      to fill and the row cannot be wider than what holds it. */
@@ -313,7 +313,7 @@
    inherit the deck's sans. */
 .bw-log-line {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.6;
   color: var(--muted);
 }
@@ -370,9 +370,9 @@
 /* Behind a press. Six names of browsers that are not installed is
    implementation inventory, and it was three lines of it standing at the same
    weight as the profiles that are actually being read. */
-.bw-rest { margin: 0; font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
+.bw-rest { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-secondary); line-height: 1.5; }
 .bw-rest-head { align-self: flex-start; }
-.bw-chev { color: var(--text-dim); font-size: 9px; }
+.bw-chev { color: var(--text-dim); font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); }
 /* NEUTRAL, AND THAT IS THE POINT. This was amber, which made it one of the
    strongest accents on the panel — for a fact the probe cannot actually
    establish. The relay shares an address with claude.ai and api.anthropic.com,
@@ -385,13 +385,13 @@
    `cursor: help`, which promised an affordance a keyboard could not reach. It
    is neither now — the caveat is a real disclosure on the section head, where
    everyone can get to it. */
-.bw-relay { font-size: 10px; color: var(--text-dim); white-space: nowrap; }
+.bw-relay { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); white-space: nowrap; }
 
 /* The first read copies a History database and classifies tens of thousands of
    rows, so the panel is briefly empty on open. A header over nothing reads as
    broken rather than busy. */
 .bw-loading { display: flex; flex-direction: column; gap: 8px; padding: 18px 0; }
-.bw-loading p { margin: 0; font-size: 12px; color: var(--text-secondary); }
+.bw-loading p { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
 /* A fixed track with a moving sliver, rather than a moving gradient. Reduced
    motion then needs only `animation: none` — the bar keeps its own colours and
    still reads as a progress track, where restyling it inside the media block
@@ -443,7 +443,7 @@
 }
 .bw-mode-word {
   flex: none;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--text);
   font-weight: 600;
   animation: bw-state-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -485,14 +485,14 @@
 /* The chevron on the press that owns it, so the control says which way it is
    about to go before it is pressed. */
 .bw-why[aria-expanded="true"] { color: var(--text); }
-.bw-settings label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.bw-settings label { display: flex; flex-direction: column; gap: 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .bw-settings select {
   background: var(--ctl-fill);
   border: 1px solid var(--ctl-edge);
   color: var(--text);
   border-radius: 4px;
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   cursor: pointer;
   transition: border-color 120ms ease, color 120ms ease, transform 120ms ease;
 }
@@ -501,7 +501,7 @@
 .bw-settings-note {
   margin: 0;
   flex: 1 1 30ch;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.6;
   color: var(--text-secondary);
   max-width: 66ch;
@@ -559,7 +559,7 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -577,7 +577,7 @@
   background: none;
   color: var(--text-dim);
   font: inherit;
-  font-size: 9px;
+  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
   line-height: 1;
   cursor: pointer;
   transition: color 120ms ease, border-color 120ms ease, transform 120ms ease;
@@ -608,13 +608,13 @@
 .bw-count-n {
   min-width: 3ch;
   text-align: right;
-  font-size: 18px;
+  font-size: calc(18px + var(--ui-text-increase, 0px));
   line-height: 1.1;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .bw-count-of {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -623,10 +623,10 @@
 /* What the figures ARE, said once under them rather than guessed at. They are
    rows in the browser's own history newer than this deck's start — not visits
    a person made, and not findings. */
-.bw-since { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-dim); }
+.bw-since { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-dim); }
 .bw-since + .bw-since { margin-top: -8px; }
 /* The quiet gate, beside the numbers it decides. */
-.bw-gate { margin: 0; font-size: 10px; line-height: 1.5; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bw-gate { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* The disc's key, behind the `?` on the section label. Three pairs, which is
    the whole of what the drawing means — as permanent prose it was three lines
@@ -640,8 +640,8 @@
   border-radius: 6px;
   background: var(--bg-soft);
 }
-.bw-key dt { font-size: 10px; font-weight: 600; color: var(--muted); }
-.bw-key dd { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
+.bw-key dt { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); font-weight: 600; color: var(--muted); }
+.bw-key dd { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-secondary); }
 
 /* REMOTE CONTROL (#799). The verdict carries the only colour in this block, and
    only when it is bad news: `protected` and `nothing-exposed` are the ordinary
@@ -650,7 +650,7 @@
    lines up. */
 .bw-rc-verdict {
   margin: 0;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--text-secondary);
 }
@@ -660,12 +660,12 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--warn);
 }
 .bw-rc-body { display: flex; flex-direction: column; gap: 8px; }
-.bw-rc-note { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
+.bw-rc-note { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-secondary); }
 /* The command is the thing a person is about to run as root, so it is
    selectable by hand whatever the copy button does — `user-select: all` is the
    same affordance `.bw-path` gives every other path on this panel. */
@@ -681,14 +681,14 @@
 .bw-rc-cmd code {
   flex: 1;
   min-width: 0;
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
   user-select: all;
   color: var(--text);
 }
-button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
+button.btn.bw-rc-copy { flex: none; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); padding: 2px 8px; }
 
 /* WHAT THE MARKS MEAN, in text. Every mark on the disc encodes something and
    none of it was written where a reader could see — a visualization whose
@@ -699,11 +699,11 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 /* One height for every row, badge or no badge. `flex-wrap` let a row with a
    relay note grow taller than its neighbours, and a list whose rows are
    different heights reads as a list of different things. */
-.bw-profiles li { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 12px; min-width: 0; }
+.bw-profiles li { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: calc(12px + var(--ui-text-increase, 0px)); min-width: 0; }
 .bw-prof-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bw-prof-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex: none; }
 .bw-prof-dot.on { background: var(--accent); }
-.bw-prof-state { font-size: 11px; color: var(--muted); margin-left: auto; flex: none; }
+.bw-prof-state { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); margin-left: auto; flex: none; }
 /* Both columns hold the same box, so the row does not grow as lines arrive and
    the disc does not sit in a taller frame than the text beside it. */
 /* A square, and bounded. Given the sidebar's full 340px the canvas drew a
@@ -759,7 +759,7 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--bg-soft);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.55;
   color: var(--text);
 }
@@ -774,13 +774,13 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    has, and one a screen reader reads as pairs rather than as prose. */
 .bw-access { margin: 8px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; }
 .bw-access dt {
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.bw-access dd { margin: 0; font-size: 11px; line-height: 1.55; color: var(--text-secondary); }
+.bw-access dd { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.55; color: var(--text-secondary); }
 
 /* The Episodes view, which is the panel whether or not it has contents. The
    tabpanel role and the id the tabs point at used to ride on the first day
@@ -791,9 +791,9 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .bw-findings { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .bw-eps { display: flex; flex-direction: column; gap: 16px; max-height: min(30vh, 260px); overflow-y: auto; }
 .bw-empty { display: flex; flex-direction: column; gap: 8px; max-width: 62ch; }
-.bw-empty-head { margin: 0; font-size: 13px; color: var(--text); }
+.bw-empty-head { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); color: var(--text); }
 /* An empty list here is the ORDINARY result — most machines go weeks without
    one — so the note says so rather than leaving the reader to wonder whether
    the panel is broken. */
-.bw-empty-note { margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-secondary); }
+.bw-empty-note { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.6; color: var(--text-secondary); }
 

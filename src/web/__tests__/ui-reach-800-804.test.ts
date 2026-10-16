@@ -24,7 +24,7 @@ import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
 import { clientText } from "./client-source";
 import { browserWatchSurface } from "./browser-watch-surface";
 import { soundMenuSurface } from "./sound-menu-surface";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 import { attr, buttons, createElement, draw, items } from "./edge-keys-rails";
 import { EdgeDock, EdgeRail, railHint } from "../components/EdgeRails";
 import { setSingleKeyShortcuts } from "../single-key-shortcuts";

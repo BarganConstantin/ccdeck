@@ -46,6 +46,7 @@
 @import "./styles/light-contrast.css";           /* light-mode contrast tuning */
 @import "./styles/usage-panel.css";              /* the usage panel and its quota bars */
 @import "./styles/usage-history.css";            /* the usage history modal */
+@import "./styles/tool-audit.css";               /* the tool activity page */
 @import "./styles/session-usage.css";
 @import "./styles/quota-history.css";
 @import "./styles/accounts-panel.css";           /* the accounts panel */
@@ -67,4 +68,7 @@
 @import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
 @import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
 @import "./styles/radio.css";                    /* radio explorer */
+@import "./styles/gruvbox.css";                  /* Gruvbox's quiet session hues and reading hierarchy */
+@import "./styles/theme-transition.css";         /* deliberate palette changes, including the canvas */
+@import "./styles/reading.css";
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

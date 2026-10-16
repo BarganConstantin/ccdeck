@@ -10,7 +10,8 @@
 import { useCallback, useRef, useState, type MutableRefObject, type RefObject } from "react";
 
 import type { GraphState } from "./reducer";
-import { nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
+import { cardBodyPx, nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
+import { TEXT_SIZE_INCREASE, currentTextSize } from "./reading-preferences";
 
 export function useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRef }: {
   stateRef: MutableRefObject<GraphState>;
@@ -61,7 +62,7 @@ export function useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRe
   /** The viewport is now at `zoom`. Returns the mode the canvas changed to, or
    *  null when the band it is in holds it where it was. */
   const applyZoom = useCallback((zoom: number): LodMode | null => {
-    const mode = nextLod(lodRef.current, zoom, lodCard());
+    const mode = nextLod(lodRef.current, zoom, lodCard(), cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]));
     if (mode === lodRef.current) return null;
     lodRef.current = mode;
     // The attribute now, the state for React with it: the face must

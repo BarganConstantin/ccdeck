@@ -130,7 +130,7 @@ describe("the fit keeps room for the bubbles only where they are drawn", () => {
   });
 
   it("is what fitLeft frames with", () => {
-    expect(read("../use-camera.ts")).toContain("const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));");
+    expect(read("../use-camera.ts")).toContain("const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0), cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]));");
   });
 });
 
@@ -321,7 +321,8 @@ describe("the canvas wiring the pure halves depend on", () => {
     // use-canvas-viewport.ts, and written only when the band changes.
     const lod = read("../use-zoom-lod.ts");
     expect(read("../use-canvas-viewport.ts")).toMatch(/if \(applyZoom\(vp\.zoom\) === "detail"\) hidePeek\(\);/);
-    expect(lod).toMatch(/nextLod\(lodRef\.current, zoom, lodCard\(\)\)/);
+    // The card's body at the reader's text size (semantic-zoom cardBodyPx).
+    expect(lod).toMatch(/nextLod\(lodRef\.current, zoom, lodCard\(\), cardBodyPx\(TEXT_SIZE_INCREASE\[currentTextSize\(\)\]\)\)/);
     expect(lod).toMatch(/if \(mode === lodRef\.current\) return null;/);
     // App.tsx hands the canvas the zoom's answer, and the canvas wears it.
     expect(app).toMatch(/<CanvasMain\b[^>]*\bzoom=\{zoom\}/);

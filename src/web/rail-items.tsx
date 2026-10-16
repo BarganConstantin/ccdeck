@@ -14,7 +14,7 @@ import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
 import {
   AccountsGlyph, BrowserWatchGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph,
+  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph,
 } from "./components/rail-glyphs";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -42,7 +42,7 @@ export function browserWatchDetail(watchOn: boolean | null, unread: number): str
 export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openSettings, onFeedback, toggles,
+  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -62,6 +62,7 @@ export function railItems({
   setTrafficRadarOpen?: Toggle;
   radioOpen?: boolean;
   setRadioOpen?: Toggle;
+  openToolActivity?: () => void;
   /** The one door into Settings (use-settings-menus.ts). */
   openSettings: (section?: SettingsSection) => void;
   onFeedback: () => void;
@@ -128,7 +129,11 @@ export function railItems({
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
     left: providers.claude ? [accounts, sessionList] : [sessionList],
-    right: [[usage, machine], [history, browserWatch, ...(setTrafficRadarOpen ? [{
+    right: [[usage, machine], [history, ...(openToolActivity ? [{
+      id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
+      glyph: <ToolActivityGlyph />, kind: "dialog" as const,
+      detail: "Which tools your agents run, how long they take and what fails", onPress: () => openToolActivity(),
+    }] : []), browserWatch, ...(setTrafficRadarOpen ? [{
       id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
       detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),

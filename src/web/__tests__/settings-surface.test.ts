@@ -114,15 +114,15 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the three sections in the nav, in order", () => {
-    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Notifications", "Sounds"]);
+  it("names the four sections in the nav, in order", () => {
+    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Text & density", "Notifications", "Sounds"]);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all
     // of the text a tab holds.
     const html = drawSettings();
     const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([\s\S]*?)<\/button>/g)]
       .map(m => m[1].replace(/<[^>]+>/g, "").replace("&amp;", "&"));
-    expect(tabs).toEqual(["General", "Notifications", "Sounds"]);
+    expect(tabs).toEqual(["General", "Text & density", "Notifications", "Sounds"]);
   });
 
   it("is a dialog named Settings, holding the focus it hands the section's own tab", () => {

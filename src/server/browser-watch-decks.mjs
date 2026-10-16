@@ -34,8 +34,9 @@ import { isProcessAlive } from "./deck-probe.mjs";
  * `portRange`), so a machine that has been running decks for a month has tabs
  * on several. The real profile this feature was tuned against carried 41 visits
  * to 127.0.0.1:4317 and 34 to 127.0.0.1:4399 — two ports, both this deck, both
- * FROM_API because `open` is an API call, and every one of them a card the
- * panel would have shown its owner about itself.
+ * FROM_API (not from `open`, which left no FROM_API when tested: see FROM_API in
+ * agent-activity.mjs), and every one of them a card the panel would have shown
+ * its owner about itself.
  *
  * The whole range rather than the ports seen: the alternative is to remember
  * which ports past decks used, which is a file to keep, a file to migrate, and

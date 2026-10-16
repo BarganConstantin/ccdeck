@@ -1,0 +1,159 @@
+/* Default supplies zero increments: the established type scale and spacing
+   remain byte-for-byte equivalent in computed styles, without page zoom. */
+:root[data-text-size="smallest"] { --ui-text-increase: -2px; }
+:root[data-text-size="smaller"] { --ui-text-increase: -1px; }
+:root[data-text-size="larger"] { --ui-text-increase: 2px; }
+:root[data-text-size="largest"] { --ui-text-increase: 4px; }
+/* Panels widen with their text, as browser zoom would widen them: 12px for
+   each pixel of text, so at +4 the 288px column is 336px and "Claude accounts"
+   keeps its header on one line. Smaller text keeps the designed widths.
+   Comfortable adds 8px, which is what its wider inset takes from the header. */
+:root { --ui-panel-increase: calc(var(--ui-panel-text, 0px) + var(--ui-panel-room, 0px)); }
+:root[data-text-size="larger"] { --ui-panel-text: 24px; }
+:root[data-text-size="largest"] { --ui-panel-text: 48px; }
+:root[data-density="comfortable"] { --ui-panel-room: 8px; }
+/* A phone gives what width it has: the right-hand panels span the window
+   there anyway, and the left column may grow until it leaves 8px of a 320px
+   screen, so "Claude accounts" still fits on one line at 390px. */
+@media (max-width: 640px) {
+  :root { --ui-panel-increase: min(calc(var(--ui-panel-text, 0px) + var(--ui-panel-room, 0px)), calc(100vw - 296px)); }
+}
+/* Tool activity's call list: its duration column holds "39.5 min" and its
+   state column "No result" at larger text, and no wider, so the time beside
+   them keeps to one line in the panel's standard width. */
+:root[data-text-size="larger"] .ta-calls li { grid-template-columns: minmax(0, 1fr) auto 72px 90px; }
+:root[data-text-size="largest"] .ta-calls li { grid-template-columns: minmax(0, 1fr) auto 80px 96px; }
+/* The phone's dock is six words in a fixed 48px strip; past +1px they meet. */
+:root[data-text-size="larger"] .edge-dock,
+:root[data-text-size="largest"] .edge-dock { --ui-text-increase: 1px; }
+/* The account rows' key, percentage and reset columns are fixed widths sized
+   for 11px words; they take their share of the wider panel so "Fable" and
+   "1d 23h" are not cut. */
+:root[data-text-size="larger"] .ap-lane { grid-template-columns: 40px minmax(0, 1fr) 36px 52px; }
+:root[data-text-size="largest"] .ap-lane { grid-template-columns: 46px minmax(0, 1fr) 40px 60px; }
+/* Cards and their notes on the canvas widen and narrow with their text, the
+   15px per pixel of text that keeps a title as long as it was: the canvas
+   measures every card, so the layout follows. */
+:root[data-text-size="smallest"] { --ui-card-increase: -30px; }
+:root[data-text-size="smaller"] { --ui-card-increase: -15px; }
+:root[data-text-size="larger"] { --ui-card-increase: 30px; }
+:root[data-text-size="largest"] { --ui-card-increase: 60px; }
+/* The tool bubbles are not measured: burst-layout.ts places them from a
+   per-character estimate, and the pills cut their words to fit a fixed
+   max-width (tool-bursts.css, #978). Grown with the text, the subs clipped
+   their own ellipsis at Larger, so their words keep the designed size and the
+   canvas zoom enlarges them, as it does at Default. */
+.tool-bursts-world { --ui-text-increase: 0px; }
+/* Zoomed-out faces have fixed, screen-space line budgets and container-query
+   cutoffs. Keep those tiny summaries at their designed scale; full agent cards
+   and their detail panels enlarge normally and retain measured layout. */
+.lod-face { --ui-text-increase: 0px; }
+/* So do the session labels over them. Zoomed out, a label may only be as wide
+   as its session is on screen, and at +4px neighbouring labels ran into each
+   other; zoomed in to the cards they follow the text size again. */
+.canvas-wrap[data-lod="compact"] .cluster-label,
+.canvas-wrap[data-lod="overview"] .cluster-label { --ui-text-increase: 0px; }
+/* Density is a factor on the vertical rhythm of the lists and panels people
+   scan — session rows, account rows, usage and machine sections, detail rows,
+   agent cards — plus the shared inset and control height. 1 at Default, so
+   every spacing it touches computes to its designed value. Controls never go
+   under the 24px floor. */
+:root[data-density="tightest"] { --panel-inset: 8px; --ctl-h: 24px; --ui-space: 0.3; }
+:root[data-density="tighter"] { --panel-inset: 10px; --ctl-h: 26px; --ui-space: 0.5; }
+:root[data-density="compact"] { --panel-inset: 12px; --ctl-h: 28px; --ui-space: 0.7; }
+:root[data-density="comfortable"] { --panel-inset: 18px; --ctl-h: 36px; --ui-space: 1.4; }
+/* Text enlargement also gives controls enough vertical room. Density never
+   decreases the text scale or takes interactive rows below the 24px floor. */
+:root[data-text-size="larger"] { --ui-control-floor: 34px; }
+:root[data-text-size="largest"] { --ui-control-floor: 38px; }
+:root[data-text-size="larger"] .btn,
+:root[data-text-size="largest"] .btn,
+:root[data-text-size="larger"] .settings-tab,
+:root[data-text-size="largest"] .settings-tab,
+:root[data-text-size="larger"] .ap-field select,
+:root[data-text-size="largest"] .ap-field select,
+:root[data-text-size="larger"] .ap-manage-input,
+:root[data-text-size="largest"] .ap-manage-input {
+  min-height: max(var(--ctl-h), var(--ui-control-floor, 24px));
+}
+.reading-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.reading-head .btn { flex: none; }
+.reading-intro { margin: 0; color: var(--text-secondary); line-height: 1.6; }
+.reading-group { margin: 0; padding: 0; border: 0; min-width: 0; }
+.reading-group legend { padding: 0; font-weight: 600; }
+.reading-group > p { color: var(--muted); margin: 6px 0 12px; line-height: 1.5; }
+.reading-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.reading-choice {
+  display: flex; align-items: flex-start; gap: 8px; min-width: 0;
+  padding: 10px; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl);
+  cursor: pointer; background: transparent;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.reading-choice:active { transform: scale(0.97); }
+.reading-choice:hover { background: var(--ctl-fill); border-color: var(--text); }
+.reading-choice:has(input:checked) { background: var(--ctl-fill); border-color: var(--accent); }
+.reading-choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reading-choice input { flex: none; margin: 3px 0 0; accent-color: var(--accent); }
+.reading-choice strong { display: block; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
+.reading-choice small { display: block; margin-top: 5px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+/* Both scales are one control each: the options in order, the familiar
+   default among them, and a plate that moves to the chosen one. Both have
+   five steps; --reading-count and --reading-selected come from
+   ReadingSection. Labels keep a readable floor when the deck is smaller. */
+.reading-segmented { position: relative; isolation: isolate; grid-template-columns: repeat(var(--reading-count, 5), minmax(0, 1fr)); gap: 0; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px; }
+.reading-segmented::before { content: ""; position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--reading-count, 5)); box-sizing: border-box; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); background: var(--ctl-fill); transform: translateX(calc(var(--reading-selected, 2) * 100%)); transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); pointer-events: none; }
+.reading-segmented .reading-choice { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px 4px; border-color: transparent; text-align: center; }
+.reading-segmented .reading-choice:has(input:checked) { border-color: transparent; background: transparent; }
+.reading-segmented .reading-choice { transition: color 120ms ease-out, background-color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.reading-segmented .reading-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.reading-segmented .reading-choice:has(input:focus-visible) { outline-offset: -2px; }
+.reading-type-sample { display: flex; align-items: center; justify-content: center; height: 28px; font-size: var(--reading-sample-size); font-weight: 500; color: var(--muted); pointer-events: none; }
+.reading-choice[data-size="smallest"] { --reading-sample-size: 17px; }
+.reading-choice[data-size="smaller"] { --reading-sample-size: 18px; }
+.reading-choice[data-size="default"] { --reading-sample-size: 19px; }
+.reading-choice[data-size="larger"] { --reading-sample-size: 21px; }
+.reading-choice[data-size="largest"] { --reading-sample-size: 23px; }
+.reading-segmented strong { font-size: max(12px, calc(12px + var(--ui-text-increase, 0px))); overflow-wrap: normal; }
+.reading-segmented small { font-size: max(11px, calc(11px + var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
+.reading-selected-mark { position: absolute; top: 5px; right: 5px; color: var(--accent); opacity: 0; transform: scale(0.7); transition: opacity 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); pointer-events: none; }
+.reading-choice:has(input:checked) .reading-selected-mark { opacity: 1; transform: scale(1); }
+.reading-choice:has(input:checked) .reading-type-sample { color: var(--text); }
+/* The density sample is three rules at the option's spacing, in the same
+   28px band as the Aa above the sizes, so both rows of choices line up. */
+.reading-density-sample { display: flex; flex-direction: column; justify-content: center; gap: 4px; width: 22px; height: 28px; flex: none; pointer-events: none; }
+.reading-density-sample i { display: block; height: 2px; background: var(--muted); border-radius: 1px; }
+.reading-choice:has(input:checked) .reading-density-sample i { background: var(--text); }
+.reading-density-sample[data-density="tightest"] { gap: 1px; }
+.reading-density-sample[data-density="tighter"] { gap: 2px; }
+.reading-density-sample[data-density="compact"] { gap: 3px; }
+.reading-density-sample[data-density="comfortable"] { gap: 8px; }
+.reading-preview { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 16px; }
+.reading-preview h3 { margin: 0 0 10px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.reading-preview-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(10px * var(--ui-space, 1)) 0; }
+.reading-preview-row + .reading-preview-row { border-top: 1px solid var(--line-soft); }
+.reading-preview-row strong { font-weight: 500; }
+.reading-preview-row div > span { display: block; margin-top: 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.reading-preview-time { color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.reading-footer { margin: 0; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+/* A phone: each scale stands as a list, the plate moving down it. Gaps are
+   2px, padding 4px, so n rows share (100% - 8px - 2px × (n - 1)). */
+@media (max-width: 640px) {
+  .reading-head { flex-direction: column; gap: 12px; }
+  .reading-options { grid-template-columns: minmax(0, 1fr); }
+  .reading-choice strong { flex: none; overflow-wrap: normal; white-space: nowrap; }
+  .reading-choice small { margin-top: 0; text-align: right; }
+  .reading-segmented { display: flex; flex-direction: column; gap: 2px; }
+  .reading-segmented::before { bottom: auto; width: calc(100% - 8px); height: calc((100% - 6px - 2px * var(--reading-count, 5)) / var(--reading-count, 5)); transform: translateY(calc(var(--reading-selected, 2) * (100% + 2px))); }
+  .reading-segmented .reading-choice { flex-direction: row; justify-content: flex-start; padding: 8px 12px; gap: 12px; text-align: left; }
+  .reading-segmented .reading-type-sample,
+  .reading-segmented .reading-density-sample { width: 32px; flex: none; }
+  .reading-segmented .reading-density-sample { padding-inline: 5px; box-sizing: border-box; }
+  .reading-segmented .reading-label { flex: 1; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-right: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-choice:active { transform: none; }
+  .reading-segmented::before { transition: none; }
+  .reading-selected-mark { transform: none; transition: opacity 80ms linear; }
+  .reading-choice:has(input:checked) .reading-selected-mark { transform: none; }
+  .reading-segmented .reading-choice { transition: none; }
+}

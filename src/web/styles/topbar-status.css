@@ -11,7 +11,7 @@
    current. The Usage panel says it, beside today and all time. */
 .topbar .status {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   display: inline-flex;
   align-items: center;
   gap: 14px;

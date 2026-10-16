@@ -102,6 +102,8 @@ export interface LeftColumn {
   /** The reader's own call on the panel, which also ends any eviction. */
   toggleAccountsPanel: () => void;
   closeSessionList: () => void;
+  /** The list closing to show the session just picked, on a phone. */
+  closeSessionListToCanvas: () => void;
   closeAccountsPanel: () => void;
 }
 
@@ -160,10 +162,18 @@ export function useLeftColumn(): LeftColumn {
   }, []);
 
   const closeSessionList = useCallback(() => setSessionListOpen(false), []);
+  /** On a phone the column is a drawer over the canvas, and the list closes
+   *  there to show the session the reader just picked. The panel it evicted
+   *  stays closed this once instead of sliding back over that session; the
+   *  stored preference is untouched, so the next load still opens it. */
+  const closeSessionListToCanvas = useCallback(() => {
+    accountsEvictedRef.current = false;
+    setSessionListOpen(false);
+  }, []);
   const closeAccountsPanel = useCallback(() => setAccountsPanelOpen(false), []);
 
   const panel = leftColumnPanel(sessionListOpen, accountsPanelOpen, accountsEvictedRef.current);
 
   return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel,
-           closeSessionList, closeAccountsPanel };
+           closeSessionList, closeSessionListToCanvas, closeAccountsPanel };
 }

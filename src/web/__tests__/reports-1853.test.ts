@@ -25,7 +25,7 @@ import {
   // @ts-expect-error — plain JS module, no types
 } from "../../server/reports.mjs";
 // @ts-expect-error — plain JS module, no types
-import { feedbackFacts, handleFeedback, handleFeedbackFacts } from "../../server/reports-routes.mjs";
+import { feedbackDeviceId, feedbackFacts, handleFeedback, handleFeedbackFacts } from "../../server/reports-routes.mjs";
 // @ts-expect-error — plain JS module, no types
 import { createUsageDay } from "../../server/usage-day.mjs";
 
@@ -969,7 +969,7 @@ describe("the feedback dialog's route", () => {
   }
   const MESSAGE = { kind: "idea", title: "A quieter chime", body: "The done chime is loud at night.", contact: " bob@example.org " };
 
-  it("passes the message on with the version and the system, and answers that it arrived", async () => {
+  it("passes the message on with the version, the system and the fingerprint, and answers that it arrived", async () => {
     const upstream: { url: string; body: Record<string, unknown> }[] = [];
     const fetchImpl = async (url: string, init: { body: string }) => {
       upstream.push({ url, body: JSON.parse(init.body) });
@@ -978,7 +978,7 @@ describe("the feedback dialog's route", () => {
     };
     const { req, res, answer } = post(MESSAGE);
 
-    await handleFeedback(req, res, { fetchImpl, env: {} });
+    await handleFeedback(req, res, { fetchImpl, env: {}, device: "0123456789abcdef" });
 
     expect(answer()).toEqual({ status: 200, body: { ok: true } });
     expect(upstream.length).toBe(1);
@@ -986,13 +986,34 @@ describe("the feedback dialog's route", () => {
     expect(upstream[0].body).toEqual({
       kind: "idea", title: "A quieter chime", body: "The done chime is loud at night.", contact: "bob@example.org",
       appVersion: installFacts({ env: {} }).version, platform: `${process.platform}-${process.arch}`,
+      deviceId: "0123456789abcdef",
     });
   });
 
-  it("says before Send exactly what it adds to a report, and nothing more", async () => {
+  it("sends no fingerprint field at all when there is none to send", async () => {
+    const upstream: Record<string, unknown>[] = [];
+    const { req, res } = post(MESSAGE);
+
+    await handleFeedback(req, res, {
+      fetchImpl: async (_url: string, init: { body: string }) => { upstream.push(JSON.parse(init.body)); return { status: 202, json: async () => ({}) }; },
+      env: {},
+      device: null,
+    });
+
+    expect(upstream[0]).not.toHaveProperty("deviceId");
+  });
+
+  it("takes the fingerprint usage reports carry, and only while reports are on", () => {
+    expect(feedbackDeviceId({ env: {}, prefs: normalise({}) })).toBe(deviceIdToken());
+    expect(feedbackDeviceId({ env: {}, prefs: normalise({ reports: false }) })).toBeUndefined();
+    expect(feedbackDeviceId({ env: { AGENTS_DECK_NO_REPORTS: "1" }, prefs: normalise({}) })).toBeUndefined();
+  });
+
+  it("says before Send the version and the system it adds, from the function the post uses", async () => {
     // The dialog's line under the message — `ccdeck 3.36.0 · macOS · arm64` —
-    // is drawn from this answer, which is the same function the post uses, so
-    // the page never guesses at what is sent and cannot say something else.
+    // is drawn from this answer, which is the same function the post uses for
+    // those two, so the page never guesses at them. The fingerprint also goes
+    // with the post and is left off the line, by the owner's choice.
     const answer = { status: 0, text: "" };
     const res = {
       headersSent: false,
@@ -1004,8 +1025,8 @@ describe("the feedback dialog's route", () => {
     expect(JSON.parse(answer.text)).toEqual({
       ok: true, appVersion: installFacts({ env: {} }).version, platform: `${process.platform}-${process.arch}`,
     });
-    // Two facts and no more: installFacts knows the channel, the runtime, a
-    // locale and a device fingerprint, and none of them goes with feedback.
+    // Two facts on the line: installFacts knows the channel, the runtime and a
+    // locale too, and none of those goes with feedback.
     expect(Object.keys(feedbackFacts({ env: {} })).sort()).toEqual(["appVersion", "platform"]);
 
     const upstream: Record<string, unknown>[] = [];

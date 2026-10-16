@@ -517,6 +517,7 @@ const CONTROLS: Control[] = [
   { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".ta-search input", states: [".ta-search input:hover"], beds: ["--bg"] },
   { at: ".tr-input", beds: ["--panel"] },
   { at: ".tr-select", beds: ["--panel"] },
   { at: ".su-pricing select", beds: ["--panel"] },
@@ -872,6 +873,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
+      ".reading-choice:has(input:focus-visible)",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
       ".switch:focus-visible",
@@ -913,7 +915,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
     // Radio discovery, session pricing and reset-calendar controls extend the inventory.
-    expect(EDGED_CONTROLS.length).toBeLessThan(146);
+    // Gruvbox adds one resting cluster-label rim; its visible name identifies it.
+    // Tool activity's search field adds two: framed at rest, louder under the pointer.
+    expect(EDGED_CONTROLS.length).toBeLessThan(149);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -1213,6 +1217,8 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // name at 4.5:1, which is the identification. (It read "draggable" here
       // until #546; it is a fit-view button and never was one.)
       ".cluster-label",
+      // Gruvbox retunes the same decorative rim, preserving hover and alarm states.
+      ':root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not([data-alarm]))',
       // The same label for a session stopped until a human answers. It only
       // RECOLOURS the rim above to --warn — the aria-busy argument: nothing
       // appears or moves, the label is still identified by the name written in

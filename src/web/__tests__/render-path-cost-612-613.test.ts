@@ -131,13 +131,13 @@ function reader(table: Record<string, string>): { cssVar: (n: string) => string;
 }
 
 const DARK: Record<string, string> = {
-  "--err": "#f87171", "--inflight": "#f0abfc", "--ok": "#86efac",
+  "--err": "#f87171", "--inflight": "#f0abfc", "--ok": "#86efac", "--warn": "#fcd34d", "--muted": "#7e828c",
   "--grid-line": "#1a1d24", "--minimap-mask": "rgba(11,12,16,.85)",
   "--panel": "#14161b", "--line": "#1f2229",
   "--accent": "#7dd3fc", "--text-dim": "#7e828c", "--bg": "#0b0c10",
 };
 const LIGHT: Record<string, string> = {
-  "--err": "#b91c1c", "--inflight": "#7e22ce", "--ok": "#157a3a",
+  "--err": "#b91c1c", "--inflight": "#7e22ce", "--ok": "#157a3a", "--warn": "#ad4e08", "--muted": "#4a5260",
   "--grid-line": "#d0d5dd", "--minimap-mask": "rgba(238,241,246,.85)",
   "--panel": "#ffffff", "--line": "#c8cdd6",
   "--accent": "#0369a1", "--text-dim": "#5b5f68", "--bg": "#eef1f6",
@@ -160,7 +160,7 @@ describe("the canvas palette is read once per theme", () => {
     // WatchRadar paints its sweep, blips and labels from the last two — the
     // reason they joined the list rather than being read off the sheet per
     // frame, which is what this whole file is about.
-    for (const token of ["--err", "--inflight", "--ok", "--grid-line", "--minimap-mask", "--panel", "--line",
+    for (const token of ["--err", "--inflight", "--ok", "--warn", "--muted", "--grid-line", "--minimap-mask", "--panel", "--line",
                          // `--bg` is the GROUND, and the radar needs it because
                          // alpha is contrast against the ground: the same 26%
                          // accent wash is a beam over #0b0c10 and almost
@@ -189,6 +189,14 @@ describe("the canvas palette is read once per theme", () => {
     expect(minimapNodeColor({ type: "agent", data: { state: "active" } }, token)).toBe(LIGHT["--inflight"]);
     expect(minimapNodeColor({ type: "agent", data: { state: "done" } }, token)).toBe(LIGHT["--ok"]);
     expect(minimapNodeColor({ type: SESSION_GROUP_TYPE }, token)).toBe("transparent");
+  });
+
+  it("paints the blocked session and the recap note from the palette, never from nothing", () => {
+    // An empty fill is not "no colour": SVG paints it black. Both used to read
+    // tokens the palette did not carry.
+    const token = paletteReader(readPalette(reader(LIGHT).cssVar));
+    expect(minimapNodeColor({ type: "agent", data: { state: "active", waiting: { kind: "permission" } } as never }, token)).toBe(LIGHT["--warn"]);
+    expect(minimapNodeColor({ type: "recapNote" }, token)).toBe(LIGHT["--muted"]);
   });
 
   it("answers a token nobody declared with the empty string, like cssVar does", () => {
@@ -409,7 +417,7 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // The ordering that keeps a flip from going stale. Both statements must
     // live in the same effect, with the attribute first — a palette read before
     // `data-theme` is written answers with the theme being replaced.
-    const effect = /useEffect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(appearance);
+    const effect = /use(?:Layout)?Effect\(\(\) => \{\s*document\.documentElement\.dataset\.theme = theme;[\s\S]*?\}, \[theme\]\);/.exec(appearance);
     expect(effect, "the data-theme effect is no longer recognisable").not.toBeNull();
     expect(effect![0]).toMatch(/setPalette\(/);
     expect(effect![0].indexOf("dataset.theme")).toBeLessThan(effect![0].indexOf("setPalette"));

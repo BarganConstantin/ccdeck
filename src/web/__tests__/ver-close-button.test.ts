@@ -14,7 +14,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ownsKeystroke } from "../shortcuts";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 // Both banners moved out of App.tsx: the version banner to
 // components/VersionBanner.tsx, and the old-name notice that dismisses with the

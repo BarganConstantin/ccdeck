@@ -64,6 +64,10 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     name: "a spoken voice",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("section", ["sm-custom"]), el("details", ["sm-voice"]), el("div", ["sm-voice-fields"]), el("label"), el("select", ["sm-select"])],
   }],
+  "components/ToolAuditSettings.tsx": [{
+    name: "how long tool history is kept",
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group", "ta-settings"]), el("div", ["ta-storage-row"]), el("label"), el("select", ["sm-select"])],
+  }],
   "components/BrowserWatchSettings.tsx": [
     { name: "Browser Watch's quiet time", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },
     { name: "Browser Watch's reaction", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },

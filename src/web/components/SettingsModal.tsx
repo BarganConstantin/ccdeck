@@ -32,7 +32,9 @@ import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
+import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
+import ReadingSection from "./ReadingSection";
 import CharacterSection from "./CharacterSection";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -96,8 +98,8 @@ export default function SettingsModal({
     if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
-    const next = nextTheme(theme);
-    setTheme(next);
+    const next = nextTheme((target.dataset.themeChoice as typeof theme | undefined) ?? theme);
+    setTheme(nextTheme);
     if (target.getAttribute("role") === "radio") {
       event.currentTarget.querySelector<HTMLButtonElement>(`[role="radio"][data-theme-choice="${next}"]`)?.focus();
     }
@@ -112,6 +114,8 @@ export default function SettingsModal({
 
   const pane = (() => {
     switch (section) {
+      case "reading":
+        return <ReadingSection textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />;
       case "notifications":
         return (
           <NotificationsSection
@@ -156,6 +160,7 @@ export default function SettingsModal({
               onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
             />
             <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
+            <ToolAuditSettings />
           </>
         );
     }

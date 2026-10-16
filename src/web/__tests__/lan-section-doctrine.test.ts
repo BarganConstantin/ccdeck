@@ -19,7 +19,7 @@ import { nextShared, sameKeys, settlePending } from "../lan-share";
 import { faultText, roundLabel } from "../lan-round";
 import { askedLabel, checkedLabel, deckRows, isOnline, rosterSplit, sectionState, ONLINE_MS } from "../lan-roster";
 import { writeFailure } from "../use-lan-section";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
