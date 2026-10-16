@@ -502,7 +502,21 @@ describe("the control client, against a fake tmux", () => {
     const c = open(fake);
     expect(await c.resize(100, 30)).toEqual({ ok: true, lines: [] });
     expect(fake.written).toContain("refresh-client -C 100x30");
+    expect(fake.written.some(l => l.startsWith("select-window")), "before attach, attaching is the claim").toBe(false);
     expect(await c.resize(0, 30)).toMatchObject({ ok: false });
+    await c.close();
+  });
+
+  it("claims the window once attached: select-window from this client makes its size the one tmux uses", async () => {
+    // window-size latest sizes a window shared by two clients for the latest
+    // one, and only attaching or select-window make a control client that.
+    const fake = fakeTmux({ respond: answers() });
+    const c = open(fake);
+    await c.ready;
+    expect(await c.resize(90, 28)).toEqual({ ok: true, lines: [] });
+    const at = fake.written.indexOf("refresh-client -C 90x28");
+    expect(at).toBeGreaterThan(-1);
+    expect(fake.written[at + 1], "its own window, right after its own size").toBe("select-window -t @0");
     await c.close();
   });
 

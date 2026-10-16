@@ -382,6 +382,19 @@ export function terminalBridge({
   let queued = false;
   let resizeTimer = null;
   let pendingSize = null;
+  // Sizes, for a pane the panel sizes (case A, D). `asked`: the last size this
+  // panel gave tmux. `shown`: the size its xterm is at, as far as this side
+  // knows — every reset, every size it sends and every size the panel says it
+  // took. `lost`: the pane went to a size this panel did not ask for, because
+  // another view of the same session sized it — a second tab, a `claude
+  // attach` wrapper two panels share, `tmux attach` by hand. tmux sizes a
+  // shared window for the latest client only, so the two would otherwise draw
+  // one pane at two sizes, and the one that lost would garble everything.
+  // Instead the loser is told the pane's real size, and takes the pane back
+  // the moment it is typed in: the view in use is the one the pane fits.
+  let asked = null;
+  let shown = null;
+  let lost = false;
   // Every seed and the exit go through this one chain, so two seeds never
   // cross on the wire and an exit is never said ahead of the seed before it.
   let chain = Promise.resolve();
@@ -433,6 +446,7 @@ export function terminalBridge({
     if (asks !== at && queued) return;
     conn.sendText(JSON.stringify({ t: "reset", cols: seed.cols, rows: seed.rows }));
     conn.sendBinary(seed.bytes);
+    shown = { cols: seed.cols, rows: seed.rows };
     seeded = true;
   }
 
@@ -466,10 +480,27 @@ export function terminalBridge({
   }
 
   function onPaneSize({ cols, rows }) {
-    // Only when the pane owns the size, and only once a frame is on screen:
-    // before that, the reset that comes with the first seed carries it.
-    if (ended || !paneOwned || !seeded) return;
+    // Only once a frame is on screen: before that, the reset that comes with
+    // the first seed carries the size.
+    if (ended || !seeded) return;
+    if (paneOwned) return void conn.sendText(JSON.stringify({ t: "size", cols, rows }));
+    // A resize of the panel's own is about to claim the pane anyway, and a
+    // size seen meanwhile may be the echo of its previous one.
+    if (resizeTimer) return;
+    // The panel's own resize landing is not news to it; any other size is.
+    if (asked && (cols !== asked.cols || rows !== asked.rows)) lost = true;
+    if (shown && cols === shown.cols && rows === shown.rows) return;
+    shown = { cols, rows };
     conn.sendText(JSON.stringify({ t: "size", cols, rows }));
+  }
+
+  /** Before this panel types into a pane another view has resized, give the
+   *  pane back its size. Not awaited: tmux runs one client's commands in the
+   *  order they were written, so the keys land after the resize. */
+  function reclaim() {
+    if (!lost || paneOwned || !asked) return;
+    lost = false;
+    control.resize(asked.cols, asked.rows);
   }
 
   function onExit({ reason } = {}) {
@@ -499,14 +530,20 @@ export function terminalBridge({
   function message({ type, data } = {}) {
     if (ended) return;
     if (type === "binary") {
-      if (!readOnly) control.input(data);
+      if (!readOnly) {
+        reclaim();
+        control.input(data);
+      }
       return;
     }
     let msg;
     try { msg = JSON.parse(Buffer.from(data ?? "").toString("utf8")); } catch { return; }
     if (!msg || typeof msg !== "object") return;
     if (msg.t === "size") onPanelSize(msg.cols, msg.rows);
-    else if (msg.t === "paste" && typeof msg.text === "string" && !readOnly) control.paste(msg.text);
+    else if (msg.t === "paste" && typeof msg.text === "string" && !readOnly) {
+      reclaim();
+      control.paste(msg.text);
+    }
     // Anything else is a newer page saying something this deck has not heard
     // of. Ignored, like the page ignores what it does not know.
   }
@@ -514,13 +551,18 @@ export function terminalBridge({
   function onPanelSize(cols, rows) {
     if (!Number.isFinite(cols) || !Number.isFinite(rows)) return;
     const size = clampSize(cols, rows);
+    // What the panel's xterm is at now: it resizes itself before it says so.
+    shown = { cols: Math.round(cols), rows: Math.round(rows) };
     if (!started) {
       started = true;
       later(async () => {
         if (ended) return;
         // The resize first, and its reply awaited: the seed is then captured
         // at the panel's size, and the first frame is drawn once, not twice.
-        if (!paneOwned) await control.resize(size.cols, size.rows);
+        if (!paneOwned) {
+          asked = size;
+          await control.resize(size.cols, size.rows);
+        }
         await deliverSeed();
         // A pane that was already dead when this client attached — an ended
         // session's deck pane, opened for its last frame — is said to have
@@ -536,7 +578,12 @@ export function terminalBridge({
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       resizeTimer = null;
-      if (!ended && pendingSize) control.resize(pendingSize.cols, pendingSize.rows);
+      if (ended || !pendingSize) return;
+      // A resize claims the pane as well (tmux-control's resize), so whatever
+      // another view had done to it is undone with it.
+      asked = pendingSize;
+      lost = false;
+      control.resize(pendingSize.cols, pendingSize.rows);
     }, debounceMs);
     resizeTimer.unref?.();
   }
