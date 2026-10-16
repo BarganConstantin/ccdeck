@@ -532,6 +532,66 @@ describe("the bridge, in the order the panel expects", () => {
     expect(conn.texts().map(m => m.t)).toEqual(["hello", "reset"]);
   });
 
+  it("tells a panel another view resized its pane, and takes the pane back when it is typed in", async () => {
+    // Two tabs on one deck session: tmux sizes the shared window for the
+    // latest client, so the other one's xterm must hear the real size or it
+    // draws one pane at two sizes.
+    const { conn, control, text, handle } = bridge();
+    text({ t: "size", cols: 80, rows: 24 });
+    await vi.waitFor(() => expect(control().seeds).toBe(1));
+    expect(control().resizes).toEqual([[80, 24]]);
+    control().emit("size", { cols: 150, rows: 45 });
+    expect(conn.texts().at(-1), "the loser is told the pane's real size").toEqual({ t: "size", cols: 150, rows: 45 });
+    control().emit("size", { cols: 150, rows: 45 });
+    expect(conn.texts().filter(m => m.t === "size"), "once").toHaveLength(1);
+
+    handle.message({ type: "binary", data: Buffer.from("y") });
+    expect(control().resizes.at(-1), "typing takes the pane back at this panel's size").toEqual([80, 24]);
+    await settle();
+    expect(control().inputs.map(String)).toEqual(["y"]);
+    // tmux answers with the pane at that size, which is news to the panel's
+    // xterm (still at 150×45), so it is told.
+    control().emit("size", { cols: 80, rows: 24 });
+    expect(conn.texts().at(-1)).toEqual({ t: "size", cols: 80, rows: 24 });
+    handle.message({ type: "binary", data: Buffer.from("z") });
+    expect(control().resizes, "nothing to take back now").toHaveLength(2);
+
+    control().emit("size", { cols: 100, rows: 30 });
+    text({ t: "paste", text: "hello" });
+    expect(control().resizes.at(-1), "a paste takes it back too").toEqual([80, 24]);
+  });
+
+  it("does not take back a pane on a read-only binding, nor one the user's terminal sizes", async () => {
+    const ro = bridge({ readOnly: true });
+    ro.text({ t: "size", cols: 80, rows: 24 });
+    await vi.waitFor(() => expect(ro.control().seeds).toBe(1));
+    ro.control().emit("size", { cols: 150, rows: 45 });
+    ro.handle.message({ type: "binary", data: Buffer.from("y") });
+    expect(ro.control().resizes).toEqual([[80, 24]]);
+
+    const b = bridge({ kind: "B", ignoreSize: true, target: "%9", pane: "%9" });
+    b.text({ t: "size", cols: 80, rows: 24 });
+    await vi.waitFor(() => expect(b.control().seeds).toBe(1));
+    b.control().emit("size", { cols: 150, rows: 45 });
+    b.handle.message({ type: "binary", data: Buffer.from("y") });
+    expect(b.control().resizes).toEqual([]);
+  });
+
+  it("does not count its own resize, pending or landed, as another view's", async () => {
+    const { conn, control, text, handle } = bridge();
+    text({ t: "size", cols: 80, rows: 24 });
+    await vi.waitFor(() => expect(control().seeds).toBe(1));
+    text({ t: "size", cols: 90, rows: 30 });
+    // The echo of the first resize, arriving while the second waits out the debounce.
+    control().emit("size", { cols: 80, rows: 24 });
+    await new Promise(r => setTimeout(r, 20));
+    expect(control().resizes.at(-1)).toEqual([90, 30]);
+    control().emit("size", { cols: 90, rows: 30 });
+    expect(conn.texts().filter(m => m.t === "size"), "the panel is never told its own size").toEqual([]);
+    handle.message({ type: "binary", data: Buffer.from("y") });
+    expect(control().resizes, "and nothing is taken back").toHaveLength(2);
+  });
+
   it("re-seeds on 'reseed': reset and seed again, and the stream after", async () => {
     const { conn, control, text } = bridge();
     text({ t: "size", cols: 80, rows: 24 });

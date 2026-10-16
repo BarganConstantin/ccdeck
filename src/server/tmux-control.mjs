@@ -1023,18 +1023,30 @@ class ControlClient extends EventEmitter {
   }
 
   /**
-   * Make this client's size `cols` x `rows`, which sizes the window when no
-   * other client is attached (case A). Resolves at tmux's reply — the point in
-   * the stream from which output is drawn at the new size. A no-op answering
-   * ok when the client was opened with ignoreSize (case B), where the pane's
-   * size belongs to the user's own terminal and arrives as 'size'.
+   * Make this client's size `cols` x `rows`, and the window's (case A).
+   * Resolves at tmux's reply — the point in the stream from which output is
+   * drawn at the new size. A no-op answering ok when the client was opened
+   * with ignoreSize (case B), where the pane's size belongs to the user's own
+   * terminal and arrives as 'size'.
+   *
+   * With more than one client on the window — a second tab, `tmux attach` by
+   * hand — tmux's default window-size, latest, sizes it for the latest client
+   * alone, and a control client's send-keys never makes it the latest: only
+   * attaching or select-window do. So once attached, a resize is also a
+   * select-window of the pane's own window from this client, which makes it
+   * the latest and the window its size. That is how the view that last typed
+   * or resized is the one the pane is drawn for (terminal-socket's bridge).
    */
   resize(cols, rows) {
     if (this.#ignoreSize) return Promise.resolve({ ok: true, lines: [] });
     const c = Math.floor(Number(cols));
     const r = Math.floor(Number(rows));
     if (!(c >= 1 && c <= 10000 && r >= 1 && r <= 10000)) return Promise.resolve(failed("a size is two positive whole numbers"));
-    return this.#send([`refresh-client -C ${c}x${r}`])[0];
+    const commands = [`refresh-client -C ${c}x${r}`];
+    // Before attach the window is not known yet, and needs no claim: tmux
+    // makes the client that attaches the latest.
+    if (this.#window) commands.push(`select-window -t ${this.#window}`);
+    return allOf(this.#send(commands));
   }
 
   /**
