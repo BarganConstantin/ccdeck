@@ -50,7 +50,7 @@ import {
   type TerminalProvider,
   type TmuxStatus,
 } from "./terminal-api";
-import { connectTerminal, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection } from "./terminal-protocol";
+import { connectTerminal, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
@@ -128,6 +128,9 @@ export interface StageTerminal {
   reset(): void;
   resize(cols: number, rows: number): void;
   setTheme(theme: ITheme): void;
+  /** The tmux server the pane lives in, which decides the questions xterm
+   *  leaves to it (terminal-replies.ts); null while a connection has not said. */
+  tmuxVersion(version: TmuxVersion | null): void;
   focus(): void;
   blur(): void;
   /** The cell it drew with, in CSS pixels, once it has drawn. */
@@ -206,8 +209,10 @@ function copySelection(term: { hasSelection(): boolean; getSelection(): string; 
  * Unicode 11 table gave 4, 2, 6 and 1, which pushed the rest of the line
  * right and broke Claude Code's box; the graphemes addon gives exactly tmux's.
  *
- * TMUX ANSWERS THE PANE'S QUESTIONS (terminal-replies.ts): xterm sees them in
- * the raw output and would answer a second time into the program's input.
+ * TMUX ANSWERS THE PANE'S QUESTIONS (terminal-replies.ts) — those that tmux
+ * answers: xterm sees them in the raw output and would answer a second time
+ * into the program's input. What a given tmux answers is its version's, which
+ * the deck reports per connection (`tmuxVersion`); xterm answers the rest.
  *
  * LINKS NEED CTRL (Cmd on a Mac), and never a browser dialog
  * (terminal-links.ts), for OSC 8 links and plain URLs alike.
@@ -321,6 +326,7 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     reset: () => term.reset(),
     resize: (cols, rows) => term.resize(cols, rows),
     setTheme: theme => { term.options.theme = theme; },
+    tmuxVersion: version => replies.setTmux(version),
     focus: () => term.focus(),
     blur: () => term.blur(),
     // The screen element is exactly cols × rows cells: xterm sizes it to the
@@ -495,6 +501,11 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   const connect = (ticket: string, my: number) => {
     sizeOwner = "dock";
     readOnly = false;
+    // A new connection may be to another tmux (the user's own, in case B), and
+    // until it says which, every question that depends on it is left to tmux.
+    // In the write queue, like every change of what the bytes mean: what the
+    // last connection wrote is still parsed under its own tmux.
+    withTerminal(t => t.write("", () => t.tmuxVersion(null)));
     // Whether this connection is still the one speaking. A seed is revealed
     // from xterm's parse callback, which can come after the socket has already
     // said `exit` — a session that ended the moment it was attached, or a
@@ -532,6 +543,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         if (my !== gen) return;
         markStreaming();
         withTerminal(t => t.write(bytes));
+      },
+      onTmux: version => {
+        if (my !== gen) return;
+        withTerminal(t => t.write("", () => { if (my === gen) t.tmuxVersion(version); }));
       },
       onSize: ({ cols, rows }) => {
         // The pane's real size, when it is not the one this panel asked for:

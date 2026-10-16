@@ -140,6 +140,12 @@ describe("the terminal socket on real tmux", () => {
     });
     expect(c.status, c.head).toBe(101);
     expect(json(await c.next())).toEqual({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    // The server's version, asked of the server itself as the bridge opened —
+    // this run's tmux started it, so it is that binary's major.minor — and on
+    // the wire before the panel has even said its size.
+    if (Array.isArray(tmux.version)) {
+      expect(json(await c.next(10_000))).toEqual({ t: "tmux", version: tmux.version.slice(0, 2).join(".") });
+    }
 
     // The panel's size: the pane is resized to it BEFORE the first frame is
     // captured, so the reset names the panel's size and so does tmux.

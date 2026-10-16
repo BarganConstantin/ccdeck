@@ -442,6 +442,18 @@ export function terminalBridge({
   control.on("size", onPaneSize);
   control.on("exit", onExit);
 
+  // The tmux server's version, for the panel to know which of the pane's
+  // questions that tmux answers itself (terminal-replies.ts) — first in the
+  // chain, so it is on the wire before the first reset. Asked now, before the
+  // panel's size has arrived, and queued behind tmux's attach, so its answer
+  // comes back ahead of the resize and the seed it might otherwise delay.
+  const version = typeof control.serverVersion === "function" ? control.serverVersion() : Promise.resolve(null);
+  later(async () => {
+    const v = await version;
+    if (ended || !Array.isArray(v)) return;
+    conn.sendText(JSON.stringify({ t: "tmux", version: `${v[0]}.${v[1]}` }));
+  });
+
   /** Capture and send one seed. Nothing is awaited between the capture and
    *  the two writes: tmux-control starts the stream the moment seed()
    *  resolves, and output must follow the seed on the wire, not precede it. */

@@ -97,6 +97,8 @@ class FakeTerminal implements StageTerminal {
   reset() { this.log.push("reset"); }
   resize(cols: number, rows: number) { this.cols = cols; this.rows = rows; this.log.push(`resize ${cols}x${rows}`); }
   setTheme(theme: unknown) { this.theme = theme; }
+  versions: unknown[] = [];
+  tmuxVersion(v: unknown) { this.versions.push(v); }
   focus() { this.log.push("focus"); }
   blur() { this.log.push("blur"); }
   cell() { return { w: 8, h: 18 }; }
@@ -660,6 +662,38 @@ describe("the theme's colours, for tmux to answer a program's colour question wi
     await attach(r, ctl);
     await attach(r, ctl, OTHER);
     expect(r.sockets[1].sentText().filter(m => m.t === "colours")).toEqual([{ t: "colours", fg: "#1f2328", bg: "#fafaf8" }]);
+  });
+});
+
+describe("the tmux the pane lives in, for the questions xterm leaves to it", () => {
+  it("is unknown on every new connection until the deck says, then the deck's, in the order of the bytes", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    const s = r.sockets[0];
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "tmux", version: "3.4" });
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc("SEED"));
+    expect(r.terminal().versions, "applied as xterm parses up to it, not before").toEqual([]);
+    r.terminal().parse();
+    expect(r.terminal().versions).toEqual([null, [3, 4]]);
+
+    // Another session — maybe the user's own tmux — starts unknown again.
+    ctl.show({ kind: "session", ref: OTHER });
+    await flush();
+    const t = r.sockets[1];
+    t.open();
+    t.text({ t: "hello", kind: "B", sizeOwner: "pane", readOnly: false });
+    r.terminal().parse();
+    expect(r.terminal().versions.at(-1)).toBeNull();
+    t.text({ t: "tmux", version: "3.8" });
+    s.text({ t: "tmux", version: "3.2" });
+    r.terminal().parse();
+    expect(r.terminal().versions.at(-1), "and never from a socket that is no longer the one speaking").toEqual([3, 8]);
   });
 });
 
