@@ -159,7 +159,7 @@ describe("a click on a card, with the flag on", () => {
     expect(shell.origin).toEqual({ x: 400, y: 200, w: 240, h: 90 });
     expect(shell.originName).toEqual({ x: 412, y: 210, w: 60, h: 15 });
     expect(shell.grace, "a double-click's second press is still on its way").toBe(true);
-    expect(shell.focusRequest, "a click leaves the keys on the board").toBeNull();
+    expect(shell.focusRequest, "a pointer that picked a session is about to type to it").not.toBeNull();
   });
 
   it("evicts the detail panel as it opens", () => {
