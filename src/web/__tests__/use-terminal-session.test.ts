@@ -23,6 +23,7 @@ import { mount as mountComponent, flush } from "./fake-react";
 import { MAX_MESSAGE_BYTES, connectTerminal } from "../terminal-protocol";
 import type { ApiFailure, NotAttachable, SessionRef, TerminalStatus, Ticketed, Launched } from "../terminal-api";
 import {
+  CTRL_V,
   PASTE_TOO_LARGE,
   RECONNECT_DELAYS_MS,
   RECONNECT_GIVE_UP_MS,
@@ -31,6 +32,7 @@ import {
   TMUX_SETUP_GIVE_UP_MS,
   TMUX_SETUP_POLL_MS,
   createTerminalSession,
+  pasteHoldsImage,
   showCursorFromTheStart,
   subjectKey,
   useTerminalSession,
@@ -511,6 +513,23 @@ describe("keys, paste and the pane's size", () => {
     r.events().onPaste("line one\nline two");
     expect(s.sentBytes()).toEqual(["ls -la\r"]);
     expect(s.sentText().at(-1)).toEqual({ t: "paste", text: "line one\nline two" });
+  });
+
+  it("knows a pasted screenshot from pasted text, files that are not images, and nothing at all", () => {
+    const items = (...list: Array<{ kind: string; type: string }>) => ({ items: Object.assign(list, { length: list.length }) as unknown as DataTransferItemList });
+    expect(pasteHoldsImage(items({ kind: "file", type: "image/png" }))).toBe(true);
+    expect(pasteHoldsImage(items({ kind: "string", type: "text/plain" }))).toBe(false);
+    expect(pasteHoldsImage(items({ kind: "file", type: "application/pdf" }))).toBe(false);
+    expect(pasteHoldsImage(null)).toBe(false);
+    expect(CTRL_V).toBe("\x16");
+  });
+
+  it("hands the program Ctrl+V for a screenshot pasted with no text, as a terminal would", () => {
+    // mountXterm's paste listener (source-pinned: it needs a real xterm): no
+    // text and an image means the key itself, so the program reads the image.
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../use-terminal-session.ts"), "utf8");
+    const paste = src.slice(src.indexOf("const onPaste = (e: ClipboardEvent) => {"), src.indexOf('host.addEventListener("paste", onPaste, true);'));
+    expect(paste).toMatch(/if \(!text\) \{[\s\S]*if \(pasteHoldsImage\(e\.clipboardData\)\) \{[\s\S]*events\.onInput\(CTRL_V\);/);
   });
 
   it("says a paste is too big to send, rather than losing it without a word", async () => {
