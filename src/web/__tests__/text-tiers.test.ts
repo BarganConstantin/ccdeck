@@ -227,6 +227,8 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
+      // The Text & density pane's opening sentence, read once.
+      ".reading-intro",
       ".radio-art",
       ".radio-cluster-preview button span",
       ".radio-controls > .radio-player-button",

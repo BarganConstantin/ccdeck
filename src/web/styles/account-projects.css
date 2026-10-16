@@ -13,9 +13,9 @@
   background: var(--bg-soft);
 }
 .ap-proj-titlewrap { min-width: 0; margin-right: auto; }
-.ap-proj-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.ap-proj-title { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); line-height: 1.2; }
 .ap-proj-sub {
-  font-size: 12px; color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42ch;
 }
 
@@ -23,7 +23,7 @@
 
 .ap-proj-body { padding: 16px; overflow-y: auto; }
 
-.ap-proj-state { color: var(--muted); font-size: 13px; padding: 24px 4px; text-align: center; }
+.ap-proj-state { color: var(--muted); font-size: calc(13px + var(--ui-text-increase, 0px)); padding: 24px 4px; text-align: center; }
 .ap-proj-error { color: var(--text); }
 /* Switching windows keeps the last report up until the next lands, its marks
    dimmed and its words saying "updating…". The dim was on every child of the
@@ -48,7 +48,7 @@
   .ap-proj-colseg,
   .ap-proj-dot { transition: none; }
 }
-.ap-proj-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; line-height: 1.5; }
+.ap-proj-note { color: var(--text-dim); font-size: calc(12px + var(--ui-text-increase, 0px)); margin-top: 6px; line-height: 1.5; }
 
 /* The one-glance stacked bar: 100% of this account's spend on the window. */
 .ap-proj-bar {
@@ -66,13 +66,13 @@
   display: flex; align-items: baseline; gap: 8px;
   margin: 12px 0 4px;
 }
-.ap-proj-total-cost { font-size: 18px; font-weight: 650; color: var(--text); }
-.ap-proj-total-tok { font-size: 12px; color: var(--muted); }
-.ap-proj-total-win { font-size: 12px; color: var(--text-dim); }
+.ap-proj-total-cost { font-size: calc(18px + var(--ui-text-increase, 0px)); font-weight: 650; color: var(--text); }
+.ap-proj-total-tok { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.ap-proj-total-win { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-dim); }
 /* ccusage is still reconciling the dollars (#1317). Words at full contrast, not
    a dimmed figure: the estimate on screen is a real answer, only not the final
    one. Pushed to the row's end so its going leaves nothing to reflow. */
-.ap-proj-total-pending { margin-left: auto; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.ap-proj-total-pending { margin-left: auto; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); white-space: nowrap; }
 
 .ap-proj-list { list-style: none; margin: 8px 0 0; padding: 0; }
 .ap-proj-row {
@@ -87,11 +87,11 @@
 .ap-proj-row.muted .ap-proj-name { color: var(--muted); font-style: italic; }
 .ap-proj-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .ap-proj-name {
-  font-size: 13px; color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px)); color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ap-proj-parent { color: var(--muted); font-size: 12px; font-style: normal; }
-.ap-proj-info { width: 24px; height: 24px; font-size: 13px; justify-self: end; }
+.ap-proj-parent { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-style: normal; }
+.ap-proj-info { width: 24px; height: 24px; font-size: calc(13px + var(--ui-text-increase, 0px)); justify-self: end; }
 .ap-proj-details {
   grid-column: 2 / -1;
   display: flex; align-items: center; gap: 8px; min-width: 0;
@@ -99,13 +99,13 @@
 }
 .ap-proj-path {
   flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere;
-  color: var(--muted); font-size: 11px; line-height: 1.45;
+  color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45;
 }
 /* --text-secondary on the --sm-fill that raises it: --muted there was 4.25:1
    in dark (#1788). Hover still lifts it to --text. */
 .ap-proj-copy {
   border: 1px solid var(--ctl-edge); border-radius: 6px; background: var(--sm-fill); color: var(--text-secondary);
-  font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer;
+  font: inherit; font-size: calc(11px + var(--ui-text-increase, 0px)); padding: 3px 8px; cursor: pointer;
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ap-proj-copy:hover { color: var(--text); }
@@ -119,7 +119,7 @@
   display: grid; grid-template-columns: minmax(100px, 1fr) minmax(140px, 2fr) max-content max-content max-content;
   align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line-soft);
 }
-.ap-proj-other-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text); }
+.ap-proj-other-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); }
 /* The rail a row's share is measured against, in the --line every meter in the
    deck draws its track in (`.qb-track`, `.uh-model-bar`). */
 .ap-proj-track {
@@ -128,8 +128,8 @@
   overflow: hidden;
 }
 .ap-proj-fill { display: block; height: 100%; border-radius: 3px; }
-.ap-proj-cost { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
-.ap-proj-tok  { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; min-width: 5ch; }
+.ap-proj-cost { font-size: calc(13px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
+.ap-proj-tok  { font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; min-width: 5ch; }
 
 .ap-proj-unattributed {
   display: grid;
@@ -143,13 +143,13 @@
   border: 1px dashed var(--line);
 }
 .ap-proj-un-labels { display: flex; flex-direction: column; min-width: 0; }
-.ap-proj-un-title { font-size: 13px; color: var(--text); }
-.ap-proj-un-tag { font-size: 11px; color: var(--muted); }
-.ap-proj-un-cost { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
-.ap-proj-un-tok { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; min-width: 5ch; }
+.ap-proj-un-title { font-size: calc(13px + var(--ui-text-increase, 0px)); color: var(--text); }
+.ap-proj-un-tag { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.ap-proj-un-cost { font-size: calc(13px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.ap-proj-un-tok { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; min-width: 5ch; }
 .ap-proj-unattributed .ap-proj-note { grid-column: 1 / -1; margin-top: 2px; }
 
-.ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
+.ap-proj-foot { margin-top: 14px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); text-align: right; }
 
 /* Phone: the track column is the first thing to go; keep name + numbers.
    An Other member is two rows: name, cost, tokens and Copy across the first,
@@ -172,7 +172,7 @@
 /* Per-day chart in the Projects report: a stacked column per day, coloured by
    project like the list, its height the day's reconciled total. */
 .ap-proj-days { margin: 14px 0 4px; }
-.ap-proj-days-cap { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.ap-proj-days-cap { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); margin-bottom: 6px; }
 .ap-proj-days-plot { display: flex; align-items: flex-end; justify-content: flex-start; gap: 2px; height: 64px; }
 .ap-proj-day {
   flex: 1 1 0; min-width: 3px; max-width: 26px; height: 100%;
@@ -182,7 +182,7 @@
 .ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
 .ap-proj-colseg { width: 100%; display: block; }
 .ap-proj-days-axis { display: flex; justify-content: flex-start; gap: 2px; margin-top: 4px; }
-.ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: 10px; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }
+.ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }
 
 /* Click a day column for its own breakdown; keyboard-focusable as a button.
    Hover brightens (not a ring); selection and focus draw the accent ring. */
@@ -198,7 +198,7 @@
 }
 .ap-proj-day-detail-head {
   display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 12px; color: var(--text); margin-bottom: 6px;
+  font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); margin-bottom: 6px;
 }
 .ap-proj-day-detail-total { font-variant-numeric: tabular-nums; }
 .ap-proj-day-detail-row {
@@ -206,8 +206,8 @@
   grid-template-columns: 10px 1fr max-content;
   align-items: center; gap: 8px; padding: 2px 0;
 }
-.ap-proj-day-detail-name { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ap-proj-day-detail-cost { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }
+.ap-proj-day-detail-name { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-proj-day-detail-cost { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* ACCOUNT CAPACITY (#1707, reworked in #1713) — components/AccountsUsageReport.tsx,
    in the Projects report's dialog shell. Read top to bottom in the order a
@@ -224,10 +224,10 @@
   --report-meta: color-mix(in srgb, var(--muted) 78%, var(--text));
 }
 .ap-report-modal .ap-proj-head { flex-wrap: wrap; flex-shrink: 0; padding: 16px 24px; background: none; }
-.ap-report-modal h2.ap-proj-title { margin: 0; font-size: 16px; }
+.ap-report-modal h2.ap-proj-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); }
 .ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; min-height: 0; }
 .ap-report-views { display: flex; align-items: center; gap: 4px; }
-.ap-report-view { padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; font: inherit; font-size: 12px; color: var(--report-meta); white-space: nowrap; cursor: pointer; }
+.ap-report-view { padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--report-meta); white-space: nowrap; cursor: pointer; }
 .ap-report-view[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
 .ap-report-view:hover { color: var(--text); background: var(--ctl-fill); }
 
@@ -239,23 +239,23 @@
 .ap-reset-command { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 24px; align-items: start; }
 .ap-reset-next { display: flex; align-items: start; gap: 16px; min-width: 0; padding: 12px 16px; background: var(--bg-soft); border-radius: var(--r-ctl); }
 .ap-reset-next-identity { min-width: 0; flex: 1; }
-.ap-reset-next h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--text); }
+.ap-reset-next h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
 .ap-reset-next h3 .glyph { color: var(--accent); flex: none; }
-.ap-reset-global { font-size: 11px; font-weight: 400; color: var(--report-meta); }
-.ap-reset-next .ap-reset-name { font-size: 14px; font-weight: 600; }
-.ap-reset-next-identity p { overflow-wrap: anywhere; margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--text); }
-.ap-reset-next-identity .ap-reset-next-note { font-size: 11px; color: var(--report-meta); }
+.ap-reset-global { font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--report-meta); }
+.ap-reset-next .ap-reset-name { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.ap-reset-next-identity p { overflow-wrap: anywhere; margin: 6px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
+.ap-reset-next-identity .ap-reset-next-note { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-countdown { display: flex; flex-direction: column; gap: 4px; flex: none; margin: 24px 0 0; text-align: right; }
 .ap-reset-countdown strong { font: 600 22px/1.3 var(--font-mono); color: var(--accent); font-variant-numeric: tabular-nums; }
-.ap-reset-countdown > span { max-width: 88px; font-size: 11px; color: var(--report-meta); }
+.ap-reset-countdown > span { max-width: 88px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-coverage { display: flex; flex-direction: column; gap: 2px; }
 .ap-reset-coverage-link { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); font: inherit; text-align: left; cursor: pointer; transition: background 140ms ease, color 140ms ease; }
 .ap-reset-coverage-link { --reset-category-ink: var(--text-secondary); border-left: 2px solid transparent; }
 .ap-reset-coverage-link[data-scope="upcoming"] { --reset-category-ink: var(--accent); }
 .ap-reset-coverage-link[data-attention] { --reset-category-ink: var(--reset-attention); }
 .ap-reset-coverage-link b { min-width: 20px; font: 600 16px var(--font-mono); color: var(--reset-category-ink); }
-.ap-reset-coverage-link > span { font-size: 12px; line-height: 1.4; }
-.ap-reset-coverage-link > span > span { display: block; font-size: 11px; color: var(--report-meta); }
+.ap-reset-coverage-link > span { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.4; }
+.ap-reset-coverage-link > span > span { display: block; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-coverage-link:hover { background: var(--ctl-fill); color: var(--text); }
 .ap-reset-coverage-link[aria-pressed="true"] { background: var(--ctl-fill); border-left-color: var(--accent); color: var(--text); }
 .ap-reset-coverage-link:active { background: var(--reset-selection); }
@@ -263,11 +263,11 @@
 .ap-reset-intro { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .ap-reset-intro h3,
 .ap-reset-list-head h3,
-.ap-reset-disclosure h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+.ap-reset-disclosure h3 { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
 .ap-reset-intro h3 span,
 .ap-reset-list-head h3 span,
-.ap-reset-disclosure h3 span { margin-left: 8px; font-size: 11px; font-weight: 400; color: var(--report-meta); }
-.ap-reset-intro p { margin: 0; font-size: 11px; color: var(--report-meta); overflow-wrap: anywhere; }
+.ap-reset-disclosure h3 span { margin-left: 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--report-meta); }
+.ap-reset-intro p { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); overflow-wrap: anywhere; }
 .ap-reset-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 0; list-style: none; }
 .ap-reset-week li { min-width: 0; }
 .ap-reset-day-button { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; min-height: 64px; padding: 8px 4px; border: 0; border-bottom: 2px solid transparent; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); cursor: pointer; text-align: center; transition: background 140ms ease, color 140ms ease; }
@@ -278,21 +278,21 @@
 .ap-reset-day-button[data-active][aria-pressed="true"] .ap-reset-date { color: var(--accent); }
 .ap-reset-day-button:focus-visible { outline-offset: 2px; }
 .ap-reset-week time { display: flex; flex-direction: column; gap: 3px; }
-.ap-reset-weekday { font-size: 11px; }
+.ap-reset-weekday { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .ap-reset-week li[data-today] .ap-reset-weekday { text-decoration: underline; text-underline-offset: 3px; color: var(--text); }
-.ap-reset-date { font-family: var(--font-mono); font-size: 16px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.ap-reset-date { font-family: var(--font-mono); font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
 .ap-reset-day-button[data-active] .ap-reset-date { font-weight: 600; color: var(--text); }
-.ap-reset-count { font-size: 11px; color: var(--report-meta); }
+.ap-reset-count { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-count b { font-weight: 400; font-variant-numeric: tabular-nums; }
 .ap-reset-day-button[data-active] .ap-reset-count b { color: var(--accent); font-weight: 600; }
 .ap-reset-day-button[data-active] .ap-reset-count b::before { content: ""; display: inline-block; width: 4px; height: 4px; margin: 0 4px 2px 0; border-radius: 50%; background: currentColor; }
 .ap-reset-count > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ap-reset-results { scrollbar-gutter: stable; min-height: 0; flex: 1; overflow-y: auto; padding: 16px 24px; }
 .ap-reset-results:focus-visible { outline-offset: -2px; }
-.ap-reset-time { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
-.ap-reset-hint { margin: 0 0 12px; font-size: 11px; color: var(--report-meta); }
+.ap-reset-time { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-reset-hint { margin: 0 0 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-explain,
-.ap-reset-empty { margin: 0; max-width: 70ch; font-size: 12px; line-height: 1.5; color: var(--report-meta); }
+.ap-reset-empty { margin: 0; max-width: 70ch; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--report-meta); }
 .ap-reset-list-head { max-width: 760px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
 .ap-reset-list-head .btn { color: var(--text); }
 .ap-reset-scheduled { min-width: 0; }
@@ -303,17 +303,17 @@
 .ap-reset-event { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: start; border-top: 1px solid var(--line-soft); }
 .ap-reset-entry { padding: 0; }
 .ap-reset-entry + .ap-reset-entry { border-top: 1px solid var(--line-soft); }
-.ap-reset-when { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; line-height: 14px; }
-.ap-reset-day-label { font-size: 11px; font-weight: 600; color: var(--text); }
-.ap-reset-when > span { font-size: 11px; color: var(--report-meta); font-variant-numeric: tabular-nums; }
+.ap-reset-when { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; line-height: calc(14px + var(--ui-text-increase, 0px)); }
+.ap-reset-day-label { font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
+.ap-reset-when > span { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); font-variant-numeric: tabular-nums; }
 .ap-reset-when[data-outdated] .ap-reset-time,
 .ap-reset-when[data-outdated] .ap-reset-day-label { color: var(--report-meta); }
 .ap-reset-when .ap-reset-last-reported { color: var(--report-meta); }
-.ap-reset-name { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; min-width: 0; font-size: 13px; color: var(--text); }
+.ap-reset-name { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); color: var(--text); }
 .ap-reset-name .ap-report-current { color: color-mix(in srgb, var(--accent) 60%, var(--text)); }
 .ap-reset-name > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .ap-reset-account { min-width: 0; }
-.ap-reset-account > summary { transition: background 140ms ease, color 140ms ease; padding: 10px 8px; min-height: 48px; border-radius: var(--r-ctl); font-size: 13px; cursor: pointer; color: var(--report-meta); }
+.ap-reset-account > summary { transition: background 140ms ease, color 140ms ease; padding: 10px 8px; min-height: 48px; border-radius: var(--r-ctl); font-size: calc(13px + var(--ui-text-increase, 0px)); cursor: pointer; color: var(--report-meta); }
 .ap-reset-account > summary .ap-reset-name { display: inline; }
 .ap-reset-account > summary .ap-report-current,
 .ap-reset-account > summary .ap-report-tag { margin-left: 6px; }
@@ -324,27 +324,27 @@
 .ap-reset-account[open] > summary { background: var(--ctl-fill); color: var(--accent); }
 .ap-reset-account > summary:active { background: var(--reset-selection); }
 .ap-reset-account[open] .ap-reset-account-body { margin: 4px 8px 8px; padding: 8px 12px; background: var(--bg-soft); border-radius: var(--r-ctl); }
-.ap-reset-account-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; font-size: 11px; line-height: 1.5; color: var(--report-meta); }
+.ap-reset-account-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--report-meta); }
 .ap-reset-account-body p { display: flex; flex-direction: column; gap: 2px; margin: 0; overflow-wrap: anywhere; }
 .ap-reset-account-body p > span { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .ap-reset-account-body strong { color: var(--text); font-weight: 600; }
 .ap-reset-reading { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; text-align: right; padding-top: 10px; }
-.ap-reset-usage { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-reset-usage { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .ap-reset-reading[data-level="limited"] .ap-reset-usage { color: var(--reset-attention); }
 .ap-reset-reading[data-level="older"] .ap-reset-usage { color: var(--report-meta); }
 .ap-reset-meter { display: block; width: 64px; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .ap-reset-meter > span { display: block; height: 100%; background: var(--accent); transform: scaleX(var(--reset-used)); transform-origin: left center; }
 .ap-reset-meter[data-level="mid"] > span,
 .ap-reset-meter[data-level="hi"] > span { background: var(--warn); }
-.ap-reset-old { font-size: 11px; line-height: 1.45; color: var(--report-meta); }
+.ap-reset-old { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--report-meta); }
 .ap-reset-entry[data-outdated] .ap-reset-name > span:first-child { color: var(--text); }
 .ap-reset-disclosure > .ap-reset-explain { margin: 8px 0 16px; }
 .ap-reset-unplaced ul { margin-top: 12px; }
 .ap-reset-unplaced-row { padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
 .ap-reset-summary-other { display: inline-grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 180px; gap: 12px; align-items: start; width: calc(100% - 16px); vertical-align: middle; }
 .ap-reset-summary-other .ap-reset-reading { padding-top: 0; }
-.ap-reset-unplaced-detail { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--report-meta); }
-.ap-reset-about { margin-top: 16px; font-size: 11px; color: var(--report-meta); }
+.ap-reset-unplaced-detail { display: flex; flex-direction: column; gap: 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
+.ap-reset-about { margin-top: 16px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-about summary { cursor: pointer; padding-block: 4px; }
 .ap-reset-about p { margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) {
@@ -358,8 +358,8 @@
   .ap-reset-command { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .ap-reset-coverage { flex-direction: row; gap: 4px; }
   .ap-reset-coverage-link { flex: 1; min-width: 0; min-height: 44px; gap: 6px; padding: 6px; }
-  .ap-reset-coverage-link b { min-width: 12px; font-size: 14px; }
-  .ap-reset-coverage-link > span { font-size: 11px; overflow-wrap: anywhere; }
+  .ap-reset-coverage-link b { min-width: 12px; font-size: calc(14px + var(--ui-text-increase, 0px)); }
+  .ap-reset-coverage-link > span { font-size: calc(11px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
   .ap-reset-coverage-link > span > span { display: none; }
   .ap-reset-navigation { margin-top: 12px; }
   .ap-reset-event { grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -377,8 +377,8 @@
   .ap-reset-coverage-link { flex-direction: column; align-items: flex-start; gap: 4px; }
   .ap-reset-next { padding: 10px 12px; gap: 8px; }
   .ap-reset-day-button { min-height: 44px; flex-direction: row; justify-content: center; gap: 6px; }
-  .ap-reset-next .ap-reset-name { font-size: 14px; }
-  .ap-reset-countdown strong { font-size: 16px; }
+  .ap-reset-next .ap-reset-name { font-size: calc(14px + var(--ui-text-increase, 0px)); }
+  .ap-reset-countdown strong { font-size: calc(16px + var(--ui-text-increase, 0px)); }
 }
 @media (max-height: 620px) {
   .ap-reset-overview { padding-block: 10px; }
@@ -394,16 +394,16 @@
    browsers that make it one: the ring goes inside, where the dialog's own
    clipping cannot cut it off. */
 .ap-report-body:focus-visible { outline-offset: -2px; }
-.ap-report-held { margin: 0; font-size: 12px; color: var(--text-secondary); }
+.ap-report-held { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
 
 /* The answer, and the one large number in the dialog: how many accounts can
    be worked on now. The windows' averages under it are smaller on purpose —
    an average can hide spent accounts behind fresh ones. */
-.ap-report-lead { margin: 0; font-size: 14px; color: var(--text); }
+.ap-report-lead { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); color: var(--text); }
 .ap-report-lead b {
   margin-right: 2px;
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: calc(22px + var(--ui-text-increase, 0px));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -421,12 +421,12 @@
   background: transparent;
 }
 :root[data-color-scheme="light"] .ap-report-sum { background: transparent; }
-.ap-report-win { margin: 0; font-size: 12px; font-weight: 600; color: var(--report-meta); }
-.ap-report-left { margin: 0; font-size: 12px; color: var(--report-meta); }
+.ap-report-win { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--report-meta); }
+.ap-report-left { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-report-left b {
   margin-right: 2px;
   font-family: var(--font-mono);
-  font-size: 16px;
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -456,18 +456,18 @@
 .ap-report-meter[data-level="mid"] i { background: var(--warn); }
 .ap-report-meter[data-level="hi"] i { background: var(--err); }
 .ap-report-reset,
-.ap-report-none { margin: 0; font-size: 12px; color: var(--report-meta); }
+.ap-report-none { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-report-reset { display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; }
 .ap-report-reset > span { flex: none; }
 .ap-report-reset > .ap-report-who { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .ap-report-more { color: var(--report-meta); }
 .ap-report-none { color: var(--text); }
-.ap-report-basis { margin: 0; font-size: 11px; color: var(--report-meta); }
+.ap-report-basis { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-report-num { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* Keep every column on phones: only the table scrolls horizontally, while
    the summary keeps the dialog's width. Long account names still truncate. */
-.ap-report-table { width: 100%; min-width: 740px; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.ap-report-table { width: 100%; min-width: 740px; border-collapse: collapse; table-layout: fixed; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .ap-report-col-win { width: 80px; }
 .ap-report-col-reset { width: 96px; }
 .ap-report-col-state { width: 96px; }
@@ -486,7 +486,7 @@
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--panel);
-  font-size: 10px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -536,11 +536,11 @@
 .ap-report-acct-in { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .ap-report-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-report-current,
-.ap-report-tag { flex: none; padding: 0 5px; border-radius: var(--r-tag); font-size: 10px; line-height: 16px; }
+.ap-report-tag { flex: none; padding: 0 5px; border-radius: var(--r-tag); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 /* The account every new session starts on: named, in the accent the deck
    keeps for what is live, rather than a dot a reader has to know. */
 .ap-report-current { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.ap-report-tag { border: 1px solid var(--line); line-height: 14px; color: var(--report-meta); }
+.ap-report-tag { border: 1px solid var(--line); line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-report-cell { white-space: nowrap; }
 .ap-report-pct { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
 .ap-report-pct[data-level="mid"] { color: var(--warn); }
@@ -548,7 +548,7 @@
 .ap-report-reset-cell {
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--report-meta);
   font-variant-numeric: tabular-nums;
 }
@@ -584,14 +584,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--report-meta);
   font-variant-numeric: tabular-nums;
 }
 .ap-report-upd[data-old] { color: var(--text); }
 
 /* How it is worked out, folded away: it matters once, not on every glance. */
-.ap-report-how { margin-top: -8px; font-size: 12px; }
+.ap-report-how { margin-top: -8px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .ap-report-how > summary {
   display: inline-flex;
   align-items: center;
@@ -656,13 +656,13 @@
   .ap-report-table tbody th { padding: 0; min-width: 0; }
   .ap-report-acct-in { flex-wrap: wrap; }
   .ap-report-name { white-space: normal; overflow-wrap: anywhere; }
-  .ap-report-mobile-label { display: block; margin-bottom: 4px; font: 11px var(--font-mono); color: var(--report-meta); }
+  .ap-report-mobile-label { display: block; margin-bottom: 4px; font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); color: var(--report-meta); }
   .ap-report-upd { white-space: normal; }
 }
 
-.ap-report-estimate { display: block; font-size: 11px; line-height: 1.4; white-space: normal; color: var(--report-meta); }
-.ap-report-state-note { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--report-meta); }
-.ap-report-confidence { margin: 0; font-size: 11px; line-height: 1.5; color: var(--report-meta); }
+.ap-report-estimate { display: block; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.4; white-space: normal; color: var(--report-meta); }
+.ap-report-state-note { display: block; margin-top: 2px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.4; color: var(--report-meta); }
+.ap-report-confidence { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--report-meta); }
 @media (max-width: 520px) { .ap-report-body.ap-reset-body { padding: 0; gap: 0; } }
 
 /* Keep scope navigation in place while the agenda changes beneath it. */
@@ -672,7 +672,7 @@
   .ap-reset-next { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; }
   .ap-reset-next-identity { display: contents; }
   .ap-reset-next h3 { grid-column: 1; margin: 0; }
-  .ap-reset-next .ap-reset-name { grid-column: 1; font-size: 14px; }
+  .ap-reset-next .ap-reset-name { grid-column: 1; font-size: calc(14px + var(--ui-text-increase, 0px)); }
   .ap-reset-next-identity p { grid-column: 1 / -1; margin: 0; }
   .ap-reset-countdown { grid-column: 2; grid-row: 1 / 3; margin: 0; }
   .ap-reset-global { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -685,7 +685,7 @@
   .ap-reset-command { gap: 8px; }
   .ap-reset-navigation { margin-top: 8px; }
   .ap-reset-day-button { min-height: 44px; padding-block: 4px; }
-  .ap-reset-next h3 { font-size: 12px; }
+  .ap-reset-next h3 { font-size: calc(12px + var(--ui-text-increase, 0px)); }
   .ap-reset-intro { margin-bottom: 4px; }
   .ap-reset-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }

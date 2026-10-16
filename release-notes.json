@@ -78,6 +78,24 @@
     "3.40.1",
     "3.41.3"
   ],
+  "3.42.0": [
+    {
+      "title": "🔠 Text size and density, in Settings",
+      "body": "Five text sizes and five spacing levels, under Settings › Text & density."
+    },
+    {
+      "title": "🛠️ Tool activity: which tools your agents use, how long they take and what fails",
+      "body": "A new page on the stripe on the right. Its history is kept on this device only."
+    },
+    {
+      "title": "🎨 Gruvbox Dark, Light and Material themes",
+      "body": "Pick one in Settings › General. Switching themes now fades instead of snapping."
+    },
+    {
+      "title": "✨ A session-list drawer on phones, whole dates in usage history, the waiting session in the minimap",
+      "body": "Smaller fixes for the phone layout, the usage history chart and the canvas minimap."
+    }
+  ],
   "3.41.1": [
     {
       "title": "🪟 More reliable Windows updates",

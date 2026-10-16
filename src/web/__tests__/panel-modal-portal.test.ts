@@ -16,7 +16,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const dir = fileURLToPath(new URL("../components", import.meta.url));
 const components = readdirSync(dir)

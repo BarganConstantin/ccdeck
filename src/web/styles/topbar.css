@@ -78,7 +78,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   /* The version chip grows when it carries a drift warning; the product name
      must not break onto two lines to make room for it. */
   white-space: nowrap;
@@ -110,7 +110,7 @@
 .topbar .brand .v {
   color: var(--muted);
   font-weight: 400;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   margin-left: 2px;
 }
 /* Version drift lives here permanently. The banner can be dismissed; the fact
@@ -141,7 +141,7 @@
   border-radius: var(--r-ctl);
   background: none;
   font: inherit;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 500;
   cursor: pointer;
   transition: background 130ms, border-color 130ms, color 130ms,

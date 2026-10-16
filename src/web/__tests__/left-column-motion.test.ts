@@ -19,7 +19,7 @@
 // were measured in a headless browser (the PR has the strips).
 import { describe, it, expect } from "vitest";
 import * as column from "../use-left-column";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 import { sourceOf } from "./client-source";
 
 const PANEL_WIDTHS = [288, 288];
@@ -136,7 +136,9 @@ describe("no panel can size the column by its content (2026-10-08)", () => {
     expect(decl(body, "width")).toBe("var(--left-col-w)");
     expect(decl(body, "transition")).toMatch(/^width var\(--column-move\) var\(--column-ease\)$/);
     expect(css).toMatch(new RegExp(`--column-move:\\s*${column.COLUMN_MOVE_MS}ms;`));
-    expect(sourceOf("components/LeftColumn.tsx")).toMatch(/"--left-col-w": `\$\{width\}px`/);
+    // App's width, plus the reading preference's panel increase while open:
+    // 0px at the Default text size, so the column is exactly App's width.
+    expect(sourceOf("components/LeftColumn.tsx")).toMatch(/"--left-col-w": width === 0 \? "0px" : `calc\(\$\{width\}px \+ var\(--ui-panel-increase, 0px\)\)`/);
     expect(sourceOf("App.tsx")).toMatch(/<LeftColumn width=\{leftColumnTarget\}>/);
   });
 });

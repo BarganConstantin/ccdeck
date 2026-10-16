@@ -19,7 +19,8 @@ import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
 import { CHARACTER_KEY, storedCharacter, type Character } from "./character";
 import { type MinimapNode, minimapNodeColor } from "./minimap";
 import { type Palette, paletteReader, readPalette, samePalette } from "./palette";
-import { writeStored } from "./storage";
+import { DENSITY_KEY, TEXT_SIZE_KEY, storedDensity, storedTextSize, resolveDensity, resolveTextSize, type Density, type TextSize } from "./reading-preferences";
+import { localStore, writeStored } from "./storage";
 import { THEME_KEY, THEME_DEFINITIONS, type Theme, storedTheme } from "./theme";
 import { createThemeTransition } from "./theme-transition";
 
@@ -42,6 +43,8 @@ export function useAppearance() {
   // so React starts out agreeing with what is on screen. Guarded the way the
   // panel loaders are: an initialiser is the one place a store the browser
   // won't hand over blanks the deck instead of costing a preference.
+  const [textSize, setTextSize] = useState<TextSize>(storedTextSize);
+  const [density, setDensity] = useState<Density>(storedDensity);
   const [theme, setThemeState] = useState<Theme>(storedTheme);
   const requestedTheme = useRef(theme);
   const [themeTransition] = useState(() => createThemeTransition(document, () => {
@@ -72,6 +75,24 @@ export function useAppearance() {
     (node: MinimapNode) => minimapNodeColor(node, paletteToken),
     [paletteToken],
   );
+
+  useEffect(() => {
+    document.documentElement.dataset.textSize = textSize;
+    writeStored(TEXT_SIZE_KEY, textSize);
+  }, [textSize]);
+  useEffect(() => {
+    document.documentElement.dataset.density = density;
+    writeStored(DENSITY_KEY, density);
+  }, [density]);
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (event.storageArea !== localStore()) return;
+      if (event.key === TEXT_SIZE_KEY || event.key === null) setTextSize(resolveTextSize(event.newValue));
+      if (event.key === DENSITY_KEY || event.key === null) setDensity(resolveDensity(event.newValue));
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, []);
 
   // On the FIRST run this is redundant and known to be: the bootstrap wrote the
   // same attribute from the same stored value before anything painted, and the
@@ -136,5 +157,5 @@ export function useAppearance() {
     if (bar && panel) bar.setAttribute("content", panel);
   }, [palette]);
 
-  return { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter, palette, minimapNodeFill };
+  return { textSize, setTextSize, density, setDensity, theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter, palette, minimapNodeFill };
 }

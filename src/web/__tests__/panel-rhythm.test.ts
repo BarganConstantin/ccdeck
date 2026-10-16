@@ -42,7 +42,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (name: string) => readFileSync(fileURLToPath(new URL(name, import.meta.url)), "utf8");
 const css = sheetText();
@@ -467,6 +467,12 @@ describe("the height of a button", () => {
           || /\.(ap-add|ap-refresh|ap-switch|uh-retry|uh-reload|up-refresh-btn|hero-action-btn)\b/.test(subject);
         if (!carriesBtn) continue;
         if (KNOWN_SECOND_HEIGHTS.has(sel)) continue;
+        // Enlarged reading profiles intentionally raise the control floor;
+        // these selectors cannot select the Default profile checked here.
+        if (/^:root\[data-text-size="(?:larger|largest)"\]/.test(sel)) {
+          expect(declIn(rule.body, "min-height")).toBe("max(var(--ctl-h), var(--ui-control-floor, 24px))");
+          continue;
+        }
         for (const prop of ["height", "min-height", "max-height"]) {
           const value = declIn(rule.body, prop);
           if (value === null || value === "var(--ctl-h)") continue;

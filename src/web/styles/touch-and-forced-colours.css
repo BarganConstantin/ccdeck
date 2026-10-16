@@ -59,6 +59,14 @@
    length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
+
+  .modal.settings-modal,
+  .settings-nav { background: Canvas; color: CanvasText; }
+  .reading-segmented::before { border-color: Highlight; background: Canvas; }
+  .reading-density-sample i { forced-color-adjust: none; background: CanvasText; }
+  .reading-selected-mark { color: Highlight; }
+  .reading-choice:has(input:checked) { border-color: Highlight; }
+
   .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
   .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .tr-detail-tabs .btn[aria-pressed="true"],

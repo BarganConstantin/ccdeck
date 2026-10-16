@@ -873,6 +873,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
+      ".reading-choice:has(input:focus-visible)",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
       ".switch:focus-visible",

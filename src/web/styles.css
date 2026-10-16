@@ -73,4 +73,5 @@
 @import "./styles/radio.css";                    /* radio explorer */
 @import "./styles/gruvbox.css";                  /* Gruvbox's quiet session hues and reading hierarchy */
 @import "./styles/theme-transition.css";         /* deliberate palette changes, including the canvas */
+@import "./styles/reading.css";
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

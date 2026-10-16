@@ -66,6 +66,17 @@
         document.documentElement.setAttribute("data-color-scheme", lightThemes.indexOf(theme) >= 0 ? "light" : "dark");
       })();
     </script>
+    <script>
+      (function () {
+        var size = null, density = null;
+        try {
+          size = window.localStorage.getItem("agent-dag.text-size");
+          density = window.localStorage.getItem("agent-dag.density");
+        } catch (e) {}
+        document.documentElement.setAttribute("data-text-size", size === "smallest" || size === "smaller" || size === "larger" || size === "largest" ? size : "default");
+        document.documentElement.setAttribute("data-density", density === "tightest" || density === "tighter" || density === "compact" || density === "comfortable" ? density : "default");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

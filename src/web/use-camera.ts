@@ -13,7 +13,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useReactFlow, useStoreApi, type ReactFlowState } from "reactflow";
 
-import { fitZoomForDrawnLanes } from "./semantic-zoom";
+import { cardBodyPx, fitZoomForDrawnLanes } from "./semantic-zoom";
+import { TEXT_SIZE_INCREASE, currentTextSize } from "./reading-preferences";
 import { FIT_FILL, FIT_MARGIN, railCover } from "./use-layout-frame";
 import { shouldAnimateViewport } from "./viewport-motion";
 import { guardZoomPath, isViewableViewport } from "./zoom-path";
@@ -223,7 +224,7 @@ export function useCamera() {
         ((paneRect.width - railWidth - MARGIN * 2) / (w + lane)) * FILL,
         ((paneRect.height - MARGIN * 2) / h) * FILL,
       ));
-      const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));
+      const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0), cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]));
 
       // One frame, computed once. It used to be spelled out twice — here and
       // again inside the correction below — which is two chances to disagree
