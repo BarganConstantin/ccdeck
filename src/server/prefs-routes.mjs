@@ -7,7 +7,7 @@
 // engine had (lan-deck.mjs): what is left of them is a body read, a write
 // through the one, a push to the other, and an answer. The notifier stays in
 // index.mjs, beside the desktop-app connections it notifies through.
-import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed } from "./deck-prefs.mjs";
+import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed, terminalOn } from "./deck-prefs.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
@@ -39,6 +39,12 @@ function prefsPayload() {
     notificationsAllowed: notificationsOn(prefs),
     notificationsVetoed: notificationsVetoed(),
     reportsVetoed: reportsVetoed(),
+    // The effective answer, launch variable included: the page renders no
+    // terminal at all, and never fetches its code, unless this is true. It is
+    // here rather than on a route of its own because this is the one read
+    // every page already makes at boot — and a route of its own would have to
+    // exist with the flag off, which is the state it reports.
+    terminalOn: terminalOn(prefs),
   };
 }
 

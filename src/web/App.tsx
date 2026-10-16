@@ -82,6 +82,8 @@ import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
+import { useStage, useStageAsks } from "./use-stage";
+import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import { createChimePlayer } from "./chime-player";
 
 export default function App() {
@@ -472,9 +474,15 @@ function Inner() {
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef,
   });
 
+  // The terminal stage, behind its hidden flag: a session's live terminal on
+  // the right of the canvas, the board gathered into a navigator on its left,
+  // and every way in and out of it — use-stage.ts. With the flag off it is
+  // inert: every entry point below answers "not mine".
+  const stage = useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent });
+
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
-    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef,
+    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef, stage,
   });
 
   // What the peek reads, made once — use-peek-readers.ts.
@@ -489,10 +497,18 @@ function Inner() {
 
   // A session list row for a removed session brings it back as it focuses it:
   // selecting a card that is not drawn would open a panel for nothing.
+  // With the terminal stage up, a row moves the stage to that session the way
+  // picking a conversation does in the Claude app, rather than opening the
+  // detail panel that would evict it.
+  const { followSession } = stage;
   const openSession = useCallback((sessionId: string) => {
+    if (followSession(sessionId)) {
+      if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+      return;
+    }
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     focusSession(sessionId);
-  }, [removedAgentIds, bringBack, focusSession]);
+  }, [removedAgentIds, bringBack, focusSession, followSession]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851): see use-pointer-focus.ts.
@@ -504,6 +520,7 @@ function Inner() {
     // What the keys read.
     pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
+    stageRef: stage.keysRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
@@ -550,9 +567,15 @@ function Inner() {
   // use-os-notifications.ts. It is fed the same waiting set the sidebar draws.
   const notify = useOsNotifications({ waitingSessions, liveSince, focusSession });
   const { loadNotifyPrefs } = notify;
+  // The terminal's run through the waiting sessions, and the stage's half of
+  // the keys, which need the waiting list built just above — use-stage.ts.
+  const asks = useStageAsks(stage, waitingSessions, canvasRef);
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
-  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
+  usePrefsRead({
+    loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs,
+    loadTerminalPrefs: stage.loadTerminalPrefs,
+  });
 
   // The eight controls of the chrome, each defined once, and the edge each
   // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
@@ -634,6 +657,7 @@ function Inner() {
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
           waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
           incidents={incidents} queueNamed={phone ? 0 : queueNamed}
+          startAsks={stage.enabled ? asks.startAsks : undefined} asksSaid={stage.enabled ? asks.said : undefined}
         />
         {/* Who is waiting, by name, in the room the bar has left — and none of
             it on a phone, where the bar holds the count alone. Mounted while
@@ -664,6 +688,11 @@ function Inner() {
       <div className="vis-hidden" role="status" aria-atomic="true">
         {removalNotice ? `${removalNotice.label} removed from the board.` : ""}
       </div>
+      {/* What the terminal stage says — a session on the stage, ended, closed
+          and still running — once per change and never its output (#372).
+          Mounted as soon as the flag is known to be on, for the same reason as
+          the region above; never while it is off. */}
+      {stage.enabled && <div className="vis-hidden" role="status" aria-atomic="true">{stage.said}</div>}
       {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
       <DeckBanner
         restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
@@ -706,6 +735,7 @@ function Inner() {
       <CanvasMain
         canvasRef={canvasRef} bubbling={bubbling} dragging={dragging} trash={trash} zoom={zoom}
         viewport={viewport} stateRef={stateRef} peek={peek}
+        stagePhase={stage.enabled && stage.shell.phase !== "closed" ? stage.shell.phase : undefined}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero reservedRight={railInsetRef.current} />
@@ -733,8 +763,22 @@ function Inner() {
           appearance={appearance} fm={fm} radioOpen={radioOpen} onRadioClose={closeRadio} autoFit={autoFit} pause={pause}
           stateRef={stateRef} measuredRef={measuredRef} hiddenCats={hiddenCats} now={now}
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
+          onTerminal={stage.enabled ? stage.openFromButton : undefined}
         />
+        {/* The board's compact form while the stage is open, in the canvas's
+            place and inside <main> with the board it stands for — components/
+            StageSlots.tsx. Nothing at all with the terminal flag off. */}
+        <StageNavigatorSlot stage={stage} />
       </CanvasMain>
+
+      {/* The terminal stage itself: laid over the canvas cell's right-hand
+          side, but after <main> in the document, so the canvas's capture
+          listeners never see a press or a key meant for the terminal and Tab
+          reaches it after the board — components/StageSlots.tsx. */}
+      <StageDockSlot
+        stage={stage} stateRef={stateRef} canvasRef={canvasRef} now={now} palette={palette}
+        asks={asks} waitingSessions={waitingSessions}
+      />
 
       {/* The right stripe, ahead of the two panels it opens so Tab reaches the
           control before the region it discloses. */}
