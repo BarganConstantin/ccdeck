@@ -214,6 +214,17 @@ let shuttingDown = false;
  *
  * A refused upgrade gets a plain HTTP status and its socket hung up — never a
  * 101. An admitted one gets the 101, a wsConnection, and its bridge.
+ *
+ * THE LISTENER IS THERE ONLY WHILE THE PANEL IS ON. Node hands every request
+ * carrying an Upgrade header to an 'upgrade' listener when one exists, and to
+ * the ordinary request handler when none does — so a listener left in place
+ * on a deck with the panel off would turn `curl --http2`'s h2c probe, or any
+ * client that offers an upgrade, from the deck's normal answer into a 404 and
+ * a hang-up. The switch can flip while the deck runs (the settings file), so
+ * the listener follows it: checked now, and again ahead of every ordinary
+ * request, which is how a page always reaches the socket — it mints its ticket
+ * first. A socket already upgraded is no longer the server's and is left
+ * alone either way. Answers `{ sync }` for a caller that knows better.
  */
 export function installTerminalUpgrade(server, { enabled = () => false, tickets, openBridge, max = MAX_TERMINALS } = {}) {
   const live = new Set();
@@ -221,7 +232,7 @@ export function installTerminalUpgrade(server, { enabled = () => false, tickets,
     try { return enabled() === true; } catch { return false; }
   };
 
-  server.on("upgrade", (req, socket, head) => {
+  const onUpgrade = (req, socket, head) => {
     // At once, before anything that can wait: a peer that resets now would
     // otherwise raise an 'error' with no listener, which ends the process.
     socket.on("error", () => {});
@@ -230,7 +241,18 @@ export function installTerminalUpgrade(server, { enabled = () => false, tickets,
     } catch {
       refuseSocket(socket, 500);
     }
-  });
+  };
+  let armed = false;
+  const sync = () => {
+    const on = isOn();
+    if (on && !armed) server.on("upgrade", onUpgrade);
+    else if (!on && armed) server.off("upgrade", onUpgrade);
+    armed = on;
+  };
+  sync();
+  // Ahead of the deck's own handler, so the request that turned the panel on
+  // — or the next one after the settings file did — arms the socket in time.
+  server.prependListener("request", sync);
 
   function admit(req, socket, head) {
     const verdict = upgradeVerdict(req, { enabled: isOn, live: live.size, max, remoteAddress: socket.remoteAddress });
@@ -266,6 +288,8 @@ export function installTerminalUpgrade(server, { enabled = () => false, tickets,
       entry.conn.close(1011, "the terminal could not be opened");
     }
   }
+
+  return { sync };
 }
 
 /** Answer an upgrade with a plain status and hang up. The answer is ended

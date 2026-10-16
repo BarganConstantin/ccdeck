@@ -513,12 +513,14 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
   });
 
-  // THE ONE 'upgrade' LISTENER, and what having one costs: from here on Node
-  // hands every request that carries an Upgrade header to it instead of to
-  // `route`, on any path and past every gate above. So it answers a 404 to
-  // everything that is not the terminal's own socket on a deck with the panel
-  // switched on, and runs the gates again itself for the one path it takes.
-  // Before the listen loop, so it is armed on whichever port binds.
+  // THE ONE 'upgrade' LISTENER, and what having one costs: while it is there
+  // Node hands every request that carries an Upgrade header to it instead of
+  // to `route`, on any path and past every gate above. So it answers a 404 to
+  // everything that is not the terminal's own socket, and runs the gates again
+  // itself for the one path it takes. It is there only while the panel is
+  // switched on (installTerminalUpgrade follows the switch), so a deck with
+  // the panel off answers an offered upgrade the way it always did. Before the
+  // listen loop, so it is armed on whichever port binds.
   installTerminalUpgrade(server, terminalUpgradeOptions(terminal));
 
   // Try requested port first, then up to 10 random ports from portRange.

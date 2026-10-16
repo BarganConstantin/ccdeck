@@ -3,8 +3,9 @@
 // The panel ships hidden: off unless the launch variable or the settings file
 // says otherwise, and a page cannot say so. Off has to mean ABSENT, not
 // "present and refusing": every /api/terminal/* path answers exactly what an
-// /api path with no route answers, the socket's upgrade is a 404 on every
-// path, the page is told terminalOn: false, and nothing anywhere runs tmux.
+// /api path with no route answers, a request offering an upgrade — the
+// socket's, or curl's h2c — is answered as if it offered none, the page is
+// told terminalOn: false, and nothing anywhere runs tmux.
 //
 // This boots the deck the product boots — startServer with no stand-ins —
 // under a sandboxed HOME, with CCDECK_TMUX pointing at a script that writes
@@ -19,7 +20,6 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
-import { openWs } from "./ws-test-client";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-terminal-off-"));
 process.env.HOME = DIR;
@@ -95,8 +95,6 @@ const ROUTES: [string, string, unknown?][] = [
   ["POST", "/api/terminal/launch", { agent: "claude", cwd: "/tmp" }],
 ];
 
-const NOT_FOUND = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
-
 describe("the terminal routes on a deck with the panel switched off", () => {
   it("answer exactly what an /api path with no route answers", async () => {
     for (const [method, path, body] of ROUTES) {
@@ -117,16 +115,25 @@ describe("the terminal routes on a deck with the panel switched off", () => {
     expect((await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: "/tmp" }, { host: `127.0.0.1:${port}` })).status).toBe(401);
   });
 
-  it("refuse the socket on its own path and on every other, with a 404 and a hang-up", async () => {
-    for (const path of ["/api/terminal/attach?ticket=" + "a".repeat(43), "/", "/events", "/api/health"]) {
-      const c = await openWs({
-        port, path,
-        headers: { Host: `127.0.0.1:${port}`, Origin: `http://127.0.0.1:${port}`, "Sec-Fetch-Site": "same-origin" },
-      });
-      expect(c.head, path).toBe(NOT_FOUND);
-      await c.closed;
-      expect(c.frames, `${path}: nothing after the refusal`).toEqual([]);
+  it("answer a request that offers an upgrade exactly as the same request offering none", async () => {
+    // With no 'upgrade' listener Node routes such a request like any other;
+    // with one, it would be the listener's to answer, on every path. So off
+    // must mean no listener: the socket's own handshake and curl --http2's h2c
+    // probe both get the deck's ordinary answer — never a 101, never a 404
+    // and a hang-up the deck did not give before the panel existed.
+    const websocket = {
+      connection: "Upgrade", upgrade: "websocket",
+      "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==", "sec-websocket-version": "13",
+    };
+    const h2c = { connection: "Upgrade, HTTP2-Settings", upgrade: "h2c", "http2-settings": "AAMAAABkAAQCAAAAAAIAAAAA" };
+    for (const path of ["/api/terminal/attach?ticket=" + "a".repeat(43), "/api/terminal/no-such-route", "/api/prefs", "/"]) {
+      const plain = await ask("GET", path);
+      for (const offer of [websocket, h2c]) {
+        const got = await ask("GET", path, undefined, { ...page(), ...offer });
+        expect(got, `${path} offering ${offer.upgrade}`).toEqual(plain);
+      }
     }
+    expect(server.listenerCount("upgrade"), "no listener at all").toBe(0);
   });
 
   it("never ran tmux, for any of it", () => {
