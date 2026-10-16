@@ -79,6 +79,7 @@ export function boardFactsFor(root: AgentNodeData, subagents: readonly AgentNode
     // Nothing asked of it yet: a session the deck has just started, waiting
     // for its first prompt.
     fresh: root.prompts.length === 0 && !root.firstPrompt,
+    yourTurn: w?.kind === "idle",
   };
 }
 

@@ -151,6 +151,11 @@ export interface BoardFacts {
   lastTurnEndAt?: number | null;
   /** A session the deck just started that has had no prompt yet. */
   fresh?: boolean;
+  /** The session finished its turn and waits at its prompt — the card's
+   *  "Your turn". It outranks `active`, which a session can still carry
+   *  between its Stop and the next event, so the header never says working
+   *  beside a card that says your turn. */
+  yourTurn?: boolean;
 }
 
 /** "40s", "6m", "1h 12m": how long a session has waited, in the face's units.
@@ -182,6 +187,11 @@ export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
       ...(facts.waiting.tool ? { tool: facts.waiting.tool } : {}),
       ...(facts.waiting.detail ? { arg: facts.waiting.detail } : {}),
     };
+  }
+  if (facts.yourTurn && !facts.tool) {
+    if (facts.fresh) return { state: "ready", phrase: "ready", arg: "for a first prompt" };
+    const ago = facts.lastTurnEndAt != null ? shortAgo(now - facts.lastTurnEndAt) : null;
+    return { state: "idle", phrase: "your turn", ...(ago ? { arg: ago === "just now" ? "last turn just now" : `last turn ${ago}` } : {}) };
   }
   if (facts.active) {
     const out: StageStatus = { state: "working", phrase: "working" };
