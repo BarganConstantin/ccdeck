@@ -431,6 +431,7 @@ describe("the other ways in", () => {
     turnOn();
     now().stage.openFromButton(null);
     expect(now().stage.shell.target).toEqual({ kind: "session", id: "s1" });
+    expect(now().stage.shell.focusRequest, "the keys with it, as a card's click gives them").not.toBeNull();
   });
 
   it("opens the Terminal button on the empty stage when nothing is selected or remembered", () => {
@@ -438,6 +439,7 @@ describe("the other ways in", () => {
     turnOn();
     now().stage.openFromButton(null);
     expect(now().stage.shell.target).toEqual({ kind: "empty" });
+    expect(now().stage.shell.focusRequest, "met by the empty stage's New session").not.toBeNull();
   });
 
   it("starts a run of asks from the chip, on the oldest ask, with the keys in its pane", () => {

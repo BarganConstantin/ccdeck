@@ -239,7 +239,10 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     const card = target.kind === "session" ? nodeElement(canvasRef.current, target.id) : null;
     const pane = canvasRef.current ? pageRect(canvasRef.current.getBoundingClientRect()) : null;
     const cardShows = card && visibleOrigin(pageRect(card.getBoundingClientRect()), pane);
-    openOn(target, { el: cardShows ? card : button });
+    // The keys with it, as a card's click gives them: the button is how the
+    // reader says "a terminal", and the board it sits on goes inert under the
+    // stage. A card instead of a pane puts them on the card's action.
+    openOn(target, { el: cardShows ? card : button, focusPane: true });
   }, [primarySelectedIdRef, stateRef, shellRef, canvasRef, openOn]);
 
   /**

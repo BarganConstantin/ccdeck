@@ -60,3 +60,43 @@ describe("a request for the keys", () => {
     expect(focus).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("a request the stage answers with a card", () => {
+  it("is met by landing on the card's action, once", () => {
+    const land = vi.fn(() => true);
+    const { focus, go } = rig({ settled: true, land });
+    go({ request: 1 });
+    expect(land).toHaveBeenCalledTimes(1);
+    expect(focus, "no pane to put the keys in").not.toHaveBeenCalled();
+    go({});
+    expect(land).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits through a pane on its way, and lands when the card arrives instead", () => {
+    const land = vi.fn(() => true);
+    const { go } = rig({ land });
+    go({ request: 1 });
+    expect(land, "attaching: the pane may still come").not.toHaveBeenCalled();
+    go({ settled: true });
+    expect(land).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks again while the card has nothing drawn to land on yet", () => {
+    let drawn = false;
+    const land = vi.fn(() => drawn);
+    const { go } = rig({ settled: true, land });
+    go({ request: 1 });
+    drawn = true;
+    go({});
+    go({});
+    expect(land).toHaveBeenCalledTimes(2);
+  });
+
+  it("puts the keys in the pane, not on a card, when the pane can take them", () => {
+    const land = vi.fn(() => true);
+    const { focus, go } = rig({ settled: true, land, typing: true });
+    go({ request: 1 });
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(land).not.toHaveBeenCalled();
+  });
+});
