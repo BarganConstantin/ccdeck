@@ -13,14 +13,37 @@
 import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
-export type SettingsSection = "general" | "reading" | "notifications" | "sounds";
+export type SettingsSection =
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "data" | "about";
 
-/** The nav, in the order it is drawn and walked. */
-export const SETTINGS_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
-  { id: "general", label: "General" },
-  { id: "reading", label: "Text & density" },
-  { id: "notifications", label: "Notifications" },
-  { id: "sounds", label: "Sounds" },
+/** One section's nav entry: the word on its tab, and the line under its name
+ *  at the head of the pane, saying what the section holds before anything in
+ *  it is read. */
+export interface SettingsSectionEntry {
+  id: SettingsSection;
+  label: string;
+  note: string;
+}
+
+/** The nav, in the order it is drawn and walked.
+ *
+ *  ONE SUBJECT A SECTION (#2176). General used to hold the twelve themes, the
+ *  character, the board, the keyboard switch and tool history — five subjects
+ *  and a pane twice the window's height — while the theme's neighbours, text
+ *  size and density, were a section of their own. Each subject has its own
+ *  section now, in the order a reader reaches for them: how the deck behaves,
+ *  how it looks, how it is driven, how it reaches you, what it keeps, and
+ *  what it is. About comes last and stands at the foot of the nav, as it does
+ *  in the desktop settings windows this dialog is modelled on. */
+export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
+  { id: "general", label: "General", note: "The board, updates, and the settings that live in their own panels." },
+  { id: "appearance", label: "Appearance", note: "The colour theme and the character on the canvas." },
+  { id: "reading", label: "Text & density", note: "Make the deck comfortable to read. Changes apply immediately and stay separate from canvas zoom." },
+  { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
+  { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
+  { id: "sounds", label: "Sounds", note: "What plays when a turn finishes and when Claude asks." },
+  { id: "data", label: "Data", note: "What the deck keeps on this device." },
+  { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
 
 /** Where a section sits in the nav; General for anything that is not one. */
@@ -56,6 +79,37 @@ export function openedAt(door: SettingsDoor, section?: SettingsSection): Setting
   return { open: true, section: section ?? door.section };
 }
 
+/** The doors out of Settings into the rest of the deck (#2176): what About
+ *  and General's "Elsewhere on the deck" press. Each is a way the deck already
+ *  had — the version chip's, the shortcuts sheet's, the topbar's Feedback, a
+ *  panel's own toggle — and none is a second copy of what it opens. */
+export interface SettingsDoors {
+  /** The release notes, as the version chip opens them. */
+  whatsNew: () => void;
+  /** The chip's action while it is lit for a version on disk or on npm: the
+   *  release notes, and the update banner put back. */
+  update: () => void;
+  tour: () => void;
+  feedback: () => void;
+  accounts: () => void;
+  /** The accounts panel, at its Local network view. */
+  localNetwork: () => void;
+  browserWatch: () => void;
+}
+
+/** A door out of Settings: close it, then open what the door names.
+ *
+ *  ONE DIALOG AT A TIME. Settings is a modal, and what most doors open is one
+ *  too; opened over it, the second would trap the keyboard inside a dialog
+ *  painted over a dialog, and Escape would close them in an order nobody
+ *  chose. Closed first, the way the shortcuts sheet hands over to Settings
+ *  (DeckDialogs.tsx), both changes land in one render, so nothing is ever
+ *  drawn with neither up — and a panel opened this way is beside the canvas
+ *  with no scrim left over it. */
+export function doorOut(close: () => void, open: () => void): () => void {
+  return () => { close(); open(); };
+}
+
 /** The modifiers a keystroke carries, structural so a test can pass an object. */
 export interface SettingsChordKey {
   key: string;
@@ -75,4 +129,16 @@ export function isSettingsChord(e: SettingsChordKey): boolean {
 /** The chord as the keys in front of the reader spell it, for a tooltip. */
 export function settingsChordLabel(platform: string): string {
   return isApplePlatform(platform) ? "⌘," : "Ctrl+,";
+}
+
+/** Cmd+F or Ctrl+F, which inside Settings goes to its search field rather than
+ *  the browser's find bar: the page under the dialog is the canvas, and a find
+ *  bar over a modal finds words the reader cannot reach. Either modifier on any
+ *  platform, as above. The letter is read off the key, so a Dvorak or AZERTY
+ *  layout gets the key marked F; a layout with no Latin letters (Russian,
+ *  Greek) types something else there, and is read by the key's position. */
+export function isFindChord(e: SettingsChordKey & { code?: string }): boolean {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return false;
+  const key = e.key.toLowerCase();
+  return key === "f" || (!/^[a-z]$/.test(key) && e.code === "KeyF");
 }

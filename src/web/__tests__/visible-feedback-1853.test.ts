@@ -263,6 +263,21 @@ describe("Settings, which the Appearance menu became, has no Help improve ccdeck
     }
   });
 
+  it("has Send feedback back in About (#2176) as a door onto the one dialog, with no reports switch beside it", () => {
+    // The owner's About page lists feedback beside the version and What's
+    // new. It is not the section that went: it holds no switch and says
+    // nothing about reports, and it opens the topbar's dialog through the
+    // dialogs hook's one door, closing Settings first.
+    const about = read("../components/AboutSection.tsx");
+    expect(about).toContain('name="Send feedback"');
+    expect(about).toMatch(/onClick=\{doors\.feedback\}/);
+    for (const gone of ["Help improve ccdeck", "Send usage reports", 'role="switch"', "reportsOn"]) {
+      expect(about, gone).not.toContain(gone);
+    }
+    expect(mounted).toMatch(/feedback: doorOut\(closeSettings, \(\) => openFeedback\(\)\)/);
+    expect(deckDialogs).toMatch(/feedbackPrefill, setFeedbackPrefill, openFeedback \} = dialogs;/);
+  });
+
   it("takes no reports or feedback props, and is handed none", () => {
     for (const prop of ["reportsOn", "reportsVetoed", "onToggleReports", "onFeedback"]) {
       expect(settingsSurface, prop).not.toMatch(new RegExp(`\\b${prop}\\b`));
