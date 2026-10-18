@@ -184,8 +184,10 @@ phone. Three views keep configuration, observed traffic and saved files separate
   are shown as written. These are settings-file evidence, not confirmation of a
   running session's effective environment. Credentials and endpoint paths stay
   hidden. Each recognized telemetry/content flag has a switch that saves its
-  value to Claude's user settings for new sessions. Flags set by organization or
-  managed settings show **Managed** and require an administrator to change;
+  value to Claude's user settings for new sessions, including a flag no settings
+  file names yet, which shows **Not set** with its switch off. Flags set by
+  organization or managed settings show **Managed** beside a locked switch and
+  require an administrator to change;
   Radar does not rewrite cached organization policy. Controls are unavailable
   when configuration cannot be verified. Unknown values offer explicit
   **Enable** and **Disable** actions.

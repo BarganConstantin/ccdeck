@@ -95,7 +95,14 @@ export async function readRadarConfig({ home = homedir(), env = process.env, pla
     ...v,
     ...(BOOLEAN_KEYS.includes(v.key) ? { editable: !uncertain && !blockedKeys.has(v.key),
       ...((uncertain || blockedKeys.has(v.key)) ? { blockedReason: uncertain ? "Settings could not be verified. Try again after they can be read." : "Controlled by organization or managed settings. Ask your administrator to change this flag." } : {}) } : {}),
-  })) };
+  })), unsetFlags: unsetFlags(new Set(variables.map(v => v.key))) };
+}
+
+// Flags no settings file names, so Radar can offer a switch that adds them.
+// Enhanced telemetry answers to two names: offer the first unless either is set.
+function unsetFlags(present) {
+  const enhanced = ["CLAUDE_CODE_ENHANCED_TELEMETRY_BETA", "ENABLE_ENHANCED_TELEMETRY_BETA"];
+  return BOOLEAN_KEYS.filter(key => !present.has(key) && key !== enhanced[1] && !(key === enhanced[0] && present.has(enhanced[1])));
 }
 
 // Serialize read/modify/write requests so toggling different flags preserves both.
