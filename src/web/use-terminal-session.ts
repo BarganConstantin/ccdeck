@@ -76,6 +76,8 @@ export const TERMINAL_FONT_TOKEN = "--font-mono";
 export const RESIZE_SETTLE_MS = 120;
 /** How long after the last output the spine's light keeps travelling. */
 export const STREAM_QUIET_MS = 1200;
+/** Output this soon after the reader's own input is its echo, not streaming. */
+export const ECHO_WINDOW_MS = 250;
 /** How often the panel tells the deck how much its terminal has parsed, in
  *  bytes: an eighth of the deck's window (ACK_WINDOW_BYTES in
  *  terminal-socket.mjs), so the window never empties for want of an ack. */
@@ -553,6 +555,11 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
 
   // -- the socket ------------------------------------------------------------
 
+  // What the reader sent last, for telling the program's own output from the
+  // echo of what was typed (onData below).
+  let typedAt = -Infinity;
+  const typed = () => { typedAt = deps.now(); };
+
   const markStreaming = () => {
     if (!snap.streaming) emit({ streaming: true });
     clearTimer(streamTimer);
@@ -620,7 +627,12 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       },
       onData: bytes => {
         if (my !== gen) return;
-        markStreaming();
+        // The echo of a key is output too, but it is not the agent at work:
+        // counted, it lit the spine for as long as anyone typed, and that
+        // endless light kept the page producing frames and every echo a frame
+        // late (25 ms a key against 2.3 measured). Output that follows input
+        // this closely is the input's own.
+        if (deps.now() - typedAt >= ECHO_WINDOW_MS) markStreaming();
         withTerminal(t => t.write(bytes, () => parsedBytes(bytes.byteLength)));
       },
       onTmux: version => {
@@ -813,15 +825,17 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   // -- the terminal's own events ---------------------------------------------
 
   const events: StageTerminalEvents = {
-    onInput: data => { if (snap.phase.kind === "live") conn?.sendInput(data); },
+    onInput: data => { if (snap.phase.kind === "live") { typed(); conn?.sendInput(data); } },
     onBinary: data => {
       if (snap.phase.kind !== "live") return;
+      typed();
       const bytes = new Uint8Array(data.length);
       for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i) & 0xff;
       conn?.sendInput(bytes);
     },
     onPaste: text => {
       if (snap.phase.kind !== "live" || !conn) return;
+      typed();
       if (!conn.sendPaste(text) && pasteTooLarge(text)) callbacks.onNotice?.(PASTE_TOO_LARGE);
     },
     // terminal-keys.ts decides; this only carries the decision out. The
@@ -831,7 +845,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       const outcome = terminalKeyOutcome(e);
       if (outcome === "pass") return true;
       const input = e.type === "keydown" && snap.phase.kind === "live" ? terminalKeyInput(e, outcome) : null;
-      if (input) conn?.sendInput(input);
+      if (input) { typed(); conn?.sendInput(input); }
       return false;
     },
     onFocusChange: focused => {

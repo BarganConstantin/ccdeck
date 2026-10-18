@@ -52,6 +52,7 @@ import StageHeader from "./StageHeader";
 import StageBody, { type StageContext } from "./StageBody";
 import { useFocusRequest } from "./use-focus-request";
 import { tellDesktopKeys } from "../../desktop-keys";
+import { QUIET_RESCAN_MS, quietPage } from "../../quiet-page";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import Divider from "./Divider";
 
@@ -175,6 +176,14 @@ export default function TerminalStage(p: TerminalStageProps) {
   // the rest from the pane; given back when the stage goes.
   useEffect(() => { tellDesktopKeys(session.keysOwner === "pane"); }, [session.keysOwner]);
   useEffect(() => () => tellDesktopKeys(false), []);
+  // And the rest of the page holds still while they do (quiet-page.ts): its
+  // endless animations kept every echo waiting a frame.
+  useEffect(() => {
+    if (session.keysOwner !== "pane") return;
+    quietPage(true);
+    const again = setInterval(() => quietPage(true), QUIET_RESCAN_MS);
+    return () => { clearInterval(again); quietPage(false); };
+  }, [session.keysOwner]);
 
   // One sentence per change of what the stage shows — never per byte (#372).
   const onAnnounce = useRef(p.onAnnounce);
