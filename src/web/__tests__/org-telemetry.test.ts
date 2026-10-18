@@ -217,7 +217,7 @@ describe("what a switch turns on", () => {
     remoteSettings(CONTENT, T_SWITCH + 60_000);
     await observe();
     resetOrgTelemetry();
-    const records = await knownOrgTelemetry({ env: {}, home, platform: "linux", dataDir: join(home, "deck") });
+    const records = await knownOrgTelemetry({ env: {}, home, platform: process.platform, dataDir: join(home, "deck") });
     expect(records[ORG]?.level).toBe("content");
   });
 });
