@@ -206,12 +206,13 @@ describe("the card's chip", () => {
     // Measured in a browser, so pinned here at the source: with a spawn badge
     // and "+1", "Opus 5.5 · xhigh +1" overflowed the row by 51px and the row's
     // ellipsis took the whole chip, model and all, off the card. The card now
-    // measures the row and drops the effort first; tried again when the row's
-    // contents change.
+    // measures the row and gives up the kind word, then the effort (#2169 —
+    // the order is card-row-squeeze.test.ts's); tried again when the row's
+    // contents or width change.
     const src = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
-    expect(src).toMatch(/el\.scrollWidth > el\.clientWidth\) setEffortFits\(false\)/);
-    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setEffortFits\(true\); \}, \[data\.effort, data\.model, otherModels\.length, data\.cwdBasename, data\.childCount\]\)/);
-    expect(src).toMatch(/modelChipText\(data\.model, effortFits \? data\.effort : undefined\)/);
+    expect(src).toMatch(/overflowing: el\.scrollWidth > el\.clientWidth,/);
+    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, data\.cwdBasename, data\.childCount, data\.kind, squeezeMax, rowWidth\]\)/);
+    expect(src).toMatch(/modelChipText\(data\.model, row\.effort \? data\.effort : undefined\)/);
     expect(src).toMatch(/className="sub-details" ref=\{detailsRef\}/);
   });
 });
