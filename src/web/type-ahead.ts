@@ -88,10 +88,15 @@ export function heldText(ahead: TypeAhead): string {
 export function holdKey(ahead: TypeAhead, e: HeldKeyEvent, apple = isApplePlatform(platformName())): Held | "end" | null {
   if (NOT_A_KEY.has(e.key)) return null;
   if (e.key === "Escape") return "end";
-  const chord = { ...e, code: e.code ?? "", shiftKey: e.shiftKey === true };
+  // Field by field: a KeyboardEvent's fields are getters on its prototype,
+  // and a spread of one copies none of them.
+  const chord = {
+    key: e.key, code: e.code ?? "", ctrlKey: e.ctrlKey, shiftKey: e.shiftKey === true, metaKey: e.metaKey, altKey: e.altKey,
+    repeat: e.repeat, isComposing: e.isComposing, keyCode: e.keyCode, getModifierState: e.getModifierState?.bind(e),
+  };
   if (isReleaseChord(chord)) return "end";
   if (e.isComposing || e.keyCode === 229) return { ahead: { ...ahead, spoiled: true }, swallow: false };
-  if (e.repeat && e.key === "Enter") return { ahead, swallow: true };
+  if (chord.repeat && chord.key === "Enter") return { ahead, swallow: true };
   const add = sent({ ...chord, type: "keydown" }, apple);
   if (add == null) return { ahead: { ...ahead, spoiled: true }, swallow: false };
   if ([...ahead.text].length + [...add].length > TYPE_AHEAD_MAX) return { ahead: { ...ahead, spoiled: true }, swallow: true };

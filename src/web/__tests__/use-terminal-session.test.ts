@@ -584,11 +584,11 @@ describe("keys, paste and the pane's size", () => {
 
   it("sends keys typed before the pane was ready one at a time, as they were typed, and only to a live pane", async () => {
     const { r, ctl, s } = await liveRig();
-    ctl.type("hé😀\r");
-    expect(s.sentBytes(), "a fast typist, not one burst to take for a paste").toEqual(["h", "é", "😀", "\r"]);
+    ctl.type("hé😀\x1b\r\r");
+    expect(s.sentBytes(), "a fast typist's keys, Shift+Enter's two bytes as one").toEqual(["h", "é", "😀", "\x1b\r", "\r"]);
     s.text({ t: "exit", reason: "ended" });
     ctl.type("x");
-    expect(s.sentBytes()).toHaveLength(4);
+    expect(s.sentBytes()).toHaveLength(5);
     expect(r.last().phase.kind).toBe("ended");
   });
 
