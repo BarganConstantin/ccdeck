@@ -48,6 +48,24 @@ export interface Account {
    *  its login since that sign-in, or null. `key` and `since` name it; see
    *  account-origins.mjs. */
   reauth?: Reauth | null;
+  /** What this account's organization last turned on for Claude Code's
+   *  telemetry export, when the deck has seen its settings; null when it has
+   *  not, which is unknown rather than off. See org-telemetry.mjs. */
+  telemetry?: OrgTelemetry | null;
+}
+
+/** One organization's telemetry settings, as the deck last saw them. */
+export interface OrgTelemetry {
+  orgName: string | null;
+  /** "content" when prompts, responses or tool data go with the export,
+   *  "metrics" for usage data alone, "off" when the settings do not enable it. */
+  level: "off" | "metrics" | "content";
+  /** The content flags that are on, by their environment names. */
+  content: string[];
+  /** Where the export goes: scheme, host and port, never a path or a header. */
+  destinations: string[];
+  /** When the deck read these settings, unix ms. */
+  seenAt: number;
 }
 
 /** One re-sign-in incident, as the roster names it (#1893). */
