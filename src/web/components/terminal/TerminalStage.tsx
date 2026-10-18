@@ -53,6 +53,9 @@ import StageBody, { type StageContext } from "./StageBody";
 import { useFocusRequest } from "./use-focus-request";
 import { tellDesktopKeys } from "../../desktop-keys";
 import { QUIET_RESCAN_MS, quietPage } from "../../quiet-page";
+import { guardLeaving } from "../../leave-guard";
+import { keptKeysNotice } from "../../tab-keys";
+import { useFullStage } from "./use-full-stage";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import Divider from "./Divider";
 
@@ -185,6 +188,19 @@ export default function TerminalStage(p: TerminalStageProps) {
     return () => { clearInterval(again); quietPage(false); };
   }, [session.keysOwner]);
 
+  // ⤢: full screen too, where that is what hands the pane Ctrl+W (tab-keys.ts).
+  const fullStage = useFullStage(p.expanded, p.onToggleExpand);
+  // And in a tab, leaving asks first while the keys are the pane's — Ctrl+W
+  // closes the deck before the page sees it. A leave called off is answered
+  // with how to give the session those keys (leave-guard.ts).
+  useEffect(() => {
+    if (session.keysOwner !== "pane") return;
+    return guardLeaving(() => {
+      const said = keptKeysNotice(fullStage.can);
+      if (said) setNotice(said);
+    });
+  }, [session.keysOwner, fullStage.can]);
+
   // One sentence per change of what the stage shows — never per byte (#372).
   const onAnnounce = useRef(p.onAnnounce);
   onAnnounce.current = p.onAnnounce;
@@ -266,6 +282,8 @@ export default function TerminalStage(p: TerminalStageProps) {
         chordLabel={chordLabel}
         canType={typing}
         expanded={p.expanded}
+        canFull={fullStage.can}
+        full={fullStage.full}
         takeover={p.geometry.takeover}
         nothingRunning={p.show.kind === "empty" || phase.kind === "ended"
           || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
@@ -273,7 +291,7 @@ export default function TerminalStage(p: TerminalStageProps) {
           if (session.keysOwner === "pane") { session.release(); p.onRelease?.(); }
           else session.focus();
         }}
-        onExpand={p.onToggleExpand}
+        onExpand={fullStage.toggle}
         onClose={p.onClose}
       />
       <StageBody
