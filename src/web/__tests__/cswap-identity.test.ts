@@ -140,3 +140,36 @@ describe("currentIdentity when the answer is no, or is not an answer", () => {
     expect(await currentIdentity()).toEqual({ email: "", orgId: "" });
   });
 });
+
+// The auto-switch failover may act only on a CLI that has said nobody is signed
+// in. `claude auth status --json` says so with exit code 1 and the answer still
+// on stdout, which currentIdentity folds into the same null as "could not ask".
+describe("cliSignIn keeps signed out apart from could not ask", () => {
+  // @ts-expect-error — .mjs server module, no types
+  const load = () => import("../../server/claude-identity.mjs") as Promise<{ cliSignIn: () => Promise<unknown> }>;
+
+  it("reads a signed-out answer whatever the exit code", async () => {
+    const { cliSignIn } = await load();
+    cli.reply = { ok: false, code: 1, killed: false, timedOut: false, stdout: '{"loggedIn": false, "authMethod": "none"}', stderr: "" };
+    expect(await cliSignIn()).toEqual({ loggedIn: false });
+    expect(cli.calls.at(-1)?.args).toEqual(["auth", "status", "--json"]);
+  });
+
+  it("reads a signed-in answer with its address", async () => {
+    const { cliSignIn } = await load();
+    says('{"loggedIn": true, "email": "dorin@example.com"}');
+    expect(await cliSignIn()).toEqual({ loggedIn: true, email: "dorin@example.com" });
+  });
+
+  it("is no answer when the CLI could not be run, timed out, or printed nothing it could read", async () => {
+    const { cliSignIn } = await load();
+    cannotRun();
+    expect(await cliSignIn()).toBeNull();
+    cli.reply = { ok: false, code: "ETIMEDOUT", killed: true, timedOut: true, stdout: '{"loggedIn": false}', stderr: "" };
+    expect(await cliSignIn()).toBeNull();
+    says("not json");
+    expect(await cliSignIn()).toBeNull();
+    says('{"authMethod": "none"}');
+    expect(await cliSignIn()).toBeNull();
+  });
+});
