@@ -145,8 +145,9 @@
    System Settings, Windows 11 and libadwaita all draw. A group is told from
    the next by the section's group step; nothing else parts them. The list's
    ground is the faintest lift off the panel — mixed from the foreground like
-   the control tiers, so it exists in both themes by construction — and its
-   edge is --line, the edge every panel in the deck wears. A group whose
+   the control tiers, so it exists in both themes by construction, and 2%,
+   the most it takes before a row's --text-dim note falls under 4.5:1 in dark
+   (contrast-floors.test.ts) — and its edge is --line, the edge every panel in the deck wears. A group whose
    content draws its own frames (the theme previews, the text-size scale) has
    no list, so nothing here is a box in a box. */
 .settings-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -176,13 +177,21 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
+/* A count in a caption's right-hand slot, as quiet as the note beside it. */
+.settings-caption-count {
+  flex: none;
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+}
 .settings-list {
   display: flex;
   flex-direction: column;
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  background: color-mix(in srgb, var(--text) 2.5%, transparent);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 .settings-list > :not(:first-child) { border-top: 1px solid var(--line); }
 /* THE ONE ROW: the name and the line under it on the left, the control on the
@@ -230,6 +239,10 @@
   min-width: 0;
   min-height: var(--ctl-h);
 }
+/* A row with no note is one line: the control keeps to the name's line, so
+   the two share a middle. Spanning a second, empty line, the 30px control
+   grew it and centred itself 6px under a name that stayed at the top. */
+.settings-row:not(:has(> .settings-row-note)) > .settings-row-control { grid-row: 1; }
 .settings-row-control > .sm-select { flex: none; min-width: 120px; min-height: var(--ctl-h); }
 /* A row whose content spans it — the character choices, a confirmation. */
 .settings-row-wide { grid-template-columns: minmax(0, 1fr); }
@@ -345,14 +358,19 @@
   .settings-row { padding-inline: 12px; }
   .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; padding-inline: 12px; }
 }
-/* Under 420px a row's control goes under its name rather than squeezing the
-   name to a word a line: the name and the note keep the width, and the
-   control starts on their edge. */
+/* Under 420px a select, or a read-out with its button, goes under its name
+   rather than squeezing the name to a word a line: the name and the note keep
+   the width, and the control starts on their edge. A switch, a key cap or one
+   short button stays on the right, as a phone's own settings keep a toggle on
+   the name's line whatever the width. */
 @media (max-width: 420px) {
-  .settings-row { grid-template-columns: minmax(0, 1fr); }
-  .settings-row-control { grid-column: 1; grid-row: auto; justify-content: flex-start; margin-top: 6px; }
-  .settings-keys .settings-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .settings-keys .settings-row-control { grid-column: 2; grid-row: 1; margin-top: 0; }
+  .settings-row:has(> .settings-row-control > :is(select, .settings-read)) { grid-template-columns: minmax(0, 1fr); }
+  .settings-row:has(> .settings-row-control > :is(select, .settings-read)) > .settings-row-control {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+    margin-top: 6px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .settings-tab { transition: none; }
@@ -554,8 +572,10 @@ button.btn.sm-channel-action {
    `button.btn:hover`'s accent border — leaving a control that got quieter under
    the pointer. Same weight, declared earlier, so hover still wins. */
 button.btn.sm-hear {
+  flex: none;
   padding: 0 8px;
   gap: 4px;
+  white-space: nowrap;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   border-color: var(--sm-edge);
   background: var(--sm-fill);
@@ -735,15 +755,6 @@ button.btn.sm-hear {
    are), every button a plain `.btn` — so the section reads as more of the menu
    rather than a form dropped into it, and the edge, focus and height sweeps
    already know every control in it. */
-.sm-custom {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-.sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.sm-custom-head span { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
 /* At the ceiling the controls that add a sound stay in the tab order and say
    aria-disabled, never `disabled` — two of them hold focus at the moment the
    library fills (#518). This is `button.btn:disabled`'s dimming, so the refusal
@@ -751,66 +762,33 @@ button.btn.sm-hear {
    nothing does not give under the finger either. */
 .sm-custom [aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
 .sm-custom button.btn[aria-disabled="true"]:active { transform: none; }
-/* Import and record side by side as two cards of one shape: a name, a line
-   saying what it takes, and the one verb. Set at Settings' sizes — the name at
-   12px, the line under it at 11px, as a switch's note is — now that the cards
-   live in a section rather than a 268px popover. */
-.sm-custom-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sm-custom-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
-  min-width: 0;
-  padding: 10px;
-  color: var(--text);
-  background: var(--sm-fill);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.sm-custom-card-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sm-custom-card-copy strong { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; color: var(--text); }
-/* --text-secondary, not --muted: the card's --sm-fill lifts it off the panel,
-   and --muted on that is 4.25:1 in dark (#1788). The 11px under the 12px name
-   keeps the caption the quieter line. */
-.sm-custom-card-copy > span { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.35; color: var(--text-secondary); }
-.sm-voice {
-  color: var(--text-dim);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
+/* The spoken voice is a row of the list that opens: its summary is the
+   shared row (SettingsParts.tsx), name and note on the left, a chevron in the
+   control's slot that turns a quarter as the form opens, the usage panel's
+   gesture. The press is the row's, as a disclosure's is. */
 .sm-voice summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  color: var(--text);
   cursor: pointer;
   list-style: none;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+.sm-voice summary:hover .sm-voice-chevron { color: var(--text); }
 .sm-voice summary:active { transform: scale(0.97); }
 .sm-custom .sm-voice summary[aria-disabled="true"]:active { transform: none; }
 .sm-voice summary:focus-visible { outline-offset: -2px; }
 .sm-voice summary::-webkit-details-marker { display: none; }
-/* Turns rather than swaps, like the usage panel's chevron. */
-.sm-voice summary::after {
-  content: '›';
+.sm-voice-chevron {
+  display: block;
   color: var(--muted);
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.sm-voice[open] summary::after { transform: rotate(90deg); }
-.sm-voice summary > span:first-child { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; }
-.sm-voice summary > span:nth-child(2) { margin-left: auto; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.sm-voice[open] .sm-voice-chevron { transform: rotate(90deg); }
 .sm-voice-fields {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px;
-  border-top: 1px solid var(--line);
+  padding: 4px 14px 14px;
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 /* One label column, so Name, Text and Voice line their fields up on one edge. */
 .sm-voice-fields label {
@@ -829,21 +807,23 @@ button.btn.sm-hear {
 button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 @media (prefers-reduced-motion: reduce) {
   .sm-voice summary:active { transform: none; }
-  .sm-voice summary::after { transition: none; }
+  .sm-voice-chevron { transition: none; }
 }
-.sm-custom-list { display: flex; flex-direction: column; gap: 6px; }
+/* A sound already added: its name to rename in place, its length, and Play
+   and Delete, a row of the same list at the shared row's inset. */
 .sm-custom-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 6px;
+  padding: calc(8px * var(--ui-space, 1)) 14px;
 }
 .sm-custom-item > span { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
 button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
 /* Armed is the second press of the one act here nothing can undo, and it
    takes the error colour for the four seconds it waits — the LAN unpair's. */
 button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
-.sm-custom-error { margin: 0; color: var(--err); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.4; }
+.settings-row.sm-custom-error { color: var(--err); }
 
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no
    Notification — said next to the control it applies to, which since the

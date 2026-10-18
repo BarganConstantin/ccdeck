@@ -286,9 +286,6 @@ describe("what was migrated to the secondary tier", () => {
       ".agent-node .plan-row",
       ".session-list .sl-plan",
       ".plan-item",
-      // The custom-sound cards' captions, by bed again: --muted on the card's
-      // --sm-fill is 4.25:1 in dark (#1788).
-      ".sm-custom-card-copy > span",
       // The Radar redesign adds explanatory text and neutral utility labels.
       ".empty-hero .film-action",
       // Tool activity: the summary sentence, the findings' one-line reasons,

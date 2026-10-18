@@ -5,6 +5,7 @@ import {
   type Density,
   type TextSize,
 } from "../reading-preferences";
+import { SettingsGroup } from "./SettingsParts";
 
 interface Props {
   textSize: TextSize;
@@ -161,11 +162,7 @@ export default function ReadingSection({
           ))}
         </div>
       </fieldset>
-      <section
-        className="reading-preview"
-        aria-labelledby="reading-preview-title"
-      >
-        <h3 id="reading-preview-title">Preview</h3>
+      <SettingsGroup id="reading-preview-title" title="Preview">
         <div className="reading-preview-row">
           <div>
             <strong>Frontend session</strong>
@@ -180,8 +177,8 @@ export default function ReadingSection({
           </div>
           <span className="reading-preview-time">12m</span>
         </div>
-      </section>
-      <p className="reading-footer">
+      </SettingsGroup>
+      <p className="settings-foot">
         Preferences stay in this browser when storage is available. Default
         restores the existing ccdeck appearance.
       </p>
