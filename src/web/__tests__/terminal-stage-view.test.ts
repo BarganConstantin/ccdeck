@@ -18,7 +18,7 @@ import { all, one, textOf, type Drawn } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
-import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LABEL, chipLabel, chipText, type StageHeaderProps } from "../components/terminal/StageHeader";
+import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LABEL, FULL_LABEL, FULL_LEAVE_LABEL, chipLabel, chipText, type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
@@ -140,6 +140,23 @@ describe("the header", () => {
     expect(button(tree, "Give the stage the width")).toBeNull();
     expect(button(StageHeader(headerProps()), "Give the stage the width")).not.toBeNull();
     expect(button(StageHeader(headerProps({ expanded: true })), "Give the board its room back")).not.toBeNull();
+  });
+
+  it("names ⤢ full screen where it is — in the takeover too — and ⤡ by what it does", () => {
+    expect(button(StageHeader(headerProps({ canFull: true })), FULL_LABEL)).not.toBeNull();
+    expect(FULL_LABEL).toMatch(/Ctrl\+W/);
+    expect(button(StageHeader(headerProps({ canFull: true, expanded: true, full: true })), FULL_LEAVE_LABEL)).not.toBeNull();
+    // In the takeover there is no width to give, but full screen still helps.
+    expect(button(StageHeader(headerProps({ takeover: true, canFull: true })), FULL_LABEL)).not.toBeNull();
+    // Refused by the browser: the stage is only wide, and ⤡ says so.
+    expect(button(StageHeader(headerProps({ canFull: true, expanded: true, full: false })), "Give the board its room back")).not.toBeNull();
+  });
+
+  it("keeps the pane's keys across ⤢, so typing carries on in the wider stage", () => {
+    const expand = button(StageHeader(headerProps({ keysOwner: "pane" })), "Give the stage the width")!;
+    const down = { preventDefault: vi.fn() };
+    (expand.props.onMouseDown as (e: unknown) => void)(down);
+    expect(down.preventDefault).toHaveBeenCalled();
   });
 });
 

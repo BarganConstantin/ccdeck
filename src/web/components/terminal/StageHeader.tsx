@@ -18,7 +18,9 @@
 // so their target, focus ring and press are the ones already measured. ✕'s name is the promise the stage keeps — "Close — the session
 // keeps running" — never stop, end or quit, because closing the stage stops
 // nothing. In the takeover layout (a window too narrow for any navigator) a
-// "‹" leads with the same promise, back to the board.
+// "‹" leads with the same promise, back to the board. ⤢ is full screen where
+// full screen hands the session the browser's shortcuts (tab-keys.ts), and is
+// drawn in the takeover too, where there is no width to give but that.
 import { modelFamily, shortModel } from "../../model-label";
 import type { TerminalProvider } from "../../terminal-api";
 import type { KeysOwner, StageStatus } from "./stage-model";
@@ -47,6 +49,10 @@ export interface StageHeaderProps {
   /** A live pane to type into: ⌨ is drawn only then. */
   canType: boolean;
   expanded: boolean;
+  /** ⤢ is full screen here, the browser's shortcuts the session's (tab-keys.ts). */
+  canFull?: boolean;
+  /** The deck is in the full screen ⤢ asked for. */
+  full?: boolean;
   takeover: boolean;
   /** No session behind the stage — the empty stage, a launch that never
    *  started — so ✕ and ‹ promise nothing about one. */
@@ -71,6 +77,17 @@ export function chipLabel(provider: TerminalProvider | null | undefined, text: s
   return text === who ? who : `${who} · ${text}`;
 }
 
+/** ⤢'s name: what a press will do. Full screen is named for what it is for. */
+export function expandLabelFor(expanded: boolean, canFull: boolean, full: boolean): string {
+  if (expanded) return full ? FULL_LEAVE_LABEL : "Give the board its room back";
+  return canFull ? FULL_LABEL : "Give the stage the width";
+}
+
+export const FULL_LABEL = "Full screen — Ctrl+W, Ctrl+T and Ctrl+N go to the session";
+/** No Esc in it: held where the keyboard lock took, pressed where it did
+ *  not, and the browser's own bubble says which. */
+export const FULL_LEAVE_LABEL = "Leave full screen";
+
 export default function StageHeader(p: StageHeaderProps) {
   const chip = chipText(p.provider, p.model);
   const { status } = p;
@@ -81,7 +98,7 @@ export default function StageHeader(p: StageHeaderProps) {
   // The tooltip, for the pointer, says what a press will do.
   const keysLabel = "Type into the session";
   const keysTip = pane ? `Give the keys back to the board (${p.chordLabel})` : `${keysLabel} (↵)`;
-  const expandLabel = p.expanded ? "Give the board its room back" : "Give the stage the width";
+  const expandLabel = expandLabelFor(p.expanded, p.canFull === true, p.full === true);
   const closeLabel = p.nothingRunning ? CLOSE_EMPTY_LABEL : CLOSE_LABEL;
   const backLabel = p.nothingRunning ? BACK_EMPTY_LABEL : BACK_LABEL;
   return (
@@ -147,8 +164,18 @@ export default function StageHeader(p: StageHeaderProps) {
             <span className="ts-ctl-sep" aria-hidden="true" />
           </>
         )}
-        {!p.takeover && (
-          <button type="button" className="glyph-btn" aria-label={expandLabel} title={expandLabel} onClick={p.onExpand}>
+        {/* No width to give in the takeover — but full screen still gives
+            the browser's shortcuts, and a bigger window. */}
+        {(!p.takeover || p.canFull) && (
+          <button
+            type="button"
+            className="glyph-btn"
+            aria-label={expandLabel}
+            title={expandLabel}
+            // Typing carries on across it: the pane keeps the keys it had.
+            onMouseDown={e => e.preventDefault()}
+            onClick={p.onExpand}
+          >
             {p.expanded ? <CollapseGlyph /> : <ExpandGlyph />}
           </button>
         )}
