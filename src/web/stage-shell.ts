@@ -68,7 +68,9 @@ export type ShellAction =
     /** A fresh token when the keys go to the pane, else omitted. */
     focus?: number | null;
   }
-  | { type: "focus"; token: number }
+  /** A fresh token asks for the keys again; null withdraws the open request,
+   *  which the reader took back before the pane could have them. */
+  | { type: "focus"; token: number | null }
   | { type: "reveal" }
   | { type: "revealed" }
   | { type: "close"; instant?: boolean }

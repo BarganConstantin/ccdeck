@@ -525,20 +525,35 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // So focus elsewhere, a press anywhere but on the stage, the stage closing
   // or moving to another session, and the flag going off each end the hold,
   // and what it held goes with it.
+  //
+  // THE READER TAKING THE KEYS BACK TAKES THE REQUEST BACK TOO. Esc, the
+  // release chord, a press off the stage, focus moved anywhere but the stage:
+  // the pane, once it can, no longer reaches for the keys. Before, it did,
+  // half a second later, and took them out from under the key help sheet the
+  // reader had just opened, or the dialog a press had put up. A hold that
+  // only ran out, or was spoiled, leaves the request as it was: nobody said
+  // not to type.
+  const takeBack = useCallback(() => {
+    const hold = aheadRef.current;
+    aheadRef.current = null;
+    if (hold && shellRef.current.focusRequest === hold.token) dispatch({ type: "focus", token: null });
+  }, [shellRef]);
   useEffect(() => {
     if (!enabled) {
       aheadRef.current = null;
       return;
     }
+    const where = (at: Element | null, hold: { from: Element | null }) =>
+      !at || at === document.body || at === document.documentElement || at === hold.from;
     const onKey = (e: KeyboardEvent) => {
       const hold = aheadRef.current;
       if (!hold) return;
       const at = e.target as Element | null;
-      const where = !at || at === document.body || at === document.documentElement || at === hold.from || isPaneInput(at);
-      if (Date.now() > hold.ahead.until || !where) { aheadRef.current = null; return; }
+      if (Date.now() > hold.ahead.until) { aheadRef.current = null; return; }
+      if (!where(at, hold) && !isPaneInput(at)) { takeBack(); return; }
       if (typesItself(at)) return;
       const next = holdKey(hold.ahead, e);
-      if (next === "end") aheadRef.current = null;
+      if (next === "end") takeBack();
       if (!next || next === "end") return;
       aheadRef.current = { ...hold, ahead: next.ahead };
       if (!next.swallow) return;
@@ -546,15 +561,24 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       e.stopImmediatePropagation();
     };
     const onPress = (e: PointerEvent) => {
-      if (aheadRef.current && !(e.target as Element | null)?.closest?.(".stage-dock")) aheadRef.current = null;
+      if (aheadRef.current && !(e.target as Element | null)?.closest?.(".stage-dock")) takeBack();
+    };
+    // Focus the stage puts somewhere — the pane, the card's own action — is
+    // the stage's doing, and ends the hold its own way.
+    const onFocus = (e: FocusEvent) => {
+      const hold = aheadRef.current;
+      const at = e.target as Element | null;
+      if (hold && !where(at, hold) && !at?.closest?.(".stage-dock")) takeBack();
     };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("pointerdown", onPress, true);
+    window.addEventListener("focusin", onFocus, true);
     return () => {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("pointerdown", onPress, true);
+      window.removeEventListener("focusin", onFocus, true);
     };
-  }, [enabled]);
+  }, [enabled, takeBack]);
   const heldFor = stageClaimsKeys(shell.phase) ? targetSession(shell.target) : null;
   useEffect(() => {
     if (aheadRef.current && aheadRef.current.session !== heldFor) aheadRef.current = null;
