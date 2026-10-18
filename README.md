@@ -653,7 +653,7 @@ Nothing is ever installed unless you click, the argument vector is fixed in the 
 
 ccdeck runs as a two-process pair: a supervisor that owns nothing but the lifecycle, and the deck itself. When newer code is found, the deck exits with code 75 and the supervisor brings it back **on the port it actually bound**, which is not always the one it asked for. Both live in their own process group since 3.20, so stdout goes to `deck.log` rather than to the terminal you started from — `ccdeck --logs` reads it back. The supervisor also puts the deck back after a crash, five times in ten minutes with the wait doubling, and then stops and says why rather than spinning.
 
-It restarts on its own only after 30 seconds with nothing running, because hook events are fire-and-forget and anything fired during the gap is lost. The toggle in the banner turns that off; the preference is per-browser. Under `--no-persist` a restart is refused outright — with no event log there is nothing to replay, and the canvas would be gone.
+It restarts on its own only after 30 seconds with nothing running, because hook events are fire-and-forget and anything fired during the gap is lost. The toggle in the banner, or Settings › General › Updates, turns that off; the deck keeps the choice in its `prefs.json`, so every tab and the next start agree. Under `--no-persist` a restart is refused outright — with no event log there is nothing to replay, and the canvas would be gone.
 
 Step by step: [Update ccdeck to the latest version](https://ccdeck.dev/guides/update-and-restart/)
 
