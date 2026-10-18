@@ -444,6 +444,10 @@ export interface SessionSnapshot {
   streaming: boolean;
   /** The cell xterm drew with, once it has drawn. */
   cell: Cell | null;
+  /** The pane's own size where the pane keeps it — case B, the user's own
+   *  tmux — so the stage can make room for it. Null where the stage sizes
+   *  the pane. */
+  paneSize?: { cols: number; rows: number } | null;
 }
 
 export interface SessionCallbacks {
@@ -576,6 +580,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   const connect = (ticket: string, my: number) => {
     sizeOwner = "dock";
     readOnly = false;
+    if (snap.paneSize) emit({ paneSize: null });
     // A new connection may be to another tmux (the user's own, in case B), and
     // until it says which, every question that depends on it is left to tmux.
     // In the write queue, like every change of what the bytes mean: what the
@@ -624,7 +629,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
             attempts = 0;
             reconnectStarted = null;
             restartSaid = null;
-            setPhase({ kind: "live", sizeOwner, readOnly });
+            emit({ phase: { kind: "live", sizeOwner, readOnly }, paneSize: sizeOwner === "pane" ? { cols: t.cols, rows: t.rows } : null });
             measure();
             // The stage moved while this was being seeded (a reconnect after
             // a resize): say the size it has now.
@@ -653,7 +658,11 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         // `tmux attach` by hand) sized it last. The deck takes a shared pane
         // back for this panel when it is typed in, and says so the same way.
         if (my !== gen) return;
-        withTerminal(t => t.write("", () => { if (my === gen) t.resize(cols, rows); }));
+        withTerminal(t => t.write("", () => {
+          if (my !== gen) return;
+          t.resize(cols, rows);
+          if (sizeOwner === "pane") emit({ paneSize: { cols, rows } });
+        }));
       },
       onExit: ({ reason, message, atOpen }) => {
         if (my !== gen) return;

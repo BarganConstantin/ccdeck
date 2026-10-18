@@ -232,7 +232,10 @@
    the stage is narrower now (the takeover after a wide session), it scrolls
    sideways instead of losing the right of every line. */
 .ts-stage[data-kind="ended"] .ts-body,
-.ts-stage[data-kind="detached"] .ts-body { overflow-x: auto; overflow-y: hidden; }
+.ts-stage[data-kind="detached"] .ts-body,
+/* So does a live pane that keeps the size of someone's own terminal (case B),
+   where the window has no room left to make for it (TerminalStage). */
+.ts-stage[data-pane-size] .ts-body { overflow-x: auto; overflow-y: hidden; }
 
 /* Every card starts where the terminal's first line would. */
 .ts-card { position: absolute; left: 24px; right: 24px; top: var(--ts-term-top, 14px); max-width: 640px; }
