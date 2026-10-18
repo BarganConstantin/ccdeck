@@ -13,14 +13,37 @@
 import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
-export type SettingsSection = "general" | "reading" | "notifications" | "sounds";
+export type SettingsSection =
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "data" | "about";
 
-/** The nav, in the order it is drawn and walked. */
-export const SETTINGS_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
-  { id: "general", label: "General" },
-  { id: "reading", label: "Text & density" },
-  { id: "notifications", label: "Notifications" },
-  { id: "sounds", label: "Sounds" },
+/** One section's nav entry: the word on its tab, and the line under its name
+ *  at the head of the pane, saying what the section holds before anything in
+ *  it is read. */
+export interface SettingsSectionEntry {
+  id: SettingsSection;
+  label: string;
+  note: string;
+}
+
+/** The nav, in the order it is drawn and walked.
+ *
+ *  ONE SUBJECT A SECTION (#2176). General used to hold the twelve themes, the
+ *  character, the board, the keyboard switch and tool history — five subjects
+ *  and a pane twice the window's height — while the theme's neighbours, text
+ *  size and density, were a section of their own. Each subject has its own
+ *  section now, in the order a reader reaches for them: how the deck behaves,
+ *  how it looks, how it is driven, how it reaches you, what it keeps, and
+ *  what it is. About comes last and stands at the foot of the nav, as it does
+ *  in the desktop settings windows this dialog is modelled on. */
+export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
+  { id: "general", label: "General", note: "How the board behaves." },
+  { id: "appearance", label: "Appearance", note: "The colour theme and the character on the canvas." },
+  { id: "reading", label: "Text & density", note: "Make the deck comfortable to read. Changes apply immediately and stay separate from canvas zoom." },
+  { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
+  { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
+  { id: "sounds", label: "Sounds", note: "What plays when a turn finishes and when Claude asks." },
+  { id: "data", label: "Data", note: "What the deck keeps on this device." },
+  { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
 
 /** Where a section sits in the nav; General for anything that is not one. */

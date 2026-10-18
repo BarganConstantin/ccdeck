@@ -14,6 +14,7 @@ import {
 } from "../notify-reach";
 import type { AccountNotify, AccountNotifyKind } from "../use-os-notifications";
 import { inDesktopApp } from "../in-app";
+import { SettingRow, SettingsGroup } from "./SettingsParts";
 
 export interface NotificationsProps {
   /** The switch: a notification once no deck tab is open. Held server-side
@@ -67,48 +68,56 @@ export default function NotificationsSection({
   const rescueChannel = useFocusRescue(!channel.ask, notifySwitchRef);
 
   return (
-    <div className="sm-switches">
-      {/* The note under it is not decoration: it is what separates this switch
-          from Sounds — sound fires on every finished turn while a tab is open,
-          this fires only when something has stopped and no tab is. */}
-      <div className="sm-setting">
-        <label className="sm-switch">
-          <span className="sm-switch-label" id="sm-notify-label">Notifications while closed</span>
-          <button
-            ref={notifySwitchRef}
-            type="button"
-            role="switch"
-            aria-checked={notifyOn}
-            aria-labelledby="sm-notify-label"
-            className="switch"
-            onClick={onToggleNotify}
-            title="With no deck tab open, a notification wherever a sound would play"
-          >
-            <span className="switch-knob" />
-          </button>
-        </label>
-        <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}</p>
-      </div>
+    <>
+      {/* THE SWITCH FOR A DECK NOBODY IS LOOKING AT, and under it, in the same
+          list, the channel it reaches you through. The note is not
+          decoration: it is what separates this switch from Sounds — sound
+          fires on every finished turn while a tab is open, this fires only
+          when something has stopped and no tab is. */}
+      <SettingsGroup id="sm-closed-caption" title="While the deck is closed">
+        <SettingRow
+          settingId="notify-closed"
+          name="Notifications while closed"
+          nameId="sm-notify-label"
+          note={notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}
+          noteId="sm-notify-note"
+          control={
+            <button
+              ref={notifySwitchRef}
+              type="button"
+              role="switch"
+              aria-checked={notifyOn}
+              aria-labelledby="sm-notify-label"
+              aria-describedby="sm-notify-note"
+              className="switch"
+              onClick={onToggleNotify}
+            >
+              <span className="switch-knob" />
+            </button>
+          }
+        />
 
-      {/* THE CHANNEL, WHICH IS NOT A THIRD SWITCH. "Notifications" is the
-          feature and "Browser notifications" is one of the two channels it
-          reaches you through — two named things, so "on" and "not allowed yet"
-          stop arguing and start describing different objects. Directly under
-          the switch it serves.
-          Hidden outright when the switch is off, because telling somebody to
-          allow a channel for a feature they have just turned off is asking them
-          to work for nothing. Hidden under a veto for the same reason: the
-          channel cannot deliver either way, and the note above already says so.
-          Turning the switch on raises the prompt itself (App.tsx), so `ask` is
-          the way back from a prompt that was dismissed rather than the main
-          road to it. */}
-      {showChannel && (
-        <section className="sm-channel" aria-labelledby="sm-channel-name">
-          <div className="sm-channel-head">
-            {/* Sentence case, and quieter than the switches: a capability
-                report, not a setting the user configures here. */}
-            <h3 className="sm-channel-name" id="sm-channel-name">Browser notifications</h3>
-            {channel.ask ? (
+        {/* THE CHANNEL, WHICH IS NOT A THIRD SWITCH. "Notifications" is the
+            feature and "Browser notifications" is one of the two channels it
+            reaches you through — two named things, so "on" and "not allowed
+            yet" stop arguing and start describing different objects. The row
+            under the switch it serves, in its list.
+            Hidden outright when the switch is off, because telling somebody
+            to allow a channel for a feature they have just turned off is
+            asking them to work for nothing. Hidden under a veto for the same
+            reason: the channel cannot deliver either way, and the note above
+            already says so. Turning the switch on raises the prompt itself
+            (App.tsx), so `ask` is the way back from a prompt that was
+            dismissed rather than the main road to it. A <div>, not a label:
+            its name is a capability report, not the name of the button. */}
+        {showChannel && (
+          <SettingRow
+            as="div"
+            className="sm-channel"
+            name="Browser notifications"
+            nameId="sm-channel-name"
+            note={channel.note}
+            control={channel.ask ? (
               <button type="button" className="btn sm-channel-action" onClick={() => { rescueChannel(); onAskNotify(); }}>
                 Enable
               </button>
@@ -126,37 +135,47 @@ export default function NotificationsSection({
                 {channel.status}
               </span>
             )}
-          </div>
-          <p className="sm-note">{channel.note}</p>
-        </section>
-      )}
+          />
+        )}
+      </SettingsGroup>
 
       {/* THREE MORE, AND NOT UNDER THE ONE ABOVE. That switch is about a deck
           nobody is looking at; these are said whether a page is open or not,
-          so each is its own switch and none waits on it, and a hairline parts
-          the two subjects. One group with one note, because the note is the
-          same for all three: whose accounts, and that the deck need not be
-          closed. The note leads, as a caption does; under the last switch it
-          read as that switch's alone. */}
-      <div className="sm-account-switches">
-        <p className="sm-note">{notifyVetoed ? ACCOUNT_NOTIFY_VETO_NOTE : ACCOUNT_NOTIFY_NOTE}</p>
+          so each is its own switch and none waits on it. One caption with one
+          note, because the note is the same for all three: whose accounts,
+          and that the deck need not be closed. What each one says, and when,
+          is its own row's note — it was a tooltip, which a reader on a touch
+          screen or a keyboard never saw. */}
+      <SettingsGroup
+        id="sm-accounts-caption"
+        title="Accounts"
+        note={notifyVetoed ? ACCOUNT_NOTIFY_VETO_NOTE : ACCOUNT_NOTIFY_NOTE}
+        className="sm-account-switches"
+      >
         {ACCOUNT_NOTIFY_SWITCHES.map(({ kind, label, title }) => (
-          <label className="sm-switch" key={kind}>
-            <span className="sm-switch-label" id={`sm-${kind}-label`}>{label}</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={accountNotify[kind]}
-              aria-labelledby={`sm-${kind}-label`}
-              className="switch"
-              onClick={() => onToggleAccountNotify(kind)}
-              title={title}
-            >
-              <span className="switch-knob" />
-            </button>
-          </label>
+          <SettingRow
+            key={kind}
+            settingId={kind}
+            name={label}
+            nameId={`sm-${kind}-label`}
+            note={title}
+            noteId={`sm-${kind}-note`}
+            control={
+              <button
+                type="button"
+                role="switch"
+                aria-checked={accountNotify[kind]}
+                aria-labelledby={`sm-${kind}-label`}
+                aria-describedby={`sm-${kind}-note`}
+                className="switch"
+                onClick={() => onToggleAccountNotify(kind)}
+              >
+                <span className="switch-knob" />
+              </button>
+            }
+          />
         ))}
-      </div>
-    </div>
+      </SettingsGroup>
+    </>
   );
 }

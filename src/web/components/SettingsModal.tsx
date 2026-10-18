@@ -35,7 +35,8 @@ import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
-import ReadingSection from "./ReadingSection";
+import ReadingSection, { ReadingReset } from "./ReadingSection";
+import AboutSection from "./AboutSection";
 import CharacterSection from "./CharacterSection";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -67,6 +68,10 @@ export default function SettingsModal({
 
   useEffect(() => {
     if (focusedTabToFollow(document.activeElement?.id, section)) selectedTabRef.current?.focus();
+    // At a phone's width the nav is one row that scrolls sideways, and a door
+    // that opened Settings at Sounds would otherwise show a row of tabs with
+    // the chosen one off its end. "nearest" moves nothing that is in view.
+    selectedTabRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [section]);
 
   const { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter } = appearance;
@@ -85,11 +90,11 @@ export default function SettingsModal({
   // the document as its pan key and cancels it wherever focus is, so a Space on
   // a switch never pressed it; stopped at this edge, the way AnchoredPopover
   // stops its keys, it reaches the control.
-  // T is the key General's caption advertises. App answers it anywhere on the
+  // T is the key Appearance's theme caption advertises. App answers it anywhere on the
   // deck, but not past an open dialog, so the hint would have named a dead key
   // in the one place it is shown. A field somebody is typing into keeps every
   // letter, and so does a <select>, whose letters pick an option. And T is a
-  // single-key shortcut like the deck's others, so the switch in General
+  // single-key shortcut like the deck's others, so the switch in Keyboard
   // silences it here too (WCAG 2.1.4).
   const onDialogKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === " ") { event.stopPropagation(); return; }
@@ -115,8 +120,22 @@ export default function SettingsModal({
 
   const pane = (() => {
     switch (section) {
+      case "appearance":
+        return (
+          <>
+            <ThemeSection theme={theme} onTheme={setTheme} singleKeys={singleKeys} />
+            <CharacterSection
+              characterEnabled={characterEnabled}
+              character={character}
+              onCharacter={setCharacter}
+              onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
+            />
+          </>
+        );
       case "reading":
         return <ReadingSection textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />;
+      case "keyboard":
+        return <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />;
       case "notifications":
         return (
           <NotificationsSection
@@ -150,23 +169,20 @@ export default function SettingsModal({
             onDeleteCustom={deleteCustomAsset}
           />
         );
+      case "data":
+        return <ToolAuditSettings />;
+      case "about":
+        return <AboutSection />;
       default:
-        return (
-          <>
-            <ThemeSection theme={theme} onTheme={setTheme} singleKeys={singleKeys} />
-            <CharacterSection
-              characterEnabled={characterEnabled}
-              character={character}
-              onCharacter={setCharacter}
-              onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
-            />
-            <BoardSection />
-            <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
-            <ToolAuditSettings />
-          </>
-        );
+        return <BoardSection />;
     }
   })();
+
+  // The pane's own action, beside its name: Text & density's Reset, which
+  // undoes the whole section and so belongs to its head, not to a group.
+  const paneAction = section === "reading"
+    ? <ReadingReset textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />
+    : null;
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
@@ -239,7 +255,16 @@ export default function SettingsModal({
             id="settings-pane"
             aria-labelledby={`settings-tab-${section}`}
           >
-            <h2 className="settings-pane-title">{SETTINGS_SECTIONS[at].label}</h2>
+            {/* The section's name, and one line saying what it holds, before
+                anything in it is read (#2176) — the line a Windows settings
+                page and a Raycast preference pane open on. */}
+            <div className="settings-pane-head">
+              <div className="settings-pane-heading">
+                <h2 className="settings-pane-title">{SETTINGS_SECTIONS[at].label}</h2>
+                <p className="settings-pane-note">{SETTINGS_SECTIONS[at].note}</p>
+              </div>
+              {paneAction}
+            </div>
             {pane}
           </div>
         </div>

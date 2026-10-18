@@ -230,7 +230,7 @@ export default function DeckDialogs({
         <KeyboardHelp
           onClose={() => setKeyHelpOpen(false)}
           onTour={() => { setKeyHelpOpen(false); openTour(); }}
-          onSettings={() => { setKeyHelpOpen(false); openSettings("general"); }}
+          onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}
         />
       )}
       {tourOpen && (

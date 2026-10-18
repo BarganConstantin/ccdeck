@@ -1,11 +1,13 @@
-// Settings › General: the colour theme, as previews of the deck.
+// Settings › Appearance: the colour theme, as previews of the deck.
 //
-// Lifted out of the Appearance modal unchanged when that modal became the
-// General section of Settings. T still switches the theme from anywhere on the
-// deck, and from inside Settings too (SettingsModal.tsx answers it there) —
-// while the single-key shortcuts are on, which is also when the cap is drawn.
+// Lifted out of the Appearance modal when that modal became General, and back
+// under Appearance since Settings gave each subject its own section (#2176).
+// T still switches the theme from anywhere on the deck, and from inside
+// Settings too (SettingsModal.tsx answers it there) — while the single-key
+// shortcuts are on, which is also when the cap is drawn.
 import type { KeyboardEvent } from "react";
 import { THEME_DEFINITIONS, THEMES, type Theme } from "../theme";
+import { SettingsGroup } from "./SettingsParts";
 
 
 /**
@@ -60,19 +62,17 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
   };
 
   return (
-    <section className="settings-group" aria-labelledby="appearance-theme-caption">
-      <div className="settings-caption">
-        <div>
-          <h3 id="appearance-theme-caption">Color theme</h3>
-          <p className="settings-caption-note">Choose how the dashboard looks.</p>
-        </div>
-        {/* The key App already answers anywhere on the deck. Shown where the
-            choice is, the way Settings › Sounds shows M; named to assistive
-            tech by aria-keyshortcuts on the group rather than by a stray
-            letter. Not drawn while the single-key shortcuts are off: a cap
-            for a key that does nothing is a promise the deck breaks. */}
-        {singleKeys && <kbd className="settings-key" aria-hidden title="Press T anywhere to switch themes">T</kbd>}
-      </div>
+    <SettingsGroup
+      id="appearance-theme-caption"
+      title="Theme"
+      list={false}
+      /* The key App already answers anywhere on the deck. Shown where the
+         choice is, the way Settings › Sounds shows M; named to assistive tech
+         by aria-keyshortcuts on the group rather than by a stray letter. Not
+         drawn while the single-key shortcuts are off: a cap for a key that
+         does nothing is a promise the deck breaks. */
+      aside={singleKeys && <kbd className="settings-key" aria-hidden title="Press T anywhere to switch themes">T</kbd>}
+    >
       {/* One tab stop, on the theme that is set — the radio pattern. The
           arrows walk the choices and switch as they go, as a click does. The
           preview is aria-hidden: the name is the word under it. */}
@@ -104,6 +104,6 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
           </button>
         ))}
       </div>
-    </section>
+    </SettingsGroup>
   );
 }

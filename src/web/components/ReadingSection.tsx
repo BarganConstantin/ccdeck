@@ -51,34 +51,35 @@ function SelectedMark() {
   );
 }
 
+/** Reset to defaults, which Settings draws in the pane's head beside the
+ *  section's name and the line under it (SettingsModal.tsx, #2176), where it is
+ *  in view without scrolling past the preview. It sat beside an intro that
+ *  said what the pane's head now says. Disabled when both are at Default. */
+export function ReadingReset({ textSize, density, onTextSize, onDensity }: Props) {
+  const changed = textSize !== "default" || density !== "default";
+  return (
+    <button
+      type="button"
+      className="btn"
+      disabled={!changed}
+      onClick={() => {
+        onTextSize("default");
+        onDensity("default");
+      }}
+    >
+      Reset to defaults
+    </button>
+  );
+}
+
 export default function ReadingSection({
   textSize,
   density,
   onTextSize,
   onDensity,
 }: Props) {
-  const changed = textSize !== "default" || density !== "default";
   return (
     <>
-      {/* Reset sits with the intro, where it is in view without scrolling the
-          pane past the preview. */}
-      <div className="reading-head">
-        <p className="reading-intro">
-          Make the deck comfortable to read. Changes apply immediately and stay
-          separate from canvas zoom.
-        </p>
-        <button
-          type="button"
-          className="btn"
-          disabled={!changed}
-          onClick={() => {
-            onTextSize("default");
-            onDensity("default");
-          }}
-        >
-          Reset to defaults
-        </button>
-      </div>
       <fieldset className="reading-group">
         <legend>Text size</legend>
         <p id="reading-size-help">
