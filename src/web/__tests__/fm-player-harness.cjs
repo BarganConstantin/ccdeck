@@ -50,12 +50,15 @@ async function createHarness(repo, initial) {
       }
     },
   };
+  // As a browser's: a play() stays pending until the test settles it, and a
+  // pause() or a load() rejects every pending one with an AbortError (#2164).
   class Audio extends EventTarget {
-    constructor() { super(); audio.push(this); this.plays = 0; this.pauses = 0; }
-    play() { this.plays++; return Promise.resolve(); }
-    pause() { this.pauses++; }
+    constructor() { super(); audio.push(this); this.plays = 0; this.pauses = 0; this.loads = 0; this.pending = []; }
+    play() { this.plays++; return new Promise((resolve, reject) => this.pending.push({ resolve, reject })); }
+    settlePlays(error) { for (const p of this.pending.splice(0)) error ? p.reject(error) : p.resolve(); }
+    pause() { this.pauses++; this.settlePlays(new DOMException('The play() request was interrupted.', 'AbortError')); }
     removeAttribute() {}
-    load() {}
+    load() { this.loads++; this.settlePlays(new DOMException('The fetching process for the media resource was aborted.', 'AbortError')); }
     canPlayType() { return ''; }
   }
   class Hls {
@@ -66,7 +69,8 @@ async function createHarness(repo, initial) {
     emit(e, data = {}) { this.events.get(e)?.(e, data); }
     attachMedia(player) { this.player = player; this.emit('attached'); }
     loadSource(url) { this.url = url; }
-    destroy() { this.destroyed = true; this.events.clear(); }
+    // hls.js detaches the media on the way out, and detaching loads it.
+    destroy() { this.destroyed = true; this.events.clear(); this.player?.load(); }
   }
   const context = {
     hooks, Hls, Audio, URL, DOMException, module: { exports: {} },
