@@ -99,6 +99,13 @@ describe("a door into Settings opens it at the section it names", () => {
   });
 
 
+  it("draws the terminal's Beta switch under Keyboard only when App hands it over", () => {
+    expect(drawSettings({ section: "general" })).not.toContain(">Terminal</h3>");
+    const html = drawSettings({ section: "general", terminal: { on: false, forced: false, toggle: noop } });
+    expect(html.indexOf(">Terminal</h3>")).toBeGreaterThan(html.indexOf(">Keyboard</h3>"));
+    expect(html).toMatch(/role="switch" aria-checked="false" aria-labelledby="settings-terminal-label"/);
+  });
+
   it("places character controls beneath themes in General, without music controls", () => {
     const general = drawSettings({ section: "general" });
     expect(general.indexOf('>Character</h3>')).toBeGreaterThan(general.indexOf("Color theme"));

@@ -7,12 +7,13 @@
 // engine had (lan-deck.mjs): what is left of them is a body read, a write
 // through the one, a push to the other, and an answer. The notifier stays in
 // index.mjs, beside the desktop-app connections it notifies through.
-import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed, terminalOn } from "./deck-prefs.mjs";
+import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed, terminalForced, terminalOn } from "./deck-prefs.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
 import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
+import { closeOpenTerminals } from "./terminal-socket.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -45,8 +46,13 @@ function prefsPayload() {
     // every page already makes at boot — and a route of its own would have to
     // exist with the flag off, which is the state it reports.
     terminalOn: terminalOn(prefs),
+    // On because of how the deck was launched, which the switch cannot undo.
+    terminalForced: terminalForced(),
   };
 }
+
+/** What a panel that was open says once the switch in Settings has closed it. */
+export const TERMINAL_TURNED_OFF = "The terminal was turned off in Settings.";
 
 export function handlePrefsRead(req, res) {
   return send(res, 200, prefsPayload());
@@ -84,6 +90,10 @@ export async function handlePrefsWrite(req, res) {
   // to one question: is anything going to turn up. Whatever the probe said
   // before is about a deck whose sockets were down — see forgetReach.
   if (body.lan?.enabled === true) forgetReach();
+  // Off means no way in, not only no new one: a panel still open in another
+  // tab is a write channel into the session, so it is closed with a sentence.
+  // The sessions keep running — closing a panel never stops an agent.
+  if (patch.terminal === false && !terminalOn(heldPrefs.current())) closeOpenTerminals("error", TERMINAL_TURNED_OFF);
   return send(res, 200, prefsPayload());
 }
 

@@ -91,10 +91,15 @@ export interface StageDeps {
 }
 
 export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent }: StageDeps) {
-  // The flag, from the one read of the deck's prefs (use-prefs-read.ts).
+  // The flag, from the one read of the deck's prefs (use-prefs-read.ts), and
+  // whether the launch forced it on, which the switch in Settings says.
   const [enabled, setEnabled] = useState(false);
+  const [forced, setForced] = useState(false);
   const enabledRef = useMirroredRef(enabled);
-  const loadTerminalPrefs = useCallback((d: { terminalOn?: unknown }) => setEnabled(d.terminalOn === true), []);
+  const loadTerminalPrefs = useCallback((d: TerminalPrefsAnswer) => {
+    setEnabled(d.terminalOn === true);
+    setForced(d.terminalForced === true);
+  }, []);
 
   // A reducer held in a state rather than useReducer, for the same answer
   // with one hook fewer for the suite's stand-in React to know.
@@ -414,10 +419,16 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // React Flow under the stage: inert while the stage covers it, so neither a
   // Tab nor a screen reader's cursor walks a board nobody can see. Set on the
   // element rather than rendered, because React 18 has no `inert` prop.
+  // Turned off in Settings while the stage covered the board, the board comes
+  // back with it; a deck that never had the terminal on is left untouched.
   const inert = boardInert(shell);
   useEffect(() => {
-    if (!enabled) return;
-    canvasRef.current?.querySelector(":scope > .react-flow")?.toggleAttribute("inert", inert);
+    const board = canvasRef.current?.querySelector(":scope > .react-flow");
+    if (!enabled) {
+      if (board?.hasAttribute("inert")) board.removeAttribute("inert");
+      return;
+    }
+    board?.toggleAttribute("inert", inert);
   }, [enabled, inert, canvasRef]);
 
   // Focus back onto the card once the board is back and reachable.
@@ -428,8 +439,27 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     focusCanvasNode(id);
   }, [open]);
 
+  // ── the switch in Settings ─────────────────────────────────────────────────
+  // Optimistic, as the deck's other switches are, and corrected by the answer.
+  // Off takes the stage down at once and without its motion — Settings is in
+  // front of it — and the server closes any panel another tab still has open.
+  // A refused write puts the switch back where the file still has it.
+  const toggleTerminal = useCallback(() => {
+    const want = !enabledRef.current;
+    if (!want) dispatch({ type: "close", instant: true });
+    setEnabled(want);
+    fetch("/api/prefs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ terminal: want }),
+    }).then(r => (r.ok ? r.json() : null)).then(d => {
+      if (d?.ok) loadTerminalPrefs(d);
+      else setEnabled(!want);
+    }).catch(() => setEnabled(!want));
+  }, [enabledRef, loadTerminalPrefs]);
+
   return {
-    enabled, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
+    enabled, forced, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, close, closed, failed, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell,
@@ -437,6 +467,12 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 }
 
 export type Stage = ReturnType<typeof useStage>;
+
+/** What /api/prefs answers, as far as the stage reads it (prefs-routes.mjs). */
+export interface TerminalPrefsAnswer {
+  terminalOn?: unknown;
+  terminalForced?: unknown;
+}
 
 /** The session the stage showed, kept for a reload of the same tab. */
 export const STAGE_RESTORE_KEY = "agent-dag.terminal.onStage";

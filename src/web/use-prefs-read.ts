@@ -12,12 +12,13 @@ import { useEffect } from "react";
 import type { useAutoRestart } from "./use-auto-restart";
 import type { useOsNotifications } from "./use-os-notifications";
 import type { useReports } from "./use-reports";
+import type { TerminalPrefsAnswer } from "./use-stage";
 
 export function usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs, loadTerminalPrefs }: {
   loadAutoRestartPrefs: ReturnType<typeof useAutoRestart>["loadAutoRestartPrefs"];
   loadNotifyPrefs: ReturnType<typeof useOsNotifications>["loadNotifyPrefs"];
   loadReportsPrefs: ReturnType<typeof useReports>["loadReportsPrefs"];
-  loadTerminalPrefs?: (d: { terminalOn?: unknown }) => void;
+  loadTerminalPrefs?: (d: TerminalPrefsAnswer) => void;
 }): void {
   useEffect(() => {
     let alive = true;

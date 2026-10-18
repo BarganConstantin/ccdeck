@@ -342,12 +342,22 @@ function refuseSocket(socket, status, headers = {}) {
  */
 export function closeAllTerminals(reason = "server-shutdown") {
   shuttingDown = true;
+  return closeOpenTerminals(reason);
+}
+
+/**
+ * Close every open terminal the way closeAllTerminals does — told why, tmux
+ * client detached, socket ended — without refusing the next one: the switch in
+ * Settings going off (prefs-routes.mjs), after which the upgrade refuses on
+ * its own. `text` is the sentence the panel shows. Answers how many it told.
+ */
+export function closeOpenTerminals(reason, text) {
   let told = 0;
   for (const entry of [...everyTerminal]) {
     told += 1;
     try {
-      if (entry.bridge) entry.bridge.shutdown(reason);
-      else entry.conn?.close(1001, "the deck is shutting down");
+      if (entry.bridge) entry.bridge.shutdown(reason, text);
+      else entry.conn?.close(reason === "server-shutdown" ? 1001 : 1000, reason);
     } catch { /* this one is going away regardless */ }
     // Ended rather than left for the close handshake: the shutdown has a
     // second and a half, and a panel that answers its close does so to a
@@ -720,9 +730,9 @@ export function terminalBridge({
     release();
   }
 
-  /** The deck is going away: closeAllTerminals. */
-  function shutdown(reason = "server-shutdown") {
-    end(reason);
+  /** The deck is going away, or the switch went off: closeOpenTerminals. */
+  function shutdown(reason = "server-shutdown", text) {
+    end(reason, text);
   }
 
   return handle;

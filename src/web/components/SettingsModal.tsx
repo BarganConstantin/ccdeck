@@ -37,6 +37,8 @@ import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
 import ReadingSection from "./ReadingSection";
 import CharacterSection from "./CharacterSection";
+import TerminalSection, { type TerminalSwitch } from "./TerminalSection";
+import { platformName } from "../platform";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
@@ -51,10 +53,12 @@ export interface SettingsModalProps {
   customTones: ReturnType<typeof useCustomTones>;
   notify: ReturnType<typeof useOsNotifications>;
   appearance: ReturnType<typeof useAppearance>;
+  /** The terminal's Beta switch (use-stage.ts); General draws it when given. */
+  terminal?: TerminalSwitch;
 }
 
 export default function SettingsModal({
-  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
+  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance, terminal,
 }: SettingsModalProps) {
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
@@ -162,6 +166,7 @@ export default function SettingsModal({
             />
             <BoardSection />
             <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
+            {terminal && <TerminalSection terminal={terminal} platform={platformName()} />}
             <ToolAuditSettings />
           </>
         );

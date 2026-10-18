@@ -23,7 +23,12 @@ const rect = (x: number, y: number, w: number, h: number) =>
 /** The canvas the hook reads: React Flow's element (which it makes inert),
  *  one card per id, a navigator tile per id, and its own size. */
 function makeCanvas() {
-  const flow = { inert: false, toggleAttribute: vi.fn((name: string, on: boolean) => { if (name === "inert") flow.inert = on; }) };
+  const flow = {
+    inert: false,
+    toggleAttribute: vi.fn((name: string, on: boolean) => { if (name === "inert") flow.inert = on; }),
+    hasAttribute: (name: string) => name === "inert" && flow.inert,
+    removeAttribute: vi.fn((name: string) => { if (name === "inert") flow.inert = false; }),
+  };
   const nameEl = { getBoundingClientRect: () => rect(412, 210, 60, 15) };
   const card = {
     classList: { contains: (c: string) => c === "react-flow__node" },
@@ -186,6 +191,76 @@ describe("a click on a card, with the flag on", () => {
     now().stage.onNodeClick("s2", page.card as unknown as Element);
     expect(now().stage.shell.phase).toBe("open");
     expect(now().stage.shell.target).toEqual({ kind: "session", id: "s2" });
+  });
+});
+
+describe("the switch in Settings", () => {
+  /** The deck's answer to the POST, or a refusal, or no answer at all. */
+  const answer = (out: { ok: boolean; body?: unknown } | Error) => {
+    const fetch = vi.fn(async () => {
+      if (out instanceof Error) throw out;
+      return { ok: out.ok, json: async () => out.body };
+    });
+    vi.stubGlobal("fetch", fetch);
+    return fetch;
+  };
+  const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("turns the terminal on at the press, and keeps what the deck answers", async () => {
+    const fetch = answer({ ok: true, body: { ok: true, terminalOn: true, terminalForced: false } });
+    const { now } = setup();
+    now().stage.toggleTerminal();
+    expect(now().stage.enabled, "at the press, not a round trip later").toBe(true);
+    expect(fetch).toHaveBeenCalledWith("/api/prefs", expect.objectContaining({ method: "POST", body: JSON.stringify({ terminal: true }) }));
+    await flush();
+    expect(now().stage.enabled).toBe(true);
+    expect(now().stage.forced).toBe(false);
+  });
+
+  it("turns it off with the stage taken down at once and the board given back", async () => {
+    const fetch = answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    now().stage.reveal();
+    vi.advanceTimersByTime(DOUBLE_CLICK_MS);
+    expect(page.flow.inert).toBe(true);
+    now().stage.toggleTerminal();
+    expect(now().stage.enabled).toBe(false);
+    expect(now().stage.shell.phase, "no morph: Settings is in front of it").toBe("closed");
+    expect(page.flow.inert, "a board left inert would be a deck nobody can use").toBe(false);
+    expect(fetch).toHaveBeenCalledWith("/api/prefs", expect.objectContaining({ body: JSON.stringify({ terminal: false }) }));
+    await flush();
+    expect(now().stage.enabled).toBe(false);
+  });
+
+  it("puts the switch back where the file has it when the deck refuses the write", async () => {
+    answer({ ok: false, body: { ok: false, reason: "unwritable" } });
+    const { now } = setup();
+    now().stage.toggleTerminal();
+    expect(now().stage.enabled).toBe(true);
+    await flush();
+    expect(now().stage.enabled).toBe(false);
+  });
+
+  it("puts it back when the deck does not answer at all", async () => {
+    answer(new TypeError("Failed to fetch"));
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.toggleTerminal();
+    expect(now().stage.enabled).toBe(false);
+    await flush();
+    expect(now().stage.enabled).toBe(true);
+  });
+
+  it("says when the launch forced it on, from the read every page makes", () => {
+    const { now } = setup();
+    now().stage.loadTerminalPrefs({ terminalOn: true, terminalForced: true });
+    expect(now().stage.enabled).toBe(true);
+    expect(now().stage.forced).toBe(true);
+    now().stage.loadTerminalPrefs({ terminalOn: true, terminalForced: "yes" });
+    expect(now().stage.forced).toBe(false);
   });
 });
 

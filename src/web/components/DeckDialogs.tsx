@@ -44,6 +44,7 @@ import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
 import SettingsModal from "./SettingsModal";
+import type { TerminalSwitch } from "./TerminalSection";
 import ToolModal from "./ToolModal";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
@@ -57,7 +58,7 @@ const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
-  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify,
+  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, terminal,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -83,6 +84,8 @@ export default function DeckDialogs({
   tones: ReturnType<typeof useTonePrefs>;
   customTones: ReturnType<typeof useCustomTones>;
   notify: ReturnType<typeof useOsNotifications>;
+  /** The terminal's Beta switch, which Settings › General draws. */
+  terminal?: TerminalSwitch;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
@@ -168,6 +171,7 @@ export default function DeckDialogs({
           customTones={customTones}
           notify={notify}
           appearance={appearance}
+          terminal={terminal}
         />
       )}
       {/* Ahead of the shortcuts sheet and the clear prompt, which is where a

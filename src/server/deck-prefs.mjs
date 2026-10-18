@@ -92,13 +92,15 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
-  // THE TERMINAL PANEL, OFF and hidden: a terminal you can type into is the
-  // first thing in the deck that reaches into an agent rather than watching
-  // one, and it ships dark until its owner says otherwise. Deck-owned — not in
-  // PAGE_FIELDS — because a page that could switch it on could open a write
-  // channel into the user's tmux with the same POST it already passes the
-  // gates with. Set by hand in prefs.json, or for one run with the launch
-  // variable terminalOn names. See terminal-routes.mjs.
+  // THE TERMINAL PANEL, OFF until somebody turns it on: a terminal you can
+  // type into is the first thing in the deck that reaches into an agent rather
+  // than watching one. A Beta switch in Settings › General since 2026-10-18,
+  // so in PAGE_FIELDS: the POST that sets it passes the gates every other
+  // switch does, which admit the deck's own page on this machine and nothing
+  // else — the same trust the LAN switch, which opens sockets to the network,
+  // has always had. Before that it was deck-owned, set by hand in prefs.json;
+  // the launch variable terminalOn names still turns it on for one run. See
+  // terminal-routes.mjs.
   terminal: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
@@ -710,7 +712,7 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"]),
+  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "terminal"]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
@@ -772,8 +774,8 @@ export function lanEnabled(prefs, env = process.env) {
 /** Set to "1" to switch the terminal panel on for one run, whatever prefs.json
  *  says. THE ONE VARIABLE HERE THAT TURNS SOMETHING ON rather than vetoing it,
  *  and deliberately left out of the README's table and of the login item's
- *  SETTING_VARS while the panel ships hidden — readme-order.test.ts names it
- *  as a decision, so documenting it later is a decision too. */
+ *  SETTING_VARS while the panel is a Beta — readme-order.test.ts names it as a
+ *  decision, so documenting it later is a decision too. */
 export const TERMINAL_ENV = "CCDECK_TERMINAL";
 
 /**
@@ -781,16 +783,23 @@ export const TERMINAL_ENV = "CCDECK_TERMINAL";
  * `terminal` switch, and nothing else.
  *
  * The opposite polarity from lanEnabled's veto, on purpose: the panel is the
- * feature that is off unless somebody chose it, and either of the two people
- * who can choose — whoever launched the deck, or whoever edited its settings
- * file — is enough. A page is neither: `terminal` is not in PAGE_FIELDS.
+ * feature that is off unless somebody chose it, and either of the people who
+ * can choose — whoever launched the deck, or whoever turned on the switch in
+ * Settings or wrote it into the settings file — is enough.
  *
  * Asked on every request and every upgrade rather than once at boot, so the
  * routes and the socket answer from the same settings at every moment and can
  * never disagree about whether the panel exists.
  */
 export function terminalOn(prefs, env = process.env) {
-  return env[TERMINAL_ENV] === "1" || prefs?.terminal === true;
+  return terminalForced(env) || prefs?.terminal === true;
+}
+
+/** On whatever the switch says, because the deck was launched with the
+ *  variable: Settings draws its switch on and fixed, and says why, rather than
+ *  offering a press that could not turn it off. */
+export function terminalForced(env = process.env) {
+  return env[TERMINAL_ENV] === "1";
 }
 
 /**

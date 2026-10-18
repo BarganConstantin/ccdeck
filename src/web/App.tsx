@@ -842,6 +842,7 @@ function Inner() {
         upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
+        terminal={{ on: stage.enabled, forced: stage.forced, toggle: stage.toggleTerminal }}
       />
     </div>
   );

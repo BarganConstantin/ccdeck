@@ -158,6 +158,15 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
+/* Beta, in the same slot: the word Telemetry Radar's title wears (.tr-beta),
+   in the caption's own ink and size, so it reads as a note on the group rather
+   than as a control. */
+.settings-beta {
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
 /* A key cap in the caption's right-hand slot, where the panels put a
    caption's one piece of metadata — the shape .sm-key-note kbd draws inline. */
 .settings-key {
