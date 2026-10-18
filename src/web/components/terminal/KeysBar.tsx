@@ -144,7 +144,7 @@ export default function KeysBar(p: KeysBarProps) {
     left = (
       <div className="ts-keys" data-owner="none">
         <span className="ts-end"><i className="ts-end-mark" aria-hidden="true" />{p.end.sentence}</span>
-        <button type="button" className="btn" aria-busy={p.end.busy || undefined} onClick={p.end.onAction}>{p.end.action}</button>
+        <button type="button" className="btn" aria-busy={p.end.busy || undefined} data-stage-land onClick={p.end.onAction}>{p.end.action}</button>
       </div>
     );
   } else if (p.notice) {

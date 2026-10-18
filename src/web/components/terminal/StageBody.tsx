@@ -103,7 +103,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
           <span className="ts-empty-glyph"><TerminalGlyph /></span>
           <p className="ts-text ts-text-first">Click a session on the board to watch it here, or start a new one.</p>
           <div className="ts-acts">
-            <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" onClick={() => p.onNewSession(EMPTY_NEW_SESSION_ID)}>
+            <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => p.onNewSession(EMPTY_NEW_SESSION_ID)}>
               <PlusGlyph />New session
             </button>
           </div>
@@ -133,11 +133,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
           {phase.stillRunning && <p className="ts-note" role="status">{STILL_RUNNING_NOTE}</p>}
           <div className="ts-acts">
             {target.adoptable && (
-              <button type="button" className={phase.stillRunning ? "btn" : "btn primary"} aria-busy={phase.busy || undefined} onClick={p.onAdopt}>
+              <button type="button" className={phase.stillRunning ? "btn" : "btn primary"} aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
                 {phase.stillRunning ? "Check again" : "Reopen here"}
               </button>
             )}
-            <button type="button" className="btn" onClick={p.onNotNow}>Not now</button>
+            <button type="button" className="btn" data-stage-land={target.adoptable ? undefined : true} onClick={p.onNotNow}>Not now</button>
           </div>
         </div>
       );
@@ -166,7 +166,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
           </p>
           {phase.install && <InstallPlate line={phase.install} />}
           <div className="ts-acts">
-            <button type="button" className="btn" aria-busy={phase.busy || undefined} onClick={p.onRetry}>
+            <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
               {phase.busy ? "Checking…" : "Check again"}
             </button>
           </div>
@@ -177,7 +177,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
         <div className="ts-card">
           <p className="ts-text ts-text-first">{phase.message}</p>
           <div className="ts-acts">
-            <button type="button" className="btn" onClick={p.onRetry}>Try again</button>
+            <button type="button" className="btn" data-stage-land onClick={p.onRetry}>Try again</button>
             <button type="button" className="btn" onClick={p.onNotNow}>Not now</button>
           </div>
         </div>

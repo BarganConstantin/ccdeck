@@ -45,7 +45,7 @@ import {
   spineLive,
   stageAnnouncement,
   type KeysOwner,
-  type StagePhaseKind,
+  type StagePhase, type StagePhaseKind,
   type StageStatus,
 } from "./stage-model";
 import StageHeader from "./StageHeader";
@@ -62,6 +62,32 @@ import Divider from "./Divider";
 
 /** How long the keys bar holds a refusal before its hints come back. */
 const NOTICE_MS = 6000;
+
+/** The phases whose card is the stage's answer, which a request for the keys
+ *  lands on: not the ones on their way to a pane. */
+export function settlesFocus(phase: StagePhase): boolean {
+  return phase.kind !== "attaching" && phase.kind !== "starting" && phase.kind !== "tmux-installing"
+    && !(phase.kind === "live" && !phase.readOnly);
+}
+
+/**
+ * Focus onto the stage's own answer: the card's action (`data-stage-land`),
+ * else the header's ⌨, else ✕, which every stage draws. Only from where a
+ * press that opened the stage leaves it — the body, or the board going inert
+ * under the stage. Focus already in the stage, or that the reader has taken
+ * anywhere else, stays where it is, and the request is done either way.
+ */
+export function landFocus(root: HTMLElement | null): boolean {
+  if (!root) return false;
+  const active = document.activeElement;
+  if (active && active !== document.body && (root.contains(active) || !active.closest?.(".react-flow"))) return true;
+  const target = root.querySelector<HTMLElement>("[data-stage-land]")
+    ?? root.querySelector<HTMLElement>(".ts-head button[aria-pressed]")
+    ?? root.querySelector<HTMLElement>(".ts-head button[data-stage-close]");
+  if (!target) return false;
+  target.focus();
+  return true;
+}
 
 /** A session from the board, as the stage draws it. */
 export interface StageSessionInfo {
@@ -236,7 +262,11 @@ export default function TerminalStage(p: TerminalStageProps) {
   onPhase.current = p.onPhase;
   useEffect(() => { onPhase.current?.(phase.kind); }, [phase.kind]);
 
-  useFocusRequest({ key, request: p.focusRequest, launch: subject.kind === "launch", typing, focus: session.focus });
+  const rootRef = useRef<HTMLElement>(null);
+  useFocusRequest({
+    key, request: p.focusRequest, launch: subject.kind === "launch", typing, focus: session.focus,
+    settled: settlesFocus(phase), land: () => landFocus(rootRef.current),
+  });
 
   let end: EndView | null = null;
   if (phase.kind === "ended") {
@@ -258,6 +288,7 @@ export default function TerminalStage(p: TerminalStageProps) {
 
   return (
     <section
+      ref={rootRef}
       className="ts-stage"
       role="region"
       aria-label={`Terminal — ${name}`}
