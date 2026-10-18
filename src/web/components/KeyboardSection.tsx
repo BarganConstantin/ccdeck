@@ -87,6 +87,13 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys }: Prop
           spellCheck={false}
           value={query}
           onChange={event => setQuery(event.target.value)}
+          // Escape empties a filled filter first, as every search field does,
+          // and only an empty one lets it through to close Settings. Stopped
+          // here, it never reaches the window listener that dismisses the
+          // dialog (use-deck-shortcuts.ts).
+          onKeyDown={event => {
+            if (event.key === "Escape" && query) { event.stopPropagation(); setQuery(""); }
+          }}
         />
       </div>
 

@@ -90,6 +90,12 @@ describe("Settings › Keyboard lists every key", () => {
     expect(shortcutMatches(zoom, "nothing like it")).toBe(false);
   });
 
+  it("empties a filled filter on Escape, and lets Escape close Settings only from an empty one", () => {
+    // Checked in the browser: before this, Escape in "zoom" shut the dialog.
+    expect(sourceOf("components/KeyboardSection.tsx"))
+      .toMatch(/if \(event\.key === "Escape" && query\) \{ event\.stopPropagation\(\); setQuery\(""\); \}/);
+  });
+
   it("names its filter with a label, not with a placeholder alone", () => {
     const html = draw(createElement(KeyboardSection, { singleKeys: true, onToggleSingleKeys: noop }));
     expect(html).toMatch(/<label class="vis-hidden" for="[^"]+">Filter shortcuts<\/label><input id="[^"]+" type="search"/);
