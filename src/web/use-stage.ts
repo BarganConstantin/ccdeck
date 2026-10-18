@@ -154,6 +154,10 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  before the board has heard of them. */
   const launchedIdsRef = useRef(new Set<string>());
   const returnFocusRef = useRef<string | null>(null);
+  /** The Terminal button, when it opened the stage: where the focus goes
+   *  back to from a stage with no session behind it, which has no card. */
+  const openerRef = useRef<HTMLElement | null>(null);
+  const returnToOpenerRef = useRef(false);
 
   // ── opening, switching ─────────────────────────────────────────────────────
   /**
@@ -243,6 +247,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     // reader says "a terminal", and the board it sits on goes inert under the
     // stage. A card instead of a pane puts them on the card's action.
     openOn(target, { el: cardShows ? card : button, focusPane: true });
+    openerRef.current = button && typeof (button as HTMLElement).focus === "function" ? button as HTMLElement : null;
   }, [primarySelectedIdRef, stateRef, shellRef, canvasRef, openOn]);
 
   /**
@@ -326,11 +331,13 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const close = useCallback(() => dispatch({ type: "close" }), []);
 
   /** The stage's morph has ended: say so, and give the card back the focus
-   *  the stage held. */
+   *  the stage held — or, for a stage with no session behind it (the empty
+   *  stage), the Terminal button that opened it. */
   const closed = useCallback((sentence: string) => {
     const active = document.activeElement;
     const held = !active || active === document.body || !!active.closest?.(".stage-dock, .stage-nav");
     returnFocusRef.current = held ? targetSession(shellRef.current.target) : null;
+    returnToOpenerRef.current = held && !returnFocusRef.current;
     if (sentence) setSaid(sentence);
     dispatch({ type: "closed" });
   }, [shellRef]);
@@ -435,9 +442,18 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     board?.toggleAttribute("inert", inert);
   }, [enabled, inert, canvasRef]);
 
-  // Focus back onto the card once the board is back and reachable.
+  // Focus back onto the card once the board is back and reachable, or onto
+  // the Terminal button for a stage that had no card.
   useEffect(() => {
-    if (open || !returnFocusRef.current) return;
+    if (open) return;
+    if (returnToOpenerRef.current) {
+      returnToOpenerRef.current = false;
+      const opener = openerRef.current;
+      openerRef.current = null;
+      if (opener?.isConnected) opener.focus();
+      return;
+    }
+    if (!returnFocusRef.current) return;
     const id = returnFocusRef.current;
     returnFocusRef.current = null;
     focusCanvasNode(id);
