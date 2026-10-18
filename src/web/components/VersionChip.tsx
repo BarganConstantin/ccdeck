@@ -5,17 +5,18 @@
 // buttons — an update the desktop app has already downloaded, a version that
 // has drifted from the one on disk or on npm, or the healthy chip that asks npm
 // now — and every one of them opens the release notes first (#715). Its props
-// are the version check's answer, the desktop updater's, and the three things
-// a click can do.
+// are the version check's answer, the desktop updater's, and the four things
+// a click can do. The fourth is the ready update's own Restart to update,
+// drawn after the chip while the app has one (see readyButtonCopy).
 import type { readyDesktopUpdate } from "../desktop-update";
-import { desktopAppVersion, readyChipCopy } from "../desktop-update";
+import { desktopAppVersion, readyButtonCopy, readyChipCopy } from "../desktop-update";
 import { shortAgo } from "../relative-time";
 import type { VersionInfo, VersionNotice } from "../use-version-check";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "../version-chip";
 
 export default function VersionChip({
   readyAppUpdate, notice, noticeOpen, version, chipVersion, versionChecking, now,
-  openReleaseNotes, showNotice, loadVersion,
+  openReleaseNotes, showNotice, loadVersion, restartToUpdate, updateRestarting = false,
 }: {
   /** An update the desktop app has downloaded and verified, or null. */
   readyAppUpdate: ReturnType<typeof readyDesktopUpdate>;
@@ -30,6 +31,11 @@ export default function VersionChip({
   openReleaseNotes: () => void;
   showNotice: () => void;
   loadVersion: (force?: boolean) => Promise<unknown>;
+  /** Apply the ready update, the press the What's new dialog makes. Without
+   *  it there is no button, only the chip. */
+  restartToUpdate?: (version: string) => void;
+  /** That press is out and has not been answered. */
+  updateRestarting?: boolean;
 }) {
   return (
     <>
@@ -53,18 +59,37 @@ export default function VersionChip({
         // and verified is the opposite of something being wrong. It
         // wears the accent instead — see .v.ready.
         const copy = readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version);
+        // The press itself, beside the chip that explains it (owner's call,
+        // 2026-10-18, after a user asked for agency over updates). Busy, never
+        // disabled, while its request is out (#620): the second press is
+        // refused by the same ref the dialog's button meets.
+        const press = restartToUpdate && readyButtonCopy(readyAppUpdate.version, updateRestarting);
         return (
-          <button
-            type="button"
-            className="v ready"
-            onClick={openReleaseNotes}
-            aria-haspopup="dialog"
-            aria-label={copy.label}
-            title={copy.title}
-          >
-            {copy.text}
-            <span className="v-dot" aria-hidden />
-          </button>
+          <>
+            <button
+              type="button"
+              className="v ready"
+              onClick={openReleaseNotes}
+              aria-haspopup="dialog"
+              aria-label={copy.label}
+              title={copy.title}
+            >
+              {copy.text}
+              <span className="v-dot" aria-hidden />
+            </button>
+            {press && (
+              <button
+                type="button"
+                className="v ready v-update"
+                onClick={() => restartToUpdate(readyAppUpdate.version)}
+                aria-busy={updateRestarting || undefined}
+                aria-label={press.label}
+                title={press.title}
+              >
+                {press.text}
+              </button>
+            )}
+          </>
         );
       })() : notice ? (
         <button

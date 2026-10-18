@@ -218,17 +218,102 @@ describe("the Windows and Linux install gate", () => {
     expect(fake.install).not.toHaveBeenCalled();
   });
 
-  it("does not look again while an update is on its way or ready", async () => {
+  it("does not look again while an update is on its way, but does past one that is ready", async () => {
     const { u, until } = updater();
     await u.check();
     fake.emit("update-available", { version: "3.27.0" });
     expect(u.state).toEqual({ status: "downloading", version: "3.27.0" });
     await u.check();
+    expect(fake.checkForUpdates).toHaveBeenCalledTimes(1);
     const bytes = Buffer.from("the installer ccdeck built");
     fake.emit("update-downloaded", downloaded(bytes, signed(bytes)));
     await until("ready");
+    // Ready is no longer the end of looking: an update can wait a day for the
+    // agents, and a release that came out in that day is the one to install.
     await u.check();
-    expect(fake.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(fake.checkForUpdates).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("looking past a ready update, on Windows and Linux", () => {
+  beforeEach(() => onPlatform("linux"));
+
+  const installer = Buffer.from("the installer ccdeck built");
+  const newer = Buffer.from("the next installer ccdeck built");
+
+  /** An updater with 3.27.0 downloaded, verified and ready. */
+  async function ready() {
+    const made = updater();
+    await made.u.check();
+    fake.emit("update-available", { version: "3.27.0" });
+    fake.emit("update-downloaded", downloaded(installer, signed(installer)));
+    await made.until("ready");
+    return made;
+  }
+
+  it("keeps the ready update, and says nothing, when there is nothing newer", async () => {
+    const { u, seen } = await ready();
+    const said = seen.length;
+    // What electron-updater does when the newest release is the one it already
+    // has: it checks, offers it again, and finds it in its own cache.
+    fake.checkForUpdates.mockImplementation(async () => {
+      fake.emit("checking-for-update");
+      fake.emit("update-available", { version: "3.27.0" });
+      fake.emit("update-downloaded", downloaded(installer, signed(installer)));
+    });
+    await u.check();
+    await new Promise(r => setTimeout(r, 20));
+    expect(u.state).toEqual({ status: "ready", version: "3.27.0" });
+    // Not one word: a tray flickering to "Checking…" every half hour, and the
+    // window's Restart to update vanishing for it, is what this must not do.
+    expect(seen.length).toBe(said);
+    expect(u.looking).toBe(false);
+  });
+
+  it("downloads a newer release over the ready one, and installs that one", async () => {
+    const { u, until } = await ready();
+    fake.checkForUpdates.mockImplementation(async () => {
+      fake.emit("checking-for-update");
+      fake.emit("update-available", { version: "3.28.0" });
+    });
+    await u.check();
+    expect(u.state).toEqual({ status: "downloading", version: "3.28.0" });
+    // Still looking until the newer one has landed: the quiet install must not
+    // take the overtaken one in the meantime.
+    expect(u.looking).toBe(true);
+    fake.emit("update-downloaded", downloaded(newer, signed(newer, h.priv, "3.28.0"), "3.28.0"));
+    await until("ready");
+    expect(u.state).toEqual({ status: "ready", version: "3.28.0" });
+    expect(u.looking).toBe(false);
+    u.restartNow();
+    expect(fake.quitAndInstall).toHaveBeenCalledWith(false, true);
+  });
+
+  it("keeps the ready update when the feed cannot be reached", async () => {
+    const { u, seen } = await ready();
+    const said = seen.length;
+    fake.checkForUpdates.mockImplementation(async () => {
+      const err = new Error("net::ERR_INTERNET_DISCONNECTED");
+      fake.emit("error", err);
+      throw err;
+    });
+    await u.check();
+    // Nothing newer started downloading, so electron-updater still has the
+    // ready one; an error here would take away an update that is fine.
+    expect(u.state).toEqual({ status: "ready", version: "3.27.0" });
+    expect(seen.length).toBe(said);
+  });
+
+  it("reports the error when the newer download fails, because the older one is gone with it", async () => {
+    const { u } = await ready();
+    fake.checkForUpdates.mockImplementation(async () => {
+      fake.emit("update-available", { version: "3.28.0" });
+    });
+    await u.check();
+    // electron-updater clears its cache before it downloads a different
+    // version, so there is no ready one to go back to.
+    fake.emit("error", new Error("download 503"));
+    expect(u.state).toEqual({ status: "error", error: "download 503" });
   });
 });
 
@@ -354,5 +439,95 @@ describe("the macOS update", () => {
     await u.check();
     await u.dispose();
     expect(mac.discard).toHaveBeenCalledWith(staged.dir);
+  });
+
+  describe("looking past a ready update", () => {
+    const newer = { version: "3.28.0", file: { arch: "arm64", url: "ccdeck-mac-arm64.zip" }, url: `${FEED}/ccdeck-mac-arm64.zip` };
+    const newerStaged = { staged: "/tmp/ccdeck-update-y/app/ccdeck.app", dir: "/tmp/ccdeck-update-y" };
+
+    /** An updater with 3.27.0 staged and ready. */
+    async function ready() {
+      vi.mocked(mac.checkForUpdate).mockResolvedValueOnce(update);
+      vi.mocked(mac.stageUpdate).mockResolvedValueOnce(staged);
+      const made = updater();
+      await made.u.check();
+      expect(made.u.state).toEqual({ status: "ready", version: "3.27.0" });
+      return made;
+    }
+
+    it("asks for one newer than the READY version, and changes nothing when there is none", async () => {
+      const { u, seen } = await ready();
+      const said = seen.length;
+      vi.mocked(mac.checkForUpdate).mockResolvedValueOnce(null);
+      await u.check();
+      // Against the running 3.26.0, the 3.27.0 already staged would come back
+      // as "newer" every time and be downloaded again.
+      expect(vi.mocked(mac.checkForUpdate).mock.calls[1][0]).toMatchObject({ currentVersion: "3.27.0" });
+      expect(u.state).toEqual({ status: "ready", version: "3.27.0" });
+      expect(seen.length).toBe(said);
+      expect(mac.stageUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it("stages the newer one, and throws the overtaken one away only after", async () => {
+      const { u, seen } = await ready();
+      vi.mocked(mac.checkForUpdate).mockResolvedValueOnce(newer);
+      vi.mocked(mac.stageUpdate).mockResolvedValueOnce(newerStaged);
+      await u.check();
+      expect(seen.slice(-2)).toEqual([{ status: "downloading", version: "3.28.0" }, { status: "ready", version: "3.28.0" }]);
+      // Until its successor staged, the old bundle was the one a Quit would
+      // install, so it could not go first.
+      expect(mac.discard).toHaveBeenCalledWith(staged.dir);
+      expect(vi.mocked(mac.discard).mock.invocationCallOrder[0])
+        .toBeGreaterThan(vi.mocked(mac.stageUpdate).mock.invocationCallOrder[1]);
+      u.installOnQuit();
+      expect(mac.installOnExit).toHaveBeenCalledTimes(1);
+      expect(mac.installOnExit).toHaveBeenCalledWith(expect.objectContaining({ ...newerStaged, version: "3.28.0" }));
+    });
+
+    it("keeps the ready one when the newer one is refused", async () => {
+      const { u } = await ready();
+      vi.mocked(mac.checkForUpdate).mockResolvedValueOnce(newer);
+      vi.mocked(mac.stageUpdate).mockRejectedValueOnce(new Error("the download failed its hash or signature check"));
+      await u.check();
+      // A bad download of 3.28.0 says nothing against 3.27.0, which was
+      // verified and is still on disk: going to error would throw away an
+      // update that is fine for one that is not.
+      expect(u.state).toEqual({ status: "ready", version: "3.27.0" });
+      expect(mac.discard).not.toHaveBeenCalledWith(staged.dir);
+      u.installOnQuit();
+      expect(mac.installOnExit).toHaveBeenCalledWith(expect.objectContaining({ ...staged, version: "3.27.0" }));
+    });
+
+    it("keeps the ready one when the manifest cannot be read", async () => {
+      const { u, seen } = await ready();
+      const said = seen.length;
+      vi.mocked(mac.checkForUpdate).mockRejectedValueOnce(new Error("manifest 503"));
+      await u.check();
+      expect(u.state).toEqual({ status: "ready", version: "3.27.0" });
+      expect(seen.length).toBe(said);
+    });
+
+    it("says when it last looked, and that it is looking while the newer one stages", async () => {
+      const { u } = await ready();
+      const first = u.lookedAt;
+      expect(typeof first).toBe("number");
+      let land: (v: unknown) => void = () => {};
+      vi.mocked(mac.checkForUpdate).mockResolvedValueOnce(newer);
+      vi.mocked(mac.stageUpdate).mockReturnValueOnce(new Promise(r => { land = r; }) as never);
+      await new Promise(r => setTimeout(r, 2));
+      const before = Date.now();
+      const looking = u.check();
+      // Stamped as the look starts, not as it ends: the install's freshness is
+      // measured from when the feed was asked.
+      expect(u.lookedAt).toBeGreaterThanOrEqual(before);
+      expect(u.looking).toBe(true);
+      // A second check while this one is out starts nothing.
+      await u.check();
+      expect(mac.checkForUpdate).toHaveBeenCalledTimes(2);
+      land(newerStaged);
+      await looking;
+      expect(u.looking).toBe(false);
+      expect(u.state).toEqual({ status: "ready", version: "3.28.0" });
+    });
   });
 });

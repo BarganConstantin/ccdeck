@@ -66,6 +66,22 @@ export function readyChipCopy(from: string, to: string): { text: string; label: 
   };
 }
 
+/** The topbar's own Restart to update, beside the ready chip. The chip opens
+ *  What's new and leaves the press to the dialog; this is the press itself,
+ *  for the person who wants the update now and not the notes first. Its
+ *  printed words are the shared phrase, and its name starts with them and
+ *  adds the version (WCAG 2.5.3). While its request is out it prints
+ *  "Restarting…" and has no label of its own, so what is read is what is
+ *  shown. The title says the two things a person deciding whether to press
+ *  it wants to know: the app goes away for a moment, the agents do not. */
+export function readyButtonCopy(to: string, busy = false): { text: string; label: string | undefined; title: string } {
+  return {
+    text: busy ? "Restarting…" : RESTART_TO_UPDATE,
+    label: busy ? undefined : `${RESTART_TO_UPDATE} to v${to}`,
+    title: `Install ccdeck v${to} now: ccdeck restarts and is back in a few seconds. Your Claude Code and Codex sessions keep running.`,
+  };
+}
+
 /** Why a press of Restart to update did not end in a restart. The first two
  *  are the server's own 409 reasons (see handleDesktopUpdateRequest); the rest
  *  are what the page can tell on its own. */
