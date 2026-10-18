@@ -278,7 +278,11 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     cursorStyle: "block",
     cursorInactiveStyle: "outline",
     minimumContrastRatio: MINIMUM_CONTRAST_RATIO,
-    scrollback: 2000,
+    // What native terminals keep, and what the deck's tmux keeps for the
+    // pane (terminal-sessions.mjs). A reattach brings back the last
+    // SEED_HISTORY lines of it, so a switch stays quick; what streamed while
+    // the pane was on screen stays here to scroll back through.
+    scrollback: 10_000,
     smoothScrollDuration: 0,
     // Off: streaming agent output into a live region is #372's anti-pattern.
     // The stage announces what changed, once, through the deck's own regions.
