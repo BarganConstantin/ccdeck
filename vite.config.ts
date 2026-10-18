@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import { defineConfig } from "vite";
+import { defineConfig, normalizePath } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -9,6 +9,9 @@ import { generateThemes } from "./scripts/theme-compiler.mjs";
 const root = dirname(fileURLToPath(import.meta.url));
 const devBackend = `http://127.0.0.1:${process.env.CCDECK_DEV_SERVER_PORT ?? "4317"}`;
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+// The app's own first module, as Rollup spells module ids: with forward slashes
+// on Windows too, which resolve() alone does not give (#2162).
+const appModule = normalizePath(resolve(root, "src/web/main.tsx"));
 
 export default defineConfig({
   root: resolve(root, "src/web"),
@@ -46,6 +49,36 @@ export default defineConfig({
     outDir: resolve(root, "dist/web"),
     emptyOutDir: true,
     sourcemap: false,
+    // #2162. The entry chunk used to be the whole app — React, App and
+    // main.tsx's createRoot — and every lazy panel imported React back out of
+    // it by file name, `./index-<hash>.js`. A module is its URL. On the install
+    // whose page loaded that same file as `assets/index-v2.js`, opening the
+    // Telemetry Radar fetched it again under the hashed name and evaluated the
+    // app a second time: a second React, whose dispatcher was null while the
+    // first one rendered (Minified React error #321 in useModalDismiss), and a
+    // second createRoot on #root, whose first commit emptied the container
+    // under the first root, so that root's next deletion threw a removeChild
+    // NotFoundError.
+    //
+    // So index.html loads src/web/entry.ts, which is a bare `import "./main"`,
+    // and main.tsx goes into a chunk of its own with everything it imports
+    // statically: Rollup takes a manual chunk's static dependencies in with it.
+    // The lazy chunks import from `app-<hash>.js`, which only chunks ever name
+    // and always by the same URL, and nothing imports the entry, so it runs
+    // once under whatever URL it arrived by, and a second copy of it would
+    // import the one app chunk again — a module the browser has already run.
+    //
+    // A static import, not `import("./main")`. That one leaves Vite's preload
+    // helper in the entry, so the app chunk imports the entry back and runs it
+    // twice after all, and it moves the stylesheet out of index.html, where it
+    // holds the first paint until it has loaded, into a <link> that the script
+    // adds once it is running. entry-runs-once-2162.test.ts builds the app and
+    // holds the chunk graph to all of this.
+    rollupOptions: {
+      output: {
+        manualChunks: id => (id === appModule ? "app" : undefined),
+      },
+    },
   },
   server: {
     port: 5174,
