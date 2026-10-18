@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  AGENTS, DEAD_KEEP, KINDS, LAUNCH_MODELS, LAUNCH_PERMISSION_MODES, SESSION_OPTIONS, TerminalSessionError, agentArgv, launchOptionArgs, checkCwd, clampSize, deadDeckSessions,
+  AGENTS, DEAD_KEEP, KINDS, LAUNCH_MODELS, PANE_HISTORY, paneTerm, LAUNCH_PERMISSION_MODES, SESSION_OPTIONS, TerminalSessionError, agentArgv, launchOptionArgs, checkCwd, clampSize, deadDeckSessions,
   deckSessionName, findDeckSession, isDeckSessionName, killDeckSession, labelDeckSession, launchCommand, launchSession,
   listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resolveAgentBin, staleDeadSessions,
 } from "../../server/terminal-sessions.mjs";
@@ -199,8 +199,10 @@ describe("the tmux command that makes a deck session", () => {
     const at = "=ccdeck-claude-0123abcd:";
     expect(args).toEqual([
       "-f", "/dev/null",
-      "new-session", "-d", "-s", "ccdeck-claude-0123abcd", "-x", "100", "-y", "30",
-      "-c", "/w/a##{x} b\\;", "-e", "COLORTERM=truecolor", "-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-P", "-F", "#{pane_id}",
+      "set-option", "-g", "default-terminal", "screen-256color",
+      ";", "set-option", "-g", "history-limit", "10000",
+      ";", "new-session", "-d", "-s", "ccdeck-claude-0123abcd", "-x", "100", "-y", "30",
+      "-c", "/w/a##{x} b\\;", "-e", "COLORTERM=truecolor", "-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-e", "CLAUDE_CODE_SCROLL_SPEED=3", "-P", "-F", "#{pane_id}",
       "--", "/bin/claude", "--session-id", ID,
       ";", "set-option", "-t", at, "@ccdeck-session", ID,
       ";", "set-option", "-t", at, "@ccdeck-agent", "claude",
@@ -211,9 +213,24 @@ describe("the tmux command that makes a deck session", () => {
     ]);
   });
 
-  it("gives Claude, and only Claude, the non-blocking stdout its docs name for a paused control-mode pane", () => {
+  it("gives Claude, and only Claude, the non-blocking stdout and the wheel speed its docs name", () => {
     const codex = launchCommand({ name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/bin/codex"], agent: "codex", kind: "launch" });
     expect(codex).not.toContain("CLAUDE_CODE_NONBLOCKING_STDOUT=1");
+    expect(codex).not.toContain("CLAUDE_CODE_SCROLL_SPEED=3");
+  });
+
+  it("gives every pane a 256-colour terminal type and a native terminal's history, ahead of the pane", () => {
+    const args = launchCommand({ name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/bin/codex"], agent: "codex", kind: "launch", term: "tmux-256color" });
+    expect(args.slice(2, 13)).toEqual(["set-option", "-g", "default-terminal", "tmux-256color", ";", "set-option", "-g", "history-limit", "10000", ";", "new-session"]);
+    expect(PANE_HISTORY).toBe(10_000);
+  });
+
+  it("names tmux-256color only where this machine's terminfo has it", () => {
+    const has = (paths: string[]) => (p: string) => paths.includes(p);
+    expect(paneTerm({ env: {}, home: "/h", exists: has(["/usr/share/terminfo/t/tmux-256color"]) })).toBe("tmux-256color");
+    expect(paneTerm({ env: {}, home: "/h", exists: has(["/opt/homebrew/share/terminfo/74/tmux-256color"]) }), "macOS files it by hex code").toBe("tmux-256color");
+    expect(paneTerm({ env: { TERMINFO: "/t" }, home: "/h", exists: has(["/t/t/tmux-256color"]) })).toBe("tmux-256color");
+    expect(paneTerm({ env: {}, home: "/h", exists: () => false }), "macOS's own terminfo has no tmux entry").toBe("screen-256color");
   });
 
   it("labels with the four options the listing reads back", () => {
@@ -224,7 +241,7 @@ describe("the tmux command that makes a deck session", () => {
 
   it("hands a one-word command to /bin/sh's exec, never to the user's shell", () => {
     const args = launchCommand({ name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/x/codex"], sessionId: "", agent: "codex", kind: "launch" });
-    const cmd = args.slice(args.indexOf("--") + 1, args.indexOf(";"));
+    const cmd = args.slice(args.indexOf("--") + 1, args.indexOf(";", args.indexOf("--")));
     expect(cmd).toEqual(["/bin/sh", "-c", 'exec "$0"', "/x/codex"]);
   });
 });
@@ -243,7 +260,7 @@ describe("launching a session", () => {
     expect(bin).toBe("/usr/bin/tmux");
     expect(socket, "the product's own server unless told otherwise").toBe(DECK_SOCKET);
     expect(opts.env, "the deck's environment; runTmux scrubs it").toBe(env);
-    const cmd = args.slice(args.indexOf("--") + 1, args.indexOf(";"));
+    const cmd = args.slice(args.indexOf("--") + 1, args.indexOf(";", args.indexOf("--")));
     expect(cmd, "the resolved binary, told the id it returned").toEqual([process.execPath, "--session-id", out.sessionId]);
     expect(args).toContain(out.name);
   });
