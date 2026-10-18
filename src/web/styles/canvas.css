@@ -94,6 +94,14 @@
   transform: scale(0.92);
   border-color: var(--err);
 }
+/* A session dragged by its box moves its cards through state, so none of them
+   is the .dragging node: the box is, and it answers for all of them. The handle
+   is invisible until a release over the zone would take the session away. */
+.canvas-wrap.trash-hover .react-flow__node-sessionGroup.dragging .session-group-handle {
+  border-radius: var(--r-panel);
+  outline: 2px solid var(--err);
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+}
 @keyframes dragTrashIn {
   from { opacity: 0; translate: 0 14px; }
   to { opacity: 1; translate: 0 0; }

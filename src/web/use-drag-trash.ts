@@ -5,8 +5,9 @@
 // lines apart: the start named the card and raised the zone, every move asked
 // how close the pointer was, and the stop asked once more and lowered it. Those
 // three are now the operations here, and the setters are private. The start is
-// the one that decides what the zone shows, so a session box — which moves its
-// cards rather than being one — raises nothing, as before.
+// the one that decides what the zone shows: a card raises it under its own
+// name, and a session's box, which carries every card in the session, raises it
+// under the name of the session's root card.
 import { useCallback, useRef, useState } from "react";
 
 import { usePanelPresence } from "./panel-exit";
@@ -26,8 +27,9 @@ export function useDragTrash() {
     return rect && point ? trashProximity(point, rect) : "far";
   }, []);
 
-  /** A drag began. `cardLabel` is the card's name for the zone to show, or
-   *  null for anything that is not a card, which leaves the zone down. */
+  /** A drag began. `cardLabel` is the name for the zone to show, a card's or
+   *  a session's, or null for anything that cannot be removed, which leaves
+   *  the zone down. */
   const beginTrashDrag = useCallback((cardLabel: string | null) => {
     if (cardLabel !== null) {
       setTrashLabel(cardLabel);
@@ -41,10 +43,11 @@ export function useDragTrash() {
     setTrashState(trashProximityOf(event));
   }, [trashProximityOf]);
 
-  /** The drag ended. Returns whether a card was let go over the zone — asked
-   *  before the zone is lowered, while its rectangle is still there to hit. */
-  const endTrashDrag = useCallback((event: DragEvent, isCard: boolean): boolean => {
-    const dropped = isCard && trashProximityOf(event) === "over";
+  /** The drag ended. Returns whether a card or a session's box was let go over
+   *  the zone — asked before the zone is lowered, while its rectangle is still
+   *  there to hit. */
+  const endTrashDrag = useCallback((event: DragEvent, removable: boolean): boolean => {
+    const dropped = removable && trashProximityOf(event) === "over";
     setTrashDragging(false);
     return dropped;
   }, [trashProximityOf]);
