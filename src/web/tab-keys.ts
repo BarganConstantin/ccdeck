@@ -52,6 +52,12 @@ export function keptKeysNotice(canFull: boolean, platform: string = platformName
   return canFull ? KEPT_KEYS_FULL : KEPT_KEYS_APP;
 }
 
+/** Is `notice` the sentence above — which full screen makes untrue, so the
+ *  stage takes it down the moment full screen arrives? */
+export function isKeptKeysNotice(notice: string | null): boolean {
+  return notice === KEPT_KEYS_FULL || notice === KEPT_KEYS_APP;
+}
+
 /** The whole deck in full screen, and Esc asked for the pane. False when
  *  the browser said no — the stage is then only as wide as it goes. */
 export async function enterFullStage(): Promise<boolean> {

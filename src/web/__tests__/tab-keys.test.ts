@@ -174,6 +174,14 @@ describe("where ⤢ means full screen", () => {
     page.doc.fullscreenElement = {};
     expect(keptKeysNotice(true, "Linux x86_64")).toBeNull();
   });
+
+  it("knows its own sentences, which full screen arriving takes down, from the stage's other notices", async () => {
+    const { KEPT_KEYS_APP, KEPT_KEYS_FULL, isKeptKeysNotice } = await import("../tab-keys");
+    expect(isKeptKeysNotice(KEPT_KEYS_FULL)).toBe(true);
+    expect(isKeptKeysNotice(KEPT_KEYS_APP)).toBe(true);
+    expect(isKeptKeysNotice("Pasted 120 lines.")).toBe(false);
+    expect(isKeptKeysNotice(null)).toBe(false);
+  });
 });
 
 describe("entering and leaving full screen", () => {

@@ -54,7 +54,7 @@ import { useFocusRequest } from "./use-focus-request";
 import { tellDesktopKeys } from "../../desktop-keys";
 import { QUIET_RESCAN_MS, quietPage } from "../../quiet-page";
 import { guardLeaving } from "../../leave-guard";
-import { keptKeysNotice } from "../../tab-keys";
+import { isKeptKeysNotice, keptKeysNotice } from "../../tab-keys";
 import { useFullStage } from "./use-full-stage";
 import { usePaneRoom } from "./use-pane-room";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
@@ -225,6 +225,11 @@ export default function TerminalStage(p: TerminalStageProps) {
     return () => clearTimeout(t);
   }, [notice]);
   useEffect(() => { setNotice(null); }, [key]);
+  // ⤢ pressed while the bar still says the browser keeps Ctrl+W: in full
+  // screen it does not, so the sentence goes rather than lingering untrue.
+  useEffect(() => {
+    if (fullStage.full) setNotice(n => (isKeptKeysNotice(n) ? null : n));
+  }, [fullStage.full]);
 
   // The phase itself, for the integrator's morph, which waits for the pane.
   const onPhase = useRef(p.onPhase);
