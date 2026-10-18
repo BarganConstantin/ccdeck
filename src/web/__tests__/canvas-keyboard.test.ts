@@ -407,8 +407,10 @@ describe("nothing else in the deck invents a focus stop", () => {
     // Combobox options use aria-activedescendant; focus stays on the input.
     // Tool activity's details heading takes focus when a tool is opened from
     // the keyboard, so the panel that appeared is announced by its name.
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/RadioFilter.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx"]);
+    // Settings' search results are the same combobox shape (SettingsSearch.tsx).
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx"]);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
   });

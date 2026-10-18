@@ -514,7 +514,19 @@
 .ns-label-gap { margin-top: 14px; }
 .ns-choices { display: flex; margin-bottom: 10px; }
 .ns-choices .uh-range-btn { flex: 1 1 0; }
-.sm-switch.ns-worktree { margin-top: 2px; }
+/* The switch's own row: its name on the left, the switch on the right, as
+   the popovers' switches were drawn before Settings took them into its rows.
+   `cursor: default`, as theirs: the pointer belongs to the switch. */
+.ns-worktree {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 20px;
+  margin-top: 2px;
+  cursor: default;
+}
+.ns-worktree-label { font-weight: 500; }
 .ns-note { margin: 12px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .ns-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 

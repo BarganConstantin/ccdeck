@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -128,7 +128,7 @@ function Inner() {
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
+          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
   /** Both panels outlive their own `false` by the length of their exit: a
    *  close slides the panel out with the column's edge, and a switch fades the
    *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
@@ -228,6 +228,19 @@ function Inner() {
   const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !providers.claude ? null : leftPanel);
   const columnSettleRef = useColumnSettle(leftColumnTarget);
   const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && providers.claude;
+  // Settings › General's door to Local network (#2176), which is the accounts
+  // panel's own view: the panel opened (use-left-column.ts), and the view
+  // asked for. The panel shows it once its roster has arrived — the moment
+  // its own way in, the row at its foot, appears — so the ask waits for that,
+  // and is dropped if the panel is shut first, rather than springing the view
+  // open on some later visit nobody asked it of.
+  const [lanWanted, setLanWanted] = useState(false);
+  const openLocalNetwork = useCallback(() => {
+    openAccountsPanel();
+    setLanWanted(true);
+  }, [openAccountsPanel]);
+  useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);
+  const lanShown = useCallback(() => setLanWanted(false), []);
 
   // The "started under an old npm name" notice lives in use-old-name-notice.ts.
   const oldNameNotice = useOldNameNotice(version);
@@ -731,7 +744,8 @@ function Inner() {
               the first thing such a user saw. */}
           {accountsDrawn && (
             <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
-              onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }} />
+              onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }}
+              lanWanted={lanWanted} onLanShown={lanShown} />
           )}
           {sessionListDrawn && (
             <SessionList
@@ -854,6 +868,7 @@ function Inner() {
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
         terminal={{ on: stage.enabled, forced: stage.forced, toggle: stage.toggleTerminal }}
+        panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}
       />
     </div>
   );

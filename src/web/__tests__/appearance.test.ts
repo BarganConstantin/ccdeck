@@ -68,7 +68,7 @@ describe("character appearance preference", () => {
     expect(styles).toContain(".modal.settings-modal");
     expect(styles).not.toContain(".modal-backdrop:has(> .settings-modal)");
     expect(styles).toMatch(/\.modal\.settings-modal \{[^}]*height: min\(720px, calc\(100dvh - 80px\)\);[^}]*max-height: none;/);
-    expect(styles).toMatch(/@media \(max-width: 640px\) \{\s*\.modal\.settings-modal \{ height: calc\(100dvh - 32px\); \}/);
+    expect(styles).toMatch(/@media \(max-width: 640px\) \{\s*\.modal\.settings-modal \{ height: calc\(100dvh - 32px\);/);
     expect(styles).not.toMatch(/\.modal\.settings-modal \{[^}]*\bmin-height:/);
     expect(styles).toMatch(/\.settings-pane \{[^}]*overflow-y: auto;/);
     expect(themes()).toContain("onKeyDown={moveTheme}");
@@ -79,15 +79,18 @@ describe("character appearance preference", () => {
     expect(modal()).toContain('<span id="settings-title" className="modal-tool-name">Settings</span>');
     // The pair is named by its visible caption, and the key that switches it
     // from anywhere is declared on it — while that key does anything, which
-    // Settings › General's single-key switch decides (WCAG 2.1.4).
+    // Settings › Keyboard's single-key switch decides (WCAG 2.1.4).
     expect(themes()).toMatch(/role="radiogroup"\s+aria-labelledby="appearance-theme-caption"\s+aria-keyshortcuts=\{singleKeys \? "T" : undefined\}/);
     // One tab stop in the pair, on the theme that is set; the arrows walk it.
     expect(themes()).toContain("tabIndex={theme === choice ? 0 : -1}");
     // The previews are pictures; the name is the word under each.
     expect(themes()).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
-    expect(character()).toContain('aria-labelledby="appearance-character-caption"');
+    // The character's switch is a row now, named by the words beside it and
+    // described by the line under them (#2176); the caption names the group.
+    expect(character()).toContain('aria-labelledby="appearance-character-label"');
+    expect(character()).toContain('aria-describedby="appearance-character-note"');
+    expect(character()).toContain('id="appearance-character-caption"');
     expect(character()).not.toContain("Show character on minimap");
-    expect(character()).not.toContain("appearance-character-note");
   });
 
   it("keeps Space and T working inside Settings", () => {

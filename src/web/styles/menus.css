@@ -3,39 +3,50 @@
 /* THE ONE SETTINGS SURFACE (SettingsModal.tsx): `.modal`'s shell, a nav down
    the side and the section beside it. ONE HEIGHT, WHICHEVER SECTION IS OPEN.
    It followed its section with the top pinned, and every press in the nav
-   moved the bottom edge: 412px on General, 320 on Notifications, 618 on Sounds
-   and 378 on Music & character at 1440×900, the frame jumping under the
-   pointer. macOS System Settings, Linear's settings and Raycast's preferences
-   keep one frame and change the pane inside it; so does this. 720px holds
-   Sounds, the tallest, with a custom sound or two to spare, and is clamped
-   40px off each edge of a shorter window, where the section scrolls inside
-   (.settings-pane) and the header and the nav stay. No floor and no ceiling
-   besides it, so nothing a section draws reaches the frame. Centred like
-   every dialog: a height that never changes keeps it in one place.
-   760px holds a 176px nav and a section as wide as the Appearance modal's
-   was. */
+   moved the bottom edge, the frame jumping under the pointer. macOS System
+   Settings, Linear's settings and Raycast's preferences keep one frame and
+   change the pane inside it; so does this. 720px, clamped 40px off each edge
+   of a shorter window, where the section scrolls inside (.settings-pane) and
+   the header and the nav stay. No floor and no ceiling besides it, so nothing
+   a section draws reaches the frame. Centred like every dialog: a height that
+   never changes keeps it in one place.
+   800px holds a 196px nav and a section four theme previews wide (#2176). */
 .modal.settings-modal {
-  width: min(760px, calc(100vw - 32px));
+  width: min(800px, calc(100vw - 32px));
   height: min(720px, calc(100dvh - 80px));
   max-height: none;
+  --settings-group-gap: 24px;
 }
 .settings-body {
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
+  grid-template-columns: 196px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
-/* The nav sits a surface down, as the modal's header does, so the section
-   beside it reads as the page and the nav as the thing that turns it. */
-.settings-nav {
+/* The nav's column sits a surface down, as the modal's header does, so the
+   section beside it reads as the page and the nav as the thing that turns it.
+   It holds the search field and, under it, the tab strip, which scrolls on
+   its own on a window too short for eight tabs while the field stays. About
+   stands at the strip's foot, apart from the subjects above it, the way the
+   desktop settings windows this follows keep their About (#2176). */
+.settings-side {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px 8px;
+  min-width: 0;
+  min-height: 0;
   border-right: 1px solid var(--line);
   background: var(--bg-soft);
+}
+.settings-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 8px 8px 12px;
   overflow-y: auto;
 }
+.settings-tab#settings-tab-about { margin-top: auto; }
 /* A row a reader presses, at the one control height. Hover is neutral, as
    every control's is. The section on show is RAISED, the way the feedback
    dialog's chosen kind is (.fb-kind): onto the panel the section is drawn on,
@@ -47,8 +58,9 @@
    transparent until chosen, so choosing one moves nothing.
    A glyph before each name (SettingsSectionGlyph.tsx), drawn in currentColor
    so it is the tab's own ink: --muted at rest, --text pointed at or chosen,
-   the system's colours under a Contrast theme. Centred on the line box, which
-   at 12px is where the capitals' middle sits. */
+   the system's colours under a Contrast theme. 13px, the body's size: the
+   nav is the dialog's way round, and at 12px its eight names read as the
+   captions under them. */
 .settings-tab {
   display: flex;
   align-items: center;
@@ -60,7 +72,7 @@
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -68,8 +80,7 @@
 }
 .settings-tab > svg { display: block; flex: none; }
 /* One line, always: a name that wrapped under its glyph would make one tab
-   taller than its neighbours. The clip is a last resort for enlarged text;
-   under 360px the glyphs step aside instead (below). */
+   taller than its neighbours. The clip is a last resort for enlarged text. */
 .settings-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-tab:hover { background: var(--ctl-fill); color: var(--text); }
 .settings-tab[aria-selected="true"] {
@@ -98,7 +109,7 @@
 .settings-pane {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--settings-group-gap);
   min-height: 0;
   padding: 16px 20px 32px;
   overflow-y: auto;
@@ -108,42 +119,60 @@
   -webkit-mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 32px), transparent);
   mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 32px), transparent);
 }
-/* The section's name over it, the one 16px line in the dialog: a step over the
-   13px rows and the 12px captions, and 8px more room under it than the groups
-   take between them, so it heads the page rather than reading as one more
-   group. A section that ends a third of the way down the frame then reads as a
-   page that ends, not a box half-filled. 22px of line puts its middle level
-   with the first tab's (12px of nav padding and half of a 30px tab). Scrolls
-   with its section; the tab beside it already says where the reader is. */
+/* THE PANE'S HEAD: the section's name, the one 16px line in the dialog, and
+   under it the line saying what the section holds (#2176), with the
+   section's own action on the right where it has one (Text & density's
+   Reset). The name is a step over the 13px rows, and the head stands a group
+   step off the first group, so it heads the page rather than reading as one
+   more group. 22px of line puts the name's middle level with the first tab's.
+   Scrolls with its section; the tab beside it already says where the reader
+   is. */
+.settings-pane-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.settings-pane-heading { min-width: 0; }
 .settings-pane-title {
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--text);
   font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: calc(22px + var(--ui-text-increase, 0px));
 }
-/* ONE CADENCE FOR EVERY SECTION. A group is a caption over its controls, 10px
-   apart; two subjects in one section are parted by a hairline with 16px either
-   side of it — Sounds' rules, now Music's and Notifications' too. No section
-   boxes its groups: a well round Claude FM's controls and none round the tones
-   was the dialog reading as the three menus it was lifted from. */
-.settings-group { display: flex; flex-direction: column; gap: 10px; }
-.settings-pane > .settings-group + .settings-group {
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
+.settings-pane-note {
+  margin: 2px 0 0;
+  max-width: 60ch;
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(17px + var(--ui-text-increase, 0px));
 }
+.settings-pane-head > .btn { flex: none; }
+
+/* ONE SHAPE FOR EVERY GROUP (SettingsParts.tsx, #2176): a caption, then one
+   bordered list of rows with a hairline between each, the boxed list macOS
+   System Settings, Windows 11 and libadwaita all draw. A group is told from
+   the next by the section's group step; nothing else parts them. The list's
+   ground is the faintest lift off the panel — mixed from the foreground like
+   the control tiers, so it exists in both themes by construction, and 2%,
+   the most it takes before a row's --text-dim note falls under 4.5:1 in dark
+   (contrast-floors.test.ts) — and its edge is --line, the edge every panel in the deck wears. A group whose
+   content draws its own frames (the theme previews, the text-size scale) has
+   no list, so nothing here is a box in a box. */
+.settings-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .settings-caption {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
+  padding: 0 2px;
 }
+.settings-caption-text { min-width: 0; }
 /* THE ONE GROUP HEADING, under the caption the panels' sections use: the name
-   in --muted at 12px and 600, sentence case, a line under it in --text-dim, and
-   the one piece of metadata — a key, a count — on the right. The tone groups
-   and Custom sounds wear it too (.sm-tone-name): they were capitals tracked at
-   0.13em, the popover's banner, which beside "Color theme" and "Claude FM" made
-   Sounds the one section in another hand. */
+   in --muted at 12px and 600, sentence case, and the one piece of metadata —
+   a key, a count, a button that acts on the whole group — on the right. The
+   tone groups and Custom sounds wear it too (.sm-tone-name). */
 .settings-caption h3,
 .sm-tone-name {
   margin: 0;
@@ -155,20 +184,131 @@
 .settings-caption-note {
   margin: 2px 0 0;
   color: var(--text-dim);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
+/* A count in a caption's right-hand slot, as quiet as the note beside it. */
+.settings-caption-count {
+  flex: none;
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+}
 /* Beta, in the same slot: the word Telemetry Radar's title wears (.tr-beta),
-   in the caption's own ink and size, so it reads as a note on the group rather
-   than as a control. */
+   as quiet as the count, so it reads as a note on the group rather than as a
+   control. */
 .settings-beta {
-  color: var(--muted);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  flex: none;
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
-/* A key cap in the caption's right-hand slot, where the panels put a
-   caption's one piece of metadata — the shape .sm-key-note kbd draws inline. */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+}
+.settings-list > :not(:first-child) { border-top: 1px solid var(--line); }
+/* THE ONE ROW: the name and the line under it on the left, the control on the
+   right, centred on the pair. A <label> when it holds one control, so a press
+   on the name reaches it; `cursor: default` and not `pointer`, because the
+   pointer belongs to the control inside it, which is where the press
+   animation is too. Its vertical room is the density setting's to scale
+   (--ui-space), as every list's is; the 30px control holds a floor under it. */
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 2px;
+  margin: 0;
+  padding: calc(10px * var(--ui-space, 1)) 14px;
+  min-width: 0;
+}
+.settings-row-name {
+  grid-column: 1;
+  min-width: 0;
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  overflow-wrap: anywhere;
+}
+.settings-row-note {
+  grid-column: 1;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+/* The control's slot keeps a control's height whatever stands in it, so a
+   button that gives way to a word — Notifications' Enable, once the browser
+   has answered — changes one label and not the row under the pointer. */
+.settings-row-control {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+  min-height: var(--ctl-h);
+}
+/* A row with no note is one line: the control keeps to the name's line, so
+   the two share a middle. Spanning a second, empty line, the 30px control
+   grew it and centred itself 6px under a name that stayed at the top. */
+.settings-row:not(:has(> .settings-row-note)) > .settings-row-control { grid-row: 1; }
+.settings-row-control > .sm-select { flex: none; min-width: 120px; min-height: var(--ctl-h); }
+/* A row whose content spans it — the character choices, a confirmation. */
+.settings-row-wide { grid-template-columns: minmax(0, 1fr); }
+/* A value the row reports, in the data face, a figure that ticks. */
+.settings-read {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.settings-row-status {
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+}
+/* What became of a press made in a row, under its name and its note, across
+   the row (About's Restart to update). It is the row's live region, so it is
+   in the tree before it has anything to say; empty, it is out of the grid and
+   takes no room and no gap. */
+.settings-row-said {
+  grid-column: 1 / -1;
+  color: var(--text);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.settings-row-said:empty { position: absolute; }
+/* A way out of the deck from a row: About's Source. A link, so it is drawn as
+   one — the accent's words, underlined under the pointer, the look the deck's
+   other links out (.film-link) wear — and a control's height tall, so the
+   pointer has the same target a button beside it would give. Hover adds the
+   underline and leaves the colour alone. */
+.settings-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ctl-h);
+  color: var(--accent);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.settings-link:hover { text-decoration: underline; }
+.settings-link:active { transform: scale(0.97); }
+/* A key cap, in a caption's right-hand slot or beside the switch it flips, and
+   on the right of every row of Settings › Keyboard. */
 .settings-key {
   font-family: var(--font-mono);
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
@@ -180,65 +320,221 @@
   border-bottom-width: 2px;
   border-radius: 4px;
   padding: 1px 5px;
+  white-space: nowrap;
 }
-/* The Sounds section: the switch, then two subjects under hairlines — the
-   tones, and the sounds of your own — at the section cadence above. */
-.sm-sounds { display: flex; flex-direction: column; gap: 16px; }
+/* Settings › Keyboard's shortcuts: a row is a sentence and a cap, so a
+   shorter row than a setting's, and the cap in --text where a reader looks
+   for it. */
+.settings-keys .settings-row { padding-block: calc(6px * var(--ui-space, 1)); }
+.settings-keys .settings-key { color: var(--text); }
+/* The field that narrows a list as it is typed into, the width of the pane. */
+.settings-filter { display: flex; }
+.settings-filter-field {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--ctl-h);
+  padding: 0 10px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--text);
+  font: inherit;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+}
+.settings-filter-field::placeholder { color: var(--text-dim); opacity: 1; }
+/* The browser's own clear button, drawn in the field's ink rather than the
+   platform's: Chromium paints it a fixed light grey that glared on every dark
+   theme. Same cross as the dialog's close, at the glyph spec's 1.4 stroke. */
+.settings-filter-field::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  background-color: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.settings-filter-field::-webkit-search-cancel-button:hover { background-color: var(--text); }
+.settings-filter-field:hover { border-color: var(--text); }
+/* SEARCH (SettingsSearch.tsx): the same field at the top of the nav's
+   column, with a magnifier inside its leading edge — the glyph is centred on
+   the field by the flex line it stands in, and drawn on the nav glyphs' spec
+   (13px, a 1.4 stroke in currentColor). */
+.settings-search {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding: 12px 8px 4px;
+  color: var(--muted);
+}
+.settings-search-glyph { position: absolute; left: 18px; pointer-events: none; }
+.settings-search .settings-search-field { padding-left: 32px; }
+/* While a query is in the field the results stand where the section was,
+   which stays mounted and hidden under them. `[hidden]` alone loses to the
+   pane's own `display: flex`. */
+.settings-pane[hidden] { display: none; }
+/* A RESULT is a row of one list, in the row's own type: the setting's name in
+   --text, and under it where it lives in --text-dim, after the glyph of its
+   section so the eye finds the section first, as it does in the nav. The
+   hairline between results is the list's (.settings-list), not the result's own: a
+   result is a button, which has no edge of its own to draw. Hover is
+   neutral. The keyboard's highlight is drawn as the focus ring is, because
+   that is what it is — focus that stays in the field (aria-activedescendant)
+   while the arrows move it. */
+.settings-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--ctl-h);
+  margin: 0;
+  padding: calc(8px * var(--ui-space, 1)) 14px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.settings-result > svg { display: block; flex: none; }
+.settings-result-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.settings-result-name {
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  overflow-wrap: anywhere;
+}
+.settings-result-place {
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.settings-result:hover { background: var(--ctl-fill); color: var(--text); }
+.settings-result[data-highlighted="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.settings-result:active { transform: scale(0.97); }
+/* A row's own ground — a hovered result, the mark a result leaves on the row
+   it landed on — is rounded with the list at its two ends, so neither pokes a
+   square corner past the list's round one. */
+.settings-list > :first-child { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.settings-list > :last-child { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
+/* WHERE A RESULT LANDED (use-settings-jump.ts): the row, scrolled to the
+   middle of the pane, takes an accent wash that is held, then gone by 1.2s,
+   so the eye that followed the jump finds the row while focus is already on
+   its control. A group a result names as a whole — the theme grid, a tone,
+   the text-size scale — draws its own frames edge to edge, so its wash
+   reaches 8px past its box, into the pane's padding, and a group with no
+   corners of its own is rounded like a panel for it. The scale and not its
+   fieldset: a fieldset paints from the middle of its legend, and the wash
+   would cut the name in half. Under reduced motion nothing fades: the row
+   wears a still accent outline that comes off with the attribute, 1.5s
+   later. */
+.settings-pane :is(.settings-group, .sm-custom)[data-jumped] { border-radius: var(--r-panel); }
+@media (prefers-reduced-motion: no-preference) {
+  .settings-pane [data-jumped] { animation: settings-jumped 1200ms ease-out; }
+  .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { animation: settings-jumped-group 1200ms ease-out; }
+}
+/* Held for the first 40% — long enough to be seen where the eye lands —
+   then faded to the row's own ground. */
+@keyframes settings-jumped {
+  0%, 40% { background-color: color-mix(in srgb, var(--accent) 16%, transparent); }
+}
+@keyframes settings-jumped-group {
+  0%, 40% {
+    background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-pane [data-jumped] { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { outline-offset: 6px; }
+}
+.settings-empty, .settings-foot {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+/* The Sounds section: the switch, then a group per tone, then the sounds of
+   your own, at the section's group step. */
+.sm-sounds { display: flex; flex-direction: column; gap: var(--settings-group-gap); }
+/* A tone's volume and sound, as rows of its list: the name where every row's
+   is, and the slider and the select sharing one right-hand column, so the
+   two tones' controls start on one edge. */
+.settings-list > .sm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 240px) 40px;
+  align-items: center;
+  column-gap: 12px;
+  padding: calc(10px * var(--ui-space, 1)) 14px;
+}
+.settings-list > .sm-row > label {
+  min-width: 0;
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+}
+.settings-list > .sm-row > .sm-select { grid-column: 2 / -1; min-height: var(--ctl-h); }
 
-/* AT A PHONE'S WIDTH THE NAV GOES ON TOP (#849's breakpoint). A column of
-   176px and a section beside it leave the section 150px at 390, so the nav
-   becomes a grid over the section, two by two at every width up to the
-   breakpoint. Four abreast needs about 600px once each tab carries a glyph
-   and its name, and the fill-what-fits grid this was laid three and one
-   from 412px to about 530px, so the two columns are fixed and the grid is
-   always even.
-   Nothing scrolls sideways. The glyph and the name are centred together. The
-   chosen one is raised exactly as it is down the side; a bar under it, in a
-   grid of two rows, pointed at the tab below rather than at the section. The
-   dialog takes the screen's whole height, 16px off each edge, for every
-   section, and the section scrolls under the nav. */
+/* AT A PHONE'S WIDTH THE NAV GOES ON TOP (#849's breakpoint), as ONE ROW
+   that scrolls sideways. It was a two-by-two grid, which held four sections
+   and would have been four rows deep with eight. A row the width of the
+   screen, with the chosen tab brought into view (SettingsModal.tsx), is how a
+   phone's own settings tabs and a browser's tab strip behave, and keeps the
+   section under it as tall as it can be. The glyph stays with its name. The
+   dialog takes the screen's whole height, 16px off each edge. */
 @media (max-width: 640px) {
-  .modal.settings-modal { height: calc(100dvh - 32px); }
+  .modal.settings-modal { height: calc(100dvh - 32px); --settings-group-gap: 20px; }
   .settings-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
+  /* The search field above the row, the screen's full width. */
+  .settings-side { border-right: 0; border-bottom: 1px solid var(--line); }
+  .settings-search { padding: 8px 8px 0; }
   .settings-nav {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-direction: row;
+    gap: 4px;
     padding: 8px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 8px;
+    scrollbar-width: none;
   }
-  .settings-tab { justify-content: center; text-align: center; }
+  .settings-nav::-webkit-scrollbar { display: none; }
+  .settings-tab { flex: none; }
+  .settings-tab#settings-tab-about { margin-top: 0; }
   .settings-pane {
     padding: 14px 14px 32px;
     scroll-padding: 14px 0 32px;
     -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 32px), transparent);
     mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 32px), transparent);
   }
-  /* The chosen tab sits right over the section here, raised, so the name a
-     third time would only push the section down. Off the screen and still the
-     section's heading to a screen reader, as .vis-hidden does it. */
-  .settings-pane-title {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+  .settings-row { padding-inline: 12px; }
+  .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; padding-inline: 12px; }
+}
+/* Under 420px a select, or a read-out with something beside it, goes under
+   its name rather than squeezing the name to a word a line: the name and the
+   note keep the width, and the control starts on their edge. A switch, a key
+   cap, one short button or a read-out alone (the version) stays on the right,
+   as a phone's own settings keep a toggle on the name's line whatever the
+   width. */
+@media (max-width: 420px) {
+  .settings-row:has(> .settings-row-control > :is(select, .settings-read:not(:only-child))) { grid-template-columns: minmax(0, 1fr); }
+  .settings-row:has(> .settings-row-control > :is(select, .settings-read:not(:only-child))) > .settings-row-control {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+    margin-top: 6px;
   }
 }
-/* Half of a 320px screen holds "Music & character" or its glyph beside it,
-   not both, so under 360px the names keep the room and all four glyphs go
-   together: one tab without its glyph would read as a different kind. */
-@media (max-width: 359px) {
-  .settings-tab > svg { display: none; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .settings-tab { transition: none; }
-  .settings-tab:active { transform: none; }
+  .settings-tab, .settings-result { transition: none; }
+  .settings-tab:active, .settings-result:active { transform: none; }
+  .settings-link:active { transform: none; }
 }
 
 /* Each choice previews the deck in that theme,
@@ -255,8 +551,8 @@
    3% shrink is a lurch, not a click. */
 .appearance-themes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 4px;
   margin: 0 -8px;
 }
 .appearance-theme {
@@ -318,9 +614,6 @@
 .appearance-theme[aria-checked="true"] .appearance-check { opacity: 1; }
 
 /* Theme-specific preview variables are generated from the JSON palettes. */
-@media (max-width: 640px) {
-  .appearance-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 .tp-canvas { fill: var(--tp-canvas); }
 .tp-surface { fill: var(--tp-surface); }
 .tp-rule { fill: var(--tp-rule); }
@@ -330,272 +623,6 @@
 .tp-card, .tp-tag { stroke-width: 1; vector-effect: non-scaling-stroke; }
 .tp-card { fill: var(--tp-surface); stroke: var(--tp-rule); }
 .tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
-
-/* One control, the width of the section. The <label> is the target (see
-   MusicSection.tsx). The switch sits in the label's grid row, so it centres on
-   the label's line and not on the pair of lines, and the note spans under
-   both, 5px off it. Drawn as Notifications' and Sounds' switch rows are
-   (.sm-switch): the name at 13px and 500, no plate under the pointer — the
-   switch's own hover answers it — and so one switch row in the whole dialog,
-   where Music's sat a size smaller in a box and lit up as the others did not. */
-.appearance-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 12px;
-  row-gap: 5px;
-  min-height: 20px;
-  margin: 0;
-  cursor: pointer;
-}
-.appearance-row-label {
-  color: var(--text);
-  font-size: calc(13px + var(--ui-text-increase, 0px));
-  font-weight: 500;
-}
-.appearance-row-note {
-  grid-column: 1 / -1;
-  /* Also used on a bare <p> under the volume row, outside the grid — so the
-     margin is reset here rather than left to the UA's paragraph default. */
-  margin: 0;
-  color: var(--text-dim);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: calc(16px + var(--ui-text-increase, 0px));
-}
-/* 48px and 10px: the label column every row in Settings shares (.sm-row), so
-   the station's field and the volume's track start on one edge. */
-.appearance-source-row {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-}
-/* Claude FM's controls, unboxed: a group's rows at the group's step. */
-.appearance-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.appearance-source-row > label {
-  color: var(--muted);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
-  line-height: calc(18px + var(--ui-text-increase, 0px));
-}
-/* A grid, so the trigger stretches to the column like a field rather than
-   shrinking to a short name ("Mix") and reading as one more button. */
-.appearance-source-picker { position: relative; min-width: 0; display: grid; }
-/* A station name is whatever somebody typed, up to 80 characters with no space
-   in them. A button sizes to its content, so that name made the trigger 532px
-   in a 323px dialog and the whole dialog scrolled sideways. Capped at its
-   column here, the label gives way with an ellipsis — the list below shows
-   the full name. */
-.appearance-source-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  max-width: 100%;
-  min-height: 30px;
-  padding: 5px 8px;
-  color: var(--text);
-  background: var(--sm-fill);
-  border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
-  font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
-}
-.appearance-source-trigger > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.appearance-source-trigger:hover,
-.appearance-source-picker.is-open .appearance-source-trigger {
-  background: var(--sm-fill);
-  border-color: var(--text);
-}
-.appearance-source-trigger svg {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.5;
-  transition: transform 120ms ease-out;
-}
-.appearance-source-picker.is-open .appearance-source-trigger svg { transform: rotate(180deg); }
-.appearance-source-list {
-  max-height: min(196px, 24vh);
-  margin-top: 5px;
-  padding: 4px;
-  overflow-y: auto;
-  overscroll-behavior: auto;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-ctl);
-  /* The deck's popover shadow (.anchored-popover): a tight line for sitting on
-     something over --shadow-2 for its height. Its own black 0.22 stayed black
-     on the white page, the thing #876 took off the menus beside it. Both layers
-     are tokens now, so neither is said twice (#1287). */
-  box-shadow: var(--shadow-contact), var(--shadow-2);
-  scrollbar-color: var(--muted) transparent;
-}
-.appearance-source-group {
-  padding: 6px 8px 3px;
-  color: var(--text-dim);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-.appearance-source-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 30px;
-  padding: 5px 8px;
-  color: var(--text);
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
-  font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  text-align: left;
-  cursor: pointer;
-  transition: transform 120ms ease-out;
-}
-/* The name wraps rather than widening the list; `anywhere` rather than
-   `break-word`, because only `anywhere` lowers the min-content width a flex
-   row is sized from. The tick keeps its own width beside it. */
-.appearance-source-option > span:first-child { min-width: 0; overflow-wrap: anywhere; }
-.appearance-source-option > span + span { flex: none; }
-.appearance-source-option:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.appearance-source-option[aria-selected="true"] {
-  color: var(--text);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-}
-/* THE KEYBOARD'S PLACE IN THE LIST IS A RING, not a tint. Focus stays on the
-   trigger (aria-activedescendant), so this is the only focus indicator the
-   arrows have — and as the hover tint it measured 1.28:1 dark and 1.19:1
-   light against the list, and about 1.1:1 against the selected row's tint.
-   The focus ring's own 2px --accent, drawn inside so the list's clip keeps
-   it; the tint stays the selected row's. */
-.appearance-source-option[data-highlighted="true"] {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-/* Still a choice — picking it retries it — but dimmed, beside the word that
-   says why. */
-.appearance-source-option[data-unavailable] { color: var(--text-dim); }
-.appearance-source-trigger:active,
-.appearance-source-option:active { transform: scale(0.97); }
-@media (prefers-reduced-motion: reduce) {
-  .appearance-source-trigger:active,
-  .appearance-source-option:active { transform: none; }
-}
-/* The custom-station controls (#1208). Layout only: the buttons are
-   `button.btn` and the fields `.ap-manage-input`, so their edges, focus ring
-   and press are the ones already swept rather than a third copy of each. */
-/* Why the chosen station is silent, under the picker that chose it and
-   aligned with it rather than with the Station label. Empty, it takes no room. */
-.appearance-fm-status {
-  margin: -6px 0 0 60px;
-  color: var(--muted);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 1.5;
-}
-.appearance-fm-status:empty { display: none; }
-/* The station's own verbs, under the picker and in its column (48px label
-   plus the row's 10px gap): Add on the left, and Rename and Remove, which
-   only a custom station has, pushed to the right edge, away from Add. Trimmed
-   like `.sm-custom-action`, so they read as the field's secondary actions
-   rather than as a row of equal buttons competing with it. */
-.appearance-station-manage {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: -6px 0 0 58px;
-}
-.appearance-station-edit { display: inline-flex; gap: 6px; margin-left: auto; }
-button.btn.appearance-station-action { padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
-/* Remove's second press, in the error colour for the four seconds it waits —
-   the custom sounds' Delete (.sm-custom-icon.armed), the same act. */
-button.btn.danger.appearance-station-action.armed { color: var(--bg); background: var(--err); }
-.appearance-station-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  /* The buttons sit on the fields' line, not level with their labels. */
-  align-items: end;
-  gap: 8px;
-}
-/* A field and the words over it that name it, in the Station label's own
-   type: named on screen rather than by a placeholder that typing erases. */
-.appearance-station-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-/* On the words and not the <label>: the field sets `font: inherit`, and would
-   have taken the label's weight with it. */
-.appearance-station-field > span {
-  color: var(--muted);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
-  line-height: calc(18px + var(--ui-text-increase, 0px));
-}
-.appearance-station-form .appearance-station-field:first-child { grid-column: 1 / -1; }
-.appearance-station-form.is-rename .appearance-station-field:first-child { grid-column: 1; }
-.appearance-station-form.is-rename { grid-template-columns: minmax(0, 1fr) auto auto; }
-.appearance-station-error {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: var(--err);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: calc(16px + var(--ui-text-increase, 0px));
-}
-/* SETTINGS › NOTIFICATIONS. Two subjects at the section cadence: the switch
-   for a deck nobody is looking at (and the browser channel it reaches you
-   through), then, under a hairline, the three said whether a page is open or
-   not. 5px binds a note to the switch it belongs to. */
-.sm-switches { display: flex; flex-direction: column; gap: 16px; }
-/* The three account switches, with the line that covers all three said FIRST,
-   as a caption is. Under the last of them, 5px off "Quota reset" — the gap a
-   switch's own note sits at — it read as that one switch's note. Rows 10px
-   apart, the group's own step. */
-.sm-account-switches {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-/* A row that is entirely a target: the <label> wraps the name and the switch,
-   so the name is clickable and the accessible name comes from the element the
-   eye reads, rather than from an aria-label nobody can check against the
-   screen. `cursor: default` and not `pointer` — the pointer belongs to the
-   control inside it, which is where the press animation is too, and a row-wide
-   pointer over a 268px popover would claim the whole width answers a click. */
-.sm-switch {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 20px;
-}
-/* 500, not 600. These two are the loudest words in the card and they are also
-   the ones a reader finds without looking — the weight was buying nothing and
-   costing the hierarchy under them. */
-.sm-switch-label { font-weight: 500; }
 
 /* ONE SWITCH (#886). There were four: `.ap-auto-state` (the accounts panel's
    and the LAN dialog's five), `.sm-toggle` (the sound menu's two), `.bw-toggle`
@@ -670,32 +697,6 @@ button.btn.danger.appearance-station-action.armed { color: var(--bg); background
    resting on it does not wash the warning back out. */
 .switch[data-tone="warn"][aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
 
-/* A setting and the line that says what it covers. 4px, not the group's 10px:
-   the note belongs TO the switch above it, and the gap is the only thing left
-   saying so now that the boxes are gone. */
-.sm-setting { display: flex; flex-direction: column; gap: 5px; }
-
-/* ONE OF THE TWO WAYS NOTIFICATIONS REACH YOU — a capability report, not a
-   setting and not a group. 11px in --text-dim, a step under the group heading
-   (.settings-caption h3): a heading at that rank here would claim it for
-   something the user configures in the browser rather than here.
-   `min-height` and not padding: the head holds a 30px button in one state and
-   the word that replaces it in the other, and without a floor the section
-   shortens under the very press that granted the permission. */
-.sm-channel { display: flex; flex-direction: column; gap: 5px; }
-.sm-channel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: var(--ctl-h);
-}
-.sm-channel-name {
-  margin: 0;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 500;
-  color: var(--text-dim);
-}
 /* Sized like `.sm-hear` and named for itself. They are the same small button in
    the same slot, but "hear" is what one of them does and a permission prompt is
    not it — a shared class here would be the generic name unstyled-class.test.ts
@@ -709,22 +710,11 @@ button.btn.sm-channel-action {
 }
 
 
-/* The break between the two subjects this menu holds: above, whether the deck
-   interrupts you at all and whether it can; below, what each interruption
-   sounds like. The caps headings alone were not enough — they separate the two
-   event groups from each other, not the whole set of them from what precedes. */
-.sm-tones {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-/* One tone: a heading with its preview beside it, two rows of controls, and the
-   line saying which turns it covers. */
-.sm-tone { display: flex; flex-direction: column; gap: 10px; }
-.sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The tones, one group each (ToneSection.tsx): the name over its list, the
+   preview in the caption's slot, the line saying which turns it covers under
+   the name. Parted by the section's group step, not by a rule of their own:
+   every group in Settings is told from its neighbour the same way (#2176). */
+.sm-tones { display: flex; flex-direction: column; gap: var(--settings-group-gap); }
 /* Narrower than a full .btn, and exactly as TALL as one. The 12px side padding
    is a lot for two words on a caption line, so that is trimmed and the gap
    between the ▶ and the word is stated — but --ctl-h is not touched: this deck
@@ -742,8 +732,10 @@ button.btn.sm-channel-action {
    `button.btn:hover`'s accent border — leaving a control that got quieter under
    the pointer. Same weight, declared earlier, so hover still wins. */
 button.btn.sm-hear {
+  flex: none;
   padding: 0 8px;
   gap: 4px;
+  white-space: nowrap;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   border-color: var(--sm-edge);
   background: var(--sm-fill);
@@ -923,15 +915,6 @@ button.btn.sm-hear {
    are), every button a plain `.btn` — so the section reads as more of the menu
    rather than a form dropped into it, and the edge, focus and height sweeps
    already know every control in it. */
-.sm-custom {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-.sm-custom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.sm-custom-head span { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
 /* At the ceiling the controls that add a sound stay in the tab order and say
    aria-disabled, never `disabled` — two of them hold focus at the moment the
    library fills (#518). This is `button.btn:disabled`'s dimming, so the refusal
@@ -939,66 +922,33 @@ button.btn.sm-hear {
    nothing does not give under the finger either. */
 .sm-custom [aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
 .sm-custom button.btn[aria-disabled="true"]:active { transform: none; }
-/* Import and record side by side as two cards of one shape: a name, a line
-   saying what it takes, and the one verb. Set at Settings' sizes — the name at
-   12px, the line under it at 11px, as a switch's note is — now that the cards
-   live in a section rather than a 268px popover. */
-.sm-custom-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sm-custom-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
-  min-width: 0;
-  padding: 10px;
-  color: var(--text);
-  background: var(--sm-fill);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.sm-custom-card-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sm-custom-card-copy strong { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; color: var(--text); }
-/* --text-secondary, not --muted: the card's --sm-fill lifts it off the panel,
-   and --muted on that is 4.25:1 in dark (#1788). The 11px under the 12px name
-   keeps the caption the quieter line. */
-.sm-custom-card-copy > span { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.35; color: var(--text-secondary); }
-.sm-voice {
-  color: var(--text-dim);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
+/* The spoken voice is a row of the list that opens: its summary is the
+   shared row (SettingsParts.tsx), name and note on the left, a chevron in the
+   control's slot that turns a quarter as the form opens, the usage panel's
+   gesture. The press is the row's, as a disclosure's is. */
 .sm-voice summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  color: var(--text);
   cursor: pointer;
   list-style: none;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+.sm-voice summary:hover .sm-voice-chevron { color: var(--text); }
 .sm-voice summary:active { transform: scale(0.97); }
 .sm-custom .sm-voice summary[aria-disabled="true"]:active { transform: none; }
 .sm-voice summary:focus-visible { outline-offset: -2px; }
 .sm-voice summary::-webkit-details-marker { display: none; }
-/* Turns rather than swaps, like the usage panel's chevron. */
-.sm-voice summary::after {
-  content: '›';
+.sm-voice-chevron {
+  display: block;
   color: var(--muted);
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.sm-voice[open] summary::after { transform: rotate(90deg); }
-.sm-voice summary > span:first-child { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; }
-.sm-voice summary > span:nth-child(2) { margin-left: auto; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.sm-voice[open] .sm-voice-chevron { transform: rotate(90deg); }
 .sm-voice-fields {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px;
-  border-top: 1px solid var(--line);
+  padding: 4px 14px 14px;
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 /* One label column, so Name, Text and Voice line their fields up on one edge. */
 .sm-voice-fields label {
@@ -1017,50 +967,31 @@ button.btn.sm-hear {
 button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 @media (prefers-reduced-motion: reduce) {
   .sm-voice summary:active { transform: none; }
-  .sm-voice summary::after { transition: none; }
+  .sm-voice-chevron { transition: none; }
 }
-.sm-custom-list { display: flex; flex-direction: column; gap: 6px; }
+/* A sound already added: its name to rename in place, its length, and Play
+   and Delete, a row of the same list at the shared row's inset. */
 .sm-custom-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 6px;
+  padding: calc(8px * var(--ui-space, 1)) 14px;
 }
 .sm-custom-item > span { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
 button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
 /* Armed is the second press of the one act here nothing can undo, and it
    takes the error colour for the four seconds it waits — the LAN unpair's. */
 button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
-.sm-custom-error { margin: 0; color: var(--err); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.4; }
+.settings-row.sm-custom-error { color: var(--err); }
 
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no
    Notification — said next to the control it applies to, which since the
    topbar speaker and its tooltip went (2026-10-07) is the only place it is
    said. */
 .sm-note { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-dim); }
-/* The key, kept visible under the switch it flips (SoundSwitch.tsx): M is the
-   one-press route to silence from anywhere, and the sentence that says so
-   belongs where the user is looking.
-   An `.sm-note` — the quietest readable tier, --text-dim (#1788) — with the
-   cap drawn in it. */
-/* The shortcuts sheet's cap, without the 38px column width that sheet's grid
-   needs — inline in a sentence, a letter box that wide reads as a button. */
-.sm-key-note kbd {
-  font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  color: var(--text);
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 1px 5px;
-  margin-right: 7px;
-}
-
-
-/* Character choices are a compact preview strip within the existing group. */
-.character-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+/* Character choices: the row under the switch, in its list (#2176). */
+.character-picker { display: flex; flex-wrap: wrap; gap: 8px; }
 .character-choice {
   display: flex; align-items: center; gap: 8px; flex: 1 1 150px; min-width: 0;
   padding: 10px; border: 1px solid var(--ctl-edge); border-radius: 6px;

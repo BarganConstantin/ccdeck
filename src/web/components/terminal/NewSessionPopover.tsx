@@ -201,8 +201,8 @@ export function NewSessionForm({ projects, initialAgent = "claude", onStart, onC
               </button>
             ))}
           </div>
-          <label className="sm-switch ns-worktree">
-            <span className="sm-switch-label" id={WORKTREE_ID}>In a new git worktree</span>
+          <label className="ns-worktree">
+            <span className="ns-worktree-label" id={WORKTREE_ID}>In a new git worktree</span>
             <button
               type="button"
               role="switch"

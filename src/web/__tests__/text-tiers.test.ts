@@ -227,8 +227,12 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
-      // The Text & density pane's opening sentence, read once.
-      ".reading-intro",
+      // The line under every Settings pane's name, saying what the section
+      // holds (#2176) — Text & density's opening sentence was the first of
+      // them. Read once, before anything in the section is.
+      ".settings-pane-note",
+      // What a tool history change just did, said in its own row.
+      ".settings-row-status",
       ".radio-art",
       ".radio-cluster-preview button span",
       ".radio-controls > .radio-player-button",
@@ -282,9 +286,6 @@ describe("what was migrated to the secondary tier", () => {
       ".agent-node .plan-row",
       ".session-list .sl-plan",
       ".plan-item",
-      // The custom-sound cards' captions, by bed again: --muted on the card's
-      // --sm-fill is 4.25:1 in dark (#1788).
-      ".sm-custom-card-copy > span",
       // The Radar redesign adds explanatory text and neutral utility labels.
       ".empty-hero .film-action",
       // Tool activity: the summary sentence, the findings' one-line reasons,

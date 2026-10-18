@@ -14,6 +14,7 @@
 import { Suspense, type MutableRefObject } from "react";
 import { updateRestartFailureText } from "../desktop-update";
 import type { Providers } from "../providers";
+import { doorOut } from "../settings";
 import type { GraphState } from "../reducer";
 import type { useAppearance } from "../use-appearance";
 import type { useAutoRestart } from "../use-auto-restart";
@@ -58,7 +59,7 @@ const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
-  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, terminal,
+  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, panelDoors, terminal,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -84,16 +85,19 @@ export default function DeckDialogs({
   tones: ReturnType<typeof useTonePrefs>;
   customTones: ReturnType<typeof useCustomTones>;
   notify: ReturnType<typeof useOsNotifications>;
+  /** The two panels Settings › General points at that are App's to open: the
+   *  accounts panel, and the Local network view inside it (#2176). */
+  panelDoors: { accounts: () => void; localNetwork: () => void };
   /** The terminal's Beta switch, which Settings › General draws. */
   terminal?: TerminalSwitch;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
-          setKeyHelpOpen, feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill } = dialogs;
+          setKeyHelpOpen, feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill, openFeedback } = dialogs;
   const { trafficRadarOpen, setTrafficRadarOpen } = dialogs;
-  const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion } = welcome;
+  const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion, openReleaseNotes } = welcome;
   const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate, askDesktopUpdateRestart } = desktopUpdate;
-  const { version } = versionCheck;
+  const { version, showNotice } = versionCheck;
   const { askRestart } = restart;
   const { clearConfirmOpen, setClearConfirmOpen, requestClear } = clearFlow;
   const { setWatchOn, markWatchSeen } = watchBadge;
@@ -172,6 +176,24 @@ export default function DeckDialogs({
           notify={notify}
           appearance={appearance}
           terminal={terminal}
+          versionCheck={versionCheck}
+          desktopUpdate={desktopUpdate}
+          restart={restart}
+          /* Every door out closes Settings first (doorOut), the way the
+             shortcuts sheet hands over to it below, and each opens through
+             the deck's own way in: the version chip's (What's new, and for a
+             lit chip the banner put back too), the topbar's Feedback, the
+             tour's, Browser Watch's stripe button, and App's for the two
+             panels. */
+          doors={{
+            whatsNew: doorOut(closeSettings, openReleaseNotes),
+            update: doorOut(closeSettings, () => { openReleaseNotes(); showNotice(); }),
+            tour: doorOut(closeSettings, openTour),
+            feedback: doorOut(closeSettings, () => openFeedback()),
+            accounts: doorOut(closeSettings, panelDoors.accounts),
+            localNetwork: doorOut(closeSettings, panelDoors.localNetwork),
+            browserWatch: doorOut(closeSettings, () => setBrowserWatchOpen(true)),
+          }}
         />
       )}
       {/* Ahead of the shortcuts sheet and the clear prompt, which is where a
@@ -234,7 +256,7 @@ export default function DeckDialogs({
         <KeyboardHelp
           onClose={() => setKeyHelpOpen(false)}
           onTour={() => { setKeyHelpOpen(false); openTour(); }}
-          onSettings={() => { setKeyHelpOpen(false); openSettings("general"); }}
+          onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}
         />
       )}
       {tourOpen && (
