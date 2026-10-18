@@ -191,6 +191,10 @@ export function showCursorFromTheStart(term: unknown): void {
  *  from the clipboard on it. */
 export const CTRL_V = "\x16";
 
+/** How soon after a middle press a paste counts as that press's: the browser
+ *  fires it within the same click. */
+export const MIDDLE_PASTE_MS = 1000;
+
 /** Whether a paste carries an image (a screenshot, a copied picture). */
 export function pasteHoldsImage(data: Pick<DataTransfer, "items"> | null | undefined): boolean {
   const items = data?.items;
@@ -318,10 +322,20 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   ];
   // Capture on the host, which holds xterm's element and its textarea, so the
   // paste is taken before either of xterm's own paste listeners sees it.
+  // A middle click pastes the primary selection on Linux. While the program
+  // has the mouse that click is the program's — xterm reports it — and a
+  // native terminal pastes nothing with it; Shift+middle pastes there, and
+  // here, because xterm does not report a Shift click.
+  let middleAt = -Infinity;
+  const onMouseDown = (e: MouseEvent) => { if (e.button === 1 && !e.shiftKey) middleAt = performance.now(); };
+  host.addEventListener("mousedown", onMouseDown, true);
   const onPaste = (e: ClipboardEvent) => {
     const text = e.clipboardData?.getData("text/plain") ?? "";
     e.preventDefault();
     e.stopPropagation();
+    const fromMiddle = performance.now() - middleAt < MIDDLE_PASTE_MS;
+    middleAt = -Infinity;
+    if (fromMiddle && programHasMouse()) return;
     if (!text) {
       // A screenshot, and no text: do what a terminal does with Ctrl+V and
       // hand the program the key itself, so Claude Code (or Codex) reads the
@@ -368,6 +382,7 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     },
     dispose: () => {
       host.removeEventListener("paste", onPaste, true);
+      host.removeEventListener("mousedown", onMouseDown, true);
       textarea?.removeEventListener("focus", onFocus);
       textarea?.removeEventListener("blur", onBlur);
       for (const d of disposables) d.dispose();
