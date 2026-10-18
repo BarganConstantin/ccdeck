@@ -799,6 +799,64 @@ describe("the bridge, in the order the panel expects", () => {
     expect(conn.sent.at(-1)).toEqual({ type: "binary", data: Buffer.from("back") });
   });
 
+  it("keeps no more than a window in flight past what the panel parsed, and re-seeds it once it catches up", async () => {
+    expect(ts.ACK_WINDOW_BYTES).toBe(512 * 1024);
+    const { conn, control, text } = bridge({}, { ackWindow: 100 });
+    text({ t: "size", cols: 80, rows: 24 });
+    await vi.waitFor(() => expect(control().seeds).toBe(1));
+    await settle();
+    const binaries = () => conn.sent.filter(x => x.type === "binary").map(x => (x as { data: Buffer }).data.toString());
+    text({ t: "ack", bytes: 5 }); // the seed, "SEED1": this panel acknowledges
+    const chunk = "x".repeat(60);
+    control().emit("output", Buffer.from(chunk)); // 60 in flight
+    control().emit("output", Buffer.from(chunk)); // 120: over the window once more is sent
+    control().emit("output", Buffer.from("dropped"));
+    expect(binaries(), "past the window the stream is let go").toEqual(["SEED1", chunk, chunk]);
+    text({ t: "ack", bytes: 5 + 60 }); // 60 still in flight: over half the window
+    await settle();
+    expect(control().seeds, "not yet: more than half a window is still unparsed").toBe(1);
+    text({ t: "ack", bytes: 5 + 120 });
+    await vi.waitFor(() => expect(control().seeds).toBe(2));
+    await settle();
+    expect(binaries().at(-1), "caught up: the screen as it is now").toBe("SEED2");
+    control().emit("output", Buffer.from("live"));
+    expect(binaries().at(-1)).toBe("live");
+  });
+
+  it("counts the window from the last seed, so a seed larger than it neither stops the stream nor re-seeds in a loop", async () => {
+    const { conn, control, text } = bridge({}, { ackWindow: 3 });
+    text({ t: "size", cols: 80, rows: 24 });
+    await vi.waitFor(() => expect(control().seeds).toBe(1));
+    await settle();
+    text({ t: "ack", bytes: 0 }); // acknowledges, but has not parsed the 5-byte seed yet
+    control().emit("output", Buffer.from("ab"));
+    control().emit("output", Buffer.from("cd")); // 4 after the seed: over the window of 3
+    control().emit("output", Buffer.from("ef"));
+    const binaries = conn.sent.filter(x => x.type === "binary").map(x => (x as { data: Buffer }).data.toString());
+    expect(binaries, "the seed's own size is not held against the output after it").toEqual(["SEED1", "ab", "cd"]);
+    text({ t: "ack", bytes: 9 });
+    await vi.waitFor(() => expect(control().seeds).toBe(2));
+    text({ t: "ack", bytes: 14 }); // SEED2 parsed
+    control().emit("output", Buffer.from("gh"));
+    await settle();
+    expect(control().seeds, "one reseed for one fall behind, not one per ack").toBe(2);
+    expect(conn.sent.at(-1)).toEqual({ type: "binary", data: Buffer.from("gh") });
+  });
+
+  it("never holds a page that does not acknowledge to the window, and believes no ack past what was sent", async () => {
+    const { conn, control, text } = bridge({}, { ackWindow: 10 });
+    text({ t: "size", cols: 80, rows: 24 });
+    await vi.waitFor(() => expect(control().seeds).toBe(1));
+    await settle();
+    for (let i = 0; i < 5; i++) control().emit("output", Buffer.from("0123456789"));
+    expect(conn.sent.filter(x => x.type === "binary"), "an older page gets every byte, as before").toHaveLength(6);
+    text({ t: "ack", bytes: 10_000 });
+    text({ t: "ack", bytes: -3 });
+    text({ t: "ack", bytes: "55" });
+    control().emit("output", Buffer.from("still here"));
+    expect(conn.sent.at(-1)).toEqual({ type: "binary", data: Buffer.from("still here") });
+  });
+
   it("lets the tmux client go and says nothing more when the socket goes away", async () => {
     const { conn, control, handle, text } = bridge();
     text({ t: "size", cols: 80, rows: 24 });

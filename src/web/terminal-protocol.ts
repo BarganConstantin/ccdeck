@@ -30,7 +30,10 @@
 // `paste` for a paste, and `colours {fg, bg}` — its theme's foreground and
 // background as #rrggbb — once at the start and again whenever the theme
 // changes, so tmux can answer a program that asks what colours its terminal is
-// (OSC 10/11) with the deck's rather than with black. A `reset` may come again at any moment — tmux paused
+// (OSC 10/11) with the deck's rather than with black; and `ack {bytes}`, how
+// many of the deck's binary bytes its terminal has parsed, so the deck keeps no
+// more than a window of output in flight (ACK_WINDOW_BYTES there). A `reset`
+// may come again at any moment — tmux paused
 // the client and it has to redraw, or the socket fell behind and the deck
 // stopped forwarding — and it means exactly what the first one did.
 //
@@ -177,6 +180,11 @@ export interface TerminalConnection {
    *  last pair this connection sent; false when either cannot be read, the
    *  pane is read-only, or the connection has ended. */
   sendColours(fg: string | undefined, bg: string | undefined): boolean;
+  /** How many binary bytes from the deck this connection's terminal has
+   *  parsed, seeds included: the deck keeps no more than a window of output
+   *  in flight beyond it, and re-seeds a terminal that fell further behind.
+   *  False once the connection has ended. */
+  sendAck(parsed: number): boolean;
   /** Leave. The tmux session keeps running; only this view of it ends. */
   close(): void;
 }
@@ -422,6 +430,10 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
       if (`${f} ${b}` === colours) return true;
       colours = `${f} ${b}`;
       return send(JSON.stringify({ t: "colours", fg: f, bg: b }));
+    },
+    sendAck(parsed) {
+      if (finished || !Number.isSafeInteger(parsed) || parsed < 0) return false;
+      return send(JSON.stringify({ t: "ack", bytes: parsed }));
     },
     close() {
       if (finished) return;

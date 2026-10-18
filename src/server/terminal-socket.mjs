@@ -33,7 +33,8 @@
 // drawn at the panel's size and not at whatever the pane was; the pane resized
 // to it when the panel owns the size; then `reset` and ONE binary frame of
 // seed — the bytes that make a reset xterm show what tmux shows — and from
-// then on the pane's output as it happens. tmux-control.mjs owns the hard part
+// then on the pane's output as it happens, as fast as the panel says (`ack`)
+// its terminal is parsing it. tmux-control.mjs owns the hard part
 // (the seed boundary, %pause, the pane dying); this file only keeps the order
 // on the wire and never lets two seeds cross.
 //
@@ -74,6 +75,18 @@ export const MAX_TERMINALS = 4;
  *  and the panel is re-seeded once the socket drains — it then shows what the
  *  pane shows, which is all the skipped bytes were ever going to amount to. */
 export const HIGH_WATER_BYTES = 4 << 20;
+
+/** How many bytes of output may be on their way to a panel that acknowledges
+ *  what its terminal has parsed (`ack`) before the stream is let go. The
+ *  socket's own high-water mark only sees bytes the kernel has not taken, and
+ *  a browser takes them as fast as they come and queues them for xterm, which
+ *  parses a few megabytes a second: measured on a long-line `cat` loop, 7–8 MB
+ *  were still in the browser when Ctrl+C reached the pane, and the flood kept
+ *  scrolling for a second and a half after it had stopped. With a window, what
+ *  is in flight is bounded by it, and a panel that falls behind is re-seeded
+ *  with the screen as it is now — what a native terminal shows when it draws
+ *  only the latest frame. A page that never acknowledges is never held to it. */
+export const ACK_WINDOW_BYTES = 512 * 1024;
 
 /** The panel sends a size on every frame of a drag. tmux redraws the pane for
  *  each one, so they are settled for this long and only the last is applied. */
@@ -371,7 +384,7 @@ export function openTerminalCount() {
 export function terminalBridge({
   conn, socket, binding,
   open = openControl, history = SEED_HISTORY, debounceMs = RESIZE_DEBOUNCE_MS, highWater = HIGH_WATER_BYTES,
-  coloursMs = COLOURS_INTERVAL_MS,
+  coloursMs = COLOURS_INTERVAL_MS, ackWindow = ACK_WINDOW_BYTES,
 }) {
   const paneOwned = binding?.ignoreSize === true;
   const readOnly = binding?.readOnly === true;
@@ -383,6 +396,21 @@ export function terminalBridge({
   let started = false;
   let seeded = false;
   let congested = false;
+  // Flow control by acknowledgement (ACK_WINDOW_BYTES). `sentBytes`: every
+  // binary byte this bridge has put on the wire, seeds included. `ackedBytes`:
+  // the most the panel has said its terminal parsed, -1 until it first says —
+  // a page that predates acks is never held to the window. `behind`: output
+  // is being let go because the window is full; the next ack that brings it
+  // back under half asks for a seed.
+  let sentBytes = 0;
+  let ackedBytes = -1;
+  let behind = false;
+  // Where the last seed ended. The window is counted from there: a seed is a
+  // one-off, and one larger than the window (2000 lines of coloured history
+  // can be) would otherwise let go of the output after it, and the reseed its
+  // ack asks for would do the same again, for as long as the pane writes.
+  let seedMark = 0;
+  const inFlight = () => sentBytes - Math.max(ackedBytes, seedMark);
   // Reseeds asked for, and the latest of those a delivered seed answered. A
   // %pause during a seed asks for another, and the one in flight is then
   // stale: comparing the two is how it knows not to send itself.
@@ -473,9 +501,27 @@ export function terminalBridge({
     // behind it: this frame is already out of date and the stream is shut.
     if (asks !== at && queued) return;
     conn.sendText(JSON.stringify({ t: "reset", cols: seed.cols, rows: seed.rows }));
-    conn.sendBinary(seed.bytes);
+    sendBinary(seed.bytes);
+    seedMark = sentBytes;
     shown = { cols: seed.cols, rows: seed.rows };
     seeded = true;
+  }
+
+  /** A binary frame, counted for the window. */
+  function sendBinary(bytes) {
+    sentBytes += bytes.length;
+    return conn.sendBinary(bytes);
+  }
+
+  /** The panel's terminal has parsed `n` of the bytes sent so far. A count
+   *  past what was sent, or going backwards, is not believed. */
+  function onAck(n) {
+    if (!Number.isSafeInteger(n) || n < 0 || n > sentBytes || n <= ackedBytes) return;
+    ackedBytes = n;
+    if (behind && inFlight() <= ackWindow / 2) {
+      behind = false;
+      askReseed();
+    }
   }
 
   function askReseed() {
@@ -491,7 +537,14 @@ export function terminalBridge({
   }
 
   function onOutput(data) {
-    if (ended || congested) return;
+    if (ended || congested || behind) return;
+    if (ackedBytes >= 0 && inFlight() > ackWindow) {
+      // The panel has more in flight than its terminal has parsed by a whole
+      // window: let the stream go, as for a socket that stopped reading, and
+      // seed what tmux shows once it has caught up (onAck).
+      behind = true;
+      return;
+    }
     if (conn.bufferedAmount > highWater) {
       // Let the stream go rather than queue it: what was skipped is redrawn by
       // a seed once the socket has caught up.
@@ -504,7 +557,7 @@ export function terminalBridge({
       else drained();
       return;
     }
-    conn.sendBinary(data);
+    sendBinary(data);
   }
 
   function onPaneSize({ cols, rows }) {
@@ -572,6 +625,7 @@ export function terminalBridge({
       reclaim();
       control.paste(msg.text);
     } else if (msg.t === "colours") onColours(msg.fg, msg.bg);
+    else if (msg.t === "ack") onAck(msg.bytes);
     // Anything else is a newer page saying something this deck has not heard
     // of. Ignored, like the page ignores what it does not know.
   }
