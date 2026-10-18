@@ -3,7 +3,7 @@
 Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122).
 
 Open **Tool activity** from the rail button below Usage history (on narrow screens,
-**More → Tools**). It is a device-wide page across Claude and Codex, independent
+**More → Tool activity**). It is a device-wide page across Claude and Codex, independent
 of the sessions on the canvas. Collection starts with new events after this build
 starts; old sessions are not imported.
 
