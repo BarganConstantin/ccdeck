@@ -18,17 +18,21 @@
 // only the frame and the nav.
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
-import { focusedTabToFollow, sectionIndex, SETTINGS_SECTIONS, type SettingsSection } from "../settings";
+import { focusedTabToFollow, sectionIndex, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
 import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
+import type { useAutoRestart } from "../use-auto-restart";
+import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useCustomTones } from "../use-custom-tones";
 import type { useOsNotifications } from "../use-os-notifications";
 import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
+import type { useVersionCheck } from "../use-version-check";
 import { characterKeyMuted, setSingleKeyShortcuts } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import BoardSection from "./BoardSection";
+import ElsewhereSection from "./ElsewhereSection";
 import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
@@ -37,6 +41,7 @@ import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
+import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -52,10 +57,21 @@ export interface SettingsModalProps {
   customTones: ReturnType<typeof useCustomTones>;
   notify: ReturnType<typeof useOsNotifications>;
   appearance: ReturnType<typeof useAppearance>;
+  /** Which version the deck runs and what is waiting to replace it — the
+   *  version chip's own state, read by About and by General's Updates. */
+  versionCheck: ReturnType<typeof useVersionCheck>;
+  /** The desktop app's verified update and its press, which About offers as
+   *  the topbar does. */
+  desktopUpdate: ReturnType<typeof useDesktopUpdate>;
+  /** The auto-update switch, the update banner's own (#2176). */
+  restart: ReturnType<typeof useAutoRestart>;
+  /** Where About and General send the reader, each closing this first. */
+  doors: SettingsDoors;
 }
 
 export default function SettingsModal({
   section, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
+  versionCheck, desktopUpdate, restart, doors,
 }: SettingsModalProps) {
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
@@ -172,9 +188,27 @@ export default function SettingsModal({
       case "data":
         return <ToolAuditSettings />;
       case "about":
-        return <AboutSection />;
+        return (
+          <AboutSection
+            version={versionCheck.version}
+            notice={versionCheck.notice}
+            readyAppUpdate={desktopUpdate.readyAppUpdate}
+            updateRestarting={desktopUpdate.desktopUpdateRestarting}
+            updateFailure={desktopUpdate.desktopUpdateFailure}
+            onUpdateRestart={version => { void desktopUpdate.askDesktopUpdateRestart(version); }}
+            doors={doors}
+          />
+        );
       default:
-        return <BoardSection />;
+        // General: how the board behaves, how the deck updates itself, and
+        // the preferences that live in a panel of their own (#2176).
+        return (
+          <>
+            <BoardSection />
+            <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
+            <ElsewhereSection claudeHere={providers.claude} singleKeys={singleKeys} doors={doors} />
+          </>
+        );
     }
   })();
 

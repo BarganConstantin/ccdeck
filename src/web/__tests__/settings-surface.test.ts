@@ -50,6 +50,12 @@ function settingsProps(over: Partial<SettingsModalProps> = {}): SettingsModalPro
       toggleAccountNotify: noop,
     },
     appearance: { theme: "dark", setTheme: noop, characterEnabled: true, setCharacterEnabled: noop },
+    // About's and General's inputs (#2176): the version chip's state, the
+    // desktop updater's, the banner's auto-update switch and the doors out.
+    versionCheck: { version: null, notice: null, noticeOpen: false, showNotice: noop, dismissNotice: noop, versionChecking: false, loadVersion: async () => null },
+    desktopUpdate: { desktopUpdateRestarting: false, desktopUpdateFailure: null, readyAppUpdate: null, appUpdate: null, askDesktopUpdateRestart: asyncNoop, onDesktopUpdateEvent: noop },
+    restart: { autoRestart: true, toggleAutoRestart: noop },
+    doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop },
     ...over,
   } as unknown as SettingsModalProps;
 }
