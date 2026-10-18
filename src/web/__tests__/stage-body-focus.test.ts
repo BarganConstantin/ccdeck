@@ -52,6 +52,45 @@ describe("the terminal host and assistive technology", () => {
     expect(blurAt, "blurred first, then hidden").toBeLessThan(hideAt);
   });
 
+  it("hands a pane's keys to Try again when its connection to tmux is lost, never to the body", () => {
+    // On the body, the letters still being typed for the session ran the
+    // deck's shortcuts: a "?" opened the key sheet. Straight from live, and
+    // after a reconnect that gave up.
+    for (const via of [null, { kind: "attaching", reconnect: true }] as const) {
+      const el = host(false);
+      const retry = { focus: vi.fn() };
+      const card = { querySelector: vi.fn((s: string) => (s === "[data-stage-land]" ? retry : null)) };
+      Object.assign(el, { parentElement: card });
+      const view = mount(StageBody, props({ kind: "live", readOnly: false } as StagePhase, el));
+      (globalThis as { document: { activeElement: unknown } }).document.activeElement = el.textarea;
+      if (via) view.rerender(props(via, el));
+      view.rerender(props({ kind: "error", message: "The deck lost its connection to tmux." }, el));
+      expect(el.textarea.blur).toHaveBeenCalledTimes(1);
+      expect(retry.focus, `via ${JSON.stringify(via)}`).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("leaves the keys alone on any other card, and when the pane never had them", () => {
+    const land = () => {
+      const el = host(false);
+      const action = { focus: vi.fn() };
+      Object.assign(el, { parentElement: { querySelector: () => action } });
+      return { el, action };
+    };
+    // Reopen here is one keystroke from a second agent on the same conversation.
+    const reopen = land();
+    const a = mount(StageBody, props({ kind: "live", readOnly: false } as StagePhase, reopen.el));
+    (globalThis as { document: { activeElement: unknown } }).document.activeElement = reopen.el.textarea;
+    a.rerender(props({ kind: "not-attachable", target: { kind: "outside", adoptable: true, sentence: "" }, stillRunning: true, busy: false } as unknown as StagePhase, reopen.el));
+    a.rerender(props({ kind: "error", message: "later" }, reopen.el));
+    expect(reopen.action.focus, "a later error is not the lost connection").not.toHaveBeenCalled();
+
+    const idle = land();
+    const b = mount(StageBody, props({ kind: "live", readOnly: false } as StagePhase, idle.el));
+    b.rerender(props({ kind: "error", message: "The deck lost its connection to tmux." }, idle.el));
+    expect(idle.action.focus, "the keys were on the board all along").not.toHaveBeenCalled();
+  });
+
   it("keeps the focus through a reconnect, whose frozen frame stays shown", () => {
     const el = host(false);
     const view = mount(StageBody, props({ kind: "live", readOnly: false } as StagePhase, el));

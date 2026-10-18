@@ -210,14 +210,32 @@ export default function StageBody(p: StageBodyProps) {
   // keys anyway (the controller drops them), so its focus goes back to the
   // page first, and the keys bar then says the board has them. Set here
   // rather than in the markup, so the blur is in place before the attribute.
+  const lostKeys = useRef(false);
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    if (state === "shown") { host.removeAttribute("aria-hidden"); return; }
+    if (state === "shown") { lostKeys.current = false; host.removeAttribute("aria-hidden"); return; }
     const active = typeof document === "undefined" ? null : document.activeElement as { blur?: () => void } | null;
-    if (active && typeof active.blur === "function" && host.contains(active as Node)) active.blur();
+    if (active && typeof active.blur === "function" && host.contains(active as Node)) {
+      active.blur();
+      lostKeys.current = true;
+    }
     host.setAttribute("aria-hidden", "true");
   }, [state, hostRef]);
+  // A pane that had the keys and lost its connection to tmux hands them to its
+  // card's Try again. Left on the body, the letters still being typed for the
+  // session ran the deck's shortcuts: a "?" opened the key sheet. Only for an
+  // error, whose action is a retry; a card that offers to reopen a session is
+  // never one keystroke away. And only from the body: focus the reader has
+  // moved stays where it is.
+  const kind = p.phase.kind;
+  useLayoutEffect(() => {
+    if (!lostKeys.current || kind === "attaching" || kind === "starting" || kind === "tmux-installing") return;
+    lostKeys.current = false;
+    if (kind !== "error" || typeof document === "undefined") return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    hostRef.current?.parentElement?.querySelector<HTMLElement>("[data-stage-land]")?.focus();
+  }, [kind, hostRef]);
   return (
     <div className="ts-body">
       {/* The pane: every key pressed in here is the session's, Escape
