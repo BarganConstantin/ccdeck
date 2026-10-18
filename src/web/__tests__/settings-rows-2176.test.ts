@@ -65,10 +65,18 @@ describe("every section draws its rows through the shared parts", () => {
     }
   });
 
-  it("names every searchable row by a data-setting id that is unique", () => {
-    const ids = sections.flatMap(([, src]) => [...src.matchAll(/settingId="([^"]+)"/g)].map(m => m[1]));
-    expect(ids.length).toBeGreaterThan(8);
-    expect(new Set(ids).size).toBe(ids.length);
+  it("names every searchable row by a data-setting id no other section uses", () => {
+    // One file may spell an id twice: the same row drawn one way in the
+    // desktop app and another in a browser (About's update row, Updates'
+    // switch), only one of which is ever on screen.
+    const owner = new Map<string, string>();
+    for (const [file, src] of sections) {
+      for (const [, id] of src.matchAll(/settingId="([^"]+)"/g)) {
+        expect(owner.get(id) ?? file, `${id} is in ${owner.get(id)} and ${file}`).toBe(file);
+        owner.set(id, file);
+      }
+    }
+    expect(owner.size).toBeGreaterThan(8);
   });
 });
 
