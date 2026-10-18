@@ -26,7 +26,21 @@
 // open evicts the panel; the panel appearing — a double-click, Enter on a
 // card, D — closes the stage at once, with no morph, since the column it
 // opens is already changing the canvas under it.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
+//
+// SO DOES A RAIL PANEL ASKED FOR. Usage and Machine float over the cell's
+// right-hand edge, where the stage's header and its ✕ are. Open when the
+// stage arrives, they stand aside under it, their flags kept for when it goes
+// (stage-shell.css). Asked for while it is up — the stripe's button, U, S —
+// one takes the right of the deck back the way the detail panel does: the
+// stage goes at once, and the board comes back with the panel over it, as it
+// would have been with no terminal at all (useRailPanel, below). Not a third
+// share of the cell: the stage beside a 280px panel, or two, leaves the
+// navigator a sliver or nothing, and the session's columns would change under
+// it — a redraw of the TUI — for a glance at the quota.
+import {
+  useCallback, useEffect, useLayoutEffect, useRef, useState,
+  type Dispatch, type MutableRefObject, type SetStateAction,
+} from "react";
 import type { BlockedSession } from "./ambient-counts";
 import { focusCanvasNode } from "./canvas-node-element";
 import type { BoardNavigatorHandle } from "./components/BoardNavigator";
@@ -39,7 +53,7 @@ import {
 } from "./stage-geometry";
 import {
   STAGE_FIRST_RUN_KEY, boardInert, initialShell, navigatorOrder, navigatorSessionAt, shellReducer,
-  stageClaimsKeys, targetSession, terminalButtonTarget, visibleOrigin,
+  stageClaimsKeys, stageSeen, targetSession, terminalButtonTarget, visibleOrigin,
   type ShellAction, type ShellRect, type StageTarget,
 } from "./stage-shell";
 import { localStore, readStored, removeStored, writeStored } from "./storage";
@@ -164,11 +178,12 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   /** Sessions this tab launched, which the Terminal button may go back to
    *  before the board has heard of them. */
   const launchedIdsRef = useRef(new Set<string>());
-  const returnFocusRef = useRef<string | null>(null);
+  /** Set when the stage goes with the focus in it: the card to give the
+   *  focus back to, or null when the stage showed no board session. */
+  const returnFocusRef = useRef<{ card: string | null } | null>(null);
   /** The Terminal button, when it opened the stage: where the focus goes
    *  back to from a stage with no session behind it, which has no card. */
   const openerRef = useRef<HTMLElement | null>(null);
-  const returnToOpenerRef = useRef(false);
 
   // ── opening, switching ─────────────────────────────────────────────────────
   /**
@@ -347,10 +362,26 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const closed = useCallback((sentence: string) => {
     const active = document.activeElement;
     const held = !active || active === document.body || !!active.closest?.(".stage-dock, .stage-nav");
-    returnFocusRef.current = held ? targetSession(shellRef.current.target) : null;
-    returnToOpenerRef.current = held && !returnFocusRef.current;
+    returnFocusRef.current = held ? { card: targetSession(shellRef.current.target) } : null;
     if (sentence) setSaid(sentence);
     dispatch({ type: "closed" });
+  }, [shellRef]);
+
+  /**
+   * A panel wants the right of the deck: the stage goes at once, with no
+   * morph — the detail panel's column is already changing the canvas under
+   * it, a rail panel is already drawing where its header was. The focus the
+   * stage held, in its pane or on a navigator tile, would fall to <body> with
+   * the stage's DOM, so it goes back onto the card, as a close's does (the
+   * effect below, once the board is reachable). Focus anywhere else — the
+   * stripe button that was pressed, the card a double-click landed on — is
+   * where the reader put it, and stays.
+   */
+  const giveRightBack = useCallback(() => {
+    const s = shellRef.current;
+    if (s.phase === "closed") return;
+    if (document.activeElement?.closest?.(".stage-dock, .stage-nav")) returnFocusRef.current = { card: targetSession(s.target) };
+    dispatch({ type: "close", instant: true });
   }, [shellRef]);
 
   /** The lazy chunk would not load: nothing to show, so nothing stays. */
@@ -435,8 +466,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 
   // The detail panel appearing takes the right of the deck back.
   useEffect(() => {
-    if (detailShown && shellRef.current.phase !== "closed") dispatch({ type: "close", instant: true });
-  }, [detailShown, shellRef]);
+    if (detailShown) giveRightBack();
+  }, [detailShown, giveRightBack]);
 
   // React Flow under the stage: inert while the stage covers it, so neither a
   // Tab nor a screen reader's cursor walks a board nobody can see. Set on the
@@ -453,22 +484,23 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     board?.toggleAttribute("inert", inert);
   }, [enabled, inert, canvasRef]);
 
-  // Focus back onto the card once the board is back and reachable, or onto
-  // the Terminal button for a stage that had no card.
+  // Focus back onto the card once the board is back and reachable — or, when
+  // there is no card to land on, onto the Terminal button that opened the
+  // stage (the empty stage), else onto the canvas, the skip link's own target,
+  // where the deck's keys still answer (a launch the board has not heard of
+  // yet, a card taken off the board meanwhile). Never left on <body>, where
+  // the next Tab starts the page over.
   useEffect(() => {
-    if (open) return;
-    if (returnToOpenerRef.current) {
-      returnToOpenerRef.current = false;
-      const opener = openerRef.current;
-      openerRef.current = null;
-      if (opener?.isConnected) opener.focus();
-      return;
-    }
-    if (!returnFocusRef.current) return;
-    const id = returnFocusRef.current;
+    const back = returnFocusRef.current;
+    if (open || !back) return;
     returnFocusRef.current = null;
-    focusCanvasNode(id);
-  }, [open]);
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (back.card) focusCanvasNode(back.card);
+    else if (opener?.isConnected) opener.focus();
+    const active = document.activeElement;
+    if (!active || active === document.body) canvasRef.current?.focus?.({ preventScroll: true });
+  }, [open, canvasRef]);
 
   // ── the switch in Settings ─────────────────────────────────────────────────
   // Optimistic, as the deck's other switches are, and corrected by the answer
@@ -529,7 +561,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (shellRef.current.phase !== "closed") {
       const active = document.activeElement;
       const held = !active || active === document.body || !!active.closest?.(".stage-dock, .stage-nav");
-      if (held) returnFocusRef.current = targetSession(shellRef.current.target);
+      if (held) returnFocusRef.current = { card: targetSession(shellRef.current.target) };
     }
     dispatch({ type: "close", instant: true });
     writeOnStage(null, Date.now());
@@ -538,12 +570,71 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   return {
     enabled, forced, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
-    focusPane, release, close, closed, failed, reveal, revealed, announce,
+    focusPane, release, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell,
   };
 }
 
 export type Stage = ReturnType<typeof useStage>;
+
+/** A right-hand rail panel as its stripe button and its key see it. */
+export interface RailPanel {
+  /** Open and on screen: what the button's aria-expanded reports. */
+  shown: boolean;
+  /** The panel's setter for its button and its key, answered against what is
+   *  on screen, with the stage told when the panel is asked for. */
+  set: Dispatch<SetStateAction<boolean>>;
+}
+
+/**
+ * Usage or Machine, as the stripe's button (or the phone dock's) and the
+ * panel's key, U or S, reach it. App calls this once for each, after
+ * useStage, and hands both the button and the key the result.
+ *
+ * A PANEL ASKED FOR TAKES THE RIGHT OF THE DECK BACK — the rule the detail
+ * panel keeps (the file's header says why not a share of the cell). Asked for
+ * while the stage is anything but closed, opened or brought out from under
+ * it, the panel sends the stage away at once through giveRightBack: no morph,
+ * and any focus it held back on the card. A stage still waiting unseen for
+ * its pane goes too; uncovered a moment later, it would hide the panel just
+ * asked for.
+ *
+ * WHAT IS ON SCREEN DECIDES A PRESS. A panel open when the stage came stands
+ * aside under it, its flag kept (stage-shell.css). Left reading open, its
+ * button promised a panel nobody could see, and a press — a toggle — closed
+ * it: a press for nothing, the button's line gone, and only a second press
+ * showed the panel. So while the stage hides it the button says closed, the
+ * toggle is answered from there, and the press that opens it is the press
+ * that shows it. aria-expanded follows what is drawn, as a disclosure's must;
+ * aria-controls goes with it (EdgeRails.tsx), since a hidden region is no
+ * region to point at.
+ *
+ * With no stage up, or no terminal, it is the panel's own setter, called
+ * exactly as it was: the deck without the stage is the deck it was.
+ * Stable, like the setter it wraps: use-deck-shortcuts.ts registers its
+ * listener once and keeps the setters it was first given.
+ */
+export function useRailPanel(
+  stage: Pick<Stage, "enabled" | "shell" | "giveRightBack">,
+  open: boolean,
+  setOpen: Dispatch<SetStateAction<boolean>>,
+): RailPanel {
+  const up = stage.enabled && stage.shell.phase !== "closed";
+  const shown = open && !(up && stageSeen(stage.shell.phase));
+  const upRef = useMirroredRef(up);
+  const shownRef = useMirroredRef(shown);
+  const { giveRightBack } = stage;
+  const set = useCallback((next: SetStateAction<boolean>) => {
+    if (!upRef.current) {
+      setOpen(next);
+      return;
+    }
+    const want = typeof next === "function" ? next(shownRef.current) : next;
+    if (want) giveRightBack();
+    setOpen(want);
+  }, [upRef, shownRef, giveRightBack, setOpen]);
+  return { shown, set };
+}
 
 /** What /api/prefs answers, as far as the stage reads it (prefs-routes.mjs). */
 export interface TerminalPrefsAnswer {

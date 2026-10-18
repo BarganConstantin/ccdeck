@@ -1,9 +1,10 @@
 // The terminal stage as App holds it (use-stage.ts): the flag, every way in —
 // a click on a card, a session list row, the Terminal button, the asks run,
 // the keys — and the rules it keeps with the rest of the deck: the detail
-// panel and the stage evict each other, the board under the stage is inert
-// only once a double-click can no longer be aimed at it, and with the flag off
-// it answers "not mine" to everything.
+// panel and the stage evict each other, a rail panel asked for takes the right
+// of the deck back, the stage is sized to the room the canvas has and no more,
+// the board under the stage is inert only once a double-click can no longer
+// be aimed at it, and with the flag off it answers "not mine" to everything.
 //
 // Run as a hook under the suite's stand-in React (fake-react.ts), against a
 // canvas made of the few element methods the hook calls.
@@ -13,7 +14,7 @@ import { DOUBLE_CLICK_MS } from "../focus-hold";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
 import {
-  useStage, useStageAsks, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, TERMINAL_SWITCHED_KEY as STAGE_SWITCHED,
+  useRailPanel, useStage, useStageAsks, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, TERMINAL_SWITCHED_KEY as STAGE_SWITCHED,
   type StageDeps,
 } from "../use-stage";
 import { mount } from "./fake-react";
@@ -204,6 +205,18 @@ describe("a click on a card, with the flag on", () => {
     now().stage.onNodeClick("s1", page.card as unknown as Element);
     view.rerender({ ...props, deps: { ...props.deps, detailShown: true } });
     expect(now().stage.shell.phase).toBe("closed");
+  });
+
+  it("gives the card the focus the stage held when the detail panel evicts it — D pressed on a navigator tile", () => {
+    const { view, now, turnOn, props } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    now().stage.reveal();
+    const doc = (globalThis as Record<string, any>).document;
+    doc.activeElement = { closest: (sel: string) => (sel.includes(".stage-nav") ? {} : null) };
+    view.rerender({ ...props, deps: { ...props.deps, detailShown: true } });
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(focused, "the tile went with the stage; <body> is not a place to leave it").toBe('.react-flow__node[data-id="s1"]');
   });
 
   it("switches the stage when it is already open, without moving where it grew from", () => {
@@ -723,5 +736,131 @@ describe("the room the stage is given", () => {
     expect(observers.length).toBe(1);
     now().stage.failed();
     expect(observers.length).toBe(0);
+  });
+});
+
+describe("a rail panel asked for while the stage is up", () => {
+  // Usage and Machine float over the right of the cell, where the stage is.
+  // Open before the stage came, they stand aside under it (stage-shell.css);
+  // asked for while it is up — the stripe's button, U, S — one takes the right
+  // of the deck back, as the detail panel does, and the stage goes at once.
+
+  interface RailProps { deps: StageDeps; open: boolean; setOpen: ReturnType<typeof vi.fn> }
+  function RailHarness({ deps, open, setOpen }: RailProps) {
+    const stage = useStage(deps);
+    const rail = useRailPanel(stage, open, setOpen);
+    return { stage, rail };
+  }
+
+  /** The deck with one rail panel, `open` or not, and the stage open on s1
+   *  unless `phase` says how far it got. What the document would do when the
+   *  stage's DOM goes is said in `commit`: focus inside it falls to <body>. */
+  function railSetup(opts: { open?: boolean; phase?: "waiting" | "open"; target?: "s1" | "empty"; focus?: "stage" | "button" | null } = {}) {
+    const base = setup();
+    const doc = (globalThis as Record<string, any>).document;
+    const inStage = { closest: (sel: string) => (sel.includes(".stage-nav") ? {} : null) };
+    const setOpen = vi.fn();
+    let props: RailProps = { deps: base.deps, open: opts.open ?? false, setOpen };
+    const view = mount(RailHarness, props, {
+      commit: tree => {
+        const t = tree as { stage: ReturnType<typeof useStage> };
+        if (t.stage.shell.phase === "closed" && doc.activeElement === inStage) doc.activeElement = doc.body;
+      },
+    });
+    const now = () => view.tree as { stage: ReturnType<typeof useStage>; rail: ReturnType<typeof useRailPanel> };
+    now().stage.loadTerminalPrefs({ terminalOn: true });
+    if (opts.target === "empty") now().stage.openFromButton(null);
+    else now().stage.switchTo("s1", { focusPane: false });
+    if ((opts.phase ?? "open") === "open") {
+      now().stage.reveal();
+      now().stage.revealed();
+    }
+    if (opts.focus === "stage") doc.activeElement = inStage;
+    if (opts.focus === "button") doc.activeElement = { closest: () => null };
+    const rerender = (over: Partial<RailProps>) => { props = { ...props, ...over }; view.rerender(props); };
+    return { now, setOpen, rerender, doc };
+  }
+
+  it("reads as closed while the stage hides it, though its flag is kept for when the stage goes", () => {
+    const { now, rerender } = railSetup({ open: true });
+    expect(now().rail.shown, "stood aside under the stage: aria-expanded must not promise it").toBe(false);
+    now().stage.close();
+    rerender({});
+    expect(now().rail.shown, "closing, the stage still covers the right").toBe(false);
+    now().stage.closed("");
+    rerender({});
+    expect(now().rail.shown, "back with the board").toBe(true);
+  });
+
+  it("takes the right back on its button's toggle: the stage goes at once, and the panel is opened", () => {
+    const { now, setOpen } = railSetup({ open: false });
+    now().rail.set(o => !o);
+    expect(now().stage.shell.phase, "no morph: the panel is already drawing where the stage was").toBe("closed");
+    expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("shows a panel the stage was hiding on the same press, rather than closing what nobody could see", () => {
+    const { now, setOpen } = railSetup({ open: true });
+    now().rail.set(o => !o);
+    expect(setOpen, "a toggle answered from what is on screen").toHaveBeenCalledWith(true);
+    expect(setOpen).not.toHaveBeenCalledWith(false);
+    expect(now().stage.shell.phase).toBe("closed");
+  });
+
+  it("takes a stage still waiting unseen for its pane down too, which would hide the panel a moment later", () => {
+    const { now, setOpen } = railSetup({ open: false, phase: "waiting" });
+    expect(now().stage.shell.phase).toBe("waiting");
+    now().rail.set(true);
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("leaves the stage up for a panel being closed", () => {
+    const { now, setOpen } = railSetup({ open: false });
+    now().rail.set(false);
+    expect(now().stage.shell.phase).toBe("open");
+    expect(setOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("gives the focus the stage held back to the card — U pressed on a navigator tile", () => {
+    const { now } = railSetup({ focus: "stage" });
+    now().rail.set(o => !o);
+    expect(focused).toBe('.react-flow__node[data-id="s1"]');
+  });
+
+  it("leaves the focus where the reader put it: on the stripe's button that was pressed", () => {
+    const { now } = railSetup({ focus: "button" });
+    now().rail.set(o => !o);
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(focused).toBeNull();
+  });
+
+  it("puts the focus on the canvas when the stage showed no session, never on <body>", () => {
+    const canvasFocus = vi.fn();
+    (page.canvas as Record<string, unknown>).focus = canvasFocus;
+    const { now } = railSetup({ focus: "stage", target: "empty" });
+    expect(now().stage.shell.target).toEqual({ kind: "empty" });
+    now().rail.set(true);
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(canvasFocus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
+  it("is one setter for the life of the deck: the keys' listener keeps the first one it is given", () => {
+    const { now, rerender } = railSetup({ open: false });
+    const first = now().rail.set;
+    rerender({ open: true });
+    now().stage.close();
+    expect(now().rail.set).toBe(first);
+  });
+
+  it("is the panel's own setter, called as it always was, with the terminal off", () => {
+    const base = setup();
+    const setOpen = vi.fn();
+    const view = mount(RailHarness, { deps: base.deps, open: true, setOpen });
+    const rail = (view.tree as { rail: ReturnType<typeof useRailPanel> }).rail;
+    expect(rail.shown).toBe(true);
+    const toggle = (o: boolean) => !o;
+    rail.set(toggle);
+    expect(setOpen, "the updater itself, for React to run on the latest state").toHaveBeenCalledWith(toggle);
   });
 });

@@ -153,7 +153,13 @@
    Hidden, not unmounted: their size still counts in the board's frame
    (use-layout-frame.ts's railCover reads their boxes), so the board under the
    stage is never re-packed for a rail it cannot see. Not while the stage waits
-   unseen for its pane: nothing has changed on screen yet. */
+   unseen for its pane: nothing has changed on screen yet.
+   Only ever the panels that were open before the stage came. One asked for
+   while the stage is up — its button, U, S — takes the right of the deck back
+   and the stage goes (use-stage.ts useRailPanel), so a press is never answered
+   by a panel this rule then hides; while hidden, its button reads closed. The
+   phases this selector names are stage-shell.ts's stageSeen, which the hook
+   reads: the two must say the same. */
 .app:has(.stage-dock:not([data-phase="waiting"])) :is(.usage-panel, .sysdetail) { visibility: hidden; }
 
 /* The board under the stage, at rest: gone from sight, and inert in the DOM

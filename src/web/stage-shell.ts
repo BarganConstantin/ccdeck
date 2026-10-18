@@ -112,6 +112,15 @@ export function boardInert(state: Pick<ShellState, "phase" | "grace">): boolean 
   return (state.phase === "opening" || state.phase === "open") && !state.grace;
 }
 
+/** Whether the stage is on screen over the right of the deck: from its first
+ *  uncovered frame until the morph home is over, never while it waits unseen
+ *  for its pane. The right-hand rail panels stand aside for exactly this long
+ *  (stage-shell.css says so to the sheet), so a rail panel is on screen when
+ *  it is open and this is false (use-stage.ts useRailPanel). */
+export function stageSeen(phase: ShellPhase): boolean {
+  return phase === "opening" || phase === "open" || phase === "closing";
+}
+
 const CLOSED: Omit<ShellState, "last"> = {
   phase: "closed", target: null, origin: null, originName: null, grace: false, focusRequest: null, popover: null,
 };

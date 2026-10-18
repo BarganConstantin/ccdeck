@@ -2,6 +2,7 @@
 // way a click, a key, the detail panel or the stage's own motion moves it, and
 // the small decisions around them — what the Terminal button opens, where the
 // stage may grow from, which order j and k walk.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   boardInert,
@@ -11,6 +12,7 @@ import {
   sameTarget,
   shellReducer,
   stageClaimsKeys,
+  stageSeen,
   STAGE_FIRST_RUN_KEY,
   targetSession,
   terminalButtonTarget,
@@ -142,6 +144,25 @@ describe("the double-click window", () => {
     expect(boardInert({ phase: "closing", grace: false })).toBe(false);
     expect(boardInert({ phase: "closed", grace: false })).toBe(false);
     expect(boardInert({ phase: "opening", grace: false })).toBe(true);
+  });
+});
+
+describe("while the stage is seen", () => {
+  it("is from its first uncovered frame until the morph home is over, never while it waits unseen", () => {
+    expect(["closed", "waiting", "opening", "open", "closing"].map(p => stageSeen(p as ShellState["phase"])))
+      .toEqual([false, false, true, true, true]);
+  });
+
+  it("is exactly when the sheet stands the right-hand rail panels aside, so a hook and a rule never disagree", () => {
+    // use-stage.ts useRailPanel reads stageSeen to say whether Usage and
+    // Machine are on screen; stage-shell.css hides them under a dock in any
+    // phase but waiting. Were the two to drift, a button would claim a
+    // panel the sheet hides, or the other way round.
+    const sheet = readFileSync(new URL("../styles/stage-shell.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = sheet.match(/([^{}]*)\{\s*visibility:\s*hidden;\s*\}/g)?.find(r => r.includes(".usage-panel"));
+    expect(rule, "the rule that stands the rail panels aside").toBeTruthy();
+    expect(rule).toContain('.app:has(.stage-dock:not([data-phase="waiting"])) :is(.usage-panel, .sysdetail)');
+    expect(stageSeen("waiting")).toBe(false);
   });
 });
 
