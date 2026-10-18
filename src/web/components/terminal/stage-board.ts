@@ -13,6 +13,8 @@
 // card's bubbles name it (FACE_WORDS), the name the face prints (the root's
 // label), the hue the cluster wears (sessionHue). Nothing here is worded twice.
 import { isAlarming, type BlockedSession } from "../../ambient-counts";
+import { SEP } from "../../cluster-header";
+import { distinctIdTail } from "../../session-id-tail";
 import { FACE_WORDS } from "../../board-navigator";
 import { faceSignal } from "../../node-face";
 import { shortAgo } from "../../relative-time";
@@ -84,6 +86,21 @@ export function boardFactsFor(root: AgentNodeData, subagents: readonly AgentNode
   };
 }
 
+/** A session's name on the board, before any telling apart. */
+const boardName = (a: AgentNodeData) => a.label || a.cwdBasename || a.sessionId.slice(0, 8);
+
+/** The session's name on stage. Two sessions the board names alike — two
+ *  agents in one folder — are told apart the way the board's clusters tell
+ *  them, by as much of the id's tail as it takes: "proj · c450". */
+export function stageNameOf(root: AgentNodeData, agents: ReadonlyMap<string, AgentNodeData>): string {
+  const name = boardName(root);
+  const twins: string[] = [];
+  for (const a of agents.values()) {
+    if (a.kind !== "subagent" && a.sessionId !== root.sessionId && boardName(a) === name) twins.push(a.sessionId);
+  }
+  return twins.length ? `${name}${SEP}${distinctIdTail(root.sessionId, twins)}` : name;
+}
+
 /**
  * What the stage shows for `target`, from the board at `now`. A session the
  * board has lost — swept, removed — is still shown by id, with no sentence the
@@ -123,7 +140,7 @@ export function stageShowFor(
     kind: "session",
     session: {
       ref: { sessionId: id, provider, cwd: root.cwd ?? "" },
-      name: root.label || root.cwdBasename || id.slice(0, 8),
+      name: stageNameOf(root, agents),
       hue: sessionHue(id),
       model: root.model ?? null,
       status: stageStatusFrom(facts, now),
