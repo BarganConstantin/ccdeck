@@ -28,6 +28,7 @@ import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
 import { characterKeyMuted, setSingleKeyShortcuts } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import BoardSection from "./BoardSection";
 import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
@@ -159,6 +160,7 @@ export default function SettingsModal({
               onCharacter={setCharacter}
               onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
             />
+            <BoardSection />
             <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />
             <ToolAuditSettings />
           </>
