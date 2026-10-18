@@ -95,6 +95,14 @@ describe("the header", () => {
     expect(out).toMatch(/class="model-chip ts-chip" data-family="opus" role="img" aria-label="Claude Code · Opus 5.5"/);
   });
 
+  it("names the effort after the model, as the session's card does", () => {
+    expect(chipText("claude", "claude-opus-5-5", "max")).toBe("Opus 5.5 · max");
+    expect(chipText("claude", "claude-opus-5-5", null)).toBe("Opus 5.5");
+    expect(chipText("claude", null, "max"), "an effort with no model is no chip").toBeNull();
+    const out = html(createElement(StageHeader, headerProps({ model: "claude-opus-5-5", effort: "xhigh" })));
+    expect(out).toContain('aria-label="Claude Code · Opus 5.5 · xhigh"');
+  });
+
   it("offers ⌨ only for a pane that takes keys, pressed while the pane has them", () => {
     const free = StageHeader(headerProps({ canType: false }));
     expect(button(free, "Type into the session")).toBeNull();

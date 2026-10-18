@@ -65,7 +65,7 @@ describe("the facts the header's sentence is built from", () => {
 
 describe("what the stage shows", () => {
   it("shows a board session by its face's name, its hue and its pane's address", () => {
-    const root = agent("s1", { model: "claude-opus-5-5", state: "active", tools: [tool("Bash", NOW - 3000)] });
+    const root = agent("s1", { model: "claude-opus-5-5", effort: "max", state: "active", tools: [tool("Bash", NOW - 3000)] });
     const show = stageShowFor({ kind: "session", id: "s1" }, new Map([["s1", root]]), NOW);
     expect(show.kind).toBe("session");
     if (show.kind !== "session") return;
@@ -73,6 +73,7 @@ describe("what the stage shows", () => {
     expect(show.session.name).toBe("paycore");
     expect(show.session.hue).toBe(sessionHue("s1"));
     expect(show.session.model).toBe("claude-opus-5-5");
+    expect(show.session.effort, "the card's effort, on the header's chip").toBe("max");
     expect(show.session.status.state).toBe("working");
     expect(show.session.status.tool).toBe("Bash");
   });
