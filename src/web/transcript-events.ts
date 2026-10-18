@@ -11,6 +11,7 @@
 // for the same reason: the facts Codex restates ride on whatever payload it
 // sends, two of them on these scans.
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
+import { EFFORT_LEVEL_RE } from "./payload-effort";
 import { usageByModelFromWire, usageFromWire } from "./usage-wire";
 import type { BackgroundJob, ContextBreakdown, HookPayload } from "./types";
 
@@ -69,6 +70,16 @@ export function stampSessionFacts(state: GraphState, p: HookPayload, sessionId: 
   if (typeof p.approval_policy === "string" && p.approval_policy) {
     const root = state.agents.get(sessionId);
     if (root) root.approvalPolicy = p.approval_policy;
+  }
+
+  // Codex's reasoning effort (#2155), from the same `turn_context` as the
+  // policy and spread the same way — but null is a value here: a turn that
+  // names no effort is a model without one, and the chip drops the old level.
+  // Absent says nothing, as it does for the policy. Claude Code states its
+  // effort per agent on its own hooks instead (payload-effort.ts).
+  if (p.reasoning_effort === null || (typeof p.reasoning_effort === "string" && EFFORT_LEVEL_RE.test(p.reasoning_effort))) {
+    const root = state.agents.get(sessionId);
+    if (root) root.effort = p.reasoning_effort ?? undefined;
   }
 
   // How much of that window is occupied right now, from the same Codex

@@ -359,6 +359,12 @@ export interface AgentNodeData {
    *  see `usageByModel` above for why the two are different questions and why
    *  no cost surface may answer the second with this. */
   model?: string;
+  /** The reasoning effort this agent runs at now — "xhigh", "medium" — as the
+   *  session itself reported it (#2155): Claude Code's `effort.level` on its
+   *  tool-call hooks, Codex's `turn_context`. Absent when nothing said it,
+   *  never filled in from a setting or a model's default. Shown after the
+   *  model in its chip. */
+  effort?: string;
   /** Which CLI ecosystem this agent belongs to. Set from the hook payload's
    *  `provider` field on first event; defaults to "claude" for back-compat
    *  with replay events written before multi-provider support. */
@@ -652,6 +658,16 @@ export interface HookPayload {
    *  rollout watcher and spread onto every payload it emits — see
    *  `AgentNodeData.approvalPolicy`. */
   approval_policy?: string;
+  /** Codex-only: the newest `turn_context`'s reasoning effort, spread onto every
+   *  payload as `approval_policy` is, and on a hook-delivered session's
+   *  `ModelObserved`. Null when that turn named none, which clears the chip;
+   *  absent before the first turn — see `AgentNodeData.effort`. */
+  reasoning_effort?: string | null;
+  /** Claude-only: the effort level in effect when the hook ran, on the events
+   *  Claude Code fires inside a tool-use context (PreToolUse, PostToolUse,
+   *  Stop, SubagentStop) whenever the model supports effort. See
+   *  payload-effort.ts. */
+  effort?: { level?: unknown } | null;
   /** Codex-only: how much of the context window is occupied right now, taken
    *  from `token_count.info.last_token_usage.total_tokens` and carried on the
    *  `UsageObserved` the same record produces. It rides along rather than

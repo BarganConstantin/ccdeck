@@ -19,6 +19,7 @@
 //
 // The rest of the client imports what it reads of these from here.
 import { extractModel } from "./payload-model";
+import { claudeEffort } from "./payload-effort";
 import { initialState, rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { explicitSubagentKey, noteKeyedSubagent, resolveOwner } from "./agent-attribution";
 import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
@@ -162,6 +163,10 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   const namedKey = explicitSubagentKey(p);
   const named = namedKey ? subagentIdFor(sessionId, namedKey) : rootAgentId(sessionId);
   if (observedModel && owner.id === named) owner.model = observedModel;
+  // The effort beside it, on the same terms: onto the agent the payload names,
+  // and cleared by a tool event that no longer carries one (payload-effort.ts).
+  const observedEffort = claudeEffort(name, p);
+  if (observedEffort !== undefined && owner.id === named) owner.effort = observedEffort ?? undefined;
 
   switch (name) {
     case "SessionStart": applySessionStart(state, p, sessionId, now); break;
