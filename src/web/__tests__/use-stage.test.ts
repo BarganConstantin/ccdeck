@@ -321,6 +321,33 @@ describe("the switch in Settings", () => {
     expect(other.now().stage.shell.phase).toBe("closed");
   });
 
+  it("gives the card back the focus the stage held when another tab turns it off", async () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    now().stage.reveal();
+    const doc = (globalThis as Record<string, any>).document;
+    doc.activeElement = { closest: (sel: string) => (sel.includes(".stage-dock") ? {} : null) };
+    answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    for (const fn of storage) fn({ storageArea: localArea, key: STAGE_SWITCHED, newValue: "1" });
+    await flush();
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(focused).toBe('.react-flow__node[data-id="s1"]');
+  });
+
+  it("leaves the focus on the switch in the tab that pressed it", async () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    now().stage.reveal();
+    const doc = (globalThis as Record<string, any>).document;
+    doc.activeElement = { closest: () => null };
+    answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    now().stage.toggleTerminal();
+    await flush();
+    expect(focused).toBeNull();
+  });
+
   it("forgets the session a reload would have put back once it goes off", async () => {
     answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
     const { now, turnOn } = setup();

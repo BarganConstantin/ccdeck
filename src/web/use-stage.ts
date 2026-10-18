@@ -485,15 +485,21 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // stage down at once and without its motion, and forgets the session a
   // reload would have put back: a switch turned on again later opens nothing
   // by itself. Only on the way from on to off, so the closed stage of a first
-  // render, before the prefs are read, forgets nothing.
+  // render, before the prefs are read, forgets nothing. Focus the stage held
+  // goes back onto the card, as a close's does; focus on the switch itself, in
+  // the tab that pressed it, stays there.
   const wasEnabled = useRef(false);
   useEffect(() => {
     const was = wasEnabled.current;
     wasEnabled.current = enabled;
     if (enabled || !was) return;
+    if (shellRef.current.phase !== "closed") {
+      const active = document.activeElement;
+      if (active?.closest?.(".stage-dock, .stage-nav")) returnFocusRef.current = targetSession(shellRef.current.target);
+    }
     dispatch({ type: "close", instant: true });
     writeOnStage(null, Date.now());
-  }, [enabled]);
+  }, [enabled, shellRef]);
 
   return {
     enabled, forced, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
