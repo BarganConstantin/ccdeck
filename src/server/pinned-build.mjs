@@ -83,6 +83,9 @@ const PINNED_MODULES = [
   // import() from the report's route.
   "account-projects.mjs",
   "swap-log.mjs",
+  // account-watch.mjs reads what each organization's telemetry was last seen
+  // to turn on, for the swap notice, only once a tick has switched.
+  "org-telemetry.mjs",
   "lan-sync.mjs",
   // The providers' status pages (#1311), reached only from their route.
   "provider-status.mjs",

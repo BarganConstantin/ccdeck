@@ -476,7 +476,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
         sortKey={a.active ? null : orderKey(shownOrder)}
-        home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null} />
+        home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null}
+        rotating={!!(auto?.enabled || auto?.external)} />
     );
   };
 
