@@ -390,7 +390,24 @@ export function ReadoutGroup({
 }) {
   const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
   const { chipVersion, openReleaseNotes } = welcome;
-  const { readyAppUpdate } = desktopUpdate;
+  const { readyAppUpdate, desktopUpdateRestarting, desktopUpdateFailure, askDesktopUpdateRestart } = desktopUpdate;
+  // A press of the topbar's Restart to update that came to nothing opens What's
+  // new, where the reason and the way out are already written (rn-update-said)
+  // — the button itself has nowhere to say a sentence. Only a press made HERE:
+  // the dialog's own button fails into the dialog already on screen, and
+  // reopening it would swap an upgrade's notes for the whole list. The ref is
+  // let go when the press is over either way, so a later failure from the
+  // dialog is not taken for this one's.
+  const topbarPress = useRef(false);
+  useEffect(() => {
+    if (desktopUpdateRestarting || !topbarPress.current) return;
+    topbarPress.current = false;
+    if (desktopUpdateFailure) openReleaseNotes();
+  }, [desktopUpdateRestarting, desktopUpdateFailure, openReleaseNotes]);
+  const restartToUpdate = (updateVersion: string) => {
+    topbarPress.current = true;
+    void askDesktopUpdateRestart(updateVersion);
+  };
   const { paused, pauseGate } = pause;
   const { blockedSaid, watchSaid, incidentSaid } = announcements;
   const { notifySaid } = notify;
@@ -444,6 +461,7 @@ export function ReadoutGroup({
           readyAppUpdate={readyAppUpdate} notice={notice} noticeOpen={noticeOpen}
           version={version} chipVersion={chipVersion} versionChecking={versionChecking} now={now}
           openReleaseNotes={openReleaseNotes} showNotice={showNotice} loadVersion={loadVersion}
+          restartToUpdate={restartToUpdate} updateRestarting={desktopUpdateRestarting}
         />
       </div>
       {/* NOT a live region, and #372 is the issue that took the

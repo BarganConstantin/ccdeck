@@ -24,6 +24,7 @@ import { useReframe } from "./use-reframe";
 import { useBoardGraph, useLayoutSig } from "./use-board-graph";
 import { useAutoFit } from "./use-auto-fit";
 import { useRemovalCallBacks, useRemovals } from "./use-removals";
+import { useHideFinished } from "./use-hide-finished";
 import { useTabAmbient } from "./use-tab-ambient";
 import { useCanvasViewport } from "./use-canvas-viewport";
 import { useCanvasClicks } from "./use-canvas-clicks";
@@ -355,8 +356,14 @@ function Inner() {
   // What Remove node has taken off the board, the way back, and the sentence
   // that says so — use-removals.ts.
   const { removedNodes, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
-          bringBack, bringBackAll, forgetRemovals }
+          hideSessions, bringBack, bringBackAll, forgetRemovals }
     = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
+  // Finished sessions taking themselves off the board after the delay picked
+  // in Settings › General — use-hide-finished.ts.
+  useHideFinished({
+    stateRef, removedNodes, hideSessions, ready: historyReplayed,
+    keepSessionId: primarySelectedId ? stateRef.current.agents.get(primarySelectedId)?.sessionId ?? primarySelectedId : null,
+  });
   // What the layout keys off: the visible, not-removed agents and their
   // parents, plus the two size versions — use-board-graph.ts.
   const layoutSig = useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domSizeVersion });

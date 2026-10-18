@@ -79,6 +79,13 @@
   .ap-reset-coverage-link[aria-pressed="true"],
   .ap-reset-day-button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
   .ap-reset-meter > span { forced-color-adjust: none; background: CanvasText; }
+  /* The plan meter's track and fill (#2157): an edge for the track, ink for
+     what is done. */
+  .agent-node .plan-meter { forced-color-adjust: none; background: Canvas; box-shadow: inset 0 0 0 1px CanvasText; }
+  .agent-node .plan-meter::after { forced-color-adjust: none; background: CanvasText; }
+  .plan-mark { forced-color-adjust: none; border-color: CanvasText; }
+  .plan-item[data-status="in_progress"] .plan-mark { background: Highlight; border-color: Highlight; }
+  .plan-item[data-status="completed"] .plan-mark::after { forced-color-adjust: none; border-color: CanvasText; }
   .topbar .status .pill.live::before,
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,

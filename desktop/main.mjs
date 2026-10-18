@@ -24,7 +24,7 @@ import { deckJson, findDecks, openTrayStream, restartAsked } from "./deck-link.m
 import { shellEnv, startDeck, withShellSettings, writeLauncher } from "./deck-host.mjs";
 import { deckOrigin, navigationFor, originToFollow } from "./nav.mjs";
 import { overFullScreen, windowsOnScreen } from "./fullscreen-space.mjs";
-import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
+import { canInstallQuietly, idleSinceNext, isFresh, POSTPONE_MS, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
@@ -105,7 +105,10 @@ let startFailed = null;       // why the app's own deck did not start, until a d
 let sayingStartFailed = false;
 let restarting = null;        // since when a restart has been asked for, until a new deck answers
 let updater = null;           // updater.mjs, created once the app is ready
-let quietSince = null;        // since when nothing is running, waiting or open (#1187)
+let quietSince = null;        // since when the window is unfocused and no deck is starting (#1187)
+let idleSince = null;         // since when no agent is working or waiting
+let behindSince = null;       // since when an update has been ready, in this process
+let postponedUntil = null;    // until when "Later" holds the quiet install off
 let updateNoticeVersion = null; // last version whose ready notice was shown (#1182)
 let updateNoticePrompting = false;
 let asking = 0;                // questions from ask() on screen now
@@ -821,7 +824,11 @@ function rememberUpdateNotice(version) {
  * ccdeck. The updater never opens or raises a window for this notice: if the
  * window is closed, unfocused, or the deck is active, the next focus/redraw
  * gets another chance. Dismissing it remembers the version across launches so
- * "Later" really means later rather than every six-hour update check.
+ * the sheet does not come back at every six-hour update check — and "Later"
+ * also holds the quiet install off for a day (postponeUpdate). It used to do
+ * only the first: the sheet went, and the app restarted into the update a
+ * minute after the window lost focus, which is the opposite of what the
+ * button said.
  *
  * Not routed through `ask()`: `shouldOfferReadyUpdate` already requires
  * `windowVisible` before this ever runs, so `target` is never the unshown,
@@ -845,14 +852,18 @@ async function offerReadyUpdate() {
 
   const version = u.version;
   const asksPassword = !updater.canInstallUnattended();
+  const menu = process.platform === "darwin" ? "the ccdeck menu in the menu bar" : "the ccdeck tray menu";
   updateNoticePrompting = true;
   try {
     const { response } = await dialog.showMessageBox(target, {
       type: "info",
       message: `ccdeck v${version} is ready`,
-      // The tray's own words for where it lives, the ones the window's dialog
-      // uses when a restart from there fails (trayMenuName in desktop-update.ts).
-      detail: `It has been downloaded and verified.${asksPassword ? " Installing it asks for your password." : ""} To do it later, use Restart to update in ${process.platform === "darwin" ? "the ccdeck menu in the menu bar" : "the ccdeck tray menu"}.`,
+      // What happens with each answer, and with none. The tray's own words for
+      // where it lives, the ones the window's dialog uses when a restart from
+      // there fails (trayMenuName in desktop-update.ts).
+      detail: asksPassword
+        ? `It has been downloaded and verified. Installing it asks for your password, so it waits for you: use Restart to update in ${menu} whenever it suits you.`
+        : `It has been downloaded and verified. ccdeck installs it by itself once no agent is working. Later holds that off for the next 24 hours; Restart to update in ${menu} installs it at any time.`,
       buttons: ["Restart to update", "Later"],
       defaultId: 0,
       cancelId: 1,
@@ -860,6 +871,7 @@ async function offerReadyUpdate() {
 
     // The sheet was actually shown, so this version has had its one notice.
     rememberUpdateNotice(version);
+    if (response === 1) postponeUpdate();
 
     // A newer update may have replaced this one while the sheet was open.
     // Only restart for the exact verified version the person accepted.
@@ -958,6 +970,7 @@ app.whenReady().then(async () => {
   }
   setRegular(false);
   updateNoticeVersion = desktopState.read().readyUpdateNoticeVersion ?? null;
+  postponedUntil = postponementHeld(desktopState.read());
   await loadModel();
   tray = new Tray(trayImage("offline"));
   tray.setToolTip("ccdeck");
@@ -978,6 +991,9 @@ app.whenReady().then(async () => {
     app,
     onChange: s => {
       trace(`update: ${s.status}${s.version ? ` ${s.version}` : ""}${s.error ? ` — ${s.error}` : ""}`);
+      // The day an update may wait for the agents counts from the first one
+      // that was ready. A newer release staged over it is the same wait.
+      if (s.status === "ready" && behindSince === null) behindSince = Date.now();
       scheduleRedraw();
       publishUpdateState();
       offerReadyUpdate();
@@ -992,7 +1008,9 @@ app.whenReady().then(async () => {
   // and the owner asked for one that is on the current version without anybody
   // remembering to look (#1187). Fifteen seconds in, so the check is behind the
   // window and the deck rather than in front of them. Only a built app looks: a
-  // development run has nothing to update into.
+  // development run has nothing to update into. While an update waits to be
+  // installed, the ten-second tick below looks again every half hour, for a
+  // newer one to install instead (lookAgainWhileReady).
   setTimeout(() => updater.check(), 15_000);
   setInterval(() => updater.check(), 6 * 60 * 60_000);
   // Caught, so a start that fails still leaves the timers below, the window
@@ -1000,7 +1018,7 @@ app.whenReady().then(async () => {
   await ensureDeck().catch(err => trace(`start failed: ${err?.message ?? err}`));
   // The page's housekeeping (stale sessions, evictions), and a look for a deck
   // that came up while none was running.
-  setInterval(() => { model?.tick(); scheduleRedraw(); updateWhenQuiet(); }, 10_000);
+  setInterval(() => { model?.tick(); scheduleRedraw(); lookAgainWhileReady(); updateWhenQuiet(); }, 10_000);
   setInterval(() => { if (!deck) discover(); }, 5_000);
   // The status pages, every five minutes while there is work going on — see
   // statusWorthAsking.
@@ -1020,11 +1038,12 @@ app.whenReady().then(async () => {
 
 /**
  * Install a verified update by itself, once the app has been left alone long
- * enough (#1187) — see auto-update.mjs for what "alone" means and why.
+ * enough and no agent is working or waiting — or the update has waited a day
+ * for that (#1187) — see auto-update.mjs for what "alone" means and why.
  *
- * Run on the same ten-second tick that redraws the tray, so the quiet is
- * measured from the same snapshot the icon is drawn from rather than from a
- * clock of its own.
+ * Run on the same ten-second tick that redraws the tray, so the quiet and the
+ * agents are measured from the same snapshot the icon is drawn from rather
+ * than from a clock of its own.
  */
 function updateWhenQuiet() {
   // A Quit being carried out, while its deck shuts down, is not a quiet spell.
@@ -1035,7 +1054,20 @@ function updateWhenQuiet() {
     now: Date.now(),
   };
   quietSince = quietSinceNext(quietSince, where);
-  if (!canInstallQuietly({ status: updater?.state.status ?? "idle", unattended: updater?.canInstallUnattended() ?? false, quietSince, ...where })) {
+  // Waiting counts as working: a session blocked on a permission is somebody's
+  // turn half done, and the restart would take its card away mid-question.
+  idleSince = idleSinceNext(idleSince, { agentsBusy: snapshot.running > 0 || snapshot.waiting > 0, now: where.now });
+  if (!canInstallQuietly({
+    status: updater?.state.status ?? "idle",
+    unattended: updater?.canInstallUnattended() ?? false,
+    quietSince,
+    idleSince,
+    behindSince,
+    postponedUntil,
+    lookedAt: updater?.lookedAt ?? null,
+    looking: updater?.looking ?? false,
+    ...where,
+  })) {
     restartForTrayWhenQuiet(where);
     return;
   }
@@ -1045,6 +1077,45 @@ function updateWhenQuiet() {
   quietSince = null;
   try { desktopState.merge({ windowOpenAtSelfRestart: windowOpen() }); } catch { /* the window opens, as it always did */ }
   updater.restartNow();
+}
+
+/**
+ * While an update waits to be installed, look again for a newer one whenever
+ * the last look is older than FRESH_MS — so what installs is the newest
+ * release, and not one that was overtaken while it waited for the agents and
+ * would be followed by a second update an hour later. A newer release takes
+ * the update out of "ready" while it downloads, and nothing installs until it
+ * is staged. On the ten-second tick, ahead of updateWhenQuiet, which also
+ * refuses an update whose look is stale or still in flight.
+ */
+function lookAgainWhileReady() {
+  if (!updater || updater.state.status !== "ready" || updater.looking) return;
+  if (isFresh({ lookedAt: updater.lookedAt, looking: false, now: Date.now() })) return;
+  void Promise.resolve(updater.check()).catch(err => trace(`update look failed: ${err?.message ?? err}`));
+}
+
+/**
+ * "Later" on the ready notice: no quiet install for POSTPONE_MS. Kept on disk
+ * with the app's version, so a relaunch keeps the promise and an app that has
+ * since updated — on Quit, or from the menu — does not carry it over to the
+ * next release.
+ */
+function postponeUpdate() {
+  postponedUntil = Date.now() + POSTPONE_MS;
+  trace(`quiet install postponed until ${new Date(postponedUntil).toISOString()}`);
+  try {
+    desktopState.merge({ updatePostponedUntil: postponedUntil, updatePostponedOn: app.getVersion() });
+  } catch (err) {
+    trace(`could not remember the postponement: ${err?.message ?? err}`);
+  }
+}
+
+/** A "Later" written before this launch, if it still holds: unexpired, and
+ *  written by this version of the app. */
+function postponementHeld(state) {
+  const until = state?.updatePostponedUntil;
+  if (typeof until !== "number" || until <= Date.now()) return null;
+  return state.updatePostponedOn === app.getVersion() ? until : null;
 }
 
 /** Whether the window is up now, for a restart the app makes by itself to

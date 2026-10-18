@@ -53,6 +53,24 @@ describe('Radar individual flag settings', () => {
     await updateRadarFlag('OTEL_LOG_USER_PROMPTS', false, boundedReader);
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ hooks: { Stop: [] }, env: { OTEL_LOG_USER_PROMPTS: '0' } });
   });
+  it('lists the flags no settings file names, and saves one into user settings', async () => {
+    const { dir, path, options } = await fixture();
+    await writeFile(path, JSON.stringify({ env: { OTEL_LOG_USER_PROMPTS: '0' } }));
+    await writeFile(join(dir, 'remote-settings.json'), '{"env":{"ENABLE_ENHANCED_TELEMETRY_BETA":"1"}}');
+    const config = await readRadarConfig(options);
+    expect(config.unsetFlags).toEqual(['CLAUDE_CODE_ENABLE_TELEMETRY', 'OTEL_LOG_ASSISTANT_RESPONSES', 'OTEL_LOG_TOOL_DETAILS', 'OTEL_LOG_TOOL_CONTENT', 'OTEL_LOG_RAW_API_BODIES', 'OTEL_LOG_MANAGED_SETTINGS']);
+    const saved = await updateRadarFlag('OTEL_LOG_TOOL_CONTENT', true, options);
+    expect(JSON.parse(await readFile(path, 'utf8')).env).toEqual({ OTEL_LOG_USER_PROMPTS: '0', OTEL_LOG_TOOL_CONTENT: '1' });
+    expect(saved.config.unsetFlags).not.toContain('OTEL_LOG_TOOL_CONTENT');
+    expect(saved.config.variables.find((v: { key: string }) => v.key === 'OTEL_LOG_TOOL_CONTENT')).toMatchObject({ source: 'User settings', value: 'Enabled', editable: true });
+  });
+  it('offers enhanced telemetry under one name when neither is set', async () => {
+    const { path, options } = await fixture();
+    await writeFile(path, '{}');
+    const { unsetFlags } = await readRadarConfig(options);
+    expect(unsetFlags).toContain('CLAUDE_CODE_ENHANCED_TELEMETRY_BETA');
+    expect(unsetFlags).not.toContain('ENABLE_ENHANCED_TELEMETRY_BETA');
+  });
   it('uses CLAUDE_CONFIG_DIR and preserves symlinked settings', async () => {
     const { home, path, options } = await fixture();
     const actual = join(home, 'dotfiles.json'); await writeFile(actual, '{}'); await symlink(actual, path);

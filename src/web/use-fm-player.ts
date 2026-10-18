@@ -147,8 +147,18 @@ export function useFmPlayer({
     };
     // A refused autoplay is the browser wanting a press of its own, not a
     // broken station: the control stays, idle, and pressing it plays.
+    //
+    // An AbortError on the CURRENT player is not a failure either. It says a
+    // pause() or load() that was not ours cut this play() short: hls.js
+    // reloading the media, or the browser, the media keys or another script
+    // pausing the stream and asking it to play again. Tearing the stream down
+    // here killed a station that had not failed, and the teardown's own
+    // load() then aborted that second play(), a promise nobody here holds,
+    // which reached the page unhandled (#2164). A stream that really is
+    // broken still says so: an error, a fatal hls.js error, or the timeout.
     const refused = (error: unknown) => {
       if (!current()) return;
+      if (error instanceof DOMException && error.name === "AbortError") return;
       if (error instanceof DOMException && error.name === "NotAllowedError") { released(); return; }
       failed();
     };

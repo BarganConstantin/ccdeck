@@ -534,13 +534,30 @@
   margin-top: 3px;
   font-family: var(--font-mono);
 }
+/* The pieces of the row keep their width, except a subagent's folder, which
+   is the one cut short (#2169): as one run of text the row ellipsised at its
+   end, and a long folder took the model chip with it. What gives way before
+   the folder is cut — the kind word, then the effort — AgentNode measures. */
 .agent-node .sub-details {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
   white-space: nowrap;
+  overflow: hidden;
+}
+.agent-node .sub-details > * { flex-shrink: 0; }
+.agent-node .sub-details > .sub-folder {
+  flex-shrink: 1;
+  min-width: 0;
+  margin-left: 1ch;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Whatever leads the row starts at its edge: with the kind word gone, the
+   badge's, the folder's or the chip's gap would be an indent. After the
+   folder's rule, which weighs the same. */
+.agent-node .sub-details > :first-child { margin-left: 0; }
 
 /* What Claude Code calls the session, under the meta row — its agent-name when
    it has one and its ai-title when it does not, which on the transcripts here is
@@ -571,6 +588,56 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* The agent's plan, as one row (#2157): a meter, the count and the step.
+   The step is a sentence the agent wrote, so it is the sans stack in
+   --text-secondary, prose somebody reads; the count is a live number, so it is
+   monospace with tabular figures and never the part that ellipsises. The
+   meter is the session's own --accent over a --line track, the same pair the
+   card's other fills use, and it repeats the count, so 1.4.11's printed
+   equivalent covers it. A finished list steps back to --muted: it says what
+   got done, and stops competing with the rows that say what is happening. */
+.agent-node .plan-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  min-width: 0;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
+}
+.agent-node .plan-meter {
+  flex: none;
+  position: relative;
+  width: 24px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.agent-node .plan-meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(var(--plan-done, 0));
+}
+.agent-node .plan-count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.agent-node .plan-step {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-node .plan-next { color: var(--muted); }
+.agent-node .plan-done .plan-step { color: var(--muted); }
 
 /* Tool-rate sparkline — tools-per-second over the last 60s. Most recent
    bucket is on the right; brighter for the live one. */
