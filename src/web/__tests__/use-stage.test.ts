@@ -909,41 +909,56 @@ describe("keys typed before the pane can take them", () => {
     expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest), "what was typed for s1 went with s1").toBe("b");
   });
 
-  it("lets chords, Tab, the arrows and an input method's keys go where they always went", () => {
+  it("lets a key it cannot send go where it always went, and delivers nothing after one", () => {
     const { now, turnOn } = setup();
     turnOn();
     now().stage.onNodeClick("s1", page.card as unknown as Element);
+    expect(held(press("h"))).toBe(true);
     expect([
-      press("c", { ctrlKey: true }), press("k", { metaKey: true }), press("b", { altKey: true }),
-      press("Tab"), press("ArrowUp"), press("F5"), press("a", { isComposing: true }), press("Process", { keyCode: 229 }),
-    ].map(held)).toEqual([false, false, false, false, false, false, false, false]);
-    expect(held(press("@", { ctrlKey: true, altKey: true, getModifierState: (m: string) => m === "AltGraph" })),
-      "AltGr is how a German keyboard types @, not a chord").toBe(true);
-    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("@");
+      press("c", { ctrlKey: true }), press("k", { metaKey: true }), press("ArrowUp"), press("F5"), press("Process", { keyCode: 229 }),
+    ].map(held)).toEqual([false, false, false, false, false]);
+    expect(held(press("j")), "still kept from the deck's shortcuts").toBe(true);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest), "h, then a key it could not send: not what was typed").toBe("");
   });
 
-  it("holds on the card, the Terminal button and the stage, and leaves a field on the board its typing", () => {
-    const { now, turnOn } = setup();
+  it("keeps a held Enter on the Terminal button from typing a stream of answers", () => {
+    const { now, turnOn } = setup({ selected: "s1" });
     turnOn();
-    (page.canvas as Record<string, unknown>).contains = (n: { onBoard?: boolean }) => n?.onBoard === true;
-    const onStage = { closest: (sel: string) => (sel === ".stage-dock" ? {} : null) };
-    now().stage.onNodeClick("s1", page.card as unknown as Element);
-    expect(held(press("a", { target: { onBoard: true, tagName: "DIV" } })), "the card that was clicked").toBe(true);
-    expect(held(press("b", { target: { onBoard: true, tagName: "INPUT" } })), "a field keeps its typing").toBe(false);
-    expect(held(press("c", { target: { onBoard: true, tagName: "DIV", isContentEditable: true } }))).toBe(false);
-    expect(held(press("d", { target: { ...onStage, tagName: "TEXTAREA", classList: { contains: (c: string) => c === "xterm-helper-textarea" } } })),
-      "the pane's own textarea, between two sessions, is the hold's").toBe(true);
-    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("ad");
-  });
-
-  it("ends once the reader has taken the focus somewhere else", () => {
-    const { now, turnOn } = setup();
-    turnOn();
-    now().stage.onNodeClick("s1", page.card as unknown as Element);
-    press("a");
-    expect(held(press("b", { target: { tagName: "BUTTON", closest: () => null } })), "a topbar button, a dialog, a rail").toBe(false);
-    expect(held(press("c"))).toBe(false);
+    const button = { tagName: "BUTTON", focus: vi.fn() };
+    (globalThis as Record<string, any>).document.activeElement = button;
+    now().stage.openFromButton(button as unknown as Element);
+    expect([press("Enter", { target: button, repeat: true }), press("Enter", { target: button, repeat: true })].map(held)).toEqual([true, true]);
     expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("");
+  });
+
+  it("holds where the press left the focus, on the body, and in the pane's own textarea", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    const doc = (globalThis as Record<string, any>).document;
+    const card = { tagName: "DIV" };
+    doc.activeElement = card;
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    expect(held(press("a", { target: card })), "the card that was clicked").toBe(true);
+    expect(held(press("b")), "the body, the board having gone inert").toBe(true);
+    doc.documentElement = { tagName: "HTML" };
+    expect(held(press("c", { target: doc.documentElement }))).toBe(true);
+    const pane = { tagName: "TEXTAREA", classList: { contains: (c: string) => c === "xterm-helper-textarea" } };
+    expect(held(press("d", { target: pane })), "the pane's own textarea, between two sessions, is the hold's").toBe(true);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("abcd");
+  });
+
+  it("ends once the reader has moved the focus: an Enter on a tile or on ✕ is the control's, not the session's", () => {
+    // Tab, then the arrows, to the next session's tile, and Enter: held, that
+    // Enter would have answered the session the reader was leaving.
+    for (const control of [{ tagName: "BUTTON", className: "nav-tile" }, { tagName: "BUTTON", className: "ts-close" }, { tagName: "INPUT" }]) {
+      const { now, turnOn } = setup();
+      turnOn();
+      now().stage.onNodeClick("s1", page.card as unknown as Element);
+      press("a");
+      expect(held(press("Enter", { target: control })), control.className ?? control.tagName).toBe(false);
+      expect(held(press("c")), "ended, not paused").toBe(false);
+      expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("");
+    }
   });
 
   it("ends on Esc, which goes on to the deck, and on a press anywhere but the stage", () => {

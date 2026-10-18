@@ -8,18 +8,27 @@
 // read as the deck's own single-key shortcuts — j or k walking the stage to
 // another session while the reader was writing to this one.
 //
-// ONLY WHAT A PERSON TYPES INTO A PROMPT IS HELD: a character, Enter and
-// Backspace, with no Ctrl, Cmd or Alt down (AltGr, which types characters, is
-// not a chord), and nothing an input method is composing. Each goes to the
-// program as xterm would have sent it, Backspace included, so a typo erased
-// before the pane was ready is erased in the program, as in a terminal.
-// Every other key goes where it always went: a chord can be a program's
-// command, which only the pane knows how to send, and Tab is how the
-// keyboard moves. Esc ends the hold, which is how a reader takes the keys back
-// before the pane has them. What is held goes to the pane once the pane takes
-// the keys; a stage that answers with a card instead drops it.
+// WHAT IS HELD IS WHAT A PERSON TYPES INTO A PROMPT, as the pane would have
+// sent it: a character (AltGr's, and on a Mac Option's, included), Enter,
+// Shift+Enter, Backspace, and the Mac's line-editing chords the pane sends
+// itself (terminal-keys.ts). Backspace goes to the program too, so a typo
+// erased before the pane was ready is erased there, as in a terminal. A held
+// Enter's auto-repeat adds nothing: a key held down on the Terminal button is
+// not a stream of answers to whatever the session is asking.
 //
-// In the first-load chunk, so plain functions and nothing heavy.
+// A KEY THE HOLD CANNOT SEND SPOILS IT. An arrow, Tab, Delete, a Ctrl chord
+// or an input method's key goes where it always went, and the hold delivers
+// nothing from then on: what it holds is no longer what was typed, and a line
+// with a key missing from its middle, sent with its Enter, is an answer
+// nobody gave. It still keeps the letters that follow from the deck's
+// shortcuts until it ends. Esc and the release chord end it outright, which is
+// how a reader takes the keys back before the pane has them. So does a burst
+// longer than any prompt typed in a second, TYPE_AHEAD_MAX.
+//
+// In the first-load chunk, so plain functions and nothing heavy;
+// terminal-keys.ts is already there for the deck's shortcuts.
+import { isApplePlatform, platformName } from "./platform";
+import { isReleaseChord, terminalKeyInput, terminalKeyOutcome } from "./terminal-keys";
 
 /** How long a hold waits for the pane before it lets keys through again. */
 export const TYPE_AHEAD_MS = 10_000;
@@ -31,37 +40,77 @@ export interface TypeAhead {
   text: string;
   /** When the hold lets keys through again. */
   until: number;
+  /** A key it could not send came between: it delivers nothing. */
+  spoiled?: boolean;
 }
 
 /** The parts of a keydown the hold reads; a real KeyboardEvent has them all. */
 export interface HeldKeyEvent {
   key: string;
+  code?: string;
   ctrlKey: boolean;
+  shiftKey?: boolean;
   metaKey: boolean;
   altKey: boolean;
+  repeat?: boolean;
   isComposing?: boolean;
   keyCode?: number;
   getModifierState?(key: string): boolean;
 }
 
+/** A keydown against the hold: the hold after it, and whether the event is
+ *  the hold's (swallowed, so nothing else on the page hears it). */
+export interface Held {
+  ahead: TypeAhead;
+  swallow: boolean;
+}
+
+/** Keys that are only held down with another, and a dead key, whose
+ *  character arrives with the next keydown. */
+const NOT_A_KEY: ReadonlySet<string> = new Set([
+  "Shift", "Control", "Alt", "AltGraph", "Meta", "OS", "Super", "Hyper", "Fn", "FnLock", "CapsLock", "NumLock", "ScrollLock", "Dead",
+]);
+
 export function startTypeAhead(now: number): TypeAhead {
   return { text: "", until: now + TYPE_AHEAD_MS };
 }
 
+/** What the hold gives for a delivery: nothing once it is spoiled. */
+export function heldText(ahead: TypeAhead): string {
+  return ahead.spoiled ? "" : ahead.text;
+}
+
 /**
- * A keydown, against the hold: the hold with it, when it is a key the hold
- * keeps (the event is then the hold's, and goes nowhere else); "end" for Esc,
- * which ends the hold and goes on as usual; null for every other key, which
- * goes on as usual and leaves the hold as it was.
+ * A keydown, against the hold: "end" for Esc and the release chord, which end
+ * it and go on as usual; null for a modifier on its own, which changes
+ * nothing; else the hold after the key, and whether the key is the hold's.
  */
-export function holdKey(ahead: TypeAhead, e: HeldKeyEvent): TypeAhead | "end" | null {
-  if (e.isComposing || e.keyCode === 229) return null;
+export function holdKey(ahead: TypeAhead, e: HeldKeyEvent, apple = isApplePlatform(platformName())): Held | "end" | null {
+  if (NOT_A_KEY.has(e.key)) return null;
   if (e.key === "Escape") return "end";
+  const chord = { ...e, code: e.code ?? "", shiftKey: e.shiftKey === true };
+  if (isReleaseChord(chord)) return "end";
+  if (e.isComposing || e.keyCode === 229) return { ahead: { ...ahead, spoiled: true }, swallow: false };
+  if (e.repeat && e.key === "Enter") return { ahead, swallow: true };
+  const add = sent({ ...chord, type: "keydown" }, apple);
+  if (add == null) return { ahead: { ...ahead, spoiled: true }, swallow: false };
+  if ([...ahead.text].length + [...add].length > TYPE_AHEAD_MAX) return { ahead: { ...ahead, spoiled: true }, swallow: true };
+  return { ahead: { ...ahead, text: ahead.text + add }, swallow: true };
+}
+
+/** What the pane would have sent for the key, when the hold can say. */
+function sent(e: Parameters<typeof terminalKeyOutcome>[0] & HeldKeyEvent, apple: boolean): string | null {
+  const outcome = terminalKeyOutcome(e, apple);
+  if (outcome === "newline" || outcome === "send" || outcome === "meta") return terminalKeyInput(e, outcome, apple);
+  if (outcome !== "pass") return null;
   const altGraph = e.getModifierState?.("AltGraph") === true;
-  if (e.metaKey || (!altGraph && (e.ctrlKey || e.altKey))) return null;
-  const add = e.key === "Enter" ? "\r" : e.key === "Backspace" ? "\x7f" : [...e.key].length === 1 ? e.key : null;
-  if (add == null || [...ahead.text].length >= TYPE_AHEAD_MAX) return null;
-  return { ...ahead, text: ahead.text + add };
+  // Option types a character on a Mac (xterm's macOptionIsMeta stays off,
+  // terminal-keys.ts says why); elsewhere Alt is a chord, unless it is AltGr.
+  const typing = altGraph || (!e.ctrlKey && !e.metaKey && (!e.altKey || apple));
+  if (!typing) return null;
+  if (e.key === "Enter") return e.altKey || e.shiftKey ? null : "\r";
+  if (e.key === "Backspace") return e.altKey ? null : "\x7f";
+  return [...e.key].length === 1 ? e.key : null;
 }
 
 /**
@@ -72,8 +121,13 @@ export function holdKey(ahead: TypeAhead, e: HeldKeyEvent): TypeAhead | "end" | 
  */
 export function typesItself(el: Element | null | undefined): boolean {
   if (!el) return false;
-  if (el.classList?.contains("xterm-helper-textarea")) return false;
+  if (isPaneInput(el)) return false;
   const tag = el.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
   return (el as HTMLElement).isContentEditable === true;
+}
+
+/** xterm's textarea, where the pane takes its keys. */
+export function isPaneInput(el: Element | null | undefined): boolean {
+  return el?.classList?.contains("xterm-helper-textarea") === true;
 }

@@ -427,6 +427,16 @@ describe("the keys typed before the pane could take them", () => {
     expect(stage).toMatch(/unmet: request => \{ p\.takeTypeAhead\?\.\(request\); \}/);
     expect(web("components/terminal/StageShell.tsx")).toContain("takeTypeAhead={stage.takeTypeAhead}");
   });
+
+  it("meet a request only on the shown subject's own pane or card, never the last one's", () => {
+    // In the render that moves the stage the session hook's snapshot is still
+    // the last subject's: a live pane there spent the next session's request,
+    // and its typed keys, on a pane about to attach elsewhere.
+    const stage = web("components/terminal/TerminalStage.tsx");
+    expect(stage).toMatch(/const current = session\.subject === key;/);
+    expect(stage).toMatch(/typing: current && typing,/);
+    expect(stage).toMatch(/settled: current && settlesFocus\(phase\)/);
+  });
 });
 
 describe("what the stage costs the page that never opens it", () => {

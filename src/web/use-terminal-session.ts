@@ -438,6 +438,10 @@ export const DEFAULT_DEPS: SessionDeps = {
 
 /** Everything the stage draws from, in one value. */
 export interface SessionSnapshot {
+  /** The subject this describes (subjectKey). For a render or two after the
+   *  stage moves, the snapshot is still the last subject's, and a pane that
+   *  took keys then is not the one the stage now shows. */
+  subject: string;
   phase: StagePhase;
   keysOwner: KeysOwner;
   /** Output arrived in the last STREAM_QUIET_MS — the spine's light. */
@@ -529,11 +533,11 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   let restartSaid: number | null = null;
   let attempts = 0;
 
-  let snap: SessionSnapshot = { phase: { kind: "empty" }, keysOwner: "board", streaming: false, cell: null };
+  let snap: SessionSnapshot = { subject: "empty", phase: { kind: "empty" }, keysOwner: "board", streaming: false, cell: null };
 
   const emit = (next: Partial<SessionSnapshot>) => {
     if (disposed) return;
-    snap = { ...snap, ...next };
+    snap = { ...snap, ...next, subject: subjectKey(subject) };
     callbacks.onChange(snap);
   };
   const setPhase = (phase: StagePhase) => emit({ phase });
@@ -906,6 +910,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         && next.ref.sessionId === launchedRef.sessionId) {
         subject = next;
         launchedRef = null;
+        emit({});
         return;
       }
       if (subjectKey(next) === subjectKey(subject)) return;
@@ -980,9 +985,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     },
 
     focus() { term?.focus(); },
-    // One key at a time, as they were typed: a program reading its input
-    // sees what a fast typist would have sent it, not one burst to take for
-    // a paste.
+    // One key per message, as the pane sends a typist's: each reaches tmux as
+    // a send-keys of its own. A program that reads several in one go reads
+    // what a fast typist's keys would have given it.
     type(text) { for (const key of text) events.onInput(key); },
     release() { term?.blur(); },
 
@@ -1030,7 +1035,7 @@ export interface TerminalSessionView extends SessionSnapshot {
   release(): void;
 }
 
-const EMPTY_SNAPSHOT: SessionSnapshot = { phase: { kind: "empty" }, keysOwner: "board", streaming: false, cell: null };
+const EMPTY_SNAPSHOT: SessionSnapshot = { subject: "empty", phase: { kind: "empty" }, keysOwner: "board", streaming: false, cell: null };
 
 /** The stage's terminal session, for as long as the component lives. */
 export function useTerminalSession(options: UseTerminalSessionOptions): TerminalSessionView {

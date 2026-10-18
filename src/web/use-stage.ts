@@ -58,7 +58,7 @@ import {
 } from "./stage-shell";
 import { localStore, readStored, removeStored, writeStored } from "./storage";
 import type { LaunchOptions, TerminalProvider } from "./terminal-api";
-import { holdKey, startTypeAhead, typesItself, type TypeAhead } from "./type-ahead";
+import { heldText, holdKey, isPaneInput, startTypeAhead, typesItself, type TypeAhead } from "./type-ahead";
 import { useAsks, type Asks } from "./use-asks";
 import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
@@ -186,8 +186,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  back to from a stage with no session behind it, which has no card. */
   const openerRef = useRef<HTMLElement | null>(null);
   /** What was typed since a press asked for a session's pane, until the pane
-   *  can take it (type-ahead.ts): the request it waits on, and the session. */
-  const aheadRef = useRef<{ token: number; session: string; ahead: TypeAhead } | null>(null);
+   *  can take it (type-ahead.ts): the request it waits on, the session, and
+   *  where the press left the focus. */
+  const aheadRef = useRef<{ token: number; session: string; from: Element | null; ahead: TypeAhead } | null>(null);
 
   // ── opening, switching ─────────────────────────────────────────────────────
   /**
@@ -198,7 +199,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (!enabledRef.current) return;
     const focus = opts.focusPane ? ++tokenRef.current : null;
     if (focus != null) {
-      aheadRef.current = target.kind === "session" ? { token: focus, session: target.id, ahead: startTypeAhead(Date.now()) } : null;
+      aheadRef.current = target.kind === "session"
+        ? { token: focus, session: target.id, from: document.activeElement, ahead: startTypeAhead(Date.now()) }
+        : null;
     }
     if (shellRef.current.phase !== "closed") {
       dispatch({ type: "open", target, focus });
@@ -513,30 +516,34 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // type-ahead.ts says what is held and why. Ahead of everything else on the
   // page — the window's capture phase — so neither the card that was pressed
   // nor the deck's shortcuts see a key the session is owed. Only while the
-  // focus is where the press left it: on the card, the Terminal button, the
-  // body once the board has gone inert, or the stage itself. Focus the reader
-  // has taken somewhere else, a press anywhere but on the stage, the stage
-  // closing or moving to another session, and the flag going off each end the
-  // hold, and what it held goes with it.
+  // focus is where the press left it — the card, the Terminal button, the
+  // waiting chip — or where the stage's own coming puts it: the body, once
+  // the board has gone inert, and the pane's textarea between two sessions.
+  // Anywhere else the reader has moved it, with Tab or a press, and is
+  // working a control: an Enter there is the control's, a tile's or ✕'s, and
+  // held, it would have been typed into the session the reader was leaving.
+  // So focus elsewhere, a press anywhere but on the stage, the stage closing
+  // or moving to another session, and the flag going off each end the hold,
+  // and what it held goes with it.
   useEffect(() => {
     if (!enabled) {
       aheadRef.current = null;
       return;
     }
-    const left = (el: Element | null) => !!el && el !== document.body && el !== document.documentElement
-      && !canvasRef.current?.contains?.(el) && !el.closest?.(".stage-dock");
     const onKey = (e: KeyboardEvent) => {
       const hold = aheadRef.current;
       if (!hold) return;
       const at = e.target as Element | null;
-      if (Date.now() > hold.ahead.until || left(at)) { aheadRef.current = null; return; }
+      const where = !at || at === document.body || at === document.documentElement || at === hold.from || isPaneInput(at);
+      if (Date.now() > hold.ahead.until || !where) { aheadRef.current = null; return; }
       if (typesItself(at)) return;
       const next = holdKey(hold.ahead, e);
       if (next === "end") aheadRef.current = null;
       if (!next || next === "end") return;
+      aheadRef.current = { ...hold, ahead: next.ahead };
+      if (!next.swallow) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      aheadRef.current = { ...hold, ahead: next };
     };
     const onPress = (e: PointerEvent) => {
       if (aheadRef.current && !(e.target as Element | null)?.closest?.(".stage-dock")) aheadRef.current = null;
@@ -547,7 +554,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("pointerdown", onPress, true);
     };
-  }, [enabled, canvasRef]);
+  }, [enabled]);
   const heldFor = stageClaimsKeys(shell.phase) ? targetSession(shell.target) : null;
   useEffect(() => {
     if (aheadRef.current && aheadRef.current.session !== heldFor) aheadRef.current = null;
@@ -559,7 +566,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     const hold = aheadRef.current;
     if (!hold || hold.token !== request) return "";
     aheadRef.current = null;
-    return Date.now() > hold.ahead.until ? "" : hold.ahead.text;
+    return Date.now() > hold.ahead.until ? "" : heldText(hold.ahead);
   }, []);
 
   // ── the switch in Settings ─────────────────────────────────────────────────
