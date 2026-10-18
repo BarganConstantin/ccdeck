@@ -14,7 +14,7 @@ import { SESSION_SPEND_LABEL } from "../board-usage";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { SessionRecap, WaitingBlock } from "../types";
-import { shortModel, modelFamily } from "../model-label";
+import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
 import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../session-note";
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
@@ -37,6 +37,8 @@ export interface Row {
    *  null whenever the recap speaks instead, or nothing has been said. */
   status?: SessionNote | null;
   modelId?: string;
+  /** The effort the session reported, shown after the model (#2155). */
+  effort?: string;
   toolCount: number;
   cost: number;
   startedAt: number;
@@ -95,6 +97,7 @@ export function buildRows(state: GraphState, now: number): Row[] {
       recap,
       status,
       modelId: a.model,
+      effort: a.effort,
       toolCount,
       cost,
       startedAt: a.startedAt,
@@ -239,7 +242,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       the press on this row does something different, and a
                       reader has to hear that before making it. */}
                   {removed && <span className="sl-removed">off the board</span>}
-                  {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={r.modelId}>{shortModel(r.modelId)}</span>}
+                  {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
                 </div>
                 <div className="sl-row-meta">
                   {/* One tool, as the peek card and the card's label say it

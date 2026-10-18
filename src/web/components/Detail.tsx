@@ -13,7 +13,7 @@ import { DETAIL_CAT_EMOJI, DETAIL_CAT_LABEL, detailCategoryFor, type DetailCateg
 // coarser than the dialog the same row opens (#374). See duration.ts.
 import { elapsed, toolDuration } from "../duration";
 import { injectedPrompt, typedPrompts } from "../injected-prompt";
-import { shortModel, modelFamily } from "../model-label";
+import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
 import { fmtCost } from "../pricing";
 import { promptTime } from "../relative-time";
 import { noteSource, noteTag, sessionNoteShown } from "../session-note";
@@ -108,9 +108,9 @@ export default function Detail({
                   // the sheet matched it by substring.
                   data-family={modelFamily(agent.model)}
                   title={others.length > 0
-                    ? `${agent.model}\nspend on this panel also covers:\n${others.join("\n")}`
-                    : agent.model}
-                >{shortModel(agent.model)}{others.length > 0 ? ` +${others.length}` : ""}</span>
+                    ? `${modelChipTitle(agent.model, agent.effort)}\nspend on this panel also covers:\n${others.join("\n")}`
+                    : modelChipTitle(agent.model, agent.effort)}
+                >{modelChipText(agent.model, agent.effort)}{others.length > 0 ? ` +${others.length}` : ""}</span>
               </>
             );
           })()}

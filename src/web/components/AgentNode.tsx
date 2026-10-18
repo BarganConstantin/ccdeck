@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
 import { fmtCost, UNPRICED_LABEL } from "../pricing";
@@ -11,7 +11,7 @@ import { codexApprovalTell } from "../codex-approval";
 // #462 so that a pure matcher and a bare-node suite could reach it without a
 // React component behind it. See model-label.ts for why the move happened with
 // that fix rather than with #374's wider consolidation.
-import { shortModel, modelFamily } from "../model-label";
+import { modelChipText, modelChipTitle as chipTitle, modelFamily } from "../model-label";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
 import { spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
@@ -44,6 +44,10 @@ import { NoteMark } from "./RecapMark";
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
+/** A layout effect in the browser, and nothing on the server, where the suite
+ *  draws cards to markup and a layout effect only warns (as use-count-up.ts). */
+const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
@@ -86,9 +90,22 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // names the others, so a reader who sees $7.50 under a Sonnet chip is not left
   // to conclude the deck priced a million Opus tokens at Sonnet's rate.
   const otherModels = otherModelIds(data);
-  const modelChipTitle = otherModels.length > 0
-    ? `${data.model}\nspend on this card also covers:\n${otherModels.join("\n")}`
-    : data.model;
+  // THE EFFORT ONLY WHERE IT FITS (#2155). "Opus 5.5 · xhigh +1" beside a
+  // spawn badge is wider than the row, and the row ellipsises at its end, so
+  // the suffix took the whole chip off the card — the model with it. The card
+  // tries the chip with its effort, measures, and keeps the model alone when
+  // the row overflows; the tooltip, the session list, the peek and the details
+  // panel still say the effort. Tried again whenever what the row holds changes.
+  const detailsRef = useRef<HTMLSpanElement>(null);
+  const [effortFits, setEffortFits] = useState(true);
+  useBeforePaint(() => { setEffortFits(true); }, [data.effort, data.model, otherModels.length, data.cwdBasename, data.childCount]);
+  useBeforePaint(() => {
+    const el = detailsRef.current;
+    if (el && effortFits && data.effort && el.scrollWidth > el.clientWidth) setEffortFits(false);
+  });
+  const modelChipTitle = data.model && (otherModels.length > 0
+    ? `${chipTitle(data.model, data.effort)}\nspend on this card also covers:\n${otherModels.join("\n")}`
+    : chipTitle(data.model, data.effort));
   // Two strings for the name row, chosen once. `face` is the name when the
   // session has one and the sentence when it does not, which is the common
   // case rather than the fallback: 0.2% of the transcripts on this machine
@@ -158,7 +175,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           badge and the chip keep their own, which the browser prefers over
           this one under the pointer. */}
       <div className="sub" title={subRowTitle(data)}>
-        <span className="sub-details">
+        <span className="sub-details" ref={detailsRef}>
           {data.kind === "root" ? "session" : "subagent"}
           {data.childCount > 0 && (
             <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
@@ -186,7 +203,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
                Sonnet to Opus matched two equal-specificity rules and took the
                last one, drawing "Opus 5 +1" in Sonnet blue. */
             ? <span className="model-chip" data-family={modelFamily(data.model)} title={modelChipTitle}>
-                {shortModel(data.model)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
+                {modelChipText(data.model, effortFits ? data.effort : undefined)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
               </span>
             : data.provider === "codex"
               ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>

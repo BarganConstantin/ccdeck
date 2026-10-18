@@ -18,8 +18,8 @@ import { STOP, rolloutNameId, walkRolloutDays } from "./codex-dir.mjs";
 // reads a rollout's lines by, the ones the translation reads — see
 // codex-translate.mjs.
 import {
-  codexSessionApproval, codexSessionModel,
-  responseItemModel, sessionMeta, taskStartedWindow, tokenCountInfo,
+  codexSessionApproval, codexSessionEffort, codexSessionModel,
+  responseItemModel, sessionMeta, taskStartedWindow, tokenCountInfo, turnContextEffort,
 } from "./codex-translate.mjs";
 // The bounded chunk reads the Claude transcripts use — see jsonl-chunks.mjs.
 import { readByteRange } from "./jsonl-chunks.mjs";
@@ -227,6 +227,8 @@ export async function readCodexRollout(path) {
     let model = null;
     let contextWindow = null;
     let cwd = null;
+    // Undefined until a turn_context is read: "no turn yet" is not "no effort".
+    let effort;
     for (const line of text.split("\n")) {
       if (!line) continue;
       let obj;
@@ -245,9 +247,11 @@ export async function readCodexRollout(path) {
       // Fallback model source — response items carry the model id.
       const itemModel = responseItemModel(obj);
       if (itemModel !== null) model = itemModel;
+      // The newest turn's effort (#2155), as the rollout watcher reads it.
+      if (obj?.type === "turn_context") effort = turnContextEffort(obj.payload);
     }
     if (!lastUsage && !model && !contextWindow) return null;
-    return { usage: lastUsage, model, contextWindow, cwd };
+    return { usage: lastUsage, model, contextWindow, cwd, effort };
   } catch {
     return null;
   }
@@ -275,6 +279,9 @@ function maybeResolveCodex(payload) {
         hook_event_name: "ModelObserved",
         session_id: sid,
         model: r.model,
+        // A hook-delivered session has no watcher to spread it, so it rides
+        // here, beside the model it qualifies.
+        ...(r.effort !== undefined ? { reasoning_effort: r.effort } : {}),
       }, "internal");
     }
     if (r.contextWindow) {
@@ -300,6 +307,7 @@ function forgetCodexSession(sid) {
   codexUsageReads.forget(sid);
   codexSessionModel.delete(sid);
   codexSessionApproval.delete(sid);
+  codexSessionEffort.delete(sid);
 }
 
 // What event-pipeline.mjs and session-tracking.mjs call besides readCodexRollout
