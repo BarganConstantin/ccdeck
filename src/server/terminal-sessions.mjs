@@ -22,7 +22,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, posix as posixPath } from "node:path";
+import { isAbsolute, join, posix as posixPath } from "node:path";
 import { pathLookup } from "./exec-spec.mjs";
 // The one answer to "which claude" — AGENTS_DECK_CLAUDE first, then PATH, then
 // the places its installers put it (#553, #570). Not decided again here.
@@ -274,15 +274,34 @@ export function clampSize(cols, rows) {
  * mid-session" — and the bridge pauses a pane whose panel falls behind. An
  * older Claude ignores it.
  *
+ * `-e CLAUDE_CODE_SCROLL_SPEED=3` for Claude: xterm.js sends one wheel report
+ * per notch to a program that has the mouse, and Claude Code's fullscreen
+ * scrolls a line per report, so it moved a third of what every native
+ * terminal moves (three lines a notch). Claude Code documents the variable
+ * for exactly such terminals.
+ *
+ * `default-terminal` and `history-limit`: with no config read, tmux's own
+ * defaults are `screen` — eight colours and no italics for vim, less, htop
+ * and git's pager, since they go by terminfo, not COLORTERM — and 2000 lines
+ * of history, where native terminals keep 10,000. `tmux-256color` where this
+ * machine's terminfo has it, else `screen-256color`, which every terminfo
+ * has (macOS's own lacks the tmux entry).
+ *
  * Everything else rides in the same sequence as new-session; see tmuxSequence
  * for why that ordering is what keeps a pane that dies at once on the board.
  */
-export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", agent, kind }) {
+export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", agent, kind, term = PANE_TERM_FALLBACK }) {
   const at = `=${name}:`;
   return ["-f", "/dev/null", ...tmuxSequence([
+    // The server's own defaults, set ahead of the pane they shape — and
+    // again on every launch, so a server an older deck started picks them up
+    // for the panes it makes from now on. Ahead of new-session in the same
+    // sequence, so the first launch starts the server with them.
+    ["set-option", "-g", "default-terminal", term],
+    ["set-option", "-g", "history-limit", String(PANE_HISTORY)],
     ["new-session", "-d", "-s", name, "-x", String(cols), "-y", String(rows),
       "-c", tmuxFormatLiteral(cwd), "-e", "COLORTERM=truecolor",
-      ...(agent === "claude" ? ["-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1"] : []),
+      ...(agent === "claude" ? ["-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-e", `CLAUDE_CODE_SCROLL_SPEED=${CLAUDE_SCROLL_SPEED}`] : []),
       "-P", "-F", "#{pane_id}",
       "--", ...paneArgv(argv)],
     ["set-option", "-t", at, SESSION_OPTIONS.session, sessionId],
@@ -295,6 +314,33 @@ export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", age
     // already made the session. On 3.2 the dead pane keeps tmux's caption.
     ["set-option", "-q", "-w", "-t", at, "remain-on-exit-format", ""],
   ])];
+}
+
+/** Lines of history a deck pane keeps: what native terminals keep. */
+export const PANE_HISTORY = 10_000;
+/** Lines one wheel notch scrolls Claude Code's fullscreen by (see launchCommand). */
+export const CLAUDE_SCROLL_SPEED = 3;
+/** The terminal type every terminfo database has entries for. */
+export const PANE_TERM_FALLBACK = "screen-256color";
+
+/** Where terminfo databases live: ncurses' own list, Homebrew's, the user's. */
+const TERMINFO_DIRS = [
+  "/usr/share/terminfo", "/lib/terminfo", "/etc/terminfo", "/usr/lib/terminfo",
+  "/opt/homebrew/share/terminfo", "/usr/local/share/terminfo",
+];
+
+/**
+ * The TERM a deck pane is given: `tmux-256color` when this machine's terminfo
+ * has an entry for it — under its first letter, or its hex code as macOS and
+ * some BSDs file them — else `screen-256color`. TERMINFO and TERMINFO_DIRS
+ * are honoured first, as ncurses honours them.
+ */
+export function paneTerm({ env = process.env, home = homedir(), exists = existsSync } = {}) {
+  const dirs = [
+    env.TERMINFO, ...String(env.TERMINFO_DIRS ?? "").split(":"), join(home, ".terminfo"), ...TERMINFO_DIRS,
+  ].filter(Boolean);
+  const found = dirs.some((d) => exists(join(d, "t", "tmux-256color")) || exists(join(d, "74", "tmux-256color")));
+  return found ? "tmux-256color" : PANE_TERM_FALLBACK;
 }
 
 /** systemd-run's own failures, as opposed to tmux's: the scope was never
@@ -365,7 +411,7 @@ export async function launchSession({
 
   for (let attempt = 0; ; attempt++) {
     const name = deckSessionName({ agent, kind, sessionId: id });
-    const args = launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind });
+    const args = launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind, term: paneTerm({ env }) });
     let r = await run(bin, socket, args, outside ? { env, scope: outside } : { env });
     if (outside && !r.ok && SYSTEMD_REFUSED.test(r.stderr)) {
       outside = null;
