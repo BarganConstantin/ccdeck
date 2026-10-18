@@ -266,14 +266,19 @@ export default function TerminalStage(p: TerminalStageProps) {
   useEffect(() => { onPhase.current?.(phase.kind); }, [phase.kind]);
 
   const rootRef = useRef<HTMLElement>(null);
+  // The session hook's snapshot is the shown subject's only once it has said
+  // so: in the render that moves the stage, it is still the last one's, and
+  // a request met on that pane, or answered by its card, would be spent on a
+  // session the stage has left.
+  const current = session.subject === key;
   useFocusRequest({
-    key, request: p.focusRequest, launch: subject.kind === "launch", typing,
+    key, request: p.focusRequest, launch: subject.kind === "launch", typing: current && typing,
     focus: request => {
       session.focus();
       const ahead = p.takeTypeAhead?.(request);
       if (ahead) session.type(ahead);
     },
-    settled: settlesFocus(phase), land: () => landFocus(rootRef.current),
+    settled: current && settlesFocus(phase), land: () => landFocus(rootRef.current),
     unmet: request => { p.takeTypeAhead?.(request); },
   });
 

@@ -330,6 +330,8 @@ describe("switching sessions on the one terminal", () => {
     ctl.show({ kind: "session", ref: OTHER });
     expect(first.closedWith, "the old view leaves; its tmux session keeps running").toEqual([1000]);
     expect(r.last().phase).toEqual({ kind: "attaching", reconnect: false });
+    expect(r.last().subject, "a snapshot names the subject it describes, from the switch's first one on")
+      .toBe(subjectKey({ kind: "session", ref: OTHER }));
     first.binary(enc("late output from A"));
     await flush();
     const second = r.sockets[1];
@@ -846,6 +848,7 @@ describe("a new session started from the stage", () => {
     await flush();
     expect(r.sockets[0].closedWith, "the same view, now named after its session").toEqual([]);
     expect(r.open).not.toHaveBeenCalled();
+    expect(r.last().subject, "and says so, for the stage to match it against what it shows").toBe(subjectKey({ kind: "session", ref: OTHER }));
   });
 
   it("says tmux is missing when the launch is refused for want of it", async () => {

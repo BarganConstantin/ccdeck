@@ -13,10 +13,13 @@
 // button, inside a board about to go inert, and the browser dropped it on the
 // body.
 //
-// EVERY REQUEST ENDS ONCE. Met in the pane, `focus` hears which request it
-// was; met on a card, dropped as the stage moved on, or replaced by a newer
-// one, `unmet` does. The keys typed before the pane was ready wait on exactly
-// one request (type-ahead.ts), and are handed over or let go by its end.
+// A REQUEST SAYS HOW IT ENDED. Met in the pane, `focus` hears which request
+// it was; answered by a card, dropped as the stage moved on, or replaced by a
+// newer one, `unmet` does. The keys typed before the pane was ready wait on
+// exactly one request (type-ahead.ts), and are handed over or let go by its
+// end; a stage that closes with a request still open is use-stage.ts's to
+// end. `typing` and `settled` are the shown subject's own, never the last
+// one's (TerminalStage.tsx).
 import { useEffect, useRef } from "react";
 
 export interface FocusRequest {
