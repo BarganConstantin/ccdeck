@@ -21,6 +21,7 @@ import SoundSwitch from "../components/SoundSwitch";
 import ThemeSection from "../components/ThemeSection";
 import KeyboardSection, { SINGLE_KEYS_LABEL, SINGLE_KEYS_NOTE } from "../components/KeyboardSection";
 import { sourceOf } from "./client-source";
+import { isApplePlatform, platformName } from "../platform";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -106,7 +107,10 @@ describe("the Settings row", () => {
     for (const group of KEY_HELP) expect(on).toContain(`>${group.title}</h3>`);
     expect(on.match(/<kbd class="settings-key">/g)).toHaveLength(KEY_HELP.flatMap(g => g.rows).length);
     // With the switch off, only what still works — the sheet's shorter table.
-    expect(off).toContain(">Ctrl + ,</kbd>");
+    // Settings' own chord, spelt as this platform spells it (⌘ on a Mac).
+    const settingsRow = KEY_HELP.flatMap(g => g.rows).find(r => r.cap === "Ctrl + ,")!;
+    const cap = isApplePlatform(platformName()) && settingsRow.macCap ? settingsRow.macCap : settingsRow.cap;
+    expect(off).toContain(`>${cap}</kbd>`);
     expect(off).not.toContain(">J</kbd>");
   });
 
