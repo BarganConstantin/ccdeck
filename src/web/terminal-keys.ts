@@ -166,10 +166,50 @@ export interface TerminalKey extends ChordKey {
   keyCode?: number;
 }
 
-/** What becomes of a keystroke inside xterm: `release`, `newline`, `copy` and
- *  `meta` are kept from xterm (the last two send something of their own),
- *  everything else — Escape always — goes to it. */
-export type TerminalKeyOutcome = "release" | "newline" | "copy" | "meta" | "pass";
+/** What becomes of a keystroke inside xterm: `release`, `newline`, `copy`,
+ *  `meta` and `send` are kept from xterm (`newline`, `meta` and `send` send
+ *  something of their own), everything else — Escape always — goes to it. */
+export type TerminalKeyOutcome = "release" | "newline" | "copy" | "meta" | "send" | "pass";
+
+/**
+ * CONTROL WITH A SYMBOL, as xterm, GNOME Terminal and Ghostty send it. xterm.js
+ * sends nothing for Ctrl+/ or Ctrl+2…8, so Claude Code's undo — Ctrl+_, which
+ * every native terminal also sends for Ctrl+/ — needed Shift as well here.
+ * Matched by the character the key types, so a layout's own / is the one that
+ * counts. (In a browser tab Ctrl+1…8 switch tabs before the page sees them;
+ * the desktop app passes them.)
+ */
+export const CONTROL_SYMBOLS: Readonly<Record<string, string>> = Object.freeze({
+  "/": "\x1f", "2": "\x00", "3": "\x1b", "4": "\x1c", "5": "\x1d", "6": "\x1e", "7": "\x1f", "8": "\x7f", "^": "\x1e",
+});
+
+/** The byte a Control chord with a symbol sends, or null. */
+export function controlSymbolInput(e: ChordKey): string | null {
+  if (!e.ctrlKey || e.altKey || e.metaKey) return null;
+  return Object.prototype.hasOwnProperty.call(CONTROL_SYMBOLS, e.key) ? CONTROL_SYMBOLS[e.key] : null;
+}
+
+/**
+ * LINE EDITING ON A MAC, as Ghostty, iTerm2's natural text editing and VS
+ * Code's terminal do it: Cmd+Left and Cmd+Right go to the start and end of the
+ * line (^A, ^E), Cmd+Backspace deletes back to the start (^U), and Option+Left
+ * and Option+Right move by word (ESC b, ESC f) — the keys a Mac user's hands
+ * already know, which xterm.js sent nothing (Cmd) or a CSI the shell does not
+ * bind (Option) for. Claude Code's prompt, bash and zsh all read these.
+ */
+export function macEditInput(e: ChordKey): string | null {
+  if (e.ctrlKey || e.shiftKey) return null;
+  if (e.metaKey && !e.altKey) {
+    if (e.key === "ArrowLeft") return "\x01";
+    if (e.key === "ArrowRight") return "\x05";
+    if (e.key === "Backspace") return "\x15";
+  }
+  if (e.altKey && !e.metaKey) {
+    if (e.key === "ArrowLeft") return "\x1bb";
+    if (e.key === "ArrowRight") return "\x1bf";
+  }
+  return null;
+}
 
 /**
  * COPY IS CTRL+SHIFT+C, as in GNOME Terminal, Konsole and VS Code's terminal:
@@ -237,13 +277,16 @@ export function terminalKeyOutcome(e: TerminalKey, apple = isApplePlatform(platf
   if (e.isComposing || e.keyCode === 229) return "pass";
   if (e.key === "Enter" && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) return "newline";
   if (isCopyChord(e)) return "copy";
+  if (controlSymbolInput(e)) return "send";
+  if (apple && macEditInput(e)) return "send";
   if (apple && macMetaLetter(e)) return "meta";
   return "pass";
 }
 
 /** What a kept keystroke sends to the session on its keydown, if anything. */
-export function terminalKeyInput(e: TerminalKey, outcome: TerminalKeyOutcome): string | null {
+export function terminalKeyInput(e: TerminalKey, outcome: TerminalKeyOutcome, apple = isApplePlatform(platformName())): string | null {
   if (outcome === "newline") return SHIFT_ENTER_INPUT;
+  if (outcome === "send") return controlSymbolInput(e) ?? (apple ? macEditInput(e) : null);
   if (outcome === "meta") {
     const letter = macMetaLetter(e);
     return letter ? `\x1b${letter}` : null;
@@ -278,7 +321,7 @@ export function terminalKeyHandler({ sendInput, apple }: { sendInput: (data: str
     if (outcome === "pass") return true;
     if (e.type === "keydown") {
       e.preventDefault();
-      const input = terminalKeyInput(e, outcome);
+      const input = terminalKeyInput(e, outcome, apple);
       if (input) sendInput(input);
     }
     return false;

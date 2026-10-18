@@ -524,6 +524,18 @@ describe("keys, paste and the pane's size", () => {
     expect(CTRL_V).toBe("\x16");
   });
 
+  it("pastes nothing on a middle click the program has the mouse for, and still on Shift+middle, as a native terminal does", () => {
+    // mountXterm's listeners (source-pinned: they need a real xterm). Linux
+    // pastes the primary selection on a middle click; a program with mouse
+    // tracking is sent that click by xterm, and pasting as well put the old
+    // selection into its prompt.
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../use-terminal-session.ts"), "utf8");
+    expect(src).toMatch(/const onMouseDown = \(e: MouseEvent\) => \{ if \(e\.button === 1 && !e\.shiftKey\) middleAt = performance\.now\(\); \};/);
+    const paste = src.slice(src.indexOf("const onPaste = (e: ClipboardEvent) => {"), src.indexOf('host.addEventListener("paste", onPaste, true);'));
+    expect(paste).toMatch(/const fromMiddle = performance\.now\(\) - middleAt < MIDDLE_PASTE_MS;[\s\S]*if \(fromMiddle && programHasMouse\(\)\) return;[\s\S]*if \(!text\)/);
+    expect(src).toMatch(/host\.removeEventListener\("mousedown", onMouseDown, true\);/);
+  });
+
   it("hands the program Ctrl+V for a screenshot pasted with no text, as a terminal would", () => {
     // mountXterm's paste listener (source-pinned: it needs a real xterm): no
     // text and an image means the key itself, so the program reads the image.

@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 import {
-  inTerminalPanel, isCopyChord, isReleaseChord, MAC_META_KEYS, macMetaLetter, RELEASE_CHORD, RELEASE_CHORD_SPOKEN, releaseChordLabel,
+  CONTROL_SYMBOLS, controlSymbolInput, inTerminalPanel, isCopyChord, isReleaseChord, MAC_META_KEYS, macEditInput, macMetaLetter,
+  RELEASE_CHORD, RELEASE_CHORD_SPOKEN, releaseChordLabel,
   SHIFT_ENTER_INPUT, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, TERMINAL_PANEL_SELECTOR, terminalKeyHandler, terminalKeyInput,
   terminalKeyOutcome, type TerminalKey,
 } from "../terminal-keys";
@@ -255,6 +256,45 @@ describe("copy, and Option on a Mac", () => {
     expect(macMetaLetter(key("@", { code: "KeyL", altKey: true })), "German Option+L").toBeNull();
     expect(macMetaLetter(key("π", { code: "KeyP", altKey: true, ctrlKey: true }))).toBeNull();
     expect(terminalKeyOutcome(key("Enter", { code: "Enter", altKey: true }), true), "xterm sends ESC CR itself").toBe("pass");
+  });
+});
+
+describe("the keys xterm.js sends nothing for, sent as native terminals send them", () => {
+  const event = (k: TerminalKey) => ({ ...k, preventDefault: vi.fn(), stopPropagation: vi.fn() });
+
+  it("sends Ctrl+/ and Ctrl+2…8 as xterm and Ghostty do — Ctrl+/ is Claude Code's undo, Ctrl+_", () => {
+    const want: Record<string, string> = { "/": "\x1f", "2": "\x00", "3": "\x1b", "4": "\x1c", "5": "\x1d", "6": "\x1e", "7": "\x1f", "8": "\x7f", "^": "\x1e" };
+    expect(CONTROL_SYMBOLS).toEqual(want);
+    for (const [k, bytes] of Object.entries(want)) {
+      const down = key(k, { ctrlKey: true, shiftKey: k === "^" });
+      expect(terminalKeyOutcome(down, false), k).toBe("send");
+      expect(terminalKeyInput(down, "send", false), k).toBe(bytes);
+    }
+    expect(controlSymbolInput(key("/", { ctrlKey: true, altKey: true })), "AltGr layouts type with Ctrl+Alt").toBeNull();
+    expect(controlSymbolInput(key("/", { ctrlKey: true, metaKey: true }))).toBeNull();
+    expect(controlSymbolInput(key("/")), "a plain / is typed by xterm").toBeNull();
+    expect(controlSymbolInput(key("a", { ctrlKey: true })), "letters are xterm's").toBeNull();
+    const sendInput = vi.fn();
+    const down = event(key("/", { code: "Slash", ctrlKey: true }));
+    expect(terminalKeyHandler({ sendInput, apple: false })(down as unknown as KeyboardEvent)).toBe(false);
+    expect(down.preventDefault).toHaveBeenCalled();
+    expect(sendInput.mock.calls).toEqual([["\x1f"]]);
+  });
+
+  it("edits the line with Cmd and moves by word with Option on a Mac, as Ghostty and VS Code's terminal do", () => {
+    const cases: Array<[string, Partial<TerminalKey>, string]> = [
+      ["ArrowLeft", { metaKey: true }, "\x01"], ["ArrowRight", { metaKey: true }, "\x05"], ["Backspace", { metaKey: true }, "\x15"],
+      ["ArrowLeft", { altKey: true }, "\x1bb"], ["ArrowRight", { altKey: true }, "\x1bf"],
+    ];
+    for (const [k, mods, bytes] of cases) {
+      const down = key(k, mods);
+      expect(terminalKeyOutcome(down, true), `${k} ${JSON.stringify(mods)}`).toBe("send");
+      expect(terminalKeyInput(down, "send", true)).toBe(bytes);
+      expect(terminalKeyOutcome(down, false), "elsewhere xterm's own encoding stands").toBe("pass");
+    }
+    expect(macEditInput(key("ArrowLeft", { metaKey: true, shiftKey: true })), "Shift selects; not a line edit").toBeNull();
+    expect(macEditInput(key("ArrowLeft", { altKey: true, metaKey: true }))).toBeNull();
+    expect(macEditInput(key("ArrowUp", { metaKey: true }))).toBeNull();
   });
 });
 
