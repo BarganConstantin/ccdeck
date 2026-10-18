@@ -134,6 +134,10 @@ export interface TerminalStageProps {
   /** What was typed for a request before the pane could take it, handed over
    *  once and ended by any answer to that request (use-stage.ts). */
   takeTypeAhead?(request: number | string | null | undefined): string;
+  /** Asks for the keys as a card click does: Try again, Check again and
+   *  Attach again ask for the session's pane, so the keys go into it once it
+   *  is back. A card that answers instead puts them on its own action. */
+  onWantKeys?(): void;
   onNextAsk?(): void;
   onAnswerArrival?(): void;
   onClose(): void;
@@ -282,6 +286,8 @@ export default function TerminalStage(p: TerminalStageProps) {
     unmet: request => { p.takeTypeAhead?.(request); },
   });
 
+  const retry = () => { session.retry(); p.onWantKeys?.(); };
+
   let end: EndView | null = null;
   if (phase.kind === "ended") {
     const ago = p.show.kind === "session" ? p.show.session.endedAgo : null;
@@ -291,7 +297,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       onAction: session.adopt,
     };
   } else if (phase.kind === "detached") {
-    end = { sentence: "Another view took this pane over — the session keeps running.", action: "Attach again", onAction: session.retry };
+    end = { sentence: "Another view took this pane over — the session keeps running.", action: "Attach again", onAction: retry };
   }
 
   const style = {
@@ -359,7 +365,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         context={p.show.kind === "session" ? p.show.session.context : null}
         onAdopt={session.adopt}
         onNotNow={p.onClose}
-        onRetry={session.retry}
+        onRetry={retry}
         onNewSession={p.onNewSession}
       />
       <KeysBar
