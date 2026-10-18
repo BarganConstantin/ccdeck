@@ -258,6 +258,35 @@
   color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
+/* What became of a press made in a row, under its name and its note, across
+   the row (About's Restart to update). It is the row's live region, so it is
+   in the tree before it has anything to say; empty, it is out of the grid and
+   takes no room and no gap. */
+.settings-row-said {
+  grid-column: 1 / -1;
+  color: var(--text);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.settings-row-said:empty { position: absolute; }
+/* A way out of the deck from a row: About's Source. A link, so it is drawn as
+   one — the accent's words, underlined under the pointer, the look the deck's
+   other links out (.film-link) wear — and a control's height tall, so the
+   pointer has the same target a button beside it would give. Hover adds the
+   underline and leaves the colour alone. */
+.settings-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ctl-h);
+  color: var(--accent);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.settings-link:hover { text-decoration: underline; }
+.settings-link:active { transform: scale(0.97); }
 /* A key cap, in a caption's right-hand slot or beside the switch it flips, and
    on the right of every row of Settings › Keyboard. */
 .settings-key {
@@ -375,6 +404,7 @@
 @media (prefers-reduced-motion: reduce) {
   .settings-tab { transition: none; }
   .settings-tab:active { transform: none; }
+  .settings-link:active { transform: none; }
 }
 
 /* Each choice previews the deck in that theme,

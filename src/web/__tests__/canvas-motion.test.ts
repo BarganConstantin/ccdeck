@@ -445,6 +445,8 @@ const PRESSES: Press[] = [
   // The way to a panel's 30-second video on ccdeck.dev: two words and a
   // number, so 0.97 like every other labelled control.
   [".film-link:active", "0.97", "transform"],
+  // Settings › About's Source, the same kind of link out of the deck (#2176).
+  [".settings-link:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

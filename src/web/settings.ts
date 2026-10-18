@@ -36,7 +36,7 @@ export interface SettingsSectionEntry {
  *  what it is. About comes last and stands at the foot of the nav, as it does
  *  in the desktop settings windows this dialog is modelled on. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
-  { id: "general", label: "General", note: "How the board behaves." },
+  { id: "general", label: "General", note: "The board, updates, and the settings that live in their own panels." },
   { id: "appearance", label: "Appearance", note: "The colour theme and the character on the canvas." },
   { id: "reading", label: "Text & density", note: "Make the deck comfortable to read. Changes apply immediately and stay separate from canvas zoom." },
   { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
@@ -77,6 +77,37 @@ export const SETTINGS_CLOSED: SettingsDoor = { open: false, section: "general" }
  *  section last shown. */
 export function openedAt(door: SettingsDoor, section?: SettingsSection): SettingsDoor {
   return { open: true, section: section ?? door.section };
+}
+
+/** The doors out of Settings into the rest of the deck (#2176): what About
+ *  and General's "Elsewhere on the deck" press. Each is a way the deck already
+ *  had — the version chip's, the shortcuts sheet's, the topbar's Feedback, a
+ *  panel's own toggle — and none is a second copy of what it opens. */
+export interface SettingsDoors {
+  /** The release notes, as the version chip opens them. */
+  whatsNew: () => void;
+  /** The chip's action while it is lit for a version on disk or on npm: the
+   *  release notes, and the update banner put back. */
+  update: () => void;
+  tour: () => void;
+  feedback: () => void;
+  accounts: () => void;
+  /** The accounts panel, at its Local network view. */
+  localNetwork: () => void;
+  browserWatch: () => void;
+}
+
+/** A door out of Settings: close it, then open what the door names.
+ *
+ *  ONE DIALOG AT A TIME. Settings is a modal, and what most doors open is one
+ *  too; opened over it, the second would trap the keyboard inside a dialog
+ *  painted over a dialog, and Escape would close them in an order nobody
+ *  chose. Closed first, the way the shortcuts sheet hands over to Settings
+ *  (DeckDialogs.tsx), both changes land in one render, so nothing is ever
+ *  drawn with neither up — and a panel opened this way is beside the canvas
+ *  with no scrim left over it. */
+export function doorOut(close: () => void, open: () => void): () => void {
+  return () => { close(); open(); };
 }
 
 /** The modifiers a keystroke carries, structural so a test can pass an object. */
