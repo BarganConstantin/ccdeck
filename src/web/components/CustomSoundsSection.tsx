@@ -90,7 +90,7 @@ export default function CustomSoundsSection({
   const { recording, startRecording, stopRecording } = useClipRecorder({ full, setCustomError, runCustom, onImportCustom });
 
   return (
-    <section className="sm-custom" aria-labelledby="sm-custom-title">
+    <section className="sm-custom" aria-labelledby="sm-custom-title" data-setting="custom-sounds">
       <div className="sm-custom-head">
         <h3 className="sm-tone-name" id="sm-custom-title">Custom sounds</h3>
         <span>{customCount} of {MAX_CUSTOM_ASSETS}, kept on this machine</span>

@@ -427,6 +427,8 @@ const PRESSES: Press[] = [
   // A section of Settings, in the nav down its side: a labelled row the width
   // of the nav, pressed like every other labelled control — 0.97.
   [".settings-tab:active", "0.97", "transform"],
+  // A search result in Settings (SettingsSearch.tsx), a row of its list.
+  [".settings-result:active", "0.97", "transform"],
   // The Other accounts list's expand-all (#1579): a glyph in a 24px box, but a
   // labelled control by its name, like the header's icon buttons — 0.97.
   [".ap-rest-all:active", "0.97", "transform"],

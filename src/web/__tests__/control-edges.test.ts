@@ -876,6 +876,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".reading-choice:has(input:focus-visible)",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
+      // Settings' search results: the highlight the arrows move while focus
+      // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
+      '.settings-result[data-highlighted="true"]',
       ".switch:focus-visible",
       '.tr-body :is(button, input, select, summary):focus-visible',
       ".uh-bar-col.sel .uh-bar",

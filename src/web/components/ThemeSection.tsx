@@ -66,6 +66,7 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
       id="appearance-theme-caption"
       title="Theme"
       list={false}
+      settingId="theme"
       /* The key App already answers anywhere on the deck. Shown where the
          choice is, the way Settings › Sounds shows M; named to assistive tech
          by aria-keyshortcuts on the group rather than by a stray letter. Not
@@ -90,6 +91,9 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
             className="appearance-theme"
             role="radio"
             data-theme-choice={choice}
+            /* Each theme is a search result of its own ("dark" finds Dark
+               and Gruvbox Dark, settings-search.ts), and lands here. */
+            data-setting={`theme-${choice}`}
             aria-checked={theme === choice}
             tabIndex={theme === choice ? 0 : -1}
             onClick={() => onTheme(choice)}
