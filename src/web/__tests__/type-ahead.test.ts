@@ -76,6 +76,36 @@ describe("a hold", () => {
   });
 });
 
+describe("a real keydown", () => {
+  // A KeyboardEvent's fields are getters on its prototype, not its own: a
+  // hold that spread one read every field as undefined, threw on the first
+  // key, and let every letter through to the deck's shortcuts (the hands-on
+  // run, after the plain objects above had all passed).
+  class Keydown {
+    #init: HeldKeyEvent;
+    constructor(init: HeldKeyEvent) { this.#init = init; }
+    get key() { return this.#init.key; }
+    get code() { return this.#init.code ?? ""; }
+    get ctrlKey() { return this.#init.ctrlKey; }
+    get shiftKey() { return this.#init.shiftKey ?? false; }
+    get metaKey() { return this.#init.metaKey; }
+    get altKey() { return this.#init.altKey; }
+    get repeat() { return this.#init.repeat ?? false; }
+    get isComposing() { return this.#init.isComposing ?? false; }
+    get keyCode() { return this.#init.keyCode ?? 0; }
+    getModifierState(m: string) { return this.#init.getModifierState?.(m) ?? false; }
+  }
+  const real = (k: string, extra: Partial<HeldKeyEvent> = {}) => new Keydown(key(k, extra)) as unknown as HeldKeyEvent;
+
+  it("is read through its getters", () => {
+    expect(Object.keys(real("a")), "nothing of its own to spread").toEqual([]);
+    expect(typed([real("h"), real("i"), real("Enter", { shiftKey: true }), real("Enter")])).toBe(`hi${SHIFT_ENTER_INPUT}\r`);
+    expect(typed([real("Enter"), real("Enter", { repeat: true })])).toBe("\r");
+    expect(holdKey(startTypeAhead(0), real("X", { ctrlKey: true, shiftKey: true, code: "KeyX" })), "the release chord").toBe("end");
+    expect(typed([real("@", { ctrlKey: true, altKey: true, getModifierState: m => m === "AltGraph" })])).toBe("@");
+  });
+});
+
 describe("where the hold has no say", () => {
   it("in a field, a select or an editor", () => {
     for (const el of [{ tagName: "INPUT" }, { tagName: "TEXTAREA" }, { tagName: "SELECT" }, { tagName: "DIV", isContentEditable: true }]) {

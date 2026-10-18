@@ -987,8 +987,18 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     focus() { term?.focus(); },
     // One key per message, as the pane sends a typist's: each reaches tmux as
     // a send-keys of its own. A program that reads several in one go reads
-    // what a fast typist's keys would have given it.
-    type(text) { for (const key of text) events.onInput(key); },
+    // what a fast typist's keys would have given it. An ESC is never held on
+    // its own — Esc ends the hold (type-ahead.ts) — so one here is the first
+    // half of a key sent as two bytes, Shift+Enter or an Option chord, and
+    // goes in one message with its second, as the pane sends it: apart, a
+    // program could read a lone Esc and then the Enter as a submit.
+    type(text) {
+      const keys = [...text];
+      for (let i = 0; i < keys.length; i++) {
+        if (keys[i] === "\x1b" && i + 1 < keys.length) events.onInput(keys[i] + keys[++i]);
+        else events.onInput(keys[i]);
+      }
+    },
     release() { term?.blur(); },
 
     dispose() {
