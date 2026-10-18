@@ -249,6 +249,18 @@ describe("a tmux command", () => {
   });
 });
 
+describe("a tmux that does not answer in time", () => {
+  it("is a timeout even when the client it killed then exits cleanly", async () => {
+    // tmux's client catches the SIGTERM sent at the timeout and exits 0 with
+    // nothing printed; this stand-in, put where systemd-run would go, does the
+    // same. Read as success, a stalled server would have no sessions and no panes.
+    const stall = [process.execPath, "-e", "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000)", "--"];
+    const r = await runTmux("/opt/tmux", { name: "ccdeck" }, ["list-panes", "-a"], { scope: stall, timeoutMs: 1500 });
+    expect(r).toMatchObject({ ok: false, code: "ETIMEDOUT", stdout: "" });
+    expect(tmuxHasNoServer(r.stderr), "and not a missing server either").toBe(false);
+  });
+});
+
 describe("the environment the deck's tmux server is started with", () => {
   const deckEnv = {
     PATH: "/usr/local/bin:/usr/bin", HOME: "/home/me", LANG: "ro_RO.UTF-8", SHELL: "/bin/zsh",

@@ -52,7 +52,7 @@ import { randomBytes } from "node:crypto";
 import { killTree, watchChild } from "./exec-children.mjs";
 // The one spelling of a tmux invocation (binary, -u, socket, then arguments),
 // of an argument tmux could split, and of the environment a tmux client gets.
-import { parseTmuxVersion, tmuxArg, tmuxCommand, tmuxEnv } from "./tmux.mjs";
+import { parseTmuxVersion, tmuxArg, tmuxCommand, tmuxEnv, tmuxTimedOut } from "./tmux.mjs";
 
 /**
  * The most bytes one `send-keys -H` carries. Each byte is three characters on
@@ -643,15 +643,18 @@ class ControlClient extends EventEmitter {
       // leaves their current window alone; output for every window of the
       // session reaches a control client anyway.
       const found = await new Promise((resolve) => {
+        let child;
         try {
-          this.#execFile(this.#tmux, this.#argv(["display-message", "-p", "-t", attachTo, "#{session_id}"]),
+          child = this.#execFile(this.#tmux, this.#argv(["display-message", "-p", "-t", attachTo, "#{session_id}"]),
             { timeout: 3000, env: this.#env, windowsHide: true },
-            (err, stdout) => resolve(err ? null : String(stdout).trim()));
-        } catch { resolve(null); }
+            (err, stdout) => resolve(tmuxTimedOut(child, err) ? { silent: true } : { id: err ? "" : String(stdout).trim() }));
+        } catch { resolve({ id: "" }); }
       });
       if (this.#closing) return this.#teardown("closed");
-      if (!found) return this.#fail("ended", `tmux has no pane ${attachTo}`);
-      attachTo = found;
+      // A tmux that did not answer in time has not said the pane is gone.
+      if (found.silent) return this.#fail("error", "tmux did not answer in time");
+      if (!found.id) return this.#fail("ended", `tmux has no pane ${attachTo}`);
+      attachTo = found.id;
     } else if (!/^[$@=]/.test(attachTo)) {
       // "=name" is an exact match. A bare name would also match by prefix.
       attachTo = `=${attachTo}`;
@@ -905,12 +908,16 @@ class ControlClient extends EventEmitter {
     const why = reason || "";
     const done = (r) => { this.#emitExit(r, why || undefined); this.#teardown(r); };
     if (!this.#pane || !this.#session) return done("ended");
+    let child;
     try {
       // A lone ";" argument separates tmux commands; no shell is involved.
-      this.#execFile(this.#tmux, this.#argv(["has-session", "-t", this.#session, ";",
+      // One that did not answer in time has said neither, so it is an error:
+      // "ended" would offer to reopen a session that may still be running.
+      child = this.#execFile(this.#tmux, this.#argv(["has-session", "-t", this.#session, ";",
         "display-message", "-p", "-t", this.#pane, "#{pane_dead}"]),
       { timeout: 3000, env: this.#env, windowsHide: true },
-      (err, stdout) => done(err || String(stdout).trim() !== "0" ? "ended" : "detached"));
+      (err, stdout) => done(tmuxTimedOut(child, err) ? "error"
+        : err || String(stdout).trim() !== "0" ? "ended" : "detached"));
     } catch {
       done("ended");
     }

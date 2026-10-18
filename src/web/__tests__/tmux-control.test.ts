@@ -702,6 +702,33 @@ describe("the control client, against a fake tmux", () => {
     }
   });
 
+  it("reads a tmux that did not answer in time as an error, never as a pane or session that is gone", async () => {
+    // execFile kills a client at its timeout, and tmux's client catches that
+    // SIGTERM and exits 0 with nothing printed: only the kill says it stalled.
+    const stalled = (_f: string, _a: string[], _o: unknown, cb: (e: Error | null, out: string) => void) => {
+      setImmediate(() => cb(null, ""));
+      return { killed: true };
+    };
+
+    const fake = fakeTmux({ respond: answers() });
+    const c = tc.openControl({ tmux: "/fake/tmux", socket: { path: "/tmp/user-sock" }, target: "%5", ignoreSize: true, spawn: fake.spawn, execFile: stalled });
+    const exits: unknown[] = [];
+    c.on("exit", (e: unknown) => exits.push(e));
+    await c.ready.catch(() => {});
+    expect(exits, "looking the pane's session up").toEqual([{ reason: "error", message: "tmux did not answer in time" }]);
+    expect(fake.argv(), "nothing was attached").toEqual([]);
+
+    const live = fakeTmux({ respond: answers() });
+    const d = open(live, { execFile: stalled });
+    const after: unknown[] = [];
+    d.on("exit", (e: unknown) => after.push(e));
+    await d.ready;
+    live.send("%exit\n");
+    live.end(0);
+    await until(() => after.length > 0, "the exit");
+    expect(after, "telling a detach from an ending").toEqual([{ reason: "error" }]);
+  });
+
   it("settles what was pending and says 'error' when tmux dies without a word", async () => {
     const fake = fakeTmux({ respond: answers(l => (l === "list-panes" ? null : undefined as unknown as Reply)) });
     const c = open(fake);

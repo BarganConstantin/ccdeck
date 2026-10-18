@@ -439,6 +439,23 @@ describe("the keys typed before the pane could take them", () => {
   });
 });
 
+describe("asking for the session again from the stage", () => {
+  const web = (path: string) => withoutComments(readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8"));
+
+  it("asks for the keys too, as a card click does, so they are in the pane it comes back with", () => {
+    // Try again after tmux stalled brought the pane back with the keys left on
+    // the board ("↵ type here"): the button had gone, and the focus with it.
+    // The request is the shell's own (use-focus-request.ts): met by the pane,
+    // or landed on the card's action again if the retry fails.
+    const stage = web("components/terminal/TerminalStage.tsx");
+    expect(stage).toMatch(/const retry = \(\) => \{ session\.retry\(\); p\.onWantKeys\?\.\(\); \};/);
+    expect(stage).toContain("onRetry={retry}");
+    expect(stage).toMatch(/action: "Attach again", onAction: retry \}/);
+    expect(stage).not.toContain("session.retry}");
+    expect(web("components/terminal/StageShell.tsx")).toContain("onWantKeys={stage.focusPane}");
+  });
+});
+
 describe("what the stage costs the page that never opens it", () => {
   const web = (path: string) => withoutComments(readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8"));
 

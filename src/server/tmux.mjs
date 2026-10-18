@@ -391,6 +391,16 @@ export function tmuxHasNoServer(stderr) {
 }
 
 /**
+ * Whether a tmux client run through execFile with a `timeout` outran it. The
+ * kill alone says so: tmux's client catches the SIGTERM and exits 0 with
+ * nothing printed, so a stalled server (stopped, swapped out) would otherwise
+ * read as a clean, empty answer: no sessions, no panes. Measured on tmux 3.8.
+ */
+export function tmuxTimedOut(child, err) {
+  return Boolean(err?.killed || child?.killed);
+}
+
+/**
  * Run one tmux invocation and collect its output: `{ ok, code, stdout, stderr }`.
  *
  * execFile with an argument vector, never a shell — a project path is an
@@ -490,6 +500,7 @@ function execTmux(file, argv, { timeoutMs, env }) {
     let child;
     try {
       child = execFile(file, argv, { env, timeout: timeoutMs, maxBuffer: 4 << 20, windowsHide: true }, (err, stdout, stderr) => {
+        if (!err && tmuxTimedOut(child)) return settle("ETIMEDOUT", stdout, stderr || "tmux did not answer in time");
         if (!err) return settle(0, stdout, stderr);
         const code = typeof err.code === "number" || typeof err.code === "string" ? err.code
           : err.killed ? "ETIMEDOUT"
