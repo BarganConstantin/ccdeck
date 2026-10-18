@@ -91,6 +91,26 @@ describe("whole cells, always", () => {
     }
   });
 
+  it("never asks for more than the room it is given, at any width, stored count or ⤢", () => {
+    // The room is what use-stage.ts measured of the canvas; a stage wider
+    // than that would be laid past the cell, under the right stripe. The
+    // sheet caps the dock at its cell too (stage-shell.css), and this is the
+    // half that keeps the columns honest about it: whole cells inside the
+    // stage, the navigator never negative.
+    for (let w = 0; w <= 3000; w += 7) {
+      for (const storedCols of [null, 80, 112, 160, 500]) {
+        for (const expanded of [false, true]) {
+          const g = stageGeometry(at(w, 900, { storedCols, expanded }));
+          const where = `${w}px, stored ${storedCols}, ${expanded ? "⤢" : "plain"}`;
+          expect(g.stageW, where).toBeLessThanOrEqual(w);
+          expect(g.navW, where).toBeGreaterThanOrEqual(0);
+          expect(g.stageW + g.navW, where).toBe(w);
+          if (w >= 20 * ASSUMED_CELL.w + INSET_X) expect(Math.ceil(g.cols * ASSUMED_CELL.w) + INSET_X, where).toBeLessThanOrEqual(w);
+        }
+      }
+    }
+  });
+
   it("never gives the grid fewer than five rows, however short the window", () => {
     expect(stageGeometry(at(1440, 200)).rows).toBe(5);
   });

@@ -13,7 +13,28 @@
    mounted under both, faded and inert.
 
    Nothing here applies while the flag is off: no element carries a .stage-*
-   class, and <main> never carries data-stage. */
+   class, and <main> never carries data-stage.
+
+   THE STAGE NEVER SIZES THE CELL IT SHARES. The canvas's track is `1fr`,
+   whose floor is `auto`: the widest minimum any item in the track asks for.
+   A grid item with a plain fixed width asks for exactly that width, so
+   `width: var(--stage-w)` held the track open at the stage's own width. A
+   window taken straight from 1440px to 900 kept an 844px track where the
+   window had 820 for it: the page scrolled 24px sideways, the topbar's
+   Feedback ran off the edge, and the stage's ✕ sat under the right stripe,
+   where a click on it pressed Usage. use-stage.ts sizes the stage from the
+   canvas, so it read that inflated track back as the room it had; in the
+   takeover, where the stage is the whole cell, the answer was the same 844
+   again, and the loop held itself until the window grew. Smaller steps got
+   away with it only because each measure left the stage narrower than the
+   next window's real cell.
+   A width with a percentage in it asks nothing of the track (CSS Sizing 3,
+   cyclic percentages: for the track's sizing it is `auto`, and every child
+   of the dock is positioned or not drawn, so `auto` is nothing). So the
+   stage is its whole columns, never wider than its cell, and the canvas is
+   the size the grid would give it with no stage at all, which is what
+   use-stage.ts measures. The cap also covers the frame between a resize and
+   the measure that answers it. */
 
 .stage-dock {
   grid-column: 1;
@@ -21,7 +42,7 @@
   justify-self: end;
   position: relative;
   z-index: 15;
-  width: var(--stage-w);
+  width: min(var(--stage-w), 100%);
   min-width: 0;
   min-height: 0;
 }
@@ -39,14 +60,16 @@
 
 /* While it grows out of a card or back into one, the stage covers the whole
    cell and a clip-path is the window onto it (stage-morph.ts): the terminal
-   inside stays at its final size and place, uncovered rather than scaled. */
+   inside stays at its final size and place, uncovered rather than scaled.
+   Capped as the dock is, and against the same cell: at rest the dock is the
+   stage's width, mid-morph the whole cell. */
 .stage-dock[data-morph] { justify-self: stretch; width: auto; }
 .stage-in {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: var(--stage-w);
+  width: min(var(--stage-w), 100%);
 }
 .stage-ground { display: none; }
 .stage-dock[data-morph] .stage-ground {

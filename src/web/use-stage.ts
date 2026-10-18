@@ -115,6 +115,16 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // reader chose in columns, ⤢, and the canvas cell the stage shares — exact,
   // from an observer of its own while the stage is up: use-canvas-size.ts's
   // 40px quantum is right for the layout and wrong for a column count.
+  //
+  // The room is the canvas's, and only means the room because the stage
+  // cannot widen the canvas: stage-shell.css says why its width is capped by
+  // a percentage, and what reading the stage's own width back as the cell did
+  // (a page stuck 24px too wide after a window went from 1440 to 900 in one
+  // step). Rounded down: at a browser zoom the cell is a fraction of a pixel
+  // wide and clientWidth rounds to the nearest whole one, which a takeover —
+  // the stage the whole cell — would then ask half a pixel too much of. The
+  // reader's column count is never touched by any of this: a window too small
+  // for it gets what fits, and the next window with the room gets it back.
   const [cell, setCell] = useState<Cell>(ASSUMED_CELL);
   const [cols, setCols] = useState<number | null>(() => loadStageCols());
   const [expanded, setExpanded] = useState(false);
@@ -122,7 +132,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const measure = useCallback(() => {
     const el = canvasRef.current;
     if (!el) return;
-    const w = Math.round(el.clientWidth), h = Math.round(el.clientHeight);
+    const r = el.getBoundingClientRect();
+    const w = Math.floor(Math.min(el.clientWidth, r.width)), h = Math.floor(Math.min(el.clientHeight, r.height));
     const narrow = window.innerWidth < NARROW_BELOW;
     setBox(b => (b && b.w === w && b.h === h && b.narrow === narrow ? b : { w, h, narrow }));
   }, [canvasRef]);
