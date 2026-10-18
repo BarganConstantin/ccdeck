@@ -76,10 +76,23 @@ export const TERMINAL_FONT_TOKEN = "--font-mono";
 export const RESIZE_SETTLE_MS = 120;
 /** How long after the last output the spine's light keeps travelling. */
 export const STREAM_QUIET_MS = 1200;
+/** How often the panel tells the deck how much its terminal has parsed, in
+ *  bytes: an eighth of the deck's window (ACK_WINDOW_BYTES in
+ *  terminal-socket.mjs), so the window never empties for want of an ack. */
+export const ACK_EVERY_BYTES = 64 * 1024;
 /** The waits between attempts to reach a restarting deck. */
 export const RECONNECT_DELAYS_MS = [400, 800, 1600, 3200, 5000] as const;
 /** When the stage stops asking a deck that has not come back. */
 export const RECONNECT_GIVE_UP_MS = 120_000;
+/** After the deck said it is restarting (`server-shutdown`), how often the
+ *  panel asks to come back, and for how long, before the backoff above. A
+ *  restart is a deck on its way back in a second or two — an upgrade, the
+ *  stale-module notice — and every step of the backoff it lands in is time
+ *  the pane sits frozen with the deck already up: measured, a 2 s restart came
+ *  back live 0.6 s after the deck did, and one landing in the 3.2 s step would
+ *  wait 1.6 s. A refused connection costs nothing on loopback. */
+export const RESTART_POLL_MS = 250;
+export const RESTART_FAST_MS = 15_000;
 /** How often the stage asks again while the deck fetches its own tmux. */
 export const TMUX_SETUP_POLL_MS = 1500;
 /** When it stops waiting for that: a build is about a megabyte, so this is a
@@ -493,6 +506,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   let streamTimer: ReturnType<typeof setTimeout> | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectStarted: number | null = null;
+  // When the deck last said it was restarting; null for any other loss.
+  let restartSaid: number | null = null;
   let attempts = 0;
 
   let snap: SessionSnapshot = { phase: { kind: "empty" }, keysOwner: "board", streaming: false, cell: null };
@@ -554,7 +569,21 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     // terminal still loading when it did — and the ending must not then be
     // painted over with "live".
     let open = true;
-    conn = deps.connect({
+    // What this connection's terminal has parsed of the deck's binary bytes,
+    // and what was last said of it (`ack`): the deck keeps no more than a
+    // window of output in flight beyond it. Counted per connection, from the
+    // parse callbacks, which a superseded connection's writes do not reach.
+    let parsed = 0;
+    let acked = 0;
+    const parsedBytes = (n: number, now = false) => {
+      if (my !== gen || !open) return;
+      parsed += n;
+      if (now || parsed - acked >= ACK_EVERY_BYTES) {
+        acked = parsed;
+        c.sendAck(parsed);
+      }
+    };
+    const c: TerminalConnection = deps.connect({
       ticket,
       onHello: hello => {
         if (my !== gen) return;
@@ -571,8 +600,12 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
           });
           t.write(seed, () => {
             if (my !== gen || !open) return;
+            // At once after a seed, whatever its size: it is how the deck
+            // learns this panel acknowledges at all.
+            parsedBytes(seed.byteLength, true);
             attempts = 0;
             reconnectStarted = null;
+            restartSaid = null;
             setPhase({ kind: "live", sizeOwner, readOnly });
             measure();
             // The stage moved while this was being seeded (a reconnect after
@@ -584,7 +617,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       onData: bytes => {
         if (my !== gen) return;
         markStreaming();
-        withTerminal(t => t.write(bytes));
+        withTerminal(t => t.write(bytes, () => parsedBytes(bytes.byteLength)));
       },
       onTmux: version => {
         if (my !== gen) return;
@@ -604,7 +637,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         open = false;
         conn = null;
         if (snap.streaming) emit({ streaming: false });
-        if (reason === "server-shutdown") reconnect(my);
+        if (reason === "server-shutdown") { restartSaid = deps.now(); reconnect(my); }
         // Ended before anyone was looking: the deck says so for a dead pane
         // opened for its last frame, and an ending that lands before the seed
         // was ever revealed is the same thing seen from here.
@@ -620,6 +653,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         else setPhase({ kind: "error", message: failure.message });
       },
     });
+    conn = c;
     // The first size is what starts the stream; it is queued until the socket
     // opens, so it can be sent straight away. The colours with it, so a
     // program asking its terminal's colours in its first frame is answered.
@@ -745,7 +779,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       return;
     }
     setPhase({ kind: "attaching", reconnect: true });
-    const delay = RECONNECT_DELAYS_MS[Math.min(attempts, RECONNECT_DELAYS_MS.length - 1)];
+    const fast = restartSaid !== null && now - restartSaid < RESTART_FAST_MS;
+    const delay = fast ? RESTART_POLL_MS : RECONNECT_DELAYS_MS[Math.min(attempts, RECONNECT_DELAYS_MS.length - 1)];
     attempts += 1;
     clearTimer(retryTimer);
     retryTimer = setTimeout(() => {

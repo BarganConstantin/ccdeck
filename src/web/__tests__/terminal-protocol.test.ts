@@ -238,6 +238,18 @@ describe("what the panel sends", () => {
     ]);
   });
 
+  it("acknowledges what its terminal parsed, read-only included, and nothing once it has ended", () => {
+    const { conn, ws } = connect();
+    ws.open();
+    ws.text({ t: "hello", kind: "B", sizeOwner: "pane", readOnly: true });
+    expect(conn.sendAck(65536), "a read-only view is flow-controlled too").toBe(true);
+    expect(conn.sendAck(-1)).toBe(false);
+    expect(conn.sendAck(1.5)).toBe(false);
+    conn.close();
+    expect(conn.sendAck(131072)).toBe(false);
+    expect(ws.sentText()).toEqual([{ t: "ack", bytes: 65536 }]);
+  });
+
   it("sends no colours for a read-only pane, or once it has ended", () => {
     const ro = connect();
     ro.ws.open();

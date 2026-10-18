@@ -23,10 +23,13 @@ import { mount as mountComponent, flush } from "./fake-react";
 import { MAX_MESSAGE_BYTES, connectTerminal } from "../terminal-protocol";
 import type { ApiFailure, NotAttachable, SessionRef, TerminalStatus, Ticketed, Launched } from "../terminal-api";
 import {
+  ACK_EVERY_BYTES,
   CTRL_V,
   PASTE_TOO_LARGE,
   RECONNECT_DELAYS_MS,
   RECONNECT_GIVE_UP_MS,
+  RESTART_FAST_MS,
+  RESTART_POLL_MS,
   RESIZE_SETTLE_MS,
   STREAM_QUIET_MS,
   TMUX_SETUP_GIVE_UP_MS,
@@ -360,8 +363,33 @@ describe("switching sessions on the one terminal", () => {
   });
 });
 
+describe("telling the deck what the terminal has parsed", () => {
+  it("acknowledges the seed at once, then every 64 KiB parsed, and never for a connection it has left", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl); // seed "SEED", already parsed by attach
+    const acks = () => s.sentText().filter(m => m.t === "ack").map(m => m.bytes);
+    expect(acks(), "the seed: how the deck learns this panel acknowledges").toEqual([4]);
+    const big = new Uint8Array(ACK_EVERY_BYTES / 2).fill(0x61);
+    s.binary(big);
+    r.terminal().parse();
+    expect(acks(), "half a step parsed: nothing yet").toEqual([4]);
+    s.binary(big);
+    expect(acks(), "received is not parsed").toEqual([4]);
+    r.terminal().parse();
+    expect(acks()).toEqual([4, 4 + ACK_EVERY_BYTES]);
+    // Bytes still in the write queue when the panel moves on are not counted
+    // against the next connection.
+    s.binary(new Uint8Array(ACK_EVERY_BYTES).fill(0x62));
+    s.drop();
+    r.terminal().parse();
+    expect(acks()).toEqual([4, 4 + ACK_EVERY_BYTES]);
+  });
+});
+
 describe("a deck restart under a live pane (scenario S3)", () => {
-  it("keeps the frame, reconnects with a fresh ticket, and backs off while the deck is down", async () => {
+  it("keeps the frame, reconnects with a fresh ticket, and asks every 250 ms while a restarting deck is down", async () => {
     const { r, ctl } = rig();
     ctl.resize(120, 40, false);
     ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
@@ -372,12 +400,12 @@ describe("a deck restart under a live pane (scenario S3)", () => {
     expect(r.terminal().log.filter(l => l === "reset"), "nothing is cleared yet").toHaveLength(1);
 
     r.open.mockResolvedValueOnce(failure(null));
-    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[0]);
+    await vi.advanceTimersByTimeAsync(RESTART_POLL_MS);
     expect(r.open).toHaveBeenCalledTimes(2);
     expect(r.last().phase).toEqual({ kind: "attaching", reconnect: true });
 
-    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[1] - 1);
-    expect(r.open, "the second wait is longer").toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(RESTART_POLL_MS - 1);
+    expect(r.open, "a deck on its way back is asked at the same pace, not backed off").toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1);
     expect(r.open).toHaveBeenCalledTimes(3);
     const back = r.sockets[1];
@@ -389,7 +417,26 @@ describe("a deck restart under a live pane (scenario S3)", () => {
     expect(r.last().phase.kind).toBe("live");
   });
 
-  it("treats a socket that simply drops the same way", async () => {
+  it("backs off as before once a restart has taken longer than a restart takes", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    r.open.mockResolvedValue(failure(null));
+    s.text({ t: "exit", reason: "server-shutdown" });
+    const before = r.open.mock.calls.length;
+    // The first ask was set going in the fast window; by the time it fails,
+    // the restart has outlasted the window.
+    r.clock.now += RESTART_FAST_MS + 1;
+    await vi.advanceTimersByTimeAsync(RESTART_POLL_MS);
+    expect(r.open.mock.calls.length, "the first ask, set going in the fast window").toBe(before + 1);
+    await vi.advanceTimersByTimeAsync(RESTART_POLL_MS);
+    expect(r.open.mock.calls.length, "past the fast window the ladder applies").toBe(before + 1);
+    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[1] - RESTART_POLL_MS);
+    expect(r.open.mock.calls.length).toBe(before + 2);
+  });
+
+  it("treats a socket that simply drops the same way, on the backoff ladder", async () => {
     const { r, ctl } = rig();
     ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
     await flush();
