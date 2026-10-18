@@ -77,6 +77,19 @@ describe("what the stage shows", () => {
     expect(show.session.status.tool).toBe("Bash");
   });
 
+  it("tells two sessions the board names alike apart, by the tail of the id as the board's clusters do", () => {
+    const a = agent("019b2c3d-0000-7000-8000-00000000c450", { label: "proj2" });
+    const b = agent("019b2c3d-0000-7000-8000-00000000338a", { label: "proj2", provider: "codex" });
+    const subOfA = agent("sub-1", { sessionId: a.sessionId, kind: "subagent", label: "proj2" });
+    const board = new Map([[a.id, a], [b.id, b], [subOfA.id, subOfA]]);
+    const show = stageShowFor({ kind: "session", id: a.id }, board, NOW);
+    if (show.kind !== "session") throw new Error("not a session");
+    expect(show.session.name).toBe("proj2 · c450");
+    const alone = stageShowFor({ kind: "session", id: a.id }, new Map([[a.id, a], [subOfA.id, subOfA]]), NOW);
+    if (alone.kind !== "session") throw new Error("not a session");
+    expect(alone.session.name, "a subagent is not a twin").toBe("proj2");
+  });
+
   it("says waiting and for how long, in the face's word, never blocked", () => {
     const root = agent("s1", { waiting: wait("permission", NOW - 6 * MIN), state: "active" });
     const show = stageShowFor({ kind: "session", id: "s1" }, new Map([["s1", root]]), NOW);
