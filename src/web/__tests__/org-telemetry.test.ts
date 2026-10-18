@@ -52,7 +52,7 @@ const CONTENT = {
 };
 
 const observe = (s = seq(), now = T_SWITCH + 3_600_000) =>
-  observeOrgTelemetry({ seq: s, env: {}, home, platform: "linux", now, dataDir: join(home, "deck") });
+  observeOrgTelemetry({ seq: s, env: {}, home, platform: process.platform, now, dataDir: join(home, "deck") });
 
 describe("what one settings file turns on", () => {
   const vars = (env: Record<string, string>) => Object.entries(env).map(([key, value]) => ({ key, value }));
@@ -125,7 +125,7 @@ describe("recording an organization's settings", () => {
     writeFileSync(join(dir, ".claude.json"), JSON.stringify({ oauthAccount: { organizationUuid: ORG, organizationName: "Moved" } }));
     writeFileSync(join(dir, "remote-settings.json"), JSON.stringify({ env: CONTENT }));
     utimesSync(join(dir, "remote-settings.json"), (T_SWITCH + 60_000) / 1000, (T_SWITCH + 60_000) / 1000);
-    const records = await observeOrgTelemetry({ seq: seq(), env: { CLAUDE_CONFIG_DIR: dir }, home, platform: "linux", dataDir: join(home, "deck") });
+    const records = await observeOrgTelemetry({ seq: seq(), env: { CLAUDE_CONFIG_DIR: dir }, home, platform: process.platform, dataDir: join(home, "deck") });
     expect(records[ORG]?.orgName).toBe("Moved");
     expect(existsSync(join(home, "deck", "org-telemetry.json"))).toBe(true);
   });
