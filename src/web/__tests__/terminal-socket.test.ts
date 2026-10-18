@@ -164,6 +164,7 @@ interface FakeBridge {
   messages: any[];
   closedWith: unknown[] | null;
   shutdownWith: string | null;
+  shutdownText?: string;
 }
 
 let enabled = true;
@@ -188,7 +189,7 @@ beforeAll(async () => {
       return {
         message: (m: any) => { b.messages.push(m); },
         closed: (...args: unknown[]) => { b.closedWith = args; },
-        shutdown: (reason: string) => { b.shutdownWith = reason; conn.close(1001, reason); },
+        shutdown: (reason: string, text?: string) => { b.shutdownWith = reason; b.shutdownText = text; conn.close(1001, reason); },
       };
     },
   });
@@ -388,6 +389,28 @@ describe("the upgrade on a real socket", () => {
     } finally {
       throwOnOpen = false;
     }
+    const after = await dial(attach(tickets.mint({ kind: "A" })));
+    expect(after.status).toBe(101);
+    after.sendClose();
+    await after.closed;
+  });
+
+  // The switch in Settings going off: every open terminal told why and
+  // closed, and the next upgrade still admitted — the flag is what refuses it
+  // from then on, not this.
+  it("closes every open terminal with the sentence it is handed, and still admits the next", async () => {
+    const a = await dial(attach(tickets.mint({ kind: "A" })));
+    const b = await dial(attach(tickets.mint({ kind: "B" })));
+    await a.next();
+    await b.next();
+    const mine = bridges.slice(-2);
+    expect(ts.closeOpenTerminals("error", "The terminal was turned off in Settings.")).toBe(2);
+    for (const br of mine) {
+      expect(br.shutdownWith).toBe("error");
+      expect(br.shutdownText).toBe("The terminal was turned off in Settings.");
+    }
+    for (const c of [a, b]) await c.closed;
+    await vi.waitFor(() => expect(ts.openTerminalCount()).toBe(0));
     const after = await dial(attach(tickets.mint({ kind: "A" })));
     expect(after.status).toBe(101);
     after.sendClose();
@@ -875,6 +898,14 @@ describe("the bridge, in the order the panel expects", () => {
     handle.shutdown("server-shutdown");
     expect(conn.texts().at(-1)).toEqual({ t: "exit", reason: "server-shutdown" });
     expect(conn.closes).toEqual([[1001, "server-shutdown"]]);
+    expect(control().closes).toBe(1);
+  });
+
+  it("says the sentence and closes 1000 when the switch in Settings goes off", () => {
+    const { conn, control, handle } = bridge();
+    handle.shutdown("error", "The terminal was turned off in Settings.");
+    expect(conn.texts().at(-1)).toEqual({ t: "exit", reason: "error", message: "The terminal was turned off in Settings." });
+    expect(conn.closes).toEqual([[1000, "error"]]);
     expect(control().closes).toBe(1);
   });
 

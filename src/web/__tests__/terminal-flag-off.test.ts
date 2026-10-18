@@ -1,7 +1,7 @@
 // A deck with the terminal panel switched off is a deck without one.
 //
-// The panel ships hidden: off unless the launch variable or the settings file
-// says otherwise, and a page cannot say so. Off has to mean ABSENT, not
+// The panel ships off: off unless the launch variable, the settings file or
+// the Beta switch in Settings says otherwise. Off has to mean ABSENT, not
 // "present and refusing": every /api/terminal/* path answers exactly what an
 // /api path with no route answers, a request offering an upgrade — the
 // socket's, or curl's h2c — is answered as if it offered none, the page is
@@ -148,12 +148,15 @@ describe("the terminal routes on a deck with the panel switched off", () => {
     expect(body.prefs.terminal).toBe(false);
   });
 
-  it("cannot be switched on by a page", async () => {
-    // The deck's own page passes the mutation gate, so this is the strongest
-    // caller a browser can be — and the switch is still not one it may set.
-    const wrote = await ask("POST", "/api/prefs", { terminal: true });
-    expect(wrote.status).toBe(200);
-    expect(JSON.parse(wrote.body).terminalOn).toBe(false);
+  it("is switched on by the switch in Settings, and off again", async () => {
+    // The deck's own page passes the mutation gate, as every switch in
+    // Settings does. Off again before anything asks tmux, so the rest of this
+    // file still holds a deck with the panel off.
+    const on = JSON.parse((await ask("POST", "/api/prefs", { terminal: true })).body);
+    expect(on.terminalOn).toBe(true);
+    expect(on.terminalForced, "the switch did it, not the launch").toBe(false);
+    const off = JSON.parse((await ask("POST", "/api/prefs", { terminal: false })).body);
+    expect(off.terminalOn).toBe(false);
     expect((await ask("GET", "/api/terminal/status")).status).toBe(404);
   });
 });
@@ -181,9 +184,15 @@ describe("terminalOn", () => {
     expect(normalise({ terminal: 1 }).terminal).toBe(false);
   });
 
-  it("is not a field a page may write", () => {
-    expect(PAGE_FIELDS.top).not.toContain("terminal");
-    expect(prefs.pagePatch({ terminal: true })).toEqual({});
+  it("is a field a page may write: Settings › General's Beta switch", () => {
+    expect(PAGE_FIELDS.top).toContain("terminal");
+    expect(prefs.pagePatch({ terminal: true })).toEqual({ terminal: true });
+  });
+
+  it("says when the launch forced it on, which the switch cannot undo", () => {
+    expect(prefs.terminalForced({ CCDECK_TERMINAL: "1" })).toBe(true);
+    for (const v of [undefined, "", "0", "true"]) expect(prefs.terminalForced({ CCDECK_TERMINAL: v }), String(v)).toBe(false);
+    expect(terminalOn({ terminal: false }, { CCDECK_TERMINAL: "1" })).toBe(true);
   });
 
   it("is hidden: the launch variable is in neither the README nor what a login item carries", () => {
