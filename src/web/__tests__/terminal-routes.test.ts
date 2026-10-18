@@ -618,6 +618,15 @@ describe("what a launch is started with", () => {
     expect(bad.body.code).toBe("bad-options");
   });
 
+  it("hands the panel's colours to the launcher, for a launch and a reopen alike", async () => {
+    const colours = { fg: "#1f2328", bg: "#fafaf8" };
+    await ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT, colours });
+    expect(launches[0].colours).toEqual(colours);
+    target = { kind: "gone", adoptable: true };
+    await ask("POST", "/api/terminal/adopt", { ...session(), colours });
+    expect(launches.at(-1)).toMatchObject({ kind: "resume", colours });
+  });
+
   it("reopens at the panel's size too", async () => {
     target = { kind: "gone", adoptable: true };
     const got = await ask("POST", "/api/terminal/adopt", { ...session(), cols: 100, rows: 30 });

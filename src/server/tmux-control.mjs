@@ -1118,12 +1118,16 @@ class ControlClient extends EventEmitter {
    * background moves, which reaches programs that subscribed to it (mode
    * 2031, tmux 3.6+).
    *
+   * The window's style is set to them too, on every tmux: it is what tmux
+   * answers from when no control client has reported (3.2–3.4 always; later
+   * ones once this client has gone), and what the launch set them in first
+   * (terminal-sessions.mjs), so a theme switch must not leave it behind.
+   *
    * Refused on a read-only client and on an ignoreSize one: that pane is in
    * the user's own tmux, where these colours would change what the user's own
-   * terminal programs are told. A no-op answering `{ ok: false }` below tmux
-   * 3.5, which has no `refresh-client -r` — asked of the server itself, once,
-   * since it is the server's version that decides and it may be older than
-   * the binary that started this client.
+   * terminal programs are told. `refresh-client -r` only from tmux 3.5 —
+   * asked of the server itself, once, since it is the server's version that
+   * decides and it may be older than the binary that started this client.
    */
   colours(fg, bg) {
     if (this.#readOnly) return Promise.resolve(failed("read-only"));
@@ -1132,10 +1136,13 @@ class ControlClient extends EventEmitter {
     return this.#whenReady(async () => {
       const v = await this.serverVersion();
       const [major, minor] = COLOURS_TMUX;
-      if (!v || v[0] < major || (v[0] === major && v[1] < minor)) return failed("this tmux cannot be told colours");
+      const reports = v && (v[0] > major || (v[0] === major && v[1] >= minor));
       return allOf(this.#send([
-        `refresh-client -r ${quoteTmuxArg(`${this.#pane}:${oscColourReport(10, fg)}`)}`,
-        `refresh-client -r ${quoteTmuxArg(`${this.#pane}:${oscColourReport(11, bg)}`)}`,
+        `set-option -w -t ${quoteTmuxArg(this.#pane)} window-style ${quoteTmuxArg(`fg=${fg},bg=${bg}`)}`,
+        ...(reports ? [
+          `refresh-client -r ${quoteTmuxArg(`${this.#pane}:${oscColourReport(10, fg)}`)}`,
+          `refresh-client -r ${quoteTmuxArg(`${this.#pane}:${oscColourReport(11, bg)}`)}`,
+        ] : []),
       ]));
     });
   }

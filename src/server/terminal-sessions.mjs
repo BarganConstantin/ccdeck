@@ -290,8 +290,9 @@ export function clampSize(cols, rows) {
  * Everything else rides in the same sequence as new-session; see tmuxSequence
  * for why that ordering is what keeps a pane that dies at once on the board.
  */
-export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", agent, kind, term = PANE_TERM_FALLBACK }) {
+export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", agent, kind, term = PANE_TERM_FALLBACK, colours = null }) {
   const at = `=${name}:`;
+  const style = paneColours(colours);
   return ["-f", "/dev/null", ...tmuxSequence([
     // The server's own defaults, set ahead of the pane they shape — and
     // again on every launch, so a server an older deck started picks them up
@@ -304,6 +305,15 @@ export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", age
       ...(agent === "claude" ? ["-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-e", `CLAUDE_CODE_SCROLL_SPEED=${CLAUDE_SCROLL_SPEED}`] : []),
       "-P", "-F", "#{pane_id}",
       "--", ...paneArgv(argv)],
+    // The panel's colours, straight after the pane and in the same sequence,
+    // so they are tmux's answer before the program can ask. A program asking
+    // its terminal's colours (OSC 10/11: Codex at its first frame, Claude
+    // Code's auto theme, vim) is answered by tmux, from a control client's
+    // report when one has made it and from the window's style otherwise — and
+    // at launch no client has attached yet, so without a style tmux answered
+    // black, and a light deck got a session drawn for a dark terminal. Every
+    // tmux from 3.2 answers from the style; the socket keeps it current.
+    ...(style ? [["set-option", "-w", "-t", at, "window-style", style]] : []),
     ["set-option", "-t", at, SESSION_OPTIONS.session, sessionId],
     ["set-option", "-t", at, SESSION_OPTIONS.agent, agent],
     ["set-option", "-t", at, SESSION_OPTIONS.kind, kind],
@@ -314,6 +324,19 @@ export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", age
     // already made the session. On 3.2 the dead pane keeps tmux's caption.
     ["set-option", "-q", "-w", "-t", at, "remain-on-exit-format", ""],
   ])];
+}
+
+/** A colour as the panel sends one: six lowercase hex digits after a #. */
+const PANE_COLOUR = /^#[0-9a-f]{6}$/;
+
+/** `fg=#…,bg=#…` for tmux's window-style, from the panel's `{ fg, bg }`, or
+ *  null when either is missing or not a colour — never a failed launch: the
+ *  colours are a courtesy, and the socket sends them again on attach. */
+export function paneColours(colours) {
+  if (!colours || typeof colours !== "object") return null;
+  const { fg, bg } = colours;
+  if (!PANE_COLOUR.test(String(fg)) || !PANE_COLOUR.test(String(bg))) return null;
+  return `fg=${fg},bg=${bg}`;
 }
 
 /** Lines of history a deck pane keeps: what native terminals keep. */
@@ -381,7 +404,7 @@ async function requireTmux(env) {
 export async function launchSession({
   tmux, agent, cwd, cols = COLS.fallback, rows = ROWS.fallback, argv, sessionId = "", kind = "launch",
   socket = DECK_SOCKET, env = process.env, platform = process.platform, run = runTmux, scope = serverScope,
-  options = null,
+  options = null, colours = null,
 } = {}) {
   checkAgent(agent);
   checkKind(kind);
@@ -414,7 +437,7 @@ export async function launchSession({
 
   for (let attempt = 0; ; attempt++) {
     const name = deckSessionName({ agent, kind, sessionId: id });
-    const args = launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind, term: paneTerm({ env }) });
+    const args = launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind, term: paneTerm({ env }), colours });
     let r = await run(bin, socket, args, outside ? { env, scope: outside } : { env });
     if (outside && !r.ok && SYSTEMD_REFUSED.test(r.stderr)) {
       outside = null;

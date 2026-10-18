@@ -436,10 +436,10 @@ describe("against a real tmux", () => {
     expect(sessionEnv(), "nor did leaving").toEqual(before);
   }, 30_000);
 
-  it("answers a pane that asks its terminal's colours with the panel's, once told them (tmux 3.5+)", async () => {
+  it("answers a pane that asks its terminal's colours with the panel's, once told them, on every tmux", async () => {
     if (!TMUX) return;
-    const v = /^tmux (?:next-)?(\d+)\.(\d+)/.exec(spawnSync(TMUX, ["-V"], { encoding: "utf8" }).stdout ?? "");
-    if (!v || Number(v[1]) < 3 || (Number(v[1]) === 3 && Number(v[2]) < 5)) return;
+    // From the window's style on any tmux, and from the client's report too
+    // from 3.5 (tmux-control.mjs's colours).
     // A program that, on Enter, asks OSC 11 and OSC 10 the way Claude Code's
     // auto theme does and writes down whatever its terminal answered.
     const asker = join(DIR, "asker.cjs");

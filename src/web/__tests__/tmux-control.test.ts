@@ -507,7 +507,7 @@ describe("the control client, against a fake tmux", () => {
     await c.close();
   });
 
-  it("tells tmux 3.5+ the pane's colours as OSC 10/11 replies, asking the server's version once", async () => {
+  it("tells tmux the pane's colours: the window's style on every version, OSC 10/11 replies from 3.5", async () => {
     const version = (v: string) => (l: string) => (l === 'display-message -p "#{version}"' ? { lines: [v] } : undefined as unknown as Reply);
     const fake = fakeTmux({ respond: answers(version("3.8")) });
     const c = open(fake);
@@ -515,19 +515,23 @@ describe("the control client, against a fake tmux", () => {
     expect(await c.colours("#e6e6e6", "#14161b")).toEqual({ ok: true, lines: [] });
     expect(await c.colours("#1f2328", "#fafaf8")).toEqual({ ok: true, lines: [] });
     expect(fake.written.filter(l => l.startsWith("display-message -p \"#{version}\"")), "asked once").toHaveLength(1);
-    expect(fake.written.filter(l => l.startsWith("refresh-client -r"))).toEqual([
+    expect(fake.written.filter(l => l.startsWith("set-option -w") || l.startsWith("refresh-client -r"))).toEqual([
+      'set-option -w -t "%0" window-style "fg=#e6e6e6,bg=#14161b"',
       'refresh-client -r "%0:\\033]10;rgb:e6e6/e6e6/e6e6\\033\\\\"',
       'refresh-client -r "%0:\\033]11;rgb:1414/1616/1b1b\\033\\\\"',
+      'set-option -w -t "%0" window-style "fg=#1f2328,bg=#fafaf8"',
       'refresh-client -r "%0:\\033]10;rgb:1f1f/2323/2828\\033\\\\"',
       'refresh-client -r "%0:\\033]11;rgb:fafa/fafa/f8f8\\033\\\\"',
     ]);
     await c.close();
 
+    // Older tmux has no -r, and answers from the window's style alone.
     for (const old of ["3.4", "openbsd-7.4", ""]) {
       const f = fakeTmux({ respond: answers(version(old)) });
       const o = open(f);
       await o.ready;
-      expect(await o.colours("#e6e6e6", "#14161b"), old).toMatchObject({ ok: false });
+      expect(await o.colours("#e6e6e6", "#14161b"), old).toMatchObject({ ok: true });
+      expect(f.written.filter(l => l.startsWith("set-option -w")), old).toEqual(['set-option -w -t "%0" window-style "fg=#e6e6e6,bg=#14161b"']);
       expect(f.written.some(l => l.startsWith("refresh-client -r")), `${old}: no -r`).toBe(false);
       await o.close();
     }

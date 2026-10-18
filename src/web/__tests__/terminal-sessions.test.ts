@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
   AGENTS, DEAD_KEEP, KINDS, LAUNCH_MODELS, PANE_HISTORY, paneTerm, LAUNCH_PERMISSION_MODES, SESSION_OPTIONS, TerminalSessionError, agentArgv, launchOptionArgs, checkCwd, clampSize, deadDeckSessions,
-  deckSessionName, findDeckSession, isDeckSessionName, killDeckSession, labelDeckSession, launchCommand, launchSession,
+  deckSessionName, findDeckSession, isDeckSessionName, killDeckSession, labelDeckSession, launchCommand, launchSession, paneColours,
   listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resolveAgentBin, staleDeadSessions,
 } from "../../server/terminal-sessions.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -223,6 +223,21 @@ describe("the tmux command that makes a deck session", () => {
     const args = launchCommand({ name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/bin/codex"], agent: "codex", kind: "launch", term: "tmux-256color" });
     expect(args.slice(2, 13)).toEqual(["set-option", "-g", "default-terminal", "tmux-256color", ";", "set-option", "-g", "history-limit", "10000", ";", "new-session"]);
     expect(PANE_HISTORY).toBe(10_000);
+  });
+
+  it("gives the pane the panel's colours straight after it is made, and nothing for colours it cannot read", () => {
+    const base = { name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/bin/codex"], agent: "codex", kind: "launch" };
+    const args = launchCommand({ ...base, colours: { fg: "#1f2328", bg: "#fafaf8" } });
+    const pane = args.indexOf("#{pane_id}");
+    // The pane's argv, then the very next command is the style.
+    const next = args.indexOf(";", pane);
+    expect(args.slice(next + 1, next + 6)).toEqual(["set-option", "-w", "-t", "=ccdeck-codex-0123abcd:", "window-style"]);
+    expect(args[next + 6]).toBe("fg=#1f2328,bg=#fafaf8");
+    for (const colours of [null, {}, { fg: "#1f2328" }, { fg: "red", bg: "#fafaf8" }, { fg: "#1F2328", bg: "#fafaf8" }, { fg: "#1f2328;kill-server", bg: "#fafaf8" }]) {
+      expect(launchCommand({ ...base, colours }), JSON.stringify(colours)).not.toContain("window-style");
+    }
+    expect(paneColours({ fg: "#000000", bg: "#ffffff" })).toBe("fg=#000000,bg=#ffffff");
+    expect(paneColours("fg=#000000")).toBeNull();
   });
 
   it("names tmux-256color only where this machine's terminfo has it", () => {

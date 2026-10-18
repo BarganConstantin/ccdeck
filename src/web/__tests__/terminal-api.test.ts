@@ -110,6 +110,16 @@ describe("the requests themselves", () => {
     expect(adopt.asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd, cols: 90, rows: 30 });
   });
 
+  it("starts a launch or a reopen in the panel's colours when it has them", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, sessionId: "", name: "ccdeck-codex-1a2b3c4d", ticket: "tk" });
+    const colours = { fg: "#1f2328", bg: "#fafaf8" };
+    await launchTerminal({ agent: "codex", cwd: "/srv/app", colours }, { fetchFn });
+    expect(asked[0].body).toEqual({ agent: "codex", cwd: "/srv/app", colours });
+    const adopt = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+    await adoptTerminal(SESSION, { fetchFn: adopt.fetchFn }, undefined, colours);
+    expect(adopt.asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd, colours });
+  });
+
   it("hands the panel's AbortSignal to fetch, so a switched-away panel can drop the request", async () => {
     const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
     const signal = new AbortController().signal;

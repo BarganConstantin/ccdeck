@@ -139,6 +139,19 @@ describe("a deck session on a real tmux", () => {
     expect(seen).toBe("cat");
   });
 
+  it("answers a program that asks its background at its first instant with the deck's colours", async () => {
+    if (!found.ok) return expectNoTmux();
+    // sh asks before anything could have attached — the launch race a Codex
+    // or a TUI with an auto theme runs — and writes the answer down, spelled
+    // out by od so no escape reaches the screen.
+    const ask = ["sh", "-c", 'stty raw -echo min 0 time 5; printf "\\033]11;?\\033\\\\"; r=$(dd bs=64 count=1 2>/dev/null); stty sane; printf "%s" "$r" | od -An -c | tr -d " \\n"; echo'];
+    const lit = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ask, colours: { fg: "#1f2328", bg: "#fafaf8" } });
+    const plain = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ask });
+    await listUntil(l => [lit.name, plain.name].every(n => l.find(x => x.name === n)?.dead));
+    expect(await screen(lit.name)).toContain("rgb:fafa/fafa/f8f8");
+    expect(await screen(plain.name), "without them tmux has no light background to give").not.toContain("rgb:fafa/fafa/f8f8");
+  });
+
   it("keeps a pane whose program ended, dead, with its exit status and its own last frame", async () => {
     if (!found.ok) return expectNoTmux();
     const s = await launchSession({
