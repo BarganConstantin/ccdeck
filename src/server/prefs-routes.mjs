@@ -52,7 +52,7 @@ function prefsPayload() {
 }
 
 /** What a panel that was open says once the switch in Settings has closed it. */
-export const TERMINAL_TURNED_OFF = "The terminal was turned off in Settings.";
+export const TERMINAL_TURNED_OFF = "The terminal was turned off in Settings. The session is still running.";
 
 export function handlePrefsRead(req, res) {
   return send(res, 200, prefsPayload());
@@ -68,6 +68,7 @@ export async function handlePrefsWrite(req, res) {
   // reports switch (#1853), the reporter's state, the accounts the deck signed
   // in (#1893) — are the deck's own and keep what is on disk; see pagePatch.
   const patch = pagePatch(body);
+  const terminalWasOn = terminalOn(heldPrefs.current());
   try {
     await heldPrefs.write(patch);
   } catch (err) {
@@ -82,6 +83,13 @@ export async function handlePrefsWrite(req, res) {
     const detail = prefsRefusalDetail(err);
     return send(res, 500, detail ? { ok: false, reason, detail } : { ok: false, reason });
   }
+  // Off means no way in, not only no new one: a panel still open in another
+  // tab is a write channel into the session, so it is closed with a sentence,
+  // at once rather than after the LAN engine has had its turn. Asked of what
+  // was written, not of what was sent — any value that is not true turns the
+  // switch off. The sessions keep running; closing a panel never stops an
+  // agent.
+  if (terminalWasOn && !terminalOn(heldPrefs.current())) closeOpenTerminals("error", TERMINAL_TURNED_OFF);
   // The engine reads its settings from here rather than holding its own copy,
   // so turning the switch off in the panel really does stop the sockets rather
   // than only changing what the panel says.
@@ -90,10 +98,6 @@ export async function handlePrefsWrite(req, res) {
   // to one question: is anything going to turn up. Whatever the probe said
   // before is about a deck whose sockets were down — see forgetReach.
   if (body.lan?.enabled === true) forgetReach();
-  // Off means no way in, not only no new one: a panel still open in another
-  // tab is a write channel into the session, so it is closed with a sentence.
-  // The sessions keep running — closing a panel never stops an agent.
-  if (patch.terminal === false && !terminalOn(heldPrefs.current())) closeOpenTerminals("error", TERMINAL_TURNED_OFF);
   return send(res, 200, prefsPayload());
 }
 

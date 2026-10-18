@@ -3,8 +3,8 @@
 // (use-auto-restart.ts), notifications to loadNotifyPrefs
 // (use-os-notifications.ts), and usage reports to loadReportsPrefs
 // (use-reports.ts, #1853). Split, it would be three requests for one answer.
-// The hidden terminal flag rides the same answer (`terminalOn`, prefs-routes
-// .mjs) to use-stage.ts, so turning the terminal on costs no request either.
+// The terminal flag rides the same answer (`terminalOn`, prefs-routes.mjs) to
+// use-stage.ts, so knowing whether the terminal is on costs no request either.
 //
 // Moved out of App.tsx unchanged, and called there where it was, once the
 // hooks have handed their loaders over.

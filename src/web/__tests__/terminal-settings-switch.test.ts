@@ -40,9 +40,10 @@ describe("the terminal's switch in Settings", () => {
     expect(html).toContain(TERMINAL_FORCED_NOTE);
   });
 
-  it("is fixed off on Windows, and says why", () => {
+  it("is fixed off on Windows, and says why — but never fixed on there", () => {
     const html = draw({}, "Win32");
     expect(switchOf(html)).toContain("disabled");
+    expect(switchOf(draw({ on: true }, "Win32")), "a settings file from another machine can still be undone").not.toContain("disabled");
     expect(html).toContain(TERMINAL_WINDOWS_NOTE);
     expect(terminalNote(false, true)).toBe(TERMINAL_WINDOWS_NOTE);
     expect(terminalNote(true, true), "a forced launch is the truer sentence").toBe(TERMINAL_FORCED_NOTE);

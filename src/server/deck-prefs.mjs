@@ -95,12 +95,15 @@ export const DEFAULTS = Object.freeze({
   // THE TERMINAL PANEL, OFF until somebody turns it on: a terminal you can
   // type into is the first thing in the deck that reaches into an agent rather
   // than watching one. A Beta switch in Settings › General since 2026-10-18,
-  // so in PAGE_FIELDS: the POST that sets it passes the gates every other
-  // switch does, which admit the deck's own page on this machine and nothing
-  // else — the same trust the LAN switch, which opens sockets to the network,
-  // has always had. Before that it was deck-owned, set by hand in prefs.json;
-  // the launch variable terminalOn names still turns it on for one run. See
-  // terminal-routes.mjs.
+  // so in PAGE_FIELDS, behind the gates every other switch is behind. Those
+  // turn away every other site, a rebound name and the network; they cannot
+  // turn away a process on this machine that writes a loopback Origin itself
+  // (request-gates.mjs says so), and such a process can now switch on a way to
+  // type into the user's sessions — where before it had to write prefs.json.
+  // Accepted for the Beta, knowingly: that process can already read the ring
+  // and the accounts through the same gates. Before the switch it was
+  // deck-owned, set by hand in prefs.json; the launch variable terminalOn
+  // names still turns it on for one run. See terminal-routes.mjs.
   terminal: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the

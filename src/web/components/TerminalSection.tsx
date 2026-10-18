@@ -7,7 +7,9 @@
 // switch gives and what it needs, because tmux is the one thing here that is
 // not already on the machine. Two states the press cannot change are said
 // rather than offered: a deck launched with the terminal on (the switch reads
-// on and is fixed), and Windows, which has no tmux.
+// on and is fixed), and Windows, which has no tmux — fixed off there, though
+// never fixed on: a settings file carried over from another machine can still
+// be switched off.
 
 export interface TerminalSwitch {
   /** The terminal is on now, whichever way. */
@@ -17,9 +19,9 @@ export interface TerminalSwitch {
   toggle: () => void;
 }
 
-export const TERMINAL_LABEL = "Open sessions in a terminal";
+export const TERMINAL_LABEL = "Type into sessions from the deck";
 export const TERMINAL_NOTE =
-  "Click a session's card to open it beside the board and type into it, as in your own terminal. Runs on tmux — the deck sets one up if this machine has none.";
+  "Click a session's card to open it beside the board and type into it, as in your own terminal. Runs on tmux: if this machine has none, the deck downloads its own copy into its folder, and nothing is installed on the system.";
 export const TERMINAL_FORCED_NOTE = "On for this run: the deck was started with the terminal switched on.";
 export const TERMINAL_WINDOWS_NOTE = "Not on Windows yet: the terminal runs on tmux, which Windows does not have.";
 export const BETA_TITLE = "Beta feature — still being tested and improved.";
@@ -31,7 +33,7 @@ export function terminalNote(forced: boolean, windows: boolean): string {
 
 export default function TerminalSection({ terminal, platform }: { terminal: TerminalSwitch; platform: string }) {
   const windows = /^win/i.test(platform);
-  const fixed = terminal.forced || windows;
+  const fixed = terminal.forced || (windows && !terminal.on);
   return (
     <section className="settings-group" aria-labelledby="settings-terminal-caption">
       <div className="settings-caption">

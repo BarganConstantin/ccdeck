@@ -12,7 +12,10 @@ import type { BlockedSession } from "../ambient-counts";
 import { DOUBLE_CLICK_MS } from "../focus-hold";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
-import { useStage, useStageAsks, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, type StageDeps } from "../use-stage";
+import {
+  useStage, useStageAsks, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, TERMINAL_SWITCHED_KEY as STAGE_SWITCHED,
+  type StageDeps,
+} from "../use-stage";
 import { mount } from "./fake-react";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
@@ -59,6 +62,9 @@ let page: ReturnType<typeof makeCanvas>;
 let focused: string | null;
 let session: Map<string, string>;
 let pagehide: (() => void)[];
+let storage: ((e: unknown) => void)[];
+let local: Map<string, string>;
+let localArea: Record<string, unknown>;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -67,10 +73,24 @@ beforeEach(() => {
   const g = globalThis as Record<string, unknown>;
   session = new Map();
   pagehide = [];
+  storage = [];
+  local = new Map();
+  localArea = {
+    getItem: (k: string) => local.get(k) ?? null,
+    setItem: (k: string, v: string) => { local.set(k, v); },
+    removeItem: (k: string) => { local.delete(k); },
+  };
   g.window = {
     setTimeout, clearTimeout, innerWidth: 1440,
-    addEventListener(type: string, fn: () => void) { if (type === "pagehide") pagehide.push(fn); },
-    removeEventListener(type: string, fn: () => void) { if (type === "pagehide") pagehide = pagehide.filter(f => f !== fn); },
+    localStorage: localArea,
+    addEventListener(type: string, fn: () => void) {
+      if (type === "pagehide") pagehide.push(fn);
+      if (type === "storage") storage.push(fn);
+    },
+    removeEventListener(type: string, fn: () => void) {
+      if (type === "pagehide") pagehide = pagehide.filter(f => f !== fn);
+      if (type === "storage") storage = storage.filter(f => f !== fn);
+    },
     sessionStorage: {
       getItem: (k: string) => session.get(k) ?? null,
       setItem: (k: string, v: string) => { session.set(k, v); },
@@ -252,6 +272,71 @@ describe("the switch in Settings", () => {
     expect(now().stage.enabled).toBe(false);
     await flush();
     expect(now().stage.enabled).toBe(true);
+  });
+
+  it("keeps only the latest press's answer when two cross on the way back", async () => {
+    const answers: ((v: unknown) => void)[] = [];
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(resolve => answers.push(resolve))));
+    const { now } = setup();
+    now().stage.toggleTerminal();
+    now().stage.toggleTerminal();
+    expect(now().stage.enabled, "on, then off again").toBe(false);
+    const reply = (on: boolean) => ({ ok: true, json: async () => ({ ok: true, terminalOn: on, terminalForced: false }) });
+    answers[1](reply(false));
+    await flush();
+    answers[0](reply(true));
+    await flush();
+    expect(now().stage.enabled, "the first press's late answer is about a state already gone").toBe(false);
+  });
+
+  it("asks the deck what it holds when a write is refused, rather than guessing", async () => {
+    const fetch = vi.fn(async (_url: string, init?: { method?: string }) => init?.method === "POST"
+      ? { ok: false, json: async () => ({ ok: false, reason: "unwritable" }) }
+      : { ok: true, json: async () => ({ ok: true, terminalOn: true, terminalForced: false }) });
+    vi.stubGlobal("fetch", fetch);
+    const { now } = setup();
+    now().stage.toggleTerminal();
+    await flush();
+    expect(fetch).toHaveBeenLastCalledWith("/api/prefs");
+    expect(now().stage.enabled, "the write landed after all: the deck says on").toBe(true);
+  });
+
+  it("tells the other tabs, which ask the deck and take the stage down when it is off", async () => {
+    answer({ ok: true, body: { ok: true, terminalOn: true, terminalForced: false } });
+    const { now } = setup();
+    now().stage.toggleTerminal();
+    await flush();
+    expect(local.has(STAGE_SWITCHED), "this tab's press, told through storage").toBe(true);
+
+    // Another tab, with its stage up, hears of it.
+    const other = setup();
+    other.turnOn();
+    other.now().stage.onNodeClick("s1", page.card as unknown as Element);
+    other.now().stage.reveal();
+    expect(other.now().stage.shell.phase).not.toBe("closed");
+    answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    for (const fn of storage) fn({ storageArea: localArea, key: STAGE_SWITCHED, newValue: "1" });
+    await flush();
+    expect(other.now().stage.enabled).toBe(false);
+    expect(other.now().stage.shell.phase).toBe("closed");
+  });
+
+  it("forgets the session a reload would have put back once it goes off", async () => {
+    answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    now().stage.reveal();
+    expect(session.has(STAGE_RESTORE_KEY)).toBe(true);
+    now().stage.toggleTerminal();
+    expect(session.has(STAGE_RESTORE_KEY)).toBe(false);
+  });
+
+  it("forgets nothing on the first read, before the prefs said anything", () => {
+    session.set(STAGE_RESTORE_KEY, JSON.stringify({ id: "s1", at: Date.now() }));
+    const { now } = setup();
+    now().stage.loadTerminalPrefs({ terminalOn: false });
+    expect(session.has(STAGE_RESTORE_KEY), "a reload's restore is still to come").toBe(true);
   });
 
   it("says when the launch forced it on, from the read every page makes", () => {
