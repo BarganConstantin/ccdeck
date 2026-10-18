@@ -326,8 +326,10 @@ describe("the switch in Settings", () => {
     turnOn();
     now().stage.onNodeClick("s1", page.card as unknown as Element);
     now().stage.reveal();
+    // The stage has left the page before the hook hears of it, so the focus it
+    // held is on the body by then — what a real browser shows.
     const doc = (globalThis as Record<string, any>).document;
-    doc.activeElement = { closest: (sel: string) => (sel.includes(".stage-dock") ? {} : null) };
+    doc.activeElement = doc.body;
     answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
     for (const fn of storage) fn({ storageArea: localArea, key: STAGE_SWITCHED, newValue: "1" });
     await flush();

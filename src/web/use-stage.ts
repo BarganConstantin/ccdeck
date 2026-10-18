@@ -487,7 +487,10 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // by itself. Only on the way from on to off, so the closed stage of a first
   // render, before the prefs are read, forgets nothing. Focus the stage held
   // goes back onto the card, as a close's does; focus on the switch itself, in
-  // the tab that pressed it, stays there.
+  // the tab that pressed it, stays there. By the time this runs the stage has
+  // already left the page — StageSlots draws nothing once the flag is off —
+  // so focus it held is on the body by now, which counts, as it does for
+  // `closed`.
   const wasEnabled = useRef(false);
   useEffect(() => {
     const was = wasEnabled.current;
@@ -495,7 +498,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (enabled || !was) return;
     if (shellRef.current.phase !== "closed") {
       const active = document.activeElement;
-      if (active?.closest?.(".stage-dock, .stage-nav")) returnFocusRef.current = targetSession(shellRef.current.target);
+      const held = !active || active === document.body || !!active.closest?.(".stage-dock, .stage-nav");
+      if (held) returnFocusRef.current = targetSession(shellRef.current.target);
     }
     dispatch({ type: "close", instant: true });
     writeOnStage(null, Date.now());
