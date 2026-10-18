@@ -69,6 +69,8 @@ export interface StageSessionInfo {
   name: string;
   hue: number;
   model?: string | null;
+  /** The reasoning effort the session runs at, as its card shows it. */
+  effort?: string | null;
   /** The face's sentence — stageStatusFrom(board facts, now). */
   status: StageStatus;
   /** The last line the board knew, shown while the pane attaches. */
@@ -282,6 +284,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         name={name}
         provider={p.show.kind === "session" ? p.show.session.ref.provider : p.show.kind === "launch" ? p.show.agent : null}
         model={p.show.kind === "session" ? p.show.session.model : null}
+        effort={p.show.kind === "session" ? p.show.session.effort : null}
         status={status}
         keysOwner={session.keysOwner}
         chordLabel={chordLabel}

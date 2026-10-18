@@ -143,6 +143,7 @@ export function stageShowFor(
       name: stageNameOf(root, agents),
       hue: sessionHue(id),
       model: root.model ?? null,
+      effort: root.effort ?? null,
       status: stageStatusFrom(facts, now),
       // While the pane attaches: what the face says the session is doing, or
       // failing that, what it was last asked.

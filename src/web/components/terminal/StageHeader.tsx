@@ -21,7 +21,7 @@
 // "‹" leads with the same promise, back to the board. ⤢ is full screen where
 // full screen hands the session the browser's shortcuts (tab-keys.ts), and is
 // drawn in the takeover too, where there is no width to give but that.
-import { modelFamily, shortModel } from "../../model-label";
+import { modelChipText, modelFamily } from "../../model-label";
 import type { TerminalProvider } from "../../terminal-api";
 import type { KeysOwner, StageStatus } from "./stage-model";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, ProviderGlyph } from "./stage-icons";
@@ -42,6 +42,8 @@ export interface StageHeaderProps {
   provider?: TerminalProvider | null;
   /** The model id, for the chip; absent before the session has reported one. */
   model?: string | null;
+  /** The reasoning effort, after the model as the card has it: "Opus 5 · max". */
+  effort?: string | null;
   status: StageStatus;
   keysOwner: KeysOwner;
   /** The release chord as the reader's keyboard labels it (terminal-keys.ts). */
@@ -63,10 +65,11 @@ export interface StageHeaderProps {
   onClose(): void;
 }
 
-/** The chip's words: the model's short name, or the provider's when the
- *  session has not said which model yet. */
-export function chipText(provider: TerminalProvider | null | undefined, model: string | null | undefined): string | null {
-  if (model) return shortModel(model);
+/** The chip's words: the model's short name and its effort, as the card's
+ *  chip says them, or the provider's name when the session has not said which
+ *  model yet. */
+export function chipText(provider: TerminalProvider | null | undefined, model: string | null | undefined, effort?: string | null): string | null {
+  if (model) return modelChipText(model, effort ?? undefined);
   if (provider === "codex") return "Codex";
   return null;
 }
@@ -89,7 +92,7 @@ export const FULL_LABEL = "Full screen — Ctrl+W, Ctrl+T and Ctrl+N go to the s
 export const FULL_LEAVE_LABEL = "Leave full screen";
 
 export default function StageHeader(p: StageHeaderProps) {
-  const chip = chipText(p.provider, p.model);
+  const chip = chipText(p.provider, p.model, p.effort);
   const { status } = p;
   const detail = !!(status.tool || status.arg || status.seconds);
   const pane = p.keysOwner === "pane";
