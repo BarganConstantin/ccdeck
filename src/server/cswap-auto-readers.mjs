@@ -9,6 +9,7 @@
 // it re-exports all five names, which is where the suite reaches them.
 import { run } from "./exec.mjs";
 import { cswapBin, cswapRefused } from "./cswap-install.mjs";
+import { stripAnsi } from "./term.mjs";
 
 // ── one reading at a time ──────────────────────────────────────────────────
 
@@ -157,7 +158,9 @@ export function invalidateCswapAutoCache() {
  * whatever shape it is given, and the interval collapses four fields to one
  * number that is clamped anyway. The parse itself is a regex over
  * human-formatted output from a separate Python tool, on both line-ending
- * conventions. See cswap-auto-readers.test.ts.
+ * conventions, and with or without colour: the tool dims its `(default)` marker
+ * whenever the environment asks for colour, and a deck launched from a terminal
+ * inherits that terminal's FORCE_COLOR. See cswap-auto-readers.test.ts.
  *
  * One reading at a time and one every CONFIG_MIN_GAP_MS at most; the parse below
  * is what a reading is, and admission control is the wrapper. See throttled.
@@ -174,7 +177,7 @@ async function readCswapConfigNow() {
   const r = await run(bin, ["config"]);
   if (!r.ok) return null;
   const out = {};
-  for (const line of r.stdout.split("\n")) {
+  for (const line of stripAnsi(r.stdout).split("\n")) {
     const m = line.match(/^(\S+)\s+(.*?)\s*(\(default\))?\s*$/);
     if (!m || !m[1].includes(".")) continue;
     const raw = m[2].trim();
