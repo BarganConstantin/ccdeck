@@ -434,6 +434,20 @@ describe("the other ways in", () => {
     expect(now().stage.shell.focusRequest, "the keys with it, as a card's click gives them").not.toBeNull();
   });
 
+  it("gives the Terminal button the focus back when the empty stage it opened closes", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    const button = { focus: vi.fn(), isConnected: true, getBoundingClientRect: () => rect(20, 400, 32, 32), classList: { contains: () => false } };
+    now().stage.openFromButton(button as unknown as Element);
+    now().stage.reveal();
+    const doc = (globalThis as Record<string, any>).document;
+    doc.activeElement = doc.body;
+    now().stage.close();
+    now().stage.closed("");
+    expect(button.focus, "the empty stage has no card to go back to").toHaveBeenCalledTimes(1);
+    expect(focused).toBeNull();
+  });
+
   it("opens the Terminal button on the empty stage when nothing is selected or remembered", () => {
     const { now, turnOn } = setup();
     turnOn();
