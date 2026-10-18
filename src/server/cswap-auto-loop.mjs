@@ -24,6 +24,9 @@ import { connectEarlyTick, noteAutoSwitch, noteAutoTick } from "./account-watch.
 // The owner's two rules — a home account, and the soonest weekly reset — asked
 // before the engine, inside the same lock. With neither set, nothing.
 import { chooseBeforeEngine, forgetPicksByHand, noteEngineTick } from "./cswap-auto-choice.mjs";
+// The one decision the engine cannot reach under `--once`: leaving an active
+// account whose login has died. See its header.
+import { failOver } from "./autoswitch-failover.mjs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -56,7 +59,8 @@ function summarise(stdout) {
     // here throws away readings that cost a subprocess each.
     switched:  events.some(e => e.event === "switch" && e.dryRun !== true),
     // Why the engine moved — "proactive", "at-limit", "failover" — beside the
-    // deck's own "home" and "weekly-reset" (cswap-auto-choice.mjs).
+    // deck's own "home" and "weekly-reset" (cswap-auto-choice.mjs), and
+    // "login-expired", which the deck's failover writes here.
     trigger:   action?.trigger ?? null,
     reason:    action?.reason ?? null,
     detail:    action?.detail ?? null,
@@ -160,6 +164,8 @@ async function runAutoTick() {
 let _timer   = null;
 let _lastTick = null;
 let _enabled  = false;
+// When the deck last switched away from a dead login, for failOver's cooldown.
+let _lastFailoverAt = null;
 // Set the instant startLoop is entered and cleared when it settles, because
 // `_timer` cannot do that job: it is assigned AFTER an await, and the window in
 // between is what #537 was. See startLoop.
@@ -248,7 +254,19 @@ async function runTick() {
     _lastTick = { at: Date.now(), event: "skipped", reason: "disabled" };
     return;
   }
-  const result = await runAutoTick();
+  let result = await runAutoTick();
+  // A tick that could not read the active account may be a login that has
+  // died, which the engine cannot leave under --once (autoswitch-failover.mjs).
+  // The switch asks both of this function's questions again inside the lock,
+  // for the same reason runAutoTick does (#1797).
+  const failover = await failOver(result, {
+    lastAt: _lastFailoverAt,
+    before: async () => (!_enabled ? "disabled" : (await externalAutoRunning()) ? "external-engine" : null),
+  }).catch(() => null);
+  if (failover) {
+    result = { ...result, ...failover };
+    if (failover.switched) _lastFailoverAt = Date.now();
+  }
   // Before `_lastTick`, not after. This is the only path in the deck that moves
   // the live account without a click behind it, so nothing else is in a position
   // to make the call — and `_lastTick` is what /api/cswap-auto reports, so
