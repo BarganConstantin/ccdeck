@@ -83,7 +83,7 @@ beforeEach(() => {
   pagehide = [];
   storage = [];
   local = new Map();
-  captured = { keydown: [], pointerdown: [] };
+  captured = { keydown: [], pointerdown: [], focusin: [] };
   localArea = {
     getItem: (k: string) => local.get(k) ?? null,
     setItem: (k: string, v: string) => { local.set(k, v); },
@@ -973,6 +973,38 @@ describe("keys typed before the pane can take them", () => {
     pointer(false);
     expect(held(press("b"))).toBe(false);
     expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest), "what it held goes with it").toBe("");
+  });
+
+  it("takes the request back with the keys: the pane, once it can, no longer reaches for them", () => {
+    // Esc then ?, and the pane took the focus from under the key help sheet
+    // half a second later (the hands-on run).
+    const control = { tagName: "BUTTON", closest: () => null };
+    const onStage = { tagName: "BUTTON", closest: (sel: string) => (sel === ".stage-dock" ? {} : null) };
+    const ways: [string, () => void][] = [
+      ["Esc", () => press("Escape")],
+      ["the release chord", () => press("X", { ctrlKey: true, shiftKey: true, code: "KeyX" })],
+      ["a press off the stage", () => pointer(false)],
+      ["a key on a control the reader moved to", () => press("Enter", { target: control })],
+      ["focus moved by the reader", () => { for (const fn of captured.focusin!) fn({ target: control }); }],
+    ];
+    for (const [how, take] of ways) {
+      const { now, turnOn } = setup();
+      turnOn();
+      now().stage.onNodeClick("s1", page.card as unknown as Element);
+      take();
+      expect(now().stage.shell.focusRequest, how).toBeNull();
+    }
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    const request = now().stage.shell.focusRequest;
+    for (const fn of captured.focusin!) fn({ target: onStage });
+    pointer(true);
+    press("ArrowUp");
+    expect(now().stage.shell.focusRequest, "the stage's own focus, a press on it, a key that only spoils the hold").toBe(request);
+    vi.advanceTimersByTime(TYPE_AHEAD_MS + 1);
+    press("a");
+    expect(now().stage.shell.focusRequest, "nor a hold that ran out: nobody said not to type").toBe(request);
   });
 
   it("is ended by any answer to its request, and only that request's answer is handed the text", () => {

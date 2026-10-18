@@ -14,8 +14,8 @@
 // body.
 //
 // A REQUEST SAYS HOW IT ENDED. Met in the pane, `focus` hears which request
-// it was; answered by a card, dropped as the stage moved on, or replaced by a
-// newer one, `unmet` does. The keys typed before the pane was ready wait on
+// it was; answered by a card, dropped as the stage moved on, replaced by a
+// newer one, or withdrawn (the request going back to null), `unmet` does. The keys typed before the pane was ready wait on
 // exactly one request (type-ahead.ts), and are handed over or let go by its
 // end; a stage that closes with a request still open is use-stage.ts's to
 // end. `typing` and `settled` are the shown subject's own, never the last
@@ -50,8 +50,17 @@ export function useFocusRequest({ key, request, launch, typing, focus, settled =
     if (was) unmet?.(was.request);
   }, [key]);
   useEffect(() => {
-    if (request == null) return;
     const was = wanted.current;
+    if (request == null) {
+      // Withdrawn: the reader took the keys back before the pane could have
+      // them (use-stage.ts). A request that never was — the stage still
+      // unseen, a launch's own — has nothing to withdraw.
+      if (was?.request != null) {
+        wanted.current = null;
+        unmet?.(was.request);
+      }
+      return;
+    }
     wanted.current = { key, request };
     if (was && was.request !== request) unmet?.(was.request);
   }, [request]);

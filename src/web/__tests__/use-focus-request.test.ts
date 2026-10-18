@@ -137,6 +137,21 @@ describe("every request ends once, and says how", () => {
     expect(focus).toHaveBeenCalledWith(8);
   });
 
+  it("is unmet when it is withdrawn, and never met after", () => {
+    const { focus, unmet, go } = rig();
+    go({ request: 7 });
+    go({ request: null });
+    expect(unmet).toHaveBeenCalledWith(7);
+    go({ typing: true });
+    expect(focus, "the reader took the keys back").not.toHaveBeenCalled();
+  });
+
+  it("withdraws nothing that was never asked: the unseen stage's null, a launch's own", () => {
+    const { unmet, go } = rig({ key: "launch:n1", launch: true });
+    go({ request: null });
+    expect(unmet).not.toHaveBeenCalled();
+  });
+
   it("brought along by a move, ends the old one and keeps the new", () => {
     const { focus, unmet, go } = rig();
     go({ request: 7 });
