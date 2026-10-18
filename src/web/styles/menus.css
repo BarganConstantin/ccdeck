@@ -23,17 +23,27 @@
   flex: 1;
   min-height: 0;
 }
-/* The nav sits a surface down, as the modal's header does, so the section
-   beside it reads as the page and the nav as the thing that turns it. About
-   stands at its foot, apart from the subjects above it, the way the desktop
-   settings windows this follows keep their About (#2176). */
-.settings-nav {
+/* The nav's column sits a surface down, as the modal's header does, so the
+   section beside it reads as the page and the nav as the thing that turns it.
+   It holds the search field and, under it, the tab strip, which scrolls on
+   its own on a window too short for eight tabs while the field stays. About
+   stands at the strip's foot, apart from the subjects above it, the way the
+   desktop settings windows this follows keep their About (#2176). */
+.settings-side {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px 8px;
+  min-width: 0;
+  min-height: 0;
   border-right: 1px solid var(--line);
   background: var(--bg-soft);
+}
+.settings-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 8px 8px 12px;
   overflow-y: auto;
 }
 .settings-tab#settings-tab-about { margin-top: auto; }
@@ -322,7 +332,115 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
 }
 .settings-filter-field::placeholder { color: var(--text-dim); opacity: 1; }
+/* The browser's own clear button, drawn in the field's ink rather than the
+   platform's: Chromium paints it a fixed light grey that glared on every dark
+   theme. Same cross as the dialog's close, at the glyph spec's 1.4 stroke. */
+.settings-filter-field::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  background-color: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.settings-filter-field::-webkit-search-cancel-button:hover { background-color: var(--text); }
 .settings-filter-field:hover { border-color: var(--text); }
+/* SEARCH (SettingsSearch.tsx): the same field at the top of the nav's
+   column, with a magnifier inside its leading edge — the glyph is centred on
+   the field by the flex line it stands in, and drawn on the nav glyphs' spec
+   (13px, a 1.4 stroke in currentColor). */
+.settings-search {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding: 12px 8px 4px;
+  color: var(--muted);
+}
+.settings-search-glyph { position: absolute; left: 18px; pointer-events: none; }
+.settings-search .settings-search-field { padding-left: 32px; }
+/* While a query is in the field the results stand where the section was,
+   which stays mounted and hidden under them. `[hidden]` alone loses to the
+   pane's own `display: flex`. */
+.settings-pane[hidden] { display: none; }
+/* A RESULT is a row of one list, in the row's own type: the setting's name in
+   --text, and under it where it lives in --text-dim, after the glyph of its
+   section so the eye finds the section first, as it does in the nav. The
+   hairline between results is the list's (.settings-list), not the result's own: a
+   result is a button, which has no edge of its own to draw. Hover is
+   neutral. The keyboard's highlight is drawn as the focus ring is, because
+   that is what it is — focus that stays in the field (aria-activedescendant)
+   while the arrows move it. */
+.settings-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--ctl-h);
+  margin: 0;
+  padding: calc(8px * var(--ui-space, 1)) 14px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.settings-result > svg { display: block; flex: none; }
+.settings-result-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.settings-result-name {
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  overflow-wrap: anywhere;
+}
+.settings-result-place {
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.settings-result:hover { background: var(--ctl-fill); color: var(--text); }
+.settings-result[data-highlighted="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.settings-result:active { transform: scale(0.97); }
+/* A row's own ground — a hovered result, the mark a result leaves on the row
+   it landed on — is rounded with the list at its two ends, so neither pokes a
+   square corner past the list's round one. */
+.settings-list > :first-child { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.settings-list > :last-child { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
+/* WHERE A RESULT LANDED (use-settings-jump.ts): the row, scrolled to the
+   middle of the pane, takes an accent wash that is held, then gone by 1.2s,
+   so the eye that followed the jump finds the row while focus is already on
+   its control. A group a result names as a whole — the theme grid, a tone,
+   the text-size scale — draws its own frames edge to edge, so its wash
+   reaches 8px past its box, into the pane's padding, and a group with no
+   corners of its own is rounded like a panel for it. The scale and not its
+   fieldset: a fieldset paints from the middle of its legend, and the wash
+   would cut the name in half. Under reduced motion nothing fades: the row
+   wears a still accent outline that comes off with the attribute, 1.5s
+   later. */
+.settings-pane :is(.settings-group, .sm-custom)[data-jumped] { border-radius: var(--r-panel); }
+@media (prefers-reduced-motion: no-preference) {
+  .settings-pane [data-jumped] { animation: settings-jumped 1200ms ease-out; }
+  .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { animation: settings-jumped-group 1200ms ease-out; }
+}
+/* Held for the first 40% — long enough to be seen where the eye lands —
+   then faded to the row's own ground. */
+@keyframes settings-jumped {
+  0%, 40% { background-color: color-mix(in srgb, var(--accent) 16%, transparent); }
+}
+@keyframes settings-jumped-group {
+  0%, 40% {
+    background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-pane [data-jumped] { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { outline-offset: 6px; }
+}
 .settings-empty, .settings-foot {
   margin: 0;
   color: var(--text-dim);
@@ -363,6 +481,9 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
+  /* The search field above the row, the screen's full width. */
+  .settings-side { border-right: 0; border-bottom: 1px solid var(--line); }
+  .settings-search { padding: 8px 8px 0; }
   .settings-nav {
     flex-direction: row;
     gap: 4px;
@@ -372,8 +493,6 @@
     overscroll-behavior-x: contain;
     scroll-padding-inline: 8px;
     scrollbar-width: none;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
   }
   .settings-nav::-webkit-scrollbar { display: none; }
   .settings-tab { flex: none; }
@@ -403,8 +522,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .settings-tab { transition: none; }
-  .settings-tab:active { transform: none; }
+  .settings-tab, .settings-result { transition: none; }
+  .settings-tab:active, .settings-result:active { transform: none; }
   .settings-link:active { transform: none; }
 }
 

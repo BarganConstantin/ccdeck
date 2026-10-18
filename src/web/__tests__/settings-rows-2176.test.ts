@@ -101,7 +101,7 @@ describe("Settings › Keyboard lists every key", () => {
   it("empties a filled filter on Escape, and lets Escape close Settings only from an empty one", () => {
     // Checked in the browser: before this, Escape in "zoom" shut the dialog.
     expect(sourceOf("components/KeyboardSection.tsx"))
-      .toMatch(/if \(event\.key === "Escape" && query\) \{ event\.stopPropagation\(\); setQuery\(""\); \}/);
+      .toMatch(/if \(isEscapeKey\(event\.key\) && query\) \{ event\.stopPropagation\(\); setQuery\(""\); \}/);
   });
 
   it("names its filter with a label, not with a placeholder alone", () => {

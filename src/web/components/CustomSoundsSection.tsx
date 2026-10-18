@@ -102,6 +102,7 @@ export default function CustomSoundsSection({
       note="Your own files, clips and voices, kept on this machine. Either tone above can play one."
       aside={<span className="settings-caption-count">{customCount} of {MAX_CUSTOM_ASSETS}</span>}
       className="sm-custom"
+      settingId="custom-sounds"
     >
       {full && <p className="settings-row settings-row-status" id="sm-custom-full">{fullReason}</p>}
       <SettingRow

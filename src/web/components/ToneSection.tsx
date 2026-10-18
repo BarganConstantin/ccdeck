@@ -63,6 +63,7 @@ export default function ToneSection({
       id={`sm-name-${chime}`}
       title={TONE_LABEL[chime]}
       note={TONE_NOTE[chime]}
+      settingId={`tone-${chime}`}
       aside={
         <button
           type="button"

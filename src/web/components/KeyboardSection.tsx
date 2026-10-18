@@ -14,6 +14,7 @@
 // searched — because forty rows are a list somebody scans for one line.
 import { useId, useState } from "react";
 import { KEY_HELP_NOTE, keyHelpFor, type KeyHelpRow } from "../key-help";
+import { isEscapeKey } from "../modal-dismiss";
 import { isApplePlatform, platformName } from "../platform";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
@@ -92,7 +93,7 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys }: Prop
           // here, it never reaches the window listener that dismisses the
           // dialog (use-deck-shortcuts.ts).
           onKeyDown={event => {
-            if (event.key === "Escape" && query) { event.stopPropagation(); setQuery(""); }
+            if (isEscapeKey(event.key) && query) { event.stopPropagation(); setQuery(""); }
           }}
         />
       </div>

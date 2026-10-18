@@ -130,3 +130,15 @@ export function isSettingsChord(e: SettingsChordKey): boolean {
 export function settingsChordLabel(platform: string): string {
   return isApplePlatform(platform) ? "⌘," : "Ctrl+,";
 }
+
+/** Cmd+F or Ctrl+F, which inside Settings goes to its search field rather than
+ *  the browser's find bar: the page under the dialog is the canvas, and a find
+ *  bar over a modal finds words the reader cannot reach. Either modifier on any
+ *  platform, as above. The letter is read off the key, so a Dvorak or AZERTY
+ *  layout gets the key marked F; a layout with no Latin letters (Russian,
+ *  Greek) types something else there, and is read by the key's position. */
+export function isFindChord(e: SettingsChordKey & { code?: string }): boolean {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return false;
+  const key = e.key.toLowerCase();
+  return key === "f" || (!/^[a-z]$/.test(key) && e.code === "KeyF");
+}

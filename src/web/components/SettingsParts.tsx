@@ -34,16 +34,19 @@ interface GroupProps {
    *  the text-size scale — which inside a bordered list would be a box in a
    *  box. */
   list?: boolean;
+  /** For a group a search result lands on as a whole — the theme grid, a
+   *  tone — because what it holds is not one row (settings-search.ts). */
+  settingId?: string;
   className?: string;
   children: ReactNode;
 }
 
-export function SettingsGroup({ id, title, note, noteId, aside, list = true, className, children }: GroupProps) {
+export function SettingsGroup({ id, title, note, noteId, aside, list = true, settingId, className, children }: GroupProps) {
   const classes = className ? `settings-group ${className}` : "settings-group";
   const body = list ? <div className="settings-list">{children}</div> : children;
-  if (title === undefined) return <div className={classes}>{body}</div>;
+  if (title === undefined) return <div className={classes} data-setting={settingId}>{body}</div>;
   return (
-    <section className={classes} aria-labelledby={id}>
+    <section className={classes} aria-labelledby={id} data-setting={settingId}>
       <div className="settings-caption">
         <div className="settings-caption-text">
           <h3 id={id}>{title}</h3>

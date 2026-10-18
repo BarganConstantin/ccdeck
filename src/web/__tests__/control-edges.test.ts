@@ -875,6 +875,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".reading-choice:has(input:focus-visible)",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
+      // Settings' search results: the highlight the arrows move while focus
+      // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
+      '.settings-result[data-highlighted="true"]',
       ".switch:focus-visible",
       '.tr-body :is(button, input, select, summary):focus-visible',
       ".uh-bar-col.sel .uh-bar",
@@ -918,7 +921,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // Tool activity's search field adds two: framed at rest, louder under the pointer.
     // Settings' redesign (#2176) adds Keyboard's filter field the same way,
     // two more, and took the Music section's station picker away with its own.
-    expect(EDGED_CONTROLS.length).toBeLessThan(151);
+    // Its search adds one: the ring a keyboard-highlighted result wears.
+    expect(EDGED_CONTROLS.length).toBeLessThan(152);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

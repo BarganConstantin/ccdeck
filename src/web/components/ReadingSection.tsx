@@ -89,6 +89,7 @@ export default function ReadingSection({
         <div
           className="reading-options reading-segmented"
           aria-describedby="reading-size-help"
+          data-setting="text-size"
           style={
             {
               "--reading-count": TEXT_SIZES.length,
@@ -127,6 +128,7 @@ export default function ReadingSection({
         <div
           className="reading-options reading-segmented"
           aria-describedby="reading-density-help"
+          data-setting="density"
           style={
             {
               "--reading-count": DENSITIES.length,

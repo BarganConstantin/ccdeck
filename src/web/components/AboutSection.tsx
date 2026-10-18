@@ -169,7 +169,11 @@ export default function AboutSection({
  *  What's new and puts the banner back (showNotice); both hold the install's
  *  own way forward — Restart, Update now, Update & restart or the command —
  *  and this hands the reader to them rather than growing a second update path
- *  of its own. The ellipsis says the press opens something to finish in. */
+ *  of its own. The ellipsis says the press opens something to finish in.
+ *
+ *  No `settingId`: the row is drawn only while an update is on offer, and a
+ *  search result for it would land on nothing the rest of the time. Search
+ *  answers "update" with Version, the row it stands under (settings-search.ts). */
 function UpdateRow({ offer, restarting, failure, onRestart, onUpdate }: {
   offer: UpdateOffer;
   restarting: boolean;
@@ -181,7 +185,6 @@ function UpdateRow({ offer, restarting, failure, onRestart, onUpdate }: {
     return (
       <SettingRow
         as="div"
-        settingId="update"
         name={offer.name}
         note={offer.note}
         control={<button type="button" className="btn" aria-haspopup="dialog" onClick={onUpdate}>Update…</button>}
@@ -195,7 +198,6 @@ function UpdateRow({ offer, restarting, failure, onRestart, onUpdate }: {
   return (
     <SettingRow
       as="div"
-      settingId="update"
       name={offer.name}
       note={offer.note}
       control={

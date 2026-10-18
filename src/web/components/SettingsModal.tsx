@@ -15,10 +15,11 @@
 // DeckDialogs.tsx, the top of the tree, so no panel lays out its backdrop and
 // no portal is needed (panel-modal-portal.test.ts). Each section is its own
 // component, lifted whole out of the menu it used to live in; this file is
-// only the frame and the nav.
-import { useEffect, useRef, type KeyboardEvent } from "react";
+// only the frame, the nav and the search above it (SettingsSearch.tsx).
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
-import { focusedTabToFollow, sectionIndex, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
+import { focusedTabToFollow, isFindChord, sectionIndex, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
+import { indexFor, isSectionEntry, searchSettings, type SettingsEntry } from "../settings-search";
 import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
@@ -45,6 +46,8 @@ import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
+import { useSettingsJump } from "./use-settings-jump";
 
 export interface SettingsModalProps {
   /** The section on show; the nav and the door that opened this both set it. */
@@ -82,6 +85,55 @@ export default function SettingsModal({
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const at = sectionIndex(section);
 
+  // THE SEARCH. While the field holds a query the pane shows what matches it
+  // in place of the section; the section stays mounted under it, hidden, so a
+  // half-filled field in it — Keyboard's filter, a voice's words — is where it
+  // was when the query is cleared. Not kept across opening and closing: an
+  // open dialog is a thing being done.
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const searching = query.trim() !== "";
+  const results = useMemo(() => searchSettings(query, indexFor(providers.claude)), [query, providers.claude]);
+  const jumpTo = useSettingsJump(paneRef, !searching, section);
+  const changeQuery = (next: string) => { setQuery(next); setActive(0); };
+
+  // A section chosen in the nav ends the search: a press on a tab is "take me
+  // there", and the results would otherwise stand over the page it asked for.
+  const chooseSection = (next: SettingsSection) => {
+    changeQuery("");
+    onSection(next);
+  };
+
+  // A result opens its section, and lands on its row once the section is
+  // drawn (use-settings-jump.ts). A section's own result only opens it.
+  const openResult = (entry: SettingsEntry) => {
+    changeQuery("");
+    onSection(entry.section);
+    if (!isSectionEntry(entry)) jumpTo(entry.id);
+  };
+
+  // Cmd/Ctrl+F goes to the field, and the browser's find bar does not open:
+  // over a modal it would find words on the canvas behind the scrim. On window
+  // and not on the dialog, because focus is not always inside it — a press on
+  // a paragraph drops it on <body> (use-modal-dismiss.ts) — and only for a
+  // keystroke from the dialog or from nowhere, never one aimed at something
+  // else on the page.
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (!isFindChord(event)) return;
+      const dialog = dialogRef.current;
+      const from = event.target as Node | null;
+      if (!dialog || !(from === document.body || from === document.documentElement || (from && dialog.contains(from)))) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dialogRef]);
+
   useEffect(() => {
     if (focusedTabToFollow(document.activeElement?.id, section)) selectedTabRef.current?.focus();
     // At a phone's width the nav is one row that scrolls sideways, and a door
@@ -97,6 +149,8 @@ export default function SettingsModal({
     const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");
     if (move.kind === "pass") return;
     event.preventDefault();
+    // An arrow that chooses a section ends the search, as a press does.
+    changeQuery("");
     onSection(SETTINGS_SECTIONS[move.index].id);
     tabRefs.current[move.index]?.focus();
   };
@@ -245,49 +299,70 @@ export default function SettingsModal({
           </div>
         </header>
         <div className="settings-body">
-          {/* The nav is a tab strip, and pays for the role (tablist-keys.ts):
-              one stop in the tab order, the arrows walk it, and every tab
-              points at the one pane it swaps. Down the side, so Up and Down
-              walk it; a row at a phone's width, where Left and Right do too. */}
-          <div
-            className="settings-nav"
-            role="tablist"
-            aria-label="Settings sections"
-            aria-orientation="vertical"
-            onKeyDown={moveSection}
-          >
-            {SETTINGS_SECTIONS.map((choice, index) => (
-              <button
-                key={choice.id}
-                ref={el => {
-                  tabRefs.current[index] = el;
-                  if (choice.id === section) selectedTabRef.current = el;
-                }}
-                type="button"
-                role="tab"
-                id={`settings-tab-${choice.id}`}
-                className="settings-tab"
-                aria-selected={choice.id === section}
-                aria-controls="settings-pane"
-                tabIndex={choice.id === section ? 0 : -1}
-                onClick={() => onSection(choice.id)}
-              >
-                <SettingsSectionGlyph section={choice.id} />
-                <span className="settings-tab-label">{choice.label}</span>
-              </button>
-            ))}
+          {/* The nav's column: the search field, then the tab strip. Two
+              elements, because a tablist holds tabs and nothing else — a
+              field inside it would be a stop the arrows walk past and a
+              screen reader counts as a tab that is not one. */}
+          <div className="settings-side">
+            <SettingsSearchField
+              inputRef={searchRef}
+              query={query}
+              onQuery={changeQuery}
+              results={results}
+              active={active}
+              onActive={setActive}
+              onOpen={openResult}
+            />
+            <SettingsSearchStatus query={query} count={results.length} />
+            {/* The nav is a tab strip, and pays for the role (tablist-keys.ts):
+                one stop in the tab order, the arrows walk it, and every tab
+                points at the one pane it swaps. Down the side, so Up and Down
+                walk it; a row at a phone's width, where Left and Right do too. */}
+            <div
+              className="settings-nav"
+              role="tablist"
+              aria-label="Settings sections"
+              aria-orientation="vertical"
+              onKeyDown={moveSection}
+            >
+              {SETTINGS_SECTIONS.map((choice, index) => (
+                <button
+                  key={choice.id}
+                  ref={el => {
+                    tabRefs.current[index] = el;
+                    if (choice.id === section) selectedTabRef.current = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`settings-tab-${choice.id}`}
+                  className="settings-tab"
+                  aria-selected={choice.id === section}
+                  aria-controls="settings-pane"
+                  tabIndex={choice.id === section ? 0 : -1}
+                  onClick={() => chooseSection(choice.id)}
+                >
+                  <SettingsSectionGlyph section={choice.id} />
+                  <span className="settings-tab-label">{choice.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
           {/* Keyed by the section, so a section opens at its top rather than
               at the scroll the last one was left at. Headed by its own name:
               the dialog is one height now, and a short section under a title
               reads as a page that ends rather than a box left half-filled. It
-              is also the rank the groups' h3 captions were missing. */}
+              is also the rank the groups' h3 captions were missing.
+              HIDDEN, NOT UNMOUNTED, while search results stand in its place:
+              every tab's aria-controls keeps a panel to name, and the section
+              keeps what was typed into it. */}
           <div
             key={section}
+            ref={paneRef}
             className="settings-pane"
             role="tabpanel"
             id="settings-pane"
             aria-labelledby={`settings-tab-${section}`}
+            hidden={searching || undefined}
           >
             {/* The section's name, and one line saying what it holds, before
                 anything in it is read (#2176) — the line a Windows settings
@@ -301,6 +376,7 @@ export default function SettingsModal({
             </div>
             {pane}
           </div>
+          {searching && <SettingsSearchResults query={query} results={results} active={active} onOpen={openResult} />}
         </div>
       </div>
     </div>
