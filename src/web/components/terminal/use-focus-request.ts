@@ -12,6 +12,11 @@
 // Without it the focus stayed on what was pressed, a card or the Terminal
 // button, inside a board about to go inert, and the browser dropped it on the
 // body.
+//
+// EVERY REQUEST ENDS ONCE. Met in the pane, `focus` hears which request it
+// was; met on a card, dropped as the stage moved on, or replaced by a newer
+// one, `unmet` does. The keys typed before the pane was ready wait on exactly
+// one request (type-ahead.ts), and are handed over or let go by its end.
 import { useEffect, useRef } from "react";
 
 export interface FocusRequest {
@@ -23,26 +28,39 @@ export interface FocusRequest {
   launch: boolean;
   /** The pane takes keys now. */
   typing: boolean;
-  focus(): void;
+  focus(request: FocusRequest["request"]): void;
   /** The stage shows a card that is its answer, not a pane on its way. */
   settled?: boolean;
   /** Focus onto the card's action; true once the request needs nothing more. */
   land?: () => boolean;
+  /** The request ended without the pane taking the keys. */
+  unmet?: (request: FocusRequest["request"]) => void;
 }
 
-export function useFocusRequest({ key, request, launch, typing, focus, settled = false, land }: FocusRequest): void {
-  const wanted = useRef<string | null>(null);
+export function useFocusRequest({ key, request, launch, typing, focus, settled = false, land, unmet }: FocusRequest): void {
+  const wanted = useRef<{ key: string; request: FocusRequest["request"] } | null>(null);
   // The subject's effect runs first, so a move that brings its own request
   // (the asks run, Enter on a tile) keeps it.
-  useEffect(() => { wanted.current = launch ? key : null; }, [key]);
-  useEffect(() => { if (request != null) wanted.current = key; }, [request]);
   useEffect(() => {
-    if (wanted.current !== key) return;
+    const was = wanted.current;
+    wanted.current = launch ? { key, request } : null;
+    if (was) unmet?.(was.request);
+  }, [key]);
+  useEffect(() => {
+    if (request == null) return;
+    const was = wanted.current;
+    wanted.current = { key, request };
+    if (was && was.request !== request) unmet?.(was.request);
+  }, [request]);
+  useEffect(() => {
+    const want = wanted.current;
+    if (want?.key !== key) return;
     if (typing) {
       wanted.current = null;
-      focus();
+      focus(want.request);
     } else if (settled && land?.()) {
       wanted.current = null;
+      unmet?.(want.request);
     }
   });
 }

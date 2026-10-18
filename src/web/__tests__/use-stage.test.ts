@@ -17,6 +17,7 @@ import {
   useRailPanel, useStage, useStageAsks, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, TERMINAL_SWITCHED_KEY as STAGE_SWITCHED,
   type StageDeps,
 } from "../use-stage";
+import { TYPE_AHEAD_MS } from "../type-ahead";
 import { mount } from "./fake-react";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
@@ -70,6 +71,8 @@ let pagehide: (() => void)[];
 let storage: ((e: unknown) => void)[];
 let local: Map<string, string>;
 let localArea: Record<string, unknown>;
+/** The window's capture listeners for keys and presses, the type-ahead's. */
+let captured: Record<string, ((e: unknown) => void)[]>;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -80,6 +83,7 @@ beforeEach(() => {
   pagehide = [];
   storage = [];
   local = new Map();
+  captured = { keydown: [], pointerdown: [] };
   localArea = {
     getItem: (k: string) => local.get(k) ?? null,
     setItem: (k: string, v: string) => { local.set(k, v); },
@@ -91,10 +95,12 @@ beforeEach(() => {
     addEventListener(type: string, fn: () => void) {
       if (type === "pagehide") pagehide.push(fn);
       if (type === "storage") storage.push(fn);
+      if (type in captured) captured[type]!.push(fn);
     },
     removeEventListener(type: string, fn: () => void) {
       if (type === "pagehide") pagehide = pagehide.filter(f => f !== fn);
       if (type === "storage") storage = storage.filter(f => f !== fn);
+      if (type in captured) captured[type] = captured[type]!.filter(f => f !== fn);
     },
     sessionStorage: {
       getItem: (k: string) => session.get(k) ?? null,
@@ -862,5 +868,141 @@ describe("a rail panel asked for while the stage is up", () => {
     const toggle = (o: boolean) => !o;
     rail.set(toggle);
     expect(setOpen, "the updater itself, for React to run on the latest state").toHaveBeenCalledWith(toggle);
+  });
+});
+
+describe("keys typed before the pane can take them", () => {
+  /** A keydown as the window's capture phase sees it: on the body, the board
+   *  having gone inert under the stage, unless a target is given. */
+  function press(key: string, extra: Record<string, unknown> = {}) {
+    const e = {
+      key, ctrlKey: false, metaKey: false, altKey: false, target: (globalThis as Record<string, any>).document.body,
+      preventDefault: vi.fn(), stopImmediatePropagation: vi.fn(), ...extra,
+    };
+    for (const fn of captured.keydown!) fn(e);
+    return e;
+  }
+  const held = (e: ReturnType<typeof press>) => e.preventDefault.mock.calls.length > 0 && e.stopImmediatePropagation.mock.calls.length > 0;
+  const pointer = (onStage: boolean) => {
+    for (const fn of captured.pointerdown!) fn({ target: { closest: (sel: string) => (onStage && sel === ".stage-dock" ? {} : null) } });
+  };
+  const type = (keys: string[]) => keys.map(k => held(press(k)));
+
+  it("holds what is typed after a click on a card, out of the deck's shortcuts, and hands it to that click's request once", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    expect(type(["j", "k", " ", "é", "Enter", "Backspace"]), "j and k would have walked the stage to another session").toEqual([true, true, true, true, true, true]);
+    const request = now().stage.shell.focusRequest;
+    expect(now().stage.takeTypeAhead(request), "Enter and Backspace as xterm sends them").toBe("jk é\r\x7f");
+    expect(now().stage.takeTypeAhead(request), "handed over once").toBe("");
+    expect(held(press("x")), "and the keys go where they always went after").toBe(false);
+  });
+
+  it("holds after the Terminal button and the asks run too: both ask for the pane", () => {
+    const { now, turnOn } = setup({ selected: "s1" });
+    turnOn();
+    now().stage.openFromButton(null);
+    expect(held(press("a"))).toBe(true);
+    now().stage.switchTo("s2", { focusPane: true });
+    expect(held(press("b"))).toBe(true);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest), "what was typed for s1 went with s1").toBe("b");
+  });
+
+  it("lets chords, Tab, the arrows and an input method's keys go where they always went", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    expect([
+      press("c", { ctrlKey: true }), press("k", { metaKey: true }), press("b", { altKey: true }),
+      press("Tab"), press("ArrowUp"), press("F5"), press("a", { isComposing: true }), press("Process", { keyCode: 229 }),
+    ].map(held)).toEqual([false, false, false, false, false, false, false, false]);
+    expect(held(press("@", { ctrlKey: true, altKey: true, getModifierState: (m: string) => m === "AltGraph" })),
+      "AltGr is how a German keyboard types @, not a chord").toBe(true);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("@");
+  });
+
+  it("holds on the card, the Terminal button and the stage, and leaves a field on the board its typing", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    (page.canvas as Record<string, unknown>).contains = (n: { onBoard?: boolean }) => n?.onBoard === true;
+    const onStage = { closest: (sel: string) => (sel === ".stage-dock" ? {} : null) };
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    expect(held(press("a", { target: { onBoard: true, tagName: "DIV" } })), "the card that was clicked").toBe(true);
+    expect(held(press("b", { target: { onBoard: true, tagName: "INPUT" } })), "a field keeps its typing").toBe(false);
+    expect(held(press("c", { target: { onBoard: true, tagName: "DIV", isContentEditable: true } }))).toBe(false);
+    expect(held(press("d", { target: { ...onStage, tagName: "TEXTAREA", classList: { contains: (c: string) => c === "xterm-helper-textarea" } } })),
+      "the pane's own textarea, between two sessions, is the hold's").toBe(true);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("ad");
+  });
+
+  it("ends once the reader has taken the focus somewhere else", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    press("a");
+    expect(held(press("b", { target: { tagName: "BUTTON", closest: () => null } })), "a topbar button, a dialog, a rail").toBe(false);
+    expect(held(press("c"))).toBe(false);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("");
+  });
+
+  it("ends on Esc, which goes on to the deck, and on a press anywhere but the stage", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    expect(held(press("Escape"))).toBe(false);
+    expect(held(press("a")), "Esc took the keys back").toBe(false);
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    pointer(true);
+    expect(held(press("a")), "a press on the stage is still this session").toBe(true);
+    pointer(false);
+    expect(held(press("b"))).toBe(false);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest), "what it held goes with it").toBe("");
+  });
+
+  it("is ended by any answer to its request, and only that request's answer is handed the text", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    const request = now().stage.shell.focusRequest;
+    press("a");
+    expect(now().stage.takeTypeAhead("an older request")).toBe("");
+    expect(held(press("b")), "still waiting on its own").toBe(true);
+    expect(now().stage.takeTypeAhead(request)).toBe("ab");
+  });
+
+  it("goes with the stage moving to another session or closing, and with the flag going off", () => {
+    const { now, turnOn, view, props } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    now().stage.switchTo("s2", { focusPane: false });
+    expect(held(press("a")), "a tile or j/k moved the stage: the letters were not for s2").toBe(false);
+    now().stage.switchTo("s2", { focusPane: true });
+    now().stage.close();
+    expect(held(press("a"))).toBe(false);
+    now().stage.switchTo("s1", { focusPane: true });
+    now().stage.loadTerminalPrefs({ terminalOn: false });
+    view.rerender({ ...props });
+    expect(captured.keydown, "off, nothing listens").toEqual([]);
+  });
+
+  it("lets keys through again when the pane never came", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    press("a");
+    vi.advanceTimersByTime(TYPE_AHEAD_MS + 1);
+    expect(held(press("b"))).toBe(false);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("");
+  });
+
+  it("is not started by a way in that leaves the keys on the board, nor by a launch", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    now().stage.openTile("s2");
+    expect(held(press("j"))).toBe(false);
+    now().stage.launch("claude", "/work");
+    expect(held(press("h")), "a launch asks for the pane, but its welcome screen is seconds away").toBe(false);
   });
 });

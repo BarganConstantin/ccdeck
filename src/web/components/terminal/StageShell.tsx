@@ -332,6 +332,7 @@ export function StageDock(p: StageDockProps) {
           // Held until the stage can be seen: a focus asked of a pane that is
           // still hidden would be spent on nothing and not asked again.
           focusRequest={shell.phase === "waiting" ? null : shell.focusRequest}
+          takeTypeAhead={stage.takeTypeAhead}
           onNextAsk={p.asks.nextAsk}
           onAnswerArrival={p.asks.nextAsk}
           onClose={stage.close}

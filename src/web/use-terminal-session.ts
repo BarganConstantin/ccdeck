@@ -469,6 +469,8 @@ export interface TerminalSessionController {
   adopt(): void;
   retry(): void;
   focus(): void;
+  /** Keys typed before the pane could take them (type-ahead.ts). */
+  type(text: string): void;
   release(): void;
   dispose(): void;
   snapshot(): SessionSnapshot;
@@ -978,6 +980,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     },
 
     focus() { term?.focus(); },
+    // One key at a time, as they were typed: a program reading its input
+    // sees what a fast typist would have sent it, not one burst to take for
+    // a paste.
+    type(text) { for (const key of text) events.onInput(key); },
     release() { term?.blur(); },
 
     dispose() {
@@ -1020,6 +1026,7 @@ export interface TerminalSessionView extends SessionSnapshot {
   adopt(): void;
   retry(): void;
   focus(): void;
+  type(text: string): void;
   release(): void;
 }
 
@@ -1064,7 +1071,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const adopt = useCallback(() => controller.current?.adopt(), []);
   const retry = useCallback(() => controller.current?.retry(), []);
   const focus = useCallback(() => controller.current?.focus(), []);
+  const type = useCallback((text: string) => controller.current?.type(text), []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, focus, release };
+  return { ...snapshot, hostRef, adopt, retry, focus, type, release };
 }
