@@ -327,6 +327,33 @@
 }
 :root[data-color-scheme="light"] .session-list .sl-waiting-tool { color: var(--warn); }
 
+/* The session's plan as one line (#2157): the count in monospace with tabular
+   figures, which never ellipsises, and the step in the row's secondary prose
+   tier, which does. A finished list steps back to --muted, like the card's. */
+.session-list .sl-plan {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 1.4;
+  text-align: left;
+  color: var(--text-secondary);
+}
+.session-list .sl-plan-count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.session-list .sl-plan-step {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-list .sl-plan-done .sl-plan-step { color: var(--muted); }
+
 /* The recap as the row's last line. Three lines where the card has two: this is
    the column a person reads down to choose which session to go back to, and it
    is wider than a card. Secondary tier, like the card's. */

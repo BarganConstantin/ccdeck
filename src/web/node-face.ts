@@ -1,5 +1,6 @@
 import type { AgentNodeData, ToolCall, WaitingBlock } from "./types";
 import { isAlarming } from "./ambient-counts";
+import { planLine, planSummary } from "./agent-plan";
 
 /**
  * WHAT A SESSION'S SUBAGENTS ADD UP TO, for the faces that are too small to
@@ -81,7 +82,8 @@ export interface FaceSignal {
  * names — the same set the topbar count, the minimap and the waiting row use, so
  * a face cannot call a session stuck that the chip beside it calls fine. A
  * finished turn waiting for its next prompt is next, quietly. Then failures,
- * then what the branch is doing, then what the card itself is doing right now.
+ * then what the branch is doing, then the step of its plan the card is on,
+ * then what the card itself is doing right now.
  * Nothing at all when none of those is true: a quiet card is a quiet face.
  *
  * Every string here is one the full card already says in some form. The face
@@ -92,7 +94,7 @@ export interface FaceSignal {
  * or the same call, two ways.
  */
 export function faceSignal(
-  data: Pick<AgentNodeData, "kind" | "waiting" | "tools" | "state" | "toolErrorCount">,
+  data: Pick<AgentNodeData, "kind" | "waiting" | "tools" | "state" | "toolErrorCount" | "plan">,
   branch: BranchSummary | undefined,
   words: {
     sayWaiting: (w: WaitingBlock) => string;
@@ -120,6 +122,17 @@ export function faceSignal(
     };
   }
   if (branch && branch.total > 0) return { tone: "muted", long: branchLong(branch), short: branchShort(branch) };
+  // The step of its own plan a running card is on (#2157), ahead of the call it
+  // has open: the call changes every few seconds and says HOW, the step holds
+  // for minutes and says WHAT — which is the question a board seen from a
+  // distance is asked. Only while it runs, and only with a step to name: a
+  // finished list is history, and the full card says it.
+  if (data.state === "active") {
+    const plan = planSummary(data.plan);
+    if (plan && plan.current && !plan.allDone) {
+      return { tone: "muted", long: planLine(plan), short: `${plan.done}/${plan.total} done` };
+    }
+  }
   // The newest call still open, when the card is running one: the line a
   // bubble would have carried, now that the bubbles are not drawn.
   if (data.state === "active") {

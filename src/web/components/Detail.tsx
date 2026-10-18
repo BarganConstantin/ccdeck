@@ -18,7 +18,8 @@ import { fmtCost } from "../pricing";
 import { promptTime } from "../relative-time";
 import { noteSource, noteTag, sessionNoteShown } from "../session-note";
 import { fmtTokens } from "../token-format";
-import type { AgentNodeData, PromptEntry, ToolCall } from "../types";
+import type { AgentNodeData, PlanStatus, PromptEntry, ToolCall } from "../types";
+import { planSummary } from "../agent-plan";
 import { agentCost, otherModelIds } from "../usage-models";
 import { withKey } from "../single-key-shortcuts";
 
@@ -174,6 +175,37 @@ export default function Detail({
             <h3>{heading} <span className="section-count" title={written.title}>{written.label}</span></h3>
             <p className="detail-recap" title={noteSource(note)}>{note.text}</p>
             {note.reply && <p className="detail-recap detail-note-reply">Suggested reply: “{note.reply}”</p>}
+          </section>
+        );
+      })()}
+
+      {/* The agent's plan, every step (#2157) — the card and the session list
+          carry one line of it, and this is where it is read. In the agent's
+          order and its words; the step under way in the words it uses while
+          doing it. Each step has a mark and a word: the mark is drawn, the word
+          is the screen reader's, and "now" is also printed on the step under
+          way, which is the one a reader looks for. */}
+      {(() => {
+        const plan = planSummary(agent.plan);
+        if (!plan || !agent.plan) return null;
+        return (
+          <section className="detail-section">
+            <h3>
+              Plan{" "}
+              <span className="section-count" aria-hidden>{plan.done}/{plan.total}</span>
+              <span className="vis-hidden">{plan.done} of {plan.total} done</span>
+            </h3>
+            {agent.plan.note && <p className="detail-plan-note">{agent.plan.note}</p>}
+            <ol className="plan-list">
+              {agent.plan.items.map((item, k) => (
+                <li key={item.id ?? `${k}:${item.text}`} className="plan-item" data-status={item.status}>
+                  <span className="plan-mark" aria-hidden />
+                  <span className="vis-hidden">{PLAN_WORD[item.status]}: </span>
+                  <span className="plan-text">{item.status === "in_progress" && item.active ? item.active : item.text}</span>
+                  {item.status === "in_progress" && <span className="plan-now" aria-hidden>now</span>}
+                </li>
+              ))}
+            </ol>
           </section>
         );
       })()}
@@ -347,3 +379,6 @@ function ToolRow({ t, onClick }: { t: ToolCall; onClick: () => void }) {
     </button>
   );
 }
+
+/** What each step's mark says, for a screen reader. */
+const PLAN_WORD: Record<PlanStatus, string> = { completed: "done", in_progress: "now", pending: "to do" };

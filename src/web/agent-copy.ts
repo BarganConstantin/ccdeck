@@ -13,6 +13,7 @@ import { agentCost, agentUnpricedTokens, otherModelIds } from "./usage-models";
 import { shortModel } from "./model-label";
 import { guessLine } from "./notify";
 import { isAlarming } from "./ambient-counts";
+import { planSpoken, planSummary } from "./agent-plan";
 
 /** The one word this app uses for a session's state, wherever it says it.
  *
@@ -95,6 +96,9 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
     stateLabel(data.state),
     isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
     data.model ? shortModel(data.model) : null,
+    // The card's plan row, where a screen reader hears it (#2157): this name,
+    // not the card's rows, is what a reader on the node is told.
+    (() => { const plan = planSummary(data.plan); return plan ? planSpoken(plan) : null; })(),
     `${data.toolCount} ${data.toolCount === 1 ? "tool" : "tools"}`,
     failed > 0 ? `${failed} failed` : null,
     cost > 0 ? `${fmtCost(cost)}${agentUnpricedTokens(data, now) > 0 ? "+" : ""}` : null,

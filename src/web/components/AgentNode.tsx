@@ -28,11 +28,13 @@ import { elapsed } from "../duration";
 // the column cap in #521 is only sound while both surfaces show the same field.
 import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
-import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
+import type { AgentNodeData, PlanItem, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { noteTag, sessionNoteShown } from "../session-note";
 import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
+// The agent's own checklist, as one line (#2157). See agent-plan.ts.
+import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
 // The activity chart's counting and its scale. See tool-spark.ts.
 import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
@@ -286,6 +288,17 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         );
       })()}
 
+      {/* WHAT IT IS WORKING THROUGH, in its own words (#2157): how far down
+          its checklist it is and the step under way. Under the alarms, because
+          a session that needs you is the more urgent fact, and over the
+          figures, because this is the one row that says what the figures are
+          for. Absent until the agent writes a list, so a session that keeps
+          none is the card it always was. */}
+      {(() => {
+        const plan = planSummary(data.plan);
+        return plan && data.plan ? <PlanRow plan={plan} items={data.plan.items} /> : null;
+      })()}
+
       {(data.tools.length > 0 || (data.outputs?.length ?? 0) > 0) && (
         <ToolRateSpark tools={data.tools} outputs={data.outputs} />
       )}
@@ -325,6 +338,30 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
 }
 
 export default memo(AgentNode);
+
+/**
+ * The plan as one row: a meter, the count, and the step.
+ *
+ * The step is the in-progress one, worded the way the agent words it while
+ * doing it, or the next one waiting, said as "next:" so it is not read as under
+ * way. The row ellipsises the step and never the count — the count is the half
+ * that is true at a glance. The whole list is the tooltip and the details
+ * panel; the meter repeats the count, so it is decoration to a screen reader,
+ * which hears the count in the card's name (agentAriaLabel).
+ */
+function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[] }) {
+  return (
+    <div className={plan.allDone ? "plan-row plan-done" : "plan-row"} title={planTitle(items)}>
+      <span className="plan-meter" aria-hidden style={{ "--plan-done": plan.done / plan.total } as React.CSSProperties} />
+      <span className="plan-count">{plan.done}/{plan.total}</span>
+      <span className="plan-step">
+        {plan.allDone || !plan.current
+          ? "done"
+          : <>{plan.next && <span className="plan-next">next: </span>}{plan.current}</>}
+      </span>
+    </div>
+  );
+}
 
 /**
  * THE CARD AS IT IS DRAWN FROM A DISTANCE — the compact and overview faces.

@@ -300,6 +300,74 @@
   margin-top: 4px;
   color: var(--muted);
 }
+/* The agent's plan, whole (#2157). Its steps are the agent's own sentences,
+   so they take the secondary prose tier the recap above uses; the step under
+   way lifts to --text and carries a "now" tag, the one a reader looks for. A
+   done step steps back to --muted and keeps its words whole — struck through
+   would cost the words their contrast for a fact the mark already says.
+
+   The marks are drawn, not typed, so no platform's symbol font decides them:
+   a ring for to do, the session's --accent filled for now, and a tick for
+   done. Each step also carries its word for a screen reader. */
+.detail-plan-note {
+  margin: 0 0 6px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.plan-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.plan-item .plan-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.plan-mark {
+  flex: none;
+  position: relative;
+  top: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  box-sizing: border-box;
+}
+.plan-item[data-status="in_progress"] { color: var(--text); }
+.plan-item[data-status="in_progress"] .plan-mark { border-color: var(--accent); background: var(--accent); }
+.plan-item[data-status="completed"] { color: var(--muted); }
+.plan-item[data-status="completed"] .plan-mark { border: none; }
+.plan-item[data-status="completed"] .plan-mark::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  width: 4px;
+  height: 7px;
+  border: solid var(--ok);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.plan-now {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  color: var(--accent);
+}
+
 /* A background task's notice, which Claude Code submits through the same hook
    as a human's typing (#834). It keeps its place in time but reads as an event,
    not as words the reader wrote: no fill, a dashed edge, one line until opened. */

@@ -572,6 +572,56 @@
   text-overflow: ellipsis;
 }
 
+/* The agent's plan, as one row (#2157): a meter, the count and the step.
+   The step is a sentence the agent wrote, so it is the sans stack in
+   --text-secondary, prose somebody reads; the count is a live number, so it is
+   monospace with tabular figures and never the part that ellipsises. The
+   meter is the session's own --accent over a --line track, the same pair the
+   card's other fills use, and it repeats the count, so 1.4.11's printed
+   equivalent covers it. A finished list steps back to --muted: it says what
+   got done, and stops competing with the rows that say what is happening. */
+.agent-node .plan-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  min-width: 0;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
+}
+.agent-node .plan-meter {
+  flex: none;
+  position: relative;
+  width: 24px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.agent-node .plan-meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(var(--plan-done, 0));
+}
+.agent-node .plan-count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.agent-node .plan-step {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-node .plan-next { color: var(--muted); }
+.agent-node .plan-done .plan-step { color: var(--muted); }
+
 /* Tool-rate sparkline — tools-per-second over the last 60s. Most recent
    bucket is on the right; brighter for the live one. */
 .tool-spark-row {
