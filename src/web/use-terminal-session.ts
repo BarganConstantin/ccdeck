@@ -45,12 +45,13 @@ import {
   terminalStatus,
   STILL_RUNNING,
   type LaunchOptions,
+  type PaneColours,
   type ApiFailure,
   type SessionRef,
   type TerminalProvider,
   type TmuxStatus,
 } from "./terminal-api";
-import { connectTerminal, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion } from "./terminal-protocol";
+import { connectTerminal, hexColour, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
@@ -499,6 +500,12 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   /** The theme the pane is drawn in now, whose foreground and background the
    *  deck passes on to tmux (terminal-protocol's `colours`). */
   let colours: ITheme | null = null;
+  /** Those colours as a session is started in them, or nothing yet. */
+  const paneColours = (): PaneColours | undefined => {
+    const fg = hexColour(colours?.foreground);
+    const bg = hexColour(colours?.background);
+    return fg && bg ? { fg, bg } : undefined;
+  };
   /** Terminal work asked for before xterm had loaded, replayed in order. */
   let held: Array<(t: StageTerminal) => void> = [];
 
@@ -753,7 +760,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   const launchFlow = async (agent: TerminalProvider, cwd: string, my: number, options?: LaunchOptions) => {
     // At the size the pane will be shown at, so the agent's first screen is
     // drawn once (terminal-routes.mjs, the launch route).
-    const answer = await deps.api.launch({ agent, cwd, size: { ...want }, ...(options ? { launch: options } : {}) });
+    // And in the panel's colours, so a program asking its terminal's
+    // background at its first frame is told the deck's (terminal-sessions.mjs).
+    const tint = paneColours();
+    const answer = await deps.api.launch({ agent, cwd, size: { ...want }, ...(options ? { launch: options } : {}), ...(tint ? { colours: tint } : {}) });
     if (my !== gen) return;
     if (!answer.ok) {
       if (answer.status === 409) await tmuxOr(my, { kind: "error", message: answer.error });
@@ -926,7 +936,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       dropConnection();
       if (phase.kind === "not-attachable") setPhase({ ...phase, busy: true });
       else setPhase({ kind: "attaching", reconnect: true });
-      void deps.api.adopt(ref, {}, { ...want }).then(answer => {
+      void deps.api.adopt(ref, {}, { ...want }, paneColours()).then(answer => {
         if (my !== gen) return;
         if (answer.ok) { connect(answer.ticket, my); return; }
         if (answer.error === STILL_RUNNING && phase.kind === "not-attachable") {

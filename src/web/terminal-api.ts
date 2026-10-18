@@ -132,6 +132,13 @@ export interface PaneSize {
   rows: number;
 }
 
+/** The panel's theme colours, `#rrggbb`, so a session starts answering a
+ *  program that asks its terminal's colours with the deck's. */
+export interface PaneColours {
+  fg: string;
+  bg: string;
+}
+
 /** Adopt's refusal when the session's original process is still alive: it
  *  must stop there before it can continue here, or two agents write one log. */
 export const STILL_RUNNING = "still-running";
@@ -246,9 +253,10 @@ export function openTerminal(ref: SessionRef, options: ApiOptions = {}): Promise
 
 /** Reopen a session started outside the deck, in a deck-owned tmux session.
  *  Refused with STILL_RUNNING (HTTP 409) while its original process lives. */
-export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}, size?: PaneSize): Promise<Ticketed | ApiFailure> {
+export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}, size?: PaneSize, colours?: PaneColours): Promise<Ticketed | ApiFailure> {
   const { sessionId, provider, cwd } = ref;
-  return ask<Ticketed>(TERMINAL_ROUTES.adopt, post({ sessionId, provider, cwd, ...(size ? { cols: size.cols, rows: size.rows } : {}) }), options, body => {
+  const extra = { ...(size ? { cols: size.cols, rows: size.rows } : {}), ...(colours ? { colours } : {}) };
+  return ask<Ticketed>(TERMINAL_ROUTES.adopt, post({ sessionId, provider, cwd, ...extra }), options, body => {
     if (!isObject(body) || body.ok !== true) return null;
     const ticket = ticketOf(body.ticket);
     const target = targetOf(body.target);
@@ -259,12 +267,13 @@ export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}, size?: 
 /** Start a new agent in `cwd`, inside a deck-owned tmux session, and get a
  *  ticket to attach to it. */
 export function launchTerminal(
-  { agent, cwd, size, launch }: { agent: TerminalProvider; cwd: string; size?: PaneSize; launch?: LaunchOptions },
+  { agent, cwd, size, launch, colours }: { agent: TerminalProvider; cwd: string; size?: PaneSize; launch?: LaunchOptions; colours?: PaneColours },
   options: ApiOptions = {},
 ): Promise<Launched | ApiFailure> {
   const extra = {
     ...(size ? { cols: size.cols, rows: size.rows } : {}),
     ...(launch && Object.keys(launch).length ? { options: launch } : {}),
+    ...(colours ? { colours } : {}),
   };
   return ask<Launched>(TERMINAL_ROUTES.launch, post({ agent, cwd, ...extra }), options, body => {
     if (!isObject(body) || body.ok !== true) return null;

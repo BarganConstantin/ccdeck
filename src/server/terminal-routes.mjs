@@ -299,8 +299,9 @@ export async function handleTerminalAdopt(req, res, options) {
     await clearDead(target, tmux, d);
     const started = await d.launchSession({
       tmux, agent: q.provider, kind: "resume", sessionId: q.sessionId, cwd: q.cwd,
-      // At the panel's size from its first frame (see the launch below).
-      cols: body.cols, rows: body.rows,
+      // At the panel's size and in its colours from its first frame (see
+      // the launch below).
+      cols: body.cols, rows: body.rows, colours: body.colours ?? null,
       socket: d.deckSocket, env: d.env, platform: d.platform,
     });
     const opened = { kind: "A", socket: d.deckSocket, pane: started.pane, name: started.name };
@@ -344,6 +345,9 @@ export async function handleTerminalLaunch(req, res, options) {
       // every launched session began with the header twice in its scrollback.
       // clampSize holds whatever arrives to a sane terminal.
       cols: body.cols, rows: body.rows,
+      // And in its colours, so a program asking its terminal's background at
+      // its first frame is told the deck's (terminal-sessions.mjs).
+      colours: body.colours ?? null,
       options: body.options ?? null,
     });
     const ticket = mint(d, req, tmux, { kind: "A", socket: d.deckSocket, target: started.name, pane: started.pane, ignoreSize: false });

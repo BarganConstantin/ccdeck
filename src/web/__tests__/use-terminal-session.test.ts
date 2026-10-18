@@ -477,7 +477,8 @@ describe("how a session ends", () => {
     expect(r.open, "an ended session is not reconnected to").toHaveBeenCalledTimes(1);
     ctl.adopt();
     await flush();
-    expect(r.adopt).toHaveBeenCalledWith(REF, {}, { cols: 80, rows: 24 });
+    // THEME has no foreground: no colours to start the session in.
+    expect(r.adopt).toHaveBeenCalledWith(REF, {}, { cols: 80, rows: 24 }, undefined);
     expect(r.sockets[1].url).toMatch(/ticket=adopted$/);
   });
 
@@ -801,6 +802,16 @@ describe("a new session started from the stage", () => {
     ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n9", options: { model: "haiku", permissionMode: "plan" } });
     await flush();
     expect(r.launch).toHaveBeenCalledWith({ agent: "claude", cwd: "/w", size: { cols: 132, rows: 41 }, launch: { model: "haiku", permissionMode: "plan" } });
+  });
+
+  it("starts it in the stage's colours, so a program asking at its first frame is told the deck's", async () => {
+    const { r, ctl } = rig();
+    ctl.setTheme({ foreground: "#E6E6E6", background: "rgb(250, 250, 248)" });
+    ctl.mount(HOST, { theme: { foreground: "#E6E6E6", background: "rgb(250, 250, 248)" }, fontFamily: "monospace" });
+    await flush();
+    ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n10" });
+    await flush();
+    expect(r.launch.mock.calls[0][0]).toMatchObject({ agent: "codex", colours: { fg: "#e6e6e6", bg: "#fafaf8" } });
   });
 
   it("says starting, reports the launched session, and attaches with the launch's own ticket", async () => {
