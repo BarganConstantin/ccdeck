@@ -23,7 +23,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  attachIdOf, checkTargetQuery, describeTarget, parseEnviron, parsePaneList, parseProcStat, parsePsTable,
+  attachIdOf, checkTargetQuery, codexIdTime, describeTarget, parseEnviron, parsePaneList, parseProcStat, parsePsTable,
   readClaudeSessions, resolveTarget, SESSION_FILE, tmuxSocketPath,
   // @ts-expect-error — plain .mjs server module, no types
 } from "../../server/terminal-target.mjs";
@@ -288,6 +288,62 @@ describe("a session the deck started (case A)", () => {
   it("matches a session id whatever its case, as the providers write it in lower case", async () => {
     const s = setup({ deck: [deckSession({ pane: "%4" })] });
     expect(await ask(s.deps, { sessionId: ID.toUpperCase() })).toMatchObject({ kind: "A", pane: "%4" });
+  });
+
+  describe("a Codex whose rollout a daemon holds (Codex 0.162+)", () => {
+    // Codex's ids are UUIDv7: this one began at 2026-10-12T14:28:38.097Z.
+    const V7 = "01a13083-fa51-73c2-9b87-6f7923c74b56";
+    const BEGAN = 1791815318097;
+    const rollout = `/home/u/.codex/sessions/2026/10/12/rollout-2026-10-12T17-28-38-${V7}.jsonl`;
+    // Shared, long-lived, no terminal, and a child of systemd: nothing in its
+    // ancestry leads to the pane the session is drawn in.
+    const DAEMON: Proc = { pid: 14926, ppid: 1923, cmd: ["/home/u/.codex/packages/app-server-daemon/releases/0.163.0/bin/codex", "app-server", "daemon"], fds: [rollout] };
+    const TUI: Proc = { pid: 901, ppid: 900, cmd: ["/home/u/.local/bin/codex"], tty: "/dev/pts/9", cwd: CWD };
+    const pane = (extra: Partial<DeckSession> = {}) =>
+      deckSession({ name: "ccdeck-codex-5e6f7a8b", agent: "codex", sessionId: "", pane: "%9", panePid: 900, created: BEGAN - 60_000, ...extra });
+    const codex = (deps: object) => resolveTarget({ sessionId: V7, provider: "codex", cwd: CWD }, deps);
+    const PANE_PROC: Proc = { pid: 900, ppid: 880, cmd: ["sh"] };
+
+    it("reads when a session began off its id, and nothing off an id of another version", () => {
+      expect(codexIdTime(V7)).toBe(BEGAN);
+      expect(codexIdTime(ID), "a v4 id says nothing about when").toBeNull();
+      expect(codexIdTime("not-an-id")).toBeNull();
+    });
+
+    it("is the one deck pane that opened in its folder before it began, labelled with the id from then on", async () => {
+      const s = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON], deck: [pane()] });
+      expect(await codex(s.deps)).toEqual({ kind: "A", socket: DECK, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: V7 });
+    });
+
+    it("is not guessed at when a Codex on another terminal in that folder could have begun it", async () => {
+      const elsewhere: Proc = { pid: 7001, ppid: 7000, cmd: ["codex"], tty: "/dev/pts/4", cwd: CWD };
+      const s = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON, { pid: 7000, ppid: 1923, cmd: ["bash"], tty: "/dev/pts/4" }, elsewhere], deck: [pane()] });
+      expect(await codex(s.deps)).toMatchObject({ kind: "C" });
+      // In another folder it could not have.
+      const other = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON, { ...elsewhere, cwd: "/home/u/other" }], deck: [pane()] });
+      expect(await codex(other.deps)).toMatchObject({ kind: "A", pane: "%9" });
+    });
+
+    it("is not a pane that opened after it began, nor one of two that could be it", async () => {
+      const late = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON], deck: [pane({ created: BEGAN + 5_000 })] });
+      expect(await codex(late.deps)).toMatchObject({ kind: "C" });
+      const two = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON], deck: [pane(), pane({ name: "ccdeck-codex-99aa88bb", pane: "%10", panePid: 910 })] });
+      expect(await codex(two.deps)).toMatchObject({ kind: "C" });
+      const labelled = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON], deck: [pane({ sessionId: OTHER })] });
+      expect(await codex(labelled.deps), "a pane labelled with another session is that session's").toMatchObject({ kind: "C" });
+    });
+
+    it("is gone, not this pane, on Linux when nothing holds the rollout: the session is not live", async () => {
+      const s = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI], deck: [pane()] });
+      expect(await codex(s.deps)).toEqual({ kind: "gone", adoptable: true });
+    });
+
+    it("is that pane on macOS, where no open file can be read, and never with another Codex on a screen", async () => {
+      const mac = setup({ platform: "darwin", procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON], deck: [pane()] });
+      expect(await codex(mac.deps)).toMatchObject({ kind: "A", pane: "%9", learnedId: V7 });
+      const rival = setup({ platform: "darwin", procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON, { pid: 7001, ppid: 1923, cmd: ["codex"], tty: "/dev/ttys004" }], deck: [pane()] });
+      expect(await codex(rival.deps), "macOS cannot say which folder it runs in").toMatchObject({ kind: "gone" });
+    });
   });
 
   it("finds a Codex the deck launched by the session option once it is set", async () => {

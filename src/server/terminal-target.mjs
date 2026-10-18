@@ -74,6 +74,17 @@
 // a torn record, a forged TMUX_PANE, a macOS process table — without reading a
 // single real process, and without a tmux on the machine that runs it.
 //
+// A CODEX THAT KEEPS ITS ROLLOUT IN A DAEMON. Codex 0.162 hands the rollout to
+// `codex app-server`, a daemon with no terminal that one machine's Codex
+// sessions may share, so the process holding the file is not the one on the
+// screen, and its ancestry leads to systemd, not to a pane. For a Codex the
+// deck launched, the pane is found the other way round: Codex names its
+// sessions with UUIDv7, whose first 48 bits are when it began, so a session
+// that began after exactly one of the deck's unlabelled Codex panes in the
+// same folder opened is that pane's — unless a Codex drawing on another
+// terminal in that folder could have begun it just as well. Then it is not
+// guessed at.
+//
 // WHAT THIS CANNOT SEE, said here so nobody has to rediscover it:
 //   - An idle Codex holds no rollout open (one appears after the first message)
 //     and a plain `codex` carries no id on its command line, so a Codex that is
@@ -368,6 +379,13 @@ export async function resolveTarget(query, deps = {}) {
     ? claudeHolder(q.sessionId, io, proc) ?? unrecordedClaude(q, io, proc)
     : codexHolder(q.sessionId, proc);
   if (!holder) {
+    // Where no process's open files can be read (macOS), no holder says
+    // nothing — and offering to reopen a Codex the deck is running would put
+    // two writers on one rollout.
+    if (q.provider === "codex" && platform !== "linux") {
+      const began = launchedCodexPane(q, deck, proc, io);
+      if (began) return deckTarget(io, began, q.sessionId);
+    }
     const dead = deadDeckSessions(deck, q.sessionId);
     return { kind: "gone", adoptable: resumable(q, io), ...(dead.length ? { deadSessions: dead } : {}) };
   }
@@ -392,6 +410,11 @@ export async function resolveTarget(query, deps = {}) {
   const under = holder.tty === "" ? undefined
     : deck.find((s) => !s.dead && OWN_KINDS.includes(s.kind) && pids.has(s.panePid));
   if (under) return deckTarget(io, under, q.sessionId);
+  // Held by a process with no terminal: a Codex daemon (see the header).
+  if (q.provider === "codex" && holder.tty === "") {
+    const began = launchedCodexPane(q, deck, proc, io);
+    if (began) return deckTarget(io, began, q.sessionId);
+  }
 
   const found = await hostPane(holder, proc, io);
   if (found && onSocket(found.socketPath, io.deckSocket)) {
@@ -755,6 +778,51 @@ function codexHolder(sessionId, proc) {
     if (!byArgs && cmd.toLowerCase().split(" ").includes(sessionId)) byArgs = pid;
   }
   return byArgs ? codexAt(byArgs, proc) : null;
+}
+
+/** When a Codex session began, read off its id: Codex names sessions with
+ *  UUIDv7, whose first 48 bits are the time in milliseconds. Null for an id
+ *  of any other version, which then says nothing about when. */
+export function codexIdTime(sessionId) {
+  const id = String(sessionId ?? "").toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id)) return null;
+  return parseInt(id.replace(/-/g, "").slice(0, 12), 16);
+}
+
+/** How far a pane's start (whole seconds, from tmux) may sit after the
+ *  session it began. */
+const PANE_CLOCK_SLACK_MS = 1_000;
+
+/**
+ * The deck pane a Codex session began in, when the process holding its
+ * rollout is a daemon and cannot say (see the header): the one unlabelled,
+ * live deck Codex pane in the session's folder that opened before the
+ * session began. Null when there is not exactly one, and when a Codex on some
+ * other terminal could have begun it: in the same folder where /proc says
+ * where a process runs, anywhere where it cannot.
+ */
+function launchedCodexPane(q, deck, proc, io) {
+  const began = codexIdTime(q.sessionId);
+  if (began == null || !q.cwd) return null;
+  const panes = deck.filter((s) => !s.dead && s.agent === "codex" && OWN_KINDS.includes(s.kind)
+    && !s.sessionId && s.cwd === q.cwd && Number.isFinite(s.created) && s.created <= began + PANE_CLOCK_SLACK_MS);
+  if (panes.length !== 1) return null;
+  const deckPids = new Set(deck.filter((s) => !s.dead).map((s) => s.panePid));
+  let looked = 0;
+  for (const pid of proc.pids()) {
+    if (!looksLikeCodex(proc.command(pid))) continue;
+    if (++looked > MAX_CODEX_PROCESSES) return null;
+    // A daemon, or anything else with no terminal, began nothing on a screen.
+    if (proc.tty(pid) === "") continue;
+    if (ancestry(proc, pid).some((c) => deckPids.has(c.pid))) continue;
+    if (io.platform === "linux") {
+      let cwd = "";
+      try { cwd = String(io.readlink(`/proc/${pid}/cwd`)); } catch { return null; }
+      if (cwd !== q.cwd) continue;
+    }
+    return null;
+  }
+  return panes[0];
 }
 
 function codexAt(pid, proc) {
