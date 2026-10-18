@@ -145,7 +145,7 @@
 /* Secondary text on a lit row is still text. The tone lifts the ground under
    it, and --muted clears 4.5:1 only against --panel, so on a lit row it is
    mixed toward the foreground — the rule the LAN rows already write down. */
-.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email) {
+.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email, .ap-shared) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 /* THE ROW IS THE DOOR. A button laid over the whole row, under the row's own
@@ -183,7 +183,7 @@
    the door while the hover tint still promised the row would open. The door
    carries the whole identity itself instead, in its title and its
    description, so a clipped name is recoverable from anywhere on the row. */
-.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset], .ap-telemetry) {
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset], .ap-shared, .ap-telemetry) {
   position: relative;
   z-index: 1;
 }
@@ -302,6 +302,11 @@
    pill — a second chip shape on a row that already had one — and a marker is
    not a thing to press; putting the account back is in its ⋯. */
 .ap-held { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+/* Shared on Local network (#2170): a 12px mark in the muted ink of the row's
+   other secondary marks, at the 24px row's middle. It is a state, not a
+   control, so it takes no fill, no edge and no hover of its own; the title
+   over the door is the whole of its interaction. */
+.ap-shared { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
 /* THE ROW'S ONE VERB, QUIETER THAN THE ACCOUNT. It was an outlined pill with the
    control edge at rest, the strongest boundary on a row whose name and numbers
    are what a switch is decided on. A word on the control fill says "press me"

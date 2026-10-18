@@ -534,13 +534,30 @@
   margin-top: 3px;
   font-family: var(--font-mono);
 }
+/* The pieces of the row keep their width, except a subagent's folder, which
+   is the one cut short (#2169): as one run of text the row ellipsised at its
+   end, and a long folder took the model chip with it. What gives way before
+   the folder is cut — the kind word, then the effort — AgentNode measures. */
 .agent-node .sub-details {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
   white-space: nowrap;
+  overflow: hidden;
+}
+.agent-node .sub-details > * { flex-shrink: 0; }
+.agent-node .sub-details > .sub-folder {
+  flex-shrink: 1;
+  min-width: 0;
+  margin-left: 1ch;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Whatever leads the row starts at its edge: with the kind word gone, the
+   badge's, the folder's or the chip's gap would be an indent. After the
+   folder's rule, which weighs the same. */
+.agent-node .sub-details > :first-child { margin-left: 0; }
 
 /* What Claude Code calls the session, under the meta row — its agent-name when
    it has one and its ai-title when it does not, which on the transcripts here is

@@ -7,7 +7,7 @@
 // the key and the export preflight — and a pure function is what lets a test
 // hold the two copies to each other.
 import { type Account } from "./claude-accounts";
-import { isOnline } from "./lan-roster";
+import { isOnline, pairedDeckName } from "./lan-roster";
 import { type LanAccount, type LanStatus } from "./lan-types";
 
 export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
@@ -101,4 +101,43 @@ export function lanRepairExpected(
     if (!offer?.alive || offer.shareable === false) return false;
     return !p.last?.done?.some(d => d.action === "heal" && String(d.email ?? "").trim().toLowerCase() === who);
   });
+}
+
+/**
+ * The paired decks this deck offers a login to, by the names Local network's
+ * list gives them — or null when it offers it to nobody (#2170).
+ *
+ * The one place this used to be answered was the "Share these accounts" ticks
+ * in Local network's setup dialog, two presses from the account it is about,
+ * so somebody keeping a personal login to themselves went there every time to
+ * make sure. The accounts' rows say it now, from the same list those ticks
+ * write.
+ *
+ * NULL WHILE THE NETWORK IS OFF, ticked or not: an off deck offers nothing, and
+ * a mark over a login nothing can reach would be the false alarm this exists to
+ * end. An EMPTY list is a login that is ticked with no deck paired yet — what
+ * it is offered to is every deck paired from now on, so it is still marked.
+ *
+ * Per deck, as sharedWith in lan-sync.mjs decides it: a deck the accept switch
+ * paired is not offered what was ticked after it arrived, and the status says
+ * so in that deck's `notOffered`. One machine paired under several keys is one
+ * name, as the list counts it.
+ */
+export function sharedTo(
+  key: string,
+  status: Pick<LanStatus, "enabled" | "shared" | "peers" | "aliases"> | null,
+): string[] | null {
+  if (!status?.enabled || !(status.shared ?? []).includes(key)) return null;
+  const names = (status.peers ?? [])
+    .filter(p => p.paired && !(p.notOffered ?? []).includes(key))
+    .map(p => pairedDeckName(p, status.aliases ?? {}))
+    .filter(Boolean);
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+}
+
+/** What the share mark says, in its title and to a screen reader. */
+export function sharedLine(to: readonly string[]): string {
+  if (!to.length) return "Shared on Local network: offered to every deck you pair with. None is paired yet.";
+  const names = to.length === 1 ? to[0] : `${to.slice(0, -1).join(", ")} and ${to[to.length - 1]}`;
+  return `Shared on Local network: offered to ${names}.`;
 }

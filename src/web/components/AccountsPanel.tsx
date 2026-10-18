@@ -217,7 +217,14 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
   // that will not come. See noCopyWorksNearby.
   const [noCopy, setNoCopy] = useState<ReadonlySet<string>>(() => new Set());
   const takeNoCopy = useCallback((keys: readonly string[]) => setNoCopy(new Set(keys)), []);
-  const lanFor = (a: Account) => ({ noCopyWorksNearby: noCopy.has(lanAccounts([a])[0].key) });
+  // And which logins this deck offers, to whom, for the share mark on their
+  // rows (#2170): from the same status, so a row and the setup dialog's ticks
+  // never disagree.
+  const [shared, setShared] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map());
+  const lanFor = (a: Account) => {
+    const key = lanAccounts([a])[0].key;
+    return { noCopyWorksNearby: noCopy.has(key), sharedTo: shared.get(key) ?? null };
+  };
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
 
@@ -685,6 +692,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
           accounts={lanAccounts(data?.accounts ?? [])}
           onChanged={() => load(true)}
           onNoCopy={takeNoCopy}
+          onShared={setShared}
           view={view === "lan"}
           onOpen={openLan}
           onBack={() => setView("accounts")}
