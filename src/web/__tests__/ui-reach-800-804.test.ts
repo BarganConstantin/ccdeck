@@ -161,46 +161,43 @@ describe("#801 — what the Notifications switch is saying", () => {
   });
 
   it("draws the channel under the switch it serves, at neither rank", () => {
-    // A named group with one control beside its name — the shape Turn finished
-    // already has — but NOT its group heading. The tone groups wear Settings'
-    // one group heading (.settings-caption h3: 12px, 600, --muted), and the
-    // channel stays a step under it — 11px in --text-dim, never capitals — so a
+    // A row in the switch's own list, right under it (#2176): named, with its
+    // one control or the word that replaced it on the right — but NOT a group
+    // heading. The tone groups wear Settings' one group heading
+    // (.settings-caption h3: 12px, 600, --muted); the channel is a row, so a
     // capability report never takes the rank of a group the user configures.
-    // (The tone groups were capitals while they lived in the popover; in
-    // Settings, beside "Color theme" and "Claude FM", that made Sounds the one
-    // section in another hand, so the caps are gone on purpose.)
-    const chan = notifications.slice(notifications.indexOf('aria-labelledby="sm-channel-name"'));
-    expect(chan).toContain('<h3 className="sm-channel-name" id="sm-channel-name">Browser notifications</h3>');
-    expect(chan).toContain('<div className="sm-channel-head">');
-    expect(notifications).toContain('<section className="sm-channel" aria-labelledby="sm-channel-name">');
-    const chanName = css.slice(css.indexOf(".sm-channel-name {"));
-    const chanBody = chanName.slice(0, chanName.indexOf("}"));
-    expect(chanBody).not.toContain("text-transform");
-    expect(chanBody).toContain("font-size: 11px");
-    expect(chanBody).toContain("color: var(--text-dim)");
+    const closed = notifications.indexOf('name="Notifications while closed"');
+    const chan = notifications.indexOf('name="Browser notifications"');
+    const accounts = notifications.indexOf('title="Accounts"');
+    expect(closed).toBeGreaterThan(-1);
+    expect(chan).toBeGreaterThan(closed);
+    expect(accounts).toBeGreaterThan(chan);
+    expect(notifications.slice(chan - 120, chan)).toContain('as="div"');
+    expect(notifications).toContain('nameId="sm-channel-name"');
+    expect(notifications).not.toMatch(/<h3[^>]*sm-channel-name/);
     expect(css, "the tone groups share Settings' one group heading")
       .toMatch(/\.settings-caption h3,\s*\.sm-tone-name \{[^}]*font-size: 12px;[^}]*\}/);
     expect(css).not.toMatch(/\.sm-tone-name \{[^}]*text-transform/);
-    // And the head keeps a floor, so granting the permission swaps a 30px
-    // button for a word without the section shortening under the press.
-    expect(css).toMatch(/\.sm-channel-head \{[^}]*min-height: var\(--ctl-h\)/);
+    // And a row's control slot keeps a floor, so granting the permission swaps
+    // a 30px button for a word without the row shortening under the press.
+    expect(css).toMatch(/\.settings-row-control \{[^}]*min-height: var\(--ctl-h\)/);
   });
-
-  it("puts one rule between the two subjects this menu holds", () => {
-    // Above it: does this deck interrupt me, and can it. Below it: what each
-    // interruption sounds like. The caps headings separate the event groups
-    // from each other, not the whole set of them from what comes before.
+  it("parts the two subjects this menu holds the way every group is parted", () => {
+    // Above: does this deck interrupt me at all. Below: what each interruption
+    // sounds like, a group per tone. They were parted by a rule of their own;
+    // every group in Settings is told from the next by the section's group
+    // step now (#2176), so the tones take that step and draw no rule.
     expect(soundsSection).toContain('<div className="sm-tones">');
-    expect(css).toMatch(/\.sm-tones \{[^}]*border-top: 1px solid var\(--line\)/);
+    expect(css).toMatch(/\.sm-tones \{[^}]*gap: var\(--settings-group-gap\)/);
+    expect(css).not.toMatch(/\.sm-tones \{[^}]*border-top/);
   });
-
   it("stops the word Sound naming two different things", () => {
     // The switch said "Sound" and the per-tone <select> under it said "Sound"
     // too — one meaning on/off, the other which of three figures plays. The
     // picker is the thing it picks. The switch was "Sounds" next, until
     // Settings headed its section "Sounds" right above it; it says what it
     // does now, and no word on it is the section's.
-    expect(soundSwitch).toContain("id={labelId}>Play sounds<");
+    expect(soundSwitch).toContain('name="Play sounds"');
     expect(soundSwitch).not.toMatch(/>Sounds?</);
     expect(read("../components/ToneSection.tsx")).toContain("<label htmlFor={figureId}>Tone</label>");
     expect(soundMenuAll).not.toMatch(/>Sound</);
@@ -280,10 +277,11 @@ describe("#801 — what the Notifications switch is saying", () => {
   it("styles every class it renders", () => {
     // `switch` and `switch-knob` are the shared switch's since #886, which
     // retired the menu's own `sm-toggle` spelling of it.
-    for (const cls of ["sm-switches", "sm-switch", "sm-switch-label", "switch",
-                       "switch-knob", "sm-setting", "sm-note", "sm-channel-state",
-                       "sm-channel", "sm-channel-head", "sm-channel-name", "sm-channel-action",
-                       "sm-tones", "sm-tone", "sm-tone-head", "sm-tone-name", "sm-hear"]) {
+    // The rows, lists and captions are Settings' shared ones since #2176.
+    for (const cls of ["switch", "switch-knob", "sm-note", "sm-channel-state", "sm-channel-action",
+                       "sm-tones", "sm-tone-name", "sm-hear", "settings-group", "settings-caption",
+                       "settings-list", "settings-row", "settings-row-name", "settings-row-note",
+                       "settings-row-control"]) {
       expect(css, `.${cls} is unstyled`).toContain(cls);
     }
     expect(css).toContain(".sm-channel-state[data-ok]");

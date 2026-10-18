@@ -113,7 +113,6 @@ export default function NotificationsSection({
         {showChannel && (
           <SettingRow
             as="div"
-            className="sm-channel"
             name="Browser notifications"
             nameId="sm-channel-name"
             note={channel.note}
@@ -150,7 +149,6 @@ export default function NotificationsSection({
         id="sm-accounts-caption"
         title="Accounts"
         note={notifyVetoed ? ACCOUNT_NOTIFY_VETO_NOTE : ACCOUNT_NOTIFY_NOTE}
-        className="sm-account-switches"
       >
         {ACCOUNT_NOTIFY_SWITCHES.map(({ kind, label, title }) => (
           <SettingRow

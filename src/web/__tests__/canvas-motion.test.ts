@@ -354,8 +354,6 @@ const PRESSES: Press[] = [
   // 30px track, and six percent of that reads as the knob slipping.
   [".switch:active:not(:disabled)", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
-  [".appearance-source-trigger:active", "0.97", "transform"],
-  [".appearance-source-option:active", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
   [".bw-settings select:active:not(:disabled)", "0.97", "transform"],
@@ -397,8 +395,6 @@ const PRESSES: Press[] = [
   [".ta-back:active", "0.97", "transform"],
   [".ta-explain summary:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
-  [".appearance-source-trigger:active", "0.97", "transform"],
-  [".appearance-source-option:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],
   // The × is a span inside the ribbon's own button, and `:active` is set on
   // every ancestor of what was pressed — without the guard, clearing the
@@ -574,10 +570,6 @@ const EXEMPT: string[] = [
   // answered by the platform's own list opening over it; scaling the control
   // in the same instant would shift the words the list is drawn against.
   ".ap-rest-sort select",
-  // Settings' Claude FM and character rows: a <label> round the switch, the same
-  // argument as `.bw-switch` — the knob travelling and the switch's own 0.97
-  // answer the press, and a scaled row would slide the words out from under it.
-  ".appearance-row",
   // A theme choice. Its press is answered by the whole deck changing theme and
   // the frame moving to it; a 118px preview scaled by 3% lurches rather than
   // clicks, and the hover plate under it already deepens.

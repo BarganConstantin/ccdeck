@@ -76,9 +76,6 @@
 :root[data-text-size="largest"] .ap-manage-input {
   min-height: max(var(--ctl-h), var(--ui-control-floor, 24px));
 }
-.reading-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.reading-head .btn { flex: none; }
-.reading-intro { margin: 0; color: var(--text-secondary); line-height: 1.6; }
 .reading-group { margin: 0; padding: 0; border: 0; min-width: 0; }
 .reading-group legend { padding: 0; font-weight: 600; }
 .reading-group > p { color: var(--muted); margin: 6px 0 12px; line-height: 1.5; }
@@ -138,7 +135,6 @@
 /* A phone: each scale stands as a list, the plate moving down it. Gaps are
    2px, padding 4px, so n rows share (100% - 8px - 2px × (n - 1)). */
 @media (max-width: 640px) {
-  .reading-head { flex-direction: column; gap: 12px; }
   .reading-options { grid-template-columns: minmax(0, 1fr); }
   .reading-choice strong { flex: none; overflow-wrap: normal; white-space: nowrap; }
   .reading-choice small { margin-top: 0; text-align: right; }

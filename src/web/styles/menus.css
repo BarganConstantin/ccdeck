@@ -54,7 +54,7 @@
 .settings-tab {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   min-height: var(--ctl-h);
   padding: 0 10px;
   border: 1px solid transparent;
@@ -184,7 +184,7 @@
   border-radius: var(--r-panel);
   background: color-mix(in srgb, var(--text) 2.5%, transparent);
 }
-.settings-list > * + * { border-top: 1px solid var(--line); }
+.settings-list > :not(:first-child) { border-top: 1px solid var(--line); }
 /* THE ONE ROW: the name and the line under it on the left, the control on the
    right, centred on the pair. A <label> when it holds one control, so a press
    on the name reaches it; `cursor: default` and not `pointer`, because the
@@ -217,6 +217,9 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
+/* The control's slot keeps a control's height whatever stands in it, so a
+   button that gives way to a word — Notifications' Enable, once the browser
+   has answered — changes one label and not the row under the pointer. */
 .settings-row-control {
   grid-column: 2;
   grid-row: 1 / span 2;
@@ -225,6 +228,7 @@
   justify-content: flex-end;
   gap: 10px;
   min-width: 0;
+  min-height: var(--ctl-h);
 }
 .settings-row-control > .sm-select { flex: none; min-width: 120px; min-height: var(--ctl-h); }
 /* A row whose content spans it — the character choices, a confirmation. */
@@ -259,12 +263,13 @@
 /* Settings › Keyboard's shortcuts: a row is a sentence and a cap, so a
    shorter row than a setting's, and the cap in --text where a reader looks
    for it. */
-.settings-keys .settings-row { padding-block: calc(7px * var(--ui-space, 1)); }
+.settings-keys .settings-row { padding-block: calc(6px * var(--ui-space, 1)); }
 .settings-keys .settings-key { color: var(--text); }
-/* The field that narrows a list as it is typed into. */
+/* The field that narrows a list as it is typed into, the width of the pane. */
+.settings-filter { display: flex; }
 .settings-filter-field {
-  box-sizing: border-box;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: var(--ctl-h);
   padding: 0 10px;
   border: 1px solid var(--ctl-edge);

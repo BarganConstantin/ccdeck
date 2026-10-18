@@ -76,10 +76,16 @@ describe("a door into Settings opens it at the section it names", () => {
 
   it("draws the section it was opened at, with that tab on show and the rest one Tab stop away", () => {
     const cases: Array<[SettingsSection, RegExp]> = [
-      ["general", /Color theme/],
+      ["general", />Hide finished sessions after</],
+      ["appearance", />Theme<\/h3>/],
+      ["reading", />Reset to defaults</],
+      ["keyboard", />Single-key shortcuts</],
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
+      ["data", />Tool history<\/h3>/],
+      ["about", />Version</],
     ];
+    expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));
     for (const [section, shows] of cases) {
       const html = drawSettings({ section });
       expect(selectedTab(html), section).toBe(section);
@@ -90,22 +96,32 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("draws General's Keyboard group under the color theme, its switch on as every deck starts", () => {
-    const html = drawSettings({ section: "general" });
-    expect(html.indexOf("Color theme")).toBeGreaterThan(-1);
-    expect(html.indexOf(">Keyboard</h3>")).toBeGreaterThan(html.indexOf("Color theme"));
-    expect(html).toMatch(/role="switch" aria-checked="true" aria-labelledby="settings-single-keys-label"/);
-    expect(html.match(/role="switch"/g)).toHaveLength(2);
+  it("heads every pane with its name and the one line saying what it holds", () => {
+    for (const { id, label, note } of SETTINGS_SECTIONS) {
+      const html = drawSettings({ section: id });
+      expect(html, id).toContain(`<h2 class="settings-pane-title">${label.replace("&", "&amp;")}</h2>`);
+      expect(html, id).toContain(`<p class="settings-pane-note">${note}</p>`);
+      expect(note.split(/\s+/).length, id).toBeLessThanOrEqual(16);
+    }
   });
 
-
-  it("places character controls beneath themes in General, without music controls", () => {
+  it("gives each subject its own section: the board in General, the look in Appearance, the keys in Keyboard, history in Data", () => {
+    // General used to hold the twelve themes, the character, the board, the
+    // keyboard switch and tool history (#2176).
     const general = drawSettings({ section: "general" });
-    expect(general.indexOf('>Character</h3>')).toBeGreaterThan(general.indexOf("Color theme"));
-    expect(general.indexOf('>Character</h3>')).toBeLessThan(general.indexOf('>Keyboard</h3>'));
-    expect(general).toContain('role="radiogroup" aria-label="Choose character"');
-    expect(general).toContain('aria-labelledby="appearance-character-caption"');
-    expect(general).not.toContain("Show character on minimap");
+    expect(general).not.toContain(">Theme</h3>");
+    expect(general).not.toContain("Single-key shortcuts");
+    expect(general).not.toContain(">Tool history</h3>");
+    const appearance = drawSettings({ section: "appearance" });
+    expect(appearance.indexOf(">Character</h3>")).toBeGreaterThan(appearance.indexOf(">Theme</h3>"));
+    expect(appearance).toContain('role="radiogroup" aria-label="Choose character"');
+    expect(appearance).toMatch(/role="switch" aria-checked="true" aria-labelledby="appearance-character-label"/);
+    const keyboard = drawSettings({ section: "keyboard" });
+    expect(keyboard).toMatch(/role="switch" aria-checked="true" aria-labelledby="settings-single-keys-label"/);
+    expect(keyboard.match(/role="switch"/g)).toHaveLength(1);
+  });
+
+  it("keeps Music out of every section", () => {
     for (const { id } of SETTINGS_SECTIONS) {
       const html = drawSettings({ section: id });
       expect(html).not.toContain('settings-tab-music');
@@ -114,15 +130,16 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the four sections in the nav, in order", () => {
-    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(["General", "Text & density", "Notifications", "Sounds"]);
+  it("names the eight sections in the nav, in order, About last", () => {
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "About"];
+    expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all
     // of the text a tab holds.
     const html = drawSettings();
     const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([\s\S]*?)<\/button>/g)]
       .map(m => m[1].replace(/<[^>]+>/g, "").replace("&amp;", "&"));
-    expect(tabs).toEqual(["General", "Text & density", "Notifications", "Sounds"]);
+    expect(tabs).toEqual(names);
   });
 
   it("is a dialog named Settings, holding the focus it hands the section's own tab", () => {
@@ -186,7 +203,7 @@ describe("each section in the nav carries its glyph", () => {
     }
   });
 
-  it("gives Sounds the speaker and General the sliders, never the gear", () => {
+  it("gives Sounds the speaker and General the sliders, never the gear, and every section its own", () => {
     // The speaker the topbar's sound button wore — a cone and two waves, the
     // drawing for sound on — kept here alone since that button left the bar.
     const sounds = glyphOf("sounds");
@@ -203,11 +220,15 @@ describe("each section in the nav carries its glyph", () => {
     expect(new Set(glyphs).size).toBe(SETTINGS_SECTIONS.length);
   });
 
-  it("keeps each tab to one line, and the phone grid even", () => {
+  it("keeps each tab to one line, and the phone's nav one row that scrolls", () => {
     const css = sheetText();
     expect(css).toMatch(/\.settings-tab-label \{[^}]*white-space: nowrap;/);
-    expect(css).toMatch(/@media \(max-width: 640px\) \{[\s\S]*?\.settings-nav \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
-    expect(css).toMatch(/@media \(max-width: 359px\) \{\s*\.settings-tab > svg \{ display: none; \}/);
+    // Eight sections would be four rows of a two-by-two grid on a phone; one
+    // row that scrolls sideways keeps the section under it tall (#2176), and
+    // the chosen tab is brought into view when a door names it.
+    expect(css).toMatch(/@media \(max-width: 640px\) \{[\s\S]*?\.settings-nav \{[^}]*flex-direction: row;[^}]*overflow-x: auto;/);
+    expect(css).toMatch(/@media \(max-width: 640px\) \{[\s\S]*?\.settings-tab \{ flex: none; \}/);
+    expect(sourceOf("components/SettingsModal.tsx")).toContain('scrollIntoView?.({ block: "nearest", inline: "nearest" })');
   });
 });
 
@@ -278,10 +299,11 @@ describe("Settings › Sounds holds everything the topbar's sound popover did", 
   // they are now.
   const html = drawSettings({ section: "sounds" });
 
-  it("draws the switch, with M named under it, and a volume for each tone under the tone's name", () => {
+  it("draws the switch, with M named beside it, and a volume for each tone under the tone's name", () => {
     expect(html.match(/role="switch"/g)).toHaveLength(1);
     expect(html).toMatch(/role="switch" aria-checked="true"/);
-    expect(html).toMatch(/<kbd>M<\/kbd>Mute or unmute sounds anywhere\./);
+    expect(html).toMatch(/<kbd class="settings-key"[^>]*>M<\/kbd>/);
+    expect(html).toContain('aria-keyshortcuts="M"');
     expect(html.match(/type="range"/g)).toHaveLength(2);
     expect(html).toMatch(/id="sm-level-done"/);
     expect(html).toMatch(/id="sm-level-needs-input"/);

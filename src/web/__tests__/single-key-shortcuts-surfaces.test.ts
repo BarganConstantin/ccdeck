@@ -1,4 +1,4 @@
-// WCAG 2.1.4 Character Key Shortcuts, on screen: Settings › General's
+// WCAG 2.1.4 Character Key Shortcuts, on screen: Settings › Keyboard's
 // "Single-key shortcuts" switch — the row itself, that it is remembered, every
 // tooltip and hint that names a letter and stops naming it once the switch is
 // off, and the shortcuts sheet, which then says the keys are off and where to
@@ -95,7 +95,19 @@ describe("the Settings row", () => {
     expect(html).toContain(`>${SINGLE_KEYS_LABEL}</span>`);
     expect(html).toMatch(/role="switch" aria-checked="true" aria-labelledby="settings-single-keys-label" aria-describedby="settings-single-keys-note"/);
     expect(html).toContain(SINGLE_KEYS_NOTE);
-    expect(html).toMatch(/<h3 id="settings-keyboard-caption">Keyboard<\/h3>/);
+    // The section's master switch, so its group has no caption of its own:
+    // the pane is headed "Keyboard" right above it (#2176).
+    expect(html).not.toContain('id="settings-keyboard-caption"');
+  });
+
+  it("lists every key the deck answers under it, from the sheet's own table", () => {
+    const on = renderToStaticMarkup(createElement(KeyboardSection, { singleKeys: true, onToggleSingleKeys: noop }));
+    const off = renderToStaticMarkup(createElement(KeyboardSection, { singleKeys: false, onToggleSingleKeys: noop }));
+    for (const group of KEY_HELP) expect(on).toContain(`>${group.title}</h3>`);
+    expect(on.match(/<kbd class="settings-key">/g)).toHaveLength(KEY_HELP.flatMap(g => g.rows).length);
+    // With the switch off, only what still works — the sheet's shorter table.
+    expect(off).toContain(">Ctrl + ,</kbd>");
+    expect(off).not.toContain(">J</kbd>");
   });
 
   it("names keys the sheet lists and the switch silences, Space and ? among them", () => {
@@ -114,10 +126,14 @@ describe("the Settings row", () => {
     expect(off).not.toContain("aria-keyshortcuts");
   });
 
-  it("draws M's note under the sound switch only while M does something", () => {
-    expect(renderToStaticMarkup(createElement(SoundSwitch, { soundOn: true, onToggleSound: noop }))).toContain("<kbd>M</kbd>");
+  it("draws M's cap beside the sound switch only while M does something", () => {
+    const on = renderToStaticMarkup(createElement(SoundSwitch, { soundOn: true, onToggleSound: noop }));
+    expect(on).toMatch(/<kbd class="settings-key"[^>]*>M<\/kbd>/);
+    expect(on).toContain('aria-keyshortcuts="M"');
     setSingleKeyShortcuts(false);
-    expect(renderToStaticMarkup(createElement(SoundSwitch, { soundOn: true, onToggleSound: noop }))).not.toContain("<kbd>");
+    const off = renderToStaticMarkup(createElement(SoundSwitch, { soundOn: true, onToggleSound: noop }));
+    expect(off).not.toContain("<kbd");
+    expect(off).not.toContain("aria-keyshortcuts");
   });
 });
 
@@ -264,7 +280,7 @@ describe("the shortcuts sheet with the switch off", () => {
     setSingleKeyShortcuts(false);
     const html = renderToStaticMarkup(createElement(KeyboardHelp, { onClose: noop, onSettings: noop }));
     expect(html).toContain(KEY_HELP_OFF_TITLE);
-    expect(html).toContain('<span class="kh-place">Settings › General</span>');
+    expect(html).toContain('<span class="kh-place">Settings › Keyboard</span>');
     expect(html).toMatch(/<button type="button" class="btn">Open Settings<\/button>/);
     expect(html).not.toMatch(/<kbd>[A-Z?]<\/kbd>/);
     expect(html).not.toContain("kh-foot");
@@ -279,7 +295,7 @@ describe("the shortcuts sheet with the switch off", () => {
     expect(html).not.toContain("aria-describedby");
     expect(html).toContain("<kbd>L</kbd>");
     expect(html).toContain(`<p class="kh-foot">${KEY_HELP_NOTE} ${KEY_HELP_SWITCH_NOTE}</p>`);
-    expect(KEY_HELP_SWITCH_NOTE).toBe("Single-key shortcuts can be turned off in Settings › General.");
+    expect(KEY_HELP_SWITCH_NOTE).toBe("Single-key shortcuts can be turned off in Settings › Keyboard.");
   });
 
   it("says on the ? button, with the keys off, why ? does nothing", () => {
@@ -288,7 +304,7 @@ describe("the shortcuts sheet with the switch off", () => {
 
   it("is still reachable with the keys off: the canvas stack's button opens it, and its door opens Settings at General", () => {
     expect(sourceOf("components/CanvasControls.tsx")).toContain("onClick={() => setKeyHelpOpen(o => !o)}");
-    expect(sourceOf("components/DeckDialogs.tsx")).toContain('onSettings={() => { setKeyHelpOpen(false); openSettings("general"); }}');
+    expect(sourceOf("components/DeckDialogs.tsx")).toContain('onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}');
     expect(singleKeyShortcutsOn()).toBe(true);
   });
 });
