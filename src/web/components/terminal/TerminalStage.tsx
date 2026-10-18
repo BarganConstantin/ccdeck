@@ -56,6 +56,7 @@ import { QUIET_RESCAN_MS, quietPage } from "../../quiet-page";
 import { guardLeaving } from "../../leave-guard";
 import { keptKeysNotice } from "../../tab-keys";
 import { useFullStage } from "./use-full-stage";
+import { usePaneRoom } from "./use-pane-room";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import Divider from "./Divider";
 
@@ -201,6 +202,9 @@ export default function TerminalStage(p: TerminalStageProps) {
     });
   }, [session.keysOwner, fullStage.can]);
 
+  // Room for a pane that keeps the size of the user's own terminal (case B).
+  usePaneRoom(key, phase.kind === "live" && phase.sizeOwner === "pane" ? session.paneSize?.cols ?? 0 : 0, p.geometry, p.expanded, p.onCols);
+
   // One sentence per change of what the stage shows — never per byte (#372).
   const onAnnounce = useRef(p.onAnnounce);
   onAnnounce.current = p.onAnnounce;
@@ -255,6 +259,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       data-live={live || undefined}
       data-takeover={p.geometry.takeover || undefined}
       data-held={held || undefined}
+      data-pane-size={(phase.kind === "live" && phase.sizeOwner === "pane") || undefined}
       style={style}
     >
       {/* Expanded, the stage is as wide as it goes and the divider would
