@@ -22,7 +22,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, posix as posixPath } from "node:path";
+import { isAbsolute, posix as posixPath } from "node:path";
 import { pathLookup } from "./exec-spec.mjs";
 // The one answer to "which claude" — AGENTS_DECK_CLAUDE first, then PATH, then
 // the places its installers put it (#553, #570). Not decided again here.
@@ -336,10 +336,13 @@ const TERMINFO_DIRS = [
  * are honoured first, as ncurses honours them.
  */
 export function paneTerm({ env = process.env, home = homedir(), exists = existsSync } = {}) {
+  // POSIX paths whatever runs this: terminfo is a Unix database, and the
+  // panel never runs where paths are spelled otherwise.
+  const at = posixPath.join;
   const dirs = [
-    env.TERMINFO, ...String(env.TERMINFO_DIRS ?? "").split(":"), join(home, ".terminfo"), ...TERMINFO_DIRS,
+    env.TERMINFO, ...String(env.TERMINFO_DIRS ?? "").split(":"), at(home, ".terminfo"), ...TERMINFO_DIRS,
   ].filter(Boolean);
-  const found = dirs.some((d) => exists(join(d, "t", "tmux-256color")) || exists(join(d, "74", "tmux-256color")));
+  const found = dirs.some((d) => exists(at(d, "t", "tmux-256color")) || exists(at(d, "74", "tmux-256color")));
   return found ? "tmux-256color" : PANE_TERM_FALLBACK;
 }
 
