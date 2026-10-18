@@ -25,6 +25,7 @@ import type { ApiFailure, NotAttachable, SessionRef, TerminalStatus, Ticketed, L
 import {
   ACK_EVERY_BYTES,
   CTRL_V,
+  ECHO_WINDOW_MS,
   PASTE_TOO_LARGE,
   RECONNECT_DELAYS_MS,
   RECONNECT_GIVE_UP_MS,
@@ -553,6 +554,22 @@ describe("keys, paste and the pane's size", () => {
     const s = await attach(r, ctl);
     return { r, ctl, s };
   }
+
+  it("does not light the spine for the echo of what was typed, only for output of the program's own", async () => {
+    const { r, s } = await liveRig();
+    const lit = () => r.last().streaming;
+    s.binary(enc("x"));
+    expect(lit(), "output with no input before it is the program's").toBe(true);
+    r.clock.now += STREAM_QUIET_MS + 1;
+    vi.advanceTimersByTime(STREAM_QUIET_MS + 1);
+    expect(lit()).toBe(false);
+    r.events().onInput("a");
+    s.binary(enc("a"));
+    expect(lit(), "the echo of a key").toBe(false);
+    r.clock.now += ECHO_WINDOW_MS;
+    s.binary(enc("thinking…"));
+    expect(lit(), "output that goes on after the key").toBe(true);
+  });
 
   it("sends typed input as bytes and a paste whole, so the pane sees one bracketed paste", async () => {
     const { r, s } = await liveRig();

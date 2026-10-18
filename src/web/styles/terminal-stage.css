@@ -59,18 +59,23 @@
 /* While the agent streams output the spine carries the board's in-flight
    grammar: a light travelling down it toward the terminal, the way a live
    edge's dots travel toward the node they feed. Still when it waits on you. */
+/* It travels by transform, which the compositor runs on its own: an
+   animation of `top` needs the page's main thread every frame, and a page
+   producing frames makes Chrome hold each WebSocket message — every echo of a
+   key — until after the next one (measured: 26 ms a key against 2.5). */
 .ts-stage[data-live] .ts-spine::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  top: -14px;
+  top: 0;
   height: 14px;
   border-radius: 2px;
   background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 30%, var(--glint)), transparent);
+  transform: translateY(-14px);
   animation: ts-spine-flow 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-@keyframes ts-spine-flow { to { top: 32px; } }
+@keyframes ts-spine-flow { to { transform: translateY(32px); } }
 
 .ts-stage[data-takeover] .ts-head { padding-left: 8px; }
 .ts-stage[data-takeover] .ts-spine { left: 44px; }
@@ -164,17 +169,22 @@
 }
 .ts-stage[data-kind="attaching"] .ts-scan,
 .ts-stage[data-kind="starting"] .ts-scan { opacity: 1; transition: opacity 120ms 300ms; }
+/* Only while it is shown, and by transform, for the reason the spine's light
+   gives: hidden at opacity 0 it still ran, and kept the page producing frames
+   for the life of the stage. */
 .ts-scan::after {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -30%;
+  left: 0;
   width: 30%;
   background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  animation: ts-scan 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  transform: translateX(-100%);
 }
-@keyframes ts-scan { to { left: 100%; } }
+.ts-stage[data-kind="attaching"] .ts-scan::after,
+.ts-stage[data-kind="starting"] .ts-scan::after { animation: ts-scan 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+@keyframes ts-scan { to { transform: translateX(334%); } }
 
 /* ── the body: the terminal, or the card that stands in for it ───────────── */
 
@@ -209,6 +219,14 @@
   transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ts-host .xterm { padding: 0; }
+/* xterm's scrollbar fades out over 800ms after every write and every scroll:
+   a transition that runs for as long as anyone types, keeping the page
+   producing frames and every echo a frame late (quiet-page.ts). It shows and
+   goes at once instead. */
+/* Spelled past xterm's own `.xterm .xterm-scrollable-element > .invisible.fade`,
+   whose sheet loads after this one (xterm-sheet.ts) and would win a tie. */
+.ts-host .xterm .xterm-scrollable-element > .scrollbar.visible,
+.ts-host .xterm .xterm-scrollable-element > .scrollbar.invisible.fade { transition: none; }
 /* A frozen last frame keeps the width it was drawn at — a dead pane cannot be
    resized, and reflowing a TUI's frame would garble the evidence — so where
    the stage is narrower now (the takeover after a wide session), it scrolls
@@ -499,8 +517,9 @@
    and loses its light, the hairline stands still, nothing slides in. */
 @media (prefers-reduced-motion: reduce) {
   .ts-stage[data-live] .ts-spine::after { display: none; }
-  .ts-scan::after { left: 0; width: 100%; opacity: 0.5; }
-  .ts-scan::after,
+  .ts-scan::after { width: 100%; opacity: 0.5; transform: none; }
+  .ts-stage[data-kind="attaching"] .ts-scan::after,
+  .ts-stage[data-kind="starting"] .ts-scan::after,
   .ts-id,
   .ts-host[data-shown],
   .ts-arrival,
