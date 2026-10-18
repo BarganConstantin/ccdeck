@@ -11,6 +11,35 @@ const STACK_MAX = 4000;
 /** Noise every browser raises and no bug of ours causes. */
 const IGNORED = [/ResizeObserver loop/i, /^Script error\.?$/i];
 
+/** Where a browser extension's scripts live: Chrome's, Edge's and Brave's
+ *  `chrome-extension://`, Firefox's `moz-extension://`, Safari's
+ *  `safari-web-extension://` and older `safari-extension://`, and the
+ *  `webkit-masked-url://` Safari writes in a stack in place of an extension
+ *  script's address. */
+const EXTENSION_SCRIPT = /^(?:[a-z][\w+.-]*-extension|webkit-masked-url):\/\//i;
+const SCRIPT_URL = /[a-z][\w+.-]*:\/\/[^\s()]+/gi;
+
+/**
+ * Whether an error is a browser extension's and not the deck's (#2163): a
+ * content script that throws in the deck's tab raises the same window events
+ * the page's own errors do, and its report was a new kind in Errors that nobody
+ * here can fix. It is the extension's when every script its stack's frames
+ * name is an extension's — V8's `at fn (url:1:2)` and `at url:1:2`, Firefox's
+ * and Safari's `fn@url:1:2`; `<anonymous>` and `[native code]` name none — or,
+ * with a stack that names none, when the script the event says threw it is.
+ * One frame of the page's own anywhere keeps it ours: an extension that calls
+ * into the deck can still run into a bug of ours. A V8 stack opens with the
+ * message, which can hold an address of its own, so only its `at` lines count.
+ * With nothing to go on, a rejection's bare reason, it stays ours.
+ */
+function fromExtension(stack: unknown, filename?: unknown): boolean {
+  const lines = typeof stack === "string" ? stack.split("\n") : [];
+  const v8 = lines.some(line => /^\s*at\s/.test(line));
+  const scripts = lines.flatMap(line => (!v8 || /^\s*at\s/.test(line) ? line.match(SCRIPT_URL) ?? [] : []));
+  if (scripts.length) return scripts.every(url => EXTENSION_SCRIPT.test(url));
+  return typeof filename === "string" && EXTENSION_SCRIPT.test(filename);
+}
+
 // The path and project-folder patterns of `scrub` in server/reports.mjs, the
 // same text (error-report-paths.test.ts holds the two together): see there.
 const NAME = String.raw`[^\s\\/:'"\`<>|?*;,]`;
@@ -122,15 +151,16 @@ export function forwardCaughtError(message: unknown, stack?: unknown, send: Send
 export function forwardPageErrors(isOn: () => boolean, target: ErrorTarget = window, send: Send = post): () => void {
   let sent = 0;
   const seen = new Set<string>();
-  const forward = (message: unknown, stack: unknown) => {
+  const forward = (message: unknown, stack: unknown, filename?: unknown) => {
     const text = String(message ?? "").slice(0, MESSAGE_MAX).trim();
     if (!isOn() || !text || sent >= MAX_PER_PAGE || seen.has(text) || IGNORED.some(re => re.test(text))) return;
+    if (fromExtension(stack, filename)) return;
     seen.add(text);
     sent++;
     send({ message: text, stack: typeof stack === "string" ? stack.slice(0, STACK_MAX) : undefined });
   };
-  const onError = (event: { message?: string; error?: { message?: string; stack?: string } }) =>
-    forward(event.error?.message ?? event.message, event.error?.stack);
+  const onError = (event: { message?: string; filename?: string; error?: { message?: string; stack?: string } }) =>
+    forward(event.error?.message ?? event.message, event.error?.stack, event.filename);
   const onRejection = (event: { reason?: { message?: string; stack?: string } | string }) =>
     typeof event.reason === "object" && event.reason !== null
       ? forward(event.reason.message, event.reason.stack)
