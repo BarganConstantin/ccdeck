@@ -387,14 +387,15 @@
   .settings-row { padding-inline: 12px; }
   .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; padding-inline: 12px; }
 }
-/* Under 420px a select, or a read-out with its button, goes under its name
-   rather than squeezing the name to a word a line: the name and the note keep
-   the width, and the control starts on their edge. A switch, a key cap or one
-   short button stays on the right, as a phone's own settings keep a toggle on
-   the name's line whatever the width. */
+/* Under 420px a select, or a read-out with something beside it, goes under
+   its name rather than squeezing the name to a word a line: the name and the
+   note keep the width, and the control starts on their edge. A switch, a key
+   cap, one short button or a read-out alone (the version) stays on the right,
+   as a phone's own settings keep a toggle on the name's line whatever the
+   width. */
 @media (max-width: 420px) {
-  .settings-row:has(> .settings-row-control > :is(select, .settings-read)) { grid-template-columns: minmax(0, 1fr); }
-  .settings-row:has(> .settings-row-control > :is(select, .settings-read)) > .settings-row-control {
+  .settings-row:has(> .settings-row-control > :is(select, .settings-read:not(:only-child))) { grid-template-columns: minmax(0, 1fr); }
+  .settings-row:has(> .settings-row-control > :is(select, .settings-read:not(:only-child))) > .settings-row-control {
     grid-column: 1;
     grid-row: auto;
     justify-content: flex-start;
