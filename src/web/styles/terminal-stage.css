@@ -248,6 +248,10 @@
 }
 .ts-prompt { color: var(--muted); }
 .ts-fact { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+/* Its own box, because a flex row's text is an anonymous item the row's
+   text-overflow never reaches: a long folder was cut mid-word with no
+   ellipsis. The whole line is the row's title. */
+.ts-fact-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ts-fact-mark { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--inflight); }
 .ts-fact-mark[data-kind="tmux"],
 .ts-fact-mark[data-kind="gone"] {

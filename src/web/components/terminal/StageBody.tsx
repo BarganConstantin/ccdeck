@@ -128,7 +128,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       return (
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
-          {p.context?.fact && <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind={target.kind} aria-hidden="true" />{p.context.fact}</div>}
+          {p.context?.fact && (
+            <div className="ts-ctx ts-fact" title={p.context.fact}>
+              <i className="ts-fact-mark" data-kind={target.kind} aria-hidden="true" /><span className="ts-fact-text">{p.context.fact}</span>
+            </div>
+          )}
           <p className="ts-text">{target.label}</p>
           {phase.stillRunning && <p className="ts-note" role="status">{STILL_RUNNING_NOTE}</p>}
           <div className="ts-acts">
@@ -158,7 +162,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
     case "tmux-missing":
       return (
         <div className="ts-card">
-          <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" />{tmuxFact(phase.reason)}</div>
+          <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" /><span className="ts-fact-text">{tmuxFact(phase.reason)}</span></div>
           {phase.download && <p className="ts-note">{downloadNote(phase.download)}</p>}
           <p className="ts-text">
             The stage runs each session inside the deck's own tmux, which is what lets it keep running when you close
