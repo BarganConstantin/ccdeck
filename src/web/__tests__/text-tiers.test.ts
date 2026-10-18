@@ -275,6 +275,13 @@ describe("what was migrated to the secondary tier", () => {
       // And the status line in the same slot — what the session is doing,
       // asking or got done — which is the same kind of sentence.
       ".session-list .sl-status",
+      // The agent's plan (#2157): its steps are sentences the agent wrote and a
+      // reader reads to know where the work stands — on the card's row, in the
+      // session list's line and in the detail panel's checklist. The counts
+      // beside them stay --muted, which is what they are.
+      ".agent-node .plan-row",
+      ".session-list .sl-plan",
+      ".plan-item",
       // The custom-sound cards' captions, by bed again: --muted on the card's
       // --sm-fill is 4.25:1 in dark (#1788).
       ".sm-custom-card-copy > span",

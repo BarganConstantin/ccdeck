@@ -298,6 +298,13 @@ export interface AgentNodeData {
    *  server last read it. Whether it still describes the session is a question
    *  for session-recap.ts, which every surface that draws it asks. */
   recap?: SessionRecap;
+  /** The task list this agent keeps for itself, as its own calls last left it
+   *  (#2157) — TodoWrite's and update_plan's on the agent that made them, the
+   *  Task tools' on the session's root, whose list its subagents share. Absent
+   *  until the agent writes one. Held apart from `tools`, whose inputs are
+   *  released after a window of calls: a plan written in the first minute is
+   *  still the plan an hour later. See agent-plan.ts. */
+  plan?: AgentPlan;
   /** What the session's newest reply says it is doing, as the server's
    *  transcript watch last read it. Root only, Claude only. Whether it still
    *  describes the session is session-status.ts's question. */
@@ -515,6 +522,30 @@ export interface AgentNodeData {
    *  history, so counting from the moment the deck attached would be five
    *  confident numbers that are all short (#399). */
   context?: ContextBreakdown;
+}
+
+/** Where one step of an agent's plan stands — the three states both CLIs use. */
+export type PlanStatus = "pending" | "in_progress" | "completed";
+
+/** One step of an agent's plan, in the agent's own words. */
+export interface PlanItem {
+  /** The Task tools' id, which TaskUpdate addresses; absent for TodoWrite and
+   *  update_plan, which rewrite the whole list every time. */
+  id?: string;
+  text: string;
+  status: PlanStatus;
+  /** How the agent words the step while doing it ("Writing the migration"),
+   *  when it gave one. */
+  active?: string;
+}
+
+/** An agent's plan, as its newest call left it. */
+export interface AgentPlan {
+  items: PlanItem[];
+  /** When the call that last changed it was received. */
+  at: number;
+  /** Codex's `explanation` for its newest update, when it gave one. */
+  note?: string;
 }
 
 /** Claude Code's recap of a session — the "※ recap:" line, as a card can show
