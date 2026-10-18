@@ -15,12 +15,16 @@ export function useHideFinishedAfter(): number {
   return useSyncExternalStore(subscribeHideFinishedAfter, hideFinishedAfter, hideFinishedAfter);
 }
 
-export function useHideFinished({ stateRef, removedNodes, hideSessions, keepSessionId, ready }: {
+export function useHideFinished({ stateRef, removedNodes, hideSessions, keepSessionId, stageSessionId = null, ready }: {
   stateRef: MutableRefObject<GraphState>;
   removedNodes: ReadonlySet<string>;
   hideSessions: (ids: Iterable<string>) => void;
   /** The selected card's session: the one the reader is looking at stays. */
   keepSessionId: string | null;
+  /** The session on the terminal stage stays too, selected or not: hidden
+   *  under an open stage, it would leave the stage on a card that is gone and
+   *  the keys nowhere to go back to. */
+  stageSessionId?: string | null;
   /** The history has been replayed. Before that a session can look finished
    *  that the rest of the replay shows working, and its work would predate the
    *  hide, so it would not bring it back (removalsLiftedByWork). */
@@ -51,7 +55,7 @@ export function useHideFinished({ stateRef, removedNodes, hideSessions, keepSess
         now: Date.now(),
         removed: removedNodes,
         handled: handledRef.current,
-        keep: keepSessionId,
+        keep: [keepSessionId, stageSessionId],
       });
       if (due.length === 0) return;
       const next = new Map(handledRef.current);
@@ -63,5 +67,5 @@ export function useHideFinished({ stateRef, removedNodes, hideSessions, keepSess
     look();
     const timer = window.setInterval(look, HIDE_CHECK_MS);
     return () => window.clearInterval(timer);
-  }, [ready, afterMinutes, removedNodes, keepSessionId, hideSessions]);
+  }, [ready, afterMinutes, removedNodes, keepSessionId, stageSessionId, hideSessions]);
 }

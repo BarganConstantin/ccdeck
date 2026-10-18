@@ -84,6 +84,7 @@ import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useStage, useStageAsks } from "./use-stage";
+import { targetSession } from "./stage-shell";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import { createChimePlayer } from "./chime-player";
 
@@ -358,12 +359,6 @@ function Inner() {
   const { removedNodes, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
           hideSessions, bringBack, bringBackAll, forgetRemovals }
     = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
-  // Finished sessions taking themselves off the board after the delay picked
-  // in Settings › General — use-hide-finished.ts.
-  useHideFinished({
-    stateRef, removedNodes, hideSessions, ready: historyReplayed,
-    keepSessionId: primarySelectedId ? stateRef.current.agents.get(primarySelectedId)?.sessionId ?? primarySelectedId : null,
-  });
   // What the layout keys off: the visible, not-removed agents and their
   // parents, plus the two size versions — use-board-graph.ts.
   const layoutSig = useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domSizeVersion });
@@ -481,11 +476,19 @@ function Inner() {
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef,
   });
 
-  // The terminal stage, behind its hidden flag: a session's live terminal on
+  // The terminal stage, behind its switch in Settings: a session's live terminal on
   // the right of the canvas, the board gathered into a navigator on its left,
   // and every way in and out of it — use-stage.ts. With the flag off it is
   // inert: every entry point below answers "not mine".
   const stage = useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent });
+  // Finished sessions taking themselves off the board after the delay picked
+  // in Settings › General — use-hide-finished.ts. After the stage, whose
+  // session is kept as the selected card's is.
+  useHideFinished({
+    stateRef, removedNodes, hideSessions, ready: historyReplayed,
+    keepSessionId: primarySelectedId ? stateRef.current.agents.get(primarySelectedId)?.sessionId ?? primarySelectedId : null,
+    stageSessionId: stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null,
+  });
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
