@@ -104,7 +104,7 @@ import { basename, isAbsolute, join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { run } from "./exec.mjs";
 import { deadDeckSessions, findDeckSession, listDeckSessions } from "./terminal-sessions.mjs";
-import { DECK_SOCKET, findTmux, runTmux } from "./tmux.mjs";
+import { DECK_SOCKET, findTmux, runTmux, tmuxHasNoServer } from "./tmux.mjs";
 
 /** Both providers name a session with a UUID. Anything else is refused before
  *  it reaches a file name or an argument vector: an id is later handed to
@@ -344,13 +344,29 @@ export function attachIdOf(rec, sessionId) {
  *
  * This module still writes nothing; it only says what it saw.
  *
- * Never rejects for a state of the machine: a missing tmux, a dead pane, a
- * torn record or an unreadable /proc are all answers. `deps`, every one
+ * Never rejects for a state of the machine: a missing tmux, a tmux that does
+ * not answer, a dead pane, a torn record or an unreadable /proc are all
+ * answers. `deps`, every one
  * optional: platform, claudeDir, readdir/readFile/readlink (synchronous,
  * string-returning), isDir, processTable (async; the `ps` table where there
  * is no /proc), tmux (findTmux's answer), deckSocket, listDeckSessions (async)
  * and listPanes(socket) (async; panes as parsePaneList shapes them).
  */
+/**
+ * A tmux that did not answer: it outran runTmux's timeout, or failed for a
+ * reason other than having no server to ask. Its silence says nothing about
+ * where a session is. Read as "no panes", a live session in a tmux that had
+ * stalled for three seconds was offered "Reopen here" as if it had ended, and
+ * the card stayed after tmux came back. resolveTarget answers it as what it
+ * is instead, and the panel offers to try again.
+ */
+export class TmuxNotAnswering extends Error {
+  constructor() {
+    super("tmux did not answer.");
+    this.name = "TmuxNotAnswering";
+  }
+}
+
 export async function resolveTarget(query, deps = {}) {
   const q = checkTargetQuery(query);
   if (!q.ok) return { kind: "unsupported", reason: "invalid" };
@@ -367,7 +383,15 @@ export async function resolveTarget(query, deps = {}) {
     return { kind: "unsupported", reason: tmux?.reason || "missing", ...(tmux?.install ? { install: tmux.install } : {}) };
   }
   const io = ioFor(deps, tmux, platform);
+  try {
+    return await locateIn(q, io, platform);
+  } catch (err) {
+    if (err instanceof TmuxNotAnswering) return { kind: "unsupported", reason: "not-answering" };
+    throw err;
+  }
+}
 
+async function locateIn(q, io, platform) {
   const deck = await deckSessionsOf(io);
   const own = findDeckSession(deck, q.sessionId, { kinds: OWN_KINDS });
   if (own && !own.dead) return deckTarget(io, own, q.sessionId);
@@ -473,6 +497,7 @@ const UNSUPPORTED_COPY = {
   "too-old": "The terminal needs tmux 3.2 or newer, and this machine has an older one.",
   "unsupported-platform": "The terminal is not available on this operating system yet.",
   "invalid": "The deck could not tell which session this is.",
+  "not-answering": "tmux is not answering right now, so the deck cannot tell where this session is. Nothing was changed; try again in a moment.",
   "other": "The terminal is not available here.",
 };
 
@@ -494,10 +519,13 @@ function ioFor(deps, tmux, platform) {
 }
 
 /** Every pane on one tmux server. A server that is not running answers
- *  non-zero, and that is not an error: it means there is no pane on it. */
+ *  non-zero, and that is not an error: it means there is no pane on it. A
+ *  server that does not answer at all is TmuxNotAnswering. */
 async function listPanesOn(tmux, socket) {
   const r = await runTmux(tmux, socket, ["list-panes", "-a", "-F", PANE_FORMAT]);
-  return r?.code === 0 ? parsePaneList(r.stdout) : [];
+  if (r?.code === 0) return parsePaneList(r.stdout);
+  if (tmuxHasNoServer(r?.stderr)) return [];
+  throw new TmuxNotAnswering();
 }
 
 async function readPsTable() {
@@ -509,13 +537,16 @@ function isDirectory(p) {
   try { return statSync(p).isDirectory(); } catch { return false; }
 }
 
+/** The deck's own sessions. No server is an empty list (listDeckSessions
+ *  says so); a listing that failed is not, and is TmuxNotAnswering. */
 async function deckSessionsOf(io) {
+  let list;
   try {
-    const list = await io.listDeckSessions();
-    return Array.isArray(list) ? list : [];
+    list = await io.listDeckSessions();
   } catch {
-    return [];
+    throw new TmuxNotAnswering();
   }
+  return Array.isArray(list) ? list : [];
 }
 
 /** Case A on a deck session. A session whose `@ccdeck-session` is empty was
@@ -850,7 +881,12 @@ async function hostPane(holder, proc, io) {
   const fromEnv = env?.TMUX ? tmuxSocketPath(env.TMUX) : "";
   const socket = fromEnv ? { path: fromEnv } : DEFAULT_SOCKET;
   let panes;
-  try { panes = await io.listPanes(socket); } catch { panes = []; }
+  try {
+    panes = await io.listPanes(socket);
+  } catch (err) {
+    if (err instanceof TmuxNotAnswering) throw err;
+    panes = [];
+  }
   // A pane that cannot be showing this process is not a candidate at all: a
   // dead one, or one on another terminal than the one the process draws on
   // (see WHY A PANE HAS TO SHOW THE PROCESS). An unknown tty on either side is

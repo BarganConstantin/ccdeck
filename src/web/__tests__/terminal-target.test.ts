@@ -24,7 +24,7 @@ import { basename, join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
   attachIdOf, checkTargetQuery, codexIdTime, describeTarget, parseEnviron, parsePaneList, parseProcStat, parsePsTable,
-  readClaudeSessions, resolveTarget, SESSION_FILE, tmuxSocketPath,
+  readClaudeSessions, resolveTarget, SESSION_FILE, TmuxNotAnswering, tmuxSocketPath,
   // @ts-expect-error — plain .mjs server module, no types
 } from "../../server/terminal-target.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -613,6 +613,29 @@ describe("a live Claude that has not written its record yet", () => {
   it("cannot be seen on macOS, which has no folder to read off a process: still gone there", async () => {
     const s = setup({ procs: [SYSTEMD_USER, TERMINAL, SHELL, FRESH], platform: "darwin" });
     expect(await ask(s.deps)).toEqual({ kind: "gone", adoptable: true });
+  });
+});
+
+describe("a tmux that does not answer", () => {
+  // A tmux server stalled for three seconds (stopped, swapped out) answered
+  // nothing, which read as "no panes": a live session was offered "Reopen
+  // here" as if it had ended (the hands-on run). Silence is its own answer.
+  it("is said as such, never as a session that has ended, when the deck's own listing fails", async () => {
+    const s = setup({ procs: [SYSTEMD_USER, TMUX_SERVER, PANE_SHELL, TMUX_CLAUDE], records: [record(6002)] });
+    const deps = { ...s.deps, listDeckSessions: async () => { throw new Error("tmux could not list the deck's sessions."); } };
+    expect(await ask(deps)).toEqual({ kind: "unsupported", reason: "not-answering" });
+    expect(describeTarget({ kind: "unsupported", reason: "not-answering" })).toMatchObject({ reason: "not-answering", label: expect.stringMatching(/not answering.*try again/) });
+  });
+
+  it("is said as such, never as a session started outside it, when the user's own tmux is silent", async () => {
+    const s = setup({ procs: [SYSTEMD_USER, TMUX_SERVER, PANE_SHELL, TMUX_CLAUDE], records: [record(6002)] });
+    const deps = { ...s.deps, listPanes: async () => { throw new TmuxNotAnswering(); } };
+    expect(await ask(deps)).toEqual({ kind: "unsupported", reason: "not-answering" });
+  });
+
+  it("is not a server that is simply not running, which has no panes", async () => {
+    const s = setup({ procs: [SYSTEMD_USER, TMUX_SERVER, PANE_SHELL, TMUX_CLAUDE], records: [record(6002)] });
+    expect(await ask(s.deps)).toEqual({ kind: "C", adoptable: true, pid: 6002 });
   });
 });
 
