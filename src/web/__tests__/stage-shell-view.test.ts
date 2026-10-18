@@ -19,6 +19,7 @@ import type { Asks } from "../use-asks";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
 import type { Palette } from "../palette";
+import { sheetText } from "./sheet-source";
 
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ReactFlowProvider, null, el));
 
@@ -98,6 +99,50 @@ describe("the stage beside the board", () => {
     const out = dock(stageOn({ kind: "empty" }));
     expect(out).toContain('aria-label="Terminal — Nothing on the stage"');
     expect(out).toContain('id="ts-empty-new-session"');
+  });
+});
+
+describe("what the stage asks of the grid it shares", () => {
+  // stage-shell.css, THE STAGE NEVER SIZES THE CELL IT SHARES. The canvas's
+  // track is `1fr`, whose floor is the widest minimum its items ask for, and
+  // a dock at a plain `width: var(--stage-w)` asked for its own width: a
+  // window taken from 1440 to 900 in one step kept an 844px track in 820px of
+  // room, the page scrolled 24px sideways, and use-stage.ts read the inflated
+  // canvas back as the room it had, so the takeover sized itself to it again.
+  // No suite here lays a grid out, so what is held is the two facts the fix
+  // rests on: the width has a percentage in it, which the track's sizing
+  // treats as `auto`, and `auto` is nothing, because nothing in the dock is in
+  // flow.
+  const sheet = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+  /** The declarations of the one top-level rule written for `selector` alone. */
+  const rule = (selector: string) => {
+    const at = sheet.search(new RegExp(`(?:^|\\})\\s*${selector.replace(/[.[\]"=]/g, "\\$&")}\\s*\\{`));
+    expect(at, selector).toBeGreaterThanOrEqual(0);
+    const open = sheet.indexOf("{", at + 1);
+    return sheet.slice(open + 1, sheet.indexOf("}", open));
+  };
+  const decl = (selector: string, prop: string) => rule(selector).match(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`))?.[1].trim();
+
+  it("is never wider than its cell, and its width is one the cell's track cannot be held open by", () => {
+    expect(decl(".stage-dock", "width")).toBe("min(var(--stage-w), 100%)");
+    expect(decl(".stage-in", "width"), "the terminal inside, against the same cell").toBe("min(var(--stage-w), 100%)");
+    expect(decl(".stage-dock", "min-width")).toBe("0");
+  });
+
+  it("holds nothing in flow, so the track sizing that treats that width as auto finds nothing to keep it open", () => {
+    const out = dock(stageOn({ kind: "session", id: "s1" }));
+    const inner = out.slice(out.indexOf(">") + 1, out.lastIndexOf("</div>"));
+    // The dock's own children, by the class each opens with.
+    const children: string[] = [];
+    let depth = 0;
+    for (const m of inner.matchAll(/<(\/?)(div|span|section|header)\b([^>]*)>/g)) {
+      if (m[1]) { depth--; continue; }
+      if (depth === 0) children.push(m[3].match(/class="([^"\s]+)/)?.[1] ?? m[2]);
+      if (!m[3].endsWith("/")) depth++;
+    }
+    expect(children).toEqual(["stage-ground", "stage-in", "stage-edge", "stage-rider"]);
+    expect(decl(".stage-ground", "display"), "drawn only while the morph runs, and then positioned").toBe("none");
+    for (const c of ["stage-in", "stage-edge", "stage-rider"]) expect(decl(`.${c}`, "position"), c).toBe("absolute");
   });
 });
 

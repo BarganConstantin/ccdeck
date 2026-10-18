@@ -39,10 +39,14 @@ function makeCanvas() {
     querySelector: (s: string) => (s === ".lod-name" ? nameEl : null),
   };
   const tile = { id: "tile" };
+  /** The canvas's box as layout drew it, which may be a fraction of a pixel
+   *  off the whole numbers clientWidth and clientHeight round to. */
+  const box = { w: 1440, h: 848 };
   const canvas = {
     clientWidth: 1440,
     clientHeight: 848,
-    getBoundingClientRect: () => rect(0, 52, 1440, 848),
+    box,
+    getBoundingClientRect: () => rect(0, 52, box.w, box.h),
     querySelector: vi.fn((sel: string) => {
       if (sel === ":scope > .react-flow") return flow;
       if (sel.startsWith(".react-flow__node")) return card;
@@ -649,5 +653,75 @@ describe("closing", () => {
     now().stage.failed();
     expect(now().stage.shell.phase).toBe("closed");
     expect(now().stage.said).toBe(SHELL_UNAVAILABLE);
+  });
+});
+
+describe("the room the stage is given", () => {
+  // The stage is sized from the canvas it shares, and stage-shell.css is what
+  // keeps the canvas the cell's own size rather than the stage's: a dock that
+  // could widen its grid track was read back as room it did not have, and a
+  // window taken from 1440 to 900 in one step kept a stage 24px too wide for
+  // good. That half lives in the sheet (stage-shell-view.test.ts holds it);
+  // these hold the hook's: it follows whatever the canvas measures, down and
+  // back, never past it, and the reader's column count survives the trip.
+  let observers: (() => void)[];
+  beforeEach(() => {
+    observers = [];
+    (globalThis as Record<string, unknown>).ResizeObserver = class {
+      private fn: () => void;
+      constructor(fn: () => void) { this.fn = fn; observers.push(fn); }
+      observe() {}
+      disconnect() { observers = observers.filter(f => f !== this.fn); }
+    };
+  });
+  afterEach(() => { delete (globalThis as Record<string, unknown>).ResizeObserver; });
+
+  /** The window resized to `win`, the canvas cell with it to `w` (which
+   *  clientWidth reports rounded, as a browser does), the observer told. */
+  const resize = (w: number, win: number) => {
+    page.canvas.box.w = w;
+    page.canvas.clientWidth = Math.round(w);
+    (globalThis as Record<string, any>).window.innerWidth = win;
+    for (const fn of [...observers]) fn();
+  };
+
+  it("follows a window taken straight down and back, and gives the reader's own width back with the room", () => {
+    local.set("agent-dag.terminal.cols", "112");
+    resize(1360, 1440);
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    expect(now().stage.geometry).toMatchObject({ cols: 112, stageW: 940, takeover: false });
+    expect(observers.length, "the stage watches the canvas while it is up").toBe(1);
+
+    resize(820, 900);
+    const small = now().stage.geometry!;
+    expect(small.takeover, "not even 80 columns fit beside a rail: the stage is the cell").toBe(true);
+    expect(small.stageW, "the cell, never the width the stage had").toBe(820);
+    expect(small.cols * 8 + 44).toBeLessThanOrEqual(820);
+
+    resize(1360, 1440);
+    expect(now().stage.geometry, "the 112 the reader chose, not what the small window could fit")
+      .toMatchObject({ cols: 112, stageW: 940, takeover: false });
+    expect(local.get("agent-dag.terminal.cols"), "a resize stores nothing").toBe("112");
+  });
+
+  it("measures the cell rounded down, so a fractional cell at a browser zoom is never asked for half a pixel more", () => {
+    resize(820.6, 900);
+    expect(page.canvas.clientWidth, "what clientWidth says").toBe(821);
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    expect(now().stage.geometry?.takeover).toBe(true);
+    expect(now().stage.geometry?.stageW).toBe(820);
+  });
+
+  it("stops watching once the stage has gone", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    expect(observers.length).toBe(1);
+    now().stage.failed();
+    expect(observers.length).toBe(0);
   });
 });
