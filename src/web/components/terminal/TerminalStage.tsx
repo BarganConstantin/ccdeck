@@ -131,6 +131,9 @@ export interface TerminalStageProps {
    *  next stop, Enter on the board): focus follows as soon as there is a
    *  pane to take it. */
   focusRequest?: number | string | null;
+  /** What was typed for a request before the pane could take it, handed over
+   *  once and ended by any answer to that request (use-stage.ts). */
+  takeTypeAhead?(request: number | string | null | undefined): string;
   onNextAsk?(): void;
   onAnswerArrival?(): void;
   onClose(): void;
@@ -264,8 +267,14 @@ export default function TerminalStage(p: TerminalStageProps) {
 
   const rootRef = useRef<HTMLElement>(null);
   useFocusRequest({
-    key, request: p.focusRequest, launch: subject.kind === "launch", typing, focus: session.focus,
+    key, request: p.focusRequest, launch: subject.kind === "launch", typing,
+    focus: request => {
+      session.focus();
+      const ahead = p.takeTypeAhead?.(request);
+      if (ahead) session.type(ahead);
+    },
     settled: settlesFocus(phase), land: () => landFocus(rootRef.current),
+    unmet: request => { p.takeTypeAhead?.(request); },
   });
 
   let end: EndView | null = null;

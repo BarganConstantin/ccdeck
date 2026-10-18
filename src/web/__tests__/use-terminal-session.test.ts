@@ -580,6 +580,16 @@ describe("keys, paste and the pane's size", () => {
     expect(s.sentText().at(-1)).toEqual({ t: "paste", text: "line one\nline two" });
   });
 
+  it("sends keys typed before the pane was ready one at a time, as they were typed, and only to a live pane", async () => {
+    const { r, ctl, s } = await liveRig();
+    ctl.type("hé😀\r");
+    expect(s.sentBytes(), "a fast typist, not one burst to take for a paste").toEqual(["h", "é", "😀", "\r"]);
+    s.text({ t: "exit", reason: "ended" });
+    ctl.type("x");
+    expect(s.sentBytes()).toHaveLength(4);
+    expect(r.last().phase.kind).toBe("ended");
+  });
+
   it("knows a pasted screenshot from pasted text, files that are not images, and nothing at all", () => {
     const items = (...list: Array<{ kind: string; type: string }>) => ({ items: Object.assign(list, { length: list.length }) as unknown as DataTransferItemList });
     expect(pasteHoldsImage(items({ kind: "file", type: "image/png" }))).toBe(true);

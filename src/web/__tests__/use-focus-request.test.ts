@@ -15,10 +15,11 @@ function Harness(p: FocusRequest) {
 
 function rig(first: Partial<FocusRequest> = {}) {
   const focus = vi.fn();
-  let props: FocusRequest = { key: "session:a", request: null, launch: false, typing: false, focus, ...first };
+  const unmet = vi.fn();
+  let props: FocusRequest = { key: "session:a", request: null, launch: false, typing: false, focus, unmet, ...first };
   const view = mount(Harness, props);
   const go = (next: Partial<FocusRequest>) => { props = { ...props, ...next }; view.rerender(props); };
-  return { focus, go };
+  return { focus, unmet, go };
 }
 
 describe("a request for the keys", () => {
@@ -98,5 +99,49 @@ describe("a request the stage answers with a card", () => {
     go({ request: 1 });
     expect(focus).toHaveBeenCalledTimes(1);
     expect(land).not.toHaveBeenCalled();
+  });
+});
+
+describe("every request ends once, and says how", () => {
+  // The keys typed before the pane was ready wait on exactly one request
+  // (type-ahead.ts): handed to the pane that met it, let go by any other end.
+  it("tells the pane which request it met, and nothing else", () => {
+    const { focus, unmet, go } = rig();
+    go({ request: 7 });
+    go({ typing: true });
+    expect(focus).toHaveBeenCalledWith(7);
+    expect(unmet).not.toHaveBeenCalled();
+  });
+
+  it("is unmet when a card answers it", () => {
+    const { unmet, go } = rig({ settled: true, land: () => true });
+    go({ request: 7 });
+    expect(unmet).toHaveBeenCalledTimes(1);
+    expect(unmet).toHaveBeenCalledWith(7);
+  });
+
+  it("is unmet when the stage moves on without it", () => {
+    const { focus, unmet, go } = rig();
+    go({ request: 7 });
+    go({ key: "session:b", typing: true });
+    expect(unmet).toHaveBeenCalledWith(7);
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it("is unmet when a newer request replaces it, which is the one met", () => {
+    const { focus, unmet, go } = rig();
+    go({ request: 7 });
+    go({ request: 8 });
+    expect(unmet).toHaveBeenCalledWith(7);
+    go({ typing: true });
+    expect(focus).toHaveBeenCalledWith(8);
+  });
+
+  it("brought along by a move, ends the old one and keeps the new", () => {
+    const { focus, unmet, go } = rig();
+    go({ request: 7 });
+    go({ key: "session:b", request: 8, typing: true });
+    expect(unmet.mock.calls).toEqual([[7]]);
+    expect(focus).toHaveBeenCalledWith(8);
   });
 });

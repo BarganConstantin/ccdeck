@@ -415,6 +415,20 @@ describe("the stage as a whole", () => {
   });
 });
 
+describe("the keys typed before the pane could take them", () => {
+  const web = (path: string) => withoutComments(readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8"));
+
+  it("go to the pane that met their request, after the focus, and are let go by any other end of it", () => {
+    // The hold itself is use-stage.test.ts's; the request's ends are
+    // use-focus-request.test.ts's. This is the wire between them, which needs
+    // a real xterm to run.
+    const stage = web("components/terminal/TerminalStage.tsx");
+    expect(stage).toMatch(/focus: request => \{\s*session\.focus\(\);\s*const ahead = p\.takeTypeAhead\?\.\(request\);\s*if \(ahead\) session\.type\(ahead\);\s*\}/);
+    expect(stage).toMatch(/unmet: request => \{ p\.takeTypeAhead\?\.\(request\); \}/);
+    expect(web("components/terminal/StageShell.tsx")).toContain("takeTypeAhead={stage.takeTypeAhead}");
+  });
+});
+
 describe("what the stage costs the page that never opens it", () => {
   const web = (path: string) => withoutComments(readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8"));
 
