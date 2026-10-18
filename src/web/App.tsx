@@ -83,7 +83,7 @@ import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
-import { useStage, useStageAsks } from "./use-stage";
+import { useRailPanel, useStage, useStageAsks } from "./use-stage";
 import { targetSession } from "./stage-shell";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import { createChimePlayer } from "./chime-player";
@@ -489,6 +489,13 @@ function Inner() {
     keepSessionId: primarySelectedId ? stateRef.current.agents.get(primarySelectedId)?.sessionId ?? primarySelectedId : null,
     stageSessionId: stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null,
   });
+  // Usage and Machine as their stripe buttons and their keys reach them: one
+  // asked for takes the right of the deck back from the stage, as the detail
+  // panel does, and one the stage hides reads as closed — use-stage.ts
+  // useRailPanel. The panels themselves, their own ×, the machine panel's
+  // slot and the board's frame keep the plain flags.
+  const usageRail = useRailPanel(stage, usagePanelOpen, setUsagePanelOpen);
+  const machineRail = useRailPanel(stage, machinePanelOpen, setMachinePanelOpen);
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
@@ -534,7 +541,7 @@ function Inner() {
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
-    setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
+    setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
   });
 
@@ -597,7 +604,8 @@ function Inner() {
   const closeRadio = useCallback(() => setRadioOpen(false), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
-    usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
+    usagePanelOpen: usageRail.shown, setUsagePanelOpen: usageRail.set,
+    machinePanelOpen: machineRail.shown, setMachinePanelOpen: machineRail.set, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
     openToolActivity: () => setToolAuditOpen(true),
