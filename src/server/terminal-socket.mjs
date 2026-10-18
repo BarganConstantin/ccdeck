@@ -240,7 +240,7 @@ let shuttingDown = false;
  * the ordinary request handler when none does — so a listener left in place
  * on a deck with the panel off would turn `curl --http2`'s h2c probe, or any
  * client that offers an upgrade, from the deck's normal answer into a 404 and
- * a hang-up. The switch can flip while the deck runs (the settings file), so
+ * a hang-up. The switch can flip while the deck runs (Settings), so
  * the listener follows it: checked now, and again ahead of every ordinary
  * request, which is how a page always reaches the socket — it mints its ticket
  * first. A socket already upgraded is no longer the server's and is left

@@ -1,4 +1,4 @@
-// The terminal stage, as App holds it: the hidden flag, whether the stage is
+// The terminal stage, as App holds it: the flag and its switch in Settings, whether the stage is
 // open and on what, how wide it is, and every way the deck opens, switches and
 // closes it — a click on a card, the waiting chip, the canvas's Terminal
 // button, a session list row, the keys, the navigator's tiles.
@@ -10,8 +10,9 @@
 // them through React.lazy), and the rules this hook acts on are pure modules —
 // stage-shell.ts for the steps between closed and open, stage-geometry.ts for
 // the widths. With the flag off `enabled` stays false, every entry point below
-// answers "not mine", no effect touches the page, and the deck is the deck it
-// was (DESIGN-UI decision 9).
+// answers "not mine", no effect touches the page — beyond giving the board back
+// its `inert` if the switch went off under a stage — and the deck is the deck
+// it was (DESIGN-UI decision 9).
 //
 // THE STAGE SHARES THE CANVAS'S CELL. It is not a seventh grid template beside
 // the canvas: the canvas keeps its size, React Flow stays mounted under the
@@ -41,7 +42,7 @@ import {
   stageClaimsKeys, targetSession, terminalButtonTarget, visibleOrigin,
   type ShellAction, type ShellRect, type StageTarget,
 } from "./stage-shell";
-import { readStored, removeStored, writeStored } from "./storage";
+import { localStore, readStored, removeStored, writeStored } from "./storage";
 import type { LaunchOptions, TerminalProvider } from "./terminal-api";
 import { useAsks, type Asks } from "./use-asks";
 import type { StageShortcuts } from "./use-deck-shortcuts";
@@ -440,23 +441,59 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [open]);
 
   // ── the switch in Settings ─────────────────────────────────────────────────
-  // Optimistic, as the deck's other switches are, and corrected by the answer.
-  // Off takes the stage down at once and without its motion — Settings is in
-  // front of it — and the server closes any panel another tab still has open.
-  // A refused write puts the switch back where the file still has it.
+  // Optimistic, as the deck's other switches are, and corrected by the answer
+  // — the latest press's only, since two answers can cross on the way back. A
+  // refused or lost write is settled by asking the deck what it holds now,
+  // which a write that landed before its answer was lost has already changed.
+  // Then the other tabs are told, through storage, to ask the same question:
+  // the switch is the deck's, not this tab's.
+  const pressRef = useRef(0);
+  const askDeck = useCallback((press: number, otherwise: boolean) => {
+    fetch("/api/prefs").then(r => (r.ok ? r.json() : null)).then(d => {
+      if (press !== pressRef.current) return;
+      if (d?.ok) loadTerminalPrefs(d);
+      else setEnabled(otherwise);
+    }).catch(() => { if (press === pressRef.current) setEnabled(otherwise); });
+  }, [loadTerminalPrefs]);
   const toggleTerminal = useCallback(() => {
     const want = !enabledRef.current;
-    if (!want) dispatch({ type: "close", instant: true });
+    const press = ++pressRef.current;
     setEnabled(want);
     fetch("/api/prefs", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ terminal: want }),
     }).then(r => (r.ok ? r.json() : null)).then(d => {
-      if (d?.ok) loadTerminalPrefs(d);
-      else setEnabled(!want);
-    }).catch(() => setEnabled(!want));
-  }, [enabledRef, loadTerminalPrefs]);
+      if (d?.ok) {
+        if (press === pressRef.current) loadTerminalPrefs(d);
+        writeStored(TERMINAL_SWITCHED_KEY, String(Date.now()));
+      } else {
+        askDeck(press, !want);
+      }
+    }).catch(() => askDeck(press, !want));
+  }, [enabledRef, loadTerminalPrefs, askDeck]);
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (event.storageArea !== localStore() || event.key !== TERMINAL_SWITCHED_KEY) return;
+      askDeck(++pressRef.current, enabledRef.current);
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [askDeck, enabledRef]);
+
+  // Off, however it went off — this tab's switch or another's — takes the
+  // stage down at once and without its motion, and forgets the session a
+  // reload would have put back: a switch turned on again later opens nothing
+  // by itself. Only on the way from on to off, so the closed stage of a first
+  // render, before the prefs are read, forgets nothing.
+  const wasEnabled = useRef(false);
+  useEffect(() => {
+    const was = wasEnabled.current;
+    wasEnabled.current = enabled;
+    if (enabled || !was) return;
+    dispatch({ type: "close", instant: true });
+    writeOnStage(null, Date.now());
+  }, [enabled]);
 
   return {
     enabled, forced, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
@@ -473,6 +510,11 @@ export interface TerminalPrefsAnswer {
   terminalOn?: unknown;
   terminalForced?: unknown;
 }
+
+/** Written when this tab's press has changed the switch, so the deck's other
+ *  tabs ask the deck again (use-stage.ts toggleTerminal). Its value is only a
+ *  time, to make each press a change. */
+export const TERMINAL_SWITCHED_KEY = "agent-dag.terminal.switched";
 
 /** The session the stage showed, kept for a reload of the same tab. */
 export const STAGE_RESTORE_KEY = "agent-dag.terminal.onStage";
