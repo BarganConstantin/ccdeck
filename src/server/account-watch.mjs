@@ -91,9 +91,21 @@ export function noteAutoSwitch(enabled) {
 export function noteAutoTick(result) {
   const n = notifier();
   if (!n || !result) return Promise.resolve();
-  return (result.switched ? storeAccounts() : Promise.resolve(null))
-    .then(accounts => n.tick(result, accounts))
+  return (result.switched ? Promise.all([storeAccounts(), telemetryReader()]) : Promise.resolve([null, null]))
+    .then(([accounts, telemetryOf]) => n.tick(result, accounts, { telemetryOf }))
     .catch(() => {});
+}
+
+/** What each organization's settings were last seen to turn on, as the
+ *  sentence a swap notice carries (org-telemetry.mjs), or null. */
+async function telemetryReader() {
+  try {
+    const { knownOrgTelemetry, telemetryClause } = await import(pathToFileURL(join(PKG_ROOT, "src/server/org-telemetry.mjs")).href);
+    const records = await knownOrgTelemetry();
+    return org => telemetryClause(records?.[org]);
+  } catch {
+    return null;
+  }
 }
 
 /** claude-swap's roster, number → `{ email, organizationUuid, alias }`, or null. */

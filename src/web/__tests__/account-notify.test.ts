@@ -537,3 +537,31 @@ describe("the small rules", () => {
     expect(inDuration(now / 1000 + 76 * H, now)).toBe("3d 4h");
   });
 });
+
+// An unattended switch is exactly when nobody saw the new account's
+// organization policy coming, so the swap notice carries it as a second line.
+describe("a switch onto an account whose organization records telemetry", () => {
+  const ACME_ROSTER = {
+    "2": { email: "personal@x.com", organizationUuid: "org-1" },
+    "3": { email: "work@x.com", organizationUuid: "org-2", alias: "work" },
+  };
+  const telemetryOf = (org: string) => (org === "org-2" ? "Acme's telemetry is on for new sessions: it sends your prompts to h:4317" : null);
+
+  it("says it under the switch, for the account it moved to", async () => {
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    await n.tick(switched(), ACME_ROSTER, { telemetryOf });
+    expect(bodies(said)).toEqual(["Switched to work · personal@x.com reached 90%\nAcme's telemetry is on for new sessions: it sends your prompts to h:4317"]);
+  });
+
+  it("says nothing more when the organization records nothing known, or the store disagrees about the account", async () => {
+    const quiet = harness();
+    quiet.n.autoSwitch(true);
+    await quiet.n.tick(switched(), ACME_ROSTER, { telemetryOf: () => null });
+    expect(bodies(quiet.said)).toEqual(["Switched to work · personal@x.com reached 90%"]);
+    const other = harness();
+    other.n.autoSwitch(true);
+    await other.n.tick({ ...switched(), to: { number: 3, email: "someone-else@x.com" } }, ACME_ROSTER, { telemetryOf });
+    expect(bodies(other.said)[0]).not.toContain("telemetry");
+  });
+});

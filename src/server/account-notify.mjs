@@ -456,7 +456,13 @@ export function createAccountNotifier({
    * `{ email, organizationUuid, alias }` — read after the tick, for the names
    * and the keys of the two accounts a switch moved between.
    */
-  async function tick(result, accounts) {
+  /**
+   * `telemetryOf`, when given, answers what an organization's telemetry
+   * settings turn on, as one sentence or null (org-telemetry.mjs's
+   * telemetryClause): the swap notice carries it for the account it moved to,
+   * because an unattended switch is exactly when nobody saw it coming.
+   */
+  async function tick(result, accounts, { telemetryOf = null } = {}) {
     try {
       await ready;
       if (!result || typeof result !== "object") return;
@@ -485,10 +491,15 @@ export function createAccountNotifier({
       if (from?.key) carryFromPoll(result, from, at, !s.swap);
       release([...held.values()]);
       if (s.swap) {
-        say(swapNotice({
+        const notice = swapNotice({
           toName: to?.name ?? null, fromName: from?.name ?? null,
           used: usedBefore(result, result.from?.number), threshold: result.threshold,
-        }));
+        });
+        // Only for an account the store and the tick agree on: an organization
+        // read off the wrong slot would put another company's policy on it.
+        const toOrg = to?.key ? accounts?.[String(result.to?.number)]?.organizationUuid : null;
+        const telemetry = toOrg && telemetryOf ? telemetryOf(toOrg) : null;
+        say(telemetry ? { ...notice, body: `${notice.body}\n${telemetry}` } : notice);
       }
       await persist();
     } catch (err) {
