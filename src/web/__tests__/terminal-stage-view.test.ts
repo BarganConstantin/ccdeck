@@ -188,6 +188,18 @@ describe("the body's state cards, each at the terminal's origin", () => {
       .toContain("Starting Claude Code in /home/u/personal/ccdeck");
   });
 
+  it("cuts a long fact with an ellipsis, in a box of its own, with the whole line as its title", () => {
+    const target = { kind: "C" as const, label: "Ended.", adoptable: true };
+    const fact = "Claude Code · /home/u/scratch/layout/ws/data-pipeline-with-a-long-name";
+    const out = html(createElement(StateCard, bodyProps({ kind: "not-attachable", target, stillRunning: false, busy: false }, { context: { prompt: null, fact } })));
+    expect(out).toContain(`title="${fact}"`);
+    expect(out).toContain(`<span class="ts-fact-text">${fact}</span>`);
+    const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = /\.ts-fact-text\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule, "a flex row's bare text never takes the row's ellipsis").toMatch(/min-width:\s*0/);
+    expect(rule).toMatch(/text-overflow:\s*ellipsis/);
+  });
+
   it("offers Reopen here for case C with the deck's own sentence, and answers its 409 in place", () => {
     const target = { kind: "C" as const, label: "This session was started outside the deck, so there is no pane to attach to.", adoptable: true };
     const props = bodyProps({ kind: "not-attachable", target, stillRunning: false, busy: false });
