@@ -326,7 +326,7 @@ describe("what was migrated to the secondary tier", () => {
       ".tr-history-toolbar .tr-history",
       ".tr-json-search",
       ".tr-json-search input::placeholder",
-      ".tr-json-tree .jer-collapse-icon, .tr-json-tree .jer-edit-buttons button",
+      ".tr-json-tree .jer-collapse-icon, .tr-json-tree .jer-copy-pulse",
       ".tr-project-context h4",
       ".tr-prompt-filter",
       ".tr-active-destinations > span",
