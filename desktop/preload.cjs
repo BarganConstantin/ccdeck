@@ -4,7 +4,8 @@
 //
 // CommonJS because the window is sandboxed, and a sandboxed preload is not an
 // ES module and may require nothing but a short list that includes "electron".
-// Deliberately small: audio calls by opaque id, caption colours and a menu.
+// Deliberately small: audio calls by opaque id, caption colours, a menu, and
+// whether the terminal pane has the keys.
 // No path, window handle, generic IPC, or generic read or write
 // primitive. main.mjs checks who is calling and notification-audio-store.mjs
 // checks what they sent, so nothing here is trusted to have done either.
@@ -15,6 +16,14 @@ contextBridge.exposeInMainWorld("ccdeckNotificationAudio", {
   get: id => ipcRenderer.invoke("ccdeck:notification-audio:get", id),
   put: asset => ipcRenderer.invoke("ccdeck:notification-audio:put", asset),
   remove: id => ipcRenderer.invoke("ccdeck:notification-audio:remove", id),
+});
+
+// The terminal panel's one question to the app: whether its pane has the
+// keys, so the menu's Ctrl shortcuts (reload, close, quit, copy, select all)
+// step aside while they belong to the program in the pane. A boolean, nothing
+// else.
+contextBridge.exposeInMainWorld("ccdeckTerminal", {
+  keys: owned => ipcRenderer.invoke("ccdeck:terminal:keys", owned === true),
 });
 
 // No window handle or generic IPC is exposed to the page.

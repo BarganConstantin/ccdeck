@@ -88,6 +88,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["keyboard", />Single-key shortcuts</],
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
+      ["integrations", />Add integration</],
       ["data", />Tool history<\/h3>/],
       ["radar", />Enable Radar</],
       ["about", />Version</],
@@ -110,6 +111,14 @@ describe("a door into Settings opens it at the section it names", () => {
       expect(html, id).toContain(`<p class="settings-pane-note">${note}</p>`);
       expect(note.split(/\s+/).length, id).toBeLessThanOrEqual(16);
     }
+  });
+
+  it("draws the terminal's Beta switch in General, after the board, only when App hands it over", () => {
+    expect(drawSettings({ section: "general" })).not.toContain(">Terminal</h3>");
+    const html = drawSettings({ section: "general", terminal: { on: false, forced: false, toggle: noop } });
+    expect(html.indexOf(">Terminal</h3>")).toBeGreaterThan(html.indexOf(">Board</h3>"));
+    expect(html.indexOf(">Terminal</h3>")).toBeLessThan(html.indexOf(">Updates</h3>"));
+    expect(html).toMatch(/role="switch" aria-checked="false" aria-labelledby="settings-terminal-label"/);
   });
 
   it("gives each subject its own section: the board in General, the look in Appearance, the keys in Keyboard, history in Data", () => {
@@ -137,8 +146,9 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the nine sections in the nav, in order, About last", () => {
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "Radar", "About"];
+  it("names the ten sections in the nav, in order, About last", () => {
+    // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

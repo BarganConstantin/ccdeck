@@ -26,6 +26,7 @@ import { type useRequestSlot } from "../use-request-slot";
 import { laneName } from "../other-accounts-order";
 import { resetSinceReading } from "../accounts-usage-report";
 import { sharedLine } from "../account-lan";
+import { switchedTelemetry, telemetryLine } from "../org-telemetry";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
@@ -105,6 +106,9 @@ interface Props {
   /** Why a switch pressed on this row did not work, if one did not. */
   refusal: Failure | null;
   onDismissRefusal: () => void;
+  /** Open the sign-in dialog for this account — the remedy a refusal for an
+   *  expired login offers (#2184). Absent, that refusal offers no button. */
+  onSignIn?: (email: string | null) => void;
   /** A switch from the panel just landed on this account. */
   switchedHere: boolean;
   /** The swap a move into a taken slot made, when it landed on this row. */
@@ -117,11 +121,15 @@ interface Props {
   /** What the list behind the fold is ordered by (#1579) — a window's name,
    *  "room", or null — so the row can mark the number it was placed by. */
   sortKey?: string | null;
+  /** Something is rotating accounts — the deck's loop or a terminal's — so the
+   *  ⋯ menu offers "Hold out of rotation", and the telemetry line says so. */
+  rotating?: boolean;
 }
 
 export default function AccountRow({
   a, nowSec, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
-  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
+  refusal, onDismissRefusal, onSignIn, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
+  rotating = false,
 }: Props) {
   // The windows that have not reset since they were read: the only ones whose
   // numbers say anything about this window (lane-view.ts's lapsed).
@@ -159,6 +167,11 @@ export default function AccountRow({
   // a hidden hot one. See lane-view.ts.
   const quick = fuller ? [...shown, fuller] : shown;
   const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
+  // What the account's organization sends, when the deck has seen it — said
+  // before a switch, because Claude Code applies it without asking in its
+  // non-interactive surfaces. See org-telemetry.ts.
+  const telemetry = telemetryLine(a.telemetry, nowSec, { holdOut: rotating && !a.active && !a.disabled });
+  const switchedNote = switchedTelemetry(a.telemetry);
   return (
     <li className={`ap-account${a.active ? " active" : ""}`}
       aria-current={a.active ? "true" : undefined}
@@ -184,6 +197,7 @@ export default function AccountRow({
             a.alias && a.email ? `ap-email-${a.num}` : null,
             lan?.sharedTo ? `ap-shared-${a.num}` : null,
             !open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : null,
+            telemetry ? `ap-telemetry-${a.num}` : null,
           ].filter(Boolean).join(" ") || undefined}
           onClick={() => onToggleLanes()}>
           <span className="vis-hidden">{name}, {open ? "hide details" : "details"}</span>
@@ -284,6 +298,16 @@ export default function AccountRow({
       {refusal && (
         <div className="ap-failure ap-row-failure" role="alert">
           <span className="ap-failure-text" title={refusal.raw || undefined}>{refusal.text}</span>
+          {/* A switch the deck refused because this login has expired
+              (#2184) has one remedy, and it is offered where the refusal
+              is: the sign-in dialog, filled in with this account. */}
+          {refusal.signIn && onSignIn && (
+            <button type="button" className="ap-fix ap-failure-fix" onClick={() => onSignIn(a.email)}
+              aria-label={`Sign in again as ${a.email ?? name}`}
+              title="Open the sign-in dialog. Signing in as this account replaces its expired login in place — it keeps its slot, its alias and its history.">
+              Sign in again
+            </button>
+          )}
           <button type="button" className="ap-failure-x" onClick={() => onDismissRefusal()}
             aria-label="Dismiss this message" title="Dismiss">×</button>
         </div>
@@ -293,6 +317,11 @@ export default function AccountRow({
           Now active. New sessions start on it; ones already running pick it up on
           their next message, up to about 30 seconds later on macOS.
         </p>
+      )}
+      {/* What the switch just turned on, said where the switch is answered: a
+          switch somebody pressed raises no notification. */}
+      {a.active && switchedHere && switchedNote && (
+        <p className="ap-switched">{switchedNote}</p>
       )}
       {/* A move into a taken slot relocated a second account, and this
           is the only place that says so, for eight seconds. The
@@ -332,6 +361,17 @@ export default function AccountRow({
             </span>
           )}
         </div>
+      )}
+
+      {/* WHAT THE ORGANIZATION RECORDS, on every row of it, shut or open:
+          the moment it matters is before the switch. A word for what goes
+          out on the row, the sentence behind it for a pointer and for a
+          screen reader — the door's description points here. */}
+      {telemetry && (
+        <p className="ap-telemetry" id={`ap-telemetry-${a.num}`} data-tone={telemetry.tone} title={telemetry.detail}>
+          <span aria-hidden>{telemetry.text}</span>
+          <span className="vis-hidden">{telemetry.detail}</span>
+        </p>
       )}
 
       {/* SHUT: THE TWO NUMBERS AN ACCOUNT IS CHOSEN BY. No bars, no

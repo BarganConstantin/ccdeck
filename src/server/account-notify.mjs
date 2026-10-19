@@ -303,10 +303,15 @@ export function usedBefore(result, fromNumber) {
  * below the threshold — says where it went and from where, and nothing about
  * why.
  */
-export function swapNotice({ toName, fromName, used, threshold }) {
+export function swapNotice({ toName, fromName, used, threshold, trigger = null }) {
   const to = toName ? cut(toName, NAME_MAX) : "another account";
   if (!fromName) return { who: SWAP_WHO, body: `Switched to ${to}` };
   const from = cut(fromName, NAME_MAX);
+  // The deck's own failover (autoswitch-failover.mjs) moved for one reason
+  // only, and it is the one the user has to act on: sign in again.
+  if (trigger === "login-expired") {
+    return { who: SWAP_WHO, body: `Switched to ${to} · ${from}'s login expired, sign in again to use it` };
+  }
   if (used != null && used >= 100) return { who: SWAP_WHO, body: `Switched to ${to} · ${from} reached 100%` };
   if (used != null && typeof threshold === "number" && used >= threshold) {
     return { who: SWAP_WHO, body: `Switched to ${to} · ${from} reached ${pctLabel(threshold)}%` };
@@ -377,6 +382,19 @@ export function stoppedNotice({ names = [], count, kinds }) {
  *  one incident, and the switch is what made "continue" worth typing. */
 export function withStopped(notice, count) {
   return { ...notice, body: `${notice.body} · ${stoppedCount(count)}, type “continue” in ${count === 1 ? "it" : "each"}` };
+}
+
+/** How long one stuck login is left unsaid after it has been said once. */
+export const STUCK_REPEAT_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * "Claude auto-switch", "work@x.com's login expired · no other account is ready
+ * to switch to". The tick the failover could not finish: the user is on a dead
+ * login, and only a sign-in or another account will get them off it.
+ */
+export function stuckNotice({ fromName }) {
+  const from = fromName ? cut(fromName, NAME_MAX) : "The active account";
+  return { who: SWAP_WHO, body: `${from}'s login expired · no other account is ready to switch to` };
 }
 
 /** The records, as read back from disk: anything that is not one is dropped,
@@ -458,6 +476,10 @@ export function createAccountNotifier({
   };
 
   const keyOf = (provider, accountKey, windowId) => `${provider}|${accountKey}|${windowId}`;
+
+  /** When each stuck login was last said, by account. In memory: a restart may
+   *  say one once more, and every tick after it says nothing for a while. */
+  const stuckSaid = new Map();
 
   /** Write `levels` down as said for the window a held notice was about, if the
    *  record is still about that window. */
@@ -590,7 +612,15 @@ export function createAccountNotifier({
    * and the keys of the two accounts a switch moved between. `startedAt` is
    * when the tick began, which decides whether it can answer for a stop.
    */
-  async function tick(result, accounts, { startedAt = null } = {}) {
+  /**
+   * `telemetryOf`, when given, answers what an organization's telemetry
+   * settings turn on, as one sentence or null (org-telemetry.mjs's
+   * telemetryClause): the swap notice carries it for the account it moved to,
+   * because an unattended switch is exactly when nobody saw it coming.
+   * `startedAt` is when the tick began: only a stop incident that began no
+   * later than that is this tick's to answer for.
+   */
+  async function tick(result, accounts, { startedAt = null, telemetryOf = null } = {}) {
     try {
       await ready;
       if (!result || typeof result !== "object") return;
@@ -599,12 +629,34 @@ export function createAccountNotifier({
       // included: the sessions are stopped already, and minutes is too long to
       // wait to say so for a switch that may come.
       const inc = incidentFor(startedAt);
-      if (inc && !(result.switched && settings().swap)) sayIncident();
+      // On a dead login with nowhere to go, said once and then left alone:
+      // the failover asks again every tick, and the answer will not change
+      // until somebody signs in.
+      const stuck = !result.switched && result.event === "no-switch" && result.reason === "login-expired" && result.stuck === true;
+      const stuckFrom = stuck ? accountOfRef(result.from, accounts) : null;
+      const stuckKey = stuck ? stuckFrom?.key ?? String(result.from?.number ?? "") : null;
+      const sayStuck = stuck && settings().swap && !(now() - (stuckSaid.get(stuckKey) ?? -Infinity) < STUCK_REPEAT_MS);
+      // The stuck notice carries the incident it explains, as a switch does:
+      // one notification for one dead login.
+      if (inc && !(result.switched && settings().swap) && !sayStuck) sayIncident();
       if (!result.switched) {
         // A cooldown is the one answer that says a switch is still coming.
         if (result.event === "no-switch" && result.reason === "cooldown") return;
         release([...held.values()]);
+        if (sayStuck) {
+          stuckSaid.set(stuckKey, now());
+          const notice = stuckNotice({ fromName: stuckFrom?.name ?? null });
+          const told = inc && incident === inc && !inc.said ? inc : null;
+          if (told) {
+            told.said = true;
+            if (told.timer) { clearTimeout(told.timer); told.timer = null; }
+          }
+          say(told && settings().stopped ? { ...notice, body: `${notice.body} · ${stoppedCount(told.ids.size)}` } : notice);
+        }
         return;
+      }
+      if (result.trigger === "login-expired") {
+        stuckSaid.delete(accountOfRef(result.from, accounts)?.key ?? String(result.from?.number ?? ""));
       }
       const at = now();
       const s = settings();
@@ -627,6 +679,7 @@ export function createAccountNotifier({
         const notice = swapNotice({
           toName: to?.name ?? null, fromName: from?.name ?? null,
           used: usedBefore(result, result.from?.number), threshold: result.threshold,
+          trigger: result.trigger ?? null,
         });
         // The incident this switch cured, said with it — and said, so its own
         // notice does not follow.
@@ -635,7 +688,12 @@ export function createAccountNotifier({
           cured.said = true;
           if (cured.timer) { clearTimeout(cured.timer); cured.timer = null; }
         }
-        say(cured && s.stopped ? withStopped(notice, cured.ids.size) : notice);
+        const told = cured && s.stopped ? withStopped(notice, cured.ids.size) : notice;
+        // Only for an account the store and the tick agree on: an organization
+        // read off the wrong slot would put another company's policy on it.
+        const toOrg = to?.key ? accounts?.[String(result.to?.number)]?.organizationUuid : null;
+        const telemetry = toOrg && telemetryOf ? telemetryOf(toOrg) : null;
+        say(telemetry ? { ...told, body: `${told.body}\n${telemetry}` } : told);
       }
       await persist();
     } catch (err) {

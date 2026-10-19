@@ -25,6 +25,26 @@ export interface AuditReport {
   bytes: number; storageOk: boolean; dropped: number; deviceId: string; startedAt: number; retentionDays: number;
 }
 export interface AuditStorage { ok: boolean; bytes: number; retentionDays: 30 | 60 | 90; startedAt: number; storageOk: boolean; dropped: number }
+
+/** How a skill came to run: a person typed it, the agent called it, or Codex was seen reading it. */
+export type SkillOrigin = 'typed' | 'agent' | 'detected';
+export interface SkillRow {
+  name: string; uses: number; repeats: number; failed: number; typed: number; agent: number; detected: number; subagent: number;
+  providers: { claude: number; codex: number }; firstAt: number; lastAt: number; sessions: number; projects: number;
+}
+export interface SkillUse {
+  id: string; provider: 'claude' | 'codex'; at: number; origin: SkillOrigin; session: string; project: string | null;
+  subagent: boolean; state: 'pending' | 'done' | 'failed';
+}
+export interface SkillDay { date: string; uses: number; providers: { claude: number; codex: number }; status: 'used' | 'no-uses' | 'outside-history' }
+export interface SkillReport {
+  ok: boolean; view: 'skills'; capturedAt: number; since: number; until: number; provider: AuditProvider;
+  total: number; repeats: number; failed: number; providers: { claude: number; codex: number }; corrupt: number; duplicates: number;
+  retainedSince: number; countedSince: number; rows: SkillRow[];
+  details: { name: string; row: SkillRow | null; total: number; projects: { name: string; uses: number }[]; recent: SkillUse[];
+    history?: { timeZone: string; days: SkillDay[] } } | null;
+  bytes: number; storageOk: boolean; dropped: number; startedAt: number; skillsSince: number; retentionDays: number;
+}
 export const auditDuration = (ms: number | null) => {
   if (ms === null) return '—';
   if (ms < 1000) return `${Math.round(ms)} ms`;
@@ -40,7 +60,7 @@ export const auditBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes
 export const auditDate = (ms: number) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 /** Busy responses do no disk work. Retry briefly while a cancelled worker exits. */
-export async function readAuditReport(query: string, signal: AbortSignal): Promise<AuditReport> {
+export async function readAuditReport<Report = AuditReport>(query: string, signal: AbortSignal): Promise<Report> {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(`/api/tool-audit?${query}`, { signal });
     const reply = await res.json();
@@ -53,8 +73,8 @@ export async function readAuditReport(query: string, signal: AbortSignal): Promi
       });
       continue;
     }
-    if (!res.ok || !reply.ok || !Array.isArray(reply.rows)) throw new Error('Could not build the tool report. Try Refresh or reduce history retention in Settings.');
-    return reply as AuditReport;
+    if (!res.ok || !reply.ok || !Array.isArray(reply.rows)) throw new Error('Could not build the report. Try Refresh or reduce history retention in Settings.');
+    return reply as Report;
   }
   throw new Error('A tool report is already running. Try Refresh in a moment.');
 }

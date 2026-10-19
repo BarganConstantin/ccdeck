@@ -12,7 +12,7 @@
 import { describe, it, expect } from "vitest";
 import {
   claudeWindows, codexWindows, createAccountNotifier, HOLD_MS, inDuration, relate, RESET_NEWS_MS,
-  swapNotice, usedBefore, accountOfRef, claudeAccountKey, codexAccountKey,
+  swapNotice, usedBefore, accountOfRef, claudeAccountKey, codexAccountKey, STUCK_REPEAT_MS,
 } from "../../server/account-notify.mjs";
 
 type Said = { title: string; body: string; meta: { who: string; chime: null; silent: boolean } };
@@ -535,5 +535,96 @@ describe("the small rules", () => {
     expect(inDuration(now / 1000 + 2 * H + 14 * 60, now)).toBe("2h 14m");
     expect(inDuration(now / 1000 + 3 * H, now)).toBe("3h");
     expect(inDuration(now / 1000 + 76 * H, now)).toBe("3d 4h");
+  });
+});
+
+// An unattended switch is exactly when nobody saw the new account's
+// organization policy coming, so the swap notice carries it as a second line.
+describe("a switch onto an account whose organization records telemetry", () => {
+  const ACME_ROSTER = {
+    "2": { email: "personal@x.com", organizationUuid: "org-1" },
+    "3": { email: "work@x.com", organizationUuid: "org-2", alias: "work" },
+  };
+  const telemetryOf = (org: string) => (org === "org-2" ? "Acme's telemetry is on for new sessions: it sends your prompts to h:4317" : null);
+
+  it("says it under the switch, for the account it moved to", async () => {
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    await n.tick(switched(), ACME_ROSTER, { telemetryOf });
+    expect(bodies(said)).toEqual(["Switched to work · personal@x.com reached 90%\nAcme's telemetry is on for new sessions: it sends your prompts to h:4317"]);
+  });
+
+  it("says nothing more when the organization records nothing known, or the store disagrees about the account", async () => {
+    const quiet = harness();
+    quiet.n.autoSwitch(true);
+    await quiet.n.tick(switched(), ACME_ROSTER, { telemetryOf: () => null });
+    expect(bodies(quiet.said)).toEqual(["Switched to work · personal@x.com reached 90%"]);
+    const other = harness();
+    other.n.autoSwitch(true);
+    await other.n.tick({ ...switched(), to: { number: 3, email: "someone-else@x.com" } }, ACME_ROSTER, { telemetryOf });
+    expect(bodies(other.said)[0]).not.toContain("telemetry");
+  });
+});
+
+// The deck's own failover off a dead login (autoswitch-failover.mjs): the swap
+// says why, so the user knows to sign in again; and a dead login with nowhere
+// to go is said once, not on every tick that finds it still dead.
+describe("an active login that expired", () => {
+  const expiredSwitch = () => ({
+    ...switched(), trigger: "login-expired", headroom: null, windows: null,
+  });
+  const stuck = () => ({
+    ok: true, event: "no-switch", switched: false, reason: "login-expired",
+    detail: "no other account is ready", stuck: true, threshold: 90,
+    from: { number: 2, email: "personal@x.com" },
+  });
+
+  it("says the switch was for the expired login, and to sign in again", async () => {
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    await n.tick(expiredSwitch(), ROSTER);
+    expect(bodies(said)).toEqual(["Switched to work · personal@x.com's login expired, sign in again to use it"]);
+  });
+
+  it("says a dead login with nowhere to go once, and not again on every tick", async () => {
+    const { n, said, clock } = harness();
+    n.autoSwitch(true);
+    await n.tick(stuck(), ROSTER);
+    await n.tick(stuck(), ROSTER);
+    clock.now += STUCK_REPEAT_MS - 1;
+    await n.tick(stuck(), ROSTER);
+    expect(bodies(said)).toEqual(["personal@x.com's login expired · no other account is ready to switch to"]);
+    clock.now += 1;
+    await n.tick(stuck(), ROSTER);
+    expect(said).toHaveLength(2);
+  });
+
+  it("is said again for a new incident once a switch has taken the account off it", async () => {
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    await n.tick(stuck(), ROSTER);
+    await n.tick(expiredSwitch(), ROSTER);
+    await n.tick(stuck(), ROSTER);
+    expect(said).toHaveLength(3);
+  });
+
+  it("is not said with swap notifications switched off, nor for a failover only waiting out its cooldown", async () => {
+    const off = harness({ settings: { swap: false, quota: true, reset: true } });
+    off.n.autoSwitch(true);
+    await off.n.tick(stuck(), ROSTER);
+    expect(off.said).toEqual([]);
+    const waiting = harness();
+    waiting.n.autoSwitch(true);
+    await waiting.n.tick({ ...stuck(), stuck: undefined, detail: "waiting after the last switch away from an expired login" }, ROSTER);
+    expect(waiting.said).toEqual([]);
+  });
+
+  it("names the account from the tick when the store could not be read", async () => {
+    expect(swapNotice({ toName: "work", fromName: "personal@x.com", used: null, threshold: 90, trigger: "login-expired" }).body)
+      .toBe("Switched to work · personal@x.com's login expired, sign in again to use it");
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    await n.tick(stuck(), null);
+    expect(bodies(said)).toEqual(["personal@x.com's login expired · no other account is ready to switch to"]);
   });
 });

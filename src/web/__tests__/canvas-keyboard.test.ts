@@ -370,19 +370,33 @@ describe("nothing else in the deck invents a focus stop", () => {
     // `tabIndex={0}`, `tabIndex="0"`, `tabIndex={2}` — anything whose value
     // starts with a digit. A leading `-` is not a digit, which is the whole
     // distinction this regex is drawn to make.
+    //
+    // Revisited a second time, by the terminal stage's divider, and allowed
+    // once more by name rather than by widening the rule. A window splitter
+    // (the WAI-ARIA pattern) is a focusable separator: ← and → resize the
+    // stage a detent at a time, Home and End run to the ends, and its value is
+    // read out in columns. No native element is one, so it has to be given
+    // its stop — and only the element with role="separator" gets it.
+    const SPLITTER = "components/terminal/Divider.tsx";
     const offenders = components(web)
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))
-      .map(p => p.slice(web.length).replaceAll("\\", "/"));
+      .map(p => p.slice(web.length).replaceAll("\\", "/"))
+      .filter(p => p !== SPLITTER);
     // Radio results is a focusable tabpanel, allowing keyboard scrolling.
     // Tool activity's details splitter is the ARIA window splitter: a focusable
     // separator whose value is the panel's width, moved with the arrow keys.
     // Radar's activity list splitter is the same widget, its value the list's
-    // share of the workspace.
-    expect(offenders).toEqual(["components/RadarSplitter.tsx", "components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx"]);
+    // share of the workspace, and so is the integrations modal's, between a
+    // tracker's list and its detail (#2178).
+    expect(offenders).toEqual(["components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx"]);
+    expect(code(readFileSync(`${web}components/IntegrationSplit.tsx`, "utf8"))).toMatch(/role="separator"[\s\S]*?tabIndex=\{0\}/);
     expect(code(readFileSync(`${web}components/RadioPanel.tsx`, "utf8"))).toMatch(/role="tabpanel"[^>]*tabIndex=\{0\}/);
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
     expect(map).toContain("tabIndex={0}");
     expect(map).not.toMatch(/tabIndex=\{[1-9]/);
+    const splitter = code(readFileSync(join(web, SPLITTER), "utf8"));
+    expect([...splitter.matchAll(/tabIndex=/g)], "one stop, on the separator").toHaveLength(1);
+    expect(splitter).toMatch(/role="separator"[^>]*?tabIndex=\{0\}/);
   });
 
   it("keeps negative tabIndex only on deliberate programmatic focus targets", () => {
@@ -391,14 +405,32 @@ describe("nothing else in the deck invents a focus stop", () => {
     // The skip link's <main> and Radar's mobile inspector are deliberate
     // destinations, not extra tab stops. Selecting an export on a phone
     // moves focus to its contents, so the newly revealed details are announced.
+    // Sorted: readdir answers in the file system's order, and NTFS lists the
+    // forge/ folder among the capitals where ext4 and APFS list it after them.
     const negatives = components(web)
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
-        .map(() => p.slice(web.length).replaceAll("\\", "/")));
+        .map(() => p.slice(web.length).replaceAll("\\", "/")))
+      .sort();
     // Combobox options use aria-activedescendant; focus stays on the input.
     // Tool activity's details heading takes focus when a tool is opened from
     // the keyboard, so the panel that appeared is announced by its name.
     // Settings' search results are the same combobox shape (SettingsSearch.tsx).
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx"]);
+    // The Jira backlog (#2178) is one tab stop, its rows a roving tabindex
+    // moved with the arrow keys, and each row's disclosure triangle is the
+    // pointer's twin of ArrowRight/ArrowLeft on the row itself, so it is not
+    // a second stop; an issue's heading takes focus when its detail opens in
+    // place of the list on a narrow window, the way Tool activity's does.
+    // Skill activity's details heading does what Tool activity's does (#2181).
+    // The GitHub and GitLab panel's project picker (#2179) is the same
+    // combobox shape again: focus stays in its search field and the options
+    // are reached through aria-activedescendant (forge/RepoPicker.tsx). Its
+    // item page takes focus when the row that opened it goes out of sight —
+    // behind the drill-in screen, or on the page a link replaced
+    // (forge/DetailParts.tsx).
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h3 id="jira-detail-title" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);

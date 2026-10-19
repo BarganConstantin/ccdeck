@@ -117,6 +117,16 @@ const REF: [token: string, argv: string[], parsed: Record<string, unknown>][] = 
   ["--ref", ["--ref", "home"], { ref: "home" }],
 ];
 
+// ── what the commands read (#2183) ──────────────────────────────────────────
+//
+// `ccdeck accounts --json`, `ccdeck switch --best`. Flags like any other — the
+// command words themselves are positional and live in COMMANDS, so they are
+// not in this sweep; cli-commands-2183.test.ts covers them.
+const COMMAND_FLAGS: [token: string, argv: string[], parsed: Record<string, unknown>][] = [
+  ["--json", ["--json"], { json: true }],
+  ["--best", ["--best"], { best: true }],
+];
+
 describe("the flag list is swept whole, not sampled", () => {
   it("covers every token the parser matches on, and no token it does not", () => {
     // The parser's own source is the authority on what the list is. Every
@@ -128,7 +138,7 @@ describe("the flag list is swept whole, not sampled", () => {
     expect(inSource.length, "a token is matched twice in args.mjs")
       .toBe(new Set(inSource).size);
     expect([...inSource].sort())
-      .toEqual([...KEPT, ...ADDED, ...ATTACH, ...REF].map(r => r[0]).sort());
+      .toEqual([...KEPT, ...ADDED, ...ATTACH, ...REF, ...COMMAND_FLAGS].map(r => r[0]).sort());
   });
 });
 
@@ -172,7 +182,7 @@ describe("everything that parsed to something still parses to exactly that", () 
 describe("no flag the deck knows is ever reported as unknown", () => {
   // The other half of the sweep, and the half that is new: every one of the
   // seventeen tokens, plus the trailing-flag case, has to leave the list empty.
-  for (const [token, argv] of [...KEPT, ...ADDED, ...ATTACH, ...REF]) {
+  for (const [token, argv] of [...KEPT, ...ADDED, ...ATTACH, ...REF, ...COMMAND_FLAGS]) {
     it(`${token} leaves nothing in unknown`, () => {
       expect(parseArgs(argv).unknown).toEqual([]);
     });
@@ -188,7 +198,7 @@ describe("no flag the deck knows is ever reported as unknown", () => {
 });
 
 describe("--version and -v", () => {
-  for (const [token, argv, parsed] of [...ADDED, ...ATTACH, ...REF]) {
+  for (const [token, argv, parsed] of [...ADDED, ...ATTACH, ...REF, ...COMMAND_FLAGS]) {
     it(`${token} sets the flag and nothing else`, () => {
       expect(parseArgs(argv)).toEqual({ ...parsed, unknown: [], incomplete: [] });
     });
@@ -238,12 +248,17 @@ describe("a token the deck does not know is said out loud", () => {
   });
 
   it("names a bare positional argument", () => {
-    // The deck takes none, so a bare word is an argument it read and did
+    // A bare word that is not a command is an argument the deck read and did
     // nothing with — the same mistake as a mistyped flag, and worth the same
-    // line.
-    expect(parseArgs(["deck"]).unknown).toEqual(["deck"]);
+    // line. In FIRST position it is a command misspelled since #2183, and is
+    // refused rather than read as a start (cli-commands-2183.test.ts); after a
+    // flag it is what it always was.
+    expect(parseArgs(["deck"]))
+      .toEqual({ unknownCommand: "deck", unknown: [], incomplete: [] });
     expect(parseArgs(["--no-open", "deck"]))
       .toEqual({ noOpen: true, unknown: ["deck"], incomplete: [] });
+    // And a path in first position is still the old mistake, not a command.
+    expect(parseArgs(["~/proj"])).toEqual({ unknown: ["~/proj"], incomplete: [] });
   });
 
   it("names a short flag it does not know", () => {

@@ -23,6 +23,7 @@ import { activeCount, autoRestartRemainingMs, autoRestartStep, restartEndedInFai
 import type { GraphState } from "./reducer";
 import type { VersionInfo, VersionNotice } from "./use-version-check";
 import { readStored, removeStored } from "./storage";
+import { leaveDeliberately } from "./leave-guard";
 
 const AUTO_RESTART_KEY = "agent-dag.autoRestart";
 // Per-tab, not per-browser: it guards one reload, not a preference.
@@ -220,6 +221,9 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
     const step = restartLandingStep({ bundle: __APP_VERSION__, running, pending, lastTried });
     if (step === "reload") {
       try { window.sessionStorage.setItem(BUNDLE_RELOAD_KEY, running ?? ""); } catch { return; }
+      // Past the terminal's "Leave site?": this reload is the deck's, and the
+      // stage comes back on the other side of it.
+      leaveDeliberately();
       window.location.reload();
       return; // the marker stays put; the new bundle is the one that can show it
     }

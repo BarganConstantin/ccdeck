@@ -45,6 +45,9 @@ const CLAUDE_EVENTS = [
   "Stop",
   "SessionEnd",
   "Notification",
+  // A typed slash command expanding into a skill or command, for Skill
+  // activity (#2181). A Claude Code without this hook counts no typed command.
+  "UserPromptExpansion",
 ];
 
 /**

@@ -183,7 +183,7 @@
    the door while the hover tint still promised the row would open. The door
    carries the whole identity itself instead, in its title and its
    description, so a clipped name is recoverable from anywhere on the row. */
-.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset], .ap-shared) {
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset], .ap-shared, .ap-telemetry) {
   position: relative;
   z-index: 1;
 }
@@ -470,6 +470,23 @@
 .ap-warn-glyph { flex: none; }
 .ap-issue-age { margin-left: auto; color: var(--muted); white-space: nowrap; }
 
+/* WHAT THE ACCOUNT'S ORGANIZATION RECORDS, under its name, in the issue line's
+   size and indent. Quiet for usage data alone; the warning ink once prompts,
+   responses or tool data go out with it. One line, clipped: the whole sentence
+   is its title, and the line is raised over the door with the other titled
+   labels — only as wide as its words, so the door keeps the row. */
+.ap-telemetry {
+  width: fit-content;
+  max-width: calc(100% - 20px);
+  margin: 2px 0 0 20px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-telemetry[data-tone="warn"] { color: var(--warn); }
+
 /* THE LIVE ACCOUNT'S TROUBLE, over the list. Every session this deck starts
    runs on that login, so it earns one line with a wash of its own ink — the
    only colour spent on a surface in this column — and the one press that fixes
@@ -555,6 +572,10 @@
    pill the accounts panel offers for its one unwaitable failure, kept on the
    message's first line rather than squeezed by it. */
 .ap-failure .ap-give-back { flex: none; margin: -1px 0 0; }
+/* And the sign-in a switch refused for an expired login offers (#2184), in the
+   same place for the same reason: the one press that makes the refusal go away
+   by fixing it rather than by dismissing it. */
+.ap-failure .ap-failure-fix { flex: none; margin: -1px 0 0; }
 /* The same box once the folder is given back: the good news where the refusal
    was, so the reader's eye does not have to move to find it. */
 .ap-failure-done {

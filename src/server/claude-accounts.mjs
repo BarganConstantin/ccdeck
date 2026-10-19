@@ -39,10 +39,11 @@ import { currentIdentity } from "./claude-identity.mjs";
 // cycle is a lock that may not be there yet when a mutation wants it.
 import { withStoreLock } from "./store-lock.mjs";
 // claude-swap's own per-slot verdicts, which have to be ASKED for rather than
-// read off the store. The roster puts them on each row; verdictNow and
-// verdictsNow are re-exported because cswap-admin.mjs and lan-deck.mjs reach
-// them through this module.
-import { verdictFor, verdictsAskedAt } from "./claude-verdicts.mjs";
+// read off the store. The roster puts them on each row, and a switch asks for a
+// collection through the same queue before it reads its target (#2184);
+// verdictNow and verdictsNow are re-exported because cswap-admin.mjs and
+// lan-deck.mjs reach them through this module.
+import { verdictFor, verdictsAskedAt, verdictsNow } from "./claude-verdicts.mjs";
 export { verdictNow, verdictsNow } from "./claude-verdicts.mjs";
 // Asking claude-swap to collect, which every roster read does when something is
 // due, and when each account will next be read.
@@ -51,6 +52,13 @@ import { nextReadAt, nudgeCollector } from "./claude-collector.mjs";
 // (#1893). Pure, and keyed the way LAN sync keys accounts.
 import { hasRecovered, reauthFor } from "./account-origins.mjs";
 import { accountKey } from "./lan-copies.mjs";
+// What each organization's Claude settings were last seen to turn on, so a row
+// can say it before anyone switches to the account. See its header for when the
+// shared remote-settings.json can be pinned on an organization at all.
+import { observeOrgTelemetry } from "./org-telemetry.mjs";
+// Whether a switch target's stored login is known dead, and whether a
+// collection would read it first (#2184). Pure, and imports nothing.
+import { collectionWouldRead, deadLoginOf } from "./login-guard.mjs";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -463,6 +471,7 @@ async function readRoster(now, gen) {
   }
 
   const rows = await readUsageRows(root);
+  const orgTelemetry = await observeOrgTelemetry({ seq }).catch(() => ({}));
 
   // Kick a collection for the NEXT poll if anything is due — either because
   // claude-swap's schedule says so, or because an account has never been
@@ -496,7 +505,7 @@ async function readRoster(now, gen) {
     const row = rows[num];
     const key = accountKey(acct.email, acct.organizationUuid);
     const origin = Object.hasOwn(origins, key) ? origins[key] : null;
-    const shown = rosterRow({ seq, num, acct, row, identity, now, key, origin });
+    const shown = rosterRow({ seq, num, acct, row, identity, now, key, origin, telemetry: orgTelemetry[acct.organizationUuid] ?? null });
     accounts.push(shown);
     // A put-off incident is over once a read succeeds after it, and the
     // put-off goes with it (#1893) — said here, where the read is, rather than
@@ -523,7 +532,7 @@ function observedMs(seconds) {
   return Number.isFinite(ms) && ms > 0 && Number.isFinite(new Date(ms).getTime()) ? ms : null;
 }
 
-function rosterRow({ seq, num, acct, row, identity, now, key, origin = null }) {
+function rosterRow({ seq, num, acct, row, identity, now, key, origin = null, telemetry = null }) {
   const matches = rowIsFor(row, acct);
   const good = matches ? row.lastGood : null;
 
@@ -613,6 +622,11 @@ function rosterRow({ seq, num, acct, row, identity, now, key, origin = null }) {
     // claude-swap has refused its login since: `{ key, since, dismissed }`.
     // `key` and `since` together name it, for "Not now" to send back.
     reauth: reauth ? { key, ...reauth } : null,
+    // What this account's organization last turned on for Claude Code's
+    // telemetry export, when the deck has seen its settings (org-telemetry.mjs):
+    // `{ orgName, level, content, destinations, seenAt }`. `level` "off" was
+    // seen off; null was never seen, which is unknown and not "off".
+    telemetry: telemetry ?? null,
   };
 }
 
@@ -796,6 +810,82 @@ export function slotNumber(accountNum) {
   return Number.isInteger(num) && num >= 1 && num <= 999 ? num : null;
 }
 
+// ── before a switch: is the target's login known dead? (#2184) ──────────────
+
+/** How long a switch waits for claude-swap to read its target first. A cold
+ *  collection can take a minute; a switch that waited that long would read as
+ *  a hang, and what it could not learn in time it does not hold against the
+ *  target. */
+const SWITCH_READ_WAIT_MS = 15_000;
+
+/** Slot `num` as the store holds it — the account, its usage row and whether
+ *  that row is the account's own — or null when there is no such slot. */
+async function switchTarget(num) {
+  const root = backupRoot();
+  const seq = await readSequence(root);
+  const key = String(num);
+  const acct = seq?.accounts?.[key];
+  if (!acct) return null;
+  const row = (await readUsageRows(root))[key];
+  return { acct, row, matches: rowIsFor(row, acct), active: activeSlot(seq) === key };
+}
+
+/**
+ * Ask claude-swap to read slot `num` before a switch onto it, when a
+ * collection would read it at all — see login-guard.mjs for why that is the
+ * only check 0.26.0 offers, and the incident it would have caught.
+ *
+ * Shares the verdict queue's `cswap list --json`, so it never starts a second
+ * collection beside one already running, and waits for it no longer than
+ * SWITCH_READ_WAIT_MS. Outside the store lock: a collection takes none of the
+ * deck's, and a mutation queued behind this one must not wait out somebody
+ * else's network. Never throws — a check that cannot be made is no answer.
+ */
+export async function readBeforeSwitch(num, { now = Date.now(), collect = () => verdictsNow(), waitMs = SWITCH_READ_WAIT_MS } = {}) {
+  let timer = null;
+  try {
+    const t = await switchTarget(num);
+    if (!t || t.active || deadLoginOf(t.row, { matches: t.matches })) return false;
+    if (!collectionWouldRead(t.row, { matches: t.matches, now })) return false;
+    const waited = new Promise(resolve => { timer = setTimeout(resolve, waitMs); timer.unref?.(); });
+    await Promise.race([Promise.resolve().then(collect).catch(() => null), waited]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * The refusal for a switch onto slot `num`, when claude-swap's store says its
+ * stored login is dead — or null, which is every case it cannot say so,
+ * including a store it could not read.
+ *
+ * `{ ok: false, reason: "login_expired", account: { num, email, alias }, error,
+ * since }`, so the panel can name the account and offer the sign-in that fixes
+ * it. A switch to the slot that is already active is not this question: it
+ * writes nothing live.
+ */
+export async function expiredSwitchTarget(num) {
+  try {
+    const t = await switchTarget(num);
+    if (!t || t.active) return null;
+    const signedIn = originsNow()[accountKey(t.acct.email, t.acct.organizationUuid)]?.signedInAt;
+    const dead = deadLoginOf(t.row, { matches: t.matches, signedInAt: signedIn > 0 ? signedIn : null });
+    if (!dead) return null;
+    return {
+      ok: false,
+      reason: "login_expired",
+      account: { num, email: t.acct.email ?? null, alias: t.acct.alias ?? null },
+      error: dead.error,
+      since: dead.since,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Switch the active Claude account by delegating to `cswap`.
  *
@@ -817,8 +907,25 @@ export function slotNumber(accountNum) {
  * The validation stays OUTSIDE the lock. A slot number that is not one is not a
  * mutation and must not wait behind somebody else's sixty-second `cswap add`
  * to be told so.
+ *
+ * AND IT DOES NOT SWITCH ONTO A LOGIN KNOWN TO BE DEAD (#2184). Every session
+ * on the machine runs on the login this puts live, so a dead one stops all of
+ * them at once. The target is read first when a collection would read it
+ * (readBeforeSwitch), and judged inside the lock, on the store as it stands
+ * when `cswap switch` would run (expiredSwitchTarget). Anything that cannot be
+ * judged lets the switch go ahead.
+ *
+ * `before`, when given, is asked first thing inside the lock: a switch nobody
+ * pressed — the auto-switch failover — may have been turned off while it
+ * queued, and answers `{ skipped: <why> }` instead of moving the account.
+ *
+ * `force` is `cswap switch --force`: activate the target without backing up
+ * the current login first. Only for a current login already known to be dead.
+ * Claude Code clears a login whose refresh was refused, and a plain switch then
+ * refuses in turn ("Current account credential is empty …; refusing to
+ * overwrite its backup"), which would leave the user exactly where they were.
  */
-export function switchClaudeAccount(accountNum) {
+export function switchClaudeAccount(accountNum, { before, force = false } = {}) {
   // Straight into an exec argument, so nothing but a slot number gets through.
   const num = slotNumber(accountNum);
   if (num == null) {
@@ -827,13 +934,17 @@ export function switchClaudeAccount(accountNum) {
 
   // Argument vector, never a shell — and resolved through exec.mjs so the
   // Windows `.exe`/`.cmd` shim is found too.
-  return withStoreLock(() => cswapBin()
-    .then(bin => run(bin, ["switch", String(num)], { timeout: 30_000 }))
-    .then(r => {
-      if (r.ok) return { ok: true, output: r.stdout.trim() };
-      const reason = r.code === "ENOENT" ? "no_cswap" : r.killed ? "timeout" : "switch_failed";
-      return { ok: false, reason, output: failureDetail(r, 500) };
-    }));
+  return readBeforeSwitch(num).then(() => withStoreLock(async () => {
+    const skipped = before ? await before() : null;
+    if (skipped) return { ok: false, skipped };
+    const expired = await expiredSwitchTarget(num);
+    if (expired) return expired;
+    const argv = force ? ["switch", String(num), "--force"] : ["switch", String(num)];
+    const r = await run(await cswapBin(), argv, { timeout: 30_000 });
+    if (r.ok) return { ok: true, output: r.stdout.trim() };
+    const reason = r.code === "ENOENT" ? "no_cswap" : r.killed ? "timeout" : "switch_failed";
+    return { ok: false, reason, output: failureDetail(r, 500) };
+  }));
 }
 
 /**
