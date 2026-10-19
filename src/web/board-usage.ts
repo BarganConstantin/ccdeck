@@ -52,7 +52,7 @@
 // covers sessions this deck never watched, and does not forget. A canvas-scoped
 // number beside an authoritative one is useful; two competing totals are not.
 // So the board figure says it is the board's, and points at the durable one.
-import { costForUsage, ratesForModel, type CostBreakdown } from "./pricing";
+import { costForUsage, type CostBreakdown } from "./pricing";
 import type { AgentState } from "./types";
 // Tokens are priced at the model that produced them, not at the last model the
 // agent was seen on (#686). This module is the seventh surface that multiplied
@@ -252,6 +252,7 @@ export function boardModelTable(agents: Iterable<Billable>, now: number = Date.n
     for (const e of usageByModelEntries(a)) {
       const key = e.model ?? UNKNOWN_MODEL;
       const c = costForUsage(e.usage, e.model, now);
+      const priced = agentUnpricedTokens({ model: e.model, usage: e.usage }, now) === 0;
       const row = modelMap.get(key);
       if (row) {
         row.inputTokens        += e.usage.inputTokens;
@@ -264,6 +265,7 @@ export function boardModelTable(agents: Iterable<Billable>, now: number = Date.n
         row.cost.cacheRead     += c.cacheRead;
         row.cost.cacheWrite    += c.cacheWrite;
         row.agentCount++;
+        row.priced = row.priced && priced;
       } else {
         modelMap.set(key, {
           model: key,
@@ -273,7 +275,7 @@ export function boardModelTable(agents: Iterable<Billable>, now: number = Date.n
           cacheCreateTokens: e.usage.cacheCreateTokens,
           cost: { ...c },
           agentCount: 1,
-          priced: ratesForModel(e.model, now) != null,
+          priced,
         });
       }
     }

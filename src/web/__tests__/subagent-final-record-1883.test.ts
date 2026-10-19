@@ -20,7 +20,7 @@
 // and a restart.
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
@@ -179,7 +179,7 @@ async function projectsTree() {
   await writeFile(join(slug, "s1.jsonl"), "", "utf8");
   const agent = join(agentDir, "agent-a1b2c3.jsonl");
   const swapLog = join(root, "swap.jsonl");
-  await appendSwap({ at: ISO("2026-10-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }, swapLog);
+  await appendSwap({ at: ISO("2026-10-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start", projectsRoot: await realpath(projects) }, swapLog);
   const stateFile = join(root, "state.json");
   const rollup = () => createProjectRollup({
     now: () => ISO("2026-10-03T18:00:00Z"),
