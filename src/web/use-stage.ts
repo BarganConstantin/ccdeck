@@ -286,6 +286,17 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     openerRef.current = button && typeof (button as HTMLElement).focus === "function" ? button as HTMLElement : null;
   }, [primarySelectedIdRef, stateRef, shellRef, canvasRef, openOn]);
 
+  const focusPane = useCallback(() => {
+    if (!stageClaimsKeys(shellRef.current.phase)) return;
+    const token = ++tokenRef.current;
+    // Held, as after a click on a card: Try again asks for a pane that is a
+    // moment away, and what is typed meanwhile is the session's, not the
+    // deck's shortcuts' (type-ahead.ts).
+    const id = targetSession(shellRef.current.target);
+    aheadRef.current = id ? { token, session: id, from: document.activeElement, ahead: startTypeAhead(Date.now()) } : null;
+    dispatch({ type: "focus", token });
+  }, [shellRef]);
+
   /**
    * A navigator tile was pressed: that session, keys left on the board.
    *
@@ -299,12 +310,12 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    */
   const openTile = useCallback((sessionId: string, how?: { keyboard?: boolean }) => {
     if (how?.keyboard && sessionId === targetSession(shellRef.current.target)) {
-      if (stageClaimsKeys(shellRef.current.phase)) dispatch({ type: "focus", token: ++tokenRef.current });
+      focusPane();
       return;
     }
     openOn({ kind: "session", id: sessionId });
     follow(sessionId);
-  }, [shellRef, openOn, follow]);
+  }, [shellRef, openOn, follow, focusPane]);
 
   const launch = useCallback((agent: TerminalProvider, cwd: string, options?: LaunchOptions) => {
     const key = `launch-${Date.now().toString(36)}-${++launchSeqRef.current}`;
@@ -334,16 +345,6 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   });
 
   // ── the keys ───────────────────────────────────────────────────────────────
-  const focusPane = useCallback(() => {
-    if (!stageClaimsKeys(shellRef.current.phase)) return;
-    const token = ++tokenRef.current;
-    // Held, as after a click on a card: Try again asks for a pane that is a
-    // moment away, and what is typed meanwhile is the session's, not the
-    // deck's shortcuts' (type-ahead.ts).
-    const id = targetSession(shellRef.current.target);
-    aheadRef.current = id ? { token, session: id, from: document.activeElement, ahead: startTypeAhead(Date.now()) } : null;
-    dispatch({ type: "focus", token });
-  }, [shellRef]);
 
   /** The keys back to the board: onto the socket's tile, as v3 does — or,
    *  with no navigator beside the stage, onto the stage's own ⌨, and with
@@ -593,6 +594,10 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   /** The stage's, once it has answered a request for the keys: what was typed
    *  for that request, if any. Any answer to it ends the hold; only a pane
    *  that took the keys is handed the text. */
+  const holdsTypeAhead = useCallback((request: unknown): boolean => {
+    const hold = aheadRef.current;
+    return !!hold && hold.token === request && Date.now() <= hold.ahead.until;
+  }, []);
   const takeTypeAhead = useCallback((request: unknown): string => {
     const hold = aheadRef.current;
     if (!hold || hold.token !== request) return "";
@@ -668,7 +673,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   return {
     enabled, forced, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
-    focusPane, release, takeTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
+    focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell,
   };
 }

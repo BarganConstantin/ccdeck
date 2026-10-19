@@ -918,7 +918,15 @@ describe("keys typed before the pane can take them", () => {
     expect(held(press("x")), "nothing asked yet").toBe(false);
     now().stage.focusPane();
     expect(type(["o", "k"])).toEqual([true, true]);
-    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("ok");
+    const request = now().stage.shell.focusRequest;
+    expect(now().stage.holdsTypeAhead(request), "still holding, for a card that answers it to catch").toBe(true);
+    expect(now().stage.holdsTypeAhead(-1)).toBe(false);
+    expect(now().stage.takeTypeAhead(request)).toBe("ok");
+    expect(now().stage.holdsTypeAhead(request), "handed over: nothing held").toBe(false);
+
+    // Enter on the tile already on stage asks for the keys the same way.
+    now().stage.openTile("s1", { keyboard: true });
+    expect(held(press("z"))).toBe(true);
   });
 
   it("lets a key it cannot send go where it always went, and delivers nothing after one", () => {

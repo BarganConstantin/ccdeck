@@ -7,14 +7,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { landFocus, settlesFocus } from "../components/terminal/TerminalStage";
+import { CAUGHT_KEYS_ATTR } from "../shortcuts";
 import StageBody, { type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
 import type { StagePhase } from "../components/terminal/stage-model";
 
 const body = { id: "body" };
-const el = (name: string, inBoard = false) => ({
-  name, focus: vi.fn(), closest: (sel: string) => (inBoard && sel.includes(".react-flow") ? {} : null),
-});
+const el = (name: string, inBoard = false) => {
+  const attrs = new Set<string>();
+  const e = {
+    name, tagName: "BUTTON", attrs,
+    focus: vi.fn(() => { (globalThis as { document: { activeElement: unknown } }).document.activeElement = e; }),
+    closest: (sel: string) => (inBoard && sel.includes(".react-flow") ? {} : null),
+    setAttribute: (k: string) => { attrs.add(k); }, removeAttribute: (k: string) => { attrs.delete(k); },
+    addEventListener: () => {}, removeEventListener: () => {},
+  };
+  return e;
+};
 
 /** A stage root holding `found` by selector, and containing `inside`. */
 function stage(found: Record<string, ReturnType<typeof el> | undefined>, inside: unknown[] = []) {
@@ -36,14 +45,37 @@ describe("landing the keys on the stage's answer", () => {
     }
   });
 
+  it("catches the sentence still being typed for the pane on the control it lands on", () => {
+    // A request still holding keys: the reader is mid-sentence. Uncaught, the
+    // card's action took its Space or Enter (Reopen here, Try again again),
+    // and an n took the next ask and typed the rest into another session.
+    const action = el("Try again");
+    at(body);
+    expect(landFocus(stage({ "[data-stage-land]": action }), true)).toBe(true);
+    expect(action.attrs.has(CAUGHT_KEYS_ATTR)).toBe(true);
+    // Check again found tmux still missing: the focus never left it.
+    const check = el("Check again");
+    at(check);
+    expect(landFocus(stage({ "[data-stage-land]": check }, [check]), true)).toBe(true);
+    expect(check.attrs.has(CAUGHT_KEYS_ATTR)).toBe(true);
+    // Nothing held: landed plainly, as before.
+    const plain = el("Reopen here");
+    at(body);
+    landFocus(stage({ "[data-stage-land]": plain }));
+    expect(plain.focus).toHaveBeenCalled();
+    expect(plain.attrs.size).toBe(0);
+  });
+
   it("falls back on the header's ⌨, then ✕, which every stage draws", () => {
     at(body);
     const keys = el("⌨");
     expect(landFocus(stage({ ".ts-head button[aria-pressed]": keys }))).toBe(true);
     expect(keys.focus).toHaveBeenCalled();
+    at(body);
     const close = el("✕");
     expect(landFocus(stage({ ".ts-head button[data-stage-close]": close }))).toBe(true);
     expect(close.focus).toHaveBeenCalled();
+    at(body);
     expect(landFocus(stage({})), "nothing drawn yet: ask again later").toBe(false);
   });
 

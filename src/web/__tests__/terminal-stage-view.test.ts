@@ -448,11 +448,20 @@ describe("asking for the session again from the stage", () => {
     // The request is the shell's own (use-focus-request.ts): met by the pane,
     // or landed on the card's action again if the retry fails.
     const stage = web("components/terminal/TerminalStage.tsx");
-    expect(stage).toMatch(/const retry = \(\) => \{ session\.retry\(\); p\.onWantKeys\?\.\(\); \};/);
+    expect(stage).toMatch(/const retry = \(\) => \{\s*if \(phase\.kind === "tmux-missing" && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
     expect(stage).toContain("onRetry={retry}");
     expect(stage).toMatch(/action: "Attach again", onAction: retry \}/);
     expect(stage).not.toContain("session.retry}");
     expect(web("components/terminal/StageShell.tsx")).toContain("onWantKeys={stage.focusPane}");
+  });
+
+  it("lands a request still holding keys with a catch, so a sentence mid-way never presses the card", () => {
+    // Try again with tmux still stalled: the retry failed, a new Try again took
+    // the focus plainly, and the rest of the sentence pressed it or took the
+    // next ask (landFocus's own rule is stage-focus-landing.test.ts's).
+    const stage = web("components/terminal/TerminalStage.tsx");
+    expect(stage).toContain("land: request => landFocus(rootRef.current, p.holdsTypeAhead?.(request) === true),");
+    expect(web("components/terminal/StageShell.tsx")).toContain("holdsTypeAhead={stage.holdsTypeAhead}");
   });
 });
 
