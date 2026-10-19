@@ -37,12 +37,19 @@ describe("account cost audit", () => {
     const again = await restarted.report(accountKey("owner@example.test", "org"), 0);
     expect(again.projects[0].models["claude-sonnet-5"].i).toBe(1000);
     expect(again.unattributed["claude-sonnet-5"].i).toBe(2000);
+    // Downtime fences apply to both the previous and new primary root.
+    await appendFile(join(roots[0], "demo", "0.jsonl"), line(5000).replace("10:00:00", "11:30:00"));
+    const afterGap = createProjectRollup({ roots: [...roots].reverse(), state: join(dir, "state.json"), swapLog, storeRoot: join(dir, "empty-store"), now: () => Date.parse("2026-10-18T12:00:00Z") });
+    await afterGap.tick();
+    const fenced = await afterGap.report(accountKey("owner@example.test", "org"), 0);
+    expect(fenced.projects[0].models["claude-sonnet-5"].i).toBe(1000);
+    expect(fenced.unattributed["claude-sonnet-5"].i).toBe(7000);
     // A later scoped switch can attribute the independent root, without
     // stealing usage already attributed to the original directory.
-    await appendFile(swapLog, JSON.stringify({ at: Date.parse("2026-10-18T11:01:00Z"), slot: 2, email: "second@example.test", orgUuid: "org", source: "manual", projectsRoot: await realpath(roots[1]) }) + "\n");
-    await appendFile(join(roots[1], "demo", "1.jsonl"), line(4000).replace("10:00:00", "11:02:00"));
-    await restarted.tick();
-    expect((await restarted.report(accountKey("second@example.test", "org"), 0)).projects[0].models["claude-sonnet-5"].i).toBe(4000);
+    await appendFile(swapLog, JSON.stringify({ at: Date.parse("2026-10-18T12:01:00Z"), slot: 2, email: "second@example.test", orgUuid: "org", source: "manual", projectsRoot: await realpath(roots[1]) }) + "\n");
+    await appendFile(join(roots[1], "demo", "1.jsonl"), line(4000).replace("10:00:00", "12:02:00"));
+    await afterGap.tick();
+    expect((await afterGap.report(accountKey("second@example.test", "org"), 0)).projects[0].models["claude-sonnet-5"].i).toBe(4000);
   });
   it("rebuilds wrongly attributed v7 caches and retains legacy usage as unattributed", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ccdeck-legacy-scope-")); dirs.push(dir);
@@ -84,6 +91,10 @@ describe("account cost audit", () => {
 });
 
 describe("conservative auto-review pricing", () => {
+  it("does not label unknown cache-only usage as fully priced", () => {
+    const agent = { model: "unknown-claude", usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 1000, cacheCreateTokens: 0 } };
+    expect(boardModelTable([agent])[0].priced).toBe(false);
+  });
   it.each([
     [undefined, "2026-10-18T09:00:00Z"],
     ["  ", "2026-10-18T09:00:00Z"],
