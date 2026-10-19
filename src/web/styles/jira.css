@@ -1,0 +1,496 @@
+/* The Jira panel (#2178): a board's backlog the way Jira draws it — sprints
+   first, then the backlog — dense enough to read a sprint at a glance, and an
+   issue's detail beside it. Everything here is drawn from the deck's tokens, so
+   it follows every theme; the one exception is Jira's own epic palette, which
+   is information (the same epic is the same colour in Jira and here) and is
+   only ever a tint under the deck's own text. */
+
+.jr-panel { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+
+/* ── the toolbar ─────────────────────────────────────────────────────────── */
+.jr-toolbar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.jr-toolbar-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.jr-board-btn { gap: 8px; min-width: 0; max-width: min(420px, 100%); }
+.jr-board-btn-label { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.jr-board-btn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.jr-chevron { flex: none; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.jr-chevron[data-open] { transform: rotate(90deg); }
+.jr-board-btn .jr-chevron { transform: rotate(90deg); color: var(--muted); }
+.jr-board-btn .jr-chevron[data-open] { transform: rotate(-90deg); }
+.jr-board-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-fresh { margin-left: auto; flex: none; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-refresh { width: 36px; height: 36px; padding: 0; flex: none; margin-block: 0; }
+.jr-refresh:disabled { opacity: var(--dim-off); cursor: default; }
+.jr-refresh[data-loading] svg { animation: ta-spin 1000ms linear infinite; }
+
+.jr-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.jr-search { position: relative; display: inline-flex; align-items: center; min-width: 0; color: var(--muted); }
+.jr-search svg { position: absolute; left: 6px; pointer-events: none; }
+.jr-search input {
+  width: 220px;
+  min-width: 0;
+  min-height: var(--ctl-h);
+  box-sizing: border-box;
+  padding: 0 8px 0 24px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--text);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+}
+.jr-search input::placeholder { color: var(--muted); }
+.jr-search input:hover { border-color: var(--text); }
+button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+.jr-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-link-btn:hover { color: var(--text); }
+.jr-link-btn:active { transform: scale(0.97); }
+.jr-clear { margin-left: 4px; }
+
+/* A link that reads as a button: Open in Jira. A link still, so it can be
+   middle-clicked, copied and opened in a new window. */
+.jr-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--ctl-h);
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  text-decoration: none;
+  transition: border-color 120ms, background 120ms;
+}
+.jr-open:hover { border-color: var(--text); background: var(--ctl-fill); }
+
+/* The board picker, anchored under the board button. */
+.jr-board-pop { width: min(360px, calc(100vw - 32px)); }
+.jr-board-pop-inner { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.jr-board-pop-title { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-board-search { display: flex; }
+.jr-board-search input { width: 100%; }
+.jr-board-list { margin: 0; padding: 0; list-style: none; max-height: min(360px, 50dvh); overflow-y: auto; scrollbar-color: var(--ctl-edge) transparent; }
+.jr-board-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-board-item:hover { background: var(--ctl-fill); }
+.jr-board-item:active { transform: scale(0.97); }
+.jr-board-item[aria-current="true"] { background: var(--accent-dim); }
+.jr-board-item-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
+.jr-board-item-meta { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.jr-board-pop-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-board-more { align-self: stretch; }
+
+/* ── the backlog ─────────────────────────────────────────────────────────── */
+.jr-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--ctl-edge) transparent;
+  padding: 12px 16px 24px;
+  container: jira-list / inline-size;
+}
+.jr-board { display: flex; flex-direction: column; min-width: 0; }
+.jr-board-note { margin: 0 0 12px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
+.jr-group-body .jr-board-note { margin: 0; padding: 8px 12px; }
+.jr-closed-title { margin: 8px 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-group { margin: 0 0 16px; min-width: 0; }
+.jr-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 2px 0 6px; min-width: 0; }
+.jr-group-title { margin: 0; flex: 1 1 auto; min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-group-toggle {
+  max-width: 100%;
+  min-height: var(--ctl-h);
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-group-toggle:hover { background: var(--ctl-fill); }
+.jr-group-toggle:active { transform: scale(0.97); }
+.jr-group-name { overflow-wrap: anywhere; }
+.jr-badge {
+  padding: 0 6px;
+  border-radius: var(--r-tag);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text);
+  font-size: calc(10px + var(--ui-text-increase, 0px));
+  font-weight: 700;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-transform: uppercase;
+}
+.jr-group-dates, .jr-group-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-group-facts { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
+.jr-mine { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-stack { display: inline-flex; align-items: center; }
+.jr-stack .ig-avatar { box-shadow: 0 0 0 2px var(--bg); }
+.jr-stack .ig-avatar + .ig-avatar { margin-left: -6px; }
+.jr-stack-more { margin-left: 4px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.jr-totals { display: inline-flex; gap: 4px; }
+.jr-total, .jr-estimate {
+  min-width: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
+.jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--text); }
+.jr-goal { margin: 0 0 8px 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
+.jr-group-body { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
+.jr-empty-group { margin: 0; padding: 12px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-more { margin: 8px 12px; }
+.jr-closed-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
+.jr-closed-foot .jr-subnote { flex-basis: 100%; padding: 0; }
+
+/* One row per issue, each drawn once. A row is one button — the issue — with
+   its disclosure triangle beside it when it has sub-tasks. */
+.jr-rows, .jr-subrows { margin: 0; padding: 0; list-style: none; }
+.jr-item { min-width: 0; }
+.jr-item + .jr-item { border-top: 1px solid var(--line-soft); }
+.jr-subrows { border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg) 35%, transparent); }
+.jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; }
+.jr-row:hover { background: var(--ctl-fill); }
+.jr-row[data-selected] { background: var(--accent-dim); }
+.jr-subrow { padding-left: 20px; }
+.jr-toggle, .jr-toggle-space { flex: none; width: 28px; }
+.jr-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-toggle:hover { color: var(--text); }
+.jr-toggle:active { transform: scale(0.94); }
+.jr-row-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 16px 16px auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 6px 12px 6px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-row-main:focus-visible { outline-offset: -2px; }
+.jr-row-main:active { transform: scale(0.97); }
+.jr-icon { width: 16px; height: 16px; flex: none; display: block; border-radius: 2px; }
+.jr-key { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-key[data-done] { text-decoration: line-through; }
+.jr-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.jr-item[data-context] > .jr-row .jr-summary { color: var(--muted); }
+.jr-meta { min-width: 0; display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.jr-context-tag { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-style: italic; white-space: nowrap; }
+.jr-version, .jr-label {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+  border-radius: var(--r-tag);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  white-space: nowrap;
+}
+.jr-version { box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
+.jr-label { background: var(--ctl-fill); color: var(--text-secondary); }
+.jr-remaining { color: var(--muted); font-weight: 400; }
+.jr-assignee { flex: none; display: inline-flex; width: 20px; height: 20px; }
+.jr-unassigned, .jr-avatar-blank { border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line); background: var(--ctl-fill); }
+.jr-avatar-blank { width: 18px; height: 18px; }
+.jr-flagged { display: inline-flex; align-items: center; gap: 4px; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-flag { flex: none; }
+.jr-subnote { padding: 6px 12px 6px 40px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+
+/* Jira's epic colours, by the number Jira stores (ghx-label-N / color_N): Data
+   Center's palette, then Cloud's where it differs. A tint under the deck's own
+   text, so the words read the same in every theme. */
+.jr-epic {
+  --jr-epic: var(--muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+  border-radius: var(--r-tag);
+  background: color-mix(in srgb, var(--jr-epic) 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jr-epic) 55%, transparent);
+  color: var(--text);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  white-space: nowrap;
+}
+.jr-epic[data-color="1"] { --jr-epic: #8d542e; }
+.jr-epic[data-color="2"] { --jr-epic: #ff8b00; }
+.jr-epic[data-color="3"] { --jr-epic: #ffc400; }
+.jr-epic[data-color="4"] { --jr-epic: #0747a6; }
+.jr-epic[data-color="5"] { --jr-epic: #253858; }
+.jr-epic[data-color="6"] { --jr-epic: #57d9a3; }
+.jr-epic[data-color="7"] { --jr-epic: #b93d9e; }
+.jr-epic[data-color="8"] { --jr-epic: #5243aa; }
+.jr-epic[data-color="9"] { --jr-epic: #ff8f73; }
+.jr-epic[data-color="10"] { --jr-epic: #0065ff; }
+.jr-epic[data-color="11"] { --jr-epic: #008299; }
+.jr-epic[data-color="12"] { --jr-epic: #5e6c84; }
+.jr-epic[data-color="13"] { --jr-epic: #00875a; }
+.jr-epic[data-color="14"] { --jr-epic: #de350b; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="1"] { --jr-epic: #243859; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="4"] { --jr-epic: #2a53cc; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="5"] { --jr-epic: #2aa3bf; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="7"] { --jr-epic: #8677d9; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="10"] { --jr-epic: #3884ff; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="11"] { --jr-epic: #34c7e6; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="12"] { --jr-epic: #6b778c; }
+
+/* Jira's status lozenge: grey to do, blue in progress, green done. */
+.jr-status {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 700;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.jr-status[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
+.jr-status[data-cat="done"] { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--text); }
+
+/* An issue type or a priority the panel draws itself, when Jira's icon is an
+   SVG (which the deck does not pass on) or does not load: Jira's shapes. */
+.jr-glyph-tile { fill: var(--jr-type, var(--muted)); }
+.jr-glyph-mark { fill: #fff; }
+.jr-glyph-stroke { fill: none; stroke: #fff; }
+.jr-type-glyph[data-shape="bug"] { --jr-type: var(--err); }
+.jr-type-glyph[data-shape="story"] { --jr-type: var(--ok); }
+.jr-type-glyph[data-shape="task"], .jr-type-glyph[data-shape="subtask"] { --jr-type: var(--accent); }
+.jr-type-glyph[data-shape="epic"] { --jr-type: #904ee2; }
+.jr-priority-glyph { color: var(--muted); }
+.jr-priority-glyph[data-level="highest"], .jr-priority-glyph[data-level="high"] { color: var(--err); }
+.jr-priority-glyph[data-level="low"], .jr-priority-glyph[data-level="lowest"] { color: var(--accent); }
+
+/* ── states ──────────────────────────────────────────────────────────────── */
+.jr-state { max-width: 520px; margin: 48px auto; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.jr-state h3 { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-state p { margin: 0; color: var(--text-secondary); line-height: 1.5; text-wrap: pretty; }
+.jr-state .jr-failure { align-self: stretch; }
+.jr-failure {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-panel);
+  background: color-mix(in srgb, var(--err) 10%, var(--panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 40%, transparent);
+  text-align: left;
+}
+.jr-failure-compact { margin-bottom: 12px; padding: 8px 12px; }
+.jr-failure-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.jr-failure-text strong { font-weight: 600; }
+.jr-failure-text span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
+.jr-failure-actions { display: flex; flex: none; flex-wrap: wrap; gap: 8px; }
+.jr-skeleton { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.jr-skeleton i { display: block; height: 14px; border-radius: var(--r-tag); background: var(--ctl-fill); animation: ta-pulse 900ms ease-in-out infinite alternate; }
+.jr-skeleton i:nth-child(3n + 2) { width: 72%; }
+.jr-skeleton i:nth-child(3n) { width: 48%; }
+.jr-skeleton-board { padding: 0; gap: 12px; }
+.jr-skeleton-board i { height: 34px; border-radius: var(--r-panel); }
+.jr-skeleton-rows i { height: 18px; }
+
+/* ── an issue ────────────────────────────────────────────────────────────── */
+.jr-detail { min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 16px 20px 32px; }
+.jr-crumbs { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-crumbs li { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.jr-crumbs li + li::before { content: "/"; color: var(--muted); }
+.jr-crumb, .jr-crumb-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jr-crumb { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.jr-crumb:hover { color: var(--text); text-decoration: underline; }
+.jr-crumb:active { transform: scale(0.97); }
+.jr-crumb-text { color: var(--muted); }
+.jr-crumb-here { color: var(--text); }
+.jr-detail-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.jr-detail-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.jr-key-link { text-decoration: none; }
+.jr-key-link:hover { color: var(--text); text-decoration: underline; }
+.jr-detail-title { margin: 0; font-size: calc(18px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.jr-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.jr-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 6px 16px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 1.45;
+}
+.jr-field { display: contents; }
+.jr-field dt { color: var(--muted); }
+.jr-field dd { margin: 0; min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+.jr-person { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.jr-dim { color: var(--muted); }
+.jr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.jr-detail-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.jr-detail-section h4 { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-detail-section > p { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
+.jr-detail-subtasks { margin: 0; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); }
+.jr-detail-subtasks li + li { border-top: 1px solid var(--line-soft); }
+.jr-detail-sub {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-detail-sub:hover { background: var(--ctl-fill); }
+.jr-detail-sub:active { transform: scale(0.97); }
+.jr-detail-sub:focus-visible { outline-offset: -2px; }
+.jr-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; }
+.jr-files a { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); overflow-wrap: anywhere; }
+.jr-comments { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.jr-comment { min-width: 0; padding: 10px 12px; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.jr-comment-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+
+/* An issue's description and comments, sanitised (jira-html.tsx): only the
+   elements and the handful of Jira's own classes that are drawn here. */
+.jr-html { min-width: 0; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.55; overflow-wrap: anywhere; }
+.jr-html p, .jr-html ul, .jr-html ol, .jr-html blockquote, .jr-html pre { margin: 0 0 8px; }
+.jr-html > :last-child { margin-bottom: 0; }
+.jr-html ul, .jr-html ol { padding-left: 20px; }
+.jr-html a { color: var(--accent); text-underline-offset: 2px; }
+.jr-html h5, .jr-html h6 { margin: 12px 0 6px; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-html blockquote { padding-left: 12px; box-shadow: inset 2px 0 0 var(--line); color: var(--text-secondary); }
+.jr-html code { padding: 0 4px; border-radius: var(--r-tag); background: var(--ctl-fill); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-html pre { padding: 8px 10px; overflow-x: auto; border-radius: var(--r-ctl); background: var(--bg); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; white-space: pre; overflow-wrap: normal; }
+.jr-html pre code { padding: 0; background: none; }
+.jr-html hr { margin: 12px 0; border: 0; border-top: 1px solid var(--line); }
+.jr-html table { border-collapse: collapse; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-html th, .jr-html td { padding: 4px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+.jr-html th { background: var(--ctl-fill); font-weight: 600; }
+.jr-table-wrap { margin: 0 0 8px; overflow-x: auto; }
+.jr-image { display: block; max-width: 100%; height: auto; border-radius: var(--r-tag); }
+.jr-emoticon { width: 16px; height: 16px; vertical-align: -3px; }
+.jr-image-link { color: var(--accent); }
+.jr-mention { color: var(--accent); font-weight: 500; }
+.jr-html-error { color: var(--err); }
+.jr-html-panel { margin: 0 0 8px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.jr-html-panel-head { padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--ctl-fill); font-weight: 600; }
+.jr-html-panel-body { padding: 8px 10px; }
+.jr-html-code pre, .jr-html-pre pre { margin: 0; border-radius: 0; }
+.jr-html-code-body, .jr-html-pre-body { padding: 0; }
+
+/* ── narrow ──────────────────────────────────────────────────────────────── */
+/* A list narrower than a row: the meta goes under the summary. */
+@container jira-list (max-width: 560px) {
+  .jr-row-main { grid-template-columns: 16px 16px auto minmax(0, 1fr); row-gap: 4px; }
+  .jr-meta { grid-column: 3 / -1; justify-content: flex-start; flex-wrap: wrap; }
+  .jr-group-facts { margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }
+}
+@container jira-list (max-width: 360px) {
+  .jr-row-main { grid-template-columns: 16px auto minmax(0, 1fr); }
+  .jr-row-main > .jr-icon:nth-child(2) { display: none; }
+  .jr-summary { white-space: normal; grid-column: 1 / -1; }
+  .jr-meta { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .jr-toolbar { padding: 8px 12px; }
+  .jr-list-scroll { padding: 10px 12px 20px; }
+  .jr-detail { padding: 12px 14px 24px; }
+  .jr-board-project { display: none; }
+  .jr-search { flex: 1 1 100%; }
+  .jr-search input { width: 100%; }
+}
+@media (max-width: 420px) {
+  .jr-fresh { display: none; }
+  .jr-refresh { margin-left: auto; }
+  .jr-fields { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .jr-field dd { margin-bottom: 6px; }
+}
+@media (pointer: coarse) {
+  .jr-refresh { min-width: 44px; min-height: 44px; }
+  .jr-row { min-height: 44px; }
+  .jr-toggle, .jr-toggle-space { width: 40px; }
+  .jr-group-toggle, .jr-board-item, .jr-detail-sub { min-height: 44px; }
+}
+@media (hover: none) {
+  .jr-row:hover:not([data-selected]), .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jr-refresh[data-loading] svg, .jr-skeleton i { animation: none; }
+  .jr-chevron, .jr-open { transition: none; }
+  .jr-board-item:active, .jr-crumb:active, .jr-detail-sub:active, .jr-group-toggle:active,
+  .jr-link-btn:active, .jr-row-main:active, .jr-toggle:active { transform: none; }
+}
