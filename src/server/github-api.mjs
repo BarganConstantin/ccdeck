@@ -539,6 +539,24 @@ export function createGithubClient({ baseUrl = "https://github.com", token, fetc
     return transport.graphql(graphqlUrl, query, variables);
   }
 
+  // Avatars and the images in descriptions come from GitHub's image hosts —
+  // a pasted screenshot from github.com/user-attachments by way of a signed
+  // private-user-images address — never from the API, so none of them is
+  // sent the token. An Enterprise Server serves them from its own host or a
+  // subdomain of it; its own host is also its API's, and the token goes there
+  // as it does for every read.
+  const IMAGE_HOSTS = new Set(["avatars.githubusercontent.com", "private-user-images.githubusercontent.com", "user-images.githubusercontent.com", "camo.githubusercontent.com"]);
+  function imageHost(u) {
+    if (u.protocol !== "https:" && u.protocol !== new URL(web).protocol) return false;
+    const h = u.host.toLowerCase();
+    return h === webHost || (dotcom ? IMAGE_HOSTS.has(h) : h.endsWith(`.${webHost}`));
+  }
+
+  /** An image at one of GitHub's image hosts, for the deck to pass on. */
+  function fetchAsset(url) {
+    return transport.asset(url, { allow: imageHost });
+  }
+
   /** Run a query with the newer issue fields, and again without them when the
    *  server says one does not exist (an older Enterprise Server). */
   async function withNewerFields(run) {
@@ -1334,5 +1352,6 @@ export function createGithubClient({ baseUrl = "https://github.com", token, fetc
     getIssue,
     listIssueComments,
     resolveRef,
+    fetchAsset,
   };
 }

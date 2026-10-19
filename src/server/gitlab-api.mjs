@@ -190,6 +190,17 @@ export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetc
   const rest = (path, params) => t.json(`${api}${path}${qs(params)}`);
   const gql = (query, variables) => t.graphql(graphqlUrl, query, variables);
 
+  // Avatars and uploads live on the instance — the token may go there, it is
+  // the instance it was made on — or, for a user without an uploaded avatar,
+  // on Gravatar, which is asked without it.
+  const GRAVATAR = new Set(["secure.gravatar.com", "www.gravatar.com", "gravatar.com"]);
+  const imageHost = (u) => u.origin === origin || (u.protocol === "https:" && GRAVATAR.has(u.host.toLowerCase()));
+
+  /** An image on the instance or Gravatar, for the deck to pass on. */
+  function fetchAsset(url) {
+    return t.asset(url, { allow: imageHost });
+  }
+
   /** The first of `queries` this instance accepts: a later one is tried only
    *  when an earlier one names a field or argument the schema lacks. */
   async function gqlFirst(queries, variables) {
@@ -1240,5 +1251,6 @@ export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetc
     getIssue,
     listIssueComments,
     resolveRef,
+    fetchAsset,
   };
 }

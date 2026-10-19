@@ -1010,3 +1010,29 @@ describe("a pasted URL or key", () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe("images for the deck to pass on", () => {
+  function images() {
+    const calls: { url: string; headers: Record<string, string> }[] = [];
+    const fetchImpl = async (url: string, init: { headers: Record<string, string> }) => {
+      calls.push({ url, headers: init.headers });
+      return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } });
+    };
+    return { client: createGitlabClient({ baseUrl: BASE, token: "glpat-TEST", fetchImpl, now: () => NOW }), calls };
+  }
+
+  it("come from the instance with the token, and from Gravatar without it", async () => {
+    const { client, calls } = images();
+    await client.fetchAsset(`${BASE}/uploads/-/system/user/avatar/1/avatar.png`);
+    await client.fetchAsset("https://secure.gravatar.com/avatar/abc?s=80");
+    expect(calls[0].headers.authorization).toBe("Bearer glpat-TEST");
+    expect(calls[1].headers.authorization).toBeUndefined();
+  });
+
+  it("are never fetched from anywhere else", async () => {
+    const { client, calls } = images();
+    expect((await failure(client.fetchAsset("https://gitlab.other.example/x.png"))).kind).toBe("permission");
+    expect((await failure(client.fetchAsset("http://secure.gravatar.com/avatar/abc"))).kind).toBe("permission");
+    expect(calls).toEqual([]);
+  });
+});

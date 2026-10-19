@@ -214,6 +214,56 @@ describe("the end of a job log", () => {
   });
 });
 
+describe("an image for the deck to pass on", () => {
+  const png = () => new Response(new Uint8Array([137, 80, 78, 71]), { status: 200, headers: { "content-type": "image/png" } });
+  const images = (u: URL) => u.host === "gitlab.example.com" || u.host === "img.example.org";
+
+  it("comes back as bytes with its type, the token only on the allowed origin", async () => {
+    const { t, calls } = transport({
+      "https://gitlab.example.com/uploads/a.png": png,
+      "https://img.example.org/b.png": png,
+    });
+    const a = await t.asset("https://gitlab.example.com/uploads/a.png", { allow: images });
+    await t.asset("https://img.example.org/b.png", { allow: images });
+    expect(a.contentType).toBe("image/png");
+    expect([...a.bytes]).toEqual([137, 80, 78, 71]);
+    expect(calls[0].headers.authorization).toBe("Bearer glpat-SECRET");
+    expect(calls[1].headers.authorization).toBeUndefined();
+  });
+
+  it("is never fetched from a host the forge does not serve images from, nor redirected to one", async () => {
+    const { t, calls } = transport({
+      "https://img.example.org/hop": () => new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest" } }),
+    });
+    expect((await failure(t.asset("https://intranet.example.net/x.png", { allow: images }))).kind).toBe("permission");
+    expect((await failure(t.asset("https://img.example.org/hop", { allow: images }))).kind).toBe("permission");
+    expect(calls.map(c => c.url)).toEqual(["https://img.example.org/hop"]);
+  });
+
+  it("must be a raster image: an SVG, a page or a JSON answer is refused", async () => {
+    const { t } = transport({
+      "https://img.example.org/s.svg": () => new Response("<svg/>", { status: 200, headers: { "content-type": "image/svg+xml" } }),
+      "https://img.example.org/p": () => new Response("<html>", { status: 200, headers: { "content-type": "text/html; charset=utf-8" } }),
+    });
+    expect((await failure(t.asset("https://img.example.org/s.svg", { allow: images }))).kind).toBe("incompatible");
+    expect((await failure(t.asset("https://img.example.org/p", { allow: images }))).kind).toBe("incompatible");
+  });
+
+  it("is refused past the cap, whether or not the size was announced", async () => {
+    const big = (announce: boolean) => () => new Response(new Uint8Array(2000), {
+      status: 200, headers: { "content-type": "image/jpeg", ...(announce ? { "content-length": "2000" } : {}) },
+    });
+    const { t } = transport({ "https://img.example.org/a.jpg": big(true), "https://img.example.org/b.jpg": big(false) });
+    expect((await failure(t.asset("https://img.example.org/a.jpg", { allow: images, maxBytes: 1000 }))).message).toBe("image too large");
+    expect((await failure(t.asset("https://img.example.org/b.jpg", { allow: images, maxBytes: 1000 }))).message).toBe("image too large");
+  });
+
+  it("a missing image is the forge's own failure", async () => {
+    const { t } = transport({ "https://img.example.org/gone.png": () => new Response("", { status: 404 }) });
+    expect((await failure(t.asset("https://img.example.org/gone.png", { allow: images }))).kind).toBe("not-found");
+  });
+});
+
 describe("small helpers", () => {
   it("reads the next page from a Link header", () => {
     const h = new Headers({ link: '<https://api.github.com/x?page=2>; rel="next", <https://api.github.com/x?page=9>; rel="last"' });

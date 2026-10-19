@@ -32,6 +32,11 @@ const MAX_REDIRECTS = 3;
 const ERROR_BODY_BYTES = 64 << 10;
 // Lines a log tail keeps beyond what it was asked for, while it streams.
 const TAIL_SLACK = 32;
+// An avatar is a few KB, a pasted screenshot a few MB.
+const ASSET_MAX_BYTES = 8 << 20;
+// Raster images only: an SVG served from the deck's own origin and opened as
+// a page could run script there.
+const RASTER = /^image\/(?:png|jpeg|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon)$/;
 
 /** A failure, in the panel's vocabulary. */
 export class ForgeError extends Error {
@@ -260,11 +265,15 @@ export function createForgeTransport({
   }
 
   /** One request, redirects followed by hand: the token is re-decided at
-   *  every hop, so a hop off the allowed origins drops it. */
-  async function send(url, { method = "GET", headers, body, timeout = timeoutMs } = {}) {
+   *  every hop, so a hop off the allowed origins drops it. `allow`, when
+   *  given, is asked about the address and every hop after it. */
+  async function send(url, { method = "GET", headers, body, timeout = timeoutMs, allow } = {}) {
     let target = String(url);
     const signal = AbortSignal.timeout(timeout);
     for (let hop = 0; ; hop++) {
+      if (allow && !allow(new URL(target))) {
+        throw new ForgeError("permission", `${new URL(target).origin} is not a host this connection reads from`, { status: 403 });
+      }
       let res;
       try {
         res = await fetchImpl(target, { method, headers: headersFor(target, headers), body, redirect: "manual", signal });
@@ -375,5 +384,56 @@ export function createForgeTransport({
     return { lines: out, truncated: dropped };
   }
 
-  return { send, json, graphql, tail };
+  /**
+   * An image for the panel — an avatar, a screenshot in a description — for
+   * the deck to pass on from its own origin. `allow` names the hosts the
+   * forge serves images from and is asked again at every redirect, so the
+   * deck is never sent off to fetch an arbitrary address; the token rides
+   * only where it always may. What comes back must be a raster image under
+   * `maxBytes`.
+   *
+   * @returns {Promise<{ contentType: string, bytes: Buffer }>}
+   */
+  async function asset(url, { allow, maxBytes: cap = ASSET_MAX_BYTES }) {
+    const res = await send(url, { headers: { accept: "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1" }, timeout: 15_000, allow });
+    if (!res.ok) throw await httpError(res, now());
+    const type = (res.headers?.get?.("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    const declared = Number(res.headers?.get?.("content-length") ?? NaN);
+    if (!RASTER.test(type) || declared > cap) {
+      res.body?.cancel?.().catch(() => {});
+      throw RASTER.test(type)
+        ? new ForgeError("upstream", "image too large", { status: res.status })
+        : new ForgeError("incompatible", `not an image (${type || "no content type"})`, { status: res.status });
+    }
+    try {
+      return { contentType: type, bytes: await cappedBytes(res, cap) };
+    } catch (err) {
+      throw new ForgeError("upstream", err?.message === "body too large" ? "image too large" : "image cut off", { status: res.status });
+    }
+  }
+
+  return { send, json, graphql, tail, asset };
+}
+
+/** The body as bytes, refused past `max` while it is still arriving. */
+async function cappedBytes(res, max) {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength > max) throw new Error("body too large");
+    return buf;
+  }
+  const chunks = [];
+  let bytes = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > max) {
+      reader.cancel().catch(() => {});
+      throw new Error("body too large");
+    }
+    chunks.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
+  }
+  return Buffer.concat(chunks);
 }

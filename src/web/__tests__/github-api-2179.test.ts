@@ -936,3 +936,32 @@ describe("a pasted reference", () => {
     expect(await c.resolveRef("https://github.com/team/app/pull/5")).toBeNull();
   });
 });
+
+describe("images for the deck to pass on", () => {
+  const png = () => new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } });
+
+  it("come from GitHub's image hosts, none of them sent the token", async () => {
+    const { c, calls } = client(() => png());
+    await c.fetchAsset("https://avatars.githubusercontent.com/u/1?v=4");
+    await c.fetchAsset("https://private-user-images.githubusercontent.com/1/abc.png?jwt=x");
+    await c.fetchAsset("https://github.com/user-attachments/assets/abc");
+    expect(calls).toHaveLength(3);
+    expect(calls.every(r => r.headers.authorization === undefined)).toBe(true);
+  });
+
+  it("are never fetched from the API or anywhere else", async () => {
+    const { c, calls } = client(() => png());
+    expect((await failure(c.fetchAsset(`${API}/user`))).kind).toBe("permission");
+    expect((await failure(c.fetchAsset("https://evil.example/a.png"))).kind).toBe("permission");
+    expect((await failure(c.fetchAsset("http://avatars.githubusercontent.com/u/1"))).kind).toBe("permission");
+    expect(calls).toEqual([]);
+  });
+
+  it("on an Enterprise Server come from its own host and its subdomains, the token only to its own", async () => {
+    const { c, calls } = client(() => png(), { baseUrl: "https://ghe.example.com" });
+    await c.fetchAsset("https://ghe.example.com/avatars/u/1");
+    await c.fetchAsset("https://avatars.ghe.example.com/u/1");
+    expect((await failure(c.fetchAsset("https://avatars.githubusercontent.com/u/1"))).kind).toBe("permission");
+    expect(calls.map(r => r.headers.authorization)).toEqual(["Bearer ghp_TEST", undefined]);
+  });
+});
