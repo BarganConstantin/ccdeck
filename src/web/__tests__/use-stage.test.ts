@@ -917,12 +917,13 @@ describe("keys typed before the pane can take them", () => {
     now().stage.switchTo("s1", { focusPane: false });
     expect(held(press("x")), "nothing asked yet").toBe(false);
     now().stage.focusPane();
-    expect(type(["o", "k"])).toEqual([true, true]);
     const request = now().stage.shell.focusRequest;
-    expect(now().stage.holdsTypeAhead(request), "still holding, for a card that answers it to catch").toBe(true);
-    expect(now().stage.holdsTypeAhead(-1)).toBe(false);
+    expect(now().stage.holdsTypeAhead(request), "holding, nothing typed yet").toBe("empty");
+    expect(type(["o", "k"])).toEqual([true, true]);
+    expect(now().stage.holdsTypeAhead(request), "still holding, for a card that answers it to catch").toBe("typed");
+    expect(now().stage.holdsTypeAhead(-1)).toBeNull();
     expect(now().stage.takeTypeAhead(request)).toBe("ok");
-    expect(now().stage.holdsTypeAhead(request), "handed over: nothing held").toBe(false);
+    expect(now().stage.holdsTypeAhead(request), "handed over: nothing held").toBeNull();
 
     // Enter on the tile already on stage asks for the keys the same way.
     now().stage.openTile("s1", { keyboard: true });

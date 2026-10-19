@@ -51,12 +51,12 @@ describe("landing the keys on the stage's answer", () => {
     // and an n took the next ask and typed the rest into another session.
     const action = el("Try again");
     at(body);
-    expect(landFocus(stage({ "[data-stage-land]": action }), true)).toBe(true);
+    expect(landFocus(stage({ "[data-stage-land]": action }), "typed")).toBe(true);
     expect(action.attrs.has(CAUGHT_KEYS_ATTR)).toBe(true);
     // Check again found tmux still missing: the focus never left it.
     const check = el("Check again");
     at(check);
-    expect(landFocus(stage({ "[data-stage-land]": check }, [check]), true)).toBe(true);
+    expect(landFocus(stage({ "[data-stage-land]": check }, [check]), "empty")).toBe(true);
     expect(check.attrs.has(CAUGHT_KEYS_ATTR)).toBe(true);
     // Nothing held: landed plainly, as before.
     const plain = el("Reopen here");
