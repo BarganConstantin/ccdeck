@@ -6,6 +6,7 @@ import { clusterBounds, shallowEqualClusters, type Cluster } from "../cluster-bo
 import { agentAriaLabel, stateLabel } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 import { elapsed } from "../duration";
+import { modelChipText } from "../model-label";
 import { stateMarkKind, type FaceSignal } from "../node-face";
 import { useNow } from "../use-now";
 import {
@@ -17,6 +18,7 @@ import {
   type FlipFrame, type FlipRect, type FoldDirection, type Running, type TileParts,
 } from "../navigator-flip";
 import { AlertMark, StateMark } from "./StateMark";
+import { agentName } from "./terminal/stage-model";
 
 /**
  * THE BOARD, GATHERED TO THE LEFT WHILE A SESSION HAS THE STAGE.
@@ -387,8 +389,7 @@ function SubRow({ sub, top }: { sub: NavAgent; top: number }) {
  * The face's second line: the board face's signal; for a session stopped on a
  * human, "waiting" and for how long first — the deck's one word for that state,
  * the topbar's and the stage header's — then the face's own sentence; for a
- * session the board has nothing to interrupt about, its state in the card's
- * word.
+ * session the board has nothing to interrupt about, quietLine.
  */
 function SignalLine({ root, signal, alarm }: { root: NavAgent; signal: FaceSignal | null; alarm: boolean }) {
   if (alarm && root.waiting) {
@@ -399,7 +400,19 @@ function SignalLine({ root, signal, alarm }: { root: NavAgent; signal: FaceSigna
     );
   }
   if (signal) return <span className="nav-signal" data-tone={signal.tone}>{signal.long}</span>;
-  return <span className="nav-signal">{stateLabel(root.state)}</span>;
+  return <span className="nav-signal">{quietLine(root)}</span>;
+}
+
+/**
+ * A quiet face's line: its state in the card's word, then what runs it — the
+ * card's model chip ("Opus 5.5 · xhigh"), or the agent's name, as the stage
+ * header says it, before the session has said its model. A state word alone
+ * left a column of tiles reading "live" and nothing else, which is no help in
+ * telling them apart.
+ */
+export function quietLine(root: Pick<NavAgent, "state" | "model" | "effort" | "provider">): string {
+  const runs = root.model ? modelChipText(root.model, root.effort) : agentName(root.provider === "codex" ? "codex" : "claude");
+  return stateLabel(root.state) + SEP + runs;
 }
 
 /** The face's accessible name: the card's own (agentAriaLabel), the task the

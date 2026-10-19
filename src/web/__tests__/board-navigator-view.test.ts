@@ -19,7 +19,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReactFlowProvider } from "reactflow";
 import AgentNode from "../components/AgentNode";
-import { NavigatorView } from "../components/BoardNavigator";
+import { NavigatorView, quietLine } from "../components/BoardNavigator";
+import { modelChipText } from "../model-label";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import { nodeDataFor } from "../canvas-flow";
 import { clusterBounds, type Cluster, type ClusterNode } from "../cluster-bounds";
@@ -151,9 +152,16 @@ describe("a tile says what the board's card says", () => {
     expect(tile(html, "pay")).not.toContain('class="nav-el"');
   });
 
-  it("says a quiet session's state in the card's own word when the face has nothing to say", () => {
+  it("says a quiet session's state in the card's own word, and what runs it, when the face has nothing to say", () => {
     expect(textOf(card("quiet"), "lod-long"), "the board's face is silent").toBeNull();
-    expect(textOf(tile(html, "quiet"), "nav-signal")).toBe("done");
+    expect(textOf(tile(html, "quiet"), "nav-signal")).toBe("done · Claude Code");
+  });
+
+  it("names what runs a quiet session in the words of the card's model chip, or by the agent's name before it has one", () => {
+    expect(quietLine({ state: "active", model: "claude-opus-5-5", effort: "xhigh", provider: "claude" })).toBe("live · Opus 5.5 · xhigh");
+    expect(quietLine({ state: "done", model: "gpt-5.5-codex", provider: "codex" })).toBe(`done · ${modelChipText("gpt-5.5-codex")}`);
+    expect(quietLine({ state: "active", provider: "codex" })).toBe("live · Codex");
+    expect(quietLine({ state: "error" })).toBe("err · Claude Code");
   });
 
   it("shows the card's clock, to the second", () => {
