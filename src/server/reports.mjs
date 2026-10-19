@@ -477,6 +477,12 @@ export function scrub(text, home = homedir(), root = PKG_ROOT) {
     .replace(new RegExp(ADDRESS_PATTERN, "g"), "<host>")
     .replace(new RegExp(HOST_PATTERN, "g"), "<host>")
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
+    // An Authorization header's value, whatever its scheme carries — a Jira
+    // Data Center personal access token is 44 characters of base64, short of
+    // the generic pattern below (#2178) — and an Atlassian API token, which
+    // always starts ATATT, at any length.
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/._~-]{12,}=*/g, "$1 <secret>")
+    .replace(/\bATATT[A-Za-z0-9+/_=-]{8,}/g, "<secret>")
     .replace(
       /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+_=-]{48,})/g,
       "<secret>",

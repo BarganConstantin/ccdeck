@@ -19,7 +19,7 @@ import { challengeDeck, challengeProof, isProcessAlive } from "./deck-probe.mjs"
 export { challengeDeck, challengeProof, isProcessAlive };
 // The gates in front of the route table — see src/server/request-gates.mjs,
 // which also holds the per-process token the strictest of them checks.
-import { GUARDED_READS, OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
+import { OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isGuardedRead, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { trafficRadar } from "./traffic-radar.mjs";
 import { handleTrafficCapture, isAuthorizedTrafficIngest } from "./traffic-radar-routes.mjs";
@@ -170,6 +170,9 @@ import { startToolAudit } from "./tool-audit.mjs";
 import { handleToolAudit } from "./tool-audit-routes.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
 import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaHistory } from "./usage-routes.mjs";
+// Connected trackers — Jira first (#2178) — and each provider's own reads.
+// See integrations/routes.mjs; nothing in it is shared with paired decks.
+import { handleIntegrations } from "./integrations/routes.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -298,7 +301,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // gate above was written for a sandboxed subprocess with loopback egress,
     // and that caller was reading the ring through a GET the whole time.
     if ((req.method === "GET" || req.method === "HEAD")
-      && GUARDED_READS.has(url.pathname) && !isAuthorizedDataRead(req)) {
+      && isGuardedRead(url.pathname) && !isAuthorizedDataRead(req)) {
       return send(res, 401, { error: "unauthenticated" });
     }
 
@@ -402,6 +405,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/best-of-nostalgia") return guard(handleBestOfNostalgia(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/good-life-radio") return guard(handleGoodLifeRadio(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/cafe-music-bgm") return guard(handleCafeMusicBgm(req, res), res);
+    if (url.pathname === "/api/integrations" || url.pathname.startsWith("/api/integrations/")) return guard(handleIntegrations(req, res, url), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and
