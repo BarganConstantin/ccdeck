@@ -290,7 +290,9 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
   return (
     <div className="jr-panel" data-deployment={conn.meta?.deployment === "cloud" ? "cloud" : "server"}>
-      <div className="jr-toolbar">
+      {/* On a narrow screen an open issue is a screen of its own, and the
+          board, search and filters are the list's: they wait behind Back. */}
+      <div className="jr-toolbar" hidden={narrow && open}>
         <div className="jr-toolbar-row">
           <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-haspopup="dialog" aria-expanded={picker}
             aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
@@ -314,15 +316,19 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
             <input ref={searchRef} type="search" placeholder="Search key or summary" aria-label="Search issues by key or summary"
               value={search} onChange={e => setSearch(e.target.value)} onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)} />
           </label>
-          <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>Only my issues</button>
-          <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>Hide done</button>
-          {(overview?.quickFilters ?? []).map(q => (
-            <button key={q.id} type="button" className="btn jr-chip" aria-pressed={quick.includes(q.id)} title={q.description || undefined}
-              onClick={() => setQuick(list => (list.includes(q.id) ? list.filter(x => x !== q.id) : [...list, q.id]))}>
-              {q.name}
-            </button>
-          ))}
-          {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>Clear filters</button>}
+          {/* One row that scrolls sideways on a phone, rather than three rows
+              of chips over the board. */}
+          <div className="jr-filter-chips">
+            <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>Only my issues</button>
+            <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>Hide done</button>
+            {(overview?.quickFilters ?? []).map(q => (
+              <button key={q.id} type="button" className="btn jr-chip" aria-pressed={quick.includes(q.id)} title={q.description || undefined}
+                onClick={() => setQuick(list => (list.includes(q.id) ? list.filter(x => x !== q.id) : [...list, q.id]))}>
+                {q.name}
+              </button>
+            ))}
+            {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>Clear filters</button>}
+          </div>
         </div>
       </div>
 

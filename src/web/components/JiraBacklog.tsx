@@ -143,7 +143,17 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       default:
     }
   };
-  const tabStop = (nav: string) => (current === nav ? 0 : -1);
+  // One row is in the Tab order: the last one focused, or, before any has
+  // been, the first row drawn. A row filtered away or folded hands the stop
+  // back to the first.
+  const firstRow = useMemo(() => {
+    for (const { def, rows } of built) if (groupOpen(def, expanded) && rows.length > 0) return `${def.id}/${rowKey(rows[0])}`;
+    return null;
+  }, [built, expanded]);
+  useEffect(() => {
+    if (current && !listRef.current?.querySelector(`[data-nav="${CSS.escape(current)}"]`)) setCurrent(null);
+  });
+  const tabStop = (nav: string) => (nav === (current ?? firstRow) ? 0 : -1);
 
   const renderRow = (row: Row, group: GroupDef, depth: 0 | 1, parentNav?: string) => {
     const key = rowKey(row);

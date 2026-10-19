@@ -31,7 +31,9 @@
 .jr-refresh:disabled { opacity: var(--dim-off); cursor: default; }
 .jr-refresh[data-loading] svg { animation: ta-spin 1000ms linear infinite; }
 
+.jr-toolbar[hidden] { display: none; }
 .jr-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.jr-filter-chips { display: contents; }
 .jr-search { position: relative; display: inline-flex; align-items: center; min-width: 0; color: var(--muted); }
 .jr-search svg { position: absolute; left: 6px; pointer-events: none; }
 .jr-search input {
@@ -472,6 +474,20 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   .jr-board-project { display: none; }
   .jr-search { flex: 1 1 100%; }
   .jr-search input { width: 100%; }
+  .jr-filter-chips {
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    /* Room for a chip's focus ring, which the scroller would clip. */
+    padding: 3px;
+    margin: -3px;
+  }
+  .jr-filter-chips > * { flex: none; }
 }
 @media (max-width: 420px) {
   .jr-fresh { display: none; }
