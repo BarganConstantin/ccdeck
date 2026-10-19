@@ -30,6 +30,8 @@ const DEFAULT_MAX_BYTES = 16 << 20;
 const MAX_REDIRECTS = 3;
 // The forge's own error body is read for its message only.
 const ERROR_BODY_BYTES = 64 << 10;
+// Lines a log tail keeps beyond what it was asked for, while it streams.
+const TAIL_SLACK = 32;
 
 /** A failure, in the panel's vocabulary. */
 export class ForgeError extends Error {
@@ -336,8 +338,10 @@ export function createForgeTransport({
       const parts = (carry + text).split("\n");
       carry = final ? "" : parts.pop();
       for (const p of parts) kept.push(p);
-      if (kept.length > lines * 2) {
-        kept = kept.slice(-lines);
+      // Trimmed with room to spare: the blank lines a log ends on are
+      // dropped below, and must not take the place of real ones.
+      if (kept.length > lines * 2 + TAIL_SLACK) {
+        kept = kept.slice(-(lines + TAIL_SLACK));
         dropped = true;
       }
     };

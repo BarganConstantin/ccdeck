@@ -197,6 +197,12 @@ describe("the end of a job log", () => {
     expect(r).toEqual({ lines: ["line 497", "line 498", "line 499"], truncated: true });
   });
 
+  it("does not let the blank lines a log ends on take the place of real ones", async () => {
+    const body = Array.from({ length: 500 }, (_, i) => `line ${i}`).join("\n") + "\n\n\n";
+    const { t } = transport({ [url]: () => new Response(body, { status: 200 }) });
+    expect((await t.tail(url, { lines: 3 })).lines).toEqual(["line 497", "line 498", "line 499"]);
+  });
+
   it("says nothing was cut from a short log", async () => {
     const { t } = transport({ [url]: () => new Response("a\nb\n", { status: 200 }) });
     expect(await t.tail(url)).toEqual({ lines: ["a", "b"], truncated: false });
