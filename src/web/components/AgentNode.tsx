@@ -59,9 +59,12 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
+  // The state the card draws: a turn that stopped on an error rings as a
+  // failure, as its pill and mark say (drawnState, #2185).
+  const shown = drawnState(data);
   const cls = [
     "agent-node",
-    `state-${data.state}`,
+    `state-${shown}`,
     data.synthetic ? "synthetic" : "",
   ].filter(Boolean).join(" ");
 
@@ -174,7 +177,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
 
       <div className="head">
         <div className="title">
-          <StatePill state={drawnState(data)} />
+          <StatePill state={shown} />
           <span className="label" title={cardTooltip}>{data.label}</span>
           {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? "Restored from Claude’s busy-session registry after verifying the process identity. Earlier tool history is partial." : "Restored from a log with no recorded ending. Process status is not confirmed."}>restored</span>}
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}

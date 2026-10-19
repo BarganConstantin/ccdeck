@@ -281,11 +281,12 @@ describe("where the stop is said", () => {
     expect(said).not.toMatch(/, done,/);
   });
 
-  it("as a failure in the card's pill and mark, while the turn still counts as ended", () => {
+  it("as a failure in the card's ring, pill and mark, while the turn still counts as ended", () => {
     const a = root(stopped());
     expect(a.state).toBe("done");
     expect(drawnState(a)).toBe("err");
     const html = card(a);
+    expect(html).toContain('class="agent-node state-err"');
     expect(html).toContain('class="state-pill state-err"');
     expect(html).toContain('class="state-mark" data-kind="err"');
     expect(html).not.toContain("state-pill state-done");
