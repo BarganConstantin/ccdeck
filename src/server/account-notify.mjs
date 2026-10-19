@@ -290,15 +290,33 @@ export function usedBefore(result, fromNumber) {
  * below the threshold — says where it went and from where, and nothing about
  * why.
  */
-export function swapNotice({ toName, fromName, used, threshold }) {
+export function swapNotice({ toName, fromName, used, threshold, trigger = null }) {
   const to = toName ? cut(toName, NAME_MAX) : "another account";
   if (!fromName) return { who: SWAP_WHO, body: `Switched to ${to}` };
   const from = cut(fromName, NAME_MAX);
+  // The deck's own failover (autoswitch-failover.mjs) moved for one reason
+  // only, and it is the one the user has to act on: sign in again.
+  if (trigger === "login-expired") {
+    return { who: SWAP_WHO, body: `Switched to ${to} · ${from}'s login expired, sign in again to use it` };
+  }
   if (used != null && used >= 100) return { who: SWAP_WHO, body: `Switched to ${to} · ${from} reached 100%` };
   if (used != null && typeof threshold === "number" && used >= threshold) {
     return { who: SWAP_WHO, body: `Switched to ${to} · ${from} reached ${pctLabel(threshold)}%` };
   }
   return { who: SWAP_WHO, body: `Switched to ${to} from ${from}` };
+}
+
+/** How long one stuck login is left unsaid after it has been said once. */
+export const STUCK_REPEAT_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * "Claude auto-switch", "work@x.com's login expired · no other account is ready
+ * to switch to". The tick the failover could not finish: the user is on a dead
+ * login, and only a sign-in or another account will get them off it.
+ */
+export function stuckNotice({ fromName }) {
+  const from = fromName ? cut(fromName, NAME_MAX) : "The active account";
+  return { who: SWAP_WHO, body: `${from}'s login expired · no other account is ready to switch to` };
 }
 
 /** The records, as read back from disk: anything that is not one is dropped,
@@ -374,6 +392,10 @@ export function createAccountNotifier({
   };
 
   const keyOf = (provider, accountKey, windowId) => `${provider}|${accountKey}|${windowId}`;
+
+  /** When each stuck login was last said, by account. In memory: a restart may
+   *  say one once more, and every tick after it says nothing for a while. */
+  const stuckSaid = new Map();
 
   /** Write `levels` down as said for the window a held notice was about, if the
    *  record is still about that window. */
@@ -471,7 +493,22 @@ export function createAccountNotifier({
         // A cooldown is the one answer that says a switch is still coming.
         if (result.event === "no-switch" && result.reason === "cooldown") return;
         release([...held.values()]);
+        // On a dead login with nowhere to go, said once and then left alone:
+        // the failover asks again every tick, and the answer will not change
+        // until somebody signs in.
+        if (result.event === "no-switch" && result.reason === "login-expired" && result.stuck === true) {
+          const from = accountOfRef(result.from, accounts);
+          const key = from?.key ?? String(result.from?.number ?? "");
+          const at = now();
+          if (settings().swap && !(at - (stuckSaid.get(key) ?? -Infinity) < STUCK_REPEAT_MS)) {
+            stuckSaid.set(key, at);
+            say(stuckNotice({ fromName: from?.name ?? null }));
+          }
+        }
         return;
+      }
+      if (result.trigger === "login-expired") {
+        stuckSaid.delete(accountOfRef(result.from, accounts)?.key ?? String(result.from?.number ?? ""));
       }
       const at = now();
       const s = settings();
@@ -494,6 +531,7 @@ export function createAccountNotifier({
         const notice = swapNotice({
           toName: to?.name ?? null, fromName: from?.name ?? null,
           used: usedBefore(result, result.from?.number), threshold: result.threshold,
+          trigger: result.trigger ?? null,
         });
         // Only for an account the store and the tick agree on: an organization
         // read off the wrong slot would put another company's policy on it.
