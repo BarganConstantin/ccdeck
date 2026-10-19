@@ -174,7 +174,7 @@ import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage
 // switched off — see terminal-routes.mjs — and the WebSocket upgrade that
 // carries a pane, which runs its own gates because the route table never sees
 // an upgrade (terminal-socket.mjs).
-import { handleTerminalAdopt, handleTerminalLaunch, handleTerminalOpen, handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions } from "./terminal-routes.mjs";
+import { handleTerminalAdopt, handleTerminalClaim, handleTerminalLaunch, handleTerminalOpen, handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions } from "./terminal-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
 // For bin/deck.js's shutdown: an upgraded socket is not in the HTTP server's
 // connection list, so closeAllConnections() never reaches a terminal.
@@ -447,6 +447,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/terminal/open")   return guard(handleTerminalOpen(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/adopt")  return guard(handleTerminalAdopt(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/claim")  return guard(handleTerminalClaim(req, res, terminal), res);
 
     // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
     //

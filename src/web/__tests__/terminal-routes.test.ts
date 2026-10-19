@@ -284,38 +284,69 @@ describe("GET /api/terminal/target", () => {
     expect(labelled).toEqual([]);
   });
 
-  it("says whether a launch became this session, when the page names the launch", async () => {
-    // A Codex picks its own id once it starts, so the launch route cannot name
-    // it: the page asks this of each Codex that turns up in the launch's folder.
-    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID, launchKey: "launch-k1" };
-    const q = { session: SID, provider: "codex", cwd: PROJECT };
-    const yes = await ask("GET", path({ ...q, launch: "launch-k1" }));
-    expect(yes.body).toEqual({ ok: true, target: describeTarget({ kind: "A" }), launched: true });
-    expect(yes.raw, "and not which pane").not.toContain("%9");
-    expect(yes.raw).not.toContain("ccdeck-codex-5e6f7a8b");
-    expect((await ask("GET", path({ ...q, launch: "launch-k2" }))).body.launched, "another launch's pane").toBe(false);
-    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b" };
-    expect((await ask("GET", path({ ...q, launch: "launch-k1" }))).body.launched, "a pane no launch named").toBe(false);
-    target = { kind: "B", socket: { path: "/tmp/tmux-1000/default" }, pane: "%3", launchKey: "launch-k1" };
-    expect((await ask("GET", path({ ...q, launch: "launch-k1" }))).body.launched, "only the deck's own panes are launches").toBe(false);
-    expect((await ask("GET", path(q))).body, "nothing said when no launch was named").not.toHaveProperty("launched");
-    expect(labelled, "still a read").toEqual([]);
-  });
-
-  it("refuses a launch key it could not have given, before asking anything", async () => {
-    for (const launch of ["", "a b", "x".repeat(97), "../k"]) {
-      const got = await ask("GET", path({ session: SID, provider: "codex", cwd: PROJECT, launch }));
-      expect(got.status, JSON.stringify(launch)).toBe(400);
-    }
-    expect(resolved).toEqual([]);
-  });
-
   it("asks about the session in lower case, on the deck's own socket", async () => {
     await ask("GET", path({ session: SID.toUpperCase(), provider: "codex", cwd: PROJECT }));
     const { q, deps } = resolved.at(-1);
     expect(q).toEqual({ ok: true, sessionId: SID, provider: "codex", cwd: PROJECT });
     expect(deps.deckSocket).toEqual(DECK_SOCKET);
     expect(deps.tmux).toBe(TMUX_OK);
+  });
+});
+
+describe("POST /api/terminal/claim", () => {
+  // A Codex picks its own id once it starts, so the launch route cannot name
+  // it: the page asks this of each Codex that turns up while the stage shows
+  // the launch (codex-launch.ts).
+  const claim = (extra: Record<string, unknown> = {}) => ask("POST", "/api/terminal/claim", session({ provider: "codex", key: "launch-k1", ...extra }));
+
+  it("says yes for the pane the launch started, labels it with the session's id once, and never says which pane", async () => {
+    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID, launchKey: "launch-k1" };
+    const yes = await claim();
+    expect(yes.status).toBe(200);
+    expect(yes.body).toEqual({ ok: true, claimed: true, target: describeTarget({ kind: "A" }) });
+    for (const secret of ["%9", "ccdeck-codex-5e6f7a8b", "launch-k1"]) expect(yes.raw, secret).not.toContain(secret);
+    // The label is what lets the next launch in this folder be recognised: an
+    // unlabelled pane is one more the next Codex could have begun in.
+    expect(labelled).toHaveLength(1);
+    expect(labelled[0]).toMatchObject({ tmux: TMUX_OK, name: "ccdeck-codex-5e6f7a8b", sessionId: SID, socket: DECK_SOCKET });
+  });
+
+  it("says yes without labelling a pane that already names its session", async () => {
+    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", launchKey: "launch-k1" };
+    expect((await claim()).body.claimed).toBe(true);
+    expect(labelled).toEqual([]);
+  });
+
+  it("says no, and labels nothing, for any pane but the one the launch started", async () => {
+    for (const t of [
+      { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID, launchKey: "launch-k2" },
+      { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID },
+      { kind: "B", socket: { path: "/tmp/tmux-1000/default" }, pane: "%3", launchKey: "launch-k1" },
+      { kind: "C", adoptable: true, pid: 4242 },
+    ]) {
+      target = t;
+      const got = await claim();
+      expect(got.body, JSON.stringify(t)).toEqual({ ok: true, claimed: false, target: describeTarget(t) });
+    }
+    expect(labelled).toEqual([]);
+  });
+
+  it("says yes when the label cannot be written: a missed label costs a process walk, not the session", async () => {
+    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID, launchKey: "launch-k1" };
+    labelImpl = async () => { throw new TerminalSessionError("tmux-failed", "tmux could not label the session.", "lost server"); };
+    const got = await claim();
+    expect(got.status).toBe(200);
+    expect(got.body.claimed).toBe(true);
+  });
+
+  it("refuses a key it could not have given, or no session at all, before asking anything", async () => {
+    for (const key of ["", "a b", "x".repeat(97), "../k", 7, null]) {
+      const got = await claim({ key });
+      expect(got.status, JSON.stringify(key)).toBe(400);
+    }
+    expect((await claim({ sessionId: "not-an-id" })).status).toBe(400);
+    expect(resolved).toEqual([]);
+    expect(labelled).toEqual([]);
   });
 });
 

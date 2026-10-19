@@ -1,4 +1,4 @@
-// The terminal panel's five HTTP calls, answered by a fake fetch.
+// The terminal panel's six HTTP calls, answered by a fake fetch.
 //
 // What these pin is the edge between "the deck answered" and "the deck said
 // yes": a 200 that says a session cannot be attached is a state the panel
@@ -16,6 +16,7 @@ import {
   STILL_RUNNING,
   TERMINAL_ROUTES,
   adoptTerminal,
+  claimLaunch,
   launchTerminal,
   openTerminal,
   terminalStatus,
@@ -61,7 +62,7 @@ const STARTED_ELSEWHERE = {
 describe("the requests themselves", () => {
   it("asks only same-origin paths under /api/terminal/, the ones the deck routes", () => {
     for (const path of Object.values(TERMINAL_ROUTES)) expect(path).toMatch(/^\/api\/terminal\/[a-z]+$/);
-    expect(Object.keys(TERMINAL_ROUTES).sort()).toEqual(["adopt", "launch", "open", "status", "target"]);
+    expect(Object.keys(TERMINAL_ROUTES).sort()).toEqual(["adopt", "claim", "launch", "open", "status", "target"]);
   });
 
   it("reads the status with a plain GET", async () => {
@@ -83,17 +84,18 @@ describe("the requests themselves", () => {
     expect(asked[0].method).toBe("GET");
   });
 
-  it("adds a launch's key to the target's query only when asked about one, and reads the deck's yes or no", async () => {
-    const yes = answering(200, { ok: true, target: ATTACHABLE, launched: true });
-    expect(await terminalTarget(SESSION, { fetchFn: yes.fetchFn }, "launch-k1")).toEqual({ ok: true, target: ATTACHABLE, launched: true });
-    expect(new URL(yes.asked[0].url, "http://127.0.0.1/").searchParams.get("launch")).toBe("launch-k1");
-    const no = answering(200, { ok: true, target: ATTACHABLE, launched: false });
-    expect(await terminalTarget(SESSION, { fetchFn: no.fetchFn }, "launch-k1")).toMatchObject({ launched: false });
-    const odd = answering(200, { ok: true, target: ATTACHABLE, launched: "yes" });
-    expect(await terminalTarget(SESSION, { fetchFn: odd.fetchFn }, "launch-k1"), "a yes that is not a boolean is not one").not.toHaveProperty("launched");
-    const plain = answering(200, { ok: true, target: ATTACHABLE });
-    expect(await terminalTarget(SESSION, { fetchFn: plain.fetchFn })).toEqual({ ok: true, target: ATTACHABLE });
-    expect(new URL(plain.asked[0].url, "http://127.0.0.1/").searchParams.has("launch")).toBe(false);
+  it("POSTs a claim with the launch's key and the session's three fields, and reads the deck's yes or no", async () => {
+    const yes = answering(200, { ok: true, claimed: true, target: ATTACHABLE });
+    expect(await claimLaunch({ ...SESSION, extra: "not sent" } as SessionRef, "launch-k1", { fetchFn: yes.fetchFn }))
+      .toEqual({ ok: true, claimed: true, target: ATTACHABLE });
+    expect(yes.asked[0]).toMatchObject({ url: "/api/terminal/claim", method: "POST", headers: { "content-type": "application/json" } });
+    expect(yes.asked[0].body).toEqual({ key: "launch-k1", sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd });
+    const no = answering(200, { ok: true, claimed: false, target: STARTED_ELSEWHERE });
+    expect(await claimLaunch(SESSION, "launch-k1", { fetchFn: no.fetchFn })).toEqual({ ok: true, claimed: false, target: STARTED_ELSEWHERE });
+    for (const odd of [{ ok: true, claimed: "yes", target: ATTACHABLE }, { ok: true, target: ATTACHABLE }, { ok: true, claimed: true }]) {
+      const got = await claimLaunch(SESSION, "launch-k1", { fetchFn: answering(200, odd).fetchFn });
+      expect(got.ok, `${JSON.stringify(odd)} is not an answer`).toBe(false);
+    }
   });
 
   it("POSTs open and adopt as JSON with exactly the session's three fields", async () => {

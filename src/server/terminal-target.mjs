@@ -335,7 +335,7 @@ export function attachIdOf(rec, sessionId) {
  *
  * Three fields are for the routes and never reach the page (describeTarget
  * leaves them out). `launchKey` is on an A in a deck pane a page launch
- * named, for the target route to say whether that launch became this
+ * named, for the claim route to say whether that launch became this
  * session. `learnedId` is on an A that was found by its process
  * because its pane's `@ccdeck-session` is still empty — a Codex the deck
  * launched, recognised by the rollout it holds open — and is the id that
@@ -844,10 +844,13 @@ function launchedCodexPane(q, deck, proc, io) {
   const deckPids = new Set(deck.filter((s) => !s.dead).map((s) => s.panePid));
   let looked = 0;
   for (const pid of proc.pids()) {
-    if (!looksLikeCodex(proc.command(pid))) continue;
+    const cmd = proc.command(pid);
+    if (!looksLikeCodex(cmd)) continue;
     if (++looked > MAX_CODEX_PROCESSES) return null;
-    // A daemon, or anything else with no terminal, began nothing on a screen.
-    if (proc.tty(pid) === "") continue;
+    // The daemon that holds every session's rollout began none of them. Any
+    // other Codex with no terminal could have: `codex exec` run by a script or
+    // by another agent's shell begins a session of its own in its folder.
+    if (isCodexDaemon(cmd)) continue;
     if (ancestry(proc, pid).some((c) => deckPids.has(c.pid))) continue;
     if (io.platform === "linux") {
       let cwd = "";
@@ -857,6 +860,11 @@ function launchedCodexPane(q, deck, proc, io) {
     return null;
   }
   return panes[0];
+}
+
+/** `codex app-server`: the daemon Codex 0.162+ hands every rollout to. */
+function isCodexDaemon(cmd) {
+  return String(cmd).split(" ").includes("app-server");
 }
 
 function codexAt(pid, proc) {

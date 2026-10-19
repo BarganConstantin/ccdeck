@@ -1,4 +1,4 @@
-// The terminal panel's five HTTP routes, and the wiring that hands its socket
+// The terminal panel's six HTTP routes, and the wiring that hands its socket
 // to the upgrade in terminal-socket.mjs.
 //
 //   GET  /api/terminal/status   is tmux here, and new enough? No paths.
@@ -6,6 +6,7 @@
 //   POST /api/terminal/open     attach: a ticket for the socket, or why not
 //   POST /api/terminal/adopt    reopen a session started outside the deck, here
 //   POST /api/terminal/launch   start a new agent in a deck-owned tmux session
+//   POST /api/terminal/claim    is this new Codex the one a launch started?
 //
 // SWITCHED OFF, THEY ARE NOT THERE. Every handler asks terminalOn first and,
 // when it says no, answers exactly what index.mjs answers for an /api path
@@ -206,14 +207,7 @@ export async function handleTerminalStatus(req, res, options) {
 }
 
 /** GET /api/terminal/target?session=&provider=&cwd= → `{ ok: true, target }`,
- *  where target is describeTarget's answer.
- *
- *  With `&launch=`, a launch's key, the answer also says whether the session
- *  runs in that launch's pane (`launched`). A Codex chooses its own id once it
- *  starts writing, so the launch route cannot name it, and the page asks this
- *  of each new Codex the board hears of while the stage shows the launch
- *  (codex-launch.ts). Only the deck can tell two of them apart, and it says
- *  yes or no, never which pane. */
+ *  where target is describeTarget's answer. */
 export async function handleTerminalTarget(req, res, url, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
@@ -223,15 +217,40 @@ export async function handleTerminalTarget(req, res, url, options) {
     cwd: url?.searchParams.get("cwd") ?? "",
   });
   if (!q.ok) return send(res, 400, { ok: false, error: q.error });
-  const launch = url?.searchParams.get("launch");
-  if (launch != null && !isLaunchKey(launch)) {
-    return send(res, 400, { ok: false, error: "The launch's key is not one the deck can keep." });
-  }
   const { target } = await locate(q, d);
-  return send(res, 200, {
-    ok: true, target: describeTarget(target),
-    ...(launch != null ? { launched: target.kind === "A" && target.launchKey === launch } : {}),
-  });
+  return send(res, 200, { ok: true, target: describeTarget(target) });
+}
+
+/**
+ * POST /api/terminal/claim `{ key, sessionId, provider, cwd }` → `{ ok: true,
+ * claimed, target }`: whether the session runs in the pane the page launched
+ * under `key` — and, when it does, that pane is labelled with its id.
+ *
+ * A Codex chooses its own id once it starts writing, so the launch route
+ * cannot name it; the page asks this of each new Codex the board hears of
+ * while the stage shows the launch (codex-launch.ts). Only the deck can tell
+ * two of them apart, and it says yes or no, never which pane. The label is
+ * what keeps the next launch in the same folder recognisable: an unlabelled
+ * pane is one more that the next session could have begun in
+ * (terminal-target's launchedCodexPane), and the stage keeps the connection
+ * it has, so no open comes along to write it.
+ */
+export async function handleTerminalClaim(req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  const body = await jsonBody(req, res);
+  if (!body) return send(res, 400, { ok: false, error: "The request did not name a session." });
+  if (!isLaunchKey(body.key)) return send(res, 400, { ok: false, error: "The launch's key is not one the deck can keep." });
+  const q = checkTargetQuery(body);
+  if (!q.ok) return send(res, 400, { ok: false, error: q.error });
+  try {
+    const { tmux, target } = await locate(q, d);
+    const claimed = target.kind === "A" && target.launchKey === body.key;
+    if (claimed) await learn(target, tmux, d);
+    return send(res, 200, { ok: true, claimed, target: describeTarget(target) });
+  } catch (err) {
+    return sessionFailure(res, err);
+  }
 }
 
 /**
