@@ -175,10 +175,10 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           <div className="uh-status uh-status-wait" role="status" aria-label="Reading usage history" aria-busy="true" data-paused={pageHidden || undefined}>
             <span className="uh-wait-word">
               <svg className="uh-reading-art" viewBox="0 0 240 96" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <g className="uh-reading-files"><path d="M25 24v-7a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v43" /><rect x="17" y="24" width="36" height="51" rx="4" /><path d="M25 36h19M25 44h19M25 52h13M25 64h7" /></g>
+                <path d="M25 24v-7a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v43" /><rect x="17" y="24" width="36" height="51" rx="4" /><path d="M25 36h19M25 44h19M25 52h13M25 64h7" />
                 <path className="uh-reading-link" d="M69 49h59" />
                 <g className="uh-reading-packets"><rect x="76" y="46" width="6" height="6" rx="1.5" /><rect x="76" y="46" width="6" height="6" rx="1.5" /><rect x="76" y="46" width="6" height="6" rx="1.5" /></g>
-                <g className="uh-reading-report"><rect x="145" y="18" width="76" height="57" rx="5" /><path d="M154 28h21M154 64h57M154 38v26M163 39h47M163 49h47" /><circle cx="209" cy="28" r="2" /></g>
+                <rect x="145" y="18" width="76" height="57" rx="5" /><path d="M154 28h21M154 64h57M154 38v26M163 39h47M163 49h47" /><circle cx="209" cy="28" r="2" />
               </svg>
               <strong className="uh-reading-title">Reading usage history</strong>
               <span className="uh-reading-note">Gathering costs and tokens from local logs…</span>

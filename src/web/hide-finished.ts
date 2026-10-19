@@ -139,20 +139,22 @@ export function finishedTurns(agents: Iterable<Agent>): Map<string, number> {
  * @param afterMs  the delay; 0 hides nothing
  * @param removed  what is already off the board
  * @param handled  the turns already hidden or brought back
- * @param keep     the session the reader has selected, which stays
+ * @param keep     the sessions the reader is looking at, which stay: the
+ *                 selected card's, and the one on the terminal stage
  */
 export function sessionsToHide(agents: Iterable<Agent>, { afterMs, now, removed, handled, keep }: {
   afterMs: number;
   now: number;
   removed: ReadonlySet<string>;
   handled: ReadonlyMap<string, number>;
-  keep?: string | null;
+  keep?: string | null | readonly (string | null)[];
 }): { id: string; endedAt: number }[] {
   if (afterMs <= 0) return [];
+  const kept: readonly (string | null | undefined)[] = Array.isArray(keep) ? keep : [keep as string | null | undefined];
   const due: { id: string; endedAt: number }[] = [];
   for (const [id, endedAt] of finishedTurns(agents)) {
     if (now - endedAt < afterMs) continue;
-    if (removed.has(id) || id === keep) continue;
+    if (removed.has(id) || kept.includes(id)) continue;
     if (handled.get(id) === endedAt) continue;
     due.push({ id, endedAt });
   }

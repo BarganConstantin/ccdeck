@@ -41,6 +41,10 @@ import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { useRadarSettings } from "./use-radar-settings";
 import { railItems } from "./rail-items";
+import IntegrationModal from "./components/IntegrationModal";
+import { connectionsOf, requestIntegrationFocus, useIntegrations } from "./integrations/client";
+import { integrationDefs } from "./integrations/registry";
+import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
 import { ReadoutGroup, WaitingNames } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
@@ -84,6 +88,9 @@ import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
+import { useRailPanel, useStage, useStageAsks } from "./use-stage";
+import { targetSession } from "./stage-shell";
+import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import { createChimePlayer } from "./chime-player";
 
 export default function App() {
@@ -265,6 +272,22 @@ function Inner() {
   const { watchOn, watchUnseen } = watchBadge;
   const radarSettings = useRadarSettings();
   useEffect(() => { if (radarSettings.enabled === false) dialogs.setTrafficRadarOpen(false); }, [radarSettings.enabled, dialogs.setTrafficRadarOpen]);
+  // The trackers this deck is connected to (#2178): one rail button per kind
+  // with a connection, which opens that kind's large modal. The list is the
+  // one Settings › Integrations edits, so a connection added there puts the
+  // button up at once and the last one removed takes it away.
+  const integrations = useIntegrations();
+  const [integrationOpen, setIntegrationOpen] = useState<IntegrationKind | null>(null);
+  const closeIntegration = useCallback(() => setIntegrationOpen(null), []);
+  const connectedKinds = integrationDefs().filter(p => connectionsOf(integrations, p.kind).length > 0);
+  const openIntegrationRef = useMirroredRef((kind: string) => {
+    const def = connectedKinds.find(p => p.kind === kind);
+    if (def) setIntegrationOpen(def.kind);
+  });
+  const reconnectIntegration = useCallback((connId: string) => {
+    requestIntegrationFocus(connId);
+    openSettings("integrations");
+  }, [openSettings]);
 
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in
@@ -372,12 +395,6 @@ function Inner() {
   const { removedNodes, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
           hideSessions, bringBack, bringBackAll, forgetRemovals }
     = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
-  // Finished sessions taking themselves off the board after the delay picked
-  // in Settings › General — use-hide-finished.ts.
-  useHideFinished({
-    stateRef, removedNodes, hideSessions, ready: historyReplayed,
-    keepSessionId: primarySelectedId ? stateRef.current.agents.get(primarySelectedId)?.sessionId ?? primarySelectedId : null,
-  });
   // What the layout keys off: the visible, not-removed agents and their
   // parents, plus the two size versions — use-board-graph.ts.
   const layoutSig = useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domSizeVersion });
@@ -495,9 +512,30 @@ function Inner() {
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef,
   });
 
+  // The terminal stage, behind its switch in Settings: a session's live terminal on
+  // the right of the canvas, the board gathered into a navigator on its left,
+  // and every way in and out of it — use-stage.ts. With the flag off it is
+  // inert: every entry point below answers "not mine".
+  const stage = useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent });
+  // Finished sessions taking themselves off the board after the delay picked
+  // in Settings › General — use-hide-finished.ts. After the stage, whose
+  // session is kept as the selected card's is.
+  useHideFinished({
+    stateRef, removedNodes, hideSessions, ready: historyReplayed,
+    keepSessionId: primarySelectedId ? stateRef.current.agents.get(primarySelectedId)?.sessionId ?? primarySelectedId : null,
+    stageSessionId: stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null,
+  });
+  // Usage and Machine as their stripe buttons and their keys reach them: one
+  // asked for takes the right of the deck back from the stage, as the detail
+  // panel does, and one the stage hides reads as closed — use-stage.ts
+  // useRailPanel. The panels themselves, their own ×, the machine panel's
+  // slot and the board's frame keep the plain flags.
+  const usageRail = useRailPanel(stage, usagePanelOpen, setUsagePanelOpen);
+  const machineRail = useRailPanel(stage, machinePanelOpen, setMachinePanelOpen);
+
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
-    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef,
+    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef, stage,
   });
 
   // What the peek reads, made once — use-peek-readers.ts.
@@ -512,10 +550,18 @@ function Inner() {
 
   // A session list row for a removed session brings it back as it focuses it:
   // selecting a card that is not drawn would open a panel for nothing.
+  // With the terminal stage up, a row moves the stage to that session the way
+  // picking a conversation does in the Claude app, rather than opening the
+  // detail panel that would evict it.
+  const { followSession } = stage;
   const openSession = useCallback((sessionId: string) => {
+    if (followSession(sessionId)) {
+      if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+      return;
+    }
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     focusSession(sessionId);
-  }, [removedAgentIds, bringBack, focusSession]);
+  }, [removedAgentIds, bringBack, focusSession, followSession]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851): see use-pointer-focus.ts.
@@ -527,11 +573,12 @@ function Inner() {
     // What the keys read.
     pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
+    stageRef: stage.keysRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
-    setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
+    setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
+    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef,
   });
 
   /** Not a topbar readout any more — the "agents" counter went with the
@@ -573,9 +620,15 @@ function Inner() {
   // use-os-notifications.ts. It is fed the same waiting set the sidebar draws.
   const notify = useOsNotifications({ waitingSessions, liveSince, focusSession });
   const { loadNotifyPrefs } = notify;
+  // The terminal's run through the waiting sessions, and the stage's half of
+  // the keys, which need the waiting list built just above — use-stage.ts.
+  const asks = useStageAsks(stage, waitingSessions, canvasRef);
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
-  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
+  usePrefsRead({
+    loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs,
+    loadTerminalPrefs: stage.loadTerminalPrefs,
+  });
 
   // The eight controls of the chrome, each defined once, and the edge each
   // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
@@ -584,14 +637,25 @@ function Inner() {
   const [radioOpen, setRadioOpen] = useState(false);
   const [toolAuditOpen, setToolAuditOpen] = useState(false);
   const closeToolAudit = useCallback(() => setToolAuditOpen(false), []);
+  // Skill activity names a session by its card, and opens it there, while the card is still drawn.
+  const toolAuditSessionLabel = useCallback((sessionId: string) => {
+    const card = stateRef.current.agents.get(sessionId);
+    return card ? card.label || card.cwdBasename || "session" : null;
+  }, []);
+  const openToolAuditSession = useCallback((sessionId: string) => { setToolAuditOpen(false); openSession(sessionId); }, [openSession]);
   const closeRadio = useCallback(() => setRadioOpen(false), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
-    usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-    watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, radarEnabled: radarSettings.enabled === true, openSettings, onFeedback: dialogs.openFeedback,
+    usagePanelOpen: usageRail.shown, setUsagePanelOpen: usageRail.set,
+    machinePanelOpen: machineRail.shown, setMachinePanelOpen: machineRail.set, setUsageHistoryOpen,
+    watchOn, watchUnseen, setBrowserWatchOpen,
+    // Radar turned off in Settings leaves the stripe as a deck without it has it.
+    setTrafficRadarOpen: radarSettings.enabled === true ? dialogs.setTrafficRadarOpen : undefined,
+    openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
     openToolActivity: () => setToolAuditOpen(true),
     toggles: panelReturn.toggles,
+    integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
   // which lists the rest.
@@ -657,6 +721,7 @@ function Inner() {
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
           waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
           incidents={incidents} queueNamed={phone ? 0 : queueNamed}
+          startAsks={stage.enabled ? asks.startAsks : undefined} asksSaid={stage.enabled ? asks.said : undefined}
         />
         {/* Who is waiting, by name, in the room the bar has left — and none of
             it on a phone, where the bar holds the count alone. Mounted while
@@ -678,8 +743,8 @@ function Inner() {
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right.slice(1).flat(), rails.utilities[1]]} />
-        : <EdgeRail side="left" label="Left column" groups={[rails.left]} />}
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right.slice(1).flat(), ...rails.integrations, rails.utilities[1]]} />
+        : <EdgeRail side="left" label="Left column" groups={[rails.left, rails.integrations]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -687,6 +752,11 @@ function Inner() {
       <div className="vis-hidden" role="status" aria-atomic="true">
         {removalNotice ? `${removalNotice.label} removed from the board.` : ""}
       </div>
+      {/* What the terminal stage says — a session on the stage, ended, closed
+          and still running — once per change and never its output (#372).
+          Mounted as soon as the flag is known to be on, for the same reason as
+          the region above; never while it is off. */}
+      {stage.enabled && <div className="vis-hidden" role="status" aria-atomic="true">{stage.said}</div>}
       {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
       <DeckBanner
         restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
@@ -730,6 +800,7 @@ function Inner() {
       <CanvasMain
         canvasRef={canvasRef} bubbling={bubbling} dragging={dragging} trash={trash} zoom={zoom}
         viewport={viewport} stateRef={stateRef} peek={peek}
+        stagePhase={stage.enabled && stage.shell.phase !== "closed" ? stage.shell.phase : undefined}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero reservedRight={railInsetRef.current} />
@@ -757,14 +828,32 @@ function Inner() {
           appearance={appearance} fm={fm} radioOpen={radioOpen} onRadioClose={closeRadio} autoFit={autoFit} pause={pause}
           stateRef={stateRef} measuredRef={measuredRef} hiddenCats={hiddenCats} now={now}
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
+          onTerminal={stage.enabled ? stage.openFromButton : undefined}
         />
+        {/* The board's compact form while the stage is open, in the canvas's
+            place and inside <main> with the board it stands for — components/
+            StageSlots.tsx. Nothing at all with the terminal flag off. */}
+        <StageNavigatorSlot stage={stage} />
       </CanvasMain>
+
+      {/* The terminal stage itself: laid over the canvas cell's right-hand
+          side, but after <main> in the document, so the canvas's capture
+          listeners never see a press or a key meant for the terminal and Tab
+          reaches it after the board — components/StageSlots.tsx. */}
+      <StageDockSlot
+        stage={stage} stateRef={stateRef} canvasRef={canvasRef} now={now} palette={palette}
+        asks={asks} waitingSessions={waitingSessions}
+      />
 
       {/* The right stripe, ahead of the two panels it opens so Tab reaches the
           control before the region it discloses. */}
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
-      {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} />}
+      {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
+      {integrationOpen && (
+        <IntegrationModal kind={integrationOpen} connections={connectionsOf(integrations, integrationOpen)}
+          onClose={closeIntegration} onReconnect={reconnectIntegration} />
+      )}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only
@@ -815,6 +904,7 @@ function Inner() {
         upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
+        terminal={{ on: stage.enabled, forced: stage.forced, toggle: stage.toggleTerminal }}
         panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}
       />
     </div>

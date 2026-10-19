@@ -46,6 +46,7 @@ import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
 import SettingsModal from "./SettingsModal";
+import type { TerminalSwitch } from "./TerminalSection";
 import ToolModal from "./ToolModal";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
@@ -59,7 +60,7 @@ const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
-  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, panelDoors,
+  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, panelDoors, terminal,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -88,6 +89,8 @@ export default function DeckDialogs({
   /** The two panels Settings › General points at that are App's to open: the
    *  accounts panel, and the Local network view inside it (#2176). */
   panelDoors: { accounts: () => void; localNetwork: () => void };
+  /** The terminal's Beta switch, which Settings › General draws. */
+  terminal?: TerminalSwitch;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
@@ -173,6 +176,7 @@ export default function DeckDialogs({
           customTones={customTones}
           notify={notify}
           appearance={appearance}
+          terminal={terminal}
           versionCheck={versionCheck}
           desktopUpdate={desktopUpdate}
           restart={restart}
@@ -180,8 +184,8 @@ export default function DeckDialogs({
              shortcuts sheet hands over to it below, and each opens through
              the deck's own way in: the version chip's (What's new, and for a
              lit chip the banner put back too), the topbar's Feedback, the
-             tour's, Browser Watch's stripe button, and App's for the two
-             panels. */
+             tour's, Browser Watch's stripe button, Radar's toolbar button,
+             and App's for the two panels. */
           doors={{
             whatsNew: doorOut(closeSettings, openReleaseNotes),
             update: doorOut(closeSettings, () => { openReleaseNotes(); showNotice(); }),
@@ -190,6 +194,7 @@ export default function DeckDialogs({
             accounts: doorOut(closeSettings, panelDoors.accounts),
             localNetwork: doorOut(closeSettings, panelDoors.localNetwork),
             browserWatch: doorOut(closeSettings, () => setBrowserWatchOpen(true)),
+            radar: doorOut(closeSettings, () => setTrafficRadarOpen(true)),
           }}
         />
       )}

@@ -14,7 +14,7 @@ import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
 export type SettingsSection =
-  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "data" | "radar" | "about";
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "radar" | "about";
 
 /** One section's nav entry: the word on its tab, and the line under its name
  *  at the head of the pane, saying what the section holds before anything in
@@ -36,12 +36,13 @@ export interface SettingsSectionEntry {
  *  what it is. About comes last and stands at the foot of the nav, as it does
  *  in the desktop settings windows this dialog is modelled on. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
-  { id: "general", label: "General", note: "The board, updates, and the settings that live in their own panels." },
+  { id: "general", label: "General", note: "The board, the terminal, updates, and the settings that live in their own panels." },
   { id: "appearance", label: "Appearance", note: "The colour theme and the character on the canvas." },
   { id: "reading", label: "Text & density", note: "Make the deck comfortable to read. Changes apply immediately and stay separate from canvas zoom." },
   { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
   { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
   { id: "sounds", label: "Sounds", note: "What plays when a turn finishes and when Claude asks." },
+  { id: "integrations", label: "Integrations", note: "Trackers the deck reads your work from, such as Jira. Read only." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
   { id: "radar", label: "Radar", note: "Background monitoring of Claude telemetry sent to its collectors." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
@@ -96,6 +97,8 @@ export interface SettingsDoors {
   /** The accounts panel, at its Local network view. */
   localNetwork: () => void;
   browserWatch: () => void;
+  /** Radar, as its toolbar button opens it. */
+  radar: () => void;
 }
 
 /** A door out of Settings: close it, then open what the door names.

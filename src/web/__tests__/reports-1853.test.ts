@@ -840,6 +840,9 @@ describe("scrubbing", () => {
     ["C:\\Users\\Bob Smith\\AppData\\ccdeck", "~\\<path>"],
     ["mail bob@example.org now", "mail <email> now"],
     ["ghp_abcdefghijklmnopqrstuvwxyz0123", "<secret>"],
+    // #2179: a GitLab token is 26 characters, under the 48-character catch-all.
+    ["auth glpat-abcdefghij0123456789 failed", "auth <secret> failed"],
+    ["github_pat_11ABCDEFG0abcdefghij", "<secret>"],
     ["a plain message 42", "a plain message 42"],
   ])("%s → %s", (input, output) => {
     expect(scrub(input, "/nowhere")).toBe(output);

@@ -527,6 +527,22 @@ const CONTROLS: Control[] = [
   { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
   { at: ".tr-input:hover", beds: ["--panel"] },
   { at: ".tr-select:hover", beds: ["--panel"] },
+  // Radar's Clear history, armed for its second press. At rest it is a glyph
+  // with no boundary; armed, its words and its edge take the error colour until
+  // the press lands or focus leaves. The activity list's ground is mixed from
+  // --panel and --bg, so it is measured on both.
+  { at: ".tr-history-toolbar .btn.armed", fillFrom: ".tr-history-toolbar .btn",
+    states: [".tr-history-toolbar .btn:hover:not(:disabled)"], beds: ["--panel", "--bg"] },
+  // The Jira panel (#2178): its search boxes, on the toolbar and in the board
+  // picker, both on --panel; a filter chip that is on, which is a button.btn
+  // with the primary button's accent edge; and Open in Jira, a link drawn as
+  // a button, on the issue's detail and on the empty board's note.
+  { at: ".jr-search input", states: [".jr-search input:hover"], beds: ["--panel"] },
+  { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".jr-open", states: [".jr-open:hover"], beds: ["--panel", "--bg"] },
+  // The GitHub and GitLab panel (#2179): its search field over the list, on
+  // --panel, which is also where a pasted link is opened from.
+  { at: ".fg-search input", states: [".fg-search input:hover"], beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -922,7 +938,12 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // Settings' redesign (#2176) adds Keyboard's filter field the same way,
     // two more, and took the Music section's station picker away with its own.
     // Its search adds one: the ring a keyboard-highlighted result wears.
-    expect(EDGED_CONTROLS.length).toBeLessThan(152);
+    // Radar's Clear history adds one: the error edge it takes while armed.
+    // The Jira panel (#2178) adds five: its search box at rest and under the
+    // pointer, a filter chip that is on, and Open in Jira at rest and hovered.
+    // The GitHub and GitLab panel (#2179) adds two: its search field at rest
+    // and under the pointer.
+    expect(EDGED_CONTROLS.length).toBeLessThan(160);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

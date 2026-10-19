@@ -65,7 +65,9 @@ describe("the wiring that knows how focus arrived (#851)", () => {
   });
 
   it("hands the mark and the key to the gate", () => {
-    expect(appCode).toMatch(/pointerFocused: el != null && el === pointerFocusRef\.current,/);
+    // Except a control that caught a pane's keys, which is the stage's doing
+    // even inside a press's window (terminal-keys.ts stageKeyIntent).
+    expect(appCode).toMatch(/pointerFocused: el != null && el === pointerFocusRef\.current && !caught,/);
     expect(appCode).toMatch(/ownsKeystroke\(target, e\.key\)/);
   });
 });

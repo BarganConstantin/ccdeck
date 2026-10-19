@@ -224,6 +224,10 @@ const EXEMPT = new Map<string, string>([
   // The context donut, whose appearance is the SVG it wraps. Its `border-radius`
   // is there to round the focus ring, the same reason `.glyph-btn` carries one.
   ["ctx-donut", "a hit area around an SVG donut, which is what is drawn"],
+  // A branch row in the GitHub and GitLab panel (#2179): an empty button
+  // stretched over the row, whose name, commit and stats are what is drawn.
+  // forge/BranchesTab.tsx.
+  ["fgl-hit", "a hit area stretched over a branch row, which is what is drawn"],
 ]);
 
 const exemption = (classes: readonly string[]) => classes.find(c => EXEMPT.has(c));

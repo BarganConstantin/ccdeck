@@ -1,0 +1,260 @@
+/* The GitHub and GitLab panel's item pages (#2179): a merge request or pull
+   request, a branch, a pipeline with its jobs and log, an issue. Shared pieces
+   are in forge-panel.css.
+
+   THE PANE DECIDES, NOT THE WINDOW. A page is drawn in the host's detail pane,
+   and the user sets that pane's width with the splitter, so `.fd` is a size
+   container and the layout asks it: two columns (the page and GitLab's side
+   column) once the pane is wide enough to read both, the side column as a
+   compact block above the page when it is not, and the section switch as four
+   equal cells when the pane is phone-narrow. */
+.fd { container: fd / inline-size; min-width: 0; padding: 12px 20px 40px; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.fd code { font-family: var(--font-mono); }
+
+/* The top line: the reference to copy, the link out, Close. It stays at the
+   top of the host's pane while the page scrolls under it, on the pane's own
+   --panel and across the page's side padding; the 4px it gains above and
+   below are given back by its margins, so at rest nothing moves. */
+.fd-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; min-height: 32px; margin: -4px -20px; padding: 4px 20px; background: var(--panel); }
+.fd-ref { flex: 1; min-width: 0; display: flex; }
+.fd-ref .fg-copyable { min-width: 0; max-width: 100%; }
+.fd-ref code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-bar-end { display: inline-flex; align-items: center; gap: 10px; flex: none; }
+.fd-close { width: 32px; height: 32px; padding: 0; margin: 0 -6px 0 0; }
+
+/* The head: title, then the byline with its state, then the status lines. */
+.fd-head { margin-top: 8px; }
+.fd-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; color: var(--text); }
+.fd-title a { color: var(--accent); text-decoration: none; }
+.fd-title a:hover { text-decoration: underline; }
+.fd-title-mono code { font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; overflow-wrap: anywhere; }
+.fd-title-mono .fg-copyable { align-items: flex-start; max-width: 100%; }
+/* A sentence, so it wraps like one: the chips in it are inline boxes. */
+.fd-byline { margin: 10px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 2; overflow-wrap: anywhere; }
+.fd-byline > * { vertical-align: middle; }
+.fd-byline > :not(:first-child) { margin-left: 5px; }
+.fd-byline > .fg-badge { margin-right: 3px; }
+.fd-byline .fg-person-name { color: var(--text); font-weight: 500; }
+.fd-byline .fg-copyable { max-width: 100%; }
+.fd-byline .fg-copyable > code, .fd-title-mono .fg-copyable > code { min-width: 0; }
+.fd-branch { display: inline-block; max-width: 100%; box-sizing: border-box; padding: 0 6px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.7; overflow-wrap: anywhere; }
+/* "· created 7d ago" may wrap before its time, never inside it. */
+.fd-when time { white-space: nowrap; }
+.fd-status { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; margin: 8px 0 0; padding: 0; }
+.fd-status > li { min-width: 0; max-width: 100%; }
+.fd-status-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-status-key { color: var(--muted); }
+
+/* A link to another item in the panel: a quiet button that fills on hover. Its
+   fill reaches 8px past the text so the words line up with the column, and it
+   may be those 8px wider than its column for the same reason. Its pieces never
+   break inside; on a narrow pane they wrap onto a second line instead. */
+.fd-jump { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 8px; max-width: calc(100% + 8px); min-height: 28px; white-space: nowrap; box-sizing: border-box; margin-left: -8px; padding: 2px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fd-jump:hover { background: var(--ctl-fill); }
+/* The deck's press: a labelled control gives a little under the pointer. */
+.fd-jump:active { transform: scale(0.97); }
+.fd-jump code { font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.fd-jump-meta { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fd-jump-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-jump-arrow { color: var(--muted); font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 1; }
+.fd-jump:hover .fd-jump-arrow { color: var(--text); }
+
+/* The page and its side column. */
+.fd-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+.fd-main { min-width: 0; }
+.fd-side { min-width: 0; }
+
+/* Facts: compact rows in a box — a label, then its value. */
+.fd-facts { display: grid; margin: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
+.fd-fact { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 8px 12px; }
+.fd-fact + .fd-fact { border-top: 1px solid var(--line-soft); }
+/* Both halves are centred on the same 22px first line — a row of avatars or
+   chips is that tall — and grow downwards from it, so a label stays beside the
+   first line of a list rather than drifting to its middle. */
+.fd-fact dt { display: flex; align-items: center; min-height: 22px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.fd-fact dd { display: grid; align-content: center; min-width: 0; min-height: 22px; margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+.fd-fact dd > * { min-width: 0; }
+.fd-facts-page { margin-top: 16px; }
+.fd-none { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-plain-link { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+.fd-plain-link:hover { text-decoration: underline; }
+.fd-people { list-style: none; display: grid; gap: 6px; margin: 0; padding: 0; }
+.fd-people > li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; }
+.fd-review { font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.fd-faces { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; padding: 0; }
+.fd-faces-more { color: var(--muted); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); padding-left: 2px; }
+.fd-diverge { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--muted); }
+.fd-diverge strong { color: var(--text); font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* A label: the forge's colour is only the swatch, so the words keep the
+   theme's own contrast whatever the colour is. */
+.fd-labels { display: flex; flex-wrap: wrap; gap: 4px; }
+.fd-label { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; padding: 1px 8px 1px 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.6; }
+.fd-swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted-dim); box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 30%, transparent); }
+.fd-label-scope { padding-right: 6px; border-right: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.fd-label-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The section switch: the merge request page's tabs, with their counts. */
+.fd-sections { display: flex; width: max-content; max-width: 100%; box-sizing: border-box; overflow-x: auto; scrollbar-width: none; }
+.fd-sections .uh-range-btn { display: inline-flex; align-items: baseline; gap: 6px; min-height: 28px; padding: 4px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.fd-section-count { font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
+.fd-section-label { min-width: 0; }
+.fd-section { margin-top: 14px; min-width: 0; }
+
+/* Blocks and headings on a page. */
+.fd-block { margin-top: 20px; }
+.fd-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.fd-progress { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; }
+.fd-description { margin: 0; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
+.fd-discussions > .fg-empty { margin-top: 16px; }
+.fd-all-resolved { margin-top: 16px; }
+
+/* Discussions: a thread says where it is, then its comments. */
+.fd-threads { list-style: none; display: grid; gap: 10px; margin: 6px 0 0; padding: 0; }
+.fd-thread { min-width: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
+.fd-thread-head { display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line-soft); background: var(--ctl-fill); }
+.fd-path { flex: 1; min-width: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
+.fd-path-dir { color: var(--muted); }
+/* The file name wraps as a whole onto the next line before it breaks inside. */
+.fd-path-name { display: inline-block; max-width: 100%; color: var(--text); }
+.fd-path-line { color: var(--text); }
+.fd-outdated { flex: none; }
+.fd-comments { list-style: none; margin: 0; padding: 0; }
+.fd-comment { padding: 10px 12px 12px; min-width: 0; }
+.fd-comment + .fd-comment { border-top: 1px solid var(--line-soft); }
+.fd-comment-head { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-comment-head .fg-person-name { font-weight: 600; }
+.fd-comment-time { color: var(--muted); white-space: nowrap; }
+.fd-comment-link { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; margin-left: auto; border-radius: var(--r-ctl); color: var(--muted); text-decoration: none; }
+.fd-comment-link:hover { background: var(--ctl-fill); color: var(--text); }
+.fd-comment-body { margin: 4px 0 0 26px; }
+.fd-comment-body > :last-child { margin-bottom: 0; }
+
+/* Lists on a page: commits, changed files, pipelines, child items. */
+.fd-items { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
+.fd-item { display: grid; gap: 3px; min-width: 0; padding: 10px 14px; }
+.fd-item + .fd-item { border-top: 1px solid var(--line-soft); }
+.fd-item-title { color: var(--text); font-weight: 500; overflow-wrap: anywhere; text-decoration: none; }
+.fd-out:hover { text-decoration: underline; }
+.fd-out-mark { color: var(--muted); font-weight: 400; }
+.fd-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-item-meta code { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); }
+.fd-items-bare { margin: 0; border: 0; background: none; }
+.fd-items-bare .fd-item { padding: 0; }
+.fd-rows { margin-top: 8px; }
+.fd-pipe-row { grid-template-columns: 7.5em auto minmax(0, 1fr) auto; min-height: 44px; }
+.fd-pipe-id code { font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-pipe-meta { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-pipe-meta .fd-branch { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-pipe-meta > code:not(.fd-branch) { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.fd-pipe-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-pipe-when { display: inline-flex; gap: 10px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fd-child-row { grid-template-columns: 5.5em minmax(0, 1fr) auto; min-height: 40px; }
+.fd-child-title { min-width: 0; overflow-wrap: anywhere; }
+.fd-child-meta { display: inline-flex; gap: 8px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.fd-files { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
+.fd-files > li + li { border-top: 1px solid var(--line-soft); }
+.fd-file { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 38px; box-sizing: border-box; padding: 8px 14px; color: var(--text); text-decoration: none; }
+a.fd-file:hover { background: var(--ctl-fill); }
+.fd-file-path { flex: 1 1 240px; min-width: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
+.fd-file-path code { font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-file-old { color: var(--muted); }
+/* Words for a screen reader where the eye has a glyph: the rename's arrow. */
+.fd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fd-file-end { display: inline-flex; align-items: center; gap: 10px; flex: none; margin-left: auto; }
+.fd-file-status { padding: 0 6px; border: 1px solid var(--line); border-radius: var(--r-tag); color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.6; }
+.fd-file-status[data-status=added] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.fd-file-status[data-status=deleted] { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
+.fd-diffstat { display: inline-flex; gap: 8px; font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; }
+.fd-add { color: var(--ok); }
+.fd-del { color: var(--err); }
+.fd-add[data-zero], .fd-del[data-zero] { color: var(--muted); }
+a.fd-file:hover .fd-out-mark { color: var(--text); }
+
+/* A pipeline's jobs, by stage. */
+.fd-stages { margin-top: 2px; }
+.fd-fold { margin-top: 10px; }
+.fd-fold-head { font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.fd-jobs { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
+.fd-block > .fd-jobs { margin-top: 8px; }
+/* A job is a panel row (`fg-row`: its hover, press and focus ring), laid out as
+   one wrapping line rather than the list's grid. The chevron's 10px and the 8px
+   gap put the body's 32px indent under the job's state. */
+.fd-job { display: grid; }
+.fd-job + .fd-job { border-top: 1px solid var(--line-soft); }
+.fd-job-row { display: flex; flex-wrap: wrap; gap: 4px 8px; min-height: 40px; }
+.fd-job-row .fg-fold-chevron { flex: none; margin: 0 2px 0 3px; color: var(--muted); }
+.fd-job[data-open] .fd-job-row .fg-fold-chevron { transform: rotate(45deg); }
+.fd-job-row .fg-mark { min-width: 6.5em; }
+.fd-job-name { flex: 1 1 8em; min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+.fd-job-note { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-radius: var(--r-tag); color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.6; white-space: nowrap; }
+.fd-job-time { margin-left: auto; color: var(--muted); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fd-job-body { display: grid; gap: 10px; min-width: 0; padding: 2px 14px 14px 32px; }
+.fd-job-reason { margin: 0; color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+.fd-annotations { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fd-annotations > li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; line-height: 1.5; }
+.fd-ann-place { color: var(--text); font-size: calc(11px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
+.fd-ann-title { font-weight: 600; }
+.fd-ann-message { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+
+/* A job's log tail: drawn from the end, in the terminal's own monospace. */
+.fd-log-wrap { display: grid; gap: 8px; min-width: 0; }
+.fd-log-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0; }
+.fd-log-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+/* The log is what the reader came to read, so it is in the text tier; a line
+   that says something failed or warns takes the state's colour. */
+.fd-log { max-height: min(360px, 55vh); margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--bg); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-color: var(--ctl-edge) transparent; }
+.fd-log-line { display: block; }
+.fd-log-line[data-tone=err] { color: var(--err); }
+.fd-log-line[data-tone=warn] { color: var(--warn); }
+
+/* Issues: comments wait behind a button. */
+button.btn.fd-show-comments { margin-top: 8px; }
+.fd-issue-comments { margin-top: 8px; }
+
+/* WIDE: the side column beside the page, GitLab's sidebar. */
+@container fd (min-width: 700px) {
+  .fd-layout { grid-template-columns: minmax(0, 1fr) 216px; gap: 32px; }
+  .fd-layout > .fd-side { grid-column: 2; grid-row: 1; }
+  .fd-layout > .fd-main { grid-column: 1; grid-row: 1; }
+  .fd-side .fd-facts { border: 0; border-radius: 0; background: none; }
+  .fd-side .fd-fact { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 12px 0; }
+  .fd-side .fd-fact:first-child { padding-top: 2px; }
+  .fd-side .fd-fact dt { text-transform: uppercase; letter-spacing: 0.05em; }
+}
+
+/* NARROW: four equal cells for the sections, no indents to spend width on. */
+@container fd (max-width: 479px) {
+  .fd-sections { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; border-radius: var(--r-panel); }
+  .fd-sections .uh-range-btn { flex-direction: column; align-items: center; justify-content: center; gap: 0; min-width: 0; padding: 4px 2px; border-radius: var(--r-ctl); line-height: 1.3; white-space: normal; text-align: center; }
+  .fd-section-label { max-width: 100%; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+  .fd-fact { grid-template-columns: 84px minmax(0, 1fr); }
+  .fd-comment-body { margin-left: 0; }
+  /* The job's name takes the first line beside the chevron, so it keeps the
+     width; its state, the note and the time go under it, the state lined up
+     with the name (18px is the chevron's 10px and the 8px gap). */
+  .fd-job-name { order: 1; flex-basis: calc(100% - 18px); }
+  .fd-job-row .fg-mark { order: 2; min-width: 0; margin-left: 18px; }
+  .fd-job-note { order: 3; }
+  .fd-job-time { order: 4; }
+  .fd-pipe-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .fd-pipe-row > .fd-pipe-meta { grid-column: 1 / -1; grid-row: 2; }
+  .fd-child-row { grid-template-columns: auto minmax(0, 1fr); }
+  .fd-child-row > .fd-child-meta { grid-column: 2; }
+}
+/* A phone leaves a quarter of the pane under 80px, which "Conversation" and
+   "Pipelines" do not fit: two rows of two, each label whole beside its count. */
+@container fd (max-width: 399px) {
+  .fd-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fd-sections .uh-range-btn { flex-direction: row; align-items: center; gap: 6px; min-height: 30px; padding: 4px 6px; }
+}
+
+@media (max-width: 640px) {
+  .fd { padding: 10px 16px 32px; }
+  .fd-bar { margin-inline: -16px; padding-inline: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fd-jump { transition: none; }
+  .fd-jump:active { transform: none; }
+}

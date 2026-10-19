@@ -41,11 +41,14 @@ import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
+import IntegrationsSection from "./IntegrationsSection";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
 import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
+import TerminalSection, { type TerminalSwitch } from "./TerminalSection";
+import { platformName } from "../platform";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
@@ -72,11 +75,13 @@ export interface SettingsModalProps {
   restart: ReturnType<typeof useAutoRestart>;
   /** Where About and General send the reader, each closing this first. */
   doors: SettingsDoors;
+  /** The terminal's Beta switch (use-stage.ts); General draws it when given. */
+  terminal?: TerminalSwitch;
 }
 
 export default function SettingsModal({
   section, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
-  versionCheck, desktopUpdate, restart, doors,
+  versionCheck, desktopUpdate, restart, doors, terminal,
 }: SettingsModalProps) {
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
@@ -193,7 +198,7 @@ export default function SettingsModal({
   const pane = (() => {
     switch (section) {
       case "radar":
-        return <RadarSettings />;
+        return <RadarSettings onOpen={doors.radar} />;
       case "appearance":
         return (
           <>
@@ -243,6 +248,8 @@ export default function SettingsModal({
             onDeleteCustom={deleteCustomAsset}
           />
         );
+      case "integrations":
+        return <IntegrationsSection />;
       case "data":
         return <ToolAuditSettings />;
       case "about":
@@ -258,11 +265,13 @@ export default function SettingsModal({
           />
         );
       default:
-        // General: how the board behaves, how the deck updates itself, and
-        // the preferences that live in a panel of their own (#2176).
+        // General: how the board behaves, the terminal's Beta beside it, the
+        // sessions recovered at startup, how the deck updates itself, and the
+        // preferences that live in a panel of their own (#2176).
         return (
           <>
             <BoardSection />
+            {terminal && <TerminalSection terminal={terminal} platform={platformName()} />}
             <SessionRecoverySettings provider="Codex" />
             {providers.claude && <SessionRecoverySettings provider="Claude" />}
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
