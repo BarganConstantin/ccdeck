@@ -201,6 +201,9 @@ export const CAUGHT_QUIET_MS = 1500;
  *  on, shorter than seeing the card and deciding to press it. */
 export const CAUGHT_FIRST_MS = 600;
 
+/** The catch each control is under, by the way it ends. */
+const catches = new WeakMap<HTMLElement, () => void>();
+
 /**
  * Focus onto `button` for the keys a pane lost mid-typing, marked
  * CAUGHT_KEYS_ATTR while the burst lasts: until it loses the focus, or
@@ -210,9 +213,12 @@ export const CAUGHT_FIRST_MS = 600;
  * In a sentence Space is the commonest key there is, and a Try again pressed
  * by one unmounted itself and put the rest of the sentence on the body, where
  * the deck's shortcuts run. Marked only if the focus took, so a mark is never
- * left on a control that could not hold it. True if it did.
+ * left on a control that could not hold it. True if it did. A catch on a
+ * control already catching replaces that one, whose window would otherwise
+ * end the new one's mark early.
  */
 export function catchKeys(button: HTMLElement, { typing = true }: { typing?: boolean } = {}): boolean {
+  catches.get(button)?.();
   button.focus();
   if (document.activeElement !== button) return false;
   let quiet: ReturnType<typeof setTimeout> | null = null;
@@ -232,11 +238,13 @@ export function catchKeys(button: HTMLElement, { typing = true }: { typing?: boo
   };
   function release() {
     if (quiet) clearTimeout(quiet);
+    if (catches.get(button) === release) catches.delete(button);
     button.removeAttribute(CAUGHT_KEYS_ATTR);
     button.removeEventListener("keydown", onKey);
     button.removeEventListener("keyup", onKey);
     button.removeEventListener("blur", release);
   }
+  catches.set(button, release);
   button.setAttribute(CAUGHT_KEYS_ATTR, "");
   button.addEventListener("keydown", onKey);
   button.addEventListener("keyup", onKey);

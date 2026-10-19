@@ -186,6 +186,21 @@ describe("the control that caught a pane's keys", () => {
     expect(c.attrs.has(CAUGHT_KEYS_ATTR), "measured from the letter, not the Space").toBe(false);
   });
 
+  it("is caught once, by the latest catch, when caught again", () => {
+    // Check again clicked twice while tmux is still missing: the first
+    // catch's window ended the second's mark and left its listeners on.
+    const b = button();
+    catchKeys(b as unknown as HTMLElement, { typing: false });
+    vi.advanceTimersByTime(CAUGHT_FIRST_MS - 100);
+    catchKeys(b as unknown as HTMLElement, { typing: false });
+    expect(b.listeners("keydown") + b.listeners("keyup") + b.listeners("blur"), "one catch listening").toBe(3);
+    vi.advanceTimersByTime(100);
+    expect(b.attrs.has(CAUGHT_KEYS_ATTR), "the first window is gone with it").toBe(true);
+    vi.advanceTimersByTime(CAUGHT_FIRST_MS - 100);
+    expect(b.attrs.has(CAUGHT_KEYS_ATTR)).toBe(false);
+    expect(b.fire("keydown", "Enter")).toBe(false);
+  });
+
   it("marks nothing when the focus does not take", () => {
     // An inert dock mid-morph: a mark left on a control without the focus
     // would block the stage's letters the next time a reader tabbed to it.
