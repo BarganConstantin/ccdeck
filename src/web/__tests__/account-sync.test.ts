@@ -238,6 +238,36 @@ describe("shared settings", () => {
     expect(b.own().values).toMatchObject({ theme: "paper", density: "compact", textSize: "larger", sound: false });
   });
 
+  it("sends each profile only its own keys in shared mode, whatever the profiles still hold", async () => {
+    // Found by ccdeck-api's end-to-end run against B's real endpoints: a deck
+    // that had been independent echoed its own profile's theme, density and
+    // text size back into it beside sound, and the API refused the save (400).
+    const accountId = randomUUID();
+    const a = await device({ accountId });
+    await a.sync.reportUi({ theme: "paper", sound: true }, "initial");
+    await a.sync.setMode({ mode: "shared", join: "publish", previewRevision: 0 });
+    const b = await device({ accountId });
+    await b.sync.reportUi({ theme: "nord", density: "comfortable", textSize: "larger", sound: false }, "initial");
+    expect(await b.sync.setMode({ mode: "shared", join: "use-shared" })).toEqual({ ok: true });
+    await b.sync.applied(api.sharedOf(accountId)!.revision);
+    // The console gives the shared profile a sound, for machines that keep none of their own.
+    api.editShared(accountId, { sound: false });
+    await b.sync.pull();
+
+    const before = puts().length;
+    await b.sync.reportUi({ sound: true, density: "compact" }, "user");
+    const sent = puts().slice(before);
+    expect(sent).toHaveLength(2);
+    const toOwn = sent.find(r => r.body.profileId === b.own().id)!;
+    const toShared = sent.find(r => r.body.profileId === api.sharedOf(accountId)!.id)!;
+    expect(toOwn.body.values).toEqual({ sound: true });
+    expect(toShared.body.values).not.toHaveProperty("sound");
+    expect(toShared.body.values).toMatchObject({ theme: "paper", density: "compact" });
+    expect(b.sync.view()).toMatchObject({ saving: "idle", pending: null });
+    expect(b.own().values.sound).toBe(true);
+    expect(api.sharedOf(accountId)!.values).toMatchObject({ density: "compact", sound: false });
+  });
+
   it("pulls the console's change to the shared profile on the frame that says so", async () => {
     const accountId = randomUUID();
     const a = await device({ accountId });

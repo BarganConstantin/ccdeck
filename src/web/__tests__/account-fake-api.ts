@@ -377,6 +377,11 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
 
 
   /** Write schema-1 values to a profile, keeping keys of any newer schema. */
+  const pickKeys = (values: Record<string, unknown>, keys: string[]) =>
+    Object.fromEntries(Object.entries(values).filter(([k]) => keys.includes(k)));
+  const omitKeys = (values: Record<string, unknown>, keys: string[]) =>
+    Object.fromEntries(Object.entries(values).filter(([k]) => !keys.includes(k)));
+
   function write(p: Profile, values: Record<string, unknown>, by: unknown) {
     const kept = Object.fromEntries(Object.entries(p.values).filter(([k]) => !(k in API_SCHEMA1)));
     p.values = { ...kept, ...values };
@@ -547,12 +552,23 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
         const bd = bound(d);
         return problem(409, "profile_not_bound", { binding: { mode: d.mode, profileId: bd.id, revision: bd.revision } });
       }
+      // SettingsProfiles.PutAsync's rules in shared mode: the device's own
+      // profile takes only the override keys, the shared one never does.
       if (own && d.mode === "shared") {
         const strays = Object.keys(b.values).filter(k => !d.overrides.includes(k));
         if (strays.length) return validation(strays.map(k => `values.${k}`));
       }
+      if (!own && d.mode === "shared") {
+        const kept = Object.keys(b.values).filter(k => d.overrides.includes(k));
+        if (kept.length) return validation(kept.map(k => `values.${k}`));
+      }
       if (b.baseRevision !== target.revision) return problem(409, "revision_conflict", { latest: profileJson(target, false) });
-      write(target, b.values, { kind: "device", deviceId: d.id, name: d.name });
+      // And what each keeps as stored: the shared profile its override keys
+      // (MergeKeeping), the own profile everything else (OverridesOnly).
+      const values = d.mode !== "shared" ? b.values
+        : own ? { ...omitKeys(target.values, d.overrides), ...b.values }
+        : { ...b.values, ...pickKeys(target.values, d.overrides) };
+      write(target, values, { kind: "device", deviceId: d.id, name: d.name });
       return { status: 200, body: { profile: profileJson(target) }, headers: { "content-type": "application/json" } };
     }
 
@@ -572,7 +588,13 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
           shared = newProfile("shared");
           sharedByAccount.set(d.accountId, shared.id);
         }
-        write(shared, b.values, by);
+        // As SettingsProfiles.PublishAsync: the override keys go to the
+        // device's own profile, everything else to the shared one, which keeps
+        // its own override keys as stored.
+        write(shared, { ...omitKeys(b.values, d.overrides), ...pickKeys(shared.values, d.overrides) }, by);
+        const ownProfile = profiles.get(d.ownProfileId)!;
+        const ownValues = { ...omitKeys(ownProfile.values, d.overrides), ...pickKeys(b.values, d.overrides) };
+        if (JSON.stringify(ownValues) !== JSON.stringify(ownProfile.values)) write(ownProfile, ownValues, by);
         d.mode = "shared";
       } else {
         write(profiles.get(d.ownProfileId)!, b.values, by);
