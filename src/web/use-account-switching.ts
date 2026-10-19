@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { activeSwitchNote } from "./active-switch-note";
 import { commandOutput, explainCommandFailure } from "./admin-failure";
+import { expiredSwitch } from "./expired-switch";
 import { type Failure } from "./accounts-reload";
 import { type AccountsData } from "./claude-accounts";
 
@@ -99,7 +100,11 @@ export function useAccountSwitching({
       const body = await res.json().catch(() => null);
       // Both answers land on the row that was pressed (#827): the refusal is
       // tagged with it, and a switch that took names the account it took to.
-      if (!body?.ok) sayFailure({ text: explainCommandFailure(body, "the switch failed"), raw: commandOutput(body), row: num });
+      // A login the deck knows has expired (#2184) is said by name, with the
+      // sign-in that fixes it — claude-swap was never asked, and nothing moved.
+      const expired = expiredSwitch(body, name, num);
+      if (expired) sayFailure(expired);
+      else if (!body?.ok) sayFailure({ text: explainCommandFailure(body, "the switch failed"), raw: commandOutput(body), row: num });
       else setSwitched({ num, name });
       await load(true);
     } catch {
@@ -114,5 +119,10 @@ export function useAccountSwitching({
     }
   };
 
-  return { switched, post, doSwitch };
+  /** A switch this panel did not press landed on `num`, and is said the way a
+   *  press of Switch says it: the one a removal of an expired active login
+   *  makes (#2184). */
+  const noteSwitched = useCallback((num: number, name: string) => setSwitched({ num, name }), []);
+
+  return { switched, post, doSwitch, noteSwitched };
 }

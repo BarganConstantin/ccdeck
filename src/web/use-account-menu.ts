@@ -22,6 +22,7 @@ import { explainFailure } from "./admin-failure";
 import { type SwapNote, manageAfterMove } from "./account-move";
 import { type Failure } from "./accounts-reload";
 import { aliasSave } from "./alias-save";
+import { type RemoveAnswer } from "./expired-switch";
 import { copyText } from "./copy-text";
 import { armedPress, focusDropped } from "./panel-press";
 import { type PickerCommit } from "./picker-commit";
@@ -61,9 +62,12 @@ export interface AccountMenuDeps {
   clearFailure: () => void;
   /** Focus the nearest control that outlived the press — see the panel. */
   rescueFocus: (row: number | null) => void;
+  /** A removal landed, with what the server did after it: removing the active
+   *  account when its login had expired moves Claude Code elsewhere (#2184). */
+  afterRemove?: (out: RemoveAnswer) => void;
 }
 
-export function useAccountMenu({ claim, release, load, clearFailure, rescueFocus }: AccountMenuDeps) {
+export function useAccountMenu({ claim, release, load, clearFailure, rescueFocus, afterRemove }: AccountMenuDeps) {
   // Which account's ⋯ is open, and what it is showing: the menu, or the one
   // small form an item turned it into. One at a time — opening a second
   // account's menu closes the first. It lies over the column rather than
@@ -341,6 +345,7 @@ export function useAccountMenu({ claim, release, load, clearFailure, rescueFocus
       load(true);
       // Refused: the menu stays open and says why.
       if (!out?.ok) return;
+      afterRemove?.(out);
       if (menuRef.current?.num === num) dropMenu();
       // The row this lived on is going, so there is no local anchor left and
       // focus falls to the panel reload — see rescueSelectors in panel-press.ts.

@@ -220,7 +220,9 @@ describe("the quota held across a Claude account switch", () => {
 const web = fileURLToPath(new URL("..", import.meta.url));
 // The route's own module, since the accounts routes left index.mjs.
 const server = readFileSync(`${web}../server/account-routes.mjs`, "utf8");
-const handler = /async function handleClaudeAccountSwitch[\s\S]*?\n}/.exec(server)?.[0] ?? "";
+// The switch route's bookkeeping, which the route and a removal that moves
+// Claude Code off an expired login (#2184) both go through.
+const handler = /async function switchAndTell[\s\S]*?\n}/.exec(server)?.[0] ?? "";
 
 // These two read the handler's SOURCE, which pins one literal inside one
 // function and nothing else. Worth keeping — this route is otherwise reachable
@@ -239,6 +241,7 @@ describe("the switch route", () => {
     // /api/quota is polled by a component that never hears about a switch, so
     // ?refresh=1 can never arrive for one: whoever moves the account server-side
     // has to say so, and this route is one of the two places that do.
+    expect(server).toMatch(/async function handleClaudeAccountSwitch[\s\S]*?\bswitchAndTell\(parsed\.account,/);
     expect(handler).toContain("invalidateClaudeAccountsCache();");
     expect(handler).toContain("invalidateQuotaCache();");
     expect(handler).toContain('join(PKG_ROOT, "src/server/quota.mjs")');
