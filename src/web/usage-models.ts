@@ -188,6 +188,18 @@ export function agentCost(a: UsageBearing, now: number = Date.now()): CostBreakd
   return out;
 }
 
+/** Whether every nonempty usage share has a rate, including cache-only work. */
+export function agentFullyPriced(a: UsageBearing, now: number = Date.now()): boolean {
+  return usageByModelEntries(a).every(e => {
+    const shares = speedShares(e.usage).filter(({ usage: u }) =>
+      u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheCreateTokens
+        + (u.cacheCreate1hTokens ?? 0) + (u.cacheCreate5mTokens ?? 0) > 0);
+    return shares.length > 0
+      ? shares.every(share => ratesForModel(e.model, now, share.speed) !== null)
+      : ratesForModel(e.model, now) !== null;
+  });
+}
+
 /**
  * The tokens in this agent that no rate could be applied to.
  *

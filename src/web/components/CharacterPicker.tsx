@@ -14,7 +14,7 @@ export default function CharacterPicker({ character, onCharacter }: {
     onCharacter(CHARACTERS[target.index].id);
     buttons.current[target.index]?.focus();
   }
-  return <div className="character-picker" role="radiogroup" aria-label="Choose character">
+  return <div className="character-picker" role="radiogroup" aria-label="Choose character" data-setting="character-choice">
     {CHARACTERS.map((choice, index) => <button key={choice.id} type="button"
       className="character-choice" role="radio" aria-checked={character === choice.id}
       tabIndex={character === choice.id ? 0 : -1}

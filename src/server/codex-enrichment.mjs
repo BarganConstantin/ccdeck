@@ -10,6 +10,7 @@
 // (event-pipeline.mjs) hands every live event to maybeResolveCodex, and
 // session-tracking.mjs forgets a session through forgetCodexSession. The
 // bodies are unchanged.
+import { codexCostState, codexCostGap, foldCodexCost, codexCostBuckets } from "./codex-cost-usage.mjs";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { STOP, rolloutNameId, walkRolloutDays } from "./codex-dir.mjs";
@@ -48,6 +49,7 @@ import { sessionReadGate } from "./session-read-gate.mjs";
 const codexRolloutPathBySid = new Map();
 const CODEX_READ_THROTTLE_MS = 2500;
 const codexUsageReads = sessionReadGate(CODEX_READ_THROTTLE_MS);
+const codexUsageRequests = new Map();
 // How many of the newest day directories a lookup reads when it is not owed
 // the whole tree: the bound listRecentCodexRollouts keeps for the watcher.
 const CODEX_RECENT_DAY_DIRS = 2;
@@ -211,6 +213,7 @@ export async function readCodexRollout(path) {
     const s = await stat(path);
     if (s.size === 0) return null;
     let text;
+    const pricing = codexCostState();
     if (s.size <= CODEX_HEAD_BYTES + CODEX_TAIL_BYTES) {
       text = await readByteRange(path, 0, s.size);
     } else {
@@ -221,7 +224,7 @@ export async function readCodexRollout(path) {
       // the loop below skips it.
       const head = await readByteRange(path, 0, CODEX_HEAD_BYTES);
       const tail = await readByteRange(path, s.size - CODEX_TAIL_BYTES, s.size);
-      text = `${head}\n${tail}`;
+      text = `${head}\n__ccdeck_gap__\n${tail}`;
     }
     let lastUsage = null;
     let model = null;
@@ -230,9 +233,11 @@ export async function readCodexRollout(path) {
     // Undefined until a turn_context is read: "no turn yet" is not "no effort".
     let effort;
     for (const line of text.split("\n")) {
+      if (line === "__ccdeck_gap__") { codexCostGap(pricing); continue; }
       if (!line) continue;
       let obj;
       try { obj = JSON.parse(line); } catch { continue; }
+      foldCodexCost(pricing, obj);
       // One record is one of these at most: each asks the record's own type.
       const meta = sessionMeta(obj);
       if (meta) {
@@ -251,28 +256,47 @@ export async function readCodexRollout(path) {
       if (obj?.type === "turn_context") effort = turnContextEffort(obj.payload);
     }
     if (!lastUsage && !model && !contextWindow) return null;
-    return { usage: lastUsage, model, contextWindow, cwd, effort };
+    const usageByModel = codexCostBuckets(pricing);
+    return { usage: lastUsage, model, contextWindow, cwd, effort,
+      ...(usageByModel ? { usageByModel } : {}) };
   } catch {
     return null;
   }
 }
 
-function maybeResolveCodex(payload) {
+function maybeResolveCodex(payload, opts = {}) {
   if (!payload || typeof payload !== "object") return;
   if (payload.provider !== "codex") return;
   const sid = payload.session_id;
   if (!sid) return;
-  codexUsageReads.run(sid, async () => {
+  let entry = codexUsageRequests.get(sid);
+  if (!entry) {
+    entry = { revision: 0, opts: {}, timer: null };
+    codexUsageRequests.set(sid, entry);
+  }
+  entry.revision++;
+  entry.opts = { persist: opts.persist };
+  runCodexUsageRead(sid, entry);
+}
+
+function runCodexUsageRead(sid, entry) {
+  if (codexUsageRequests.get(sid) !== entry) return;
+  const revision = entry.revision;
+  const emitOpts = entry.opts;
+  const started = codexUsageReads.run(sid, async () => {
     const path = await findCodexRolloutPath(sid);
-    if (!path) return;
+    if (!path || codexUsageRequests.get(sid) !== entry || entry.revision !== revision) return;
     const r = await readCodexRollout(path);
-    if (!r) return;
+    // Watcher activity, eviction or shutdown can supersede either await.
+    // Never let a delayed snapshot overwrite newer live observations.
+    if (!r || codexUsageRequests.get(sid) !== entry || entry.revision !== revision) return;
     if (r.usage) {
       pushEvent({
         hook_event_name: "UsageObserved",
         session_id: sid,
         usage: r.usage,
-      }, "internal");
+        usageByModel: r.usageByModel ?? null,
+      }, "internal", emitOpts);
     }
     if (r.model) {
       pushEvent({
@@ -282,7 +306,7 @@ function maybeResolveCodex(payload) {
         // A hook-delivered session has no watcher to spread it, so it rides
         // here, beside the model it qualifies.
         ...(r.effort !== undefined ? { reasoning_effort: r.effort } : {}),
-      }, "internal");
+      }, "internal", emitOpts);
     }
     if (r.contextWindow) {
       // Piggy-back on the model event with the window — reducer reads
@@ -292,9 +316,21 @@ function maybeResolveCodex(payload) {
         session_id: sid,
         model: r.model ?? undefined,
         model_context_window: r.contextWindow,
-      }, "internal");
+      }, "internal", emitOpts);
     }
   });
+  if (started) {
+    clearTimeout(entry.timer);
+    entry.timer = null;
+  } else if (!entry.timer) {
+    // Keep demand until a read actually starts, including while another read
+    // is pending. At most one unref'd retry timer exists for this session.
+    entry.timer = setTimeout(() => {
+      entry.timer = null;
+      runCodexUsageRead(sid, entry);
+    }, CODEX_READ_THROTTLE_MS + 1);
+    entry.timer.unref?.();
+  }
 }
 
 /**
@@ -305,6 +341,8 @@ function maybeResolveCodex(payload) {
 function forgetCodexSession(sid) {
   codexRolloutPathBySid.delete(sid);
   codexUsageReads.forget(sid);
+  clearTimeout(codexUsageRequests.get(sid)?.timer);
+  codexUsageRequests.delete(sid);
   codexSessionModel.delete(sid);
   codexSessionApproval.delete(sid);
   codexSessionEffort.delete(sid);
@@ -316,3 +354,9 @@ function forgetCodexSession(sid) {
 // at each declaration, so the declarations read as they did where they came
 // from.
 export { findCodexRolloutPath, forgetCodexSession, maybeResolveCodex };
+
+export function stopCodexEnrichment() {
+  for (const entry of codexUsageRequests.values()) clearTimeout(entry.timer);
+  codexUsageRequests.clear();
+  codexUsageReads.forgetAll();
+}

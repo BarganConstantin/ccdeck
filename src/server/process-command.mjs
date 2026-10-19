@@ -31,8 +31,11 @@ export const CMD_MAX = 180;
 const SECRET_FLAG =
   /(-{1,2}[\w.-]*(?:token|password|passwd|secret|api[-_]?key|apikey|auth|credential|bearer|cookie|session[-_]?id|private[-_]?key)[\w.-]*)(=|\s+)(\S+)/gi;
 // The shapes that are a secret on their own, with no flag in front of them.
+// GitHub's fine-grained tokens and GitLab's prefixed ones (personal, deploy,
+// runner, trigger…) joined with the GitHub and GitLab panels (#2179), which
+// put a token of each kind on this machine.
 const BARE_SECRET =
-  /\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,})/g;
+  /\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{20,}|gl(?:pat|dt|rt|cbt|ptt|ft|imt|agent|oas|soat)-[A-Za-z0-9_.-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,})/g;
 // user:password@host, in any URL. The password goes; the rest is a location.
 const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/[^\s:@/]+):[^\s@/]+@/gi;
 

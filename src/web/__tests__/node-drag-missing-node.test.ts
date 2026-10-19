@@ -36,6 +36,19 @@ function mount(nodes: Node[] = [node()]) {
 
 beforeEach(() => vi.clearAllMocks());
 
+it("moves Codex child sessions and notes with their canvas family while leaving another session alone", () => {
+  const group = node("group", "sessionGroup", 0, 0);
+  const child = { ...node("child"), data: { sessionId: "child", canvasSessionId: "session" } };
+  const note = { ...node("note", "recapNote"), data: { sessionId: "child", canvasSessionId: "session" } };
+  const other = { ...node("other"), data: { sessionId: "other" } };
+  const { input, call } = mount([group, node(), child, note, other]);
+  call("onNodeDragStart", group);
+  call("onNodeDrag", node("group", "sessionGroup", 30, 40));
+  call("onNodeDragStop", node("group", "sessionGroup", 35, 45));
+  for (const id of ["agent", "child", "note"]) expect(input.positionsRef.current.get(id)).toEqual({ x: 45, y: 65 });
+  expect(input.positionsRef.current.get("other")).toEqual({ x: 10, y: 20 });
+});
+
 describe("drag callbacks whose node has disappeared", () => {
   it("ignores an unresolvable drag start", () => {
     const { input, call } = mount();

@@ -11,7 +11,7 @@ import {
   resolveTextSize,
 } from "../reading-preferences";
 import { CARD_BODY_PX, cardBodyPx, fitZoomForDrawnLanes, nextLod } from "../semantic-zoom";
-import ReadingSection from "../components/ReadingSection";
+import ReadingSection, { ReadingReset } from "../components/ReadingSection";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].find((m) =>
@@ -72,19 +72,14 @@ describe("reading preferences before first paint", () => {
     });
   });
   it("uses separately named native radio groups and a reset disabled at default", () => {
-    const draw = (textSize: "default" | "largest") =>
-      renderToStaticMarkup(
-        createElement(ReadingSection, {
-          textSize,
-          density: "default",
-          onTextSize() {},
-          onDensity() {},
-        }),
-      );
+    const props = (textSize: "default" | "largest") => ({ textSize, density: "default" as const, onTextSize() {}, onDensity() {} });
+    const draw = (textSize: "default" | "largest") => renderToStaticMarkup(createElement(ReadingSection, props(textSize)));
+    // Reset is drawn in the pane's head beside the section's name (#2176).
+    const reset = (textSize: "default" | "largest") => renderToStaticMarkup(createElement(ReadingReset, props(textSize)));
     expect(draw("default").match(/name="text-size"/g)).toHaveLength(5);
     expect(draw("default").match(/name="density"/g)).toHaveLength(5);
-    expect(draw("default")).toMatch(/disabled="">Reset to defaults/);
-    expect(draw("largest")).not.toMatch(/disabled="">Reset to defaults/);
+    expect(reset("default")).toMatch(/disabled="">Reset to defaults/);
+    expect(reset("largest")).not.toMatch(/disabled="">Reset to defaults/);
   });
 });
 

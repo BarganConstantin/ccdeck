@@ -72,6 +72,8 @@ export { prefsPath };
  */
 export const DEFAULTS = Object.freeze({
   notifications: false,
+  recoverCodexSessions: true,
+  recoverClaudeSessions: true,
   // ACCOUNT NOTIFICATIONS, one switch each (account-notify.mjs). Not part of
   // `notifications` above, which is about a deck nobody is looking at: these
   // are said whether a page is open or not, because no page says them. The
@@ -92,6 +94,19 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
+  // THE TERMINAL PANEL, OFF until somebody turns it on: a terminal you can
+  // type into is the first thing in the deck that reaches into an agent rather
+  // than watching one. A Beta switch in Settings › General since 2026-10-18,
+  // so in PAGE_FIELDS, behind the gates every other switch is behind. Those
+  // turn away every other site, a rebound name and the network; they cannot
+  // turn away a process on this machine that writes a loopback Origin itself
+  // (request-gates.mjs says so), and such a process can now switch on a way to
+  // type into the user's sessions — where before it had to write prefs.json.
+  // Accepted for the Beta, knowingly: that process can already read the ring
+  // and the accounts through the same gates. Before the switch it was
+  // deck-owned, set by hand in prefs.json; the launch variable terminalOn
+  // names still turns it on for one run. See terminal-routes.mjs.
+  terminal: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -314,11 +329,14 @@ export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
     notifications: flagOr(src.notifications, DEFAULTS.notifications),
+    recoverClaudeSessions: flagOr(src.recoverClaudeSessions, DEFAULTS.recoverClaudeSessions),
+    recoverCodexSessions: flagOr(src.recoverCodexSessions, DEFAULTS.recoverCodexSessions),
     notifySwap: flagOr(src.notifySwap, DEFAULTS.notifySwap),
     notifyQuota: flagOr(src.notifyQuota, DEFAULTS.notifyQuota),
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
+    terminal: flagOr(src.terminal, DEFAULTS.terminal),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),
@@ -701,7 +719,10 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"]),
+  top: Object.freeze([
+    "notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
+    "terminal",
+  ]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
@@ -758,6 +779,37 @@ export function accountNotifySettings(prefs, env = process.env) {
 export function lanEnabled(prefs, env = process.env) {
   if (env.AGENTS_DECK_NO_LAN === "1") return false;
   return normalise(prefs).lan.enabled;
+}
+
+/** Set to "1" to switch the terminal panel on for one run, whatever prefs.json
+ *  says. THE ONE VARIABLE HERE THAT TURNS SOMETHING ON rather than vetoing it,
+ *  and deliberately left out of the README's table and of the login item's
+ *  SETTING_VARS while the panel is a Beta — readme-order.test.ts names it as a
+ *  decision, so documenting it later is a decision too. */
+export const TERMINAL_ENV = "CCDECK_TERMINAL";
+
+/**
+ * Is the terminal panel switched on? Either the launch variable or the stored
+ * `terminal` switch, and nothing else.
+ *
+ * The opposite polarity from lanEnabled's veto, on purpose: the panel is the
+ * feature that is off unless somebody chose it, and either of the people who
+ * can choose — whoever launched the deck, or whoever turned on the switch in
+ * Settings or wrote it into the settings file — is enough.
+ *
+ * Asked on every request and every upgrade rather than once at boot, so the
+ * routes and the socket answer from the same settings at every moment and can
+ * never disagree about whether the panel exists.
+ */
+export function terminalOn(prefs, env = process.env) {
+  return terminalForced(env) || prefs?.terminal === true;
+}
+
+/** On whatever the switch says, because the deck was launched with the
+ *  variable: Settings draws its switch on and fixed, and says why, rather than
+ *  offering a press that could not turn it off. */
+export function terminalForced(env = process.env) {
+  return env[TERMINAL_ENV] === "1";
 }
 
 /**

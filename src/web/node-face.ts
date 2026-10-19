@@ -1,3 +1,4 @@
+import { canvasSessions } from "./canvas-session";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "./types";
 import { isAlarming } from "./ambient-counts";
 import { planLine, planSummary } from "./agent-plan";
@@ -28,10 +29,14 @@ export interface BranchSummary {
 /** One summary per session that has at least one subagent on the canvas. */
 export function branchSummaries(agents: Iterable<AgentNodeData>): Map<string, BranchSummary> {
   const out = new Map<string, BranchSummary>();
-  for (const a of agents) {
-    if (a.kind !== "subagent" || a.exitAt != null) continue;
-    let b = out.get(a.sessionId);
-    if (!b) { b = { total: 0, live: 0, done: 0, err: 0, failed: 0 }; out.set(a.sessionId, b); }
+  const rows = [...agents];
+  const groups = canvasSessions(rows);
+  for (const a of rows) {
+    if ((a.kind !== "subagent" && !(a.provider === "codex" && a.parentId)) || a.exitAt != null) continue;
+    const group = groups.get(a.id) ?? a.sessionId;
+    if (a.provider === "codex" && group === a.sessionId) continue;
+    let b = out.get(group);
+    if (!b) { b = { total: 0, live: 0, done: 0, err: 0, failed: 0 }; out.set(group, b); }
     b.total += 1;
     if (a.state === "active") b.live += 1;
     else if (a.state === "err") b.err += 1;

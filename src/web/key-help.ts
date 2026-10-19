@@ -107,6 +107,8 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // #826: the three topbar panels that were pointer-only.
       { cap: "S", action: "this machine — cores, memory, temperature", binds: ["s", "S"] },
       { cap: "B", action: "Browser Watch", binds: ["b", "B"] },
+      // Drawn once a Jira connection exists (#2178); the key does nothing before.
+      { cap: "I", action: "Jira, once it is connected in Settings › Integrations", binds: ["i", "I"] },
       { cap: "?", action: "this sheet", binds: ["?"] },
     ],
   },
@@ -157,7 +159,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
 const SINGLE_KEY_ASIDE = / \([A-Z?]\)/g;
 
 /** The sheet as it stands with the single-key shortcuts off (Settings ›
- *  General, WCAG 2.1.4): only the rows that still do something — the chord,
+ *  Keyboard, WCAG 2.1.4): only the rows that still do something — the chord,
  *  the named keys and the mouse — with a group that loses every row left out
  *  rather than drawn as an empty heading. With them on, the whole table. */
 export function keyHelpFor(singleKeys: boolean): readonly KeyHelpGroup[] {
@@ -174,9 +176,9 @@ export function keyHelpFor(singleKeys: boolean): readonly KeyHelpGroup[] {
 
 /** What the sheet says first while the single-key shortcuts are off: that they
  *  are, and where they are turned back on. The place is its own string so the
- *  sheet can keep "Settings › General" on one line. */
+ *  sheet can keep "Settings › Keyboard" on one line. */
 export const KEY_HELP_OFF_TITLE = "Single-key shortcuts are off.";
-export const SINGLE_KEYS_PLACE = "Settings › General";
+export const SINGLE_KEYS_PLACE = "Settings › Keyboard";
 
 /** The footnote's second sentence while they are on: where the reader whose
  *  letters fire by accident — dictation, a stray hand — turns them off. */
