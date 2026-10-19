@@ -38,6 +38,11 @@
   .autofit-resume,
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
+  /* The terminal stage's keys bar (terminal-stage.css) names keys the same
+     way: j k, n, Esc, the release chord. They go; "type here" stays, as the
+     button it is. */
+  .ts-keys .ts-hint:not(:has(button)) { display: none; }
+  .ts-keys .ts-kbd { display: none; }
   /* What's new's update line: its one button takes the floor, and the line
      keeps that height whether the button is there or not, so an answer that
      brings one still moves nothing. */
@@ -147,6 +152,10 @@
   .react-flow__controls-button[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"]:hover,
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The GitHub and GitLab panel's tabs and a change's sections are the same
+     chip, chosen by aria-selected because they are tabs (#2179). */
+  .fg-tabs .uh-range-btn[aria-selected="true"],
+  .fd-sections .uh-range-btn[aria-selected="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   /* The sign-in's rings and stage marks carry where a sign-in is in their
      colour as well as their shape, so they are redrawn in system colours: the
      turning arc and the current stage in the highlight, a finished or failed
@@ -169,6 +178,8 @@
   .up-period .uh-range-btn[aria-pressed="true"],
   .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: auto; background: transparent; }
   .up-period .uh-range-btn[aria-pressed="true"]::after { forced-color-adjust: none; background: Highlight; }
+  /* Tool activity's open tab is marked the same way, by the bar under its word. */
+  .ta-view[aria-selected=true]::after { forced-color-adjust: none; background: Highlight; }
   /* Every session row's edge is repainted in the text colour, the chosen
      one's accent with them: it takes the highlight, twice as heavy. The edge
      is a term in the row's side padding, so the words stay put, and what it
@@ -276,6 +287,50 @@
   .sm-row input[type="range"]::-moz-range-progress { background: Highlight; }
   .sm-row input[type="range"]::-moz-range-thumb { background: Highlight; }
 
+  /* The board navigator beside the terminal stage (board-navigator.css). The
+     theme repaints the session's hue and drops the socket's washes and inset
+     ring, so the tile on the stage keeps its rim and its face's edge in the
+     highlight, the chevron with them, the way a chosen row does. The trunk's
+     branches are strokes the theme leaves in the session's hue, and are drawn
+     in the text colour; live and settled stay apart by the dash. */
+  .nav-tile[data-attached] .nav-face,
+  .nav-tile[data-attached] .nav-rim { border-color: Highlight; }
+  .nav-socket { color: Highlight; }
+  .nav-trunk .sess-edge.sess-live,
+  .nav-trunk .sess-edge.sess-idle { stroke: CanvasText; }
+
+  /* The terminal stage (terminal-stage.css). Its marks are fills the theme
+     would paint over: the spine is the session on stage, so it is the
+     highlight (grey when nothing is on stage); the keys bar's lamp is lit in
+     the highlight when the pane has the keys and hollow when the board does;
+     the state marks beside a sentence are the text colour, hollow ones kept
+     hollow; the asks track keeps its segments, the one on stage and the
+     answered ones filled. The divider's line is drawn in the text colour,
+     and the terminal itself is drawn by xterm's DOM renderer here, whose
+     glyphs the theme recolours like any text (use-terminal-session.ts). */
+  .ts-spine,
+  .ts-lamp,
+  .ts-mark,
+  .ts-end-mark,
+  .ts-fact-mark,
+  .ts-track i { forced-color-adjust: none; }
+  .ts-spine { background: Highlight; }
+  .ts-stage[data-empty] .ts-spine { background: GrayText; }
+  .ts-lamp { background: Canvas; border-color: CanvasText; }
+  .ts-keys[data-owner="pane"] .ts-lamp { background: Highlight; border-color: Highlight; box-shadow: none; }
+  .ts-mark,
+  .ts-end-mark,
+  .ts-fact-mark { background: CanvasText; }
+  .ts-l2[data-state="idle"] .ts-mark,
+  .ts-l2[data-state="ready"] .ts-mark,
+  .ts-l2[data-state="elsewhere"] .ts-mark,
+  .ts-fact-mark[data-kind="tmux"],
+  .ts-fact-mark[data-kind="gone"] { background: Canvas; border-color: CanvasText; }
+  .ts-track i { background: Canvas; border-color: CanvasText; }
+  .ts-track i[data-s="now"],
+  .ts-track i[data-s="done"] { background: Highlight; border-color: Highlight; }
+  .ts-divider::before { background: CanvasText; }
+
   /* The canvas strips' words — Resume, and Re-arrange's Undo — are set apart
      from the status beside them by weight and by a fill under the pointer,
      and the theme paints that fill Canvas. An edge in the button colour
@@ -305,4 +360,12 @@
   .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
   .ta-splitter::before { forced-color-adjust: none; background: CanvasText; }
   .ta-splitter:hover::before, .ta-splitter:focus-visible::before { background: Highlight; }
+
+  /* A tracker's panel (#2178): the line between the list and an issue in
+     system ink like Tool activity's, and the open issue and a pressed filter
+     outlined, since their fills are gone. */
+  .ig-splitter::before { forced-color-adjust: none; background: CanvasText; }
+  .ig-splitter:hover::before, .ig-splitter:focus-visible::before { background: Highlight; }
+  .jr-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
 }

@@ -195,6 +195,16 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
 }
+/* Beta, in the same slot: the word Telemetry Radar's title wears (.tr-beta),
+   as quiet as the count, so it reads as a note on the group rather than as a
+   control. */
+.settings-beta {
+  flex: none;
+  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
 .settings-list {
   display: flex;
   flex-direction: column;

@@ -67,6 +67,7 @@ const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
   keyboard: ["shortcuts", "hotkeys", "keybindings", "keys"],
   notifications: ["alerts", "notify"],
   sounds: ["audio", "tones", "chimes"],
+  integrations: ["jira", "atlassian", "tracker", "issues", "connect", "token", "board", "sprint"],
   data: ["privacy", "local data"],
   radar: ["telemetry", "collector", "monitoring"],
   about: ["information"],
@@ -85,6 +86,7 @@ const ACCOUNT_KEYWORDS: Record<(typeof ACCOUNT_NOTIFY_SWITCHES)[number]["kind"],
   notifySwap: ["auto-switch", "switch account", "swap", "alerts"],
   notifyQuota: ["quota", "limit", "rate limit", "usage", "alerts"],
   notifyReset: ["quota", "limit", "window", "available", "alerts"],
+  notifyStopped: ["stopped", "login", "expired", "usage limit", "continue", "alerts"],
   notifyElsewhere: ["login", "signed out", "local network", "another deck", "same account", "alerts"],
 };
 
@@ -99,9 +101,12 @@ function buildIndex(): SettingsEntry[] {
   const rows: Record<SettingsSection, SettingsEntry[]> = {
     general: [
       { id: "claude-session-recovery", claudeOnly: true, section: "general", group: "Claude sessions", label: "Restore unfinished sessions", keywords: ["claude", "recover", "restore", "startup", "restart", "busy"] },
+      { id: "claude-continue-stopped", claudeOnly: true, section: "general", group: "Claude sessions", label: "Continue stopped background sessions", keywords: ["claude", "continue", "background", "stopped", "login", "usage limit", "automatically"] },
       { id: "codex-session-recovery", section: "general", group: "Codex sessions", label: "Restore unfinished sessions", keywords: ["codex", "recover", "restore", "startup", "restart", "unfinished"] },
       { id: "hide-finished", section: "general", group: "Board", label: "Hide finished sessions after",
         keywords: ["finished", "done", "completed", "idle", "clean up", "auto hide", "canvas", "board", "remove"] },
+      { id: "terminal", section: "general", group: "Terminal", label: "Type into sessions from the deck",
+        keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta"] },
       { id: "auto-update", section: "general", group: "Updates", label: "Update when idle",
         keywords: ["update", "auto update", "automatic updates", "upgrade", "restart", "new version"] },
       { id: "accounts", section: "general", group: "Elsewhere on the deck", label: "Accounts and auto-switch", claudeOnly: true,
@@ -152,6 +157,12 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["import", "upload", "file", "mp3", "wav", "ogg", "own sound"] },
       { id: "custom-record", section: "sounds", group: "Custom sounds", label: "Record a clip",
         keywords: ["record", "microphone", "mic", "clip"] },
+    ],
+    integrations: [
+      { id: "integrations-add", section: "integrations", label: "Add integration",
+        keywords: ["connect", "jira", "jira cloud", "jira server", "data center", "api token", "personal access token", "pat"] },
+      { id: "integrations-connections", section: "integrations", label: "Connections",
+        keywords: ["disconnect", "reconnect", "test connection", "edit", "token", "expired", "jira"] },
     ],
     data: [
       { id: "tool-history-retention", section: "data", group: "Tool history", label: "Keep history",

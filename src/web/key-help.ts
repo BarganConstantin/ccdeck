@@ -107,6 +107,8 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // #826: the three topbar panels that were pointer-only.
       { cap: "S", action: "this machine — cores, memory, temperature", binds: ["s", "S"] },
       { cap: "B", action: "Browser Watch", binds: ["b", "B"] },
+      // Drawn once a Jira connection exists (#2178); the key does nothing before.
+      { cap: "I", action: "Jira, once it is connected in Settings › Integrations", binds: ["i", "I"] },
       { cap: "?", action: "this sheet", binds: ["?"] },
     ],
   },

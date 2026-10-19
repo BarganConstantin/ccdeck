@@ -16,6 +16,7 @@ import { STOP, rolloutNameId, sidFromRolloutName, walkRolloutDays } from "./code
 // record that says whose rollout it is — see codex-translate.mjs. The watcher
 // below still decides which lines are read and where each one goes.
 import { codexObjToPayload, codexSessionModel, sessionMeta } from "./codex-translate.mjs";
+import { noteCodexSkills } from "./codex-skills.mjs";
 import { codexCwdInWorkspace, writesCodexLog } from "./log-election.mjs";
 // The one spelling of a rollout's cwd — see canonical-path.mjs.
 import { canonicalCwd } from "./canonical-path.mjs";
@@ -351,7 +352,7 @@ async function openCodexCursor(path, st, now, firstRun, recover = false) {
   // UsageObserved in the file to every tab, and re-appending the lot to
   // the shared events.jsonl if this deck is the elected writer (#981).
   const fresh = !codexSeenEver.has(path);
-  const state = { offset: fresh ? 0 : st.size, sid: header.sid, cwd: header.cwd, link: header.link, skip: false, sawBeginning: fresh, rootOpened: false, seenAt: now };
+  const state = { offset: fresh ? 0 : st.size, sid: header.sid, cwd: header.cwd, link: header.link, skip: false, sawBeginning: fresh, rootOpened: false, seenAt: now, path };
   codexFileState.set(path, state);
   rememberCodexPath(path);
   if (firstRun) {
@@ -409,6 +410,8 @@ function emitCodexLines(state, consume, persist) {
     if (!line) continue;
     let obj;
     try { obj = JSON.parse(line); } catch { continue; }
+    // Skill activity reads the line itself: what says a skill ran is not an event.
+    noteCodexSkills(obj, state);
     const prevModel = codexSessionModel.get(state.sid);
     const payload = codexObjToPayload(obj, state.sid, state.cwd);
     const link = codexThreadLink(obj, state.sid, state.cwd);
@@ -486,7 +489,7 @@ async function openGrownOlderRollouts(now) {
     // Never `sawBeginning`, whatever this process read of the file before: the
     // lines before `was` are ones this deck has either drawn already or joined
     // too late for, and either way a SessionStart now would be a false one.
-    const state = { offset: skip ? st.size : was, sid: header.sid, cwd: header.cwd, link: header.link, skip, sawBeginning: false, rootOpened: false, seenAt: now, mtimeMs: st.mtimeMs };
+    const state = { offset: skip ? st.size : was, sid: header.sid, cwd: header.cwd, link: header.link, skip, sawBeginning: false, rootOpened: false, seenAt: now, mtimeMs: st.mtimeMs, path };
     codexFileState.set(path, state);
     rememberCodexPath(path);
     opened.push({ path, st, state });

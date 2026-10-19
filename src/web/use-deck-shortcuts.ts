@@ -7,6 +7,16 @@
 // is the first place the deck says, in one list, everything a keystroke can
 // read and everything it can do. key-help.ts documents the same keys for the
 // reader, and a test holds the sheet against this handler.
+//
+// The terminal stage added two rules and nothing else (terminal-keys.ts says
+// why each is shaped the way it is). A key pressed inside the pane is the
+// session's, Escape included, so the handler returns before it reads anything
+// — except the release chord, which it answers by giving the keys back to the
+// board. And while the stage is open, j/k walk the sessions the navigator
+// shows, Enter and i put the keys in the pane, and n and w take the next ask.
+// With the stage closed, or the flag off, `stageRef` is absent or not open,
+// no element carries the pane's attribute, and every key does exactly what it
+// did before; stage-board-keys.test.ts holds the two decks side by side.
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
 import { blockedSessions, nextWaiting } from "./ambient-counts";
@@ -18,11 +28,40 @@ import { isUndoChord } from "./rearrange-undo";
 import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
-import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { inTerminalPanel, isReleaseChord, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type StageKeyIntent } from "./terminal-keys";
 import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
 type Toggle = Dispatch<SetStateAction<boolean>>;
+
+/** What the keys can read of the terminal stage and ask of it. Callbacks, not
+ *  the stage itself: this file is in the first-load chunk and the stage is not,
+ *  so it knows the stage only by this shape. */
+export interface StageShortcuts {
+  /** Whether the stage is open. Closed, it claims no key at all. */
+  open: boolean;
+  /** The session on the stage now. */
+  current: string | null;
+  /** The sessions the navigator shows, in its reading order — down the first
+   *  column, then the next — which is the order j walks. */
+  order: readonly string[];
+  /** The session whose navigator tile holds the element a key was pressed on,
+   *  if any — so j steps on from the tile the arrows walked to, not from the
+   *  stage. Left out, j steps from the stage (or from the flip in progress). */
+  sessionAt?: (target: EventTarget | null) => string | null;
+  /** Put the board's focus on a session's navigator tile. The stage stays
+   *  where it is; it follows once the key has rested. */
+  focusTile: (sessionId: string) => void;
+  /** Put a session on the stage, and the keys in its pane when asked. */
+  switchTo: (sessionId: string, opts: { focusPane: boolean }) => void;
+  /** Hand the keys to the pane of the session already on the stage. */
+  focusPane: () => void;
+  /** The next ask — use-asks.ts decides which. */
+  nextAsk: () => void;
+  /** Give the keys back to the board: the release chord's answer. */
+  release: () => void;
+}
 
 export interface DeckShortcuts {
   // ── what the keys read ──
@@ -67,6 +106,12 @@ export interface DeckShortcuts {
   /** The door into Settings that the gear uses too: Cmd/Ctrl+, opens it where
    *  it was left, V at Sounds. */
   openSettings: (section?: SettingsSection) => void;
+  /** A connected tracker's panel by kind (#2178), or nothing when that kind
+   *  has no connection — the rail button is not drawn then either. */
+  openIntegrationRef?: Read<(kind: string) => void>;
+  /** The terminal stage, where the terminal flag put one. Left out, or not
+   *  open, and the keys are the deck's as they always were. */
+  stageRef?: Read<StageShortcuts | null>;
 }
 
 export function useDeckShortcuts({
@@ -75,23 +120,90 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
+  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, stageRef,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
+    // A flip in progress: the session j/k has put the board's focus on, the
+    // session the stage showed when the flipping began, and the timer that
+    // moves the stage once the key rests. The stage follows the focus the way
+    // a channel changes — a held j passes a session every few dozen
+    // milliseconds, and attaching to each one would open a socket and replay
+    // a seed for every session it passed.
+    let flip: { to: string; from: string | null; timer: ReturnType<typeof setTimeout> } | null = null;
+    const dropFlip = () => {
+      if (flip) clearTimeout(flip.timer);
+      flip = null;
+    };
+    const stageKey = (intent: StageKeyIntent, stage: StageShortcuts, at: EventTarget | null) => {
+      if (intent.kind === "step") {
+        const from = flip ? flip.from : stage.current;
+        // On from wherever the board's focus is: the tile the arrows walked
+        // to, else the one the flip reached, else the session on the stage.
+        const here = stage.sessionAt?.(at) ?? (flip ? flip.to : stage.current);
+        const to = stepSession(stage.order, here, intent.direction);
+        dropFlip();
+        if (to == null) return;
+        stage.focusTile(to);
+        const timer = setTimeout(() => {
+          flip = null;
+          // Never under the user's hands: if anything else moved the stage
+          // while the key rested — a click on a tile, Next ask — or closed it,
+          // the flip that began from the old session is stale, and the hand
+          // that moved it last wins.
+          const now = stageRef?.current;
+          if (!now?.open || now.current !== from || now.current === to) return;
+          now.switchTo(to, { focusPane: false });
+        }, STAGE_FLIP_REST_MS);
+        flip = { to, from, timer };
+        return;
+      }
+      if (intent.kind === "focus-pane") {
+        // Enter in the middle of a flip means the session flipped to, now,
+        // with the keys in it — not the one the stage has yet to leave.
+        const pending = flip;
+        dropFlip();
+        if (pending && pending.to !== stage.current && pending.from === stage.current) {
+          stage.switchTo(pending.to, { focusPane: true });
+        } else {
+          stage.focusPane();
+        }
+        return;
+      }
+      dropFlip();
+      stage.nextAsk();
+    };
     const onKey = (e: KeyboardEvent) => {
       // The listener is on window in the bubble phase, so it sees every
       // keystroke aimed at every focused control on the page. Read the four
       // things the rules need off the target — getAttribute rather than the
       // reflected .role property, which older browsers do not expose.
       const el = e.target as (HTMLElement & { type?: string }) | null;
+      const caught = el?.hasAttribute?.(CAUGHT_KEYS_ATTR) === true;
       const target: FocusTarget = {
         tagName: el?.tagName,
         isContentEditable: el?.isContentEditable,
         role: el?.getAttribute?.("role"),
         type: el?.type,
-        pointerFocused: el != null && el === pointerFocusRef.current,
+        // A catch is the stage's doing even within a press's window, and a
+        // button the pointer pressed hands its letters to the deck (#851).
+        pointerFocused: el != null && el === pointerFocusRef.current && !caught,
+        caught,
       };
+      // Inside the terminal pane every key is the session's, and asked before
+      // anything else here reads the keystroke. Escape most of all: the branch
+      // below blurs a typing target, xterm's input is a <textarea>, and Escape
+      // is how Claude Code is interrupted mid-turn — the deck answering it
+      // would take the keys away at the moment the agent most needs a brake.
+      // The one key that is not the session's is the release chord, whose
+      // keydown xterm lets through to here untouched (terminal-keys.ts).
+      if (inTerminalPanel(el)) {
+        if (isReleaseChord(e)) {
+          e.preventDefault();
+          if (!e.repeat) stageRef?.current?.release();
+        }
+        return;
+      }
       if (e.key === "Escape") {
         // One press, one owner. This branch used to clear the canvas selection
         // while whichever modal was on screen closed itself on the same event
@@ -183,6 +295,27 @@ export function useDeckShortcuts({
       if (closesKeySheet({ key: e.key, sheetOpen: keyHelpOpenRef.current, target })) {
         if (!e.repeat) setKeyHelpOpen(false);
         return;
+      }
+      // The board's keys while the stage is open: j/k walk the navigator's
+      // sessions and the stage follows, Enter and i put the keys in the pane,
+      // n and w take the next ask. Asked ahead of the focused-control gate
+      // below because handing the keys back to the board leaves focus on a
+      // button, which that gate would let keep its letters — stageKeyIntent
+      // applies the same two gates itself, with a button's letters freed.
+      // Whatever it declines falls through to the deck's rules unchanged.
+      const stage = stageRef?.current;
+      if (stage?.open) {
+        const stageIntent = stageKeyIntent({
+          key: e.key,
+          repeat: e.repeat,
+          target,
+          modalOpen: canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() }),
+        });
+        if (stageIntent) {
+          e.preventDefault();
+          stageKey(stageIntent, stage, e.target);
+          return;
+        }
       }
       // A focused control owns its own keys: Space presses a button, letters
       // run a <select>'s type-ahead. Answering them stole the button's
@@ -335,6 +468,10 @@ export function useDeckShortcuts({
       if (e.key === "s" || e.key === "S") setMachinePanelOpen(o => !o);
       if (e.key === "b" || e.key === "B") setBrowserWatchOpen(o => !o);
       if (e.key === "v" || e.key === "V") openSettings("sounds");
+      // Jira's panel (#2178), once a Jira connection exists. J would have been
+      // the obvious key, and it is the canvas's next agent beside K; I is the
+      // other free letter in the name.
+      if (e.key === "i" || e.key === "I") openIntegrationRef?.current("jira");
       // The way in that does not depend on already knowing the way in. `?` is
       // the convention, it was unbound, and it is the one key on this list that
       // a user who knows nothing about the deck might still try. Everything it
@@ -343,6 +480,9 @@ export function useDeckShortcuts({
       if (e.key === "?") setKeyHelpOpen(o => !o);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      dropFlip();
+    };
   }, [requestClear, handleRelayout, undoRearrange, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause]);
 }

@@ -115,6 +115,9 @@
   /* Small, but still a scale under the pointer. */
   .ctx-donut { transition: filter 120ms ease; }
   .ctx-donut:hover { transform: none; }
+  /* A stopped session's Continue (#2193) keeps its colour change and loses
+     the travel of its press. */
+  .agent-node .stop-continue { transition: background-color 120ms ease, border-color 120ms ease; }
 
   /* Bubbles: the spawn arc, the done flash and the error shake all become the
      fade. Their status classes keep the colour that carried the meaning. */

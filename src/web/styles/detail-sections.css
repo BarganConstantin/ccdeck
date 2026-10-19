@@ -294,6 +294,54 @@
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
+/* Continue, for a turn that stopped on a login or a usage limit (#2193). The
+   state lines are the metadata tier under the sentence that says what the
+   button does; the last continue's line keeps the failure's hue when it
+   failed. The commands are disclosed, monospace, and wrap rather than scroll
+   at 320px. */
+.detail-continue-state,
+.detail-continue-last,
+.detail-continue-note {
+  margin: 4px 0 0;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.detail-continue-last.failed { color: var(--err); }
+.detail-continue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+button.btn.detail-continue-btn {
+  padding: 5px 12px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+}
+.detail-continue-how { margin-top: 8px; }
+.detail-continue-how > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  transition: color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.detail-continue-how > summary:active { transform: scale(0.97); }
+.detail-continue-how > button.btn.detail-continue-btn { margin-top: 6px; }
+.detail-continue-cmd {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--bg-soft);
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
 /* Claude Code's suggested reply under a background job's question: its guess,
    so the metadata tier, a line below the question it answers. */
 .detail-recap.detail-note-reply {

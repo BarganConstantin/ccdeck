@@ -98,6 +98,9 @@
      message, and each screenshot's thumbnail, which replaces it. */
   .fb-kind:active, .fb-tool:active, .fb-shot-pick:active,
   .bw-help:active,
+  /* Continue on a stopped background session's card, and the disclosure of
+     the commands it runs in the detail panel (#2193). */
+  .agent-node .stop-continue:active:not(:disabled), .detail-continue-how > summary:active,
   .bw-settings select:active:not(:disabled) { transform: none; }
   /* Two that cannot join the list above, for two different reasons.
      The ribbon's selector carries `:has()`, and one selector a browser cannot

@@ -38,8 +38,9 @@ export interface NotificationsProps {
    *  is still askable — a refusal cannot be re-asked by any page, which is why
    *  the row says where the switch is instead. */
   onAskNotify: () => void;
-  /** The three account notifications — the deck moved the live Claude account,
-   *  a quota window reached 90% or 100%, a high window reset — each its own
+  /** The four account notifications — the deck moved the live Claude account,
+   *  a quota window reached 90% or 100%, a high window reset, sessions stopped
+   *  on an expired login or a usage limit — each its own
    *  switch, and none of them tied to the one above: they are raised whether a
    *  page is open or not, because no page says any of them. */
   accountNotify: AccountNotify;

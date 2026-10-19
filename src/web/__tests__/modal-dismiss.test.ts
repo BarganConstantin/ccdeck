@@ -187,6 +187,9 @@ describe("the modals themselves", () => {
       // The guides — pictures a step at a time — named here for the same
       // reason as the rest: this is how they join the loop below.
       "GuideModal.tsx",
+      // A connected tracker's panel — Jira's backlog — opened from its stripe
+      // control or I (#2178), joining the loop below like the rest.
+      "IntegrationModal.tsx",
       // #511's shortcuts sheet. Naming it here is how it enters the rule below
       // rather than how it escapes one: the loop that follows asks the same
       // question of every file in this list.

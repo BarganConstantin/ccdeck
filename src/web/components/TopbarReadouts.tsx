@@ -126,7 +126,7 @@ function queueLines(sessions: BlockedSession[], now: number): string {
  *  goes to the one that has waited longest, and so does W, which then walks
  *  the rest (#825). Its hint names the key, and lists the sessions the queue
  *  beside it has no room to name — all of them, where the queue has folded. */
-export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, now, named }: {
+export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, now, named, startAsks }: {
   /** The sessions blocked on you, longest-stuck first; the caller shows this only when there is one. */
   waitingSessions: BlockedSession[];
   /** Where W starts from, so a click here and the next W press agree (#825). */
@@ -135,6 +135,9 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
   now: number;
   /** How many of them the queue beside the count names. */
   named: number;
+  /** With the terminal on, the chip starts a run of asks on the stage
+   *  (use-asks.ts) instead of moving the camera; absent with the flag off. */
+  startAsks?: () => void;
 }) {
   const singleKeys = useSingleKeyShortcuts();
   const hint = useHint("below");
@@ -146,6 +149,10 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
         type="button"
         className="waiting-stat"
         onClick={() => {
+          // With the terminal on, the run opens the oldest ask with the keys in
+          // its pane — where the answer is typed — and walks the rest from the
+          // stage's keys bar.
+          if (startAsks) { waitingCursorRef.current = waitingSessions[0].id; startAsks(); return; }
           // The same place W starts, so the next press moves on (#825).
           waitingCursorRef.current = waitingSessions[0].id;
           focusSession(waitingSessions[0].id);
@@ -356,7 +363,7 @@ export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
 
 export function ReadoutGroup({
   versionCheck, welcome, desktopUpdate, pause, announcements, notify,
-  waitingSessions, waitingCursorRef, focusSession, live, now, incidents, queueNamed,
+  waitingSessions, waitingCursorRef, focusSession, live, now, incidents, queueNamed, startAsks, asksSaid,
 }: {
   versionCheck: ReturnType<typeof useVersionCheck>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -376,6 +383,10 @@ export function ReadoutGroup({
   incidents: Incident[];
   /** How many of the waiting sessions the queue beside the count names. */
   queueNamed: number;
+  /** The terminal's asks run (use-asks.ts): the chip's way into it, and what
+   *  the run says aloud. Both absent while the terminal flag is off. */
+  startAsks?: () => void;
+  asksSaid?: string;
 }) {
   const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
   const { chipVersion, openReleaseNotes } = welcome;
@@ -510,6 +521,11 @@ export function ReadoutGroup({
           at the end of the group says it on screen, and comes and goes; this
           is mounted always, for the reason above, and says the same. */}
       <div className="vis-hidden" role="status" aria-atomic="true">{notifySaidSentence(notifySaid)}</div>
+      {/* The asks run's sentences — "paycore resumed.", "No more asks." —
+          beside the alarm they follow up on. Mounted from the moment the
+          terminal flag is known to be on, which is before any run can start,
+          for the reason above; absent altogether while it is off. */}
+      {asksSaid != null && <div className="vis-hidden" role="status" aria-atomic="true">{asksSaid}</div>}
       {/* Outside the .status strip and inside .readout, which are two
           separate placements and only one of them still has the reason it
           was given.
@@ -544,7 +560,7 @@ export function ReadoutGroup({
       <IncidentChips incidents={incidents} />
       {waitingSessions.length > 0 && (
         <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession}
-          now={now} named={queueNamed} />
+          now={now} named={queueNamed} startAsks={startAsks} />
       )}
       {/* The ask, and it lives HERE rather than in a settings panel.
           Every browser requires a user gesture to raise the permission

@@ -1,7 +1,8 @@
-// The four switches the account notifications are governed by: one each, none
+// The five switches the account notifications are governed by: one each, none
 // tied to another or to "Notifications while closed", each saved like the
-// menu's other settings, and all four held off by the launch veto. The fourth,
-// a login that a paired deck is on as well, came with #2192.
+// menu's other settings, and all of them held off by the launch veto. The stopped
+// sessions came with #2185, and a login that a paired deck is on as well with
+// #2192.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
@@ -17,10 +18,12 @@ describe("what each switch allows", () => {
     for (const notifySwap of [true, false]) {
       for (const notifyQuota of [true, false]) {
         for (const notifyReset of [true, false]) {
-          for (const notifyElsewhere of [true, false]) {
-            for (const notifications of [true, false]) {
-              expect(accountNotifySettings({ notifications, notifySwap, notifyQuota, notifyReset, notifyElsewhere }, {}))
-                .toEqual({ swap: notifySwap, quota: notifyQuota, reset: notifyReset, elsewhere: notifyElsewhere });
+          for (const notifyStopped of [true, false]) {
+            for (const notifyElsewhere of [true, false]) {
+              for (const notifications of [true, false]) {
+                expect(accountNotifySettings({ notifications, notifySwap, notifyQuota, notifyReset, notifyStopped, notifyElsewhere }, {}))
+                  .toEqual({ swap: notifySwap, quota: notifyQuota, reset: notifyReset, stopped: notifyStopped, elsewhere: notifyElsewhere });
+              }
             }
           }
         }
@@ -28,14 +31,14 @@ describe("what each switch allows", () => {
     }
   });
 
-  it("is the default for a deck that saved nothing: the swap and the shared login on, the quota two off", () => {
-    expect(accountNotifySettings({}, {})).toEqual({ swap: true, quota: false, reset: false, elsewhere: true });
-    expect(accountNotifySettings(null, {})).toEqual({ swap: true, quota: false, reset: false, elsewhere: true });
+  it("is the default for a deck that saved nothing: the swap, the stopped sessions and the shared login on, the quota two off", () => {
+    expect(accountNotifySettings({}, {})).toEqual({ swap: true, quota: false, reset: false, stopped: true, elsewhere: true });
+    expect(accountNotifySettings(null, {})).toEqual({ swap: true, quota: false, reset: false, stopped: true, elsewhere: true });
   });
 
   it("is nothing at all on a deck launched with AGENTS_DECK_NO_NOTIFY=1", () => {
-    const all = { notifySwap: true, notifyQuota: true, notifyReset: true, notifyElsewhere: true };
-    expect(accountNotifySettings(all, { AGENTS_DECK_NO_NOTIFY: "1" })).toEqual({ swap: false, quota: false, reset: false, elsewhere: false });
+    const all = { notifySwap: true, notifyQuota: true, notifyReset: true, notifyStopped: true, notifyElsewhere: true };
+    expect(accountNotifySettings(all, { AGENTS_DECK_NO_NOTIFY: "1" })).toEqual({ swap: false, quota: false, reset: false, stopped: false, elsewhere: false });
   });
 });
 
@@ -43,19 +46,20 @@ describe("the page's copy of them", () => {
   it("starts where the server starts, so the menu never draws a switch the deck does not hold", () => {
     expect(ACCOUNT_NOTIFY_DEFAULTS).toEqual({
       notifySwap: DEFAULTS.notifySwap, notifyQuota: DEFAULTS.notifyQuota, notifyReset: DEFAULTS.notifyReset,
+      notifyStopped: DEFAULTS.notifyStopped,
       notifyElsewhere: DEFAULTS.notifyElsewhere,
     });
   });
 
   it("reads each from the prefs answer, and its default when the answer has no real boolean", () => {
     expect(accountNotifyFrom(undefined)).toEqual(ACCOUNT_NOTIFY_DEFAULTS);
-    expect(accountNotifyFrom({ notifySwap: false, notifyQuota: true })).toEqual({ notifySwap: false, notifyQuota: true, notifyReset: false, notifyElsewhere: true });
+    expect(accountNotifyFrom({ notifySwap: false, notifyQuota: true })).toEqual({ notifySwap: false, notifyQuota: true, notifyReset: false, notifyStopped: true, notifyElsewhere: true });
     expect(accountNotifyFrom({ notifyElsewhere: false })).toEqual({ ...ACCOUNT_NOTIFY_DEFAULTS, notifyElsewhere: false });
     expect(accountNotifyFrom({ notifyReset: "true" as unknown as boolean })).toEqual(ACCOUNT_NOTIFY_DEFAULTS);
   });
 
   it("names exactly the four fields the server keeps", () => {
-    expect(ACCOUNT_NOTIFY_SWITCHES.map(s => s.kind)).toEqual(["notifySwap", "notifyQuota", "notifyReset", "notifyElsewhere"]);
+    expect(ACCOUNT_NOTIFY_SWITCHES.map(s => s.kind)).toEqual(["notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "notifyElsewhere"]);
     for (const { kind } of ACCOUNT_NOTIFY_SWITCHES) expect(typeof DEFAULTS[kind], kind).toBe("boolean");
   });
 });
@@ -86,14 +90,16 @@ describe("Settings › Notifications, drawn", () => {
     new RegExp(`role="switch" aria-checked="(true|false)" aria-labelledby="sm-${kind}-label"`).exec(html)?.[1];
 
   it("shows each switch as its own state", () => {
-    const html = draw({ notifySwap: true, notifyQuota: false, notifyReset: true, notifyElsewhere: false });
+    const html = draw({ notifySwap: true, notifyQuota: false, notifyReset: true, notifyStopped: false, notifyElsewhere: false });
     expect(state(html, "notifySwap")).toBe("true");
     expect(state(html, "notifyQuota")).toBe("false");
     expect(state(html, "notifyReset")).toBe("true");
+    expect(state(html, "notifyStopped")).toBe("false");
     expect(state(html, "notifyElsewhere")).toBe("false");
     expect(html).toContain('id="sm-notifySwap-label">Account auto-switched<');
     expect(html).toContain('id="sm-notifyQuota-label">Quota at 90% and 100%<');
     expect(html).toContain('id="sm-notifyReset-label">Quota reset<');
+    expect(html).toContain('id="sm-notifyStopped-label">Sessions stopped on login or limit<');
     expect(html).toContain('id="sm-notifyElsewhere-label">Login active on another deck<');
     expect(html).toContain("For the Claude and Codex accounts you&#x27;re on, whether or not the deck is open.");
   });

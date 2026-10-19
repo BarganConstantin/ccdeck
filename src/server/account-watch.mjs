@@ -21,6 +21,9 @@ import {
 } from "./account-notify.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { writeFileAtomic } from "./atomic-write.mjs";
+// What a StopFailure says, and the words a notification names a session by.
+import { stopFailureOf, switchCanCure } from "./stop-failure.mjs";
+import { whoOf } from "./block-notify.mjs";
 // Which deck is on what, as Local network last heard it, and the identity rule
 // its keys are made by (#2192).
 import { elsewhereNow } from "./lan-elsewhere.mjs";
@@ -57,6 +60,10 @@ let _autoOn = false;
 let _timer = null;
 let _elsewhereTimer = null;
 let _watching = null;
+/** The auto-switch loop's "tick now", handed in by the loop as it loads
+ *  (cswap-auto-loop.mjs `tickSoon`). Null until then, and on a deck that never
+ *  loads it — one with no Claude to switch. */
+let _tickSoon = null;
 
 /**
  * Hand the notifier its OS call, its product name and its switches. Called
@@ -99,14 +106,53 @@ export function noteAutoSwitch(enabled) {
  * notification is raised: a switch somebody pressed never comes through here.
  * After a switch, claude-swap's roster is read for the two accounts' names and
  * keys — the store, which the deck already reads, rather than anything more out
- * of the tick's own output.
+ * of the tick's own output. `meta.startedAt` is when the tick began.
  */
-export function noteAutoTick(result) {
+export function noteAutoTick(result, meta = {}) {
   const n = notifier();
   if (!n || !result) return Promise.resolve();
-  return (result.switched ? storeAccounts() : Promise.resolve(null))
-    .then(accounts => n.tick(result, accounts))
+  // A dead login with nowhere to go is named too, so its notice can say whose.
+  const named = result.switched || result.reason === "login-expired";
+  return (named ? Promise.all([storeAccounts(), result.switched ? telemetryReader() : null]) : Promise.resolve([null, null]))
+    .then(([accounts, telemetryOf]) => n.tick(result, accounts, { ...meta, telemetryOf }))
     .catch(() => {});
+}
+
+/** What each organization's settings were last seen to turn on, as the
+ *  sentence a swap notice carries (org-telemetry.mjs), or null. */
+async function telemetryReader() {
+  try {
+    const { knownOrgTelemetry, telemetryClause } = await import(pathToFileURL(join(PKG_ROOT, "src/server/org-telemetry.mjs")).href);
+    const records = await knownOrgTelemetry();
+    return org => telemetryClause(records?.[org]);
+  } catch {
+    return null;
+  }
+}
+
+/** The loop's way to be asked for a tick now. Called once, as it loads. */
+export function connectEarlyTick(fn) {
+  _tickSoon = typeof fn === "function" ? fn : null;
+}
+
+/**
+ * A hook event, as pushEvent takes it in: when it is a turn that stopped on an
+ * expired login or a usage limit, the incident is counted for its notification
+ * and the auto-switch loop is asked to tick now rather than at its next
+ * interval. The loop coalesces the asks and does nothing while it is off, so
+ * ten sessions stopping in one second are one tick, and a deck with auto-switch
+ * off only counts.
+ *
+ * Every other event, and every stop that is not one of those two, returns at
+ * once — this is on the path every hook event takes. Never throws.
+ */
+export function noteHookStop(raw, at = Date.now()) {
+  try {
+    const stop = stopFailureOf(raw, at);
+    if (!stop || !switchCanCure(stop.kind)) return;
+    notifier()?.stopped({ sessionId: raw.session_id, who: whoOf(raw), kind: stop.kind, at });
+    _tickSoon?.();
+  } catch { /* never the ingest path's problem */ }
 }
 
 /** claude-swap's roster, number → `{ email, organizationUuid, alias }`, or null. */

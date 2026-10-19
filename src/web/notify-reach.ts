@@ -56,6 +56,7 @@ export const ACCOUNT_NOTIFY_SWITCHES = [
   { kind: "notifySwap", label: "Account auto-switched", title: "When auto-switch moves Claude Code to another account" },
   { kind: "notifyQuota", label: "Quota at 90% and 100%", title: "When a quota window of the account you're on reaches 90%, and again at 100%" },
   { kind: "notifyReset", label: "Quota reset", title: "When a quota window that reached 90% is available again" },
+  { kind: "notifyStopped", label: "Sessions stopped on login or limit", title: "When Claude Code sessions stop on an expired login or a usage limit — once for all of them, with what to type to resume" },
   // #2192: once per incident, while a paired deck says it is on the Claude
   // account this one is on — the next renewal signs one of the two out.
   { kind: "notifyElsewhere", label: "Login active on another deck", title: "When a paired deck is on the same Claude login as this one — when one renews it, the other is signed out" },
