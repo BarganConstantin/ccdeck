@@ -345,7 +345,6 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   });
 
   // ── the keys ───────────────────────────────────────────────────────────────
-
   /** The keys back to the board: onto the socket's tile, as v3 does — or,
    *  with no navigator beside the stage, onto the stage's own ⌨, and with
    *  no ⌨ either (the session ended, or another view took the pane) onto ✕,
@@ -591,13 +590,16 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   useEffect(() => {
     if (aheadRef.current && aheadRef.current.session !== heldFor) aheadRef.current = null;
   }, [heldFor]);
-  /** The stage's, once it has answered a request for the keys: what was typed
-   *  for that request, if any. Any answer to it ends the hold; only a pane
-   *  that took the keys is handed the text. */
+  /** Whether keys for a request are still held, and any typed yet: a card
+   *  that answers it catches them (TerminalStage.tsx landFocus). Asking ends
+   *  nothing. */
   const holdsTypeAhead = useCallback((request: unknown): HeldKeys | null => {
     const hold = aheadRef.current;
     return hold && hold.token === request && Date.now() <= hold.ahead.until ? heldKeys(hold.ahead) : null;
   }, []);
+  /** The stage's, once it has answered a request for the keys: what was typed
+   *  for that request, if any. Any answer to it ends the hold; only a pane
+   *  that took the keys is handed the text. */
   const takeTypeAhead = useCallback((request: unknown): string => {
     const hold = aheadRef.current;
     if (!hold || hold.token !== request) return "";
