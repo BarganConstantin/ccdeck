@@ -10,7 +10,9 @@ import { readFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { claudeConfigDir } from "./claude-dir.mjs";
+import { claudeCodeVersions, claudeConfigDir, claudeVersionAtLeast } from "./claude-dir.mjs";
+// The first Claude Code that knows StopFailure — see stop-failure.mjs.
+import { STOP_FAILURE, STOP_FAILURE_SINCE } from "./stop-failure.mjs";
 import { CODEX_HOME } from "./codex-dir.mjs";
 import { shellQuoteArg } from "./exec.mjs";
 // The read-before-rewrite and the atomic replace every settings writer goes
@@ -48,11 +50,43 @@ const CLAUDE_EVENTS = [
   "UserPromptExpansion",
 ];
 
+/**
+ * The events Claude Code added after the ones above, each beside the first
+ * version that knows it — added only where EVERY Claude Code the deck finds on
+ * the machine is at least that version.
+ *
+ * Not an event the older CLI would merely ignore. Until 2.1.101 an event name
+ * Claude Code did not recognise made it ignore the whole settings.json: the
+ * user's permissions, env and hooks, and every one of ours with them (Claude
+ * Code's changelog, 2.1.101). StopFailure arrived in 2.1.78, so a machine still
+ * on anything before that would lose its settings to the entry meant to tell it
+ * more.
+ *
+ * So the version is read off disk (claudeCodeVersions — never a `claude
+ * --version`, which is seconds at boot), and a machine where the deck can find
+ * no version gets none of these: the deck it had before, and a line in the
+ * README saying why. Every boot reinstalls, so a Claude Code updated past the
+ * gate picks the entry up on the deck's next start — and one rolled back below
+ * it has the entry taken back out, the same way.
+ */
+const VERSIONED_CLAUDE_EVENTS = [
+  { event: STOP_FAILURE, since: STOP_FAILURE_SINCE },
+];
+
+/** Which of `versioned` this machine's Claude Code knows: those whose `since`
+ *  every found version is at least, and none when no version was found. */
+function eventsKnownTo(versions, versioned = VERSIONED_CLAUDE_EVENTS) {
+  const found = Array.isArray(versions) ? versions : [];
+  if (found.length === 0) return [];
+  return versioned.filter(v => found.every(ver => claudeVersionAtLeast(ver, v.since))).map(v => v.event);
+}
+
 const PROVIDERS = {
   claude: {
     settingsPath: join(CLAUDE_DIR, "settings.json"),
     hookInstallDir: join(CLAUDE_DIR, "agent-dag"),
     events: CLAUDE_EVENTS,
+    versioned: VERSIONED_CLAUDE_EVENTS,
     ensureDir: CLAUDE_DIR,
   },
   // Uninstall-only. Codex hooks do not fire reliably on Windows, so the deck
@@ -339,8 +373,10 @@ async function soundHookRetirement(provider, cfg, current) {
   return { retire, completeSoundHookRetirement };
 }
 
-/** Install hooks for a single provider. Returns {settingsPath, hookPath, events, changed}. */
-export async function installHooks({ provider = "claude", beforeWrite = null } = {}) {
+/** Install hooks for a single provider. Returns {settingsPath, hookPath, events, changed}.
+ *  `claudeVersions` is the suite's: the Claude Code versions to gate the
+ *  versioned events on, in place of the ones on this machine's disk. */
+export async function installHooks({ provider = "claude", beforeWrite = null, claudeVersions = null } = {}) {
   const cfg = PROVIDERS[provider];
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
   // An uninstall-only provider has no event list. Saying so beats the
@@ -362,10 +398,22 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
 
   current.hooks = current.hooks ?? {};
 
-  for (const evt of cfg.events) {
+  const versioned = cfg.versioned ?? [];
+  const known = versioned.length ? eventsKnownTo(claudeVersions ?? claudeCodeVersions(), versioned) : [];
+  const events = [...cfg.events, ...known];
+  for (const evt of events) {
     const cleaned = dedupeOurEntries(current.hooks[evt]);
     cleaned.push(buildHookEntry(command));
     current.hooks[evt] = cleaned;
+  }
+  // A versioned event this machine's Claude Code does not know loses our entry,
+  // and the key goes with it when nothing of the user's is left under it: that
+  // key is the thing an older Claude Code cannot read.
+  for (const { event } of versioned) {
+    if (known.includes(event) || !Object.hasOwn(current.hooks, event)) continue;
+    const cleaned = dedupeOurEntries(current.hooks[event]);
+    if (cleaned.length === 0) delete current.hooks[event];
+    else current.hooks[event] = cleaned;
   }
 
   // Retiring the finish-sound hook rides in here, on this read and this write,
@@ -424,7 +472,7 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
     // and from the park that was its only other copy.
     if (!(await unchangedSince(cfg.settingsPath, before))) {
       return {
-        settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider,
+        settingsPath: cfg.settingsPath, hookPath, events, provider,
         changed: false, raced: true, retire: { ...retire, pending: false },
       };
     }
@@ -434,7 +482,7 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
   // is what a live session's cached command still names until the new entry is
   // on disk, and deleting it early turns a stale sound into a missing module.
   if (retire.pending) await completeSoundHookRetirement(retire, current);
-  return { settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider, changed, retire };
+  return { settingsPath: cfg.settingsPath, hookPath, events, provider, changed, retire };
 }
 
 /**

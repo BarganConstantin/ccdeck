@@ -2,6 +2,7 @@ import { canvasSessions } from "./canvas-session";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "./types";
 import { isAlarming } from "./ambient-counts";
 import { planLine, planSummary } from "./agent-plan";
+import { stopRowLabel, stopShortLabel } from "./stop-failure-copy";
 
 /**
  * WHAT A SESSION'S SUBAGENTS ADD UP TO, for the faces that are too small to
@@ -85,7 +86,8 @@ export interface FaceSignal {
  *
  * A session blocked on a human comes first, and only the two kinds `isAlarming`
  * names — the same set the topbar count, the minimap and the waiting row use, so
- * a face cannot call a session stuck that the chip beside it calls fine. A
+ * a face cannot call a session stuck that the chip beside it calls fine. A turn
+ * that stopped on an error is next: it is on you too, a "continue" away. A
  * finished turn waiting for its next prompt is next, quietly. Then failures,
  * then what the branch is doing, then the step of its plan the card is on,
  * then what the card itself is doing right now.
@@ -99,7 +101,7 @@ export interface FaceSignal {
  * or the same call, two ways.
  */
 export function faceSignal(
-  data: Pick<AgentNodeData, "kind" | "waiting" | "tools" | "state" | "toolErrorCount" | "plan">,
+  data: Pick<AgentNodeData, "kind" | "waiting" | "tools" | "state" | "toolErrorCount" | "plan" | "stopFailure">,
   branch: BranchSummary | undefined,
   words: {
     sayWaiting: (w: WaitingBlock) => string;
@@ -114,6 +116,8 @@ export function faceSignal(
       short: w.kind === "permission" ? "Needs you" : "Asked you",
     };
   }
+  const stop = data.kind === "root" ? data.stopFailure : null;
+  if (stop) return { tone: "err", long: stopRowLabel(stop), short: stopShortLabel(stop) };
   if (w && w.kind === "idle") {
     const said = words.sayWaiting(w);
     return { tone: "idle", long: said, short: said };
@@ -167,6 +171,17 @@ export function faceTitle(text: string, tooltip?: string): string {
 }
 
 export type StateMarkKind = "live" | "done" | "err";
+
+/**
+ * The state a card DRAWS, in its pill and its mark. A root whose last turn
+ * stopped on an error (StopFailure, #2185) is drawn as a failure — the cross,
+ * not done's tick beside a red "Stopped · login expired". Its `state` stays
+ * "done", because the turn did end, and everything that counts live and done
+ * sessions reads that.
+ */
+export function drawnState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure">): AgentNodeData["state"] {
+  return data.kind === "root" && data.stopFailure && data.state === "done" ? "err" : data.state;
+}
 
 export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
   return state === "active" ? "live" : state === "done" ? "done" : "err";

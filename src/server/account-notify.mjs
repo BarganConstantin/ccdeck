@@ -1,4 +1,4 @@
-// Three notifications about the accounts the deck is on, and the rules for when
+// Four notifications about the accounts the deck is on, and the rules for when
 // each is said.
 //
 //   SWAP       the deck's own auto-switch tick moved the live Claude account.
@@ -8,6 +8,11 @@
 //   THRESHOLD  a quota window of the account a provider is LIVE on reached 90%,
 //              and once more at 100%.
 //   RESET      a window of the live account that had reached 90% is new again.
+//   STOPPED    Claude Code sessions ended a turn on an expired login or a usage
+//              limit (StopFailure, stop-failure.mjs). Said once per incident —
+//              every session on the machine shares the login, so they stop
+//              together — with how many stopped and that each needs a
+//              "continue" once a working login is active.
 //
 // SPARSE BY CONSTRUCTION. Each window is a record keyed by provider, account
 // and window, holding the reset instant it is about and the levels already said
@@ -26,9 +31,17 @@
 // never saw because the tick saw it first is written down from the tick, so the
 // account does not announce it later when it is live again.
 //
+// ONE INCIDENT, ONE NOTIFICATION, by the same rule. A login that dies makes the
+// deck run a tick at once (cswap-auto-loop.mjs `tickSoon`), so while the loop
+// and the swap switch are on the stopped notice waits for the first tick that
+// began after the incident did: a switch says both in one notification —
+// "Switched to … · 3 sessions stopped, type “continue” in each" — and anything
+// else lets the stopped notice go on its own.
+//
 // Pure apart from the factory at the bottom, whose clock, disk and OS call are
 // injected — the shape block-notify.mjs uses, for the reason it gives: what the
 // suite cannot run is what drifts.
+import { switchCanCure } from "./stop-failure.mjs";
 
 /** The levels a window is announced at, lowest first. */
 export const LEVELS = Object.freeze([90, 100]);
@@ -306,6 +319,71 @@ export function swapNotice({ toName, fromName, used, threshold, trigger = null }
   return { who: SWAP_WHO, body: `Switched to ${to} from ${from}` };
 }
 
+/** How long a stop gathers the rest of its incident before it is said, when no
+ *  tick is coming to say it with: sessions sharing a login stop within seconds
+ *  of each other, each at its own next request. */
+export const STOP_GATHER_MS = 5_000;
+
+/** The longest a stopped notice waits for a tick to say whether it switched.
+ *  The tick is run at once, and one is allowed two minutes. */
+export const STOP_HOLD_MS = 150_000;
+
+/** A stop this long after the incident's newest is a new incident. Long enough
+ *  for the stragglers — a session four minutes into a test run stops when the
+ *  run finishes — and short against a login that dies again tomorrow. */
+export const STOP_INCIDENT_MS = 10 * 60_000;
+
+/** How many sessions an incident remembers. `POST /api/event` takes a post
+ *  without the deck's token, so the count of ids is bounded like every other
+ *  set fed from it. */
+export const STOP_SESSIONS_MAX = 256;
+
+/** How many sessions a notice names before it counts the rest. */
+export const STOP_NAMES_SHOWN = 3;
+
+/** "vcrm-core", "vcrm-core and api", "vcrm-core, api, web and 2 more". */
+function nameList(names, count) {
+  const shown = names.slice(0, STOP_NAMES_SHOWN).map(n => cut(n, NAME_MAX));
+  const more = count - shown.length;
+  if (more > 0) return `${shown.join(", ")} and ${more} more`;
+  if (shown.length <= 1) return shown[0] ?? "";
+  return `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+}
+
+/** "3 sessions stopped" / "1 session stopped". */
+function stoppedCount(count) {
+  return `${count} ${count === 1 ? "session" : "sessions"} stopped`;
+}
+
+/**
+ * "3 Claude sessions stopped", "Login expired · vcrm-core, api and web. Type
+ * “continue” in each once a working login is active."
+ *
+ * `kinds` is the set the incident's stops were: "login", "usage-limit" or
+ * both. What to do comes last because it is the part a person acts on, and it
+ * is the one Claude Code cannot do itself: a running session picks up a
+ * working login on its own, but the turn that failed is not run again.
+ */
+export function stoppedNotice({ names = [], count, kinds }) {
+  const login = kinds.has("login"), limit = kinds.has("usage-limit");
+  const what = login && limit ? "Login expired or usage limit reached" : limit ? "Usage limit reached" : "Login expired";
+  const when = login && limit
+    ? "once a working account is active"
+    : limit ? "once the limit resets or another account is active" : "once a working login is active";
+  const where = nameList(names, count);
+  const each = count === 1 ? "it" : "each";
+  return {
+    who: `${count} Claude ${count === 1 ? "session" : "sessions"} stopped`,
+    body: `${what}${where ? ` · ${where}` : ""}. Type “continue” in ${each} ${when}.`,
+  };
+}
+
+/** A swap notice that also carries the incident it cured: one notification for
+ *  one incident, and the switch is what made "continue" worth typing. */
+export function withStopped(notice, count) {
+  return { ...notice, body: `${notice.body} · ${stoppedCount(count)}, type “continue” in ${count === 1 ? "it" : "each"}` };
+}
+
 /** How long one stuck login is left unsaid after it has been said once. */
 export const STUCK_REPEAT_MS = 6 * 60 * 60 * 1000;
 
@@ -351,8 +429,9 @@ function laterUnref(fn, ms) {
  *
  *   notify(title, body, meta)  the OS call — injected, never awaited by a poll
  *                              or a tick, and its failure goes to `onError`
- *   settings()                 `{ swap, quota, reset }`, asked per decision, so
- *                              a switch pressed mid-run takes effect at once
+ *   settings()                 `{ swap, quota, reset, stopped }`, asked per
+ *                              decision, so a switch pressed mid-run takes
+ *                              effect at once
  *   load() / save(records)     the disk, both best effort
  *   now, later                 the clock and the hold timer, for the suite
  *
@@ -376,6 +455,11 @@ export function createAccountNotifier({
   const held = new Map();
   let holdTimer = null;
   let saving = Promise.resolve();
+  /** The stop incident being gathered or held, or the one already said while
+   *  it is still running: `{ firstAt, lastAt, ids, names, kinds, said, held,
+   *  armed, timer }`. In memory — an incident is minutes long, and a deck restarted
+   *  inside one has lost the sessions it would have counted. */
+  let incident = null;
 
   const persist = () => {
     const snapshot = JSON.parse(JSON.stringify(records));
@@ -432,6 +516,55 @@ export function createAccountNotifier({
     }, Math.max(0, due - now()));
   };
 
+  /** Say the incident, once, unless its switch is off by now. */
+  const sayIncident = () => {
+    const inc = incident;
+    if (!inc || inc.said) return;
+    inc.said = true;
+    if (inc.timer) { clearTimeout(inc.timer); inc.timer = null; }
+    if (settings().stopped) say(stoppedNotice({ names: inc.names, count: inc.ids.size, kinds: inc.kinds }));
+  };
+
+  /**
+   * A session's turn ended on an error (StopFailure). Only the two a working
+   * login cures are an incident; they gather into one, and the first is what
+   * arms its notice — held for the tick when a tick will say what it did, and
+   * said after STOP_GATHER_MS otherwise. Every later stop of the incident is
+   * counted and says nothing: the cards show each one.
+   */
+  function stopped({ sessionId, who, kind, at = now() } = {}) {
+    try {
+      if (!switchCanCure(kind) || typeof sessionId !== "string" || !sessionId) return;
+      if (incident && at - incident.lastAt > STOP_INCIDENT_MS) {
+        if (incident.timer) clearTimeout(incident.timer);
+        incident = null;
+      }
+      if (!incident) {
+        incident = { firstAt: at, lastAt: at, ids: new Set(), names: [], kinds: new Set(), said: false, held: false, armed: false, timer: null };
+      }
+      const inc = incident;
+      inc.lastAt = Math.max(inc.lastAt, at);
+      inc.kinds.add(kind);
+      if (!inc.ids.has(sessionId) && inc.ids.size < STOP_SESSIONS_MAX) {
+        inc.ids.add(sessionId);
+        const name = typeof who === "string" && who ? who : sessionId.slice(0, 8);
+        if (!inc.names.includes(name)) inc.names.push(name);
+      }
+      if (inc.said || inc.armed) return;
+      inc.armed = true;
+      inc.held = autoOn && settings().swap;
+      inc.timer = later(() => { inc.timer = null; if (incident === inc) sayIncident(); }, inc.held ? STOP_HOLD_MS : STOP_GATHER_MS);
+    } catch (err) {
+      onError?.(err);
+    }
+  }
+
+  /** The incident a finished tick answers for: one still held, and begun no
+   *  later than the tick — a tick that started before the login died says
+   *  nothing about it. */
+  const incidentFor = startedAt =>
+    incident && !incident.said && incident.held && (startedAt == null || startedAt >= incident.firstAt) ? incident : null;
+
   /** Should a threshold notice for this window wait for the next tick? */
   const holdFor = (provider, level) =>
     provider === "claude" && autoOn && settings().swap && (policy == null || level >= policy);
@@ -476,34 +609,49 @@ export function createAccountNotifier({
    *
    * `accounts` is claude-swap's roster as sequence.json has it — number to
    * `{ email, organizationUuid, alias }` — read after the tick, for the names
-   * and the keys of the two accounts a switch moved between.
+   * and the keys of the two accounts a switch moved between. `startedAt` is
+   * when the tick began, which decides whether it can answer for a stop.
    */
   /**
    * `telemetryOf`, when given, answers what an organization's telemetry
    * settings turn on, as one sentence or null (org-telemetry.mjs's
    * telemetryClause): the swap notice carries it for the account it moved to,
    * because an unattended switch is exactly when nobody saw it coming.
+   * `startedAt` is when the tick began: only a stop incident that began no
+   * later than that is this tick's to answer for.
    */
-  async function tick(result, accounts, { telemetryOf = null } = {}) {
+  async function tick(result, accounts, { startedAt = null, telemetryOf = null } = {}) {
     try {
       await ready;
       if (!result || typeof result !== "object") return;
       if (typeof result.threshold === "number" && Number.isFinite(result.threshold)) policy = result.threshold;
+      // A tick that did not switch lets a held stop go now, a cooldown
+      // included: the sessions are stopped already, and minutes is too long to
+      // wait to say so for a switch that may come.
+      const inc = incidentFor(startedAt);
+      // On a dead login with nowhere to go, said once and then left alone:
+      // the failover asks again every tick, and the answer will not change
+      // until somebody signs in.
+      const stuck = !result.switched && result.event === "no-switch" && result.reason === "login-expired" && result.stuck === true;
+      const stuckFrom = stuck ? accountOfRef(result.from, accounts) : null;
+      const stuckKey = stuck ? stuckFrom?.key ?? String(result.from?.number ?? "") : null;
+      const sayStuck = stuck && settings().swap && !(now() - (stuckSaid.get(stuckKey) ?? -Infinity) < STUCK_REPEAT_MS);
+      // The stuck notice carries the incident it explains, as a switch does:
+      // one notification for one dead login.
+      if (inc && !(result.switched && settings().swap) && !sayStuck) sayIncident();
       if (!result.switched) {
         // A cooldown is the one answer that says a switch is still coming.
         if (result.event === "no-switch" && result.reason === "cooldown") return;
         release([...held.values()]);
-        // On a dead login with nowhere to go, said once and then left alone:
-        // the failover asks again every tick, and the answer will not change
-        // until somebody signs in.
-        if (result.event === "no-switch" && result.reason === "login-expired" && result.stuck === true) {
-          const from = accountOfRef(result.from, accounts);
-          const key = from?.key ?? String(result.from?.number ?? "");
-          const at = now();
-          if (settings().swap && !(at - (stuckSaid.get(key) ?? -Infinity) < STUCK_REPEAT_MS)) {
-            stuckSaid.set(key, at);
-            say(stuckNotice({ fromName: from?.name ?? null }));
+        if (sayStuck) {
+          stuckSaid.set(stuckKey, now());
+          const notice = stuckNotice({ fromName: stuckFrom?.name ?? null });
+          const told = inc && incident === inc && !inc.said ? inc : null;
+          if (told) {
+            told.said = true;
+            if (told.timer) { clearTimeout(told.timer); told.timer = null; }
           }
+          say(told && settings().stopped ? { ...notice, body: `${notice.body} · ${stoppedCount(told.ids.size)}` } : notice);
         }
         return;
       }
@@ -533,11 +681,19 @@ export function createAccountNotifier({
           used: usedBefore(result, result.from?.number), threshold: result.threshold,
           trigger: result.trigger ?? null,
         });
+        // The incident this switch cured, said with it — and said, so its own
+        // notice does not follow.
+        const cured = inc && incident === inc && !inc.said ? inc : null;
+        if (cured) {
+          cured.said = true;
+          if (cured.timer) { clearTimeout(cured.timer); cured.timer = null; }
+        }
+        const told = cured && s.stopped ? withStopped(notice, cured.ids.size) : notice;
         // Only for an account the store and the tick agree on: an organization
         // read off the wrong slot would put another company's policy on it.
         const toOrg = to?.key ? accounts?.[String(result.to?.number)]?.organizationUuid : null;
         const telemetry = toOrg && telemetryOf ? telemetryOf(toOrg) : null;
-        say(telemetry ? { ...notice, body: `${notice.body}\n${telemetry}` } : notice);
+        say(telemetry ? { ...told, body: `${told.body}\n${telemetry}` } : told);
       }
       await persist();
     } catch (err) {
@@ -576,14 +732,20 @@ export function createAccountNotifier({
     ready,
     observe,
     tick,
+    stopped,
     /** The loop was switched on or off. Off, nothing will carry what is held. */
     autoSwitch(on) {
       autoOn = on === true;
-      if (!autoOn) release([...held.values()]);
+      if (!autoOn) {
+        release([...held.values()]);
+        if (incident?.held && !incident.said) sayIncident();
+      }
     },
-    /** For the suite: the records as they stand, and what is held. */
+    /** For the suite: the records as they stand, what is held, and the stop
+     *  incident. */
     records: () => records,
     held: () => [...held.values()],
+    incident: () => incident,
     settled: () => saving,
   };
 }

@@ -416,10 +416,12 @@
 /* Toned toward the panel in dark, like .sl-waiting-tool above: the pure hues
    are lit for a badge, and a tag in running text beside them shouts. */
 .session-list .sl-status.status-needs .sl-status-tag { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
-.session-list .sl-status.status-failed .sl-status-tag { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
+.session-list .sl-status.status-failed .sl-status-tag,
+.session-list .sl-status.status-stopped .sl-status-tag { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
 .session-list .sl-status.status-done .sl-status-tag { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
 :root[data-color-scheme="light"] .session-list .sl-status.status-needs .sl-status-tag { color: var(--warn); }
-:root[data-color-scheme="light"] .session-list .sl-status.status-failed .sl-status-tag { color: var(--err); }
+:root[data-color-scheme="light"] .session-list .sl-status.status-failed .sl-status-tag,
+:root[data-color-scheme="light"] .session-list .sl-status.status-stopped .sl-status-tag { color: var(--err); }
 :root[data-color-scheme="light"] .session-list .sl-status.status-done .sl-status-tag { color: var(--ok); }
 /* Claude Code's guess at the answer, shown as a guess: metadata tier, one line
    under the question it answers. */

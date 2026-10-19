@@ -140,12 +140,13 @@ describe("POST /api/prefs and the fields the deck writes itself", () => {
 // LanSetupModal.tsx.
 const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifications", { notifications: true }, p => p.notifications, true],
-  // The three account notifications, each from its own switch in the sound
+  // The four account notifications, each from its own switch in the sound
   // menu (use-os-notifications.ts toggleAccountNotify), each to the opposite
   // of what it starts as.
   ["notifySwap", { notifySwap: false }, p => p.notifySwap, false],
   ["notifyQuota", { notifyQuota: true }, p => p.notifyQuota, true],
   ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
+  ["notifyStopped", { notifyStopped: false }, p => p.notifyStopped, false],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
@@ -231,7 +232,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

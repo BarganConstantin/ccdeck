@@ -467,13 +467,16 @@
   min-height: calc(3 * 1.5em);
 }
 /* A question, a failure and a finished job wear the hue the session list's line
-   gives them, toned toward the panel in dark the same way. "now" and "last"
-   keep the session's own colour, as the recap does. */
+   gives them, toned toward the panel in dark the same way — and a turn that
+   stopped on an error the failure's. "now" and "last" keep the session's own
+   colour, as the recap does. */
 .recap-note.status-needs .recap-note-mark { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
-.recap-note.status-failed .recap-note-mark { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
+.recap-note.status-failed .recap-note-mark,
+.recap-note.status-stopped .recap-note-mark { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
 .recap-note.status-done .recap-note-mark { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
 :root[data-color-scheme="light"] .recap-note.status-needs .recap-note-mark { color: var(--warn); }
-:root[data-color-scheme="light"] .recap-note.status-failed .recap-note-mark { color: var(--err); }
+:root[data-color-scheme="light"] .recap-note.status-failed .recap-note-mark,
+:root[data-color-scheme="light"] .recap-note.status-stopped .recap-note-mark { color: var(--err); }
 :root[data-color-scheme="light"] .recap-note.status-done .recap-note-mark { color: var(--ok); }
 /* The dot in front of a status note's word: a little smaller than the ※, which
    is drawn to the same box with nothing at its centre. */
@@ -523,6 +526,33 @@
   border-radius: 50%;
   border: 1px solid currentColor;
   flex-shrink: 0;
+}
+
+/* The turn ended on an error — an expired login, a usage limit, an API error
+   (StopFailure) — and needs a "continue" typed in the session to run again.
+   The waiting row's geometry, in the failure's hue: --err is the card's own
+   word for something gone wrong (.failed-meta), and like --warn above it sits
+   straight on the node with no wash under it. No pulse: nothing here is
+   still happening, and the session is not blocked on a prompt. */
+.agent-node .stop-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--err) 85%, transparent);
+  border-radius: 6px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-weight: 600;
+  min-width: 0;
+  color: var(--err);
+}
+.agent-node .stop-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-node .sub {

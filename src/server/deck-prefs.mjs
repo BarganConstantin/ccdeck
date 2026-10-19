@@ -84,6 +84,10 @@ export const DEFAULTS = Object.freeze({
   notifySwap: true,
   notifyQuota: false,
   notifyReset: false,
+  // Sessions that stopped on an expired login or a usage limit, said once per
+  // incident (account-notify.mjs). ON for the swap's reason: it is rare, every
+  // running session is stopped when it happens, and nothing else says so.
+  notifyStopped: true,
   // The Electron window can open on a new localhost port after an update.
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
@@ -334,6 +338,7 @@ export function normalise(raw) {
     notifySwap: flagOr(src.notifySwap, DEFAULTS.notifySwap),
     notifyQuota: flagOr(src.notifyQuota, DEFAULTS.notifyQuota),
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
+    notifyStopped: flagOr(src.notifyStopped, DEFAULTS.notifyStopped),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     terminal: flagOr(src.terminal, DEFAULTS.terminal),
@@ -720,7 +725,7 @@ export function publicPrefs(prefs) {
  */
 export const PAGE_FIELDS = Object.freeze({
   top: Object.freeze([
-    "notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
+    "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
     "terminal",
   ]),
   lan: Object.freeze([
@@ -756,15 +761,15 @@ export function notificationsOn(prefs, env = process.env) {
 }
 
 /**
- * Which account notifications may go out right now: the three switches, each
- * on its own, and all three off when the machine vetoed notifications at
+ * Which account notifications may go out right now: the four switches, each
+ * on its own, and all four off when the machine vetoed notifications at
  * launch — AGENTS_DECK_NO_NOTIFY=1 keeps the deck off the desktop whatever
  * else it was told, and these are desktop notifications too.
  */
 export function accountNotifySettings(prefs, env = process.env) {
-  if (notificationsVetoed(env)) return { swap: false, quota: false, reset: false };
+  if (notificationsVetoed(env)) return { swap: false, quota: false, reset: false, stopped: false };
   const p = normalise(prefs);
-  return { swap: p.notifySwap, quota: p.notifyQuota, reset: p.notifyReset };
+  return { swap: p.notifySwap, quota: p.notifyQuota, reset: p.notifyReset, stopped: p.notifyStopped };
 }
 
 /**

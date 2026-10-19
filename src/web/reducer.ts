@@ -10,7 +10,7 @@
 //   graph-state.ts         the state, and the keys it is filed under
 //   agent-attribution.ts   which agent an event belongs to; roots and subagents
 //   parked-enrichment.ts   the server's scans that reach a session before its card
-//   session-lifecycle.ts   SessionStart, prompts, Stop and SessionEnd
+//   session-lifecycle.ts   SessionStart, prompts, Stop, StopFailure and SessionEnd
 //   subagent-lifecycle.ts  SubagentStart and SubagentStop
 //   tool-calls.ts          a call's start and outcome, and its history window
 //   waiting-block.ts       Notification, and what clears the block it raises
@@ -25,7 +25,8 @@ import { claudeEffort } from "./payload-effort";
 import { initialState, rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { explicitSubagentKey, noteKeyedSubagent, resolveOwner } from "./agent-attribution";
 import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
-import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, noteSessionHeard } from "./session-lifecycle";
+import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, clearStopFailure, noteSessionHeard } from "./session-lifecycle";
+import { stopFailureOf } from "../server/stop-failure.mjs";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
 import { applyPreToolUse, applyToolOutcome, returnLentCalls } from "./tool-calls";
 import {
@@ -189,6 +190,14 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   const observedEffort = claudeEffort(name, p);
   if (observedEffort !== undefined && owner.id === named) owner.effort = observedEffort ?? undefined;
 
+  // A tool call the ROOT made is the session working again, so a turn that
+  // stopped on an error is behind it. Read off what the payload named, never
+  // off the node the call is drawn on: a background subagent's own call names
+  // it, and a Task working on does not run the failed turn again.
+  if ((name === "PreToolUse" || name === "PostToolUse" || name === "PostToolUseFailure") && namedKey == null) {
+    clearStopFailure(state.agents.get(rootAgentId(sessionId)), now);
+  }
+
   switch (name) {
     case "SessionStart": applySessionStart(state, p, sessionId, now); break;
     case "UserPromptSubmit": applyUserPromptSubmit(state, p, sessionId, now); break;
@@ -197,7 +206,10 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     case "PostToolUseFailure": applyToolOutcome(state, p, name, sessionId, now); break;
     case "SubagentStart": applySubagentStart(state, p, sessionId, now); break;
     case "SubagentStop": applySubagentStop(state, p, sessionId, now); break;
+    // The two ways a turn ends, and what each says about how: a StopFailure
+    // records why (stop-failure.mjs), a Stop that the turn finished.
     case "Stop":
+    case "StopFailure": applyTurnEnd(state, name, sessionId, now, { stopFailure: stopFailureOf(p, now) }); break;
     case "SessionEnd": applyTurnEnd(state, name, sessionId, now); break;
     case "Notification": applyNotification(state, p, sessionId, now); break;
   }
