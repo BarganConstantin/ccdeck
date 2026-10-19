@@ -148,13 +148,23 @@ export function createSync({ client, token, state: initial, persist = async () =
     return true;
   }
 
-  /** Values for one profile's PUT: every key it holds, with the edits over it. */
-  async function put(profile, edits) {
+  /**
+   * Values for one profile's PUT: every key of it this deck writes there, with
+   * the edits over them. In shared mode that is only the override keys for the
+   * device's own profile, and everything but them for the shared one (design
+   * 3.5): the API refuses either the other way round with a 400 naming the key,
+   * and both profiles can hold keys this deck must not send back — the own
+   * profile still has what it showed while it was independent, and the console
+   * may give the shared profile a sound for the machines that do not keep
+   * their own. A key left out here is not unset: the API keeps those as stored.
+   */
+  async function put(profile, edits, target) {
+    const stored = s.mode === "shared" ? splitByOverrides(profile.values, s.overrides)[target === "own" ? "own" : "shared"] : profile.values;
     return client.put("/v1/device/settings", {
       profileId: profile.id,
       baseRevision: profile.revision,
       schema: UI_SCHEMA,
-      values: { ...profile.values, ...edits },
+      values: { ...stored, ...edits },
     }, { token: token() });
   }
 
@@ -172,7 +182,7 @@ export function createSync({ client, token, state: initial, persist = async () =
         if (!Object.keys(part).length) continue;
         const profile = target === "bound" ? s.base : s.own;
         if (!profile?.id) continue;
-        const res = await put(profile, part);
+        const res = await put(profile, part, target);
         if (unauthorized(res)) { s.saving = "idle"; return "revoked"; }
         if (res.ok && res.body?.profile) {
           const saved = keptProfile(res.body.profile);
