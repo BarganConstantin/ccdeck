@@ -56,6 +56,17 @@ function number(params, name = "number") {
   return Number(v);
 }
 
+// A pipeline's id as the clients hand them out: a number (a GitLab pipeline, an
+// Actions run), or on GitHub another app's check suite (`suite:<id>`) or a
+// commit's statuses (`status:<sha>`), which listChangePipelines lists beside
+// the runs.
+const PIPELINE_ID = /^(?:suite:\d{1,15}|status:[0-9a-f]{7,64})$/;
+
+function pipelineId(params) {
+  const v = params.get("id") ?? "";
+  return PIPELINE_ID.test(v) ? v : number(params, "id");
+}
+
 function oneOf(params, name, words, fallback) {
   const v = params.get(name) ?? fallback;
   if (!words.includes(v)) throw new BadRequest(`${name} must be one of ${words.join(", ")}`);
@@ -98,7 +109,7 @@ const READS = {
   "change/pipelines": (p, c) => c.listChangePipelines(repo(p), number(p)),
   "change/files": (p, c) => c.listChangeFiles(repo(p), number(p), { cursor: cursor(p) }),
   "pipelines": (p, c) => c.listPipelines({ repo: repo(p, false), cursor: cursor(p) }),
-  "pipeline": (p, c) => c.getPipeline(repo(p), number(p, "id")),
+  "pipeline": (p, c) => c.getPipeline(repo(p), pipelineId(p)),
   "job-log": (p, c) => {
     const id = p.get("id") ?? "";
     if (!JOB_ID.test(id)) throw new BadRequest("id is not a job id");

@@ -39,6 +39,10 @@ describe("reads reach their method", () => {
     await read(client, "change", "repo=owner/repo&number=5093");
     await read(client, "change/files", "repo=owner/repo&number=12&cursor=2");
     await read(client, "pipeline", "repo=owner/repo&id=18512345678");
+    // GitHub's other apps' check suites and a commit's statuses, as a pull
+    // request's Pipelines section lists them.
+    await read(client, "pipeline", "repo=owner/repo&id=suite:31415");
+    await read(client, "pipeline", "repo=owner/repo&id=status:0123456789abcdef0123456789abcdef01234567");
     await read(client, "job-log", "repo=owner/repo&id=4242&lines=5000");
     await read(client, "issues");
     await read(client, "branch", "repo=owner/repo&name=feature/x-1");
@@ -47,6 +51,8 @@ describe("reads reach their method", () => {
       ["getChange", ["owner/repo", 5093]],
       ["listChangeFiles", ["owner/repo", 12, { cursor: "2" }]],
       ["getPipeline", ["owner/repo", 18512345678]],
+      ["getPipeline", ["owner/repo", "suite:31415"]],
+      ["getPipeline", ["owner/repo", "status:0123456789abcdef0123456789abcdef01234567"]],
       ["jobLogTail", ["owner/repo", "4242", { lines: 500 }]],
       ["listIssues", [{ repo: null, state: "open", cursor: undefined }]],
       ["getBranch", ["owner/repo", "feature/x-1"]],
@@ -72,6 +78,11 @@ describe("what is refused before the forge hears of it", () => {
     ["changes", "filter=everyone"],
     ["changes", "state=draft"],
     ["changes", "cursor=" + encodeURIComponent("a b")],
+    ["pipeline", "repo=owner/repo&id=0"],
+    ["pipeline", "repo=owner/repo&id=suite:"],
+    ["pipeline", "repo=owner/repo&id=suite:12/../x"],
+    ["pipeline", "repo=owner/repo&id=status:XYZ"],
+    ["pipeline", "repo=owner/repo&id=run:12"],
     ["job-log", "repo=owner/repo&id=../../x"],
     ["branch", "repo=owner/repo&name=" + encodeURIComponent("a b")],
     ["resolve", "q=%20"],
