@@ -13,8 +13,7 @@
 // searching for SKILL.md files or reading a Claude skill is not a use. One use
 // per turn and skill: the turn id is the row's key, which also lands a forked
 // rollout's copy of its parent's turns on the rows the parent already wrote.
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { posix, win32 } from "node:path";
 import { noteSkillUse } from "./tool-audit.mjs";
 import { readByteRange } from "./jsonl-chunks.mjs";
 
@@ -58,10 +57,20 @@ function messageText(payload) {
   return payload.content.map(part => typeof part?.text === "string" ? part.text : "").join("\n");
 }
 
+// A rollout's paths are its own machine's, so their shape picks the rules, not
+// the host reading them: `fileURLToPath` refuses a drive-less file URL on
+// Windows, and the host's `resolve` would put its own drive letter in front.
+const windowsPath = path => /^(?:[A-Za-z]:[\\/]|\\\\|\/\/)/.test(path);
 const localPath = value => {
   if (typeof value !== "string" || !value) return null;
-  try { return value.startsWith("file://") ? fileURLToPath(value) : value; } catch { return null; }
+  if (!value.startsWith("file://")) return value;
+  try {
+    const { host, pathname } = new URL(value);
+    const path = decodeURIComponent(pathname);
+    return host ? `//${host}${path}` : /^\/[A-Za-z]:\//.test(path) ? path.slice(1) : path;
+  } catch { return null; }
 };
+const resolveIn = (cwd, path) => (windowsPath(cwd) ? win32 : posix).resolve(cwd, path);
 
 /** A finished command that may have touched a skill: worth reading the catalog for. */
 const commandItem = obj => {
@@ -102,7 +111,7 @@ export function codexSkillUses(obj, skills) {
   const found = [];
   for (const parsed of item.parsed_cmd) {
     if (parsed?.type === "read" && typeof parsed.path === "string") {
-      const name = skills.catalog.files.get(slashes(cwd ? resolve(cwd, parsed.path) : parsed.path));
+      const name = skills.catalog.files.get(slashes(cwd ? resolveIn(cwd, parsed.path) : parsed.path));
       if (name) found.push(name);
     } else if (parsed?.type === "unknown" && typeof parsed.cmd === "string") {
       const cmd = slashes(parsed.cmd);
