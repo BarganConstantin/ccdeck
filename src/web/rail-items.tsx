@@ -42,7 +42,7 @@ export function browserWatchDetail(watchOn: boolean | null, unread: number): str
 export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
+  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radarEnabled = true, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -60,6 +60,7 @@ export function railItems({
   watchUnseen: number;
   setBrowserWatchOpen: Toggle;
   setTrafficRadarOpen?: Toggle;
+  radarEnabled?: boolean;
   radioOpen?: boolean;
   setRadioOpen?: Toggle;
   openToolActivity?: () => void;
@@ -133,7 +134,7 @@ export function railItems({
       id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
       glyph: <ToolActivityGlyph />, kind: "dialog" as const,
       detail: "Which tools your agents run, how long they take and what fails", onPress: () => openToolActivity(),
-    }] : []), browserWatch, ...(setTrafficRadarOpen ? [{
+    }] : []), browserWatch, ...(setTrafficRadarOpen && radarEnabled ? [{
       id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
       detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),

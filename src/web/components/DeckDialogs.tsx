@@ -12,6 +12,7 @@
 // used. Usage history and Browser Watch load when they open (#883), so their two
 // lazy imports came with them.
 import { Suspense, type MutableRefObject } from "react";
+import { sessionDisplay } from "../session-display";
 import { updateRestartFailureText } from "../desktop-update";
 import type { Providers } from "../providers";
 import type { GraphState } from "../reducer";
@@ -135,7 +136,7 @@ export default function DeckDialogs({
       )}
       {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
       {trafficRadarOpen && <Suspense fallback={null}>
-        <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && agent.provider !== "codex").map(agent => ({ id: agent.sessionId, label: agent.cwdBasename ?? agent.label }))} onClose={() => setTrafficRadarOpen(false)} />
+        <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && agent.provider !== "codex").map(agent => ({ id: agent.sessionId, label: sessionDisplay(agent.sessionName, agent.sessionTitle).face ?? agent.cwdBasename ?? agent.label, project: agent.cwdBasename ?? agent.label, workspace: agent.cwd }))} onClose={() => setTrafficRadarOpen(false)} />
       </Suspense>}
       {feedbackOpen && (
         <FeedbackDialog
