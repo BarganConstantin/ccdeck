@@ -450,7 +450,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         refusal={refusal} onDismissRefusal={() => clearFailure()}
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
-        sortKey={a.active ? null : orderKey(shownOrder)} />
+        sortKey={a.active ? null : orderKey(shownOrder)}
+        rotating={!!(auto?.enabled || auto?.external)} />
     );
   };
 

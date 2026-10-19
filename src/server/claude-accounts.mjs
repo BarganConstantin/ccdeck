@@ -51,6 +51,10 @@ import { nextReadAt, nudgeCollector } from "./claude-collector.mjs";
 // (#1893). Pure, and keyed the way LAN sync keys accounts.
 import { hasRecovered, reauthFor } from "./account-origins.mjs";
 import { accountKey } from "./lan-copies.mjs";
+// What each organization's Claude settings were last seen to turn on, so a row
+// can say it before anyone switches to the account. See its header for when the
+// shared remote-settings.json can be pinned on an organization at all.
+import { observeOrgTelemetry } from "./org-telemetry.mjs";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -463,6 +467,7 @@ async function readRoster(now, gen) {
   }
 
   const rows = await readUsageRows(root);
+  const orgTelemetry = await observeOrgTelemetry({ seq }).catch(() => ({}));
 
   // Kick a collection for the NEXT poll if anything is due — either because
   // claude-swap's schedule says so, or because an account has never been
@@ -496,7 +501,7 @@ async function readRoster(now, gen) {
     const row = rows[num];
     const key = accountKey(acct.email, acct.organizationUuid);
     const origin = Object.hasOwn(origins, key) ? origins[key] : null;
-    const shown = rosterRow({ seq, num, acct, row, identity, now, key, origin });
+    const shown = rosterRow({ seq, num, acct, row, identity, now, key, origin, telemetry: orgTelemetry[acct.organizationUuid] ?? null });
     accounts.push(shown);
     // A put-off incident is over once a read succeeds after it, and the
     // put-off goes with it (#1893) — said here, where the read is, rather than
@@ -523,7 +528,7 @@ function observedMs(seconds) {
   return Number.isFinite(ms) && ms > 0 && Number.isFinite(new Date(ms).getTime()) ? ms : null;
 }
 
-function rosterRow({ seq, num, acct, row, identity, now, key, origin = null }) {
+function rosterRow({ seq, num, acct, row, identity, now, key, origin = null, telemetry = null }) {
   const matches = rowIsFor(row, acct);
   const good = matches ? row.lastGood : null;
 
@@ -613,6 +618,11 @@ function rosterRow({ seq, num, acct, row, identity, now, key, origin = null }) {
     // claude-swap has refused its login since: `{ key, since, dismissed }`.
     // `key` and `since` together name it, for "Not now" to send back.
     reauth: reauth ? { key, ...reauth } : null,
+    // What this account's organization last turned on for Claude Code's
+    // telemetry export, when the deck has seen its settings (org-telemetry.mjs):
+    // `{ orgName, level, content, destinations, seenAt }`. `level` "off" was
+    // seen off; null was never seen, which is unknown and not "off".
+    telemetry: telemetry ?? null,
   };
 }
 
@@ -817,8 +827,18 @@ export function slotNumber(accountNum) {
  * The validation stays OUTSIDE the lock. A slot number that is not one is not a
  * mutation and must not wait behind somebody else's sixty-second `cswap add`
  * to be told so.
+ *
+ * `before`, when given, is asked first thing inside the lock: a switch nobody
+ * pressed — the auto-switch failover — may have been turned off while it
+ * queued, and answers `{ skipped: <why> }` instead of moving the account.
+ *
+ * `force` is `cswap switch --force`: activate the target without backing up
+ * the current login first. Only for a current login already known to be dead.
+ * Claude Code clears a login whose refresh was refused, and a plain switch then
+ * refuses in turn ("Current account credential is empty …; refusing to
+ * overwrite its backup"), which would leave the user exactly where they were.
  */
-export function switchClaudeAccount(accountNum) {
+export function switchClaudeAccount(accountNum, { before, force = false } = {}) {
   // Straight into an exec argument, so nothing but a slot number gets through.
   const num = slotNumber(accountNum);
   if (num == null) {
@@ -827,13 +847,15 @@ export function switchClaudeAccount(accountNum) {
 
   // Argument vector, never a shell — and resolved through exec.mjs so the
   // Windows `.exe`/`.cmd` shim is found too.
-  return withStoreLock(() => cswapBin()
-    .then(bin => run(bin, ["switch", String(num)], { timeout: 30_000 }))
-    .then(r => {
-      if (r.ok) return { ok: true, output: r.stdout.trim() };
-      const reason = r.code === "ENOENT" ? "no_cswap" : r.killed ? "timeout" : "switch_failed";
-      return { ok: false, reason, output: failureDetail(r, 500) };
-    }));
+  return withStoreLock(async () => {
+    const skipped = before ? await before() : null;
+    if (skipped) return { ok: false, skipped };
+    const argv = force ? ["switch", String(num), "--force"] : ["switch", String(num)];
+    const r = await run(await cswapBin(), argv, { timeout: 30_000 });
+    if (r.ok) return { ok: true, output: r.stdout.trim() };
+    const reason = r.code === "ENOENT" ? "no_cswap" : r.killed ? "timeout" : "switch_failed";
+    return { ok: false, reason, output: failureDetail(r, 500) };
+  });
 }
 
 /**
