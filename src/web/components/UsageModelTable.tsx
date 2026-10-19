@@ -10,6 +10,7 @@
 import { UNKNOWN_MODEL, type BoardModelRow } from "../board-usage";
 import { shortModel } from "../model-label";
 import { fmtCost, UNPRICED_LABEL } from "../pricing";
+import { reportedCost, storedCostNote } from "../reported-cost";
 import { fmtTokens } from "../token-format";
 import type { ModelRow } from "../usage-from-ccusage";
 
@@ -21,6 +22,8 @@ export default function UsageModelTable({ fromRange, rangeModelRows, boardModelR
   /** The board's models, when ccusage has not answered. */
   boardModelRows: BoardModelRow[];
 }) {
+  const recorded = rangeModelRows.filter(m => m.storedCost !== undefined);
+  const provenance = fromRange ? storedCostNote(recorded.length ? recorded.reduce((n, m) => n + m.storedCost!, 0) : null, rangeModelRows.reduce((n, m) => n + m.cost, 0)) : null;
   return (
     <section className="up-section">
       <h3 className="up-section-title">By model</h3>
@@ -36,16 +39,16 @@ export default function UsageModelTable({ fromRange, rangeModelRows, boardModelR
           {fromRange
             ? rangeModelRows.map(m => (
               <tr key={m.model}>
-                <td className="up-model-name" title={m.model}>{shortModel(m.model)}</td>
+                <td className="up-model-name" title={[m.model, storedCostNote(m.storedCost, m.cost)].filter(Boolean).join("\n")}>{shortModel(m.model)}</td>
                 {/* Every token, not input plus output. The board's row
                     counts the two it can price per agent; ccusage sends
                     all four, and on an agentic session the cache is the
                     larger part by two orders of magnitude — 9.56B
                     against 320k on the machine this was written on. */}
                 <td className="up-num">{fmtTokens(m.tokens)}</td>
-                {m.cost > 0
-                  ? <td className="up-num up-cost-val">{fmtCost(m.cost)}</td>
-                  : <td className="up-num up-unpriced">{UNPRICED_LABEL}</td>}
+                {m.missingPricing === true || (m.missingPricing === undefined && m.cost <= 0 && m.tokens > 0)
+                  ? <td className="up-num up-unpriced" title="Cost is incomplete because pricing is missing.">{reportedCost(m.cost, true)}</td>
+                  : <td className="up-num up-cost-val">{reportedCost(m.cost)}</td>}
               </tr>
             ))
             : boardModelRows.map(m => (
@@ -65,6 +68,7 @@ export default function UsageModelTable({ fromRange, rangeModelRows, boardModelR
             ))}
         </tbody>
       </table>
+      {provenance && <p className="up-note">{provenance}</p>}
     </section>
   );
 }

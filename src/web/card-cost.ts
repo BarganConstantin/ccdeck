@@ -22,6 +22,13 @@ import type { AgentNodeData, TokenUsage } from "./types";
  *  must sum to the total: this tooltip exists only to be checked by hand, so a
  *  row whose operands don't produce its own result is worse than no row. */
 export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefined): string {
+  const note = /^gpt[-_]/i.test(modelId ?? "")
+    ? "API-equivalent estimate. Recorded Codex settings do not confirm the served tier; tokens without tier evidence use standard rates.\n"
+    : "";
+  return note + usageCostTooltip(usage, modelId);
+}
+
+function usageCostTooltip(usage: TokenUsage, modelId: string | undefined): string {
   if (!usage.bySpeed) return rateCardTooltip(usage, modelId, STANDARD_SPEED);
   // A session that ran fast has two rate cards on one model (#754), so one
   // multiplication cannot reproduce its total. One block per speed, the same

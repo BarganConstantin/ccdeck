@@ -22,6 +22,8 @@ import { presetSince } from "./usage-range";
 export interface ModelRow {
   model: string;
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -126,7 +128,7 @@ export function sinceFor(key: PeriodKey, now = new Date()): string {
  *  stdout two hops away, and a field that moved upstream must read as absent
  *  rather than throw inside a render. */
 interface RawModelBreakdown {
-  modelName?: unknown; cost?: unknown;
+  modelName?: unknown; cost?: unknown; missingPricing?: unknown; storedCost?: unknown;
   inputTokens?: unknown; outputTokens?: unknown;
   cacheReadTokens?: unknown; cacheCreationTokens?: unknown;
 }
@@ -177,6 +179,10 @@ export function modelRows(range: UsageRange | null | undefined): ModelRow[] {
         by.set(model, row);
       }
       row.cost += num(b?.cost);
+      if (typeof b?.missingPricing === "boolean") row.missingPricing = row.missingPricing === true || b.missingPricing;
+      if (typeof b?.storedCost === "number" && Number.isFinite(b.storedCost) && b.storedCost >= 0) {
+        row.storedCost = (row.storedCost ?? 0) + Math.min(b.storedCost, Math.max(0, num(b.cost)));
+      }
       row.inputTokens += num(b?.inputTokens);
       row.outputTokens += num(b?.outputTokens);
       row.cacheReadTokens += num(b?.cacheReadTokens);
@@ -387,6 +393,8 @@ export function rangeTotals(range: UsageRange | null | undefined): RangeTotals {
  *  types. */
 export interface SessionTotals {
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -465,6 +473,8 @@ export function nounFor(shown: PeriodKey | null, pressed: PeriodKey): string {
  *  depend on the graph's types. */
 export interface Delta {
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -488,6 +498,8 @@ export interface PanelFigures {
    *  whole contract, and the reason they are computed together. */
   fromRange: boolean;
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;

@@ -41,7 +41,7 @@ export function worthALine(row: BoardModelRow | BoardSessionRow): boolean {
  */
 export function anyUnpriced(fromRange: boolean, rangeModelRows: ModelRow[], boardModelRows: BoardModelRow[]): boolean {
   return fromRange
-    ? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)
+    ? rangeModelRows.some(m => m.missingPricing === true || (m.missingPricing === undefined && m.cost <= 0 && m.tokens > 0))
     : boardModelRows.some(m => !m.priced);
 }
 

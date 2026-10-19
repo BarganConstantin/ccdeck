@@ -412,7 +412,7 @@ describe("markup, read as source", () => {
     // carries its own `priced` flag. Same words, two different questions.
     // The decision is usage-panel-rules.ts's anyUnpriced, which
     // usage-panel-rules.test.ts drives from both sources; the panel asks it.
-    expect(rules).toContain("? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)");
+    expect(rules).toContain("? rangeModelRows.some(");
     expect(rules).toContain(": boardModelRows.some(m => !m.priced);");
     expect(panel).toContain("const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);");
   });

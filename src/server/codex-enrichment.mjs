@@ -10,6 +10,7 @@
 // (event-pipeline.mjs) hands every live event to maybeResolveCodex, and
 // session-tracking.mjs forgets a session through forgetCodexSession. The
 // bodies are unchanged.
+import { codexCostState, codexCostGap, foldCodexCost, codexCostBuckets } from "./codex-cost-usage.mjs";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { STOP, rolloutNameId, walkRolloutDays } from "./codex-dir.mjs";
@@ -211,6 +212,7 @@ export async function readCodexRollout(path) {
     const s = await stat(path);
     if (s.size === 0) return null;
     let text;
+    const pricing = codexCostState();
     if (s.size <= CODEX_HEAD_BYTES + CODEX_TAIL_BYTES) {
       text = await readByteRange(path, 0, s.size);
     } else {
@@ -221,7 +223,7 @@ export async function readCodexRollout(path) {
       // the loop below skips it.
       const head = await readByteRange(path, 0, CODEX_HEAD_BYTES);
       const tail = await readByteRange(path, s.size - CODEX_TAIL_BYTES, s.size);
-      text = `${head}\n${tail}`;
+      text = `${head}\n__ccdeck_gap__\n${tail}`;
     }
     let lastUsage = null;
     let model = null;
@@ -230,9 +232,11 @@ export async function readCodexRollout(path) {
     // Undefined until a turn_context is read: "no turn yet" is not "no effort".
     let effort;
     for (const line of text.split("\n")) {
+      if (line === "__ccdeck_gap__") { codexCostGap(pricing); continue; }
       if (!line) continue;
       let obj;
       try { obj = JSON.parse(line); } catch { continue; }
+      foldCodexCost(pricing, obj);
       // One record is one of these at most: each asks the record's own type.
       const meta = sessionMeta(obj);
       if (meta) {
@@ -251,7 +255,9 @@ export async function readCodexRollout(path) {
       if (obj?.type === "turn_context") effort = turnContextEffort(obj.payload);
     }
     if (!lastUsage && !model && !contextWindow) return null;
-    return { usage: lastUsage, model, contextWindow, cwd, effort };
+    const usageByModel = codexCostBuckets(pricing);
+    return { usage: lastUsage, model, contextWindow, cwd, effort,
+      ...(usageByModel ? { usageByModel } : {}) };
   } catch {
     return null;
   }
@@ -272,6 +278,7 @@ function maybeResolveCodex(payload) {
         hook_event_name: "UsageObserved",
         session_id: sid,
         usage: r.usage,
+        usageByModel: r.usageByModel ?? null,
       }, "internal");
     }
     if (r.model) {
