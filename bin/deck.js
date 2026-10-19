@@ -42,7 +42,9 @@ import { startPulse } from "./cli/pulse.js";
 import { settleSecondStart } from "./cli/second-start.js";
 
 const argv = process.argv.slice(2);
-const flags = parseArgs(argv);
+// A respawn replays the argv this deck — or the older one it was upgraded from
+// — booted on, and is read as one: no word in it is a command (see parseArgs).
+const flags = parseArgs(argv, { commands: process.env.AGENTS_DECK_RESPAWN !== "1" });
 
 // Exit codes the supervisor reads as "bring me back": 75 from the files on
 // disk, 76 through npx — which is the only way an npx run reaches a newer
@@ -71,6 +73,19 @@ if (flags.help) {
 if (flags.version) {
   console.log(PKG_VERSION);
   process.exit(0);
+}
+
+// ── the commands ─────────────────────────────────────────────────────────────
+//
+// `ccdeck accounts`, `switch`, `usage`, `sessions` and `open` (#2183), answered
+// in bin/cli/commands.js as clients of the deck already running — and a word
+// that was meant as one of them and is not, refused there rather than read as
+// a request to start a deck. Above everything that moves a file, for the reason
+// the one-shots give below. Imported here rather than at the top, so a boot —
+// which never runs a command — loads none of it.
+if (flags.command || flags.unknownCommand) {
+  const { runCommand } = await import("./cli/commands.js");
+  process.exit(await runCommand(flags));
 }
 
 // `--purge` enters here too, and on its own. It is `--uninstall` plus the deck's
