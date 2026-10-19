@@ -20,7 +20,7 @@ import type { useZoomLod } from "../use-zoom-lod";
 import DragTrashZone from "./DragTrashZone";
 import SessionPeek, { hidePeek, showPeek } from "./SessionPeek";
 
-export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom, viewport, stateRef, peek, children }: {
+export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom, viewport, stateRef, peek, stagePhase, children }: {
   canvasRef: MutableRefObject<HTMLElement | null>;
   /** A session's bubbles are animating out, which the sheet softens the canvas for. */
   bubbling: boolean;
@@ -33,6 +33,10 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
   stateRef: MutableRefObject<GraphState>;
   /** What the peek reads — use-peek-readers.ts. */
   peek: ReturnType<typeof usePeekReaders>;
+  /** Where the terminal stage is between closed and open (stage-shell.ts),
+   *  while it is anywhere but closed: the sheet hides the board under it
+   *  (stage-shell.css). Absent with the flag off, so the attribute never is. */
+  stagePhase?: string;
   children: ReactNode;
 }) {
   const { trashDragging, trashState, trashPhase, trashZoneRef, trashLabel } = trash;
@@ -62,6 +66,7 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
       tabIndex={-1}
       className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
       data-lod={lod}
+      data-stage={stagePhase}
       ref={canvasRef}
       onMouseDownCapture={releasePointerFocus}
       /* The three that say a human is working this canvas right now. They

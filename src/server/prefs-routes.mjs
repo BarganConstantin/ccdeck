@@ -7,12 +7,13 @@
 // engine had (lan-deck.mjs): what is left of them is a body read, a write
 // through the one, a push to the other, and an answer. The notifier stays in
 // index.mjs, beside the desktop-app connections it notifies through.
-import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed } from "./deck-prefs.mjs";
+import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed, terminalForced, terminalOn } from "./deck-prefs.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
 import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
+import { closeOpenTerminals } from "./terminal-socket.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -39,8 +40,19 @@ function prefsPayload() {
     notificationsAllowed: notificationsOn(prefs),
     notificationsVetoed: notificationsVetoed(),
     reportsVetoed: reportsVetoed(),
+    // The effective answer, launch variable included: the page renders no
+    // terminal at all, and never fetches its code, unless this is true. It is
+    // here rather than on a route of its own because this is the one read
+    // every page already makes at boot — and a route of its own would have to
+    // exist with the flag off, which is the state it reports.
+    terminalOn: terminalOn(prefs),
+    // On because of how the deck was launched, which the switch cannot undo.
+    terminalForced: terminalForced(),
   };
 }
+
+/** What a panel that was open says once the switch in Settings has closed it. */
+export const TERMINAL_TURNED_OFF = "The terminal was turned off in Settings. The session is still running.";
 
 export function handlePrefsRead(req, res) {
   return send(res, 200, prefsPayload());
@@ -56,6 +68,7 @@ export async function handlePrefsWrite(req, res) {
   // reports switch (#1853), the reporter's state, the accounts the deck signed
   // in (#1893) — are the deck's own and keep what is on disk; see pagePatch.
   const patch = pagePatch(body);
+  const terminalWasOn = terminalOn(heldPrefs.current());
   try {
     await heldPrefs.write(patch);
   } catch (err) {
@@ -70,6 +83,13 @@ export async function handlePrefsWrite(req, res) {
     const detail = prefsRefusalDetail(err);
     return send(res, 500, detail ? { ok: false, reason, detail } : { ok: false, reason });
   }
+  // Off means no way in, not only no new one: a panel still open in another
+  // tab is a write channel into the session, so it is closed with a sentence,
+  // at once rather than after the LAN engine has had its turn. Asked of what
+  // was written, not of what was sent — any value that is not true turns the
+  // switch off. The sessions keep running; closing a panel never stops an
+  // agent.
+  if (terminalWasOn && !terminalOn(heldPrefs.current())) closeOpenTerminals("error", TERMINAL_TURNED_OFF);
   // The engine reads its settings from here rather than holding its own copy,
   // so turning the switch off in the panel really does stop the sockets rather
   // than only changing what the panel says.

@@ -569,6 +569,132 @@ Plain words carry it; the earlier P95 / interval vocabulary is gone.
   and what is saved are each one plain line under *How this is counted*.
   Findings appear only above their sample floors, so a handful of calls never
   becomes a headline.
+- **Tools | Skills (#2181):** two tabs at the head of the header (a `tablist`
+  with the shared roving keys), the open one marked by a 2px `--accent` bar
+  under its word — a fill, like the period strip's, and `Highlight` under a
+  Contrast theme. Both views share the filters. Skills reuses the Tools
+  vocabulary rather than adding its own: one summary sentence, one list (Most
+  used, Latest, Name) whose bright column is the sort, the same details column
+  and splitter. A plugin's namespace is `--muted` weight 400 before the short
+  name. Failed appears as a column, and in the details facts, only when
+  something failed. Latest uses are two lines — when and who, then the project
+  and a quiet link to the session — with the project and its counts `--muted`.
+
+### Integrations and the Jira panel
+
+Issue #2178. A connected tracker is a large modal on Tool activity's shell
+(`.modal.ig-modal`, 90vw × 90dvh on `--bg`). It is opened from one control per
+connected kind on the left stripe, under a divider below Accounts and Session
+list (under More on phones), or with **I**. Contract:
+`docs/features/jira-integration-2178.md`, `.impeccable/surfaces/jira-integration.md`.
+
+- **The host draws only the header.** It shows the provider's monochrome mark
+  (`--muted`) and name, the connection (a `sm-select` once there are two), and
+  a 36px Close. Everything under it is the provider's panel.
+- **List and detail** (`IntegrationSplit`):
+  - From 900px the detail sits beside the list on `--panel`, 440px by
+    default. The reader can drag it 320–1600px with Tool activity's splitter
+    (arrows, Enter to reset, remembered per browser), and the list always
+    keeps 420px.
+  - Under 900px the detail is a screen of its own, with *Back to the board* at
+    the top, and the board's toolbar steps aside until Back.
+- **The backlog is Jira's Backlog page, quieter.**
+  - Sprint headers are buttons with a chevron: name, an `ACTIVE` badge, dates
+    and count, then the facts on the right. The facts are mine-done, an avatar
+    stack, and three total pills by status category (`data-cat` new /
+    indeterminate / done, on tinted fills).
+  - Issues sit in one bordered `--panel` body per group.
+  - A row is a grid of chevron, type glyph, priority glyph, key (`--muted`,
+    struck through when done), summary, then meta: flag, versions, the epic
+    chip in the epic's Jira colour, estimate, avatar.
+  - Hover is `--ctl-fill`; selection is `--accent-dim`, never a stripe.
+  - A context row ("not assigned to you") is muted and italic in its note.
+- **Narrow:**
+  - Container queries on the list (`jira-list`) put the meta under the
+    summary below 560px, and drop the priority glyph and wrap the summary
+    below 360px.
+  - On a phone the search takes the full width and the filter chips scroll
+    sideways in one row.
+- **Icons Jira serves as SVG are drawn by the panel:**
+  - Types are 16px tiles: bug red, story green, task blue, sub-task light
+    blue, epic purple, with white marks.
+  - Priorities are chevrons and bars in their level's colour.
+  - Raster icons and avatars come through the asset route; an avatar falls
+    back to initials.
+- **Controls are the deck's:**
+  - `btn` for the board, chips (pressed: `--accent-dim` fill with an
+    `--accent` edge), Copy key / Copy link.
+  - `.jr-open` is the anchor twin of `btn`, for *Open in Jira*.
+  - `glyph-btn` for Refresh, `ap-manage-input` for fields.
+- **The issue's HTML** gets reading styles under `.jr-html`: tables in a
+  scroller, code on `--ctl-fill`, Jira's info panels as bordered notes, links
+  in `--accent`.
+- **Forced colours:** the open issue and a pressed chip are outlined in
+  Highlight, and the splitter line is CanvasText.
+
+### The GitHub and GitLab panels
+
+Issue #2179. Two more kinds in the same host (the `.ig-modal`, its header,
+`IntegrationSplit`), with one panel for both that copies GitLab's own screens:
+the project's Branches page, the Merge requests dashboard, a merge request's
+page, Pipelines and Issues. GitHub is drawn in the same screens with its own
+nouns (Pull requests, Actions, Repository, `#`). Contract:
+`docs/features/forge-panels-2179.md`, `.impeccable/surfaces/forge-panels.md`.
+
+- **The toolbar:** the project picker, the freshness line and Refresh.
+  - The picker is a `btn` naming the group quietly and the project whole. It
+    opens a searchable listbox in an `AnchoredPopover` inside the dialog, with
+    *All projects* first where the tab reads across them.
+  - "Updated 2m ago" is `--muted`, and `--warn` once a refresh has failed.
+    Refresh is a 36px `glyph-btn`.
+- **The tabs** are the `uh-range` strip as a real tablist: the chosen tab says
+  `aria-selected` and takes the accent fill with its word in `--bg`. One tab
+  stop, arrows between. Under them, a 32px search over the loaded rows; a
+  pasted link or key adds *Open*.
+- **Rows** sit in one bordered `--panel` body per group. A row is one button,
+  title and facts over meta and time. Hover and selection are `--ctl-fill`,
+  the selected title 600; never a stripe.
+  - Branches: Active open, Stale folded. The name in mono with copy, then
+    behind | ahead (`999+`) and the pipeline in fixed widths so they line up,
+    then the change's badge or *Create merge request ↗*. The row's button is
+    stretched under it (`.fgl-hit`), so those two stay controls of their own.
+  - Merge requests: state, filter and sort strips with counts. A row shows the
+    pipeline, Approved, reviewers' faces with ✓ / ✕, and the comments.
+  - Labels are pills with the forge's colour only as a 7px dot.
+- **The item page** (`.fd`, a container on the pane):
+  - A sticky bar on `--panel`: the reference to copy, *Open in GitLab ↗*, and
+    a 32px Close on a wide window.
+  - The header: a 16px/600 title, then a byline sentence with the state
+    badge, the author and branch chips, then status lines that jump to the
+    pipeline or the change (`.fd-jump`).
+  - Side facts: a 216px column beside the page from a 700px pane, a bordered
+    box above it below that.
+  - A change's sections are a second `uh-range` tablist with counts:
+    Overview, Commits, Pipelines, Changes. Changes is a file list, never a
+    diff.
+  - Jobs by stage, as folds with the stage's state. A failed stage and a
+    failed job start open, and every stage does at 8 jobs or fewer.
+  - The log tail is a `<pre>` on `--bg`, mono 12px, at most
+    `min(360px, 55vh)`, drawn from its end: errors `--err`, warnings
+    `--warn`. 80 lines, then 200, then 500, then *Full log ↗*.
+- **Narrow:**
+  - Under 900px the page is its own screen with *Back to merge requests*,
+    and Escape is Back.
+  - The tabs become four equal cells under a 520px list and two rows of two
+    under 400px; a change's sections do the same under 480 and 400px.
+  - A row's facts go on a line of their own under 520px. Measured at 390 and
+    320px.
+- **Glyphs:** the GitHub and GitLab marks are Simple Icons' path data in
+  `currentColor`, as Jira's is, never the coloured logos. A CI state is a
+  character and a word: ✓ passed, ✕ failed, ● running, ○ pending.
+- **Avatars** load through the asset route. One that fails becomes its
+  initial on `--ctl-fill` and is not asked for again in the session.
+- **A description** gets reading styles under `.forge-html`: headings at 18,
+  16 and 14px, code on `--ctl-fill`, tables in a scroller, links in
+  `--accent`.
+- **Forced colours:** the chosen tab and the chosen section fill with
+  Highlight and HighlightText; the filter segments take the deck's
+  `aria-pressed` rule.
 
 ### Canvas objects
 
@@ -662,6 +788,13 @@ on a panel this dense:
 - **`cubic-bezier(0.23, 1, 0.32, 1)`** is the ease-out — 59 uses, where the next
   most common custom curve has 11. Use this one.
 - **`scale(0.97)`** on press, 36 uses. Not a translate, not a shadow change.
+- **The one exception is distance.** The terminal stage growing out of a card and
+  the board folding into its navigator cross most of the screen, and on the house
+  ease-out their first frame covered a third of the way: a jump, then a settle.
+  They ride `cubic-bezier(0.32, 0.72, 0, 1)` (iOS's sheet curve) for 280ms open
+  and 200ms close, on the page's own frames, where a late frame postpones the
+  motion rather than skipping it (`navigator-flip.ts`). Anything that moves a
+  few pixels stays on the house curve.
 - **The pulse is the one ambient loop** (`--pulse-live: 1.2s ease-in-out`), reserved
   for *still asking*.
 - **`prefers-reduced-motion: reduce` is honoured in 25 blocks**, and the motion

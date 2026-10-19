@@ -45,10 +45,12 @@ export const FEATURES = Object.freeze([
   // Dialogs somebody opened.
   "tool-detail", "session-summary", "context-window", "usage-history", "browser-watch",
   "feedback", "keyboard-help", "share-accounts", "account-projects", "add-account",
-  "process-list", "lan-setup", "claude-fm",
+  "process-list", "lan-setup", "claude-fm", "skill-activity",
   // What the server saw done.
   "account-switch", "accounts-manage", "auto-switch", "lan-pairing", "feedback-sent",
   "self-update", "clear-board",
+  // A connected tracker's panel was read (#2178, #2179): the provider, never the connection.
+  "jira", "github", "gitlab",
   // Which CLI the day's sessions came from.
   "claude-sessions", "codex-sessions",
 ]);

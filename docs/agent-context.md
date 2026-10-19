@@ -3,6 +3,74 @@
 Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
+## GitHub and GitLab panels (#2179) on Linux — 2026-10-19
+
+- Branch `feat/2179-forge-panels`, worktree
+  `/home/constantin/Desktop/personal/ccdeck-wt/2179-github-gitlab-integration`,
+  stacked on `feat/2178-jira-integration` (merged in, not rebased). PR into
+  development, "Closes #2179", after #2178's PR has merged.
+- Contents:
+  - GitHub (github.com) and GitLab (GitLab.com or self-managed) as
+    integration kinds, personal access token only. Read only: GET and GraphQL
+    queries, never a mutation.
+  - The panel is GitLab's own screens: Branches, Merge requests (Pull
+    requests), Pipelines (Actions), Issues; a project picker with All projects
+    where the tab allows it; a search that also opens a pasted link; the item
+    page beside the list, or as its own screen with Back below 900px.
+  - Feature-use names are `github` and `gitlab`, matching `jira`.
+- Contract:
+  - `docs/features/forge-panels-2179.md`
+  - `DESIGN.md` → The GitHub and GitLab panels
+  - `.impeccable/surfaces/forge-panels.md`
+- Images: the token goes only to the API origin; avatars and description
+  images come through the asset route from an allow-list of image hosts.
+- Known behaviour:
+  - GitHub's Branches tab scans every branch to order them by last commit:
+    about 5 s cold on a repository with ~450 branches.
+  - A self-managed GitLab may serve its avatars only to a signed-in browser;
+    those show initials and are not asked for again in the session.
+- QA: an isolated deck (`AGENTS_DECK_NO_LAN=1`, scratch `HOME`, `CCDECK_HOME`,
+  `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `--no-claude --no-codex`, port 4793),
+  driven by headless Chromium through a borrowed `playwright-core`, against
+  the owner's real GitHub and self-managed GitLab at 1440, 390 and 320px in
+  Rider Black and light. Keep the employer's host, projects and people out of
+  fixtures, comments and commits.
+
+## Jira integration (#2178) on Linux — 2026-10-19
+
+- Branch `feat/2178-jira-integration`, worktree
+  `/home/constantin/Desktop/personal/ccdeck-wt/2178-jira-integration`, on
+  development `87883b03`. PR into development, "Closes #2178"; the owner merges.
+- Contents:
+  - Settings → Integrations, between Sounds and Data.
+  - One left-stripe control per connected kind (under More on phones), with
+    shortcut **I** (J/K already move between agents).
+  - A 90vw × 90dvh modal.
+  - The Jira panel for Cloud (email + API token; scoped tokens through
+    api.atlassian.com) and Server/DC 8.14+ (PAT). Read only.
+- Contract:
+  - `docs/features/jira-integration-2178.md`
+  - `DESIGN.md` → Integrations and the Jira panel
+  - `.impeccable/surfaces/jira-integration.md`
+- Store: `<deck home>/integrations/` (0700, files 0600). The page only ever
+  sees `tokenSaved`.
+- Gate: every `/api/integrations/` GET is a guarded read
+  (`GUARDED_READ_PREFIXES`).
+- The asset route serves raster images only, through `client.fetchAsset`. It
+  answers an empty 403/404 and never touches the connection.
+- #2179 (GitHub/GitLab) builds on this core. Its session was sent the paths,
+  exports and the provider contract.
+- QA:
+  - `node scripts/mock-jira.mjs --flavor server|cloud --port 47xx` with an
+    isolated deck (`AGENTS_DECK_NO_LAN=1`, scratch `CCDECK_HOME`, ports
+    4740–4760; set `CCDECK_JIRA_API_ORIGIN` for the Cloud mock's api).
+  - The chrome-devtools MCP could not start here (no X display). Headless
+    Chromium from `~/.cache/ms-playwright` driven by a borrowed
+    `playwright-core` worked.
+- Real smoke: the owner's Jira Server 9.0.0 refused the PAT in `JIRA_TOKEN`
+  itself (401, `X-AUSERNAME: anonymous`, also with plain curl). Rerun the
+  read-only smoke test once the owner has a fresh token.
+
 ## Owner UI continuation — 2026-10-19
 
 - Active Mac worktree: `/Users/constantin/Desktop/ccdeck-radar-debug`, branch
@@ -23,11 +91,25 @@ branches still have the same state. Verify them at the start of a new session.
   Monitor and Configuration. Earlier three-tab/Start-Stop notes below describe
   the superseded design. Session labels prefer available local session names.
 - Tool Activity uses a shared modal at 90vw × 90dvh, a wrench rail icon and an
-  automatically selected first visible tool. Skill analytics are future work:
-  GitHub issue #2181 was already created; do not duplicate it.
+  automatically selected first visible tool. Skill analytics are its Skills
+  tab (#2181, below).
 - Frontend builds need no backend restart. Avoid restarting the Radar process
   during UI work: capture history and persistent HTTP/2 decoder state live in
   memory. Radar verification details remain in its feature investigation docs.
+
+## Skill activity on Linux — 2026-10-19
+
+- Issue #2181, branch `feat/2181-skill-activity`, worktree
+  `/home/constantin/Desktop/personal/ccdeck-wt/2181-skill-activity`.
+- Tool activity gained a Tools | Skills tab. Claude skills come from the Skill
+  tool's hooks and, for typed commands, the new `UserPromptExpansion` hook;
+  Codex skills from rollouts (`<skill>` messages, plus SKILL.md reads and
+  `scripts/` runs for skills in the session's catalog). Repeats such as `/loop`
+  ticks are kept out of the count. Contract: `docs/features/tool-audit.md` →
+  Skill activity.
+- development already fails 41 tests in this Linux environment; compare
+  failure messages, not just names, against a base checkout before calling a
+  convention test pre-existing.
 
 ## Tool activity redesign on Linux — 2026-10-15
 
