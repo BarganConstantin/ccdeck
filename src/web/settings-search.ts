@@ -102,6 +102,8 @@ function buildIndex(): SettingsEntry[] {
       { id: "codex-session-recovery", section: "general", group: "Codex sessions", label: "Restore unfinished sessions", keywords: ["codex", "recover", "restore", "startup", "restart", "unfinished"] },
       { id: "hide-finished", section: "general", group: "Board", label: "Hide finished sessions after",
         keywords: ["finished", "done", "completed", "idle", "clean up", "auto hide", "canvas", "board", "remove"] },
+      { id: "terminal", section: "general", group: "Terminal", label: "Type into sessions from the deck",
+        keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta"] },
       { id: "auto-update", section: "general", group: "Updates", label: "Update when idle",
         keywords: ["update", "auto update", "automatic updates", "upgrade", "restart", "new version"] },
       { id: "accounts", section: "general", group: "Elsewhere on the deck", label: "Accounts and auto-switch", claudeOnly: true,

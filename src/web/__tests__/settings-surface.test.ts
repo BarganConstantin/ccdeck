@@ -113,6 +113,14 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
+  it("draws the terminal's Beta switch in General, after the board, only when App hands it over", () => {
+    expect(drawSettings({ section: "general" })).not.toContain(">Terminal</h3>");
+    const html = drawSettings({ section: "general", terminal: { on: false, forced: false, toggle: noop } });
+    expect(html.indexOf(">Terminal</h3>")).toBeGreaterThan(html.indexOf(">Board</h3>"));
+    expect(html.indexOf(">Terminal</h3>")).toBeLessThan(html.indexOf(">Updates</h3>"));
+    expect(html).toMatch(/role="switch" aria-checked="false" aria-labelledby="settings-terminal-label"/);
+  });
+
   it("gives each subject its own section: the board in General, the look in Appearance, the keys in Keyboard, history in Data", () => {
     // General used to hold the twelve themes, the character, the board, the
     // keyboard switch and tool history (#2176).

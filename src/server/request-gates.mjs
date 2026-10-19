@@ -163,7 +163,11 @@ export function isTrustedMutation({ origin, host, secFetchSite } = {}) {
 // share envelope, with the OAuth token in it. A loopback literal has no DNS
 // record to re-point, and `localhost` is reserved to loopback, so requiring one
 // of them is what separates the deck's own UI from the rebound page.
-function isLoopbackHost(host) {
+//
+// Exported for the terminal's WebSocket upgrade (terminal-socket.mjs), which
+// Node hands to an 'upgrade' listener instead of the route table, and which
+// therefore has to ask this question itself. One spelling of the rule, not two.
+export function isLoopbackHost(host) {
   if (typeof host !== "string") return false;
   const authority = host.trim().toLowerCase();
   // A real Host header is bare authority. Userinfo or a path would let
@@ -182,8 +186,9 @@ function isLoopbackHost(host) {
 // Does `origin` name the same host:port the request was addressed to? Ports are
 // part of an origin, so http://127.0.0.1:8000 is not http://127.0.0.1:4317 —
 // and the default port is spelled both ways depending on the client, so it is
-// normalised off both sides before comparing.
-function originMatchesHost(origin, host) {
+// normalised off both sides before comparing. Exported beside isLoopbackHost,
+// for the same upgrade handler.
+export function originMatchesHost(origin, host) {
   if (typeof host !== "string" || host === "") return false;
   let parsed;
   try { parsed = new URL(origin); } catch { return false; }
@@ -469,6 +474,15 @@ export const GUARDED_READS = new Set([
   // only caller that needs it is the deck's own canvas, which sends
   // Sec-Fetch-Site: same-origin on every fetch.
   "/api/fm-station",
+  // The terminal panel's two reads (terminal-routes.mjs). /target is about
+  // one of the user's sessions — whether its process is running, in whose
+  // tmux, whether its project folder is still there — which is what the user
+  // is doing rather than what the machine is. /status says only whether tmux
+  // is usable here, but it has the same one caller, the deck's own page, and
+  // a family of routes with one open door is a family somebody has to reason
+  // about route by route.
+  "/api/terminal/status",
+  "/api/terminal/target",
   "/api/radio-stations",
   "/api/radio-click",
   // The trackers this deck is connected to (#2178): the list of connections

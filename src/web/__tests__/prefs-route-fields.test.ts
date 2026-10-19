@@ -58,9 +58,12 @@ vi.mock("../../server/lan-deck.mjs", () => ({
   resetLanLoaded: vi.fn(),
   forgetReach: vi.fn(),
 }));
+// And the terminals: what this file asks of them is whether they were closed.
+const closeOpenTerminals = vi.hoisted(() => vi.fn(() => 0));
+vi.mock("../../server/terminal-socket.mjs", () => ({ closeOpenTerminals }));
 
 // @ts-expect-error — plain .mjs server module, no types
-const { handlePrefsWrite } = await import("../../server/prefs-routes.mjs");
+const { handlePrefsWrite, TERMINAL_TURNED_OFF } = await import("../../server/prefs-routes.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { prefsRead } = await import("../../server/prefs-state.mjs");
 // @ts-expect-error — plain .mjs server module, no types
@@ -147,6 +150,9 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
   ["recoverCodexSessions", { recoverCodexSessions: false }, p => p.recoverCodexSessions, false],
+  // The terminal's Beta switch in Settings › General (use-stage.ts
+  // toggleTerminal), from off — every deck's start — to on.
+  ["terminal", { terminal: true }, p => p.terminal, true],
   ["lan.enabled", { lan: { enabled: false } }, p => p.lan.enabled, false],
   ["lan.manual", { lan: { manual: ["10.0.0.1:5000", "10.0.0.2:5001"] } }, p => p.lan.manual, ["10.0.0.1:5000", "10.0.0.2:5001"]],
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
@@ -181,13 +187,51 @@ describe("POST /api/prefs and the fields the page edits", () => {
   });
 });
 
+describe("POST /api/prefs and the terminal's switch", () => {
+  beforeEach(() => closeOpenTerminals.mockClear());
+
+  it("closes every open terminal, with a sentence, when the switch goes off", async () => {
+    await post({ terminal: true });
+    expect(closeOpenTerminals).not.toHaveBeenCalled();
+    const { out } = await post({ terminal: false });
+    expect(out.terminalOn).toBe(false);
+    expect(closeOpenTerminals).toHaveBeenCalledTimes(1);
+    expect(closeOpenTerminals).toHaveBeenCalledWith("error", TERMINAL_TURNED_OFF);
+  });
+
+  it("closes them for any value that turns the switch off, not only false", async () => {
+    await post({ terminal: true });
+    const { out } = await post({ terminal: null });
+    expect(out.terminalOn).toBe(false);
+    expect(closeOpenTerminals).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves them open for a write about anything else", async () => {
+    await post({ notifications: true });
+    await post({ lan: { name: "studio" } });
+    expect(closeOpenTerminals).not.toHaveBeenCalled();
+  });
+
+  it("leaves them open when the launch keeps the terminal on whatever the switch says", async () => {
+    process.env.CCDECK_TERMINAL = "1";
+    try {
+      const { out } = await post({ terminal: false });
+      expect(out.terminalOn).toBe(true);
+      expect(out.terminalForced).toBe(true);
+      expect(closeOpenTerminals).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.CCDECK_TERMINAL;
+    }
+  });
+});
+
 describe("the fields a page may write", () => {
   // A LIST, ON PURPOSE. Naming a field here is deciding that anything able to
   // post to the deck's port may set it, so a new preference stays the deck's
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
