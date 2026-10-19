@@ -498,6 +498,12 @@ export const GUARDED_READS = new Set([
   // The trackers this deck is connected to (#2178): the list of connections
   // with their accounts, and below it every read a provider adds.
   "/api/integrations",
+  // The ccdeck account (account-flag.mjs): which account this deck is
+  // connected to, its email, the device and the settings it syncs, and the
+  // join preview's values. The user's own, and read by the deck's own page
+  // alone. Guarded whether the account is on or off, as every path here is.
+  "/api/account",
+  "/api/account/sync/preview",
 ]);
 
 /** Whole namespaces of guarded reads, for routes whose path carries an id —

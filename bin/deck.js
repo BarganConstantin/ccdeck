@@ -217,7 +217,7 @@ const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftove
 // bin/cli/startup.js.
 // closeAllTerminals and stopCommandPanelEngine because shutdown, below, has to
 // reach the Command Panel's sockets and its engine itself — see the note there.
-const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace, closeAllTerminals, stopCommandPanelEngine } =
+const { startServer, hookToken, releaseRestart, markDeckReady, beforeShutdown, CODEX_SESSIONS_DIR, canonicalWorkspace, closeAllTerminals, stopCommandPanelEngine } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 // What this boot set up, for the usage reports — see activation.mjs.
 const { noteSetup, respawnHooksJob } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
@@ -712,6 +712,10 @@ async function shutdown(code = 0) {
       const { killLiveChildren } = await import(pathToFileURL(join(PKG_ROOT, "src/server/exec.mjs")).href);
       killLiveChildren();
     } catch { /* exec.mjs never loaded, so nothing was ever spawned */ }
+    // What the server registered for the way out — the account's last status
+    // frame, when there is an account (lifecycle.mjs onBeforeShutdown). Free
+    // when nothing registered, and never more than a second and a half.
+    try { await beforeShutdown?.(); } catch { /* leaving anyway */ }
     // Stopped first, always: a tick landing after the unlink would re-register a
     // deck that is on its way out, and leave the file behind for the hooks to
     // find once nothing is listening.

@@ -52,6 +52,9 @@ export const SHELL_VARS = Object.freeze([
   "AGENTS_DECK_NO_FRESHEN", "AGENTS_DECK_NO_NOTIFY", "AGENTS_DECK_NO_LAN", "AGENTS_DECK_NO_REPORTS",
   "AGENTS_DECK_CSWAP", "AGENTS_DECK_CLAUDE", "AGENTS_DECK_CCUSAGE", "CLAUDE_SWAP_BACKUP", "AGENTS_DECK_LHM_PORT",
   "AGENTS_DECK_SKILL_HOOK", "AGENTS_DECK_NO_RADAR",
+  // Not in README's table while the account it vetoes is hidden — see
+  // login-service.mjs SETTING_VARS, which this is held to.
+  "AGENTS_DECK_NO_ACCOUNT",
 ]);
 
 const MARK = "__CCDECK_ENV__";

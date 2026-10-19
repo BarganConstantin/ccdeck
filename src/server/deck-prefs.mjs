@@ -116,6 +116,12 @@ export const DEFAULTS = Object.freeze({
   // ring and the accounts through the same gates. The switch is the only way
   // on: no launch variable turns it on. See terminal-routes.mjs.
   terminal: false,
+  // THE CCDECK ACCOUNT, OFF and hidden (account-flag.mjs): Settings › Account,
+  // the status frames and the settings sync. Deck-owned and hand-edited — not
+  // in PAGE_FIELDS while the feature is hidden, so no page can switch on a
+  // connection to the API. CCDECK_ACCOUNT=1 turns it on for one run, and
+  // AGENTS_DECK_NO_ACCOUNT / AGENTS_DECK_NO_INSTALL veto both.
+  account: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -368,6 +374,7 @@ export function normalise(raw) {
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     terminal: flagOr(src.terminal, DEFAULTS.terminal),
+    account: flagOr(src.account, DEFAULTS.account),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),
