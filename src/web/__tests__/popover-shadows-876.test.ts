@@ -86,12 +86,11 @@ describe("the popovers' contact line on the light theme (#876)", () => {
 describe("no floating surface keeps a black shadow on white", () => {
   it("answers the light theme for every dialog and popover this batch touched", () => {
     // `.modal` carries both dialogs this batch touched since #874 put them on it.
-    // The Appearance menu's station list is a surface floating over the
-    // controls under it, and kept a black 0.22 of its own until it took the
-    // anchored popover's two layers and their light answer.
+    // The Appearance menu's station list was the third, until it left with
+    // Settings' Music section and its rules with it (#2176).
     // The sound popover was the first of these; the anchored popover, which
     // draws the same line, stands in its place since it left (2026-10-07).
-    for (const sel of [".anchored-popover", ".modal", ".appearance-source-list"]) {
+    for (const sel of [".anchored-popover", ".modal"]) {
       const base = decl(sel, "box-shadow")!;
       const themed = /var\(--shadow-\d\)/.test(base) && !BLACK.test(base);
       expect(themed || decl(`${LIGHT}${sel}`, "box-shadow") !== null, `${sel}: ${base}`).toBe(true);

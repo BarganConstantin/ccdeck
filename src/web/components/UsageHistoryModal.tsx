@@ -7,6 +7,7 @@
 // agent-dag's idiom (plain CSS, no Tailwind/framer-motion).
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { fmtCost } from "../pricing";
+import { reportedCost, storedCostNote, MISSING_PRICE_NOTE } from "../reported-cost";
 import { commandOutput, explainCcusageFailure } from "../admin-failure";
 import { usageView } from "../usage-view";
 import { fmtTokens } from "../token-format";
@@ -88,7 +89,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   }, [days]);
 
   // Aggregate totals + per-model cost across the range.
-  const { totalCost, totalTok, inOut, cacheRead, modelCosts } = useMemo(() => historyTotals(days), [days]);
+  const { totalCost, totalTok, inOut, cacheRead, modelCosts, missingModels, storedCost } = useMemo(() => historyTotals(days), [days]);
 
   const legend = useMemo(() => legendOf(modelCosts), [modelCosts]);
 
@@ -212,11 +213,14 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           // subtitle above says what is running.
           <div className={view.stale ? "uh-stale" : undefined} aria-busy={view.stale || undefined}>
             <div className="uh-totals">
-              <Stat label="total cost"   val={fmtCost(totalCost)} accent />
+              <Stat label="total cost"   val={reportedCost(totalCost, missingModels.size > 0)} accent />
               <Stat label="tokens"       val={fmtTokens(totalTok)} />
               <Stat label="input+output" val={fmtTokens(inOut)} />
               <Stat label="cache reads"  val={fmtTokens(cacheRead)} />
             </div>
+
+            {missingModels.size > 0 && <p className="uh-cost-note">{MISSING_PRICE_NOTE}</p>}
+            {storedCostNote(storedCost, totalCost) && <p className="uh-cost-note">{storedCostNote(storedCost, totalCost)}</p>}
 
             {/* The split, and the reason this issue exists (#431). It sits
                 directly under the total it decomposes so the merged number and
@@ -307,7 +311,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 // figure. The tooltip has carried the whole answer all along;
                 // this is that same sentence where a name is read from, and it
                 // is built from the same two values rather than a second copy.
-                const dayLabel = `${d.period}, ${fmtCost(d.totalCost)}`;
+                const dayLabel = `${d.period}, ${reportedCost(d.totalCost, d.modelBreakdowns.some(m => m.missingPricing))}`;
                 return (
                   <button
                     key={d.period}
@@ -319,7 +323,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                        chips this deck already models. */
                     aria-pressed={isSel}
                     aria-label={dayLabel}
-                    title={`${d.period} · ${fmtCost(d.totalCost)}`}
+                    title={dayLabel}
                     /* THE DAYS LAND OLDEST FIRST, which is the one stagger this
                        chart can justify: left to right is not a decorative
                        sweep here, it is the order they were lived in, and it is
@@ -368,7 +372,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
               {legend.map(([m, c]) => (
                 <span key={m} className="uh-legend-item" title={m}>
                   <span className="uh-legend-dot" style={{ background: modelColor(m) }} />
-                  {shortModel(m)} <span className="uh-legend-cost">{fmtCost(c)}</span>
+                  {shortModel(m)} <span className="uh-legend-cost">{reportedCost(c, missingModels.has(m))}</span>
                 </span>
               ))}
             </div>

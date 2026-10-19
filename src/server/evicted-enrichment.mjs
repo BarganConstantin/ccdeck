@@ -64,6 +64,8 @@ const nonEmpty = v => typeof v === "string" && v.trim() !== "";
 const STAMPED = [
   ["model_context_window", v => typeof v === "number" && v > 0],
   ["approval_policy", v => typeof v === "string" && v !== ""],
+  // Null is a value here: a turn that names no effort clears the chip (#2155).
+  ["reasoning_effort", v => (typeof v === "string" && v !== "") || v === null],
   ["context_tokens", v => typeof v === "number" && v >= 0],
 ];
 

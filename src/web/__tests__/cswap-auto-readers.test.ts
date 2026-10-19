@@ -143,6 +143,27 @@ describe("readCswapConfig on what `cswap config` prints", () => {
     });
   });
 
+  it("reads the same settings when cswap paints the `(default)` marker", () => {
+    // claude-swap colours its output when the environment asks for colour, and
+    // a deck started from a terminal inherits that terminal's FORCE_COLOR. It
+    // then dims the marker — `90 \x1b[2m(default)\x1b[0m` — and the escapes
+    // sit exactly where the marker is looked for, so the whole tail was kept
+    // as the value: the Other accounts row read `auto 90 [2m(default)[0m%`,
+    // and `(none)` stopped being null.
+    answer([
+      "autoswitch.threshold              90      \x1b[2m(default)\x1b[0m",
+      "autoswitch.intervalSeconds        120",
+      "autoswitch.model                  (none)  \x1b[2m(default)\x1b[0m",
+    ].join("\n"));
+    return readCswapConfig().then(cfg => {
+      expect(cfg).toEqual({
+        "autoswitch.threshold":       { value: "90", isDefault: true },
+        "autoswitch.intervalSeconds": { value: "120", isDefault: false },
+        "autoswitch.model":           { value: null, isDefault: true },
+      });
+    });
+  });
+
   it("answers null when the CLI fails, which is not the same as no settings", () => {
     // `autoStatus` reports `ok: config != null`. An empty object here would say
     // "claude-swap is fine and has no settings", and the panel would render

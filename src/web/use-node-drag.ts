@@ -3,12 +3,14 @@
 // Lifted out of App.tsx's markup, where the three handlers were ninety lines
 // of arrows inline on <ReactFlow>, unchanged. They are rebuilt every render,
 // as the arrows were, so they read the same values the arrows did. What a drag
-// leaves behind is the pin and the stored layout, or a removal when the card is
-// let go over the trash zone. The session-drag snapshot is this file's alone:
+// leaves behind is the pin and the stored layout, or a removal when the card,
+// or the session's box, is let go over the trash zone. The session-drag
+// snapshot is this file's alone:
 // nothing outside a gesture reads it.
 import { useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import type { Node, NodeDragHandler } from "reactflow";
 
+import { sessionOfNode } from "./layout-geometry";
 import { hidePeek } from "./components/SessionPeek";
 import { saveLayout } from "./layout-storage";
 import type { GraphState } from "./reducer";
@@ -43,9 +45,15 @@ export function useNodeDrag({
   endTrashDrag: Trash["endTrashDrag"];
   removeNode: (id: string) => void;
 }) {
-  /** Active session group-drag: the handle node's start position + each
-   *  member's start position, captured at drag start. */
-  const groupDragRef = useRef<{ start: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null);
+  /** Active session group-drag: the session, the handle node's start position,
+   *  each member's start position and the pin it had before the gesture, so a
+   *  drop on the trash can put the members back as it found them. */
+  const groupDragRef = useRef<{
+    sessionId: string | undefined;
+    start: Point;
+    members: Map<string, Point>;
+    pinsBefore: Map<string, Point | undefined>;
+  } | null>(null);
 
   const onNodeDragStart: NodeDragHandler = (_, n) => {
     // React Flow resolves the dragged ID against its current controlled nodes.
@@ -61,29 +69,36 @@ export function useNodeDrag({
     draggingRef.current = true;
     dragPatchRef.current = new Map();
     setDragging(true);
-    beginTrashDrag(n.type === "agent" ? (stateRef.current.agents.get(n.id)?.label ?? "") : null);
     markInteract();
     disableAutoFit();
     if (n.type === "sessionGroup") {
       // Snapshot every member's start position so each move applies the
       // gesture delta to a fixed origin (the group node's own start).
       const sid = (n.data as { sessionId?: string })?.sessionId;
-      const members = new Map<string, { x: number; y: number }>();
+      const members = new Map<string, Point>();
+      const pinsBefore = new Map<string, Point | undefined>();
       if (sid) {
         for (const m of nodes) {
           const d = m.data as AgentNodeData | undefined;
-          if (d?.sessionId === sid) members.set(m.id, { x: m.position.x, y: m.position.y });
+          if (!d || sessionOfNode(m) !== sid) continue;
+          members.set(m.id, { x: m.position.x, y: m.position.y });
+          pinsBefore.set(m.id, pinnedRef.current.get(m.id));
         }
       }
-      groupDragRef.current = { start: { x: n.position.x, y: n.position.y }, members };
+      groupDragRef.current = { sessionId: sid, start: { x: n.position.x, y: n.position.y }, members, pinsBefore };
+      // The box carries the whole session, and the session's root card has the
+      // session's id, so the trash takes the box by that card's name.
+      const root = sid ? stateRef.current.agents.get(sid) : undefined;
+      beginTrashDrag(root ? root.label : null);
       return;
     }
+    beginTrashDrag(n.type === "agent" ? (stateRef.current.agents.get(n.id)?.label ?? "") : null);
     pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
   };
   const onNodeDrag: NodeDragHandler = (event, n) => {
     if (!n) return;
     markInteract();
-    if (n.type === "agent") trackTrashDrag(event);
+    if (n.type === "agent" || n.type === "sessionGroup") trackTrashDrag(event);
     if (n.type === "sessionGroup") {
       const g = groupDragRef.current;
       if (!g) return;
@@ -117,7 +132,7 @@ export function useNodeDrag({
   };
   const onNodeDragStop: NodeDragHandler = (event, n) => {
     markInteract();
-    const droppedOnTrash = endTrashDrag(event, n?.type === "agent");
+    const droppedOnTrash = endTrashDrag(event, n?.type === "agent" || n?.type === "sessionGroup");
     draggingRef.current = false;
     dragPatchRef.current = null;
     setDragging(false);
@@ -131,6 +146,19 @@ export function useNodeDrag({
     }
     if (n.type === "sessionGroup") {
       const g = groupDragRef.current;
+      if (g && droppedOnTrash && g.sessionId) {
+        // Taken off the board where it was picked up, not beside the trash:
+        // the session list brings it back, and it should come back there.
+        for (const [id, p0] of g.members) {
+          const pin = g.pinsBefore.get(id);
+          if (pin) pinnedRef.current.set(id, pin);
+          else pinnedRef.current.delete(id);
+          positionsRef.current.set(id, p0);
+        }
+        groupDragRef.current = null;
+        removeNode(g.sessionId);
+        return;
+      }
       if (g) {
         const dx = n.position.x - g.start.x;
         const dy = n.position.y - g.start.y;

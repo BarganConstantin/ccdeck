@@ -9,6 +9,7 @@
 // reframe effect reads them too.
 import { useCallback, type MutableRefObject } from "react";
 import type { Node } from "reactflow";
+import { sessionOfNode } from "./layout-geometry";
 import { laneMap, type FlowNodeData } from "./canvas-flow";
 import { stepTarget } from "./canvas-keys";
 import { focusCanvasNode, isCanvasNodeElement } from "./canvas-node-element";
@@ -75,7 +76,7 @@ export function useAgentFocus({
     const members: FlowBox[] = [];
     for (const n of nodesRef.current) {
       if (n.type !== "agent" && n.type !== "recapNote") continue;
-      if ((n.data as { sessionId?: string } | undefined)?.sessionId !== agent.sessionId) continue;
+      if (sessionOfNode(n) !== sessionOfNode(own!)) continue;
       const b = boxOf(n, n.type === "agent");
       if (b) members.push(b);
     }

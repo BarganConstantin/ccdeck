@@ -212,6 +212,20 @@
   box-shadow: none;
   animation: none;
 }
+/* AND THE PRESS ITSELF, beside it, while the update is ready (owner's call,
+   2026-10-18). The chip says what is on offer and opens the notes; this one
+   does it. It wears `.btn.primary`'s fill — the accent's dim bed under --text
+   — so the action reads as the action, and the chip beside it, an outline in
+   the same accent, as what it is about. Only while ready: it is not the pill
+   #712 tried, which stood here permanently for a dialog. */
+.topbar .brand button.v.v-update {
+  color: var(--text);
+  background: var(--accent-dim);
+}
+.topbar .brand button.v.v-update:hover {
+  background: color-mix(in srgb, var(--accent) 34%, var(--accent-dim));
+}
+.topbar .brand button.v.v-update[aria-busy="true"] { cursor: progress; }
 /* #712 put a second pill here — "What's new", the way back into the release
    notes — and #715 took it away again. The chip beside it now opens them, so
    the words were two of topbar spent permanently on a dialog most people open
@@ -256,6 +270,13 @@
    comes later in the cascade. */
 @media (max-width: 480px) {
   .topbar .readout .provider-incident { display: none; }
+}
+/* And the ready chip leaves when its Restart to update is beside it. Both,
+   228px, and a session waiting pushed the chip's left edge out of a 320px
+   bar; the button is the way into the update the chip was there to be, and
+   it names the version to a screen reader. */
+@media (max-width: 480px) {
+  .topbar .brand button.v.ready:has(+ .v-update) { display: none; }
 }
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint.
    Every control is in the dock along the bottom there (edge-rails.css), and

@@ -1,3 +1,4 @@
+import { sessionOfNode } from "./layout-geometry";
 // Invisible per-session drag-handle nodes. One per session, sized to the
 // bounding box of that session's agent nodes and rendered behind them
 // (negative zIndex). Grabbing the empty canvas behind a session drags the
@@ -27,8 +28,8 @@ export function sessionGroupNodes(nodes: Node[]): Node[] {
     const w = n.width, h = n.height;
     if (w == null || h == null) continue; // unmeasured — skip this frame
     const x1 = n.position.x, y1 = n.position.y, x2 = x1 + w, y2 = y1 + h;
-    const b = bySession.get(d.sessionId);
-    if (!b) bySession.set(d.sessionId, { minX: x1, minY: y1, maxX: x2, maxY: y2 });
+    const b = bySession.get(sessionOfNode(n));
+    if (!b) bySession.set(sessionOfNode(n), { minX: x1, minY: y1, maxX: x2, maxY: y2 });
     else {
       b.minX = Math.min(b.minX, x1); b.minY = Math.min(b.minY, y1);
       b.maxX = Math.max(b.maxX, x2); b.maxY = Math.max(b.maxY, y2);

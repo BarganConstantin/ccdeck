@@ -56,10 +56,11 @@ describe("the removed-card set on a profile that blocks site data", () => {
     expect(() => saveRemovedNodes(localStore(), new Set(["agent-1"]))).not.toThrow();
   });
 
-  it("is what use-removals hands the rules, at all three places it reads the store", () => {
+  it("is what use-removals hands the rules, at all four places it reads the store", () => {
     const hook = sourceOf("use-removals.ts");
     expect(hook).toContain("useState<Set<string>>(() => readRemovedNodes(localStore()));");
-    expect(hook.match(/saveRemovedNodes\(localStore\(\), next\)/g) ?? []).toHaveLength(2);
+    // A remove, a bring-back, and Settings' hide of a finished session (#2156).
+    expect(hook.match(/saveRemovedNodes\(localStore\(\), next\)/g) ?? []).toHaveLength(3);
     expect(hook).not.toMatch(/(?:read|save)RemovedNodes\([^)]*window\.localStorage/);
   });
 });

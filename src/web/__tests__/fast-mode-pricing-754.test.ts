@@ -173,7 +173,7 @@ describe("the fast-mode rate card", () => {
     // this build has never read a price for reaches no row.
     for (const id of [
       SONNET, "claude-sonnet-5-5", "claude-haiku-4-5", "claude-fable-5", "claude-opus-4-7",
-      "claude-opus-4-6", "claude-opus-5-6", "claude-opus-4-9", "gpt-6-astra",
+      "claude-opus-4-6", "claude-opus-5-6", "claude-opus-4-9", "gpt-6.2-sol",
     ]) {
       expect(ratesForModel(id, NOW, "fast"), id).toBeNull();
     }

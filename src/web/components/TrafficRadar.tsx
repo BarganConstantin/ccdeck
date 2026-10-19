@@ -1,7 +1,7 @@
 import { RadarIcon } from "./RadarIcon";
 import { RadarSelect } from "./RadarSelect";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import type { RadarSnapshot } from "../traffic-radar";
+import type { RadarSnapshot, RadarVariable } from "../traffic-radar";
 import { configuredDestinations, configuredState, observedDestinations, type RadarSession } from "../telemetry-inspection";
 import { pressAccepted, pressState } from "../panel-press";
 import { tabStripMove } from "../tablist-keys";
@@ -108,8 +108,14 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
     }
   };
   const destinations = variables.filter(v => v.key.endsWith("ENDPOINT"));
-  const flags = variables.filter(v => v.key.startsWith("OTEL_LOG_") || v.key.includes("ENABLE") || v.key.includes("TELEMETRY_BETA"));
   const names: Record<string, string> = { CLAUDE_CODE_ENABLE_TELEMETRY: "Telemetry", OTEL_LOG_USER_PROMPTS: "Your prompts", OTEL_LOG_ASSISTANT_RESPONSES: "Claude responses", OTEL_LOG_TOOL_DETAILS: "Tool details", OTEL_LOG_TOOL_CONTENT: "Tool contents", OTEL_LOG_RAW_API_BODIES: "Full API bodies", OTEL_LOG_MANAGED_SETTINGS: "Managed settings", CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: "Enhanced telemetry", ENABLE_ENHANCED_TELEMETRY_BETA: "Enhanced telemetry" };
+  // A flag no settings file names still gets a switch. Rows sort by flag and an
+  // unset row is keyed as the user-settings row it becomes, so saving keeps the
+  // switch in place and focused.
+  const order = Object.keys(names);
+  const rank = (key: string) => order.includes(key) ? order.indexOf(key) : order.length;
+  const unset = ((savedConfig ?? snapshot.config)?.unsetFlags ?? []).map(key => ({ key, value: "Not set", source: "User settings", unset: true, editable: true }));
+  const flags: (RadarVariable & { unset?: boolean })[] = [...variables.filter(v => v.key.startsWith("OTEL_LOG_") || v.key.includes("ENABLE") || v.key.includes("TELEMETRY_BETA")), ...unset].sort((a, b) => rank(a.key) - rank(b.key));
   return <section className="tr-config" aria-label="Telemetry configuration">
     <h3>What Claude is configured to send</h3>
     {stale && <p className="tr-warning" role="status">Last successfully read settings. Current configuration could not be verified.</p>}
@@ -125,16 +131,20 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
     {error && <p className="tr-warning" role="alert">{error}</p>}
     {flags.length ? <dl className="tr-variables tr-flags">{flags.map(v => {
       const enabled = v.value.startsWith("Enabled");
-      const known = enabled || v.value === "Disabled";
+      const known = enabled || v.value === "Disabled" || v.unset;
       const control = pressState(saving, v.key);
-      const label = `${names[v.key] ?? v.key} (${v.source})`;
+      const source = v.unset ? "Not in any settings file" : v.source;
+      const label = `${names[v.key] ?? v.key} (${v.unset ? "not set" : v.source})`;
       const unavailable = stale || incomplete || (v.editable !== true && !v.blockedReason);
+      const managed = v.editable !== true && !unavailable;
+      // A managed flag shows its state on a locked switch, so the switch is there but cannot be moved.
+      const flagSwitch = (locked: boolean) => <button type="button" className="switch" role="switch" data-tone="warn" aria-checked={enabled} aria-label={label} {...(locked ? { disabled: true, title: v.blockedReason } : { "aria-busy": control.busy, disabled: control.disabled, title: `Turn ${enabled ? "off" : "on"} for new Claude sessions`, onClick: () => void toggle(v.key, !enabled) })}><span className="switch-knob" /></button>;
       return <div key={`${v.source}:${v.key}`}>
-        <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{v.source}</span>{v.blockedReason && !incomplete && <span>{v.blockedReason}</span>}</dt>
+        <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{source}</span>{v.blockedReason && !incomplete && <span>{v.blockedReason}</span>}</dt>
         <dd className="tr-flag-control">
           <span className="tr-flag-value"><span className={`tr-state ${enabled ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{v.value}</span>{v.rawValue !== undefined && <code className="tr-raw-flag">{v.rawValue}</code>}</span>
           <span className="tr-flag-action">
-            {v.editable !== true || unavailable ? <span className="tr-control-note" title={v.blockedReason}>{unavailable ? "Unavailable" : "Managed"}</span> : known ? <button type="button" className="switch" role="switch" data-tone="warn" aria-checked={enabled} aria-label={label} aria-busy={control.busy} disabled={control.disabled} title={`Turn ${enabled ? "off" : "on"} for new Claude sessions`} onClick={() => void toggle(v.key, !enabled)}><span className="switch-knob" /></button> : <span className="tr-unknown-actions">{[true, false].map(value => <button type="button" key={String(value)} className="btn" aria-label={`${value ? "Enable" : "Disable"} ${label}`} aria-busy={control.busy} disabled={control.disabled} onClick={() => void toggle(v.key, value)}>{value ? "Enable" : "Disable"}</button>)}</span>}
+            {unavailable ? <span className="tr-control-note" title={v.blockedReason}>Unavailable</span> : managed ? <><span className="tr-control-note" title={v.blockedReason}>Managed</span>{known && flagSwitch(true)}</> : known ? flagSwitch(false) : <span className="tr-unknown-actions">{[true, false].map(value => <button type="button" key={String(value)} className="btn" aria-label={`${value ? "Enable" : "Disable"} ${label}`} aria-busy={control.busy} disabled={control.disabled} onClick={() => void toggle(v.key, value)}>{value ? "Enable" : "Disable"}</button>)}</span>}
             {saving === v.key && <span className="tr-control-note" role="status">Saving…</span>}
           </span>
         </dd>

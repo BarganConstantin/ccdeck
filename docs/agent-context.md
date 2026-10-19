@@ -8,6 +8,8 @@ branches still have the same state. Verify them at the start of a new session.
 - Active Mac worktree: `/Users/constantin/Desktop/ccdeck-radar-debug`, branch
   `fix/radar-undecoded-connections`; original `agents-deck` work remains protected.
   The owner authorized committing and merging this work into development.
+  Integration with the newer Settings redesign preserves its shared rows and
+  adds Radar to search; 474 relevant tests, typecheck and build passed.
   Recheck the listener before managing processes: port 4317 was
   verified serving this worktree through Node 22 and its built `dist/web`.
 - Latest owner scope: finish all justified animation opportunities and verify

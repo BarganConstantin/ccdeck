@@ -3,18 +3,21 @@
 //
 // Lifted out of UsageHistoryModal.tsx with the small stat it alone draws. It
 // is handed the one day and reads nothing else.
-import { fmtCost } from "../pricing";
+import { reportedCost, storedCostNote, MISSING_PRICE_NOTE } from "../reported-cost";
 import { fmtTokens } from "../token-format";
 import { shortModel } from "../model-label";
 import { byCost, dayAgentsLine, modelColor, percentOf, type DayEntry } from "../usage-history";
 
 export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry }) {
   const agentsLine = dayAgentsLine(selectedDay);
+  const missing = selectedDay.modelBreakdowns.some(m => m.missingPricing);
+  const stored = selectedDay.modelBreakdowns.filter(m => m.storedCost !== undefined);
+  const costNote = storedCostNote(stored.length ? stored.reduce((n, m) => n + m.storedCost!, 0) : null, selectedDay.totalCost);
   return (
     <div className="uh-detail">
       <div className="uh-detail-head">
         <span className="uh-detail-date">{selectedDay.period}</span>
-        <span className="uh-detail-cost">{fmtCost(selectedDay.totalCost)}</span>
+        <span className="uh-detail-cost">{reportedCost(selectedDay.totalCost, missing)}</span>
         {/* Which CLIs ran that day — see dayAgentsLine. The `title`
             carries the same text because this cell now ellipsises;
             the column is whatever the date and the cost leave of the
@@ -25,6 +28,8 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
             nothing failed, it just wrapped. */}
         {agentsLine && <span className="uh-detail-agents" title={agentsLine}>{agentsLine}</span>}
       </div>
+      {missing && <p className="uh-cost-note">{MISSING_PRICE_NOTE}</p>}
+      {costNote && <p className="uh-cost-note">{costNote}</p>}
       <div className="uh-detail-mini">
         <MiniStat label="input"       val={fmtTokens(selectedDay.inputTokens)} />
         <MiniStat label="output"      val={fmtTokens(selectedDay.outputTokens)} />
@@ -53,7 +58,7 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
               <span className="uh-model-bar">
                 <span className="uh-model-bar-fill" style={{ width: `${pct}%`, background: modelColor(mb.modelName) }} />
               </span>
-              <span className="uh-model-cost">{fmtCost(mb.cost)}</span>
+              <span className="uh-model-cost">{reportedCost(mb.cost, mb.missingPricing)}</span>
             </div>
           );
         })}

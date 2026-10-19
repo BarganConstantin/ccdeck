@@ -12,6 +12,7 @@ import { rootAgentId, subagentIdFor, toolKey, type GraphState } from "./graph-st
 import { extractUsage } from "./usage-wire";
 import type { AgentNodeData, HookEnvelope, HookPayload, ToolCall } from "./types";
 import { withCutNotes } from "./tool-view";
+import { applyPlanCall, applyPlanOutcome } from "./agent-plan";
 
 export function shortPreview(raw: any, max = 80): string {
   // A field the hook cut for size reads as the note the dialog shows for it.
@@ -412,6 +413,10 @@ export function applyPreToolUse(state: GraphState, p: HookPayload, sessionId: st
   // only ever returns a node of `p.session_id ?? "unknown"`.
   state.toolIndex.set(toolKey(owner.sessionId, id), tc);
   trimTools(state, owner);
+  // TodoWrite and update_plan carry the whole plan in their input (#2157).
+  // Here, on a call this agent did not already have, so a re-delivered copy of
+  // an old call cannot put back a list the agent has since rewritten.
+  applyPlanCall(owner, tc.name, p.tool_input, now);
 }
 
 /** A tool call's outcome — `PostToolUse` or `PostToolUseFailure`, which `name`
@@ -485,6 +490,13 @@ export function applyToolOutcome(state: GraphState, p: HookPayload, name: string
   // a flag on the object cannot.
   if (tc.outcomeApplied) return;
   tc.outcomeApplied = true;
+  // The Task tools' list is the session's, and only their outcome says what
+  // it became: the id a TaskCreate was given, whether a TaskUpdate took
+  // (#2157). Behind the guard above, so it is read once per call.
+  if (name === "PostToolUse") {
+    const root = state.agents.get(rootAgentId(sessionId));
+    if (root) applyPlanOutcome(root, p.tool_name ?? tc.name, p.tool_input ?? tc.input, p.tool_response, now);
+  }
   // An outcome landed, so whatever the deck dropped while this call was
   // open, it was not this call's answer (#676). The flag is a statement
   // about not knowing, and this is the event that ends the not knowing —

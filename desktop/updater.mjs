@@ -16,11 +16,19 @@
 //   before the update is allowed to install, with the key compiled into
 //   updater-mac.mjs.
 //
-// Updates install on Quit (or "Restart to update"), after the app has stopped
-// the deck it started — never under a running deck, and never mid-session
-// without the person choosing to quit. The one exception is an install a
-// package manager makes, which asks for a password: that waits for Restart to
-// update (#1755).
+// Updates install as the app quits — on Quit, on "Restart to update", or when
+// the app restarts itself into one after a quiet spell (auto-update.mjs, #1187)
+// — always after the app has stopped the deck it started, never under a
+// running deck. The one exception is an install a package manager makes,
+// which asks for a password: that waits for Restart to update (#1755).
+//
+// A READY UPDATE IS NOT THE END OF LOOKING. One can now wait a day for the
+// agents, or for a "Later", and a release can come out in that day; installed
+// as staged, the app would come back already behind and update again an hour
+// later. So check() goes on asking while one is ready — for a release newer
+// than the READY one, not the running one — and stages that instead. Finding
+// nothing newer changes nothing, and a newer one that fails leaves the staged
+// one ready wherever it is still there to install.
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
@@ -110,6 +118,10 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
   let packageType;          // read once, when first asked
   let installing = false;   // Windows/Linux: an install has been started
   let relaunch = false;     // macOS/Windows: Restart to update, not Quit
+  let lookedAt = null;      // when the last look at the feed started
+  let inFlight = false;     // a check() has not returned yet
+  let refreshing = false;   // Windows/Linux: this check is a look past a ready update
+  let superseding = false;  // Windows/Linux: …and it found a newer one, now downloading
 
   const set = next => { state = next; onChange?.(state); };
 
@@ -125,11 +137,29 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     auto.autoInstallOnAppQuit = false;
     if (process.env.CCDECK_UPDATE_FEED) auto.setFeedURL({ provider: "generic", url: feed });
     auto.logger = { info: log, warn: log, error: log, debug: () => {} };
-    auto.on("checking-for-update", () => set({ status: "checking" }));
-    auto.on("update-not-available", () => set({ status: "current" }));
-    auto.on("update-available", info => { lastInfo = info; set({ status: "downloading", version: info.version }); });
-    auto.on("error", err => set({ status: "error", error: String(err?.message ?? err) }));
+    // While an update is ready, a look past it is not news: the state stays
+    // ready unless a NEWER release turns up (see the header).
+    auto.on("checking-for-update", () => { if (state.status !== "ready") set({ status: "checking" }); });
+    auto.on("update-not-available", () => { if (state.status !== "ready") set({ status: "current" }); });
+    auto.on("update-available", info => {
+      lastInfo = info;
+      if (state.status === "ready") {
+        if (!isNewer(info.version, state.version)) return;
+        superseding = true;
+      }
+      set({ status: "downloading", version: info.version });
+    });
+    auto.on("error", err => {
+      // A look past a ready update that failed before anything newer started
+      // downloading — the feed unreachable — leaves the ready one where it is.
+      // Once a newer download has started, electron-updater has cleared the
+      // older one from its cache, and the error is the truth.
+      if (refreshing && !superseding && state.status === "ready") { log(`update check failed, keeping ${state.version}: ${err?.message ?? err}`); return; }
+      set({ status: "error", error: String(err?.message ?? err) });
+    });
     auto.on("update-downloaded", async info => {
+      // The ready one, found again in electron-updater's cache by a look past it.
+      if (state.status === "ready" && state.version === info.version) return;
       lastInfo = info;
       const file = info.downloadedFile;
       try {
@@ -143,6 +173,7 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         if (process.platform === "linux" && isAppImage() && !(await canReplace(process.env.APPIMAGE))) {
           throw cannotUpdateHere(`ccdeck cannot update itself in ${dirname(process.env.APPIMAGE)}, which cannot be written to`, "unwritable-appimage");
         }
+        superseding = false;
         set({ status: "ready", version: info.version });
       } catch (err) {
         log(`update refused: ${err.message}`);
@@ -154,12 +185,19 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
 
   async function check() {
     if (!app.isPackaged && !process.env.CCDECK_UPDATE_FEED) return state;
-    if (state.status === "checking" || state.status === "downloading" || state.status === "ready") return state;
+    if (inFlight || state.status === "checking" || state.status === "downloading") return state;
+    // The update already staged, when there is one: this look is for a release
+    // newer than it, and it stays ready unless one is found.
+    const held = state.status === "ready" ? state : null;
+    inFlight = true;
+    lookedAt = Date.now();
+    refreshing = !!held;
+    superseding = false;
     try {
       if (process.platform === "darwin") {
-        set({ status: "checking" });
-        const update = await checkForUpdate({ manifestUrl: `${feed}/latest-mac.json`, currentVersion: app.getVersion() });
-        if (!update) { set({ status: "current" }); return state; }
+        if (!held) set({ status: "checking" });
+        const update = await checkForUpdate({ manifestUrl: `${feed}/latest-mac.json`, currentVersion: held?.version ?? app.getVersion() });
+        if (!update) { if (!held) set({ status: "current" }); return state; }
         const runningApp = bundleOf(app.getPath("exe"));
         // Nothing is staged that the swap cannot put in place: ready, it would
         // quit the app at the next quiet spell into a swap that fails.
@@ -174,7 +212,11 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
         }
         set({ status: "downloading", version: update.version });
         const s = await stageUpdate(update, { runningApp });
+        // The one it overtook is thrown away only now that its successor has
+        // staged: until then it was still the one a Quit would install.
+        const overtaken = staged;
         staged = { ...s, version: update.version, target: runningApp, failed };
+        if (overtaken) await discard(overtaken.dir).catch(() => {});
         set({ status: "ready", version: update.version });
       } else {
         // With autoDownload, the download comes back as a promise of its own,
@@ -185,9 +227,23 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
       }
     } catch (err) {
       log(`update check failed: ${err?.message ?? err}`);
-      set(errorState(err));
+      if (!keepHeld(held, err)) set(errorState(err));
+    } finally {
+      inFlight = false;
+      refreshing = false;
     }
     return state;
+  }
+
+  /** A look past a ready update that failed: put the ready one back, when it is
+   *  still there to install. On macOS it is, until a successor has staged; on
+   *  Windows and Linux only until electron-updater starts downloading one. */
+  function keepHeld(held, err) {
+    if (!held) return false;
+    if (process.platform === "darwin" ? !staged || staged.version !== held.version : superseding) return false;
+    log(`keeping ${held.version}: ${err?.message ?? err}`);
+    if (state.status !== "ready" || state.version !== held.version) set({ status: "ready", version: held.version });
+    return true;
   }
 
   /** Called as the app quits (will-quit, which a normal Quit reaches and
@@ -301,5 +357,13 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     if (staged) await discard(staged.dir).catch(() => {});
   }
 
-  return { check, installOnQuit, restartNow, canInstallUnattended, dispose, get state() { return state; } };
+  return {
+    check, installOnQuit, restartNow, canInstallUnattended, dispose,
+    get state() { return state; },
+    /** When the last look at the feed started, or null before the first. */
+    get lookedAt() { return lookedAt; },
+    /** A look is in flight: a check() not yet returned, or a download it
+     *  started that has not ended in ready or an error. */
+    get looking() { return inFlight || state.status === "checking" || state.status === "downloading"; },
+  };
 }

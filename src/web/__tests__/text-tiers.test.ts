@@ -159,6 +159,8 @@ describe("what was migrated to the secondary tier", () => {
       // and the heading carry the failure; the reason is prose, so it reads and does not
       // shout.
       ".aa-reason",
+      // Explains missing prices and recorded cost provenance.
+      ".uh-cost-note",
       ".ap-issue-hint",
       ".ap-lan-intro-text",
       // The shared text field's placeholder, in dark only: an example, not a
@@ -227,8 +229,12 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
-      // The Text & density pane's opening sentence, read once.
-      ".reading-intro",
+      // The line under every Settings pane's name, saying what the section
+      // holds (#2176) — Text & density's opening sentence was the first of
+      // them. Read once, before anything in the section is.
+      ".settings-pane-note",
+      // What a tool history change just did, said in its own row.
+      ".settings-row-status",
       ".radio-art",
       ".radio-cluster-preview button span",
       ".radio-controls > .radio-player-button",
@@ -275,9 +281,13 @@ describe("what was migrated to the secondary tier", () => {
       // And the status line in the same slot — what the session is doing,
       // asking or got done — which is the same kind of sentence.
       ".session-list .sl-status",
-      // The custom-sound cards' captions, by bed again: --muted on the card's
-      // --sm-fill is 4.25:1 in dark (#1788).
-      ".sm-custom-card-copy > span",
+      // The agent's plan (#2157): its steps are sentences the agent wrote and a
+      // reader reads to know where the work stands — on the card's row, in the
+      // session list's line and in the detail panel's checklist. The counts
+      // beside them stay --muted, which is what they are.
+      ".agent-node .plan-row",
+      ".session-list .sl-plan",
+      ".plan-item",
       // The Radar redesign adds explanatory text and neutral utility labels.
       ".empty-hero .film-action",
       // Tool activity: the summary sentence, the findings' one-line reasons,

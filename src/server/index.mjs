@@ -36,6 +36,7 @@ export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // routes below: it connects pushEvent to event-sink.mjs as it loads, and the
 // boot replay pushes through that sink before any route has run.
 import "./event-pipeline.mjs";
+import { stopCodexEnrichment } from "./codex-enrichment.mjs";
 // POST /api/event, GET /events and GET /api/events — see event-routes.mjs.
 import { handleEventIngest, handleSse, writeJsonArray } from "./event-routes.mjs";
 // Exported from this file before it moved, and still.
@@ -83,6 +84,7 @@ import { ccProjectSlug } from "./claude-dir.mjs";
 export { ccProjectSlug };
 // The Codex half of capture: the rollouts directory tailed for its events —
 // see codex-watch.mjs.
+import { createClaudeRecovery } from "./claude-recovery.mjs";
 import { startCodexWatcher } from "./codex-watch.mjs";
 // Exported from this file before they moved, and still. scanCodexNow is new,
 // and is here for the suites that import this file to drive the watcher.
@@ -513,7 +515,18 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       void trafficCapture.resume(boundPort).catch(() => {});
       server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
-      if (codex) startCodexWatcher(workspace);
+      if (codex) {
+        startCodexWatcher(workspace);
+        server.once("close", stopCodexEnrichment);
+      }
+      if (claude) {
+        const recovery = createClaudeRecovery({ workspace });
+        const recover = () => { void recovery.scan().catch(() => {}); };
+        recover();
+        const timer = setInterval(recover, 1500);
+        timer.unref?.();
+        server.once("close", () => { clearInterval(timer); recovery.stop(); });
+      }
       // What a session is producing between its tool calls. Claude only — it
       // reads `transcript_path`, which Codex hooks never send — and unref'd
       // like its neighbours.

@@ -18,10 +18,16 @@
 //   { "at": <ms>, "slot": <n>, "email": "...", "orgUuid": "...", "source": "manual"|"auto"|"start" }
 // `source` "start" is the anchor the rollup writes once at boot for whoever is
 // already active, so a machine that never swaps still attributes its work.
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { claudeConfigDir } from "./claude-dir.mjs";
 import { backupRoot } from "./claude-accounts.mjs";
+
+/** Canonical transcript root controlled by this process's claude-swap. */
+export async function swapProjectsRoot(root = resolve(claudeConfigDir(), "projects")) {
+  return realpath(root).catch(() => resolve(root));
+}
 
 /** The log the deck appends swaps to. Under ~/.agents-deck like cswap-auto's
  *  own state, not under the claude-swap store — this is the deck's record, not
@@ -76,6 +82,7 @@ export async function readSwapLog(path = swapLogPath()) {
       email: typeof obj.email === "string" ? obj.email : "",
       orgUuid: typeof obj.orgUuid === "string" ? obj.orgUuid : "",
       source: typeof obj.source === "string" ? obj.source : "",
+      ...(typeof obj.projectsRoot === "string" ? { projectsRoot: obj.projectsRoot } : {}),
     });
   }
   out.sort((a, b) => a.at - b.at);
@@ -98,7 +105,7 @@ export async function appendSwap(entry, path = swapLogPath()) {
  * tick) that must not fail because a log write did. Errors are swallowed here
  * so callers can `void recordSwap(...)` without a catch.
  */
-export async function recordSwap(slot, source, { now = Date.now, root, path } = {}) {
+export async function recordSwap(slot, source, { now = Date.now, root, path, projectsRoot } = {}) {
   try {
     const store = root ?? backupRoot();
     // Trust the store's own idea of who is active over a caller-supplied slot
@@ -110,7 +117,7 @@ export async function recordSwap(slot, source, { now = Date.now, root, path } = 
     if (!n) return null;
     const id = await identityForSlot(n, store);
     if (!id) return null;
-    const entry = { at: now(), slot: n, email: id.email, orgUuid: id.orgUuid, source };
+    const entry = { at: now(), slot: n, email: id.email, orgUuid: id.orgUuid, source, projectsRoot: await swapProjectsRoot(projectsRoot) };
     await appendSwap(entry, path ?? swapLogPath());
     return entry;
   } catch {
@@ -124,11 +131,11 @@ export async function recordSwap(slot, source, { now = Date.now, root, path } = 
  * attributes its work to the account it launched on, and so the very first
  * upgrade writes a "tracked since" point.
  *
- * Deduped against the last entry's `(email, orgUuid)`: a restart on the same
+ * Deduped within the canonical projects root against `(email, orgUuid)`: a restart on the same
  * account adds nothing, but a manual switch made while the deck was down (so no
  * line was written for it) is still captured here on the next boot.
  */
-export async function seedActive({ now = Date.now, root, path } = {}) {
+export async function seedActive({ now = Date.now, root, path, projectsRoot } = {}) {
   try {
     const logPath = path ?? swapLogPath();
     const slot = await currentActiveSlot(root ?? backupRoot());
@@ -136,9 +143,11 @@ export async function seedActive({ now = Date.now, root, path } = {}) {
     const id = await identityForSlot(slot, root ?? backupRoot());
     if (!id) return null;
     const entries = await readSwapLog(logPath);
-    const last = entries[entries.length - 1];
+    const scope = await swapProjectsRoot(projectsRoot);
+    const scoped = entries.filter(e => e.projectsRoot === scope);
+    const last = scoped[scoped.length - 1];
     if (last && last.email === id.email && last.orgUuid === id.orgUuid) return null;
-    const entry = { at: now(), slot, email: id.email, orgUuid: id.orgUuid, source: "start" };
+    const entry = { at: now(), slot, email: id.email, orgUuid: id.orgUuid, source: "start", projectsRoot: scope };
     await appendSwap(entry, logPath);
     return entry;
   } catch {
@@ -172,9 +181,9 @@ export function accountAtTime(entries, ts) {
 
 /** Fence off a stretch of time as "the deck was not running" from `at`, so
  *  work timestamped after it is unattributed until the next real entry. */
-export async function markGap(at, path = swapLogPath()) {
+export async function markGap(at, path = swapLogPath(), projectsRoot) {
   try {
-    await appendSwap({ at, slot: 0, email: "", orgUuid: "", source: "stop" }, path);
+    await appendSwap({ at, slot: 0, email: "", orgUuid: "", source: "stop", projectsRoot: await swapProjectsRoot(projectsRoot) }, path);
     return true;
   } catch {
     return false;

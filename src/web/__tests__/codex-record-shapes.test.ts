@@ -60,7 +60,9 @@ describe("the readers that ask them", () => {
   writeFileSync(path, [META, STARTED, ITEM, TOKENS, ...OTHERS].map(o => JSON.stringify(o)).join("\n") + "\n");
 
   it("agree on one rollout's usage, window and model", async () => {
-    expect(await readCodexRollout(path)).toEqual({ usage: TOTAL, model: "gpt-5.6", contextWindow: 258400, cwd: "/srv/proj" });
+    // `effort: null`: the one turn_context among OTHERS names a model and no
+    // effort, which is a turn that has none, not one not read yet (#2155).
+    expect(await readCodexRollout(path)).toMatchObject({ usage: TOTAL, model: "gpt-5.6", contextWindow: 258400, cwd: "/srv/proj", effort: null });
     expect(await readTokenSeriesForTest(path)).toEqual([
       { ts: Date.parse(TOKENS.timestamp), inp: 120, out: 7, cacheR: 100, cacheW: 0, total: 127 },
     ]);

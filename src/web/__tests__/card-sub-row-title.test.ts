@@ -28,9 +28,11 @@ function card(over: Partial<AgentNodeData>): AgentNodeData {
 }
 
 describe("the card's second row", () => {
-  it("ellipsises at the card's width, which is why it needs the tooltip", () => {
+  it("cuts a subagent's folder short at the card's width, which is why it needs the tooltip", () => {
+    // The row was one run of text that ellipsised at its end, so a long folder
+    // took the model chip with it (#2169). Now only the folder is cut.
     expect(body(".agent-node .sub-details")).toMatch(/white-space:\s*nowrap;/);
-    expect(body(".agent-node .sub-details")).toMatch(/text-overflow:\s*ellipsis;/);
+    expect(body(".agent-node .sub-details > .sub-folder")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 
   it("carries its whole text on hover", () => {
