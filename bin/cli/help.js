@@ -10,7 +10,27 @@ export function printHelp() {
   process.stdout.write(`${PRODUCT} — live deck of Claude Code + Codex agents
 
 Usage:
-  ${PRODUCT} [options]
+  ${PRODUCT} [options]             Start the deck (or open the one already running)
+  ${PRODUCT} <command> [options]   Ask the running deck from any terminal, SSH included
+
+Commands:
+  accounts                 Every Claude account, with 5h / 7d usage and resets.
+                           Aliases: ls, account
+  switch [n|email|alias]   Move the live Claude login to that account. With no
+                           account named, pick one from a list (on a terminal).
+                           --best picks the account with the most room.
+                           Aliases: swap, use
+  usage                    The active account's limits, every lane
+  sessions                 What every session is doing, the ones waiting on
+                           you first. --all adds the ended ones. Alias: ps
+  open                     Open the deck in a browser. Over SSH, print the
+                           \`ssh -L\` line that opens it on your own computer
+  status, stop, logs       The same as --status, --stop and --logs
+
+  Every command takes --json (one object on stdout, with schemaVersion) and
+  --port <n> to name a deck. Without a running deck, accounts, switch and usage
+  read claude-swap's store directly. Exit codes: 0 done, 1 failed, 2 the
+  command line was wrong, 3 no deck is running.
 
 Options:
   -p, --port <number>      Preferred port (default: 4317; falls back to random 4318–4400)
@@ -59,8 +79,9 @@ Options:
   -h, --help               Show this help
   -v, --version            Print the version and exit
 
-Anything else on the command line is reported as an unknown option and then
-ignored: the deck still starts.
+A first word that is not a command is refused, so \`${PRODUCT} acounts\` never
+starts a deck by mistake. Anything else on the command line is reported as an
+unknown option and then ignored: the deck still starts.
 
 A flag that takes a value never swallows the next flag. If the value is missing,
 empty, or itself looks like a flag — \`${PRODUCT} --workspace \$UNSET --no-persist\`
