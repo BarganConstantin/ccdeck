@@ -88,6 +88,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["keyboard", />Single-key shortcuts</],
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
+      ["integrations", />Add integration</],
       ["data", />Tool history<\/h3>/],
       ["radar", />Enable Radar</],
       ["about", />Version</],
@@ -137,8 +138,9 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the nine sections in the nav, in order, About last", () => {
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "Radar", "About"];
+  it("names the ten sections in the nav, in order, About last", () => {
+    // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

@@ -67,6 +67,9 @@ export interface DeckShortcuts {
   /** The door into Settings that the gear uses too: Cmd/Ctrl+, opens it where
    *  it was left, V at Sounds. */
   openSettings: (section?: SettingsSection) => void;
+  /** A connected tracker's panel by kind (#2178), or nothing when that kind
+   *  has no connection — the rail button is not drawn then either. */
+  openIntegrationRef?: Read<(kind: string) => void>;
 }
 
 export function useDeckShortcuts({
@@ -75,7 +78,7 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
+  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -335,6 +338,10 @@ export function useDeckShortcuts({
       if (e.key === "s" || e.key === "S") setMachinePanelOpen(o => !o);
       if (e.key === "b" || e.key === "B") setBrowserWatchOpen(o => !o);
       if (e.key === "v" || e.key === "V") openSettings("sounds");
+      // Jira's panel (#2178), once a Jira connection exists. J would have been
+      // the obvious key, and it is the canvas's next agent beside K; I is the
+      // other free letter in the name.
+      if (e.key === "i" || e.key === "I") openIntegrationRef?.current("jira");
       // The way in that does not depend on already knowing the way in. `?` is
       // the convention, it was unbound, and it is the one key on this list that
       // a user who knows nothing about the deck might still try. Everything it
