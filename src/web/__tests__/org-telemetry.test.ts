@@ -11,8 +11,8 @@ import { mkdtempSync, mkdirSync, utimesSync, writeFileSync, readFileSync, exists
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
-import { observeOrgTelemetry, resetOrgTelemetry, telemetrySummary } from "../../server/org-telemetry.mjs";
-import { telemetryLine } from "../org-telemetry";
+import { knownOrgTelemetry, observeOrgTelemetry, resetOrgTelemetry, telemetryClause, telemetrySummary } from "../../server/org-telemetry.mjs";
+import { switchedTelemetry, telemetryLine } from "../org-telemetry";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 const OTHER = "00000000-0000-4000-8000-0000000000bb";
@@ -186,5 +186,72 @@ describe("the row", () => {
     expect(await render(account(content, true))).toContain('id="ap-telemetry-3"');
     expect(await render(account(null))).not.toContain("ap-telemetry");
     expect(await render(account({ ...content, level: "off", content: [] }))).not.toContain("ap-telemetry");
+  });
+});
+
+// A switch is when what an organization records starts to apply: said in the
+// auto-switch notice for a switch nobody pressed, and in the row's "Now active"
+// note for one somebody did.
+describe("what a switch turns on", () => {
+  const record = (level: string, content: string[] = [], destinations = ["http://192.168.88.16:4317"]) =>
+    ({ orgName: "Acme", level, content, destinations, seenAt: T_SWITCH });
+
+  it("is one sentence for the swap notice, with the collector's host and port", () => {
+    expect(telemetryClause(record("content", ["OTEL_LOG_USER_PROMPTS", "OTEL_LOG_TOOL_DETAILS"])))
+      .toBe("Acme's telemetry is on for new sessions: it sends your prompts and tool details to 192.168.88.16:4317");
+    expect(telemetryClause({ ...record("metrics", [], []), orgName: null }))
+      .toBe("Its organization's telemetry is on for new sessions: it sends usage data");
+    expect(telemetryClause(record("off"))).toBeNull();
+    expect(telemetryClause(undefined)).toBeNull();
+  });
+
+  it("is one sentence for the row a pressed switch landed on", () => {
+    expect(switchedTelemetry(record("content", ["OTEL_LOG_USER_PROMPTS"]) as never))
+      .toBe("Acme's telemetry is on for them: it sends your prompts to http://192.168.88.16:4317.");
+    expect(switchedTelemetry(record("off") as never)).toBeNull();
+    expect(switchedTelemetry(null)).toBeNull();
+  });
+
+  it("reads what was saved, for a reader with no store to pin a new reading on", async () => {
+    liveLogin();
+    remoteSettings(CONTENT, T_SWITCH + 60_000);
+    await observe();
+    resetOrgTelemetry();
+    const records = await knownOrgTelemetry({ env: {}, home, platform: process.platform, dataDir: join(home, "deck") });
+    expect(records[ORG]?.level).toBe("content");
+  });
+});
+
+describe("the row, around a switch", () => {
+  const NOW = (T_SWITCH + 2 * 3_600_000) / 1000;
+  const content = { orgName: "Acme", level: "content", content: ["OTEL_LOG_USER_PROMPTS"], destinations: ["http://h:4317"], seenAt: T_SWITCH };
+  const render = async (a: unknown, extra: Record<string, unknown> = {}) => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { default: AccountRow } = await import("../components/AccountRow");
+    return renderToStaticMarkup(createElement(AccountRow, {
+      a, nowSec: NOW, opened: false, onToggleLanes: () => {}, busy: null, pressProps: () => ({}),
+      onSwitch: () => {}, menuOpen: false, onOpenMenu: () => {}, onCloseMenu: () => {}, refusal: null,
+      onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
+      issueExpanded: false, onOpenIssue: () => {}, ...extra,
+    } as never));
+  };
+  const account = (over: Record<string, unknown> = {}) => ({
+    num: 3, email: "a@x.com", alias: null, org: "Acme", active: false, disabled: false,
+    lanes: [], headroom: 70, fetchedAt: T_SWITCH, nextAt: null, stale: false, error: null, telemetry: content, ...over,
+  });
+
+  it("says what the switch just turned on in the Now active note", async () => {
+    const html = await render(account({ active: true }), { switchedHere: true });
+    expect(html).toMatch(/<p class="ap-switched">Now active\.[^<]*macOS\.<\/p><p class="ap-switched">Acme&#x27;s telemetry is on for them: it sends your prompts to http:\/\/h:4317\.<\/p>/);
+    expect(await render(account({ active: true, telemetry: null }), { switchedHere: true })).not.toContain("telemetry is on");
+  });
+
+  it("points at Hold out of rotation only where the menu offers it", async () => {
+    const HINT = "To keep Auto-switch off it, choose Hold out of rotation in its ⋯ menu.";
+    expect(await render(account(), { rotating: true })).toContain(HINT);
+    expect(await render(account())).not.toContain(HINT);
+    expect(await render(account({ active: true }), { rotating: true })).not.toContain(HINT);
+    expect(await render(account({ disabled: true }), { rotating: true })).not.toContain(HINT);
   });
 });

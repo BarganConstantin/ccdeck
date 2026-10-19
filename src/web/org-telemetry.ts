@@ -37,7 +37,12 @@ export interface TelemetryLine {
   detail: string;
 }
 
-export function telemetryLine(t: OrgTelemetry | null | undefined, nowSec: number): TelemetryLine | null {
+/**
+ * `holdOut`: the row offers "Hold out of rotation" in its ⋯ menu (an inactive
+ * account, while something rotates), so the sentence says where Auto-switch can
+ * be kept off it.
+ */
+export function telemetryLine(t: OrgTelemetry | null | undefined, nowSec: number, { holdOut = false } = {}): TelemetryLine | null {
   if (!t || (t.level !== "metrics" && t.level !== "content")) return null;
   const words = t.level === "content"
     ? t.content.map(k => CONTENT_WORDS[k] ?? k)
@@ -49,6 +54,21 @@ export function telemetryLine(t: OrgTelemetry | null | undefined, nowSec: number
     text: `Telemetry · ${words.length ? words.join(", ") : "usage data"}`,
     tone: words.length ? "warn" : "quiet",
     detail: `${who} turns on Claude Code telemetry for new sessions: ${what}, sent to ${where}. `
-      + `Seen ${ago(t.seenAt, nowSec)}, while this account was active.`,
+      + `Seen ${ago(t.seenAt, nowSec)}, while this account was active.`
+      + (holdOut ? " To keep Auto-switch off it, choose Hold out of rotation in its ⋯ menu." : ""),
   };
+}
+
+/**
+ * The sentence the row's "Now active" note adds after a switch somebody
+ * pressed: what the account just made active turns on for the sessions that
+ * start from now. Null when nothing is known to be on.
+ */
+export function switchedTelemetry(t: OrgTelemetry | null | undefined): string | null {
+  if (!t || (t.level !== "metrics" && t.level !== "content")) return null;
+  const words = t.level === "content" ? t.content.map(k => CONTENT_WORDS[k] ?? k) : [];
+  const what = words.length ? `your ${listed(words)}` : "usage data";
+  const who = t.orgName ? `${t.orgName}'s telemetry` : "Its organization's telemetry";
+  const where = t.destinations.length ? ` to ${listed(t.destinations)}` : "";
+  return `${who} is on for them: it sends ${what}${where}.`;
 }

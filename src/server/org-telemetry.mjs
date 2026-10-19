@@ -75,6 +75,50 @@ async function readJson(path, read) {
 let _records = null;
 let _examined = null;   // mtime of the remote-settings.json last looked at
 
+/** The content flags by the words a person would use for them. The page has
+ *  its own copy in org-telemetry.ts, for the row. */
+export const CONTENT_WORDS = Object.freeze({
+  OTEL_LOG_USER_PROMPTS: "prompts",
+  OTEL_LOG_ASSISTANT_RESPONSES: "responses",
+  OTEL_LOG_TOOL_DETAILS: "tool details",
+  OTEL_LOG_TOOL_CONTENT: "tool output",
+  OTEL_LOG_RAW_API_BODIES: "full API bodies",
+});
+
+/** "a, b and c". */
+function listed(words) {
+  return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
+
+/**
+ * "Acme's telemetry is on for new sessions: it sends your prompts and tool
+ * details to 192.168.88.16:4317" — what a switch to an account of this
+ * organization turns on, for the swap notice to carry. Null when nothing is
+ * known to be on: settings seen off, or never seen.
+ */
+export function telemetryClause(record) {
+  if (!record || (record.level !== "metrics" && record.level !== "content")) return null;
+  const words = record.level === "content" ? (record.content ?? []).map(k => CONTENT_WORDS[k] ?? k) : [];
+  const what = words.length ? `your ${listed(words)}` : "usage data";
+  const hosts = (record.destinations ?? []).map(d => String(d).replace(/^https?:\/\//, ""));
+  const who = record.orgName ? `${record.orgName}'s telemetry` : "Its organization's telemetry";
+  return `${who} is on for new sessions: it sends ${what}${hosts.length ? ` to ${listed(hosts)}` : ""}`;
+}
+
+/** Every organization's record as last saved, without looking at the settings
+ *  file: for a reader that has no store to pin a new reading on. */
+export async function knownOrgTelemetry({
+  env = process.env, home = homedir(), platform = process.platform,
+  dataDir = deckDataDir(platform, env, home), read = readFile,
+} = {}) {
+  if (_records == null) {
+    const { join } = platform === "win32" ? win32 : posix;
+    const saved = await readJson(join(dataDir, RECORDS_FILE), read);
+    _records = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+  }
+  return _records;
+}
+
 /** Forget everything held in memory. For the suite. */
 export function resetOrgTelemetry() { _records = null; _examined = null; }
 
