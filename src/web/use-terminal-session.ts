@@ -758,7 +758,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   /** Ask again for what tmux's absence refused: the launch, or the open. */
   const askAgain = (my: number) => {
     const ref = refOf();
-    if (toLaunch() && subject.kind === "launch") void launchFlow(subject.agent, subject.cwd, my, subject.options);
+    if (toLaunch() && subject.kind === "launch") void launchFlow(subject.agent, subject.cwd, subject.key, my, subject.options);
     else if (ref) void openFlow(ref, my, false);
     else setPhase({ kind: "empty" });
   };
@@ -779,13 +779,15 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     setPhase({ kind: "not-attachable", target: answer.target, stillRunning: false, busy: false });
   };
 
-  const launchFlow = async (agent: TerminalProvider, cwd: string, my: number, options?: LaunchOptions) => {
+  const launchFlow = async (agent: TerminalProvider, cwd: string, key: string, my: number, options?: LaunchOptions) => {
     // At the size the pane will be shown at, so the agent's first screen is
     // drawn once (terminal-routes.mjs, the launch route).
     // And in the panel's colours, so a program asking its terminal's
     // background at its first frame is told the deck's (terminal-sessions.mjs).
     const tint = paneColours();
-    const answer = await deps.api.launch({ agent, cwd, size: { ...want }, ...(options ? { launch: options } : {}), ...(tint ? { colours: tint } : {}) });
+    // By its key, so Try again after an answer that never came (the deck
+    // restarting under it) reaches the agent it started, not a second one.
+    const answer = await deps.api.launch({ agent, cwd, key, size: { ...want }, ...(options ? { launch: options } : {}), ...(tint ? { colours: tint } : {}) });
     if (my !== gen) return;
     if (!answer.ok) {
       if (answer.status === 409) await tmuxOr(my, { kind: "error", message: answer.error });
@@ -807,7 +809,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     if (subject.kind === "empty") { setPhase({ kind: "empty" }); return; }
     if (toLaunch() && subject.kind === "launch") {
       setPhase({ kind: "starting", agent: subject.agent, cwd: subject.cwd });
-      void launchFlow(subject.agent, subject.cwd, my, subject.options);
+      void launchFlow(subject.agent, subject.cwd, subject.key, my, subject.options);
       return;
     }
     const ref = refOf();

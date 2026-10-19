@@ -44,6 +44,7 @@ export const SESSION_OPTIONS = Object.freeze({
   agent: "@ccdeck-agent",
   kind: "@ccdeck-kind",
   cwd: "@ccdeck-cwd",
+  launch: "@ccdeck-launch",
 });
 
 /** The default size, and the clamp the panel's own resizes are held to. */
@@ -52,6 +53,7 @@ const ROWS = Object.freeze({ min: 5, max: 200, fallback: 40 });
 
 const DECK_NAME = /^ccdeck-(?:claude|codex|att)-[0-9a-f]{8}$/;
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LAUNCH_KEY = /^[A-Za-z0-9_-]{1,96}$/;
 
 /**
  * Why a terminal session could not be started, listed or closed.
@@ -86,6 +88,12 @@ function checkSessionId(id) {
   if (!SESSION_ID.test(String(id ?? ""))) {
     throw new TerminalSessionError("bad-session-id", "That session id is not one Claude or Codex would have written.");
   }
+}
+
+/** Whether `key` can label a launch: the page's own name for it, which a
+ *  tmux option holds as is. */
+export function isLaunchKey(key) {
+  return typeof key === "string" && LAUNCH_KEY.test(key);
 }
 
 /** Whether `name` is one the deck gives its own tmux sessions — the only
@@ -290,7 +298,7 @@ export function clampSize(cols, rows) {
  * Everything else rides in the same sequence as new-session; see tmuxSequence
  * for why that ordering is what keeps a pane that dies at once on the board.
  */
-export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", agent, kind, term = PANE_TERM_FALLBACK, colours = null }) {
+export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", agent, kind, term = PANE_TERM_FALLBACK, colours = null, launchKey = "" }) {
   const at = `=${name}:`;
   const style = paneColours(colours);
   return ["-f", "/dev/null", ...tmuxSequence([
@@ -318,6 +326,7 @@ export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", age
     ["set-option", "-t", at, SESSION_OPTIONS.agent, agent],
     ["set-option", "-t", at, SESSION_OPTIONS.kind, kind],
     ["set-option", "-t", at, SESSION_OPTIONS.cwd, cwd],
+    ...(launchKey ? [["set-option", "-t", at, SESSION_OPTIONS.launch, launchKey]] : []),
     ["set-option", "-w", "-t", at, "remain-on-exit", "on"],
     // Last, and -q: remain-on-exit-format arrived in 3.3, above the 3.2 floor,
     // and an option a tmux does not know must not fail a sequence that has
@@ -388,7 +397,8 @@ async function requireTmux(env) {
  * launch returns "" because Codex has not chosen its id yet. `tmux` is a path
  * or findTmux's answer, and is looked up when omitted. `socket` and `env`
  * exist so the suite can run all of this on a server of its own; the product
- * passes neither.
+ * passes neither. `launchKey`, the page's name for the launch, is kept on the
+ * session (SESSION_OPTIONS.launch) for findLaunchedSession.
  *
  * Throws TerminalSessionError. A random name that collides is retried; an
  * attach wrapper's name colliding means one already exists ("exists"), and
@@ -404,10 +414,13 @@ async function requireTmux(env) {
 export async function launchSession({
   tmux, agent, cwd, cols = COLS.fallback, rows = ROWS.fallback, argv, sessionId = "", kind = "launch",
   socket = DECK_SOCKET, env = process.env, platform = process.platform, run = runTmux, scope = serverScope,
-  options = null, colours = null,
+  options = null, colours = null, launchKey = "",
 } = {}) {
   checkAgent(agent);
   checkKind(kind);
+  if (launchKey && !isLaunchKey(launchKey)) {
+    throw new TerminalSessionError("bad-launch-key", "The launch's key is not one the deck can keep.");
+  }
   if (kind === "attach" && agent !== "claude") {
     throw new TerminalSessionError("bad-kind", "Codex sessions cannot be attached to that way.");
   }
@@ -437,7 +450,7 @@ export async function launchSession({
 
   for (let attempt = 0; ; attempt++) {
     const name = deckSessionName({ agent, kind, sessionId: id });
-    const args = launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind, term: paneTerm({ env }), colours });
+    const args = launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind, term: paneTerm({ env }), colours, launchKey });
     let r = await run(bin, socket, args, outside ? { env, scope: outside } : { env });
     if (outside && !r.ok && SYSTEMD_REFUSED.test(r.stderr)) {
       outside = null;
@@ -467,7 +480,7 @@ const PANE_FORMAT = [
   "#{session_name}", "#{pane_id}", "#{pane_pid}", "#{pane_dead}", "#{pane_dead_status}",
   "#{session_created}", "#{pane_width}", "#{pane_height}",
   `#{${SESSION_OPTIONS.session}}`, `#{${SESSION_OPTIONS.agent}}`, `#{${SESSION_OPTIONS.kind}}`,
-  `#{${SESSION_OPTIONS.cwd}}`,
+  `#{${SESSION_OPTIONS.launch}}`, `#{${SESSION_OPTIONS.cwd}}`,
 ].join("\t");
 
 /**
@@ -484,13 +497,13 @@ export function parseDeckPanes(stdout) {
   const int = (s) => (s === "" || !Number.isFinite(Number(s)) ? null : Number(s));
   for (const line of String(stdout ?? "").split("\n")) {
     const f = line.split("\t");
-    if (f.length < 12) continue;
-    const [name, pane, panePid, dead, deadStatus, created, cols, rows, sessionId, agent, kind] = f;
+    if (f.length < 13) continue;
+    const [name, pane, panePid, dead, deadStatus, created, cols, rows, sessionId, agent, kind, launchKey] = f;
     if (!isDeckSessionName(name) || seen.has(name)) continue;
     seen.add(name);
     const isDead = dead === "1";
     out.push({
-      name, sessionId, agent, kind, cwd: f.slice(11).join("\t"), pane,
+      name, sessionId, agent, kind, launchKey, cwd: f.slice(12).join("\t"), pane,
       panePid: int(panePid), dead: isDead, exitStatus: isDead ? int(deadStatus) : null,
       created: int(created) == null ? null : int(created) * 1000, cols: int(cols), rows: int(rows),
     });
@@ -500,8 +513,9 @@ export function parseDeckPanes(stdout) {
 
 /**
  * Every session on the deck's tmux server:
- * `[{ name, sessionId, agent, kind, cwd, pane, panePid, dead, exitStatus,
- *    created, cols, rows }]`, `created` in epoch milliseconds.
+ * `[{ name, sessionId, agent, kind, launchKey, cwd, pane, panePid, dead,
+ *    exitStatus, created, cols, rows }]`, `created` in epoch milliseconds;
+ * `launchKey` "" for a session no page launch named.
  *
  * No server is an empty list, not an error — it is what a deck that has never
  * launched anything, or whose last session was closed, looks like.
@@ -529,6 +543,16 @@ export function findDeckSession(list, sessionId, { kinds = null } = {}) {
     String(s.sessionId ?? "").toLowerCase() === want && (!kinds || kinds.includes(s.kind)));
   hits.sort((a, b) => Number(a.dead) - Number(b.dead) || (b.created ?? 0) - (a.created ?? 0));
   return hits[0] ?? null;
+}
+
+/**
+ * The deck session a launch named `key` started, or null. Pure. One at most:
+ * the page names each launch once, and a launch asked again with its key
+ * comes here before it starts anything (terminal-routes.mjs).
+ */
+export function findLaunchedSession(list, key) {
+  if (!isLaunchKey(key)) return null;
+  return (list ?? []).find(s => s.launchKey === key) ?? null;
 }
 
 /**

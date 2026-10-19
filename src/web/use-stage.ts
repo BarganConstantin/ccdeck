@@ -318,7 +318,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [shellRef, openOn, follow, focusPane]);
 
   const launch = useCallback((agent: TerminalProvider, cwd: string, options?: LaunchOptions) => {
-    const key = `launch-${Date.now().toString(36)}-${++launchSeqRef.current}`;
+    // The deck keeps it on the session it starts (terminal-routes.mjs
+    // launchOnce), so unique across every tab on the deck, not just this one.
+    const key = `launch-${Date.now().toString(36)}-${++launchSeqRef.current}-${Math.random().toString(36).slice(2, 10)}`;
     openOn({ kind: "launch", agent, cwd, key, ...(options ? { options } : {}) }, { focusPane: true });
   }, [openOn]);
 

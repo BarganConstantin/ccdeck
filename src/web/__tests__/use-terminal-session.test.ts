@@ -813,7 +813,7 @@ describe("a new session started from the stage", () => {
     await flush();
     ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n9", options: { model: "haiku", permissionMode: "plan" } });
     await flush();
-    expect(r.launch).toHaveBeenCalledWith({ agent: "claude", cwd: "/w", size: { cols: 132, rows: 41 }, launch: { model: "haiku", permissionMode: "plan" } });
+    expect(r.launch).toHaveBeenCalledWith({ agent: "claude", cwd: "/w", key: "n9", size: { cols: 132, rows: 41 }, launch: { model: "haiku", permissionMode: "plan" } });
   });
 
   it("starts it in the stage's colours, so a program asking at its first frame is told the deck's", async () => {
@@ -854,6 +854,10 @@ describe("a new session started from the stage", () => {
     ctl.retry();
     await flush();
     expect(r.launch).toHaveBeenCalledTimes(3);
+    // By the same key, which is how the deck tells a launch asked again whose
+    // first answer never came (it started an agent) from a new one.
+    expect(r.launch.mock.calls[1][0].key).toBe("n12");
+    expect(r.launch.mock.calls[2][0].key).toBe("n12");
   });
 
   it("says starting, reports the launched session, and attaches with the launch's own ticket", async () => {
@@ -863,7 +867,7 @@ describe("a new session started from the stage", () => {
     ctl.show({ kind: "launch", agent: "claude", cwd: "/home/u/personal/ccdeck", key: "n1" });
     expect(r.last().phase).toEqual({ kind: "starting", agent: "claude", cwd: "/home/u/personal/ccdeck" });
     await flush();
-    expect(r.launch, "at the size the pane will show it at").toHaveBeenCalledWith({ agent: "claude", cwd: "/home/u/personal/ccdeck", size: { cols: 80, rows: 24 } });
+    expect(r.launch, "at the size the pane will show it at").toHaveBeenCalledWith({ agent: "claude", cwd: "/home/u/personal/ccdeck", key: "n1", size: { cols: 80, rows: 24 } });
     expect(r.launched).toEqual([{ agent: "claude", cwd: "/home/u/personal/ccdeck", sessionId: OTHER.sessionId, name: "ccdeck-claude-1a2b3c4d" }]);
     expect(r.sockets[0].url).toMatch(/ticket=launched$/);
   });
@@ -910,7 +914,7 @@ describe("while the deck sets up its own tmux", () => {
     await flush();
     expect(r.status).toHaveBeenCalledTimes(3);
     expect(r.launch, "asked once more, now that tmux is there").toHaveBeenCalledTimes(2);
-    expect(r.launch.mock.calls[1][0]).toEqual({ agent: "claude", cwd: "/w", size: { cols: 80, rows: 24 } });
+    expect(r.launch.mock.calls[1][0]).toEqual({ agent: "claude", cwd: "/w", key: "n3", size: { cols: 80, rows: 24 } });
     expect(r.sockets).toHaveLength(1);
   });
 

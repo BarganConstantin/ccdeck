@@ -105,6 +105,8 @@ describe("the requests themselves", () => {
     expect(asked[0].body).toEqual({ agent: "claude", cwd: "/srv/app", cols: 132, rows: 41, options: { model: "haiku", worktree: true } });
     await launchTerminal({ agent: "claude", cwd: "/srv/app", launch: {} }, { fetchFn });
     expect(asked[1].body, "no options is no options key").toEqual({ agent: "claude", cwd: "/srv/app" });
+    await launchTerminal({ agent: "claude", cwd: "/srv/app", key: "launch-mgx1-1-k2v9q0" }, { fetchFn });
+    expect(asked[2].body, "named, so asking again is safe").toEqual({ agent: "claude", cwd: "/srv/app", key: "launch-mgx1-1-k2v9q0" });
     const adopt = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
     await adoptTerminal(SESSION, { fetchFn: adopt.fetchFn }, { cols: 90, rows: 30 });
     expect(adopt.asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd, cols: 90, rows: 30 });
