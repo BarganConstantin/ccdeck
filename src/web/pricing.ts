@@ -1,3 +1,4 @@
+import { AUTO_REVIEW_MODEL, FREE_AUTO_REVIEW_TIER } from "../server/codex-review-policy.mjs";
 // Live Anthropic API pricing → dollar cost per agent.
 //
 // The rates themselves, and where and when each was read, are in
@@ -70,6 +71,9 @@ export function ratesForModel(
   speed: string = STANDARD_SPEED,
 ): ModelRates | null {
   if (!modelId) return null;
+  if (modelId === AUTO_REVIEW_MODEL && speed === FREE_AUTO_REVIEW_TIER) {
+    return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  }
   // OpenAI's published short-context tiers, checked 2026-10-19 at
   // developers.openai.com/api/docs/pricing. Only supported families get a
   // multiplier: an unknown tier/model remains unpriced.
