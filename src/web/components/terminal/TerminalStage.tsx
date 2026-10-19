@@ -40,6 +40,7 @@ import {
   type StageSubject,
 } from "../../use-terminal-session";
 import {
+  agentName,
   canType as phaseTakesKeys,
   headerStatus,
   spineLive,
@@ -173,6 +174,9 @@ export interface TerminalStageProps {
   onKeysOwner?(owner: KeysOwner): void;
   onCell?(cell: Cell): void;
   onLaunched?(launched: LaunchedSession): void;
+  /** Start the launch on the stage again, in the same folder with the same
+   *  options: its agent exited before the board had its session (endView). */
+  onLaunchAgain?(): void;
   /** A sentence for the deck's live region, once per change. */
   onAnnounce?(sentence: string): void;
   /** The body's phase changed — once per kind. The open morph waits on it:
@@ -194,6 +198,35 @@ export function subjectOf(show: StageShow): StageSubject {
 /** The stage's name for itself: the session's, or the empty stage's title. */
 export function stageName(show: StageShow): string {
   return show.kind === "session" ? show.session.name : show.kind === "launch" ? show.name : "Nothing on the stage";
+}
+
+/**
+ * The keys bar's sentence and action for a pane that takes no more keys, or
+ * null for one that does.
+ *
+ * A launch that ends while it is still a launch never became a board
+ * session: Codex exiting after it updated itself ("Please restart Codex"), a
+ * Claude told no at its folder's trust question. There is no conversation to
+ * reopen, and for a Codex no id to reopen it by, so Reopen here did nothing.
+ * What the reader wants then is the agent again, in the same folder.
+ */
+export function endView(
+  phase: StagePhase,
+  show: StageShow,
+  act: { reopen(): void; launchAgain?: () => void; attachAgain(): void },
+): EndView | null {
+  if (phase.kind === "ended") {
+    if (show.kind === "launch" && act.launchAgain) {
+      const name = agentName(show.agent);
+      return { sentence: `${name} exited — this is its last frame.`, action: `Start ${name} again`, onAction: act.launchAgain };
+    }
+    const ago = show.kind === "session" ? show.session.endedAgo : null;
+    return { sentence: `The session ended${ago ? ` ${ago}` : ""} — this is its last frame.`, action: "Reopen here", onAction: act.reopen };
+  }
+  if (phase.kind === "detached") {
+    return { sentence: "Another view took this pane over — the session keeps running.", action: "Attach again", onAction: act.attachAgain };
+  }
+  return null;
 }
 
 export default function TerminalStage(p: TerminalStageProps) {
@@ -313,17 +346,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     p.onWantKeys?.();
   };
 
-  let end: EndView | null = null;
-  if (phase.kind === "ended") {
-    const ago = p.show.kind === "session" ? p.show.session.endedAgo : null;
-    end = {
-      sentence: `The session ended${ago ? ` ${ago}` : ""} — this is its last frame.`,
-      action: "Reopen here",
-      onAction: session.adopt,
-    };
-  } else if (phase.kind === "detached") {
-    end = { sentence: "Another view took this pane over — the session keeps running.", action: "Attach again", onAction: retry };
-  }
+  const end = endView(phase, p.show, { reopen: session.adopt, launchAgain: p.onLaunchAgain, attachAgain: retry });
 
   const style = {
     "--session-hue": p.show.kind === "session" ? p.show.session.hue : p.show.kind === "launch" ? p.show.hue : 200,

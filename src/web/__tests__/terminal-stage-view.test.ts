@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { all, one, textOf, type Drawn } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
-import TerminalStage, { stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
+import TerminalStage, { endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LABEL, FULL_LABEL, FULL_LEAVE_LABEL, chipLabel, chipText, type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
@@ -440,6 +440,29 @@ describe("the stage as a whole", () => {
     expect(out).not.toContain('role="separator"');
   });
 
+  it("offers to start a launch's agent again when it exits before the board has its session, and to reopen a session", () => {
+    // Codex updating itself at its first screen ("Please restart Codex")
+    // exits as a launch: there is no conversation, and for a Codex no id, to
+    // reopen, so Reopen here did nothing.
+    const act = { reopen: vi.fn(), launchAgain: vi.fn(), attachAgain: vi.fn() };
+    const codex: StageShow = { kind: "launch", agent: "codex", cwd: "/w/ccdeck", name: "ccdeck", hue: 3, key: "n1" };
+    const ended = endView({ kind: "ended" }, codex, act);
+    expect(ended).toMatchObject({ sentence: "Codex exited — this is its last frame.", action: "Start Codex again" });
+    ended?.onAction();
+    expect(act.launchAgain).toHaveBeenCalledTimes(1);
+    expect(act.reopen).not.toHaveBeenCalled();
+    expect(endView({ kind: "ended" }, { ...codex, agent: "claude" }, act)).toMatchObject({ action: "Start Claude Code again" });
+    expect(endView({ kind: "ended" }, codex, { ...act, launchAgain: undefined }), "with nothing to start it, the old answer").toMatchObject({ action: "Reopen here" });
+
+    const gone: StageShow = { ...session, session: { ...(session as Extract<StageShow, { kind: "session" }>).session, endedAgo: "14m ago" } } as StageShow;
+    const reopen = endView({ kind: "ended" }, gone, act);
+    expect(reopen).toMatchObject({ sentence: "The session ended 14m ago — this is its last frame.", action: "Reopen here" });
+    reopen?.onAction();
+    expect(act.reopen).toHaveBeenCalledTimes(1);
+    expect(endView({ kind: "detached" }, session, act)).toMatchObject({ action: "Attach again" });
+    expect(endView({ kind: "live", sizeOwner: "panel", readOnly: false } as StagePhase, session, act)).toBeNull();
+  });
+
   it("hands the session hook a subject that names the session, or the launch, and nothing else", () => {
     expect(subjectOf(session)).toEqual({ kind: "session", ref: { sessionId: "s1", provider: "claude", cwd: "/w/paycore" } });
     expect(subjectOf({ kind: "launch", agent: "codex", cwd: "/w", name: "w", hue: 3, key: "n1" })).toEqual({ kind: "launch", agent: "codex", cwd: "/w", key: "n1" });
@@ -484,9 +507,17 @@ describe("asking for the session again from the stage", () => {
     const stage = web("components/terminal/TerminalStage.tsx");
     expect(stage).toMatch(/const retry = \(\) => \{\s*if \(phase\.kind === "tmux-missing" && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
     expect(stage).toContain("onRetry={retry}");
-    expect(stage).toMatch(/action: "Attach again", onAction: retry \}/);
+    expect(stage).toMatch(/action: "Attach again", onAction: act\.attachAgain \}/);
+    expect(stage).toMatch(/endView\(phase, p\.show, \{[^}]*attachAgain: retry \}\)/);
     expect(stage).not.toContain("session.retry}");
     expect(web("components/terminal/StageShell.tsx")).toContain("onWantKeys={stage.focusPane}");
+  });
+
+  it("starts an exited launch again as a new launch, in its folder with its options", () => {
+    // A new key, so the deck starts an agent rather than finding the one that exited.
+    expect(web("components/terminal/StageShell.tsx"))
+      .toContain('onLaunchAgain={show.kind === "launch" ? () => stage.launch(show.agent, show.cwd, show.options) : undefined}');
+    expect(web("components/terminal/TerminalStage.tsx")).toContain("launchAgain: p.onLaunchAgain");
   });
 
   it("lands a request still holding keys with a catch, so a sentence mid-way never presses the card", () => {
