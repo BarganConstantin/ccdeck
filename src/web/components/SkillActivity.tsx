@@ -36,7 +36,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
   const [details, setDetails] = useState<SkillReport['details']>(null);
   const [loading, setLoading] = useState(true); const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState(''); const [detailError, setDetailError] = useState('');
-  const loadedQuery = useRef<string | null>(null);
+  const loadedQuery = useRef<string | null>(null); const reading = useRef(false);
   const listRef = useRef<HTMLUListElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const sideBySide = useMediaQuery('(min-width: 960px)');
@@ -53,7 +53,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
     setError('');
     // A refresh keeps the numbers on screen; a new period or agent never shows the old ones.
     if (loadedQuery.current !== query) { setData(null); setDetails(null); setShowAll(false); }
-    setLoading(true);
+    reading.current = true; setLoading(true);
     void (async () => {
       try {
         const reply = await readAuditReport<SkillReport>(query, controller.signal);
@@ -62,14 +62,16 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
           setSelected(current => current && reply.rows.some(row => row.name === current) ? current : null);
         }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
-      finally { window.clearTimeout(deadline); if (live) setLoading(false); }
+      finally { window.clearTimeout(deadline); if (live) { reading.current = false; setLoading(false); } }
     })();
-    return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
+    return () => { live = false; controller.abort(); window.clearTimeout(deadline); reading.current = false; };
   }, [query, refresh]);
 
   useEffect(() => {
     setDetails(previous => previous?.name === selected && loadedQuery.current === query ? previous : null); setDetailError('');
-    if (!selected || !data || loading) { setDetailLoading(false); return; }
+    // `reading` and not just `loading`: a new period starts the list's read in this same commit,
+    // where `loading` is still false, and the two reads would meet at the one report worker.
+    if (!selected || !data || loading || reading.current) { setDetailLoading(false); return; }
     let live = true; const controller = new AbortController();
     const deadline = window.setTimeout(() => controller.abort(), 65000); setDetailLoading(true);
     void (async () => {
@@ -129,7 +131,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
             <h3 id="sa-skills-title">Skills <span className="ta-count">{data.rows.length.toLocaleString()}</span></h3>
             <label className="ta-search"><SearchGlyph /><input type="search" aria-label="Find a skill" placeholder="Find a skill" value={search} onChange={event => setSearch(event.target.value)} /></label>
           </div>
-          <div className="uh-range ta-sorts" role="group" aria-label="Sort by">{skillSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{item.label}</button>)}</div>
+          <div className="uh-range ta-sorts sa-sorts" role="group" aria-label="Sort by">{skillSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{item.label}</button>)}</div>
           <div className="ta-list-head sa-list-head" aria-hidden="true" data-sort={sort} data-failures={failures || undefined}><span>Name</span><span data-col="uses">Uses</span><span data-col="recent">Last used</span>{failures && <span data-col="failed">Failed</span>}</div>
           <ul className="ta-list sa-list" ref={listRef} data-sort={sort} data-failures={failures || undefined}>{visible.map(row => {
             const { namespace, short } = skillParts(row.name);
