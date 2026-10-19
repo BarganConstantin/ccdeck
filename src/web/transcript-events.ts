@@ -368,20 +368,23 @@ export function applyUsageObserved(state: GraphState, p: HookPayload, sessionId:
       // object rather than replacing it, and `reasoningOutputTokens` is only
       // written when the wire carries it, exactly as the field-by-field read
       // this replaced did.
-      Object.assign(root.usage, usageFromWire(u));
+      const nextUsage = usageFromWire(u);
+      const reset = nextUsage.inputTokens < root.usage.inputTokens || nextUsage.outputTokens < root.usage.outputTokens
+        || nextUsage.cacheReadTokens < root.usage.cacheReadTokens || nextUsage.cacheCreateTokens < root.usage.cacheCreateTokens;
+      Object.assign(root.usage, nextUsage);
       // The same totals, split by the model that produced them (#686). The
       // flat bucket above answers "how many tokens"; this answers "at whose
       // rate", and until this landed the second question was answered with
       // `root.model` — the LAST model seen — so a session that switched had
       // its whole history re-priced at whichever model wrote its final line.
       //
-      // Assigned unconditionally, null included, for exactly the reason the
-      // TTL split above is: both are cumulative descriptions of the
-      // whole file, so a pass that carries no split is saying there is none,
-      // not that the previous one still stands. An `undefined` map sends every
-      // cost surface back to the single-model arithmetic, which is what a
-      // Codex session and a pre-#686 server both need.
-      root.usageByModel = usageByModelFromWire(p.usageByModel);
+      // Explicit null clears a cumulative snapshot's old model split.
+      // Codex's live token tick carries only flat totals. Keep the bounded
+      // scanner's tier split until its next snapshot (at most 2.5 seconds of
+      // activity); explicit null, a reset, and Claude snapshots still clear it.
+      if (root.provider !== "codex" || p.usageByModel !== undefined || reset) {
+        root.usageByModel = usageByModelFromWire(p.usageByModel);
+      }
     }
   }
 }

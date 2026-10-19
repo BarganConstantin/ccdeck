@@ -6,7 +6,7 @@
 // touches a temp directory of its own — a fake claude-swap store, a swap log, a
 // projects tree — so nothing reads or writes the real machine.
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtemp, writeFile, appendFile, mkdir, readFile, rm } from "node:fs/promises";
+import { realpath, mkdtemp, writeFile, appendFile, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 // @ts-expect-error — plain .mjs server module, no types
@@ -188,8 +188,8 @@ describe("the incremental scan", () => {
     const swapLog = join(await tmp(), "swap.jsonl");
     const bogusStore = join(await tmp(), "no-store");   // seedActive reads this, finds nothing, noops
 
-    await appendSwap(TIMELINE[0], swapLog);
-    await appendSwap(TIMELINE[1], swapLog);
+    await appendSwap({ ...TIMELINE[0], projectsRoot: await realpath(projects) }, swapLog);
+    await appendSwap({ ...TIMELINE[1], projectsRoot: await realpath(projects) }, swapLog);
     await writeFile(file, line("2026-09-22T10:30:00Z", "claude-opus-5", "/Users/c/agents-deck", 100, 0) + "\n", "utf8");
 
     const rollup = createProjectRollup({
@@ -213,9 +213,9 @@ describe("the incremental scan", () => {
 
     // The tally persisted to disk.
     const disk = JSON.parse(await readFile(stateFile, "utf8"));
-    expect(disk.version).toBe(7);
+    expect(disk.version).toBe(8);
     expect(disk.tally[KEY_A]["/Users/c/agents-deck"]).toBeTruthy();
-    expect(disk.cursors[file]).toBeGreaterThan(0);
+    expect(disk.cursors[await realpath(file)]).toBeGreaterThan(0);
   });
 
   it("falls back to the folder name when a line carries no cwd", async () => {
@@ -226,7 +226,7 @@ describe("the incremental scan", () => {
     await writeFile(join(slug, "s.jsonl"),
       JSON.stringify({ type: "assistant", timestamp: "2026-09-22T10:30:00Z", message: { model: "claude-opus-5", usage: { input_tokens: 3, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } }) + "\n", "utf8");
     const swapLog = join(await tmp(), "swap.jsonl");
-    await appendSwap(TIMELINE[0], swapLog);
+    await appendSwap({ ...TIMELINE[0], projectsRoot: await realpath(projects) }, swapLog);
     const rollup = createProjectRollup({
       now: () => ISO("2026-09-22T12:00:00Z"),
       roots: [projects], state: join(await tmp(), "st.json"), swapLog, storeRoot: join(await tmp(), "none"),
@@ -236,7 +236,7 @@ describe("the incremental scan", () => {
     expect(rep.projects[0].name).toBe("widget");
   });
 
-  it.each([1, 6])("rebuilds version %s while fencing off the time the deck was down", async (version) => {
+  it.each([1, 6, 7])("rebuilds version %s while fencing off the time the deck was down", async (version) => {
     const root = await tmp();
     const projects = join(root, "projects");
     const slug = join(projects, "-Users-c-p");
@@ -247,7 +247,7 @@ describe("the incremental scan", () => {
       line("2026-09-05T10:00:00Z", "claude-opus-5", "/Users/c/p", 10, 0) + "\n" +
       line("2026-09-20T10:00:00Z", "claude-opus-5", "/Users/c/p", 7, 0) + "\n", "utf8");
     const swapLog = join(await tmp(), "swap.jsonl");
-    await appendSwap({ at: ISO("2026-09-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }, swapLog);
+    await appendSwap({ at: ISO("2026-09-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start", projectsRoot: await realpath(projects) }, swapLog);
     // A state file whose last heartbeat is well before now: the deck was down.
     const stateFile = join(await tmp(), "st.json");
     await writeFile(stateFile, JSON.stringify({ version, cursors: {}, tally: {}, lastAlive: ISO("2026-09-10T00:00:00Z") }), "utf8");
@@ -317,7 +317,7 @@ describe("a session counts under the folder it started in (#1278)", () => {
   }
   async function rollupOver(projects: string, stateFile?: string) {
     const swapLog = join(await tmp(), "swap.jsonl");
-    await appendSwap(TIMELINE[0], swapLog);
+    await appendSwap({ ...TIMELINE[0], projectsRoot: await realpath(projects) }, swapLog);
     const rollup = createProjectRollup({
       now: () => ISO("2026-09-22T10:30:00Z"),
       roots: [projects], state: stateFile ?? join(await tmp(), "st.json"), swapLog, storeRoot: join(await tmp(), "none"),
@@ -405,8 +405,8 @@ describe("a session counts under the folder it started in (#1278)", () => {
     await rollup.tick();
     expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [ws]: 3 });   // and only once
     const disk = JSON.parse(await readFile(stateFile, "utf8"));
-    expect(disk.version).toBe(7);
-    expect(disk.folders[slug]).toBe(ws);
+    expect(disk.version).toBe(8);
+    expect(disk.folders[await realpath(projects)][slug]).toBe(ws);
     // The heartbeat survived the rebuild: the hour down is fenced from it.
     const stop = (await readSwapLog(swapLog)).find((e: { source: string }) => e.source === "stop");
     expect(stop?.at).toBe(ISO("2026-09-22T09:30:00Z") + 1);

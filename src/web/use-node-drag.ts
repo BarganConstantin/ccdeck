@@ -10,6 +10,7 @@
 import { useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import type { Node, NodeDragHandler } from "reactflow";
 
+import { sessionOfNode } from "./layout-geometry";
 import { hidePeek } from "./components/SessionPeek";
 import { saveLayout } from "./layout-storage";
 import type { GraphState } from "./reducer";
@@ -79,7 +80,7 @@ export function useNodeDrag({
       if (sid) {
         for (const m of nodes) {
           const d = m.data as AgentNodeData | undefined;
-          if (d?.sessionId !== sid) continue;
+          if (!d || sessionOfNode(m) !== sid) continue;
           members.set(m.id, { x: m.position.x, y: m.position.y });
           pinsBefore.set(m.id, pinnedRef.current.get(m.id));
         }

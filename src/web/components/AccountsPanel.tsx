@@ -57,9 +57,14 @@ interface Props {
    *  re-sign-in prompt over the canvas watches the same reads rather than
    *  polling the store for itself (#1893). */
   onRoster?: (fresh: AccountsData) => void;
+  /** Settings › General asked for Local network (#2176): the view is shown
+   *  once it can be — when the roster that mounts it has arrived — and
+   *  `onLanShown` says the ask has been answered. */
+  lanWanted?: boolean;
+  onLanShown?: () => void;
 }
 
-export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: Props) {
+export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel");
   const singleKeys = useSingleKeyShortcuts();
@@ -217,7 +222,14 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
   // that will not come. See noCopyWorksNearby.
   const [noCopy, setNoCopy] = useState<ReadonlySet<string>>(() => new Set());
   const takeNoCopy = useCallback((keys: readonly string[]) => setNoCopy(new Set(keys)), []);
-  const lanFor = (a: Account) => ({ noCopyWorksNearby: noCopy.has(lanAccounts([a])[0].key) });
+  // And which logins this deck offers, to whom, for the share mark on their
+  // rows (#2170): from the same status, so a row and the setup dialog's ticks
+  // never disagree.
+  const [shared, setShared] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map());
+  const lanFor = (a: Account) => {
+    const key = lanAccounts([a])[0].key;
+    return { noCopyWorksNearby: noCopy.has(key), sharedTo: shared.get(key) ?? null };
+  };
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
 
@@ -351,6 +363,15 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
     });
   }, [view]);
   useEffect(() => { if (data?.ok) setLanReady(true); }, [data?.ok]);
+  // Settings' door to Local network (#2176), answered by the panel's own way
+  // in, so nothing hangs over the view on the way and focus lands on Back as
+  // it does after a press of the row. Not before the section is mounted: a
+  // view switched to with nothing to draw would be an empty column.
+  useEffect(() => {
+    if (!lanWanted || !lanReady) return;
+    openLan();
+    onLanShown?.();
+  }, [lanWanted, lanReady]);
 
   // A popover left standing as the panel slides out would float over the
   // canvas where the panel used to be; one whose account has left the store
@@ -685,6 +706,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster }: 
           accounts={lanAccounts(data?.accounts ?? [])}
           onChanged={() => load(true)}
           onNoCopy={takeNoCopy}
+          onShared={setShared}
           view={view === "lan"}
           onOpen={openLan}
           onBack={() => setView("accounts")}

@@ -357,7 +357,7 @@ describe("the custom section of the sound menu (#1207)", () => {
 
   it("says how full the library is where sounds are added, before any work is done", () => {
     expect(customSounds).toMatch(/\{customCount\} of \{MAX_CUSTOM_ASSETS\}/);
-    expect(customSounds).toMatch(/\{full && <p className="sm-note" id="sm-custom-full">\{fullReason\}<\/p>\}/);
+    expect(customSounds).toMatch(/\{full && <p className="settings-row settings-row-status" id="sm-custom-full">\{fullReason\}<\/p>\}/);
     // The recording refuses before the microphone is asked for, and the voice
     // form stays shut rather than being filled in for nothing.
     expect(recorder).toMatch(/const startRecording = async \(\) => \{\s*if \(full\) return;/);

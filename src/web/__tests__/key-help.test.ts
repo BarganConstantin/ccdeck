@@ -84,8 +84,9 @@ describe("every key the deck binds is written down where a user can find it", ()
       // the selected card and its session, framed at a readable zoom. Delete
       // since Remove from board left the topbar for the detail panel. The
       // comma since Settings: Cmd+, or Ctrl+, opens it, the one chord the deck
-      // claims.
-      .toEqual([" ", ",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
+      // claims. I since #2178: Jira, once a connection exists (J and K were
+      // already the canvas's next and previous agent).
+      .toEqual([" ", ",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {
@@ -212,8 +213,10 @@ describe("the sound switch, which had a control and no key", () => {
   it("names its key where the switch is", () => {
     // The topbar speaker named M in its tooltip, the way every control on the
     // bar names its key. The speaker left the bar (2026-10-07), and the switch
-    // is Settings › Sounds' — which draws the key under it, as a key.
-    expect(read("components/SoundSwitch.tsx")).toContain("<kbd>M</kbd>Mute or unmute sounds anywhere.");
+    // is Settings › Sounds' — which draws the key beside it, as a key, and
+    // declares it on the switch (#2176).
+    expect(read("components/SoundSwitch.tsx")).toMatch(/<kbd className="settings-key"[^>]*>M<\/kbd>/);
+    expect(read("components/SoundSwitch.tsx")).toContain('aria-keyshortcuts={singleKeys ? "M" : undefined}');
   });
 
   it("sends both ways to the switch through one door", () => {

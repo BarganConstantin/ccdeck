@@ -1,3 +1,4 @@
+import { sessionOfNode } from "./layout-geometry";
 // Where each session's decorative box goes on the canvas, and how far its
 // header may reach past it — the geometry the cluster layer draws, worked out
 // from the agent cards React Flow has measured.
@@ -207,10 +208,10 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
     const y1 = n.position.y;
     const x2 = x1 + n.width;
     const y2 = y1 + n.height;
-    const existing = bySession.get(d.sessionId);
-    const root = rootFields(d);
+    const existing = bySession.get(sessionOfNode(n));
+    const root = d.canvasSessionId && d.canvasSessionId !== d.sessionId ? null : rootFields(d);
     if (!existing) {
-      bySession.set(d.sessionId, {
+      bySession.set(sessionOfNode(n), {
         minX: x1, minY: y1, maxX: x2, maxY: y2,
         label: root?.label ?? d.sessionId,
         name: root?.name,

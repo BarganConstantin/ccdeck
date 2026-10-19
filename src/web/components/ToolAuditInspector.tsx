@@ -16,9 +16,11 @@ function whoUsed(row: AuditRow) {
   return claude ? 'All by Claude' : 'All by Codex';
 }
 
-export default function ToolAuditInspector({ row, details, loading, error, kind, setKind, onClose }: {
+export default function ToolAuditInspector({ row, details, loading, error, kind, setKind, onClose, onShowSkills }: {
   row: AuditRow; details: AuditReport['details']; loading: boolean; error: string;
   kind: 'recent' | 'slowest'; setKind: (kind: 'recent' | 'slowest') => void; onClose: () => void;
+  /** The Skill tool's row: which skills those calls loaded is the Skills tab's answer. */
+  onShowSkills?: () => void;
 }) {
   const description = operationDescription(row.operation);
   const calls = details?.[kind] ?? [];
@@ -44,6 +46,7 @@ export default function ToolAuditInspector({ row, details, loading, error, kind,
       {row.maxMs !== null && row.measured > 1 && <> · longest {auditDuration(row.maxMs)}</>}
       {row.unmatched > 0 && <> · {count(row.unmatched, 'call')} without a result yet</>}
     </p>
+    {onShowSkills && <button type="button" className="btn ta-show-skills" onClick={onShowSkills}>See which skills ran →</button>}
 
     {error && <p className="ta-message" role="alert">{error}</p>}
     {details?.history && <ToolAuditHistory key={row.operation} history={details.history} />}

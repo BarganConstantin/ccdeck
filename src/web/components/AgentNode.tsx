@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
 import { fmtCost, UNPRICED_LABEL } from "../pricing";
@@ -12,9 +13,10 @@ import { codexApprovalTell } from "../codex-approval";
 // React component behind it. See model-label.ts for why the move happened with
 // that fix rather than with #374's wider consolidation.
 import { modelChipText, modelChipTitle as chipTitle, modelFamily } from "../model-label";
+import { maxSqueeze, nextSqueeze, rowAt } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
+import { agentKindLabel, spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -70,7 +72,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // session's early ones. Silent at zero, like the in-flight count: a session
   // with nothing wrong says nothing.
   const failed = data.toolErrorCount ?? 0;
-  const hue = sessionHue(data.sessionId);
+  const hue = sessionHue(data.canvasSessionId ?? data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
   const hasContextSignal = data.kind === "root" && currentContextTokens > 0;
   // The sentence Claude Code titles the session with, in the tooltip the card
@@ -92,19 +94,49 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // names the others, so a reader who sees $7.50 under a Sonnet chip is not left
   // to conclude the deck priced a million Opus tokens at Sonnet's rate.
   const otherModels = otherModelIds(data);
-  // THE EFFORT ONLY WHERE IT FITS (#2155). "Opus 5.5 · xhigh +1" beside a
-  // spawn badge is wider than the row, and the row ellipsises at its end, so
-  // the suffix took the whole chip off the card — the model with it. The card
-  // tries the chip with its effort, measures, and keeps the model alone when
-  // the row overflows; the tooltip, the session list, the peek and the details
-  // panel still say the effort. Tried again whenever what the row holds changes.
+  // WHAT GIVES WAY ON A TIGHT ROW (#2155, #2169): the kind word, then the
+  // effort, and a subagent's folder is cut short on its own — never the model.
+  // The order and why are card-row-squeeze.ts's. MEASURED, not reserved: the
+  // row is drawn whole and steps down one notch per paint while it overflows
+  // or the folder is cut, and starts again from the top whenever what it holds
+  // changes, or its width does (a text-size change, a clock that gained a
+  // digit).
   const detailsRef = useRef<HTMLSpanElement>(null);
-  const [effortFits, setEffortFits] = useState(true);
-  useBeforePaint(() => { setEffortFits(true); }, [data.effort, data.model, otherModels.length, data.cwdBasename, data.childCount]);
+  const folderRef = useRef<HTMLSpanElement>(null);
+  const squeezeMax = maxSqueeze(data);
+  const [squeeze, setSqueeze] = useState(0);
+  // The row's width as last observed: a change in it starts the squeeze again
+  // like a change in what the row holds does. A state, not a reset alone — a
+  // row still at the top notch that has narrowed must be measured again too.
+  const [rowWidth, setRowWidth] = useState<number | null>(null);
+  useBeforePaint(() => { setSqueeze(0); }, [data.effort, data.model, otherModels.length, data.cwdBasename, data.childCount, data.kind, squeezeMax, rowWidth]);
   useBeforePaint(() => {
     const el = detailsRef.current;
-    if (el && effortFits && data.effort && el.scrollWidth > el.clientWidth) setEffortFits(false);
+    // No layout read once there is nothing left to give up.
+    if (!el || squeeze >= squeezeMax) return;
+    const folder = folderRef.current;
+    const next = nextSqueeze(squeeze, {
+      overflowing: el.scrollWidth > el.clientWidth,
+      folderCut: !!folder && folder.scrollWidth > folder.clientWidth,
+      max: squeezeMax,
+    });
+    if (next !== squeeze) setSqueeze(next);
   });
+  useEffect(() => {
+    const el = detailsRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = el.clientWidth;
+    // Synchronously, so the row is measured again before the frame is painted
+    // rather than drawn once at its old notch.
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      flushSync(() => setRowWidth(width));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const row = rowAt(squeeze);
   const modelChipTitle = data.model && (otherModels.length > 0
     ? `${chipTitle(data.model, data.effort)}\nspend on this card also covers:\n${otherModels.join("\n")}`
     : chipTitle(data.model, data.effort));
@@ -141,6 +173,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         <div className="title">
           <StatePill state={data.state} />
           <span className="label" title={cardTooltip}>{data.label}</span>
+          {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? "Restored from Claude’s busy-session registry after verifying the process identity. Earlier tool history is partial." : "Restored from a log with no recorded ending. Process status is not confirmed."}>restored</span>}
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
           {/* Claude Code's ※, in the session's colour, beside the name: the
               card's own mark that a recap is there, and the switch for its
@@ -172,17 +205,19 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         </div>
       </div>
 
-      {/* The row ellipsises at the card's width and a subagent's folder can
-          fill it, cutting the model chip away; its tooltip says it whole. The
-          badge and the chip keep their own, which the browser prefers over
-          this one under the pointer. */}
+      {/* The row gives way in order (squeeze, above), so a subagent's folder
+          is cut short rather than the model chip; its tooltip says the row
+          whole. The badge and the chip keep their own, which the browser
+          prefers over this one under the pointer. */}
       <div className="sub" title={subRowTitle(data)}>
         <span className="sub-details" ref={detailsRef}>
-          {data.kind === "root" ? "session" : "subagent"}
+          {row.kind && <span>{agentKindLabel(data)}</span>}
           {data.childCount > 0 && (
             <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
           )}
-          {data.cwdBasename && data.kind === "subagent" ? ` · ${data.cwdBasename}` : ""}
+          {data.cwdBasename && data.kind === "subagent" && (
+            <span className="sub-folder" ref={folderRef}>{row.kind ? "· " : ""}{data.cwdBasename}</span>
+          )}
           {/* The chip README.md names as how the two CLIs are told apart, on the
               nodes that have no model to put in it (#404). `provider` has been
               carried on every node since Codex support landed and read by nothing
@@ -205,7 +240,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
                Sonnet to Opus matched two equal-specificity rules and took the
                last one, drawing "Opus 5 +1" in Sonnet blue. */
             ? <span className="model-chip" data-family={modelFamily(data.model)} title={modelChipTitle}>
-                {modelChipText(data.model, effortFits ? data.effort : undefined)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
+                {modelChipText(data.model, row.effort ? data.effort : undefined)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
               </span>
             : data.provider === "codex"
               ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>

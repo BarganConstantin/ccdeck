@@ -151,16 +151,17 @@ export function createWireCapture({ host, port, onExport, onResponse, onIssue, o
     const side = dst === host && dstPort === port ? 'out' : src === host && srcPort === port ? 'in' : null;
     if (!side) return;
     const key = side === 'out' ? `${src}:${srcPort}` : `${dst}:${dstPort}`;
-    for (const [k, f] of flows) if (at - f.at > 60_000) discard(k, 'idle_connection');
     let flow = flows.get(key);
     const syn = !!(t[13] & 2), ack = !!(t[13] & 16);
     if (syn && !ack) flows.delete(key);
     if (!flow || (syn && !ack)) {
       if (flows.size >= 16) discard(flows.keys().next().value, 'connection_limit');
-      flow = { key, at, ready: false, out: direction(), in: direction(), streams: new Map(), ignored: false };
+      flow = { key, ready: false, out: direction(), in: direction(), streams: new Map(), ignored: false };
       flows.set(key, flow);
     }
-    flow.at = at;
+    // Quiet HTTP/2 connections still need their preface and HPACK state for the
+    // next export. Bound retention by connection count, evicting the least used.
+    flows.delete(key); flows.set(key, flow);
     const size = (t[12] >> 4) * 4;
     if (size < 20 || size > t.length) { discard(key, 'capture_gap'); return; }
     const body = t.subarray(size), d = flow[side];

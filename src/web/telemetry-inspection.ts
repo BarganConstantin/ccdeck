@@ -1,5 +1,5 @@
 import type { RadarSnapshot, RadarVariable } from "./traffic-radar";
-export interface RadarSession { id: string; label: string }
+export interface RadarSession { id: string; label: string; workspace?: string; project?: string }
 export function configuredDestinations(variables: RadarVariable[]) {
   return [...new Set(variables.filter(v => v.key.endsWith("ENDPOINT")).map(v => v.value).filter(v => /^https?:\/\//.test(v)))];
 }

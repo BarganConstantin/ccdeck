@@ -32,18 +32,18 @@ describe("JsonInspector", () => {
       expect(markup).not.toMatch(/<(?:script|img)\b/);
       expect(markup).toContain("&lt;script&gt;");
       expect(markup).toContain("&lt;img");
-      expect(markup).toContain('class="tr-json-key"');
+      expect(markup).toContain(initialMode === "raw" ? 'class="tr-json-key"' : 'class="jer-key-text"');
       if (initialMode === "raw") expect(JSON.parse(rawText(markup))).toEqual(value);
     }
   });
 
-  it("expands the root but does not read descendants of closed branches", () => {
+  it("keeps closed descendants unmounted and avoids walking deeper collections", () => {
     let reads = 0;
     const child: { [key: string]: Json } = {};
-    Object.defineProperty(child, "hidden", { enumerable: true, get: () => { reads++; return "nested secret"; } });
+    Object.defineProperty(child, "hidden", { enumerable: true, get: () => ({ get deeper() { reads++; return "nested secret"; } }) });
     const markup = renderToStaticMarkup(<JsonInspector value={{ child }} />);
-    expect(markup.match(/<details[^>]* open=""/g)).toHaveLength(1);
-    expect(markup.match(/<details/g)).toHaveLength(2);
+    expect(markup.match(/aria-expanded="true"/g)).toHaveLength(1);
+    expect(markup.match(/aria-expanded="false"/g)).toHaveLength(1);
     expect(markup).not.toContain("nested secret");
     expect(reads).toBe(0);
   });
@@ -75,7 +75,8 @@ describe("JsonInspector", () => {
 
   it.each([[], {}] as Json[])("renders an empty collection %j without a pagination control", value => {
     const markup = renderToStaticMarkup(<JsonInspector value={value} />);
-    expect(markup).toContain(Array.isArray(value) ? "[]" : "{}");
+    expect(markup).toContain("0 items");
+    expect(markup).toContain(Array.isArray(value) ? ">[</span>" : ">{</span>");
     expect(markup).not.toContain("Show ");
   });
 

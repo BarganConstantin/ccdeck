@@ -187,6 +187,9 @@ describe("the modals themselves", () => {
       // The guides — pictures a step at a time — named here for the same
       // reason as the rest: this is how they join the loop below.
       "GuideModal.tsx",
+      // A connected tracker's panel — Jira's backlog — opened from its stripe
+      // control or I (#2178), joining the loop below like the rest.
+      "IntegrationModal.tsx",
       // #511's shortcuts sheet. Naming it here is how it enters the rule below
       // rather than how it escapes one: the loop that follows asks the same
       // question of every file in this list.
@@ -221,7 +224,7 @@ describe("the modals themselves", () => {
       // #723's share picker, named here for the same reason as the three
       // above: this is how it joins the loop below, not how it leaves it.
       "ShareAccountsDialog.tsx",
-      // Tool activity: the page, and its details as a sheet on phones.
+      // Tool activity: the report, and its details as a sheet on phones.
       "ToolAuditDrawer.tsx", "ToolAuditModal.tsx",
       "ToolModal.tsx", "TrafficRadar.tsx", "UsageHistoryModal.tsx",
     ]);
